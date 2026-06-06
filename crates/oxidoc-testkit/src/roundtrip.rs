@@ -110,6 +110,13 @@ pub fn check(golden: &[u8]) -> serde_json::Result<Roundtrip> {
     )
 }
 
+/// The JSON pointer of the first place two documents diverge by `serde_json::Value` equality, or
+/// `None` if they are equal. Shared with the differential surfaces in [`crate::differential`].
+#[must_use]
+pub fn json_first_difference(before: &Value, after: &Value) -> Option<String> {
+    first_difference(before, after, &mut String::new())
+}
+
 /// The JSON pointer of the first place `before` and `after` diverge, or `None` if they are equal.
 /// Recurses structurally so a mismatch deep in a table is reported as e.g. `/blocks/0/c/2`.
 fn first_difference(before: &Value, after: &Value, path: &mut String) -> Option<String> {
