@@ -1,27 +1,24 @@
 //! `oxidoc` — command-line interface.
 //!
-//! Parses `--from`/`--to`, selects a [`Reader`] and [`Writer`] by format name, and pipes input
-//! text through the conversion. Recognized formats are listed in [`InputFormat`]/[`OutputFormat`];
-//! anything else is a recognized-but-unsupported error rather than a panic.
+//! Parses `--from`/`--to` and pipes the input through the `oxidoc` library's [`convert`]. Format
+//! selection, aliases, and the recognized-but-unsupported error all live in the library; this binary
+//! only handles argument parsing and stdin/file I/O.
 
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::str::FromStr;
 
 use clap::Parser;
-use oxidoc_core::{Error, Reader, ReaderOptions, Result, Writer, WriterOptions};
-use oxidoc_readers::{CommonmarkReader, JsonReader};
-use oxidoc_writers::{HtmlWriter, JsonWriter};
+use oxidoc::{Error, ReaderOptions, Result, WriterOptions, convert};
 
 #[derive(Parser, Debug)]
 #[command(name = "oxidoc", version, about = "Document converter")]
 struct Cli {
-    /// Input format: `json` or `commonmark`.
+    /// Input format (e.g. `commonmark`, `json`).
     #[arg(short = 'f', long = "from")]
     from: Option<String>,
-    /// Output format: `json` or `html`.
+    /// Output format (e.g. `html`, `json`).
     #[arg(short = 't', long = "to")]
     to: Option<String>,
     /// Write output to this file instead of stdout.
@@ -29,62 +26,6 @@ struct Cli {
     output: Option<PathBuf>,
     /// Read input from this file instead of stdin.
     input: Option<PathBuf>,
-}
-
-enum InputFormat {
-    Json,
-    Commonmark,
-}
-
-enum OutputFormat {
-    Json,
-    Html,
-}
-
-impl FromStr for InputFormat {
-    type Err = Error;
-
-    fn from_str(value: &str) -> Result<Self> {
-        match value {
-            "json" => Ok(Self::Json),
-            "commonmark" | "markdown" => Ok(Self::Commonmark),
-            other => Err(unsupported(other)),
-        }
-    }
-}
-
-impl FromStr for OutputFormat {
-    type Err = Error;
-
-    fn from_str(value: &str) -> Result<Self> {
-        match value {
-            "json" => Ok(Self::Json),
-            "html" | "html5" => Ok(Self::Html),
-            other => Err(unsupported(other)),
-        }
-    }
-}
-
-impl InputFormat {
-    fn reader(&self) -> Box<dyn Reader> {
-        match self {
-            Self::Json => Box::new(JsonReader),
-            Self::Commonmark => Box::new(CommonmarkReader),
-        }
-    }
-}
-
-impl OutputFormat {
-    fn writer(&self) -> Box<dyn Writer> {
-        match self {
-            Self::Json => Box::new(JsonWriter),
-            Self::Html => Box::new(HtmlWriter),
-        }
-    }
-}
-
-fn unsupported(format: &str) -> Error {
-    Error::UnsupportedFormat(format.to_owned())
 }
 
 fn main() -> ExitCode {
@@ -98,27 +39,25 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: &Cli) -> Result<()> {
-    let input_format = require_format::<InputFormat>(cli.from.as_deref(), "--from")?;
-    let output_format = require_format::<OutputFormat>(cli.to.as_deref(), "--to")?;
+    let from = require_flag(cli.from.as_deref(), "--from")?;
+    let to = require_flag(cli.to.as_deref(), "--to")?;
 
     let input = read_input(cli.input.as_deref())?;
     let text = String::from_utf8(input)?;
 
-    let document = input_format
-        .reader()
-        .read(&text, &ReaderOptions::default())?;
-    let output = output_format
-        .writer()
-        .write(&document, &WriterOptions::default())?;
+    let output = convert(
+        from,
+        to,
+        &text,
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )?;
 
     write_output(cli.output.as_deref(), &output)
 }
 
-fn require_format<T: FromStr<Err = Error>>(format: Option<&str>, flag: &str) -> Result<T> {
-    match format {
-        Some(value) => value.parse(),
-        None => Err(Error::UnsupportedFormat(format!("{flag} is required"))),
-    }
+fn require_flag<'a>(value: Option<&'a str>, flag: &str) -> Result<&'a str> {
+    value.ok_or_else(|| Error::UnsupportedFormat(format!("{flag} is required")))
 }
 
 fn read_input(path: Option<&Path>) -> Result<Vec<u8>> {
