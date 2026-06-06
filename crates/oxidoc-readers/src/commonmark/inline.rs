@@ -330,6 +330,7 @@ impl InlineParser<'_> {
         for node in self.nodes.get_mut(..before).into_iter().flatten() {
             if let Node::Delimiter(d) = node
                 && d.ch == b'['
+                && !d.image
             {
                 d.active = false;
             }
