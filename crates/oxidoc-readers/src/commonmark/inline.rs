@@ -748,42 +748,179 @@ fn is_email_autolink(text: &str) -> bool {
         })
 }
 
+/// Recognize raw inline HTML at `start` (an open/closing tag, comment, processing instruction,
+/// declaration, or CDATA section) per spec §6.6. Returns the verbatim text and the end position.
 fn scan_html_tag(chars: &[char], start: usize) -> Option<(String, usize)> {
-    // Minimal recognizer: an open/close tag, comment, processing instruction, declaration, or
-    // CDATA. Returns the verbatim text and the position after `>`.
-    let rest: String = chars
-        .get(start..)
-        .map(|s| s.iter().collect())
-        .unwrap_or_default();
-    let tag = match_html_tag(&rest)?;
-    let len = tag.chars().count();
-    Some((tag, start + len))
+    let end = match_html(chars, start)?;
+    let text: String = chars.get(start..end)?.iter().collect();
+    Some((text, end))
 }
 
-fn match_html_tag(rest: &str) -> Option<String> {
-    if !rest.starts_with('<') {
+fn match_html(chars: &[char], start: usize) -> Option<usize> {
+    if chars.get(start).copied() != Some('<') {
         return None;
     }
-    let end = rest.find('>')?;
-    let candidate = rest.get(..=end)?;
-    let inner = candidate.get(1..candidate.len() - 1)?;
-    let valid = is_html_tag_inner(inner);
-    valid.then(|| candidate.to_owned())
+    match chars.get(start + 1).copied()? {
+        '/' => match_closing_tag(chars, start + 2),
+        '?' => match_until(chars, start + 2, "?>"),
+        '!' => match_declaration(chars, start),
+        c if c.is_ascii_alphabetic() => match_open_tag(chars, start + 1),
+        _ => None,
+    }
 }
 
-fn is_html_tag_inner(inner: &str) -> bool {
-    if inner.is_empty() {
-        return false;
+fn match_open_tag(chars: &[char], mut index: usize) -> Option<usize> {
+    index = match_tag_name(chars, index)?;
+    while let Some(next) = match_attribute(chars, index) {
+        index = next;
     }
-    let first = inner.chars().next();
-    match first {
-        Some('/') => inner.get(1..).is_some_and(|name| {
-            !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric())
-        }),
-        Some(c) if c.is_ascii_alphabetic() => true,
-        Some('!' | '?') => true,
-        _ => false,
+    index = skip_html_whitespace(chars, index);
+    if chars.get(index).copied() == Some('/') {
+        index += 1;
     }
+    (chars.get(index).copied() == Some('>')).then_some(index + 1)
+}
+
+fn match_closing_tag(chars: &[char], index: usize) -> Option<usize> {
+    let index = skip_html_whitespace(chars, match_tag_name(chars, index)?);
+    (chars.get(index).copied() == Some('>')).then_some(index + 1)
+}
+
+/// A comment (`<!-->`, `<!--->`, or `<!--` … `-->`), CDATA section, or declaration. `start` points
+/// at `<`; the following `!` is already known.
+fn match_declaration(chars: &[char], start: usize) -> Option<usize> {
+    let body = start + 2;
+    if chars.get(body).copied() == Some('-') && chars.get(body + 1).copied() == Some('-') {
+        let after = body + 2;
+        if chars.get(after).copied() == Some('>') {
+            return Some(after + 1);
+        }
+        if chars.get(after).copied() == Some('-') && chars.get(after + 1).copied() == Some('>') {
+            return Some(after + 2);
+        }
+        return match_until(chars, after, "-->");
+    }
+    if matches_at(chars, body, "[CDATA[") {
+        return match_until(chars, body + 7, "]]>");
+    }
+    if chars
+        .get(body)
+        .copied()
+        .is_some_and(|c| c.is_ascii_alphabetic())
+    {
+        return match_until_char(chars, body + 1, '>');
+    }
+    None
+}
+
+fn match_tag_name(chars: &[char], index: usize) -> Option<usize> {
+    if !chars.get(index).copied()?.is_ascii_alphabetic() {
+        return None;
+    }
+    let mut end = index + 1;
+    while chars
+        .get(end)
+        .copied()
+        .is_some_and(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        end += 1;
+    }
+    Some(end)
+}
+
+/// An attribute: at least one whitespace, an attribute name, then an optional value specification.
+fn match_attribute(chars: &[char], index: usize) -> Option<usize> {
+    let after_space = skip_html_whitespace(chars, index);
+    if after_space == index {
+        return None;
+    }
+    let mut end = match_attribute_name(chars, after_space)?;
+    if let Some(next) = match_attribute_value_spec(chars, end) {
+        end = next;
+    }
+    Some(end)
+}
+
+fn match_attribute_name(chars: &[char], index: usize) -> Option<usize> {
+    let first = chars.get(index).copied()?;
+    if !(first.is_ascii_alphabetic() || first == '_' || first == ':') {
+        return None;
+    }
+    let mut end = index + 1;
+    while chars
+        .get(end)
+        .copied()
+        .is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '-'))
+    {
+        end += 1;
+    }
+    Some(end)
+}
+
+fn match_attribute_value_spec(chars: &[char], index: usize) -> Option<usize> {
+    let equals = skip_html_whitespace(chars, index);
+    if chars.get(equals).copied() != Some('=') {
+        return None;
+    }
+    let value = skip_html_whitespace(chars, equals + 1);
+    match_attribute_value(chars, value)
+}
+
+fn match_attribute_value(chars: &[char], index: usize) -> Option<usize> {
+    match chars.get(index).copied()? {
+        '\'' => match_until_char(chars, index + 1, '\''),
+        '"' => match_until_char(chars, index + 1, '"'),
+        _ => {
+            let mut end = index;
+            while chars.get(end).copied().is_some_and(|c| {
+                !matches!(
+                    c,
+                    ' ' | '\t' | '\n' | '\r' | '"' | '\'' | '=' | '<' | '>' | '`'
+                )
+            }) {
+                end += 1;
+            }
+            (end != index).then_some(end)
+        }
+    }
+}
+
+fn skip_html_whitespace(chars: &[char], mut index: usize) -> usize {
+    while matches!(chars.get(index).copied(), Some(' ' | '\t' | '\n' | '\r')) {
+        index += 1;
+    }
+    index
+}
+
+fn matches_at(chars: &[char], index: usize, needle: &str) -> bool {
+    needle
+        .chars()
+        .enumerate()
+        .all(|(offset, c)| chars.get(index + offset).copied() == Some(c))
+}
+
+/// Position just past the first occurrence of `needle` at or after `from`, or `None` if absent.
+fn match_until(chars: &[char], from: usize, needle: &str) -> Option<usize> {
+    let pattern: Vec<char> = needle.chars().collect();
+    let mut index = from;
+    while index + pattern.len() <= chars.len() {
+        if chars.get(index..index + pattern.len()) == Some(pattern.as_slice()) {
+            return Some(index + pattern.len());
+        }
+        index += 1;
+    }
+    None
+}
+
+fn match_until_char(chars: &[char], from: usize, needle: char) -> Option<usize> {
+    let mut index = from;
+    while let Some(c) = chars.get(index).copied() {
+        if c == needle {
+            return Some(index + 1);
+        }
+        index += 1;
+    }
+    None
 }
 
 fn scan_entity(chars: &[char], start: usize) -> Option<(String, usize)> {
