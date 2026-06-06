@@ -403,7 +403,7 @@ impl Parser {
             if let Some(level) = cursor.atx_heading() {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
-                self.append_text(index, &cursor.rest());
+                self.append_text(index, &strip_atx_closing(&cursor.rest()));
                 self.close(index);
                 return Some(index);
             }
@@ -758,6 +758,21 @@ fn fence_attr(info: &str) -> Attr {
 
 fn strip_one_trailing_newline(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
+}
+
+/// Trim an ATX heading's content: drop surrounding spaces/tabs and an optional closing run of `#`
+/// (which must be preceded by whitespace or form the whole line, else it belongs to the content).
+fn strip_atx_closing(content: &str) -> String {
+    let trimmed = content.trim_matches([' ', '\t']);
+    let without_hashes = trimmed.trim_end_matches('#');
+    if without_hashes.len() == trimmed.len() {
+        return trimmed.to_owned();
+    }
+    if without_hashes.is_empty() || without_hashes.ends_with([' ', '\t']) {
+        without_hashes.trim_end_matches([' ', '\t']).to_owned()
+    } else {
+        trimmed.to_owned()
+    }
 }
 
 /// Tag names that begin an HTML block of type 6 (terminated by a blank line).
