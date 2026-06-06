@@ -1,6 +1,6 @@
 //! The oxidoc differential test harness.
 //!
-//! Drives the pinned pandoc binary — installed black-box into the gitignored `.pandoc-ref/`
+//! Drives the pinned pandoc binary — installed black-box into the gitignored `.oracle/`
 //! directory by `tools/install-pandoc.sh` (see `docs/PORTING.md` §5) — as the correctness oracle,
 //! and diffs its output against oxidoc across the two oracle surfaces (reader and writer).
 //!
@@ -9,19 +9,35 @@
 
 use std::path::{Path, PathBuf};
 
-/// Path to the gitignored pandoc reference directory at the workspace root.
+pub mod command_test;
+
+/// Path to the gitignored oracle directory at the workspace root, holding the pinned pandoc binary
+/// and fetched test corpus.
 ///
 /// Resolved relative to this crate's manifest, so it is independent of the current working
 /// directory. The directory exists only after `tools/install-pandoc.sh` has been run.
 #[must_use]
-pub fn pandoc_ref_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.pandoc-ref")
+pub fn oracle_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.oracle")
 }
 
-/// Path to the pinned pandoc binary inside [`pandoc_ref_dir`].
+/// Path to the pinned pandoc binary inside [`oracle_dir`].
 #[must_use]
 pub fn pandoc_bin() -> PathBuf {
-    pandoc_ref_dir().join("bin/pandoc")
+    oracle_dir().join("bin/pandoc")
+}
+
+/// Root of the fetched pandoc test corpus (`.oracle/tests/test`), populated by
+/// `tools/fetch-pandoc-tests.sh`. Exists only after that script has run.
+#[must_use]
+pub fn pandoc_tests_dir() -> PathBuf {
+    oracle_dir().join("tests/test")
+}
+
+/// Path to pandoc's command-test files (`test/command`) within the fetched corpus.
+#[must_use]
+pub fn command_tests_dir() -> PathBuf {
+    pandoc_tests_dir().join("command")
 }
 
 #[cfg(test)]
@@ -30,7 +46,9 @@ mod tests {
 
     #[test]
     fn ref_paths_anchor_at_workspace_root() {
-        assert!(pandoc_ref_dir().ends_with(".pandoc-ref"));
+        assert!(oracle_dir().ends_with(".oracle"));
         assert!(pandoc_bin().ends_with("bin/pandoc"));
+        assert!(pandoc_tests_dir().ends_with("tests/test"));
+        assert!(command_tests_dir().ends_with("command"));
     }
 }
