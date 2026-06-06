@@ -60,10 +60,17 @@ fn parse(input: &str) -> Document {
     }
 }
 
-/// Normalize line endings to `\n` and strip a leading UTF-8 BOM, per the spec's preprocessing.
+/// Width of a tab stop in columns, used when expanding tabs during preprocessing.
+const TAB_STOP: usize = 4;
+
+/// Normalize line endings to `\n`, strip a leading UTF-8 BOM, and expand tabs to spaces.
+///
+/// Tabs are expanded by character column (reset at each line) so the rest of the parser sees only
+/// spaces; this matches the pinned binary, which expands tabs uniformly before parsing.
 fn normalize(input: &str) -> String {
     let without_bom = input.strip_prefix('\u{feff}').unwrap_or(input);
     let mut out = String::with_capacity(without_bom.len());
+    let mut column = 0;
     let mut chars = without_bom.chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
@@ -72,8 +79,23 @@ fn normalize(input: &str) -> String {
                     chars.next();
                 }
                 out.push('\n');
+                column = 0;
             }
-            other => out.push(other),
+            '\n' => {
+                out.push('\n');
+                column = 0;
+            }
+            '\t' => {
+                let width = TAB_STOP - (column % TAB_STOP);
+                for _ in 0..width {
+                    out.push(' ');
+                }
+                column += width;
+            }
+            other => {
+                out.push(other);
+                column += 1;
+            }
         }
     }
     out
