@@ -1,8 +1,8 @@
 # Rust build output
 /target
 
-# Black-box pandoc reference install (local-only; see docs/PORTING.md §5)
-/.pandoc-ref/
+# Local-only differential oracle (never committed; see docs/PORTING.md §5)
+/.oracle/
 
 # Generated differential fixtures / golden output cache (never committed)
 /.fixtures-cache/
