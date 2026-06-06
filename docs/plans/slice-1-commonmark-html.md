@@ -1,9 +1,20 @@
 # Slice 1 — CommonMark → HTML
 
-Status: **planned** (not yet implemented). Owner: slice-1.
+Status: **landed**. Owner: slice-1.
 Read `../PORTING.md` §3–9 and `../../AGENTS.md` first, then the slice-0 plan
 (`slice-0-ast-json-contract.md`) for the conventions this slice builds on. This document is
 self-contained: it should be possible to implement the slice from it alone.
+
+**Outcome.** `oxidoc -f commonmark -t html` is byte-identical to the pinned binary
+(`--syntax-highlighting=none --mathjax`) on all 652 vendored CommonMark spec examples, and the
+reader matches the oracle JSON AST on all 652. The HTML writer additionally matches the oracle
+across the full document model (tables, definition lists, figures, footnotes, citations, math, raw
+passthrough, spans) — see the writer-parity suite. Product-crate line coverage is ~96%.
+
+**Known scoped-out divergence.** GFM task lists (`- [ ] item`) are not special-cased: the writer
+emits the literal `☐`/`☒` rather than pandoc's `<input type="checkbox">`. Task lists are a GFM
+extension with no CommonMark syntax, unreachable from the CommonMark reader; the heuristic belongs
+with GFM reader support in a later slice.
 
 ## 0. Goal & done criteria
 
