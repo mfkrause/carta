@@ -108,7 +108,7 @@ that operates on the whole working tree.
 - Branch off `main` for non-trivial changes; don't commit directly to `main`.
 - **Conventional Commits, one logical change per commit.** Commit each relevant piece of work as you
   finish it, with a subject of the form `<type>[(scope)][!]: <description>` (types: `feat`, `fix`,
-  `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`). The `commit-msg`
+  `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, plus additional repo-specifics ones called `wip` for WIP and `sec` for security). The `commit-msg`
   hook enforces this.
 - Commit freely as you go; **push only when asked.**
 
