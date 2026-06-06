@@ -18,7 +18,7 @@ jobs:
     name: fmt · clippy · test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install toolchain
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
@@ -47,12 +47,12 @@ jobs:
     name: typos
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: crate-ci/typos@master
 
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: EmbarkStudios/cargo-deny-action@v2
