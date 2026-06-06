@@ -115,7 +115,7 @@ that operates on the whole working tree.
   finish it, with a subject of the form `<type>[(scope)][!]: <description>` (types: `feat`, `fix`,
   `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, plus additional repo-specifics ones called `wip` for WIP and `sec` for security). The `commit-msg`
   hook enforces this.
-- Commit freely as you go; **push only when asked.**
+- Commit freely as you go; **push only when asked.** Never leave uncommitted changes behind.
 
 ## Workflows (`.claude/workflows/`)
 
