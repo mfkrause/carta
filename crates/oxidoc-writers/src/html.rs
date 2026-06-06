@@ -23,7 +23,7 @@ impl Writer for HtmlWriter {
         let mut state = State::default();
         let mut out = state.blocks(&document.blocks);
         out.push_str(&state.footnote_section());
-        let filled = reflow(&out);
+        let filled = restore(&reflow(&out));
         Ok(filled.trim_end_matches('\n').to_owned())
     }
 }
@@ -33,9 +33,20 @@ const FILL_COLUMN: usize = 72;
 
 /// Sentinel marking a breakable inline space while the document is assembled as a flat string.
 /// [`reflow`] later turns each into either a single space or a line break to fill to
-/// [`FILL_COLUMN`]. Using U+0000 is safe because it never survives into escaped HTML output or
-/// well-formed document text (readers replace it with U+FFFD).
+/// [`FILL_COLUMN`]. The reference writer preserves a literal `U+0000` from document content
+/// verbatim, so content can legitimately contain this scalar; [`protect_char`] encodes any such
+/// occurrence before reflow and [`restore`] decodes it afterwards, keeping the channel unambiguous.
 const BREAK: char = '\u{0}';
+
+/// Escape introducer that protects a literal [`BREAK`] (or a literal introducer) appearing in
+/// document content from being mistaken for a writer-inserted break during [`reflow`]. `U+0001` is
+/// a control scalar the writer never emits structurally; [`protect_char`] encodes and [`restore`]
+/// reverses it.
+const ESCAPE: char = '\u{1}';
+
+/// Tag following an [`ESCAPE`] introducer that stands for one content `U+0000`. The pair is removed
+/// again by [`restore`]; any printable char distinct from [`ESCAPE`] would serve.
+const BREAK_TAG: char = '0';
 
 /// Where an attribute set is being rendered, which selects the field order. Most elements emit
 /// `id`, then `class`, then key/value pairs; headers emit `class`, then key/value pairs, then `id`.
@@ -473,7 +484,7 @@ fn width_percent(fraction: f64) -> u32 {
 /// target formats produce no output in an HTML document).
 fn raw_passthrough(format: &str, text: &str) -> String {
     if matches!(format, "html" | "html5" | "html4") {
-        text.to_owned()
+        protect(text)
     } else {
         String::new()
     }
@@ -752,7 +763,56 @@ fn escape(text: &str, quotes: bool) -> String {
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
             '"' if quotes => out.push_str("&quot;"),
-            other => out.push(other),
+            _ => protect_char(ch, &mut out),
+        }
+    }
+    out
+}
+
+/// Encode the assembly sentinels so a literal occurrence in document content survives [`reflow`]
+/// unchanged instead of being read as a writer-inserted break; [`restore`] reverses this after
+/// reflow runs. Any other character is copied verbatim.
+fn protect_char(ch: char, out: &mut String) {
+    match ch {
+        ESCAPE => {
+            out.push(ESCAPE);
+            out.push(ESCAPE);
+        }
+        BREAK => {
+            out.push(ESCAPE);
+            out.push(BREAK_TAG);
+        }
+        other => out.push(other),
+    }
+}
+
+/// Protect already-escaped or raw content (raw HTML passthrough) that bypasses [`escape`].
+fn protect(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        protect_char(ch, &mut out);
+    }
+    out
+}
+
+/// Reverse [`protect_char`]: collapse each escape sequence left in the reflowed output back to the
+/// literal sentinel it stood for. Writer-inserted breaks are already gone (consumed by [`reflow`]),
+/// so every remaining introducer marks protected content.
+fn restore(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    while let Some(ch) = chars.next() {
+        if ch != ESCAPE {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some(ESCAPE) | None => out.push(ESCAPE),
+            Some(BREAK_TAG) => out.push(BREAK),
+            Some(other) => {
+                out.push(ESCAPE);
+                out.push(other);
+            }
         }
     }
     out

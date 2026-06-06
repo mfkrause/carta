@@ -121,6 +121,10 @@ fn cases() -> Vec<Case> {
             "wide-and-combining-wrap",
             "This is a deliberately long paragraph with wide 中文字符 glyphs and a combining mark e\u{0301} so the writer measures column widths while wrapping at the fill column boundary.",
         ),
+        md(
+            "literal-control-chars",
+            "the reference writer preserves a literal NUL a\u{0}b and a U+0001 c\u{1}d verbatim rather than treating them as breaks",
+        ),
     ]
 }
 
