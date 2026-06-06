@@ -1,8 +1,7 @@
 //! Reuse of pandoc's own command tests (`test/command/*.md`) as differential cases.
 //!
 //! Command tests are declarative — a pandoc invocation plus input and expected output — and shell
-//! out to the `pandoc` executable. We substitute the `oxidoc` binary and diff. Data only: we read
-//! the fetched corpus `test/` files, never any pandoc source (see AGENTS.md).
+//! out to the `pandoc` executable. We substitute the `oxidoc` binary and diff.
 
 use std::io;
 use std::path::PathBuf;
