@@ -1,0 +1,27 @@
+[package]
+name = "oxidoc-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+oxidoc-core = { path = "../crates/oxidoc-core" }
+oxidoc-readers = { path = "../crates/oxidoc-readers" }
+
+[[bin]]
+name = "commonmark"
+path = "fuzz_targets/commonmark.rs"
+test = false
+doc = false
+bench = false
+
+[profile.release]
+debug = 1
+
+# Detached from the root workspace: cargo-fuzz needs a nightly toolchain and a sanitizer, so this
+# crate is built on its own (see fuzz/README.md), never by the stable-pinned workspace.
+[workspace]
