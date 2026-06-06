@@ -8,6 +8,7 @@
 
 mod block;
 mod inline;
+mod scan;
 
 use std::collections::BTreeMap;
 
