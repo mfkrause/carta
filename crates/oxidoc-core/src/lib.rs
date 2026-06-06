@@ -8,6 +8,10 @@ use std::io;
 
 use oxidoc_ast::Document;
 
+pub mod extensions;
+
+pub use extensions::{Extension, Extensions, presets};
+
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -19,20 +23,28 @@ pub enum Error {
     InvalidUtf8(#[from] std::string::FromUtf8Error),
     #[error("unsupported format: {0}")]
     UnsupportedFormat(String),
+    #[error("format '{0}' is recognized but not enabled in this build")]
+    FormatNotEnabled(String),
 }
 
 /// A `Result` whose error is [`Error`].
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Options controlling a [`Reader`]. Empty today; extended (not resignatured) as real options land.
+/// Options controlling a [`Reader`]. Extended (not resignatured) as real options land.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct ReaderOptions {}
+pub struct ReaderOptions {
+    /// Format extensions to enable. Strict-CommonMark readers ignore this (the empty preset).
+    pub extensions: Extensions,
+}
 
-/// Options controlling a [`Writer`]. Empty today; extended (not resignatured) as real options land.
+/// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct WriterOptions {}
+pub struct WriterOptions {
+    /// Format extensions to enable.
+    pub extensions: Extensions,
+}
 
 /// Parses input text in some source format into the document model.
 pub trait Reader {
