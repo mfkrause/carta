@@ -10,3 +10,5 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+serde_json = { workspace = true }
+thiserror = { workspace = true }
