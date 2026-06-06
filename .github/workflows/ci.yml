@@ -8,6 +8,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
+  # Pinned pandoc version for the differential oracle. The local pin lives in gitignored
+  # .oracle/PANDOC_VERSION; CI pins it explicitly so the corpus round-trip tests are reproducible
+  # and don't drift with upstream pandoc releases.
+  PANDOC_PIN: "3.10"
 
 jobs:
   check:
@@ -21,6 +25,15 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      - name: Cache pandoc oracle
+        uses: actions/cache@v4
+        with:
+          path: .oracle
+          key: oracle-pandoc-${{ env.PANDOC_PIN }}
+      - name: Provision pandoc oracle
+        run: |
+          tools/install-pandoc.sh --version="$PANDOC_PIN"
+          tools/fetch-pandoc-tests.sh
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
