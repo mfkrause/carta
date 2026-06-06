@@ -58,6 +58,8 @@ struct Delimiter {
     active: bool,
     /// Whether this is an image opener (`![`).
     image: bool,
+    /// Source index just past a bracket opener, where its raw label text begins. Unused otherwise.
+    text_start: usize,
 }
 
 fn parse_inlines(text: &str, refs: &RefMap) -> Vec<Inline> {
@@ -260,6 +262,7 @@ impl InlineParser<'_> {
             can_close,
             active: true,
             image: false,
+            text_start: self.pos,
         }));
     }
 
@@ -271,6 +274,7 @@ impl InlineParser<'_> {
             can_close: false,
             active: true,
             image,
+            text_start: self.pos,
         }));
     }
 
@@ -337,8 +341,8 @@ impl InlineParser<'_> {
         {
             return Some(result);
         }
-        // Reference forms.
-        let label_text = self.bracket_label_text(opener_index);
+        // Reference forms. Labels match on their raw source text (the closing `]` sits at `pos - 1`).
+        let label_text = self.raw_label(opener_index);
         if let Some((label, next)) = scan_following_label(self.chars, self.pos) {
             let key = if label.is_empty() {
                 normalize_label(&label_text)
@@ -358,21 +362,16 @@ impl InlineParser<'_> {
         None
     }
 
-    fn bracket_label_text(&self, opener_index: usize) -> String {
-        let mut out = String::new();
-        for node in self.nodes.get(opener_index + 1..).into_iter().flatten() {
-            match node {
-                Node::Text(t) | Node::Inline(Inline::Code(_, t)) => out.push_str(t),
-                Node::SoftBreak | Node::LineBreak => out.push(' '),
-                Node::Delimiter(d) => {
-                    for _ in 0..d.count {
-                        out.push(d.ch as char);
-                    }
-                }
-                Node::Inline(_) => {}
-            }
-        }
-        out
+    /// The raw source between a bracket opener and the closing `]` just consumed.
+    fn raw_label(&self, opener_index: usize) -> String {
+        let start = match self.nodes.get(opener_index) {
+            Some(Node::Delimiter(d)) => d.text_start,
+            _ => return String::new(),
+        };
+        self.chars
+            .get(start..self.pos.saturating_sub(1))
+            .map(|s| s.iter().collect())
+            .unwrap_or_default()
     }
 
     fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target) {
@@ -1142,8 +1141,7 @@ fn skip_inline_whitespace(chars: &[char], index: &mut usize) {
 /// Normalize a link label per the spec: trim, collapse internal whitespace to single spaces, and
 /// case-fold (here, lowercase).
 pub(crate) fn normalize_label(label: &str) -> String {
-    let unescaped = unescape_string(label);
-    let collapsed: Vec<&str> = unescaped.split_whitespace().collect();
+    let collapsed: Vec<&str> = label.split_whitespace().collect();
     collapsed.join(" ").to_lowercase()
 }
 
