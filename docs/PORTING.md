@@ -46,6 +46,11 @@ api-version from `pandoc -t json` of the pinned binary — never from memory.** 
 distinction is load-bearing: encode it as two separate Rust enums so invalid nesting (e.g. a block
 inside link text) is unrepresentable.
 
+Serialization must be **deterministic and byte-reproducible**. pandoc's `Meta` is a sorted map, so
+model it with `BTreeMap` (never `HashMap` — randomized order yields flaky diffs); ordered sequences
+like `Attr`'s key/value pairs stay `Vec` to preserve source order. Confirm the exact key ordering
+against the pinned binary's JSON during slice 0.
+
 ## 5. Two differential oracle surfaces (decouple readers from writers)
 
 - **Reader:** `oxidoc -f X -t json`  vs  `pandoc -f X -t json`  → AST equality.
@@ -54,11 +59,24 @@ inside link text) is unrepresentable.
 A reader bug can't be blamed on a writer, and vice-versa. The clean-room boundary and the
 correctness oracle are the *same mechanism* — we never need pandoc's source.
 
-Pinned pandoc lives in gitignored `.pandoc-ref/`; record the exact version (api-version major.minor
+Pinned pandoc lives in gitignored `.oracle/`; record the exact version (api-version major.minor
 must match or pandoc rejects our JSON). Expected outputs are generated at test time into a gitignored
 cache keyed by (pandoc version + input hash + args) — **never committed**. CommonMark's own spec
 suite (CC-BY-SA) may be vendored with attribution for standard conformance (pandoc-markdown is a
 superset, so differential-vs-pandoc is still required).
+
+**Reusing pandoc's own test corpus.** Beyond inputs we author, we run pandoc's own tests against
+`oxidoc` — data only, never the harness or implementation:
+
+- *Command tests* (`test/command/*.md`) are declarative (invocation + input + expected output) and
+  shell out to the binary. `oxidoc-testkit` parses them and substitutes our binary for `pandoc`.
+- *Golden data files* are reused as inputs; the pinned binary regenerates the expected output (the
+  input→expected wiring is Haskell we don't read).
+
+`tools/fetch-pandoc-tests.sh` does a sparse partial checkout of `test/` **at the git tag matching the
+pinned binary** (so embedded golden values are that binary's output — no version drift) into
+gitignored `.oracle/tests/`, stripping every `.hs` so no implementation lands on disk. Hard
+clean-room line: `test/` data is fair game; `*.hs` and `src/` are never read.
 
 ## 6. Roadmap (vertical slices; tiers ordered by cost)
 
@@ -99,6 +117,9 @@ sharding, batching) lives in the JS script, not in agent choices.
 - Adversarial, default-deny review (see §7).
 - Track unfinished work with `todo!("…")` / explicit markers; grep them as IOUs before declaring a
   unit done.
+- **Fuzz the readers.** Each reader parses arbitrary bytes, so each gets a `cargo-fuzz` target; the
+  bar is no panic / no hang on any input (the panic-discipline lints are the static half of this).
+  Roadmap item per reader, not a slice-0 gate.
 - Human review is a feature, not friction. The central failure of the Bun port was "nobody read
   it." Keep units small enough to actually read.
 
