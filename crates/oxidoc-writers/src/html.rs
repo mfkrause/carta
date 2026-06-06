@@ -140,7 +140,15 @@ impl State {
         let caption_html = if caption.long.is_empty() {
             String::new()
         } else {
-            format!("\n<figcaption>{}</figcaption>", self.blocks(&caption.long))
+            let hidden = if is_implicit_figure(caption, blocks) {
+                " aria-hidden=\"true\""
+            } else {
+                ""
+            };
+            format!(
+                "\n<figcaption{hidden}>{}</figcaption>",
+                self.blocks(&caption.long)
+            )
         };
         format!(
             "<figure{}>\n{body}{caption_html}\n</figure>",
@@ -309,25 +317,25 @@ impl State {
     fn note(&mut self, blocks: &[Block]) -> String {
         let number = self.footnotes.len() + 1;
         let backlink = format!(
-            "<a href=\"#fnref{number}\" class=\"footnote-back\" role=\"doc-backlink\">\u{21a9}\u{fe0e}</a>"
+            "<a{BREAK}href=\"#fnref{number}\"{BREAK}class=\"footnote-back\"{BREAK}role=\"doc-backlink\">\u{21a9}\u{fe0e}</a>"
         );
         let body = self.note_body(blocks, &backlink);
         self.footnotes
-            .push(format!("<li id=\"fn{number}\">\n{body}\n</li>"));
+            .push(format!("<li{BREAK}id=\"fn{number}\">{body}</li>"));
         format!(
-            "<a href=\"#fn{number}\" class=\"footnote-ref\" id=\"fnref{number}\" role=\"doc-noteref\"><sup>{number}</sup></a>"
+            "<a{BREAK}href=\"#fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\"{BREAK}role=\"doc-noteref\"><sup>{number}</sup></a>"
         )
     }
 
     /// Render a footnote's blocks, appending the backlink inside the final paragraph when the last
-    /// block is one, else as a trailing paragraph of its own.
+    /// block is one, else as a bare trailing element (an unwrapped `Plain`) of its own.
     fn note_body(&mut self, blocks: &[Block], backlink: &str) -> String {
         if let Some((Block::Para(inlines), rest)) = blocks.split_last() {
             let head = with_trailing_newline(self.blocks(rest));
             format!("{head}<p>{}{backlink}</p>", self.inlines(inlines))
         } else {
             let head = with_trailing_newline(self.blocks(blocks));
-            format!("{head}<p>{backlink}</p>")
+            format!("{head}{backlink}")
         }
     }
 
@@ -336,7 +344,7 @@ impl State {
             return String::new();
         }
         format!(
-            "\n<section id=\"footnotes\" class=\"footnotes footnotes-end-of-document\" role=\"doc-endnotes\">\n<hr />\n<ol>\n{}\n</ol>\n</section>",
+            "\n<section{BREAK}id=\"footnotes\"{BREAK}class=\"footnotes footnotes-end-of-document\"{BREAK}role=\"doc-endnotes\">\n<hr />\n<ol>\n{}\n</ol>\n</section>",
             self.footnotes.join("\n")
         )
     }
@@ -355,6 +363,19 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
         title_attr(&target.title),
         render_attr(attr, AttrOrder::Standard),
     )
+}
+
+/// Whether a figure was synthesized from a lone captioned image: its body is a single image whose
+/// alt text is the caption verbatim. The reference writer marks such a caption `aria-hidden="true"`
+/// because a screen reader already announces the duplicated alt text.
+fn is_implicit_figure(caption: &Caption, blocks: &[Block]) -> bool {
+    let [Block::Plain(plain)] = blocks else {
+        return false;
+    };
+    let [Inline::Image(_, alt, _)] = plain.as_slice() else {
+        return false;
+    };
+    matches!(caption.long.as_slice(), [Block::Plain(cap)] if cap == alt)
 }
 
 fn colgroup(specs: &[ColSpec]) -> String {
