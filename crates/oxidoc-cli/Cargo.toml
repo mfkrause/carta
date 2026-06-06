@@ -18,4 +18,6 @@ workspace = true
 [dependencies]
 oxidoc-ast = { workspace = true }
 oxidoc-core = { workspace = true }
+oxidoc-readers = { workspace = true }
+oxidoc-writers = { workspace = true }
 clap = { workspace = true }
