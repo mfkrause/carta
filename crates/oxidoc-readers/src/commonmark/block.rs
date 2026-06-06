@@ -469,7 +469,9 @@ impl Parser {
 
         cursor.advance_chars(parsed.marker_width);
         let after_marker = cursor.indent();
-        let content_offset = if parsed.blank_after || after_marker >= TAB_STOP {
+        // 1–4 spaces after the marker all count toward the content indent; 5+ collapse to one and
+        // the rest become leading indentation of the item's content (an indented code block).
+        let content_offset = if parsed.blank_after || after_marker > TAB_STOP {
             1
         } else {
             after_marker
