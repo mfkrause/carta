@@ -375,13 +375,18 @@ impl<'a> Cursor<'a> {
         let mut value: i64 = 0;
         while let Some(byte) = self.bytes.get(self.offset + digits) {
             if byte.is_ascii_digit() {
-                value = value * 10 + i64::from(byte - b'0');
                 digits += 1;
+                // CommonMark caps an ordered-list start at 9 digits; a longer run is not a marker.
+                // Enforce it before accumulating so `value` cannot overflow.
+                if digits > 9 {
+                    return None;
+                }
+                value = value * 10 + i64::from(byte - b'0');
             } else {
                 break;
             }
         }
-        if digits == 0 || digits > 9 {
+        if digits == 0 {
             return None;
         }
         let delim_byte = self.bytes.get(self.offset + digits).copied();
