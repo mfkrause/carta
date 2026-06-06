@@ -116,3 +116,37 @@ pub(crate) fn para(inlines: Vec<Inline>) -> Block {
 pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
     Block::Plain(inlines)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::CommonmarkReader;
+    use oxidoc_ast::Block;
+    use oxidoc_core::{Reader, ReaderOptions};
+
+    fn blocks(input: &str) -> Vec<Block> {
+        CommonmarkReader
+            .read(input, &ReaderOptions::default())
+            .expect("reader should not fail")
+            .blocks
+    }
+
+    #[test]
+    fn long_digit_run_is_not_an_ordered_list() {
+        // Regression (found by fuzzing): a digit run longer than nine is not an ordered-list
+        // marker, and computing its start value must not overflow.
+        let input = format!("{}*:*\n", "8".repeat(34));
+        assert!(matches!(blocks(&input).as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn ordered_list_start_caps_at_nine_digits() {
+        assert!(matches!(
+            blocks("999999999. a\n").as_slice(),
+            [Block::OrderedList(..)]
+        ));
+        assert!(matches!(
+            blocks("1234567890. a\n").as_slice(),
+            [Block::Para(_)]
+        ));
+    }
+}
