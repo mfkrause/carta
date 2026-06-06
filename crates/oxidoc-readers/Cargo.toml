@@ -11,11 +11,16 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["commonmark", "json"]
+commonmark = ["dep:unicode-general-category", "dep:caseless"]
+json = []
+
 [dependencies]
 oxidoc-ast = { workspace = true }
 oxidoc-core = { workspace = true }
-unicode-general-category = { workspace = true }
-caseless = { workspace = true }
+unicode-general-category = { workspace = true, optional = true }
+caseless = { workspace = true, optional = true }
 
 [build-dependencies]
 serde = { workspace = true }
