@@ -559,17 +559,26 @@ fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
     out
 }
 
-/// Split a text run into `Str` tokens separated by single `Space` inlines.
+/// Split a text run into `Str` tokens separated by `Space` inlines, collapsing each run of
+/// spaces to a single `Space` to match the pinned binary.
 fn push_text_inlines(out: &mut Vec<Inline>, text: &str) {
-    let mut first = true;
-    for piece in text.split(' ') {
-        if !first {
+    let mut chars = text.chars().peekable();
+    let mut word = String::new();
+    while let Some(ch) = chars.next() {
+        if ch == ' ' {
+            if !word.is_empty() {
+                out.push(Inline::Str(std::mem::take(&mut word)));
+            }
+            while chars.peek() == Some(&' ') {
+                chars.next();
+            }
             out.push(Inline::Space);
+        } else {
+            word.push(ch);
         }
-        first = false;
-        if !piece.is_empty() {
-            out.push(Inline::Str(piece.to_owned()));
-        }
+    }
+    if !word.is_empty() {
+        out.push(Inline::Str(word));
     }
 }
 
