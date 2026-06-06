@@ -16,8 +16,5 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
-oxidoc-ast = { workspace = true }
-oxidoc-core = { workspace = true }
-oxidoc-readers = { workspace = true }
-oxidoc-writers = { workspace = true }
+oxidoc = { workspace = true }
 clap = { workspace = true }
