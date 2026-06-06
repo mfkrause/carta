@@ -23,12 +23,20 @@ fn run(args: &[&str], stdin: &str) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .expect("spawn oxidoc");
-    child
+    let write_result = child
         .stdin
         .take()
         .expect("child stdin")
-        .write_all(stdin.as_bytes())
-        .expect("write stdin");
+        .write_all(stdin.as_bytes());
+    // A rejected invocation (e.g. an unsupported format) can exit before reading stdin, closing the
+    // pipe; a broken-pipe write is then expected and must not fail the test.
+    if let Err(error) = write_result {
+        assert_eq!(
+            error.kind(),
+            std::io::ErrorKind::BrokenPipe,
+            "write stdin: {error}"
+        );
+    }
     let output = child.wait_with_output().expect("wait for oxidoc");
     Output {
         success: output.status.success(),
