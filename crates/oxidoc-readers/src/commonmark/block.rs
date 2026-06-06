@@ -221,6 +221,11 @@ impl Parser {
             }
         }
 
+        // The deepest block open before this line opens any new ones. When a container went
+        // unmatched in phase 1, this is the tip of the unmatched chain hanging below `matched`.
+        let matched = container;
+        let old_tip = self.deepest_open(matched);
+
         // Phase 2: open new blocks at the matched container.
         let mut started_new = false;
         if !blank {
@@ -237,7 +242,31 @@ impl Parser {
             }
         }
 
+        // Spec "close unmatched blocks": a container left unmatched in phase 1 stays open only to
+        // absorb a lazy paragraph continuation (non-blank text that opens no new block into an open
+        // paragraph). Otherwise it closes before the matched container is reused, so e.g. a blank
+        // line ends a block quote rather than letting the next `>` rejoin it.
+        let lazy = !all_matched
+            && !blank
+            && !started_new
+            && matches!(self.kind(old_tip), Some(Kind::Paragraph));
+        if !all_matched && !lazy {
+            self.close_chain(old_tip, matched);
+        }
+
         self.add_line(container, started_new, blank, &mut cursor);
+    }
+
+    /// Close `tip` and each ancestor up to (but not including) `until`.
+    fn close_chain(&mut self, mut tip: usize, until: usize) {
+        while tip != until {
+            self.close(tip);
+            let parent = self.parent(tip);
+            if parent == tip {
+                break;
+            }
+            tip = parent;
+        }
     }
 
     fn deepest_open(&self, mut index: usize) -> usize {
