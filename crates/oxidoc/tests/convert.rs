@@ -61,3 +61,19 @@ fn recognized_but_disabled_input_is_not_enabled() {
 fn supported_input_formats_reflect_build() {
     assert!(oxidoc::supported_input_formats().contains(&"commonmark"));
 }
+
+#[test]
+fn every_supported_format_resolves() {
+    for name in oxidoc::supported_input_formats() {
+        assert!(
+            reader_for(name).is_ok(),
+            "input format {name} does not resolve"
+        );
+    }
+    for name in oxidoc::supported_output_formats() {
+        assert!(
+            writer_for(name).is_ok(),
+            "output format {name} does not resolve"
+        );
+    }
+}
