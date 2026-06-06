@@ -415,7 +415,8 @@ impl Parser {
             if let Some(kind) = cursor.html_block_start(!in_paragraph) {
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
                 let index = self.append_child(parent, Node::new(Kind::HtmlBlock(kind)));
-                let line = cursor.rest_raw();
+                // The start line keeps its leading indentation (always spaces after normalization).
+                let line = format!("{}{}", " ".repeat(indent), cursor.rest_raw());
                 self.append_text(index, &line);
                 self.append_text(index, "\n");
                 if html_block_closes(kind, &line) {
