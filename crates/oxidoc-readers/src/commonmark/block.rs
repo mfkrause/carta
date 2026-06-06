@@ -550,9 +550,14 @@ impl Parser {
                     | Kind::HtmlBlock(_),
                 ) => {}
                 _ => {
-                    let index = self.append_child(leaf, Node::new(Kind::Paragraph));
-                    self.append_text(index, &cursor.rest());
-                    self.append_text(index, "\n");
+                    // An opener whose own line carries no content (a bare marker) leaves its
+                    // container empty rather than seeding an empty paragraph.
+                    let rest = cursor.rest();
+                    if !rest.trim().is_empty() {
+                        let index = self.append_child(leaf, Node::new(Kind::Paragraph));
+                        self.append_text(index, &rest);
+                        self.append_text(index, "\n");
+                    }
                 }
             }
             return;
@@ -1357,7 +1362,7 @@ impl<'a> Cursor<'a> {
                 if self.thematic_break() {
                     return None;
                 }
-                let blank_after = self.bytes.get(self.offset + 1).is_none_or(|b| *b == b'\n');
+                let blank_after = rest_is_blank(self.bytes, self.offset + 1);
                 let followed_ok =
                     matches!(self.bytes.get(self.offset + 1), None | Some(b' ' | b'\t'));
                 if !followed_ok {
@@ -1398,7 +1403,7 @@ impl<'a> Cursor<'a> {
             _ => return None,
         };
         let after = self.bytes.get(self.offset + digits + 1);
-        let blank_after = after.is_none_or(|b| *b == b'\n');
+        let blank_after = rest_is_blank(self.bytes, self.offset + digits + 1);
         if !matches!(after, None | Some(b' ' | b'\t')) {
             return None;
         }
@@ -1412,6 +1417,17 @@ impl<'a> Cursor<'a> {
             blank_after,
         })
     }
+}
+
+/// Whether every byte from `start` to end of line is whitespace (or the line ends there). A list
+/// marker followed only by whitespace opens an empty item, regardless of how many spaces follow.
+fn rest_is_blank(bytes: &[u8], start: usize) -> bool {
+    bytes
+        .get(start..)
+        .into_iter()
+        .flatten()
+        .take_while(|byte| **byte != b'\n')
+        .all(|byte| matches!(byte, b' ' | b'\t'))
 }
 
 fn unescape_info(info: &str) -> String {
