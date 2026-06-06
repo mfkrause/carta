@@ -480,10 +480,20 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize) {
     }
 }
 
-fn emphasis_match(opener: &Delimiter, _nodes: &[Node], _closer: usize) -> bool {
-    // Rule of 3: when one side can both open and close, the sum of the two runs must not be a
-    // multiple of 3 unless both are. Simplified to the common case for now.
-    let _ = opener;
+fn emphasis_match(opener: &Delimiter, nodes: &[Node], closer: usize) -> bool {
+    let Some(Node::Delimiter(closer_delim)) = nodes.get(closer) else {
+        return false;
+    };
+    // Rule of 3: when either run can both open and close, their combined length must not be a
+    // multiple of 3 unless both lengths are themselves multiples of 3.
+    let either_both =
+        (opener.can_open && opener.can_close) || (closer_delim.can_open && closer_delim.can_close);
+    if either_both {
+        let sum = opener.count + closer_delim.count;
+        if sum % 3 == 0 && (opener.count % 3 != 0 || closer_delim.count % 3 != 0) {
+            return false;
+        }
+    }
     true
 }
 
