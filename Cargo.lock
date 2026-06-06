@@ -194,6 +194,7 @@ version = "0.0.0"
 dependencies = [
  "oxidoc-ast",
  "oxidoc-core",
+ "unicode-general-category",
 ]
 
 [[package]]
