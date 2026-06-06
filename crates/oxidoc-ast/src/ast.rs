@@ -9,6 +9,34 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+/// Defines a node enum together with `$tags`, the slice of its variant names. These enums use
+/// `#[serde(tag = "t")]` with no per-variant rename, so each variant's identifier *is* its JSON
+/// `t` tag; generating the tag list from the same definition keeps it from drifting out of sync
+/// with the variants (the round-trip coverage test consumes it as the set of tags to exercise).
+macro_rules! node_enum {
+    (
+        $(#[$enum_meta:meta])*
+        $vis:vis enum $name:ident {
+            $(
+                $(#[$variant_meta:meta])*
+                $variant:ident $( ( $($payload:ty),* ) )?
+            ),* $(,)?
+        }
+        tags: $tags:ident
+    ) => {
+        $(#[$enum_meta])*
+        $vis enum $name {
+            $(
+                $(#[$variant_meta])*
+                $variant $( ( $($payload),* ) )?
+            ),*
+        }
+
+        /// JSON `t` tags of every variant of the enum above, in declaration order.
+        $vis const $tags: &[&str] = &[$(stringify!($variant)),*];
+    };
+}
+
 /// Every textual payload in the tree. Owned today; aliased so it can be swapped for a
 /// compact-string type later without touching call sites.
 pub type Text = String;
@@ -55,60 +83,69 @@ pub struct Target {
 #[serde(transparent)]
 pub struct Format(pub Text);
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "t", content = "c")]
-pub enum Block {
-    Plain(Vec<Inline>),
-    Para(Vec<Inline>),
-    LineBlock(Vec<Vec<Inline>>),
-    CodeBlock(Attr, Text),
-    RawBlock(Format, Text),
-    BlockQuote(Vec<Block>),
-    OrderedList(ListAttributes, Vec<Vec<Block>>),
-    BulletList(Vec<Vec<Block>>),
-    DefinitionList(Vec<(Vec<Inline>, Vec<Vec<Block>>)>),
-    Header(i32, Attr, Vec<Inline>),
-    HorizontalRule,
-    Table(Box<Table>),
-    Figure(Attr, Caption, Vec<Block>),
-    Div(Attr, Vec<Block>),
+node_enum! {
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(tag = "t", content = "c")]
+    pub enum Block {
+        Plain(Vec<Inline>),
+        Para(Vec<Inline>),
+        LineBlock(Vec<Vec<Inline>>),
+        CodeBlock(Attr, Text),
+        RawBlock(Format, Text),
+        BlockQuote(Vec<Block>),
+        OrderedList(ListAttributes, Vec<Vec<Block>>),
+        BulletList(Vec<Vec<Block>>),
+        DefinitionList(Vec<(Vec<Inline>, Vec<Vec<Block>>)>),
+        Header(i32, Attr, Vec<Inline>),
+        HorizontalRule,
+        Table(Box<Table>),
+        Figure(Attr, Caption, Vec<Block>),
+        Div(Attr, Vec<Block>),
+    }
+    tags: BLOCK_TAGS
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "t", content = "c")]
-pub enum Inline {
-    Str(Text),
-    Emph(Vec<Inline>),
-    Underline(Vec<Inline>),
-    Strong(Vec<Inline>),
-    Strikeout(Vec<Inline>),
-    Superscript(Vec<Inline>),
-    Subscript(Vec<Inline>),
-    SmallCaps(Vec<Inline>),
-    Quoted(QuoteType, Vec<Inline>),
-    Cite(Vec<Citation>, Vec<Inline>),
-    Code(Attr, Text),
-    Space,
-    SoftBreak,
-    LineBreak,
-    Math(MathType, Text),
-    RawInline(Format, Text),
-    Link(Attr, Vec<Inline>, Target),
-    Image(Attr, Vec<Inline>, Target),
-    Note(Vec<Block>),
-    Span(Attr, Vec<Inline>),
+node_enum! {
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(tag = "t", content = "c")]
+    pub enum Inline {
+        Str(Text),
+        Emph(Vec<Inline>),
+        Underline(Vec<Inline>),
+        Strong(Vec<Inline>),
+        Strikeout(Vec<Inline>),
+        Superscript(Vec<Inline>),
+        Subscript(Vec<Inline>),
+        SmallCaps(Vec<Inline>),
+        Quoted(QuoteType, Vec<Inline>),
+        Cite(Vec<Citation>, Vec<Inline>),
+        Code(Attr, Text),
+        Space,
+        SoftBreak,
+        LineBreak,
+        Math(MathType, Text),
+        RawInline(Format, Text),
+        Link(Attr, Vec<Inline>, Target),
+        Image(Attr, Vec<Inline>, Target),
+        Note(Vec<Block>),
+        Span(Attr, Vec<Inline>),
+    }
+    tags: INLINE_TAGS
 }
 
-/// A metadata value. Documents carry a `String`-keyed map of these.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "t", content = "c")]
-pub enum MetaValue {
-    MetaMap(BTreeMap<Text, MetaValue>),
-    MetaList(Vec<MetaValue>),
-    MetaBool(bool),
-    MetaString(Text),
-    MetaInlines(Vec<Inline>),
-    MetaBlocks(Vec<Block>),
+node_enum! {
+    /// A metadata value. Documents carry a `String`-keyed map of these.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(tag = "t", content = "c")]
+    pub enum MetaValue {
+        MetaMap(BTreeMap<Text, MetaValue>),
+        MetaList(Vec<MetaValue>),
+        MetaBool(bool),
+        MetaString(Text),
+        MetaInlines(Vec<Inline>),
+        MetaBlocks(Vec<Block>),
+    }
+    tags: META_VALUE_TAGS
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
