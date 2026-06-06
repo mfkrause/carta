@@ -431,7 +431,7 @@ impl Parser {
                 self.close(index);
                 return Some(index);
             }
-            if let Some(list) = self.list_marker(container, cursor) {
+            if let Some(list) = self.list_marker(container, indent, cursor) {
                 return Some(list);
             }
         }
@@ -444,8 +444,12 @@ impl Parser {
     }
 
     /// Try to open a list item (and its containing list) at the cursor.
-    fn list_marker(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
-        let marker_indent = cursor.indent();
+    fn list_marker(
+        &mut self,
+        container: usize,
+        marker_indent: usize,
+        cursor: &mut Cursor,
+    ) -> Option<usize> {
         let parsed = cursor.list_marker_at()?;
 
         // These restrictions apply only when the marker would interrupt a *bare* paragraph (one not
