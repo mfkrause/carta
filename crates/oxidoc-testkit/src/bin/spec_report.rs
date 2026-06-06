@@ -54,7 +54,7 @@ fn main() {
         match diff {
             Ok(Diff::Match | Diff::OracleRejected { .. }) => passed += 1,
             Ok(other) => {
-                failures.push((example.number, describe(&other), example.markdown.clone()))
+                failures.push((example.number, describe(&other), example.markdown.clone()));
             }
             Err(error) => failures.push((
                 example.number,
