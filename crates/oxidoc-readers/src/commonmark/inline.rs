@@ -1142,7 +1142,8 @@ fn skip_inline_whitespace(chars: &[char], index: &mut usize) {
 /// Normalize a link label per the spec: trim, collapse internal whitespace to single spaces, and
 /// case-fold (here, lowercase).
 pub(crate) fn normalize_label(label: &str) -> String {
-    let collapsed: Vec<&str> = label.split_whitespace().collect();
+    let unescaped = unescape_string(label);
+    let collapsed: Vec<&str> = unescaped.split_whitespace().collect();
     collapsed.join(" ").to_lowercase()
 }
 
@@ -1214,27 +1215,36 @@ pub(crate) fn parse_link_reference_definition(text: &str) -> Option<(String, Lin
     }
     index += 1;
     skip_inline_whitespace_no_double_newline(&chars, &mut index)?;
+    let angle = chars.get(index).copied() == Some('<');
     let (url, next) = scan_destination(&chars, index)?;
-    if url.is_empty() {
+    // A bare (non-angle) destination must be non-empty; `<>` is a valid empty destination.
+    if url.is_empty() && !angle {
         return None;
     }
     index = next;
 
-    // Optional title; if parsing the title fails, the definition still stands without it as long
-    // as the line ends after the destination.
-    let saved = index;
+    // Optional title, separated from the destination by whitespace and at most one newline. If the
+    // title is absent or malformed, the definition still stands as long as the destination's line
+    // ends after it; non-whitespace following the destination invalidates the whole definition.
+    let after_dest = index;
+    let mut probe = index;
+    let mut newlines = 0;
+    while let Some(ch) = chars.get(probe).copied() {
+        match ch {
+            ' ' | '\t' => probe += 1,
+            '\n' if newlines == 0 => {
+                newlines += 1;
+                probe += 1;
+            }
+            _ => break,
+        }
+    }
+    let separated = probe > after_dest;
     let mut title = String::new();
     let mut has_title = false;
-    let mut spaces = index;
-    let mut saw_newline = false;
-    while matches!(chars.get(spaces).copied(), Some(' ' | '\t' | '\n')) {
-        if chars.get(spaces).copied() == Some('\n') {
-            saw_newline = true;
-        }
-        spaces += 1;
-    }
-    if matches!(chars.get(spaces).copied(), Some('"' | '\'' | '('))
-        && let Some((parsed, after)) = scan_title(&chars, spaces)
+    if separated
+        && matches!(chars.get(probe).copied(), Some('"' | '\'' | '('))
+        && let Some((parsed, after)) = scan_title(&chars, probe)
     {
         let mut tail = after;
         skip_blanks_to_line_end(&chars, &mut tail);
@@ -1245,12 +1255,11 @@ pub(crate) fn parse_link_reference_definition(text: &str) -> Option<(String, Lin
         }
     }
     if !has_title {
-        index = saved;
+        index = after_dest;
         skip_blanks_to_line_end(&chars, &mut index);
         if !at_line_end(&chars, index) {
             return None;
         }
-        let _ = saw_newline;
     }
     // Consume the trailing newline.
     if chars.get(index).copied() == Some('\n') {
