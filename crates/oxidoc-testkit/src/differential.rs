@@ -102,24 +102,25 @@ pub fn reader_json(markdown: &str) -> std::io::Result<Diff> {
     })
 }
 
-/// Writer surface: a native (pandoc) AST → HTML, byte-for-byte.
-pub fn writer_html(native: &str) -> std::io::Result<Diff> {
+/// Writer surface: render `input` (in the oracle source format `from`, e.g. `native`, `markdown`,
+/// or `html`) to HTML through our writer, compared byte-for-byte. The oracle mints both the JSON our
+/// writer consumes and the expected HTML from the same source, so any divergence is the writer's.
+pub fn writer_parity(from: &str, input: &str) -> std::io::Result<Diff> {
     let oracle = match run_oracle(
         &[
             "-f",
-            "native",
+            from,
             "-t",
             "html",
             "--syntax-highlighting=none",
             "--mathjax",
         ],
-        native,
+        input,
     )? {
         Ok(bytes) => bytes,
         Err(stderr) => return Ok(Diff::OracleRejected { stderr }),
     };
-    // Mint the JSON for the same native AST so our writer consumes an identical document.
-    let json = match run_oracle(&["-f", "native", "-t", "json"], native)? {
+    let json = match run_oracle(&["-f", from, "-t", "json"], input)? {
         Ok(bytes) => bytes,
         Err(stderr) => return Ok(Diff::OracleRejected { stderr }),
     };
@@ -132,6 +133,11 @@ pub fn writer_html(native: &str) -> std::io::Result<Diff> {
         }
     };
     Ok(compare_html(&document, &oracle))
+}
+
+/// Writer surface for a native (pandoc) AST → HTML.
+pub fn writer_html(native: &str) -> std::io::Result<Diff> {
+    writer_parity("native", native)
 }
 
 /// End-to-end surface: `CommonMark` text → HTML through reader + writer.
