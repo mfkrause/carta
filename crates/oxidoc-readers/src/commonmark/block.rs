@@ -632,7 +632,14 @@ impl Parser {
             }
             Kind::FencedCode(fence) => {
                 let attr = fence_attr(&fence.info);
-                IrBlock::CodeBlock(attr, strip_one_trailing_newline(&node.text))
+                // A closing fence drops the final newline; a block ended by end-of-input (still
+                // open) keeps it.
+                let text = if node.open {
+                    node.text.clone()
+                } else {
+                    strip_one_trailing_newline(&node.text)
+                };
+                IrBlock::CodeBlock(attr, text)
             }
             Kind::HtmlBlock(_) => IrBlock::RawHtml(node.text.clone()),
             Kind::BlockQuote => IrBlock::BlockQuote(self.build_children(index)),
