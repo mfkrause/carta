@@ -1,0 +1,12 @@
+# Rust build output
+/target
+
+# Black-box pandoc reference install (local-only; see docs/PORTING.md §5)
+/.pandoc-ref/
+
+# Generated differential fixtures / golden output cache (never committed)
+/.fixtures-cache/
+
+# OS / editor cruft
+.DS_Store
+*.rs.bk
