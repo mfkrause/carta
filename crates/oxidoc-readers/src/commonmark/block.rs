@@ -5,7 +5,7 @@
 
 use oxidoc_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
 
-use super::{IrBlock, RefMap, TAB_STOP, scan};
+use super::{IrBlock, RefMap, TAB_STOP, html_block, scan};
 
 /// Parse the normalized input into the block tree plus the collected link references.
 pub(crate) fn parse(input: &str) -> (Vec<IrBlock>, RefMap) {
@@ -409,7 +409,7 @@ impl Parser {
         let line = cursor.rest();
         self.append_text(index, &line);
         self.append_text(index, "\n");
-        if html_block_closes(kind, &line) {
+        if html_block::closes(kind, &line) {
             self.close(index);
         }
     }
@@ -447,14 +447,14 @@ impl Parser {
                 let parent = self.place(container, &kind);
                 return Some(self.append_child(parent, Node::new(kind)));
             }
-            if let Some(kind) = cursor.html_block_start(!in_paragraph) {
+            if let Some(kind) = html_block::classify(cursor.remaining(), !in_paragraph) {
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
                 let index = self.append_child(parent, Node::new(Kind::HtmlBlock(kind)));
                 // The start line keeps its leading indentation (always spaces after normalization).
                 let line = format!("{}{}", " ".repeat(indent), cursor.rest());
                 self.append_text(index, &line);
                 self.append_text(index, "\n");
-                if html_block_closes(kind, &line) {
+                if html_block::closes(kind, &line) {
                     self.close(index);
                 }
                 return Some(index);
@@ -838,210 +838,6 @@ fn strip_atx_closing(content: &str) -> String {
     }
 }
 
-/// Tag names that begin an HTML block of type 6 (terminated by a blank line).
-const HTML_BLOCK_TAGS: &[&str] = &[
-    "address",
-    "article",
-    "aside",
-    "base",
-    "basefont",
-    "blockquote",
-    "body",
-    "caption",
-    "center",
-    "col",
-    "colgroup",
-    "dd",
-    "details",
-    "dialog",
-    "dir",
-    "div",
-    "dl",
-    "dt",
-    "fieldset",
-    "figcaption",
-    "figure",
-    "footer",
-    "form",
-    "frame",
-    "frameset",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "head",
-    "header",
-    "hr",
-    "html",
-    "iframe",
-    "legend",
-    "li",
-    "link",
-    "main",
-    "menu",
-    "menuitem",
-    "nav",
-    "noframes",
-    "ol",
-    "optgroup",
-    "option",
-    "p",
-    "param",
-    "search",
-    "section",
-    "summary",
-    "table",
-    "tbody",
-    "td",
-    "tfoot",
-    "th",
-    "thead",
-    "title",
-    "tr",
-    "track",
-    "ul",
-];
-
-/// Whether `line` satisfies the end condition for an HTML block of the given type. Types 6 and 7
-/// end at a blank line instead and are handled by the caller.
-fn html_block_closes(kind: u8, line: &str) -> bool {
-    match kind {
-        1 => {
-            let lower = line.to_ascii_lowercase();
-            ["</script>", "</pre>", "</style>", "</textarea>"]
-                .iter()
-                .any(|needle| lower.contains(needle))
-        }
-        2 => line.contains("-->"),
-        3 => line.contains("?>"),
-        4 => line.contains('>'),
-        5 => line.contains("]]>"),
-        _ => false,
-    }
-}
-
-/// Whether the bytes at `s` begin an HTML block of type 6 (`<`/`</` + block tag name + boundary).
-fn html_type6_start(s: &str) -> bool {
-    let after = s
-        .strip_prefix("</")
-        .or_else(|| s.strip_prefix('<'))
-        .unwrap_or("");
-    let name_len = after.bytes().take_while(u8::is_ascii_alphanumeric).count();
-    let Some(name) = after.get(..name_len) else {
-        return false;
-    };
-    if name.is_empty() {
-        return false;
-    }
-    let tail = after.get(name_len..).unwrap_or("");
-    let boundary = tail.is_empty() || tail.starts_with([' ', '\t', '>']) || tail.starts_with("/>");
-    boundary && HTML_BLOCK_TAGS.contains(&name.to_ascii_lowercase().as_str())
-}
-
-/// Length in bytes of a complete HTML open or closing tag at the start of `s`, if any. Used for
-/// HTML block type 7, which requires a complete tag spanning the rest of the line.
-fn scan_complete_tag(s: &str) -> Option<usize> {
-    let bytes = s.as_bytes();
-    if bytes.first() != Some(&b'<') {
-        return None;
-    }
-    if bytes.get(1) == Some(&b'/') {
-        let mut index = 2;
-        if !bytes.get(index).is_some_and(u8::is_ascii_alphabetic) {
-            return None;
-        }
-        index += 1;
-        while bytes
-            .get(index)
-            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'-')
-        {
-            index += 1;
-        }
-        while bytes.get(index).is_some_and(|b| matches!(b, b' ' | b'\t')) {
-            index += 1;
-        }
-        return (bytes.get(index) == Some(&b'>')).then_some(index + 1);
-    }
-    let mut index = 1;
-    if !bytes.get(index).is_some_and(u8::is_ascii_alphabetic) {
-        return None;
-    }
-    index += 1;
-    while bytes
-        .get(index)
-        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'-')
-    {
-        index += 1;
-    }
-    loop {
-        let mut whitespace = 0;
-        while bytes.get(index).is_some_and(|b| matches!(b, b' ' | b'\t')) {
-            index += 1;
-            whitespace += 1;
-        }
-        let name_ok = bytes
-            .get(index)
-            .is_some_and(|b| b.is_ascii_alphabetic() || matches!(b, b'_' | b':'));
-        if whitespace == 0 || !name_ok {
-            index -= whitespace;
-            break;
-        }
-        index += 1;
-        while bytes
-            .get(index)
-            .is_some_and(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b':' | b'-'))
-        {
-            index += 1;
-        }
-        index = scan_optional_attribute_value(bytes, index)?;
-    }
-    while bytes.get(index).is_some_and(|b| matches!(b, b' ' | b'\t')) {
-        index += 1;
-    }
-    if bytes.get(index) == Some(&b'/') {
-        index += 1;
-    }
-    (bytes.get(index) == Some(&b'>')).then_some(index + 1)
-}
-
-/// Consume an optional `= value` attribute tail; returns the new index, or `None` if a value is
-/// started but malformed (unterminated quote / empty unquoted value).
-fn scan_optional_attribute_value(bytes: &[u8], start: usize) -> Option<usize> {
-    let mut probe = start;
-    while bytes.get(probe).is_some_and(|b| matches!(b, b' ' | b'\t')) {
-        probe += 1;
-    }
-    if bytes.get(probe) != Some(&b'=') {
-        return Some(start);
-    }
-    probe += 1;
-    while bytes.get(probe).is_some_and(|b| matches!(b, b' ' | b'\t')) {
-        probe += 1;
-    }
-    match bytes.get(probe) {
-        Some(quote @ (b'"' | b'\'')) => {
-            let quote = *quote;
-            probe += 1;
-            while bytes.get(probe).is_some_and(|b| *b != quote) {
-                probe += 1;
-            }
-            (bytes.get(probe) == Some(&quote)).then(|| probe + 1)
-        }
-        Some(_) => {
-            let value_start = probe;
-            while bytes.get(probe).is_some_and(|b| {
-                !matches!(b, b' ' | b'\t' | b'"' | b'\'' | b'=' | b'<' | b'>' | b'`')
-            }) {
-                probe += 1;
-            }
-            (probe > value_start).then_some(probe)
-        }
-        None => None,
-    }
-}
-
 /// A tab-aware cursor over a single input line.
 struct Cursor<'a> {
     bytes: &'a [u8],
@@ -1205,9 +1001,14 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// The remaining line content from the cursor, borrowed.
+    fn remaining(&self) -> &str {
+        self.line.get(self.offset..).unwrap_or("")
+    }
+
     /// The remaining line content from the cursor, as-is.
     fn rest(&self) -> String {
-        self.line.get(self.offset..).unwrap_or("").to_owned()
+        self.remaining().to_owned()
     }
 
     fn rest_with_newline(&self) -> String {
@@ -1241,48 +1042,6 @@ impl<'a> Cursor<'a> {
                 None
             }
         }
-    }
-
-    /// If the remaining line begins an HTML block, return its type (1–7) per `CommonMark` §4.6. The
-    /// cursor is assumed positioned at the first non-space. Type 7 cannot interrupt a paragraph.
-    fn html_block_start(&self, can_interrupt_paragraph: bool) -> Option<u8> {
-        let rest = self.line.get(self.offset..)?;
-        if !rest.starts_with('<') {
-            return None;
-        }
-        if rest.starts_with("<!--") {
-            return Some(2);
-        }
-        if rest.starts_with("<?") {
-            return Some(3);
-        }
-        if rest.starts_with("<![CDATA[") {
-            return Some(5);
-        }
-        if rest
-            .strip_prefix("<!")
-            .is_some_and(|after| after.starts_with(|c: char| c.is_ascii_alphabetic()))
-        {
-            return Some(4);
-        }
-        let lower = rest.to_ascii_lowercase();
-        for tag in ["script", "pre", "style", "textarea"] {
-            if let Some(after) = lower.strip_prefix('<').and_then(|r| r.strip_prefix(tag))
-                && (after.is_empty() || after.starts_with([' ', '\t', '>']))
-            {
-                return Some(1);
-            }
-        }
-        if html_type6_start(rest) {
-            return Some(6);
-        }
-        if can_interrupt_paragraph
-            && let Some(len) = scan_complete_tag(rest)
-            && rest.get(len..).is_some_and(|tail| tail.trim().is_empty())
-        {
-            return Some(7);
-        }
-        None
     }
 
     /// If the remaining line is a setext heading underline, return its level (1 for `=`, 2 for
