@@ -1,0 +1,14 @@
+[package]
+name = "oxidoc-writers"
+description = "Output-format writers: render the document model to a target format's text."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+oxidoc-ast = { workspace = true }
+oxidoc-core = { workspace = true }
