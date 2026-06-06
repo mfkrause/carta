@@ -143,6 +143,8 @@ dependencies = [
  "clap",
  "oxidoc-ast",
  "oxidoc-core",
+ "oxidoc-readers",
+ "oxidoc-writers",
 ]
 
 [[package]]
@@ -155,10 +157,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxidoc-readers"
+version = "0.0.0"
+dependencies = [
+ "oxidoc-ast",
+ "oxidoc-core",
+]
+
+[[package]]
 name = "oxidoc-testkit"
 version = "0.0.0"
 dependencies = [
  "oxidoc-ast",
+ "oxidoc-core",
+ "oxidoc-readers",
+ "oxidoc-writers",
  "serde_json",
 ]
 
