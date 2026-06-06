@@ -329,12 +329,16 @@ impl Parser {
             // A list is a transparent container: it consumes nothing and defers to its items.
             Some(Kind::List(_)) => Continue::Matched,
             Some(Kind::BlockQuote) => {
+                let checkpoint = cursor.checkpoint();
                 cursor.skip_up_to_three_spaces();
                 if cursor.peek() == Some(b'>') {
                     cursor.advance_one();
                     cursor.consume_optional_space();
                     Continue::Matched
                 } else {
+                    // Restore the speculatively consumed indentation so phase 2 sees the line's
+                    // true indent (e.g. a non-continued line that is itself indented code).
+                    cursor.reset_to(checkpoint);
                     Continue::NotMatched
                 }
             }
@@ -1044,6 +1048,15 @@ impl<'a> Cursor<'a> {
 
     fn peek(&self) -> Option<u8> {
         self.bytes.get(self.offset).copied()
+    }
+
+    fn checkpoint(&self) -> (usize, usize) {
+        (self.offset, self.column)
+    }
+
+    fn reset_to(&mut self, (offset, column): (usize, usize)) {
+        self.offset = offset;
+        self.column = column;
     }
 
     fn advance_one(&mut self) {
