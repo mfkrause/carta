@@ -71,15 +71,11 @@ fn read_input(path: Option<&Path>) -> Result<Vec<u8>> {
 }
 
 fn write_output(path: Option<&Path>, document: &Document) -> Result<()> {
-    if let Some(path) = path {
-        let mut file = fs::File::create(path)?;
-        oxidoc_ast::to_json_writer(document, &mut file)?;
-        file.write_all(b"\n")?;
-    } else {
-        let stdout = io::stdout();
-        let mut handle = stdout.lock();
-        oxidoc_ast::to_json_writer(document, &mut handle)?;
-        handle.write_all(b"\n")?;
-    }
+    let mut writer: Box<dyn Write> = match path {
+        Some(path) => Box::new(fs::File::create(path)?),
+        None => Box::new(io::stdout().lock()),
+    };
+    oxidoc_ast::to_json_writer(document, &mut writer)?;
+    writer.write_all(b"\n")?;
     Ok(())
 }
