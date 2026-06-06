@@ -216,8 +216,22 @@ impl Parser {
             if cursor.indent() < TAB_STOP
                 && let Some(level) = cursor.setext_underline()
             {
-                self.convert_paragraph_to_heading(para, level);
-                return;
+                // Leading link reference definitions belong to neither the heading nor the
+                // underline. Pull them out first; the underline forms a heading only over what
+                // remains. If nothing remains, the paragraph was pure definitions — it is consumed
+                // and this line is reparsed as ordinary content (not an underline).
+                let text = self.node_text(para);
+                let remaining = self.extract_refs(&text);
+                let only_definitions = remaining.trim().is_empty();
+                if let Some(node) = self.nodes.get_mut(para) {
+                    node.text = remaining;
+                }
+                if only_definitions {
+                    self.close(para);
+                } else {
+                    self.convert_paragraph_to_heading(para, level);
+                    return;
+                }
             }
         }
 
@@ -607,11 +621,7 @@ impl Parser {
         // Pre-pass: pull link reference definitions out of every paragraph.
         for index in 0..self.nodes.len() {
             if matches!(self.kind(index), Some(Kind::Paragraph)) {
-                let text = self
-                    .nodes
-                    .get(index)
-                    .map(|n| n.text.clone())
-                    .unwrap_or_default();
+                let text = self.node_text(index);
                 let stripped = self.extract_refs(&text);
                 if let Some(node) = self.nodes.get_mut(index) {
                     node.text = stripped;
@@ -620,6 +630,13 @@ impl Parser {
         }
         let blocks = self.build_children(0);
         (blocks, self.refs)
+    }
+
+    fn node_text(&self, index: usize) -> String {
+        self.nodes
+            .get(index)
+            .map(|node| node.text.clone())
+            .unwrap_or_default()
     }
 
     fn extract_refs(&mut self, text: &str) -> String {
