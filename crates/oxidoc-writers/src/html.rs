@@ -23,9 +23,19 @@ impl Writer for HtmlWriter {
         let mut state = State::default();
         let mut out = state.blocks(&document.blocks);
         out.push_str(&state.footnote_section());
-        Ok(out)
+        let filled = reflow(&out);
+        Ok(filled.trim_end_matches('\n').to_owned())
     }
 }
+
+/// Column at which the writer wraps filled inline content, matching the reference writer's default.
+const FILL_COLUMN: usize = 72;
+
+/// Sentinel marking a breakable inline space while the document is assembled as a flat string.
+/// [`reflow`] later turns each into either a single space or a line break to fill to
+/// [`FILL_COLUMN`]. Using U+0000 is safe because it never survives into escaped HTML output or
+/// well-formed document text (readers replace it with U+FFFD).
+const BREAK: char = '\u{0}';
 
 /// Where an attribute set is being rendered, which selects the field order. Most elements emit
 /// `id`, then `class`, then key/value pairs; headers emit `class`, then key/value pairs, then `id`.
@@ -64,7 +74,7 @@ impl State {
             Block::CodeBlock(attr, text) => format!(
                 "<pre{}><code>{}</code></pre>",
                 render_attr(attr, AttrOrder::Standard),
-                escape_text(text)
+                escape_code_block(text)
             ),
             Block::RawBlock(format, text) => raw_passthrough(&format.0, text),
             Block::BlockQuote(blocks) => {
@@ -94,6 +104,9 @@ impl State {
         let mut open = String::from("<ol");
         if attrs.start != 1 {
             let _ = write!(open, " start=\"{}\"", attrs.start);
+        }
+        if matches!(attrs.style, ListNumberStyle::Example) {
+            open.push_str(" class=\"example\"");
         }
         if let Some(kind) = ordered_list_type(&attrs.style) {
             let _ = write!(open, " type=\"{kind}\"");
@@ -205,13 +218,13 @@ impl State {
         };
         let mut attrs = String::new();
         if let Some(style) = alignment_style(effective) {
-            let _ = write!(attrs, " style=\"{style}\"");
+            let _ = write!(attrs, "{BREAK}style=\"{style}\"");
         }
         if cell.col_span != 1 {
-            let _ = write!(attrs, " colspan=\"{}\"", cell.col_span);
+            let _ = write!(attrs, "{BREAK}colspan=\"{}\"", cell.col_span);
         }
         if cell.row_span != 1 {
-            let _ = write!(attrs, " rowspan=\"{}\"", cell.row_span);
+            let _ = write!(attrs, "{BREAK}rowspan=\"{}\"", cell.row_span);
         }
         format!("<{tag}{attrs}>{}</{tag}>", self.blocks(&cell.content))
     }
@@ -244,8 +257,7 @@ impl State {
                 render_attr(attr, AttrOrder::Standard),
                 escape_text(text)
             ),
-            Inline::Space => " ".to_owned(),
-            Inline::SoftBreak => "\n".to_owned(),
+            Inline::Space | Inline::SoftBreak => BREAK.to_string(),
             Inline::LineBreak => "<br />\n".to_owned(),
             Inline::Math(kind, text) => {
                 let (class, open, close) = match kind {
@@ -286,7 +298,7 @@ impl State {
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target) -> String {
         format!(
-            "<a href=\"{}\"{}{}>{}</a>",
+            "<a{BREAK}href=\"{}\"{}{}>{}</a>",
             escape_attr(&target.url),
             render_attr(attr, AttrOrder::Standard),
             title_attr(&target.title),
@@ -331,12 +343,17 @@ impl State {
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
+    let alt = inlines_to_plain(inlines);
+    let alt_attr = if alt.is_empty() {
+        String::new()
+    } else {
+        format!("{BREAK}alt=\"{}\"", escape_attr(&alt))
+    };
     format!(
-        "<img src=\"{}\"{}{} alt=\"{}\" />",
+        "<img{BREAK}src=\"{}\"{}{}{alt_attr}{BREAK}/>",
         escape_attr(&target.url),
         title_attr(&target.title),
         render_attr(attr, AttrOrder::Standard),
-        escape_attr(&inlines_to_plain(inlines))
     )
 }
 
@@ -372,7 +389,7 @@ fn title_attr(title: &Text) -> String {
     if title.is_empty() {
         String::new()
     } else {
-        format!(" title=\"{}\"", escape_attr(title))
+        format!("{BREAK}title=\"{}\"", escape_attr(title))
     }
 }
 
@@ -383,7 +400,8 @@ fn header_tag(level: i32) -> String {
 
 fn ordered_list_type(style: &ListNumberStyle) -> Option<&'static str> {
     match style {
-        ListNumberStyle::Decimal | ListNumberStyle::DefaultStyle | ListNumberStyle::Example => None,
+        ListNumberStyle::DefaultStyle => None,
+        ListNumberStyle::Decimal | ListNumberStyle::Example => Some("1"),
         ListNumberStyle::LowerAlpha => Some("a"),
         ListNumberStyle::UpperAlpha => Some("A"),
         ListNumberStyle::LowerRoman => Some("i"),
@@ -441,7 +459,7 @@ fn render_id(id: &Text) -> String {
     if id.is_empty() {
         String::new()
     } else {
-        format!(" id=\"{}\"", escape_attr(id))
+        format!("{BREAK}id=\"{}\"", escape_attr(id))
     }
 }
 
@@ -449,7 +467,7 @@ fn render_class(classes: &[Text]) -> String {
     if classes.is_empty() {
         String::new()
     } else {
-        format!(" class=\"{}\"", escape_attr(&classes.join(" ")))
+        format!("{BREAK}class=\"{}\"", escape_attr(&classes.join(" ")))
     }
 }
 
@@ -461,7 +479,7 @@ fn render_keyvals(attributes: &[(Text, Text)]) -> String {
         } else {
             format!("data-{key}")
         };
-        let _ = write!(out, " {name}=\"{}\"", escape_attr(value));
+        let _ = write!(out, "{BREAK}{name}=\"{}\"", escape_attr(value));
     }
     out
 }
@@ -593,6 +611,102 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "wrap",
 ];
 
+/// Replace each [`BREAK`] sentinel with a space or a line break so that inline content fills to
+/// [`FILL_COLUMN`], matching the reference writer's greedy fill. A break point becomes a newline
+/// when keeping the following chunk on the current line would exceed the fill column; the chunk is
+/// the run of literal text up to the next break point or hard newline. Hard newlines (block
+/// structure) reset the column. Consecutive break points collapse to one.
+fn reflow(input: &str) -> String {
+    let chars: Vec<char> = input.chars().collect();
+    let mut out = String::with_capacity(input.len());
+    let mut column = 0usize;
+    let mut index = 0usize;
+    while let Some(&current) = chars.get(index) {
+        match current {
+            '\n' => {
+                out.push('\n');
+                column = 0;
+                index += 1;
+            }
+            BREAK => {
+                while matches!(chars.get(index), Some(&BREAK)) {
+                    index += 1;
+                }
+                let mut chunk = 0usize;
+                let mut lookahead = index;
+                while let Some(&following) = chars.get(lookahead) {
+                    if following == BREAK || following == '\n' {
+                        break;
+                    }
+                    chunk += char_width(following);
+                    lookahead += 1;
+                }
+                if column + 1 + chunk > FILL_COLUMN {
+                    out.push('\n');
+                    column = 0;
+                } else {
+                    out.push(' ');
+                    column += 1;
+                }
+            }
+            other => {
+                out.push(other);
+                column += char_width(other);
+                index += 1;
+            }
+        }
+    }
+    out
+}
+
+/// Display width of a character in columns, matching the reference writer's measure: zero for
+/// combining marks, two for wide and fullwidth East Asian characters, one otherwise.
+fn char_width(ch: char) -> usize {
+    let code = ch as u32;
+    if code < 0x0300 {
+        return 1;
+    }
+    if is_zero_width(ch) {
+        return 0;
+    }
+    if is_wide(code) { 2 } else { 1 }
+}
+
+fn is_zero_width(ch: char) -> bool {
+    use unicode_general_category::{GeneralCategory, get_general_category};
+    matches!(
+        get_general_category(ch),
+        GeneralCategory::NonspacingMark
+            | GeneralCategory::EnclosingMark
+            | GeneralCategory::Format
+            | GeneralCategory::Control
+    )
+}
+
+fn is_wide(code: u32) -> bool {
+    matches!(code,
+        0x1100..=0x115F
+        | 0x2329 | 0x232A
+        | 0x2E80..=0x303E
+        | 0x3041..=0x33FF
+        | 0x3400..=0x4DBF
+        | 0x4E00..=0x9FFF
+        | 0xA000..=0xA4CF
+        | 0xA960..=0xA97F
+        | 0xAC00..=0xD7A3
+        | 0xF900..=0xFAFF
+        | 0xFE10..=0xFE19
+        | 0xFE30..=0xFE6F
+        | 0xFF00..=0xFF60
+        | 0xFFE0..=0xFFE6
+        | 0x1B000..=0x1B2FF
+        | 0x1F200..=0x1F2FF
+        | 0x1F300..=0x1F64F
+        | 0x1F900..=0x1F9FF
+        | 0x20000..=0x3FFFD
+    )
+}
+
 fn escape_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
@@ -600,6 +714,22 @@ fn escape_text(text: &str) -> String {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// Escape a code block's text. Unlike inline text and inline code, the reference writer also
+/// escapes the double quote inside a `<pre><code>` block.
+fn escape_code_block(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
             other => out.push(other),
         }
     }
