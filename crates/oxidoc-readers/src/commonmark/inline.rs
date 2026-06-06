@@ -490,7 +490,9 @@ fn emphasis_match(opener: &Delimiter, nodes: &[Node], closer: usize) -> bool {
         (opener.can_open && opener.can_close) || (closer_delim.can_open && closer_delim.can_close);
     if either_both {
         let sum = opener.count + closer_delim.count;
-        if sum % 3 == 0 && (opener.count % 3 != 0 || closer_delim.count % 3 != 0) {
+        if sum.is_multiple_of(3)
+            && (!opener.count.is_multiple_of(3) || !closer_delim.count.is_multiple_of(3))
+        {
             return false;
         }
     }
