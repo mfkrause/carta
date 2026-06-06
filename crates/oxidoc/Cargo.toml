@@ -1,0 +1,28 @@
+[package]
+name = "oxidoc"
+description = "Document converter library: parse a source format and render it to a target format."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["full"]
+full = ["read-commonmark", "read-json", "write-html", "write-json"]
+read-commonmark = ["dep:oxidoc-readers", "oxidoc-readers/commonmark"]
+read-json = ["dep:oxidoc-readers", "oxidoc-readers/json"]
+write-html = ["dep:oxidoc-writers", "oxidoc-writers/html"]
+write-json = ["dep:oxidoc-writers", "oxidoc-writers/json"]
+
+[dependencies]
+oxidoc-ast = { workspace = true }
+oxidoc-core = { workspace = true }
+# Referenced by path (not the workspace table) so this crate can own their feature selection:
+# `default-features = false` cannot override an inherited workspace dependency.
+oxidoc-readers = { path = "../oxidoc-readers", default-features = false, optional = true }
+oxidoc-writers = { path = "../oxidoc-writers", default-features = false, optional = true }

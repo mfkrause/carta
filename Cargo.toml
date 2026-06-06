@@ -20,6 +20,7 @@ unicode-general-category = "1"
 caseless = "0.2"
 
 # Internal crates
+oxidoc = { path = "crates/oxidoc" }
 oxidoc-ast = { path = "crates/oxidoc-ast" }
 oxidoc-core = { path = "crates/oxidoc-core" }
 oxidoc-readers = { path = "crates/oxidoc-readers" }
