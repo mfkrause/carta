@@ -18,12 +18,24 @@ jobs:
       - name: Install toolchain
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
         run: cargo clippy --all-targets --all-features
       - name: Test
-        run: cargo test --workspace --all-features
+        run: cargo nextest run --workspace --all-features
+      - name: Doctests
+        run: cargo test --doc --workspace --all-features
+
+  typos:
+    name: typos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@master
 
   deny:
     name: cargo-deny

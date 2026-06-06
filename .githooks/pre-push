@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Pre-push gate: lint + test, mirroring CI's check job so failures surface before the push.
+# Enable with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
+set -euo pipefail
+
+export RUSTFLAGS="${RUSTFLAGS:--D warnings}"
+
+echo "clippy ..." >&2
+cargo clippy --all-targets --all-features
+
+echo "tests ..." >&2
+if command -v cargo-nextest >/dev/null 2>&1; then
+  cargo nextest run --workspace --all-features
+  cargo test --doc --workspace --all-features
+else
+  cargo test --workspace --all-features
+fi

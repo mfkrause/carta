@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Enforce Conventional Commits on the subject line.
+# Enabled with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
+set -euo pipefail
+
+msg_file="$1"
+subject="$(grep -vE '^[[:space:]]*#' "$msg_file" | grep -vE '^[[:space:]]*$' | head -1 || true)"
+
+# Let git's own generated commits through (merge, revert, fixup/squash).
+case "$subject" in
+  Merge\ * | Revert\ * | fixup!\ * | squash!\ *) exit 0 ;;
+esac
+
+pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+'
+if ! printf '%s' "$subject" | grep -qE "$pattern"; then
+  {
+    echo "✗ Commit message must follow Conventional Commits:"
+    echo "    <type>[(scope)][!]: <description>"
+    echo "  types: feat fix docs style refactor perf test build ci chore revert"
+    echo "  got: ${subject:-<empty>}"
+  } >&2
+  exit 1
+fi
