@@ -612,8 +612,31 @@ fn is_unicode_whitespace(ch: char) -> bool {
         || ch.is_whitespace()
 }
 
+/// A Unicode punctuation character per the spec: an ASCII punctuation character or anything in the
+/// Unicode `P` (punctuation) or `S` (symbol) general categories.
 fn is_punctuation(ch: char) -> bool {
-    is_ascii_punctuation(ch) || ch.is_ascii_punctuation()
+    use unicode_general_category::GeneralCategory::{
+        ClosePunctuation, ConnectorPunctuation, CurrencySymbol, DashPunctuation, FinalPunctuation,
+        InitialPunctuation, MathSymbol, ModifierSymbol, OpenPunctuation, OtherPunctuation,
+        OtherSymbol,
+    };
+    if ch.is_ascii() {
+        return is_ascii_punctuation(ch);
+    }
+    matches!(
+        unicode_general_category::get_general_category(ch),
+        ConnectorPunctuation
+            | DashPunctuation
+            | OpenPunctuation
+            | ClosePunctuation
+            | InitialPunctuation
+            | FinalPunctuation
+            | OtherPunctuation
+            | MathSymbol
+            | CurrencySymbol
+            | ModifierSymbol
+            | OtherSymbol
+    )
 }
 
 fn is_ascii_punctuation(ch: char) -> bool {
