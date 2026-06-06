@@ -40,8 +40,7 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 # Panic discipline (clippy::restriction). A document converter ingests arbitrary input; a panic on
 # malformed input is a correctness bug and a DoS vector. Propagate errors via `Result`/`?` instead.
-# These are allowed in tests via clippy.toml. `todo` is intentionally NOT denied — todo!() is the
-# sanctioned IOU marker (see AGENTS.md).
+# These are allowed in tests via clippy.toml.
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
