@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install a pinned pandoc binary as a BLACK-BOX reference into .pandoc-ref/ (gitignored, local-only).
+# Install a pinned pandoc binary as a BLACK-BOX reference into .oracle/ (gitignored, local-only).
 #
 # pandoc is used only as an external oracle for differential testing (see docs/PORTING.md §5).
 # Per the clean-room rule in AGENTS.md we never read its source and never commit it.
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ref_dir="$repo_root/.pandoc-ref"
+ref_dir="$repo_root/.oracle"
 bin_dir="$ref_dir/bin"
 version_file="$ref_dir/PANDOC_VERSION"
 

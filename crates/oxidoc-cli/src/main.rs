@@ -1,4 +1,4 @@
-//! `oxidoc` — command-line interface (clean-room reimplementation of pandoc).
+//! `oxidoc` — command-line interface.
 //!
 //! Scaffolding only: argument parsing and the reader → writer pipeline land in slice 1.
 
