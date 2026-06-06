@@ -10,5 +10,6 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+oxidoc-ast = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
