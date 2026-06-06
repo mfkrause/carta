@@ -1,44 +1,14 @@
-//! Format-name dispatch. A static, `#[cfg]`-gated table maps a format name to its [`Reader`] or
-//! [`Writer`]; only the formats whose features are enabled are compiled in. Names that are
-//! recognized but not compiled in resolve to [`Error::FormatNotEnabled`]; unknown names to
-//! [`Error::UnsupportedFormat`].
+//! Format-name dispatch. Every format is declared once inside a [`format_dispatch!`] block; the
+//! macro expands that single declaration into all three views that must agree — the resolver
+//! (name/alias → boxed trait object), the `supported_*` enumerator, and the recognized-name set
+//! that separates "disabled" from "unknown". Because the views share one source, they cannot drift
+//! as formats are added.
+//!
+//! Each constructor is `#[cfg]`-gated on its per-direction feature, so only formats compiled into
+//! the build resolve. A recognized name whose feature is off yields [`Error::FormatNotEnabled`]; an
+//! unrecognized name yields [`Error::UnsupportedFormat`].
 
 use oxidoc_core::{Error, Reader, Result, Writer};
-
-/// Every input-format name oxidoc recognizes, whether or not it is compiled into this build.
-const KNOWN_INPUT_FORMATS: &[&str] = &["commonmark", "markdown", "json"];
-/// Every output-format name oxidoc recognizes, whether or not it is compiled into this build.
-const KNOWN_OUTPUT_FORMATS: &[&str] = &["html", "html5", "json"];
-
-/// Resolves an input-format name to its reader.
-///
-/// # Errors
-/// [`Error::FormatNotEnabled`] if the format is recognized but its feature is off;
-/// [`Error::UnsupportedFormat`] if the name is unknown.
-pub fn reader_for(name: &str) -> Result<Box<dyn Reader>> {
-    match name {
-        #[cfg(feature = "read-json")]
-        "json" => Ok(Box::new(oxidoc_readers::JsonReader)),
-        #[cfg(feature = "read-commonmark")]
-        "commonmark" | "markdown" => Ok(Box::new(oxidoc_readers::CommonmarkReader)),
-        other => Err(resolution_error(other, KNOWN_INPUT_FORMATS)),
-    }
-}
-
-/// Resolves an output-format name to its writer.
-///
-/// # Errors
-/// [`Error::FormatNotEnabled`] if the format is recognized but its feature is off;
-/// [`Error::UnsupportedFormat`] if the name is unknown.
-pub fn writer_for(name: &str) -> Result<Box<dyn Writer>> {
-    match name {
-        #[cfg(feature = "write-json")]
-        "json" => Ok(Box::new(oxidoc_writers::JsonWriter)),
-        #[cfg(feature = "write-html")]
-        "html" | "html5" => Ok(Box::new(oxidoc_writers::HtmlWriter)),
-        other => Err(resolution_error(other, KNOWN_OUTPUT_FORMATS)),
-    }
-}
 
 fn resolution_error(name: &str, known: &[&str]) -> Error {
     if known.contains(&name) {
@@ -48,26 +18,53 @@ fn resolution_error(name: &str, known: &[&str]) -> Error {
     }
 }
 
-/// The canonical input-format names compiled into this build, in a deterministic order.
-#[must_use]
-pub fn supported_input_formats() -> Vec<&'static str> {
-    [
-        cfg!(feature = "read-commonmark").then_some("commonmark"),
-        cfg!(feature = "read-json").then_some("json"),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
+/// Expands one per-direction format table into its resolver and enumerator. Each entry reads
+/// `<feature> => <canonical> [| <alias>]* => <constructor>;`.
+macro_rules! format_dispatch {
+    (
+        trait: $trait:ident;
+        resolve: $resolve:ident;
+        supported: $supported:ident;
+        $( $feature:literal => $canonical:literal $(| $alias:literal)* => $constructor:expr ; )+
+    ) => {
+        #[doc = concat!("Resolves a format name to its boxed [`", stringify!($trait), "`].")]
+        #[doc = ""]
+        #[doc = "[`Error::FormatNotEnabled`] if the format is recognized but its feature is off;"]
+        #[doc = "[`Error::UnsupportedFormat`] if the name is unknown."]
+        pub fn $resolve(name: &str) -> Result<Box<dyn $trait>> {
+            const KNOWN: &[&str] = &[ $( $canonical $(, $alias)* ),+ ];
+            match name {
+                $(
+                    #[cfg(feature = $feature)]
+                    $canonical $(| $alias)* => Ok(Box::new($constructor)),
+                )+
+                other => Err(resolution_error(other, KNOWN)),
+            }
+        }
+
+        #[doc = concat!("The canonical names of every compiled-in ", stringify!($trait), " format, in declaration order.")]
+        #[must_use]
+        pub fn $supported() -> Vec<&'static str> {
+            [ $( cfg!(feature = $feature).then_some($canonical) ),+ ]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+    };
 }
 
-/// The canonical output-format names compiled into this build, in a deterministic order.
-#[must_use]
-pub fn supported_output_formats() -> Vec<&'static str> {
-    [
-        cfg!(feature = "write-html").then_some("html"),
-        cfg!(feature = "write-json").then_some("json"),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
+format_dispatch! {
+    trait: Reader;
+    resolve: reader_for;
+    supported: supported_input_formats;
+    "read-commonmark" => "commonmark" | "markdown" => oxidoc_readers::CommonmarkReader;
+    "read-json" => "json" => oxidoc_readers::JsonReader;
+}
+
+format_dispatch! {
+    trait: Writer;
+    resolve: writer_for;
+    supported: supported_output_formats;
+    "write-html" => "html" | "html5" => oxidoc_writers::HtmlWriter;
+    "write-json" => "json" => oxidoc_writers::JsonWriter;
 }
