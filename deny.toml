@@ -8,6 +8,7 @@ yanked = "deny"
 [licenses]
 version = 2
 confidence-threshold = 0.9
+private = { ignore = true }
 # Permissive licenses acceptable for dependencies of an independent project.
 allow = [
   "MIT",
