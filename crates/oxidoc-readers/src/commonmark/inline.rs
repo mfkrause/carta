@@ -991,24 +991,15 @@ fn code_point_char(code: u32) -> String {
 }
 
 fn named_entity(name: &str) -> Option<String> {
-    let value = match name {
-        "amp" => "&",
-        "lt" => "<",
-        "gt" => ">",
-        "quot" => "\"",
-        "apos" => "'",
-        "nbsp" => "\u{a0}",
-        "copy" => "\u{a9}",
-        "reg" => "\u{ae}",
-        "hellip" => "\u{2026}",
-        "mdash" => "\u{2014}",
-        "ndash" => "\u{2013}",
-        "auml" => "\u{e4}",
-        "ouml" => "\u{f6}",
-        "uuml" => "\u{fc}",
-        _ => return None,
-    };
-    Some(value.to_owned())
+    entities::ENTITIES
+        .binary_search_by(|(candidate, _)| (*candidate).cmp(name))
+        .ok()
+        .and_then(|index| entities::ENTITIES.get(index))
+        .map(|(_, characters)| (*characters).to_owned())
+}
+
+mod entities {
+    include!(concat!(env!("OUT_DIR"), "/entities_table.rs"));
 }
 
 /// Scan an inline link tail `(url "title")` beginning at `pos` (which points at `(`).
