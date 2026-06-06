@@ -13,3 +13,7 @@ workspace = true
 oxidoc-ast = { workspace = true }
 oxidoc-core = { workspace = true }
 unicode-general-category = { workspace = true }
+
+[build-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

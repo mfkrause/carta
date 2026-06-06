@@ -162,6 +162,8 @@ version = "0.0.0"
 dependencies = [
  "oxidoc-ast",
  "oxidoc-core",
+ "serde",
+ "serde_json",
  "unicode-general-category",
 ]
 
