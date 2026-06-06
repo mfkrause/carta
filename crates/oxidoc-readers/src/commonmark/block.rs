@@ -671,7 +671,15 @@ impl Parser {
                 };
                 IrBlock::CodeBlock(attr, text)
             }
-            Kind::HtmlBlock(_) => IrBlock::RawHtml(node.text.clone()),
+            Kind::HtmlBlock(kind) => {
+                let mut text = node.text.clone();
+                // Kinds 1–5 close only on an explicit end tag; reaching end-of-input with the block
+                // still open leaves it unterminated, which pandoc renders with a trailing blank line.
+                if node.open && matches!(kind, 1..=5) {
+                    text.push('\n');
+                }
+                IrBlock::RawHtml(text)
+            }
             Kind::BlockQuote => IrBlock::BlockQuote(self.build_children(index)),
             Kind::List(info) => self.build_list(index, info),
         };
