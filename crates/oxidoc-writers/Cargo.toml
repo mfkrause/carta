@@ -11,7 +11,12 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["html", "json"]
+html = ["dep:unicode-general-category"]
+json = []
+
 [dependencies]
 oxidoc-ast = { workspace = true }
 oxidoc-core = { workspace = true }
-unicode-general-category = { workspace = true }
+unicode-general-category = { workspace = true, optional = true }
