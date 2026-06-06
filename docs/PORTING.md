@@ -30,11 +30,20 @@ Crate layout (Cargo workspace):
 
 - `oxidoc-ast` — AST types + JSON (de)serialization matching pandoc's `pandoc-api-version`. The
   contract. Pure data.
-- `oxidoc-core` — shared options, error type, text/attribute helpers.
-- `oxidoc-readers` — one module per input format.
-- `oxidoc-writers` — one module per output format.
-- `oxidoc-cli` — the `oxidoc` binary; arg parsing + `reader → (filter) → writer` dispatch.
+- `oxidoc-core` — shared options, error type, the `Reader`/`Writer` traits, the `Extension`/
+  `Extensions` set, and text/attribute helpers.
+- `oxidoc-readers` — one module per input format, each behind a per-format Cargo feature
+  (`commonmark`, `json`, …).
+- `oxidoc-writers` — one module per output format, each behind a per-format Cargo feature
+  (`html`, `json`, …).
+- `oxidoc` — the library facade and single public entry point (`convert`, `reader_for`/`writer_for`,
+  `supported_*_formats`). Selects formats at compile time via per-direction features
+  (`read-*`/`write-*`) that forward to the reader/writer crate features; a recognized format absent
+  from the build surfaces as `Error::FormatNotEnabled`.
+- `oxidoc-cli` — the `oxidoc` binary; arg parsing + stdin/file I/O over the `oxidoc` facade.
 - `oxidoc-testkit` — differential harness (drives pandoc black-box, diffs results).
+- `fuzz` — coverage-guided fuzz targets (`cargo-fuzz`/libFuzzer); detached from the workspace,
+  built on nightly.
 - later: `oxidoc-templates`, `oxidoc-citeproc`, filter support, etc.
 
 ## 4. The AST contract

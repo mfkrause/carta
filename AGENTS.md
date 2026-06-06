@@ -70,10 +70,20 @@ Slices 0 and 1 have landed:
   Byte-identical to the pinned binary on all 652 vendored CommonMark spec examples; ~96%
   product-crate line coverage.
 
-Other formats are a recognized-but-unsupported error.
+A library facade (`oxidoc`) is the single public entry point — `convert`, `reader_for`/`writer_for`,
+`supported_input_formats`/`supported_output_formats`, and the document model re-exported as `ast`.
+The CLI is a thin shell over it. Formats are selected at compile time through per-direction features
+on the facade (`read-commonmark`, `read-json`, `write-html`, `write-json`; `default = full` enables
+all). Each forwards to a per-format feature on the reader/writer crate, so a build can carry a single
+direction. A format that is recognized but compiled out is an `Error::FormatNotEnabled`; a genuinely
+unknown one is `Error::UnsupportedFormat`. Reader/writer behavior is configured through
+`ReaderOptions`/`WriterOptions`, which carry an `Extensions` set (`oxidoc-core`); the CommonMark
+reader currently implements the strict preset and does not yet honor extension toggles.
 
 - Build: `cargo build`
+- Build a single direction: `cargo build -p oxidoc --no-default-features --features read-commonmark,write-html`
 - Unit + integration tests: `cargo nextest run --workspace` (doctests separately: `cargo test --doc`)
+- Fuzz a reader (nightly + `cargo-fuzz`): `cargo +nightly fuzz run commonmark` (see `fuzz/README.md`)
 - Differential tests (against pinned pandoc): `cargo nextest run -p oxidoc-testkit`. These
   **hard-require** `.oracle/` (binary + corpus) — they fail, not skip, if it is absent. The
   committed offline fixtures under `crates/oxidoc-testkit/fixtures/roundtrip/` round-trip without
