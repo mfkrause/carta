@@ -139,6 +139,9 @@ impl InlineParser<'_> {
         match self.peek() {
             Some('\n') => {
                 self.pos += 1;
+                while matches!(self.peek(), Some(' ' | '\t')) {
+                    self.pos += 1;
+                }
                 self.nodes.push(Node::LineBreak);
             }
             Some(ch) if is_ascii_punctuation(ch) => {
@@ -1032,7 +1035,7 @@ fn scan_destination(chars: &[char], start: usize) -> Option<(String, usize)> {
     let mut depth = 0;
     while let Some(&ch) = chars.get(index) {
         match ch {
-            c if c.is_whitespace() => break,
+            ' ' => break,
             c if c.is_control() => break,
             '(' => {
                 depth += 1;
