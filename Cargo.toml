@@ -31,8 +31,22 @@ pedantic = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+# Panic discipline (clippy::restriction). A document converter ingests arbitrary input; a panic on
+# malformed input is a correctness bug and a DoS vector. Propagate errors via `Result`/`?` instead.
+# These are allowed in tests via clippy.toml. `todo` is intentionally NOT denied — todo!() is the
+# sanctioned IOU marker (see AGENTS.md).
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
 
 # Optimize dependencies even in debug builds; keeps differential test runs (which shell out a lot)
 # from being dominated by unoptimized dependency code.
 [profile.dev.package."*"]
 opt-level = 2
+
+# Overflow wraps silently in release by default. Readers do arithmetic on byte offsets, positions,
+# and counts; a silent wrap is a latent correctness bug. The check is cheap insurance for a
+# correctness-critical parser.
+[profile.release]
+overflow-checks = true
