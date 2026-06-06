@@ -965,10 +965,18 @@ fn scan_entity(chars: &[char], start: usize) -> Option<(String, usize)> {
 
 fn decode_entity(body: &str) -> Option<String> {
     if let Some(num) = body.strip_prefix("#x").or_else(|| body.strip_prefix("#X")) {
+        // A hexadecimal reference is one to six digits.
+        if num.is_empty() || num.len() > 6 || !num.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
         let code = u32::from_str_radix(num, 16).ok()?;
         return Some(code_point_char(code));
     }
     if let Some(num) = body.strip_prefix('#') {
+        // A decimal reference is one to seven digits.
+        if num.is_empty() || num.len() > 7 || !num.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
         let code: u32 = num.parse().ok()?;
         return Some(code_point_char(code));
     }
