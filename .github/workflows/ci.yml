@@ -43,6 +43,41 @@ jobs:
       - name: Doctests
         run: cargo test --doc --workspace --all-features
 
+  minimal:
+    name: minimal feature build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Build single-direction config
+        run: cargo build -p oxidoc --no-default-features --features read-commonmark,write-html
+      - name: Test single-direction config
+        run: cargo nextest run -p oxidoc --no-default-features --features read-commonmark,write-html
+      - name: Build zero-format config
+        run: cargo build -p oxidoc --no-default-features
+
+  fuzz-smoke:
+    name: fuzz smoke (nightly)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Smoke-run commonmark target
+        run: cargo +nightly fuzz run commonmark -- -max_total_time=30
+
   typos:
     name: typos
     runs-on: ubuntu-latest
