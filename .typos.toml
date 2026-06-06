@@ -1,0 +1,9 @@
+# Spell-checking for docs, comments, and identifiers (crate-ci/typos).
+# Add genuine false positives (format names, jargon) to [default.extend-words].
+
+[files]
+extend-exclude = [".oracle/", "target/", "*.lock"]
+
+[default.extend-words]
+# Document-format vocabulary that is not a typo
+fb2 = "fb2"

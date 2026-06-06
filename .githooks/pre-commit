@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fast gate: formatting only. Heavier checks (clippy, tests) run pre-push.
+# Enable with: tools/dev-setup.sh  (sets core.hooksPath to .githooks)
+set -euo pipefail
+
+if ! cargo fmt --all --check; then
+  echo >&2
+  echo "✗ Formatting issues. Run 'cargo fmt --all' and re-stage." >&2
+  exit 1
+fi
