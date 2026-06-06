@@ -1165,10 +1165,10 @@ fn skip_inline_whitespace(chars: &[char], index: &mut usize) {
 }
 
 /// Normalize a link label per the spec: trim, collapse internal whitespace to single spaces, and
-/// case-fold (here, lowercase).
+/// apply Unicode case folding (so e.g. `ẞ` and `SS` match).
 pub(crate) fn normalize_label(label: &str) -> String {
-    let collapsed: Vec<&str> = label.split_whitespace().collect();
-    collapsed.join(" ").to_lowercase()
+    let collapsed = label.split_whitespace().collect::<Vec<_>>().join(" ");
+    caseless::default_case_fold_str(&collapsed)
 }
 
 /// Remove backslash escapes of ASCII punctuation from a string, leaving other backslashes intact.
