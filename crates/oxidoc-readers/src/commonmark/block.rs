@@ -5,7 +5,7 @@
 
 use oxidoc_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
 
-use super::{IrBlock, RefMap, TAB_STOP, inline};
+use super::{IrBlock, RefMap, TAB_STOP, scan};
 
 /// Parse the normalized input into the block tree plus the collected link references.
 pub(crate) fn parse(input: &str) -> (Vec<IrBlock>, RefMap) {
@@ -632,7 +632,7 @@ impl Parser {
 
     fn extract_refs(&mut self, text: &str) -> String {
         let mut remaining = text;
-        while let Some((label, def, rest)) = inline::parse_link_reference_definition(remaining) {
+        while let Some((label, def, rest)) = scan::parse_link_reference_definition(remaining) {
             self.refs.entry(label).or_insert(def);
             remaining = rest;
         }
@@ -1466,5 +1466,5 @@ fn rest_is_blank(bytes: &[u8], start: usize) -> bool {
 }
 
 fn unescape_info(info: &str) -> String {
-    inline::unescape_string(info)
+    scan::unescape_string(info)
 }
