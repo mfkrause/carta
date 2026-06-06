@@ -11,6 +11,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub mod command_test;
+pub mod commonmark_spec;
+pub mod differential;
 pub mod roundtrip;
 
 /// Recursively collect files under `dir` whose extension is `ext`, sorted for deterministic
