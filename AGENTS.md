@@ -61,21 +61,34 @@ package descriptions.
 
 ## Build & test
 
-Slice 0 has landed: the document model and JSON interchange codec (`oxidoc-ast`), and the
-`oxidoc -f json -t json` conversion path. Other formats are a recognized-but-unsupported error.
+Slices 0 and 1 have landed:
+
+- **Slice 0** — the document model and JSON interchange codec (`oxidoc-ast`), and the
+  `oxidoc -f json -t json` conversion path.
+- **Slice 1** — the `CommonMark` reader (`oxidoc-readers`) and HTML writer (`oxidoc-writers`),
+  exposing `oxidoc -f commonmark -t html` (and `-t json` from CommonMark, `-f json -t html`).
+  Byte-identical to the pinned binary on all 652 vendored CommonMark spec examples; ~96%
+  product-crate line coverage.
+
+Other formats are a recognized-but-unsupported error.
 
 - Build: `cargo build`
 - Unit + integration tests: `cargo nextest run --workspace` (doctests separately: `cargo test --doc`)
-- Differential round-trip tests (against pinned pandoc): `cargo nextest run -p oxidoc-testkit`.
-  These **hard-require** `.oracle/` (binary + corpus) — they fail, not skip, if it is absent. The
+- Differential tests (against pinned pandoc): `cargo nextest run -p oxidoc-testkit`. These
+  **hard-require** `.oracle/` (binary + corpus) — they fail, not skip, if it is absent. The
   committed offline fixtures under `crates/oxidoc-testkit/fixtures/roundtrip/` round-trip without
-  any oracle.
+  any oracle. Surfaces: reader (CommonMark→JSON), writer (AST→HTML across the full model), and
+  end-to-end (CommonMark→HTML); the writer-parity suite lives in `oxidoc-testkit/tests/writer.rs`.
+- Spec-parity report: `cargo run -p oxidoc-testkit --bin spec_report -- --surface=e2e` (default
+  surface is reader→JSON; `--show=N` prints the first N divergences).
+- Product-only coverage: `cargo llvm-cov --workspace --ignore-filename-regex 'oxidoc-testkit'
+  --summary-only` (the testkit is the harness, excluded from the denominator).
 - Install/pin pandoc: `tools/install-pandoc.sh` (writes to gitignored `.oracle/`, records version)
 - Fetch pandoc's test corpus: `tools/fetch-pandoc-tests.sh` (sparse, gitignored, **test files only —
   no source**; see below)
 - One-time dev setup (git hooks + tool check): `tools/dev-setup.sh`
 
-Update this section as each piece lands (readers and writers are next).
+Update this section as each piece lands.
 
 ## Testing against pandoc's own tests
 
