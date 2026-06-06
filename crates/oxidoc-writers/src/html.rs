@@ -74,7 +74,7 @@ impl State {
             Block::CodeBlock(attr, text) => format!(
                 "<pre{}><code>{}</code></pre>",
                 render_attr(attr, AttrOrder::Standard),
-                escape_code_block(text)
+                escape_attr(text)
             ),
             Block::RawBlock(format, text) => raw_passthrough(&format.0, text),
             Block::BlockQuote(blocks) => {
@@ -743,47 +743,30 @@ fn is_wide(code: u32) -> bool {
     )
 }
 
+/// Escape `&`, `<`, and `>` to their HTML entities, and additionally `"` when `quotes` is set.
+fn escape(text: &str, quotes: bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' if quotes => out.push_str("&quot;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// Escape running text and inline code, which leave the double quote literal.
 fn escape_text(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            other => out.push(other),
-        }
-    }
-    out
+    escape(text, false)
 }
 
-/// Escape a code block's text. Unlike inline text and inline code, the reference writer also
-/// escapes the double quote inside a `<pre><code>` block.
-fn escape_code_block(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            other => out.push(other),
-        }
-    }
-    out
-}
-
+/// Escape an attribute value, where the double quote must be entity-encoded. The reference writer
+/// applies this same policy to a `<pre><code>` block's body.
 fn escape_attr(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            other => out.push(other),
-        }
-    }
-    out
+    escape(text, true)
 }
 
 /// The plain-text projection of an inline sequence, used for an image's `alt` attribute: textual

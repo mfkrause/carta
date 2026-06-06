@@ -5,9 +5,7 @@
 
 use oxidoc_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
 
-use super::{IrBlock, RefMap, inline};
-
-const TAB_STOP: usize = 4;
+use super::{IrBlock, RefMap, TAB_STOP, inline};
 
 /// Parse the normalized input into the block tree plus the collected link references.
 pub(crate) fn parse(input: &str) -> (Vec<IrBlock>, RefMap) {
@@ -259,7 +257,7 @@ impl Parser {
                 if let Some(opened) = self.try_open(container, &mut cursor) {
                     started_new = true;
                     container = opened;
-                    if self.accepts_children(container) {
+                    if self.is_container(container) {
                         continue;
                     }
                 }
@@ -328,13 +326,6 @@ impl Parser {
             node.open = false;
             node.text = node.text.trim().to_owned();
         }
-    }
-
-    fn accepts_children(&self, index: usize) -> bool {
-        matches!(
-            self.kind(index),
-            Some(Kind::Document | Kind::BlockQuote | Kind::List(_) | Kind::Item(_))
-        )
     }
 
     /// Try to continue an open container (block quote / list item) or open leaf on this line.
@@ -415,7 +406,7 @@ impl Parser {
             self.close(index);
             return;
         }
-        let line = cursor.rest_raw();
+        let line = cursor.rest();
         self.append_text(index, &line);
         self.append_text(index, "\n");
         if html_block_closes(kind, &line) {
@@ -460,7 +451,7 @@ impl Parser {
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
                 let index = self.append_child(parent, Node::new(Kind::HtmlBlock(kind)));
                 // The start line keeps its leading indentation (always spaces after normalization).
-                let line = format!("{}{}", " ".repeat(indent), cursor.rest_raw());
+                let line = format!("{}{}", " ".repeat(indent), cursor.rest());
                 self.append_text(index, &line);
                 self.append_text(index, "\n");
                 if html_block_closes(kind, &line) {
@@ -1183,15 +1174,10 @@ impl<'a> Cursor<'a> {
                     self.column += 1;
                 }
                 Some(b'\t') => {
-                    let width = TAB_STOP - (self.column % TAB_STOP);
-                    if self.column + width > target {
-                        // Partial tab: consume it but overshoot is acceptable for indentation.
-                        self.offset += 1;
-                        self.column += width;
-                    } else {
-                        self.offset += 1;
-                        self.column += width;
-                    }
+                    // A tab spanning the target is consumed whole; overshooting the column is
+                    // acceptable for indentation.
+                    self.offset += 1;
+                    self.column += TAB_STOP - (self.column % TAB_STOP);
                 }
                 _ => break,
             }
@@ -1222,10 +1208,6 @@ impl<'a> Cursor<'a> {
     /// The remaining line content from the cursor, as-is.
     fn rest(&self) -> String {
         self.line.get(self.offset..).unwrap_or("").to_owned()
-    }
-
-    fn rest_raw(&self) -> String {
-        self.rest()
     }
 
     fn rest_with_newline(&self) -> String {
@@ -1486,8 +1468,3 @@ fn rest_is_blank(bytes: &[u8], start: usize) -> bool {
 fn unescape_info(info: &str) -> String {
     inline::unescape_string(info)
 }
-
-/// Parse a leading link reference definition from `text`, returning the normalized label, the
-/// definition, and the unconsumed remainder. Defined in the inline module to share its escaping
-/// and destination scanners.
-mod refs {}
