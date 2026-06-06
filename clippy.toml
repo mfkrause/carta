@@ -1,0 +1,6 @@
+# Allow the panic-discipline restriction lints in test code, where unwrap/expect/panic on a known
+# fixture is the idiomatic way to assert. The lints stay enforced in shipped reader/writer/library
+# paths (see Cargo.toml [workspace.lints.clippy] and AGENTS.md).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
