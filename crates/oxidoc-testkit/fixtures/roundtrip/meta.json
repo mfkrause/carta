@@ -1,0 +1,29 @@
+{
+  "pandoc-api-version": [1, 23, 1, 2],
+  "meta": {
+    "flag": { "t": "MetaBool", "c": true },
+    "title": { "t": "MetaString", "c": "A title" },
+    "authors": {
+      "t": "MetaList",
+      "c": [
+        { "t": "MetaString", "c": "Ada" },
+        { "t": "MetaString", "c": "Grace" }
+      ]
+    },
+    "nested": {
+      "t": "MetaMap",
+      "c": {
+        "key": { "t": "MetaString", "c": "value" }
+      }
+    },
+    "subtitle": {
+      "t": "MetaInlines",
+      "c": [{ "t": "Str", "c": "Sub" }]
+    },
+    "abstract": {
+      "t": "MetaBlocks",
+      "c": [{ "t": "Para", "c": [{ "t": "Str", "c": "Body" }] }]
+    }
+  },
+  "blocks": []
+}

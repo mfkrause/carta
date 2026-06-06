@@ -4,12 +4,20 @@
 //! directory by `tools/install-pandoc.sh` (see `docs/PORTING.md` §5) — as the correctness oracle,
 //! and diffs its output against oxidoc across the two oracle surfaces (reader and writer).
 //!
-//! The runner, fixture cache, and diff/reporting land in step 4; this exposes only path discovery
-//! for now so the workspace builds.
+//! Path discovery lives here; the round-trip runner, mint cache, and diff/reporting live in
+//! [`roundtrip`]; command-test reuse in [`command_test`].
 
 use std::path::{Path, PathBuf};
 
 pub mod command_test;
+pub mod roundtrip;
+
+/// Directory of committed, hand-authored round-trip fixtures (`fixtures/roundtrip/`). These are
+/// authored JSON *inputs*, not oracle-minted golden output, so they run without the corpus.
+#[must_use]
+pub fn roundtrip_fixtures_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/roundtrip")
+}
 
 /// Path to the gitignored oracle directory at the workspace root, holding the pinned pandoc binary
 /// and fetched test corpus.
