@@ -1,0 +1,38 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.93"
+# License intentionally unset while the project license is undecided (see docs/PORTING.md §2).
+# Crates are not published; revisit when the license is chosen.
+publish = false
+
+[workspace.dependencies]
+# Shared dependency versions. Crates opt in via `dep = { workspace = true }`.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Internal crates
+oxidoc-ast = { path = "crates/oxidoc-ast" }
+oxidoc-core = { path = "crates/oxidoc-core" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Pragmatic relaxations of pedantic noise; tighten later if desired.
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+# Optimize dependencies even in debug builds; keeps differential test runs (which shell out a lot)
+# from being dominated by unoptimized dependency code.
+[profile.dev.package."*"]
+opt-level = 2
