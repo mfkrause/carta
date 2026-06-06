@@ -165,7 +165,11 @@ impl State {
     }
 
     fn table(&mut self, table: &Table) -> String {
-        let mut out = format!("<table{}>", render_attr(&table.attr, AttrOrder::Standard));
+        let mut out = format!(
+            "<table{}{}>",
+            render_attr(&table.attr, AttrOrder::Standard),
+            table_width_style(&table.col_specs)
+        );
         if !table.caption.long.is_empty() {
             let _ = write!(
                 out,
@@ -378,23 +382,42 @@ fn is_implicit_figure(caption: &Caption, blocks: &[Block]) -> bool {
     matches!(caption.long.as_slice(), [Block::Plain(cap)] if cap == alt)
 }
 
-fn colgroup(specs: &[ColSpec]) -> String {
-    if !specs
+fn has_explicit_widths(specs: &[ColSpec]) -> bool {
+    specs
         .iter()
         .any(|spec| matches!(spec.width, ColWidth::ColWidth(_)))
-    {
+}
+
+fn colgroup(specs: &[ColSpec]) -> String {
+    if !has_explicit_widths(specs) {
         return String::new();
     }
     let cols: Vec<String> = specs
         .iter()
         .map(|spec| match spec.width {
             ColWidth::ColWidth(width) => {
-                format!("<col style=\"width: {}%;\" />", format_percent(width))
+                format!("<col style=\"width: {}%\" />", width_percent(width))
             }
             ColWidth::ColWidthDefault => "<col />".to_owned(),
         })
         .collect();
     format!("\n<colgroup>\n{}\n</colgroup>", cols.join("\n"))
+}
+
+/// The `style="width:N%;"` a table carries when any column has an explicit width: the column
+/// fractions summed and floored to a whole percent. Empty when every column uses the default width.
+fn table_width_style(specs: &[ColSpec]) -> String {
+    if !has_explicit_widths(specs) {
+        return String::new();
+    }
+    let total: f64 = specs
+        .iter()
+        .map(|spec| match spec.width {
+            ColWidth::ColWidth(width) => width,
+            ColWidth::ColWidthDefault => 0.0,
+        })
+        .sum();
+    format!("{BREAK}style=\"width:{}%;\"", width_percent(total))
 }
 
 /// Append a newline to `text` unless it is empty (used to separate a footnote's leading blocks
@@ -439,19 +462,11 @@ fn alignment_style(align: &Alignment) -> Option<&'static str> {
     }
 }
 
-fn format_percent(width: f64) -> String {
-    let percent = width * 100.0;
-    let rounded = (percent * 10_000.0).round() / 10_000.0;
-    let mut text = format!("{rounded}");
-    if text.contains('.') {
-        while text.ends_with('0') {
-            text.pop();
-        }
-        if text.ends_with('.') {
-            text.pop();
-        }
-    }
-    text
+/// A column width fraction as the whole-percent integer the reference writer emits: the fraction
+/// times 100, floored.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn width_percent(fraction: f64) -> u32 {
+    (fraction * 100.0).floor() as u32
 }
 
 /// Emit a raw-passthrough payload verbatim when its format targets HTML, else drop it (other
