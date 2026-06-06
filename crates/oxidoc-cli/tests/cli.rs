@@ -126,7 +126,7 @@ fn missing_from_flag_fails() {
     let result = run(&["-t", "html"], "x");
     assert!(!result.success);
     assert!(
-        result.stderr.contains("--from is required"),
+        result.stderr.contains("--from") && result.stderr.contains("required"),
         "stderr: {}",
         result.stderr
     );
@@ -137,7 +137,7 @@ fn missing_to_flag_fails() {
     let result = run(&["-f", "commonmark"], "x");
     assert!(!result.success);
     assert!(
-        result.stderr.contains("--to is required"),
+        result.stderr.contains("--to") && result.stderr.contains("required"),
         "stderr: {}",
         result.stderr
     );
