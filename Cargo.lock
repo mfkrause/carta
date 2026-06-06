@@ -149,6 +149,7 @@ dependencies = [
 name = "oxidoc-core"
 version = "0.0.0"
 dependencies = [
+ "oxidoc-ast",
  "serde_json",
  "thiserror",
 ]
@@ -159,6 +160,14 @@ version = "0.0.0"
 dependencies = [
  "oxidoc-ast",
  "serde_json",
+]
+
+[[package]]
+name = "oxidoc-writers"
+version = "0.0.0"
+dependencies = [
+ "oxidoc-ast",
+ "oxidoc-core",
 ]
 
 [[package]]

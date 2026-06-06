@@ -20,6 +20,8 @@ clap = { version = "4", features = ["derive"] }
 # Internal crates
 oxidoc-ast = { path = "crates/oxidoc-ast" }
 oxidoc-core = { path = "crates/oxidoc-core" }
+oxidoc-readers = { path = "crates/oxidoc-readers" }
+oxidoc-writers = { path = "crates/oxidoc-writers" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
