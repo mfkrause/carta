@@ -5,10 +5,10 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 
-# Determinism gate: output must be byte-reproducible (see AGENTS.md). Hash-based collections iterate
+# Determinism gate: output must be byte-reproducible. Hash-based collections iterate
 # in randomized order, which would yield flaky diffs if one ever reached the AST or a writer. Use the
 # ordered BTreeMap/BTreeSet instead; allow per-site only where order is provably irrelevant.
 disallowed-types = [
-    { path = "std::collections::HashMap", reason = "non-deterministic iteration; use BTreeMap" },
-    { path = "std::collections::HashSet", reason = "non-deterministic iteration; use BTreeSet" },
+  { path = "std::collections::HashMap", reason = "non-deterministic iteration; use BTreeMap" },
+  { path = "std::collections::HashSet", reason = "non-deterministic iteration; use BTreeSet" },
 ]
