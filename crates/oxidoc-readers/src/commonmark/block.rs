@@ -309,7 +309,7 @@ impl Parser {
                     Continue::MatchedLeaf
                 } else if cursor.indent() >= TAB_STOP {
                     cursor.advance_columns(TAB_STOP);
-                    self.append_text(index, &cursor.rest());
+                    self.append_text(index, &cursor.rest_with_newline());
                     Continue::MatchedLeaf
                 } else {
                     Continue::NotMatched
@@ -359,7 +359,7 @@ impl Parser {
             cursor.advance_columns(TAB_STOP);
             let parent = self.place(container, &Kind::IndentedCode);
             let index = self.append_child(parent, Node::new(Kind::IndentedCode));
-            self.append_text(index, &cursor.rest());
+            self.append_text(index, &cursor.rest_with_newline());
             return Some(index);
         }
 
