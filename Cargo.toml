@@ -16,6 +16,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
+unicode-general-category = "1"
 
 # Internal crates
 oxidoc-ast = { path = "crates/oxidoc-ast" }
