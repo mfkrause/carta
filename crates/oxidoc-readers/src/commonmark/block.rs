@@ -334,7 +334,8 @@ impl Parser {
             }
             Some(Kind::IndentedCode) => {
                 if cursor.is_blank() {
-                    self.append_text(index, "\n");
+                    cursor.advance_up_to_columns(TAB_STOP);
+                    self.append_text(index, &cursor.rest_with_newline());
                     Continue::MatchedLeaf
                 } else if cursor.indent() >= TAB_STOP {
                     cursor.advance_columns(TAB_STOP);
@@ -627,8 +628,7 @@ impl Parser {
             Kind::Heading(level) => IrBlock::Heading(*level, node.text.trim().to_owned()),
             Kind::ThematicBreak => IrBlock::ThematicBreak,
             Kind::IndentedCode => {
-                let text = node.text.trim_end_matches('\n').to_owned();
-                IrBlock::CodeBlock(Attr::default(), text)
+                IrBlock::CodeBlock(Attr::default(), strip_trailing_blank_lines(&node.text))
             }
             Kind::FencedCode(fence) => {
                 let attr = fence_attr(&fence.info);
@@ -766,6 +766,15 @@ fn fence_attr(info: &str) -> Attr {
 
 fn strip_one_trailing_newline(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
+}
+
+/// Drop trailing whitespace-only lines (and the final line ending), keeping interior blank lines.
+fn strip_trailing_blank_lines(text: &str) -> String {
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    while lines.last().is_some_and(|line| line.trim().is_empty()) {
+        lines.pop();
+    }
+    lines.join("\n")
 }
 
 /// Trim an ATX heading's content: drop surrounding spaces/tabs and an optional closing run of `#`
