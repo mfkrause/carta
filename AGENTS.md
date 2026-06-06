@@ -59,18 +59,23 @@ package descriptions.
 - Track unfinished work as `todo!("…")`; grep them as IOUs before calling a unit done.
 - Keep units small enough that a human can actually review them.
 
-## Build & test (intended interface — not yet implemented; the workspace is scaffolding)
+## Build & test
+
+Slice 0 has landed: the document model and JSON interchange codec (`oxidoc-ast`), and the
+`oxidoc -f json -t json` conversion path. Other formats are a recognized-but-unsupported error.
 
 - Build: `cargo build`
 - Unit + integration tests: `cargo nextest run --workspace` (doctests separately: `cargo test --doc`)
-- Differential tests (against pinned pandoc): `cargo nextest run -p oxidoc-testkit` (requires
-  `.oracle/`)
+- Differential round-trip tests (against pinned pandoc): `cargo nextest run -p oxidoc-testkit`.
+  These **hard-require** `.oracle/` (binary + corpus) — they fail, not skip, if it is absent. The
+  committed offline fixtures under `crates/oxidoc-testkit/fixtures/roundtrip/` round-trip without
+  any oracle.
 - Install/pin pandoc: `tools/install-pandoc.sh` (writes to gitignored `.oracle/`, records version)
 - Fetch pandoc's test corpus: `tools/fetch-pandoc-tests.sh` (sparse, gitignored, **test files only —
   no source**; see below)
 - One-time dev setup (git hooks + tool check): `tools/dev-setup.sh`
 
-Update this section as each piece lands (starting with slice 0).
+Update this section as each piece lands (readers and writers are next).
 
 ## Testing against pandoc's own tests
 
