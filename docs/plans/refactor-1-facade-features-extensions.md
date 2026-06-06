@@ -1,6 +1,6 @@
 # Refactor 1 — Facade crate, compile-time format selection, extensions plumbing
 
-Status: **planned**. Owner: refactor-1.
+Status: **landed**. Owner: refactor-1.
 Read `../PORTING.md` §3 and `../../AGENTS.md` first. This document is self-contained: it should be
 possible to execute the refactor from it alone. It does **not** add any reader or writer; it
 reshapes the workspace so the upcoming format fleet (PORTING §6 Tier A/B) can land in isolated,
