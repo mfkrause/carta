@@ -585,7 +585,7 @@ impl Parser {
         let block = match &node.kind {
             Kind::Document | Kind::Item(_) => return None,
             Kind::Paragraph => {
-                let trimmed = node.text.trim_matches('\n');
+                let trimmed = node.text.trim();
                 if trimmed.is_empty() {
                     return None;
                 }
