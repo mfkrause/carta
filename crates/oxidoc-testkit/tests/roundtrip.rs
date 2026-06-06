@@ -11,7 +11,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
-use oxidoc_testkit::roundtrip::{self, KNOWN_NODE_TAGS, Mint, Roundtrip};
+use oxidoc_ast::{BLOCK_TAGS, INLINE_TAGS, META_VALUE_TAGS};
+use oxidoc_testkit::roundtrip::{self, Mint, Roundtrip};
 use oxidoc_testkit::{pandoc_tests_dir, roundtrip_fixtures_dir};
 
 fn require_corpus() -> Vec<PathBuf> {
@@ -77,8 +78,10 @@ fn corpus_and_fixtures_cover_every_node_tag() {
         }
     }
 
-    let missing: Vec<&str> = KNOWN_NODE_TAGS
+    let missing: Vec<&str> = BLOCK_TAGS
         .iter()
+        .chain(INLINE_TAGS)
+        .chain(META_VALUE_TAGS)
         .copied()
         .filter(|tag| !seen.contains(*tag))
         .collect();

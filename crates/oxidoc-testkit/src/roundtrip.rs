@@ -25,26 +25,7 @@ use crate::{oracle_dir, pandoc_bin, pandoc_tests_dir};
 /// Recursively collect the `*.native` files in the fetched corpus, sorted for deterministic
 /// ordering. Returns an empty vec when the corpus is absent; callers decide whether that is fatal.
 pub fn native_files() -> io::Result<Vec<PathBuf>> {
-    let dir = pandoc_tests_dir();
-    if !dir.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut files = Vec::new();
-    collect_native(&dir, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn collect_native(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            collect_native(&path, out)?;
-        } else if path.extension().is_some_and(|ext| ext == "native") {
-            out.push(path);
-        }
-    }
-    Ok(())
+    crate::collect_files_with_extension(&pandoc_tests_dir(), "native")
 }
 
 /// The pinned pandoc version string (contents of `.oracle/PANDOC_VERSION`), trimmed. Part of the
@@ -169,56 +150,6 @@ fn first_difference(before: &Value, after: &Value, path: &mut String) -> Option<
         _ => Some(format!("{path} ({before} vs {after})")),
     }
 }
-
-/// The set of node tags the document model defines: every `Block`, `Inline`, and `MetaValue`
-/// variant. The coverage test asserts the corpus plus the committed fixtures exercise all of them.
-/// Unknown *node* tags need no entry here — `from_json` rejects them outright via the round-trip
-/// gate, so this set only guards the reverse direction: a modeled variant no test ever touches.
-pub const KNOWN_NODE_TAGS: &[&str] = &[
-    // Block
-    "Plain",
-    "Para",
-    "LineBlock",
-    "CodeBlock",
-    "RawBlock",
-    "BlockQuote",
-    "OrderedList",
-    "BulletList",
-    "DefinitionList",
-    "Header",
-    "HorizontalRule",
-    "Table",
-    "Figure",
-    "Div",
-    // Inline
-    "Str",
-    "Emph",
-    "Underline",
-    "Strong",
-    "Strikeout",
-    "Superscript",
-    "Subscript",
-    "SmallCaps",
-    "Quoted",
-    "Cite",
-    "Code",
-    "Space",
-    "SoftBreak",
-    "LineBreak",
-    "Math",
-    "RawInline",
-    "Link",
-    "Image",
-    "Note",
-    "Span",
-    // MetaValue
-    "MetaMap",
-    "MetaList",
-    "MetaBool",
-    "MetaString",
-    "MetaInlines",
-    "MetaBlocks",
-];
 
 /// Collect every `"t"` tag string present in a JSON document. This over-collects (it also picks up
 /// small-enum tags like `AlignDefault`), which is harmless: the coverage test only checks that the

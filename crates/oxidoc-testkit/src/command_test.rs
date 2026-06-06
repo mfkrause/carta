@@ -5,7 +5,7 @@
 //! the fetched corpus `test/` files, never any pandoc source (see AGENTS.md).
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::command_tests_dir;
 
@@ -24,26 +24,7 @@ pub struct CommandTest {
 /// Returns an empty vec (not an error) when the corpus has not been fetched, so callers treat
 /// "no corpus" as "no cases to run" rather than failing.
 pub fn discover_files() -> io::Result<Vec<PathBuf>> {
-    let dir = command_tests_dir();
-    if !dir.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut files = Vec::new();
-    collect_markdown(&dir, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn collect_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            collect_markdown(&path, out)?;
-        } else if path.extension().is_some_and(|ext| ext == "md") {
-            out.push(path);
-        }
-    }
-    Ok(())
+    crate::collect_files_with_extension(&command_tests_dir(), "md")
 }
 
 /// Parse the command tests contained in one corpus file.

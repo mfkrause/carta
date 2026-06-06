@@ -7,10 +7,35 @@
 //! Path discovery lives here; the round-trip runner, mint cache, and diff/reporting live in
 //! [`roundtrip`]; command-test reuse in [`command_test`].
 
+use std::io;
 use std::path::{Path, PathBuf};
 
 pub mod command_test;
 pub mod roundtrip;
+
+/// Recursively collect files under `dir` whose extension is `ext`, sorted for deterministic
+/// ordering. A missing `dir` yields an empty vec rather than an error, so callers treat an
+/// unfetched corpus as "no files" instead of failing.
+pub fn collect_files_with_extension(dir: &Path, ext: &str) -> io::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    if dir.is_dir() {
+        collect_recursively(dir, ext, &mut files)?;
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn collect_recursively(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) -> io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_recursively(&path, ext, out)?;
+        } else if path.extension().is_some_and(|extension| extension == ext) {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
 
 /// Directory of committed, hand-authored round-trip fixtures (`fixtures/roundtrip/`). These are
 /// authored JSON *inputs*, not oracle-minted golden output, so they run without the corpus.
