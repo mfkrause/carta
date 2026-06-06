@@ -76,7 +76,10 @@ jobs:
         with:
           tool: cargo-fuzz
       - name: Smoke-run commonmark target
-        run: cargo +nightly fuzz run commonmark -- -max_total_time=30
+        # Pin the gnu target explicitly: the prebuilt cargo-fuzz from install-action is a musl
+        # binary and defaults to its own musl triple, but musl links libc statically and the
+        # sanitizer cannot instrument a static libc. Building for the runner's gnu host avoids it.
+        run: cargo +nightly fuzz run commonmark --target x86_64-unknown-linux-gnu -- -max_total_time=30
 
   typos:
     name: typos
