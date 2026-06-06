@@ -6,8 +6,8 @@ members = ["crates/*"]
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.93"
-# License intentionally unset while the project license is undecided (see docs/PORTING.md §2).
-# Crates are not published; revisit when the license is chosen.
+authors = ["Maximilian Krause"]
+license = "AGPL-3.0-only"
 publish = false
 
 [workspace.dependencies]
