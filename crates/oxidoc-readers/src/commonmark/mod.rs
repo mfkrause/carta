@@ -7,6 +7,7 @@
 //! AST, verified differentially against the pinned binary (see `docs/plans/slice-1-commonmark-html.md`).
 
 mod block;
+mod html_block;
 mod inline;
 mod scan;
 
