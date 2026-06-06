@@ -417,10 +417,13 @@ impl Parser {
         let marker_indent = cursor.indent();
         let parsed = cursor.list_marker_at()?;
 
-        // An empty list item cannot interrupt a paragraph; an ordered marker interrupting a
-        // paragraph must start at 1.
+        // These restrictions apply only when the marker would interrupt a *bare* paragraph (one not
+        // already inside a list): an empty item cannot interrupt, and an ordered marker must start
+        // at 1. Inside an open list any marker is allowed — a matching one continues the list, a
+        // differing one ends it and begins a new sibling list.
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
-        if in_paragraph {
+        let inside_list = matches!(self.kind(container), Some(Kind::List(_)));
+        if in_paragraph && !inside_list {
             if parsed.blank_after {
                 return None;
             }
