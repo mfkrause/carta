@@ -156,6 +156,10 @@ dependencies = [
 [[package]]
 name = "oxidoc-testkit"
 version = "0.0.0"
+dependencies = [
+ "oxidoc-ast",
+ "serde_json",
+]
 
 [[package]]
 name = "proc-macro2"

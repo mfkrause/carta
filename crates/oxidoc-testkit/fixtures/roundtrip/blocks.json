@@ -1,0 +1,40 @@
+{
+  "pandoc-api-version": [1, 23, 1, 2],
+  "meta": {},
+  "blocks": [
+    { "t": "Header", "c": [1, ["title", ["sec"], [["data-x", "y"]]], [{ "t": "Str", "c": "Heading" }]] },
+    { "t": "HorizontalRule" },
+    { "t": "Para", "c": [{ "t": "Str", "c": "paragraph" }] },
+    { "t": "Plain", "c": [{ "t": "Str", "c": "plain" }] },
+    { "t": "LineBlock", "c": [[{ "t": "Str", "c": "line one" }], [{ "t": "Str", "c": "line two" }]] },
+    { "t": "CodeBlock", "c": [["", ["rust"], []], "let x = 1;"] },
+    { "t": "RawBlock", "c": ["html", "<div>raw</div>"] },
+    { "t": "BlockQuote", "c": [{ "t": "Para", "c": [{ "t": "Str", "c": "quote" }] }] },
+    {
+      "t": "OrderedList",
+      "c": [
+        [1, { "t": "Decimal" }, { "t": "Period" }],
+        [[{ "t": "Plain", "c": [{ "t": "Str", "c": "first" }] }]]
+      ]
+    },
+    { "t": "BulletList", "c": [[{ "t": "Plain", "c": [{ "t": "Str", "c": "bullet" }] }]] },
+    {
+      "t": "DefinitionList",
+      "c": [
+        [
+          [{ "t": "Str", "c": "term" }],
+          [[{ "t": "Plain", "c": [{ "t": "Str", "c": "definition" }] }]]
+        ]
+      ]
+    },
+    {
+      "t": "Figure",
+      "c": [
+        ["", [], []],
+        [null, [{ "t": "Plain", "c": [{ "t": "Str", "c": "caption" }] }]],
+        [{ "t": "Para", "c": [{ "t": "Str", "c": "figure body" }] }]
+      ]
+    },
+    { "t": "Div", "c": [["wrapper", [], []], [{ "t": "Para", "c": [{ "t": "Str", "c": "content" }] }]] }
+  ]
+}
