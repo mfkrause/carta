@@ -27,6 +27,9 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace-internal crates are referenced by path with no version, which Cargo treats as `*`.
+# Deny wildcards on registry dependencies but permit them for these path dependencies.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"
