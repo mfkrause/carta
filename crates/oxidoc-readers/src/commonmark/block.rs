@@ -226,6 +226,17 @@ impl Parser {
         let matched = container;
         let old_tip = self.deepest_open(matched);
 
+        // Record the blank against the block it trails — the deepest already-finalized block, or
+        // the still-open container if it has no content yet. This drives loose-list classification:
+        // a blank after an item's last block (or after an empty item) marks the line blank even
+        // though the block was closed before this line was read.
+        if blank {
+            let target = self.blank_trails(old_tip);
+            if let Some(node) = self.nodes.get_mut(target) {
+                node.last_line_blank = true;
+            }
+        }
+
         // Phase 2: open new blocks at the matched container.
         let mut started_new = false;
         if !blank {
@@ -267,6 +278,20 @@ impl Parser {
             }
             tip = parent;
         }
+    }
+
+    /// The block a trailing blank line attaches to: descend through finalized last-children so the
+    /// blank lands on the content it follows (e.g. a closed code block) rather than its still-open
+    /// container. Stops at an empty container, which the blank then trails directly.
+    fn blank_trails(&self, mut index: usize) -> usize {
+        while let Some(&last) = self.nodes.get(index).and_then(|node| node.children.last()) {
+            if self.nodes.get(last).is_some_and(|node| !node.open) {
+                index = last;
+            } else {
+                break;
+            }
+        }
+        index
     }
 
     fn deepest_open(&self, mut index: usize) -> usize {
@@ -516,17 +541,7 @@ impl Parser {
 
     fn add_line(&mut self, container: usize, started_new: bool, blank: bool, cursor: &mut Cursor) {
         if blank {
-            // Record the blank against the deepest open block (unless it is an item still on its
-            // own marker line), then close any open paragraph.
             let deepest = self.deepest_open(container);
-            let empty_item = matches!(self.kind(deepest), Some(Kind::Item(_)))
-                && self
-                    .nodes
-                    .get(deepest)
-                    .is_some_and(|n| n.children.is_empty());
-            if !empty_item && let Some(node) = self.nodes.get_mut(deepest) {
-                node.last_line_blank = true;
-            }
             if matches!(self.kind(deepest), Some(Kind::Paragraph)) {
                 self.close(deepest);
             }
