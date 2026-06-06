@@ -18,6 +18,10 @@ use oxidoc_ast::{Attr, Block, Document, Inline, ListAttributes};
 use oxidoc_core::{Reader, ReaderOptions, Result};
 
 /// Parses `CommonMark` text into the document model.
+///
+/// Implements the strict `CommonMark` preset ([`oxidoc_core::presets::COMMONMARK`], the empty
+/// extension set). Honoring `options.extensions` is deferred to the configurable markdown engine
+/// (see `docs/plans/refactor-1-facade-features-extensions.md` §3.4).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CommonmarkReader;
 
