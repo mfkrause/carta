@@ -123,12 +123,11 @@ fn writer_matches_oracle_rst_across_the_model() {
     let mut failures = Vec::new();
     for case in cases() {
         match differential::writer("rst", case.from, case.input).expect("run writer surface") {
-            Diff::Match => {}
+            Diff::Match | Diff::OracleRejected { .. } => {}
             Diff::Mismatch { detail } => failures.push(format!("{}: {detail}", case.label)),
             Diff::OxidocError { detail } => {
                 failures.push(format!("{}: error: {detail}", case.label));
             }
-            Diff::OracleRejected { .. } => {}
         }
     }
 
