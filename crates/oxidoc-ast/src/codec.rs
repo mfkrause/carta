@@ -1,7 +1,7 @@
 //! JSON interchange entry points for [`Document`].
 //!
-//! Output is compact and carries no trailing newline; callers that emulate the reference CLI's
-//! observable output append one themselves.
+//! Output is compact and carries no trailing newline; callers that need a terminating newline append
+//! one themselves.
 
 use std::io::Write;
 

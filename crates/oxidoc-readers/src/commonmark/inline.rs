@@ -567,7 +567,7 @@ fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
 }
 
 /// Split a text run into `Str` tokens separated by `Space` inlines, collapsing each run of
-/// spaces to a single `Space` to match the pinned binary.
+/// spaces to a single `Space`.
 fn push_text_inlines(out: &mut Vec<Inline>, text: &str) {
     let mut chars = text.chars().peekable();
     let mut word = String::new();

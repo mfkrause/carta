@@ -20,7 +20,7 @@ pub use registry::{reader_for, supported_input_formats, supported_output_formats
 /// Converts `input` from format `from` to format `to`.
 ///
 /// The returned string carries no trailing newline; callers that emit to a stream append their own
-/// (the CLI appends exactly one, matching the reference tool).
+/// (the CLI appends exactly one).
 ///
 /// # Errors
 /// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`])

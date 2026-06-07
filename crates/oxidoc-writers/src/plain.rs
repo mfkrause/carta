@@ -1,11 +1,8 @@
 //! Plain-text writer: renders the document model to unformatted text.
 //!
-//! The target is the reference `plain` output with default options: a fill column of 72, inline markup
-//! stripped (emphasis, links, and inline code render as their textual content), and block structure
-//! conveyed through indentation alone. Output carries no trailing newline; the caller appends one.
-//!
-//! Behavior is derived empirically from the pinned reference binary, not from any specification —
-//! there is no public spec for this format.
+//! Output uses a fill column of 72, strips inline markup (emphasis, links, and inline code render as
+//! their textual content), and conveys block structure through indentation alone. It carries no
+//! trailing newline; the caller appends one. This format has no public specification.
 
 use oxidoc_ast::{
     Block, Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
@@ -14,7 +11,7 @@ use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{FILL_COLUMN, is_wide, quote_marks};
 
-/// Renders a document to plain text matching the reference writer's default output.
+/// Renders a document to plain text.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PlainWriter;
 
@@ -63,8 +60,8 @@ impl State {
         join_loose(rendered)
     }
 
-    /// Render a block sequence with a single newline between blocks: the compact layout the
-    /// reference writer uses inside a tight list's items and tight definitions.
+    /// Render a block sequence with a single newline between blocks: the compact layout used inside a
+    /// tight list's items and tight definitions.
     fn blocks_tight(&mut self, blocks: &[Block], width: usize) -> String {
         let parts: Vec<String> = blocks
             .iter()
@@ -196,7 +193,7 @@ impl State {
     }
 
     /// Append the inline sequence's pieces to `out`. A `Str` ending in `!` immediately before a link
-    /// or span is escaped so the reference writer does not re-read it as the image marker.
+    /// or span is escaped so it is not re-read as the image marker.
     fn extend_pieces(&mut self, inlines: &[Inline], out: &mut Vec<Piece>) {
         for (position, inline) in inlines.iter().enumerate() {
             if let Inline::Str(text) = inline
@@ -318,8 +315,7 @@ impl State {
 
 /// Join already-rendered blocks with the document's default blank-line spacing, dropping blocks that
 /// produced no output. A [`Block::Plain`] contributes only a single newline (not a blank line)
-/// before the next visible block when an empty block falls between them — a quirk of the reference
-/// writer reproduced here.
+/// before the next visible block when an empty block falls between them.
 fn join_loose(rendered: Vec<(bool, String)>) -> String {
     let mut out = String::new();
     let mut previous_was_plain: Option<bool> = None;
@@ -345,9 +341,9 @@ fn join_loose(rendered: Vec<(bool, String)>) -> String {
     out
 }
 
-/// Whether a list is "loose" — at least one item carries a top-level paragraph. The reference
-/// writer separates a loose list's items with a blank line and lays each item's blocks out with
-/// blank lines; a tight list uses single newlines throughout.
+/// Whether a list is "loose" — at least one item carries a top-level paragraph. A loose list's items
+/// are separated with a blank line and each item's blocks are laid out with blank lines; a tight list
+/// uses single newlines throughout.
 fn is_loose(items: &[Vec<Block>]) -> bool {
     !items
         .iter()
@@ -358,14 +354,13 @@ fn item_separator(loose: bool) -> &'static str {
     if loose { "\n\n" } else { "\n" }
 }
 
-/// Whether a raw node targets this writer and should pass its content through verbatim. The
-/// reference writer emits raw content whose format matches `plain` (case-insensitively) and drops
-/// everything else.
+/// Whether a raw node targets this writer and should pass its content through verbatim. Raw content
+/// whose format matches `plain` (case-insensitively) is emitted; everything else is dropped.
 fn is_plain_format(format: &Format) -> bool {
     format.0.eq_ignore_ascii_case("plain")
 }
 
-/// Whether a single definition lays out with blank lines. The reference writer renders a definition
+/// Whether a single definition lays out with blank lines. A definition is rendered
 /// compactly only when its first block is a [`Block::Plain`]; an empty definition or one that opens
 /// with block-level content (a paragraph, list, quote, code block, …) gets blank-line spacing.
 fn is_loose_definition(blocks: &[Block]) -> bool {
@@ -386,7 +381,7 @@ fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
 }
 
 /// Flatten inline pieces to a single string without line filling: breakable spaces become one
-/// space, while forced breaks become `hard`. Used where the reference writer does not wrap
+/// space, while forced breaks become `hard`. Used where content is not wrapped
 /// (line-block lines and the inner text of sub/superscripts use a newline; see [`header_text`]).
 fn join_pieces(pieces: &[Piece], hard: char) -> String {
     let mut out = String::new();
@@ -404,13 +399,13 @@ fn pieces_to_string(pieces: &[Piece]) -> String {
     join_pieces(pieces, '\n')
 }
 
-/// Flatten a header's inline pieces to a single line: a forced break renders as a space, since the
-/// reference writer keeps a header on one line.
+/// Flatten a header's inline pieces to a single line: a forced break renders as a space, keeping a
+/// header on one line.
 fn header_text(pieces: &[Piece]) -> String {
     join_pieces(pieces, ' ')
 }
 
-/// Greedily fill inline pieces to `width` columns, matching the reference writer's wrap: a breakable
+/// Greedily fill inline pieces to `width` columns: a breakable
 /// space becomes a line break when keeping the next word on the current line would exceed the fill
 /// column. Consecutive text runs (no intervening space) stay together; runs of spaces collapse;
 /// leading and trailing spaces on a line are dropped.
@@ -419,8 +414,8 @@ fn fill(pieces: &[Piece], width: usize) -> String {
 }
 
 /// Like [`fill`], but the first line is laid out as if `initial` columns were already consumed (the
-/// reference writer's hanging-marker layout, where a footnote marker shifts the first line's wrap
-/// point but leaves continuation lines at the margin).
+/// hanging-marker layout, where a footnote marker shifts the first line's wrap point but leaves
+/// continuation lines at the margin).
 fn fill_offset(pieces: &[Piece], width: usize, initial: usize) -> String {
     let width = width.max(1);
     let mut out = String::new();
@@ -515,8 +510,8 @@ fn place_word(
 }
 
 /// Apply `first` to the first line and `rest` to each non-empty later line, leaving blank lines
-/// (block separators) unprefixed. This mirrors the reference writer's indentation: a hanging list
-/// marker plus continuation indent, or a uniform block-quote / code prefix.
+/// (block separators) unprefixed. This produces a hanging indent: a list marker plus continuation
+/// indent, or a uniform block-quote / code prefix.
 fn indent_block(body: &str, first: &str, rest: &str) -> String {
     let mut out = String::new();
     for (index, line) in body.split('\n').enumerate() {
@@ -542,7 +537,7 @@ enum Script {
 
 /// Render text as superscript: when every character has a Unicode superscript equivalent (digits and
 /// a small set of symbols, with spaces preserved) emit the mapped characters; otherwise fall back to
-/// the reference writer's parenthesized form (`^(…)`).
+/// the parenthesized form (`^(…)`).
 fn to_superscript(text: &str) -> String {
     let mapped: Option<String> = text
         .chars()
@@ -551,7 +546,7 @@ fn to_superscript(text: &str) -> String {
     mapped.unwrap_or_else(|| format!("^({text})"))
 }
 
-/// Render subscript text, reproducing a quirk of the reference writer: when the content carries any
+/// Render subscript text: when the content carries any
 /// formatted inline (anything other than plain text or spaces) and is otherwise convertible, the
 /// characters are mapped to their *superscript* equivalents rather than subscript ones. A
 /// non-convertible run still falls back to the subscript parenthesized form.
@@ -566,7 +561,7 @@ fn to_subscript(text: &str, force_superscript: bool) -> String {
 }
 
 /// Whether a script's content holds an inline that is neither plain text nor a space. Such content
-/// triggers the reference writer's subscript-to-superscript fallback in [`to_subscript`].
+/// triggers the subscript-to-superscript fallback in [`to_subscript`].
 fn forces_superscript(inlines: &[Inline]) -> bool {
     inlines
         .iter()
@@ -642,7 +637,7 @@ fn numeral(number: i32, style: &ListNumberStyle) -> String {
 }
 
 /// Bijective base-26 alphabetic numeral (1 -> a, 26 -> z, 27 -> aa). Non-positive input falls back
-/// to the decimal form, which the reference writer cannot express as a letter.
+/// to the decimal form, which cannot be expressed as a letter.
 fn alpha(number: i32, upper: bool) -> String {
     if number < 1 {
         return number.to_string();
@@ -696,7 +691,7 @@ fn display_width(text: &str) -> usize {
 }
 
 /// Display width of a character: zero for common combining marks, two for wide East Asian
-/// characters, one otherwise. A self-contained approximation of the reference writer's measure.
+/// characters, one otherwise. A self-contained column-width approximation.
 fn char_width(ch: char) -> usize {
     let code = ch as u32;
     if is_control(code) {
