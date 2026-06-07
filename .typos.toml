@@ -17,3 +17,8 @@ extend-exclude = [
 [default.extend-words]
 # Document-format vocabulary that is not a typo
 fb2 = "fb2"
+# LaTeX enumerate counter names emitted by the LaTeX writer (\alph, \Alph).
+alph = "alph"
+Alph = "Alph"
+# Left when "café" renders with its accented byte as an octal escape ("caf\233").
+caf = "caf"
