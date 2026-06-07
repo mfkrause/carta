@@ -701,6 +701,9 @@ fn reflow(input: &str) -> String {
 
 /// Display width of a character in columns: zero for
 /// combining marks, two for wide and fullwidth East Asian characters, one otherwise.
+///
+/// This uses a Unicode-category zero-width test, distinct from the range-table measure in
+/// [`crate::common`] that the plain and LaTeX writers share.
 fn char_width(ch: char) -> usize {
     let code = ch as u32;
     if code < 0x0300 {

@@ -1,7 +1,8 @@
-//! Shared helpers for the text-oriented writers (plain and HTML): the default fill column, the
-//! East-Asian wide-character measure, and the smart-quote glyphs.
+//! Shared helpers for the text-oriented writers (plain, HTML, and LaTeX): the default fill column,
+//! the greedy line-filling engine, column-width measurement, list-tightness, ordered-list delimiter
+//! wrapping, and the smart-quote glyphs.
 
-use oxidoc_ast::QuoteType;
+use oxidoc_ast::{Block, ListNumberDelim, QuoteType};
 
 /// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
@@ -12,6 +13,202 @@ pub(crate) fn quote_marks(kind: &QuoteType) -> (char, char) {
         QuoteType::SingleQuote => ('\u{2018}', '\u{2019}'),
         QuoteType::DoubleQuote => ('\u{201c}', '\u{201d}'),
     }
+}
+
+/// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, or a
+/// forced line break.
+#[derive(Debug, Clone)]
+pub(crate) enum Piece {
+    Text(String),
+    Space,
+    Hard,
+}
+
+/// Greedily fill inline pieces to `width` columns: a breakable space becomes a line break when
+/// keeping the next word on the current line would exceed the fill column. Consecutive text runs (no
+/// intervening space) stay together; runs of spaces collapse; leading and trailing spaces on a line
+/// are dropped.
+pub(crate) fn fill(pieces: &[Piece], width: usize) -> String {
+    fill_offset(pieces, width, 0)
+}
+
+/// Like [`fill`], but the first line is laid out as if `initial` columns were already consumed (the
+/// hanging-marker layout, where a leading marker shifts the first line's wrap point but leaves
+/// continuation lines at the margin).
+pub(crate) fn fill_offset(pieces: &[Piece], width: usize, initial: usize) -> String {
+    let width = width.max(1);
+    let mut out = String::new();
+    let mut column = initial;
+    let mut at_line_start = initial == 0;
+    let mut pending_space = false;
+    // Consecutive text pieces (no intervening space or break) form one unbreakable word, gathered
+    // here as borrowed runs and placed only once its full width is known.
+    let mut word: Vec<&str> = Vec::new();
+    let mut word_width = 0;
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) => {
+                word.push(text);
+                word_width += display_width(text);
+            }
+            Piece::Space => {
+                place_word(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space,
+                    &word,
+                    word_width,
+                    width,
+                );
+                word.clear();
+                word_width = 0;
+                pending_space = true;
+            }
+            Piece::Hard => {
+                place_word(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space,
+                    &word,
+                    word_width,
+                    width,
+                );
+                word.clear();
+                word_width = 0;
+                if !at_line_start {
+                    out.push('\n');
+                    column = 0;
+                    at_line_start = true;
+                }
+                pending_space = false;
+            }
+        }
+    }
+    place_word(
+        &mut out,
+        &mut column,
+        &mut at_line_start,
+        pending_space,
+        &word,
+        word_width,
+        width,
+    );
+    out.trim_end_matches('\n').to_owned()
+}
+
+/// Place a gathered word onto the current line, inserting a line break in place of the preceding
+/// space when keeping the word would overflow `width`. A no-op for an empty word.
+fn place_word(
+    out: &mut String,
+    column: &mut usize,
+    at_line_start: &mut bool,
+    pending_space: bool,
+    word: &[&str],
+    word_width: usize,
+    width: usize,
+) {
+    if word.is_empty() {
+        return;
+    }
+    if *at_line_start {
+        *at_line_start = false;
+    } else if pending_space && *column + 1 + word_width > width {
+        out.push('\n');
+        *column = 0;
+        *at_line_start = false;
+    } else if pending_space {
+        out.push(' ');
+        *column += 1;
+    }
+    for part in word {
+        out.push_str(part);
+    }
+    *column += word_width;
+}
+
+/// Apply `first` to the first line and `rest` to each non-empty later line, leaving blank lines
+/// (block separators) unprefixed. This produces a hanging indent: a list marker plus continuation
+/// indent, or a uniform block-quote / code prefix.
+pub(crate) fn indent_block(body: &str, first: &str, rest: &str) -> String {
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        if index == 0 {
+            out.push_str(first);
+            out.push_str(line);
+        } else if !line.is_empty() {
+            out.push_str(rest);
+            out.push_str(line);
+        }
+    }
+    out
+}
+
+/// Whether a list is tight: every item is empty or opens with a [`Block::Plain`].
+pub(crate) fn list_is_tight(items: &[Vec<Block>]) -> bool {
+    items
+        .iter()
+        .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
+}
+
+/// Wrap an ordered-list numeral in its delimiter: `n.`, `n)`, or `(n)`.
+pub(crate) fn wrap_delim(numeral: &str, delim: &ListNumberDelim) -> String {
+    match delim {
+        ListNumberDelim::DefaultDelim | ListNumberDelim::Period => format!("{numeral}."),
+        ListNumberDelim::OneParen => format!("{numeral})"),
+        ListNumberDelim::TwoParens => format!("({numeral})"),
+    }
+}
+
+/// Display width of a string in columns, summed over its characters.
+pub(crate) fn display_width(text: &str) -> usize {
+    text.chars().map(char_width).sum()
+}
+
+/// Display width of a character: zero for common combining marks and controls, two for wide East
+/// Asian characters, one otherwise. A self-contained column-width approximation.
+pub(crate) fn char_width(ch: char) -> usize {
+    let code = ch as u32;
+    if is_control(code) {
+        return 0;
+    }
+    if code < 0x0300 {
+        return 1;
+    }
+    if is_zero_width(code) {
+        return 0;
+    }
+    if is_wide(code) { 2 } else { 1 }
+}
+
+/// C0 controls, DEL, and C1 controls occupy no display columns.
+fn is_control(code: u32) -> bool {
+    code < 0x20 || (0x7F..=0x9F).contains(&code)
+}
+
+fn is_zero_width(code: u32) -> bool {
+    matches!(code,
+        0x0300..=0x036F
+        | 0x0483..=0x0489
+        | 0x0591..=0x05BD
+        | 0x0610..=0x061A
+        | 0x064B..=0x065F
+        | 0x0670
+        | 0x06D6..=0x06DC
+        | 0x06DF..=0x06E4
+        | 0x0E31
+        | 0x0E34..=0x0E3A
+        | 0x1AB0..=0x1AFF
+        | 0x1DC0..=0x1DFF
+        | 0x200B..=0x200F
+        | 0x20D0..=0x20FF
+        | 0xFE00..=0xFE0F
+        | 0xFE20..=0xFE2F
+    )
 }
 
 /// Whether a character occupies two display columns: the wide and fullwidth East Asian ranges.

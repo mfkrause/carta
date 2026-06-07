@@ -9,7 +9,9 @@ use oxidoc_ast::{
 };
 use oxidoc_core::{Result, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, is_wide, quote_marks};
+use crate::common::{
+    FILL_COLUMN, Piece, fill, fill_offset, indent_block, list_is_tight, quote_marks, wrap_delim,
+};
 
 /// Renders a document to plain text.
 #[derive(Debug, Default, Clone, Copy)]
@@ -30,15 +32,6 @@ impl Writer for PlainWriter {
         }
         Ok(out.trim_end_matches('\n').to_owned())
     }
-}
-
-/// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, or a
-/// forced line break.
-#[derive(Debug, Clone)]
-enum Piece {
-    Text(String),
-    Space,
-    Hard,
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and
@@ -345,9 +338,7 @@ fn join_loose(rendered: Vec<(bool, String)>) -> String {
 /// are separated with a blank line and each item's blocks are laid out with blank lines; a tight list
 /// uses single newlines throughout.
 fn is_loose(items: &[Vec<Block>]) -> bool {
-    !items
-        .iter()
-        .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
+    !list_is_tight(items)
 }
 
 fn item_separator(loose: bool) -> &'static str {
@@ -403,130 +394,6 @@ fn pieces_to_string(pieces: &[Piece]) -> String {
 /// header on one line.
 fn header_text(pieces: &[Piece]) -> String {
     join_pieces(pieces, ' ')
-}
-
-/// Greedily fill inline pieces to `width` columns: a breakable
-/// space becomes a line break when keeping the next word on the current line would exceed the fill
-/// column. Consecutive text runs (no intervening space) stay together; runs of spaces collapse;
-/// leading and trailing spaces on a line are dropped.
-fn fill(pieces: &[Piece], width: usize) -> String {
-    fill_offset(pieces, width, 0)
-}
-
-/// Like [`fill`], but the first line is laid out as if `initial` columns were already consumed (the
-/// hanging-marker layout, where a footnote marker shifts the first line's wrap point but leaves
-/// continuation lines at the margin).
-fn fill_offset(pieces: &[Piece], width: usize, initial: usize) -> String {
-    let width = width.max(1);
-    let mut out = String::new();
-    let mut column = initial;
-    let mut at_line_start = initial == 0;
-    let mut pending_space = false;
-    // Consecutive text pieces (no intervening space or break) form one unbreakable word, gathered
-    // here as borrowed runs and placed only once its full width is known.
-    let mut word: Vec<&str> = Vec::new();
-    let mut word_width = 0;
-    for piece in pieces {
-        match piece {
-            Piece::Text(text) => {
-                word.push(text);
-                word_width += display_width(text);
-            }
-            Piece::Space => {
-                place_word(
-                    &mut out,
-                    &mut column,
-                    &mut at_line_start,
-                    pending_space,
-                    &word,
-                    word_width,
-                    width,
-                );
-                word.clear();
-                word_width = 0;
-                pending_space = true;
-            }
-            Piece::Hard => {
-                place_word(
-                    &mut out,
-                    &mut column,
-                    &mut at_line_start,
-                    pending_space,
-                    &word,
-                    word_width,
-                    width,
-                );
-                word.clear();
-                word_width = 0;
-                if !at_line_start {
-                    out.push('\n');
-                    column = 0;
-                    at_line_start = true;
-                }
-                pending_space = false;
-            }
-        }
-    }
-    place_word(
-        &mut out,
-        &mut column,
-        &mut at_line_start,
-        pending_space,
-        &word,
-        word_width,
-        width,
-    );
-    out.trim_end_matches('\n').to_owned()
-}
-
-/// Place a gathered word onto the current line, inserting a line break in place of the preceding
-/// space when keeping the word would overflow `width`. A no-op for an empty word.
-fn place_word(
-    out: &mut String,
-    column: &mut usize,
-    at_line_start: &mut bool,
-    pending_space: bool,
-    word: &[&str],
-    word_width: usize,
-    width: usize,
-) {
-    if word.is_empty() {
-        return;
-    }
-    if *at_line_start {
-        *at_line_start = false;
-    } else if pending_space && *column + 1 + word_width > width {
-        out.push('\n');
-        *column = 0;
-        *at_line_start = false;
-    } else if pending_space {
-        out.push(' ');
-        *column += 1;
-    }
-    for part in word {
-        out.push_str(part);
-    }
-    *column += word_width;
-}
-
-/// Apply `first` to the first line and `rest` to each non-empty later line, leaving blank lines
-/// (block separators) unprefixed. This produces a hanging indent: a list marker plus continuation
-/// indent, or a uniform block-quote / code prefix.
-fn indent_block(body: &str, first: &str, rest: &str) -> String {
-    let mut out = String::new();
-    for (index, line) in body.split('\n').enumerate() {
-        if index > 0 {
-            out.push('\n');
-        }
-        if index == 0 {
-            out.push_str(first);
-            out.push_str(line);
-        } else if !line.is_empty() {
-            out.push_str(rest);
-            out.push_str(line);
-        }
-    }
-    out
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -616,12 +483,7 @@ fn script_char(ch: char, kind: Script) -> Option<char> {
 /// The leading marker an ordered-list item carries: its number rendered in the list's numeral style,
 /// wrapped by the list's delimiter.
 fn ordered_marker(number: i32, style: &ListNumberStyle, delim: &ListNumberDelim) -> String {
-    let numeral = numeral(number, style);
-    match delim {
-        ListNumberDelim::DefaultDelim | ListNumberDelim::Period => format!("{numeral}."),
-        ListNumberDelim::OneParen => format!("{numeral})"),
-        ListNumberDelim::TwoParens => format!("({numeral})"),
-    }
+    wrap_delim(&numeral(number, style), delim)
 }
 
 fn numeral(number: i32, style: &ListNumberStyle) -> String {
@@ -683,51 +545,4 @@ fn roman(number: i32, upper: bool) -> String {
         }
     }
     if upper { out.to_uppercase() } else { out }
-}
-
-/// Display width of a string in columns, summed over its characters.
-fn display_width(text: &str) -> usize {
-    text.chars().map(char_width).sum()
-}
-
-/// Display width of a character: zero for common combining marks, two for wide East Asian
-/// characters, one otherwise. A self-contained column-width approximation.
-fn char_width(ch: char) -> usize {
-    let code = ch as u32;
-    if is_control(code) {
-        return 0;
-    }
-    if code < 0x0300 {
-        return 1;
-    }
-    if is_zero_width(code) {
-        return 0;
-    }
-    if is_wide(code) { 2 } else { 1 }
-}
-
-/// C0 controls, DEL, and C1 controls occupy no display columns.
-fn is_control(code: u32) -> bool {
-    code < 0x20 || (0x7F..=0x9F).contains(&code)
-}
-
-fn is_zero_width(code: u32) -> bool {
-    matches!(code,
-        0x0300..=0x036F
-        | 0x0483..=0x0489
-        | 0x0591..=0x05BD
-        | 0x0610..=0x061A
-        | 0x064B..=0x065F
-        | 0x0670
-        | 0x06D6..=0x06DC
-        | 0x06DF..=0x06E4
-        | 0x0E31
-        | 0x0E34..=0x0E3A
-        | 0x1AB0..=0x1AFF
-        | 0x1DC0..=0x1DFF
-        | 0x200B..=0x200F
-        | 0x20D0..=0x20FF
-        | 0xFE00..=0xFE0F
-        | 0xFE20..=0xFE2F
-    )
 }
