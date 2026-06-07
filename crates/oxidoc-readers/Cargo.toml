@@ -12,9 +12,11 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["commonmark", "json"]
+default = ["commonmark", "json", "html", "native"]
 commonmark = ["dep:unicode-general-category", "dep:caseless"]
 json = []
+html = []
+native = []
 
 [dependencies]
 oxidoc-ast = { workspace = true }

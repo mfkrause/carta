@@ -292,3 +292,35 @@ pub struct Cell {
     pub col_span: i32,
     pub content: Vec<Block>,
 }
+
+/// Flatten an inline sequence to plain text, discarding markup: textual content
+/// ([`Inline::Str`], [`Inline::Code`], [`Inline::Math`]) is kept, breaks and spaces become a single
+/// space, container inlines are walked through, and raw passthrough and notes contribute nothing.
+#[must_use]
+pub fn to_plain_text(inlines: &[Inline]) -> String {
+    let mut out = String::new();
+    push_plain_text(inlines, &mut out);
+    out
+}
+
+fn push_plain_text(inlines: &[Inline], out: &mut String) {
+    for inline in inlines {
+        match inline {
+            Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => out.push_str(text),
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
+            Inline::Emph(xs)
+            | Inline::Underline(xs)
+            | Inline::Strong(xs)
+            | Inline::Strikeout(xs)
+            | Inline::Superscript(xs)
+            | Inline::Subscript(xs)
+            | Inline::SmallCaps(xs)
+            | Inline::Quoted(_, xs)
+            | Inline::Cite(_, xs)
+            | Inline::Link(_, xs, _)
+            | Inline::Image(_, xs, _)
+            | Inline::Span(_, xs) => push_plain_text(xs, out),
+            Inline::RawInline(..) | Inline::Note(_) => {}
+        }
+    }
+}

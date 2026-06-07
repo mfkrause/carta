@@ -59,6 +59,8 @@ format_dispatch! {
     supported: supported_input_formats;
     "read-commonmark" => "commonmark" | "markdown" => oxidoc_readers::CommonmarkReader;
     "read-json" => "json" => oxidoc_readers::JsonReader;
+    "read-native" => "native" => oxidoc_readers::NativeReader;
+    "read-html" => "html" => oxidoc_readers::HtmlReader;
 }
 
 format_dispatch! {
@@ -68,4 +70,6 @@ format_dispatch! {
     "write-html" => "html" | "html5" => oxidoc_writers::HtmlWriter;
     "write-json" => "json" => oxidoc_writers::JsonWriter;
     "write-plain" => "plain" => oxidoc_writers::PlainWriter;
+    "write-native" => "native" => oxidoc_writers::NativeWriter;
+    "write-latex" => "latex" => oxidoc_writers::LatexWriter;
 }

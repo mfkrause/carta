@@ -68,7 +68,7 @@ jobs:
       fail-fast: false
       matrix:
         # One entry per reader fuzz target (see fuzz/Cargo.toml). Add new readers here.
-        target: [commonmark, json]
+        target: [commonmark, json, native, html]
     steps:
       - uses: actions/checkout@v6
       - name: Install nightly toolchain
