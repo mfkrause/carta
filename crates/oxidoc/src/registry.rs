@@ -67,4 +67,5 @@ format_dispatch! {
     supported: supported_output_formats;
     "write-html" => "html" | "html5" => oxidoc_writers::HtmlWriter;
     "write-json" => "json" => oxidoc_writers::JsonWriter;
+    "write-plain" => "plain" => oxidoc_writers::PlainWriter;
 }

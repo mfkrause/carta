@@ -1,0 +1,738 @@
+//! Plain-text writer: renders the document model to unformatted text.
+//!
+//! The target is `pandoc -t plain` with default options: a fill column of 72, inline markup
+//! stripped (emphasis, links, and inline code render as their textual content), and block structure
+//! conveyed through indentation alone. Output carries no trailing newline; the caller appends one.
+//!
+//! Behavior is derived empirically from the pinned reference binary, not from any specification —
+//! there is no public spec for this format.
+
+use oxidoc_ast::{
+    Block, Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
+};
+use oxidoc_core::{Result, Writer, WriterOptions};
+
+use crate::common::{FILL_COLUMN, is_wide, quote_marks};
+
+/// Renders a document to plain text matching the reference writer's default output.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PlainWriter;
+
+impl Writer for PlainWriter {
+    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+        let mut state = State::default();
+        let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
+        let mut out = body;
+        if !state.footnotes.is_empty() {
+            let notes = state.footnotes.join("\n\n");
+            out = if out.is_empty() {
+                notes
+            } else {
+                format!("{out}\n\n{notes}")
+            };
+        }
+        Ok(out.trim_end_matches('\n').to_owned())
+    }
+}
+
+/// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, or a
+/// forced line break.
+#[derive(Debug, Clone)]
+enum Piece {
+    Text(String),
+    Space,
+    Hard,
+}
+
+/// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and
+/// emitted as a section at the end of the document.
+#[derive(Debug, Default)]
+struct State {
+    footnotes: Vec<String>,
+}
+
+impl State {
+    /// Render a block sequence with a blank line between blocks, dropping those that produce no
+    /// output. This is the default layout (document body, block quotes, divs, figures, loose list
+    /// items, loose definitions). See [`join_loose`] for the [`Block::Plain`] spacing quirk.
+    fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+        let rendered = blocks
+            .iter()
+            .map(|block| (matches!(block, Block::Plain(_)), self.block(block, width)))
+            .collect();
+        join_loose(rendered)
+    }
+
+    /// Render a block sequence with a single newline between blocks: the compact layout the
+    /// reference writer uses inside a tight list's items and tight definitions.
+    fn blocks_tight(&mut self, blocks: &[Block], width: usize) -> String {
+        let parts: Vec<String> = blocks
+            .iter()
+            .map(|block| self.block(block, width))
+            .filter(|rendered| !rendered.is_empty())
+            .collect();
+        parts.join("\n")
+    }
+
+    /// Render a block sequence at the given layout density.
+    fn blocks_at(&mut self, blocks: &[Block], width: usize, loose: bool) -> String {
+        if loose {
+            self.blocks_to_string(blocks, width)
+        } else {
+            self.blocks_tight(blocks, width)
+        }
+    }
+
+    fn block(&mut self, block: &Block, width: usize) -> String {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) => {
+                let pieces = self.pieces(inlines);
+                fill(&pieces, width)
+            }
+            Block::Header(_, _, inlines) => {
+                let pieces = self.pieces(inlines);
+                header_text(&pieces)
+            }
+            Block::CodeBlock(_, text) => {
+                indent_block(text.strip_suffix('\n').unwrap_or(text), "    ", "    ")
+            }
+            Block::RawBlock(format, text) => {
+                if is_plain_format(format) {
+                    text.strip_suffix('\n').unwrap_or(text).to_owned()
+                } else {
+                    String::new()
+                }
+            }
+            Block::BlockQuote(blocks) => {
+                let body = self.blocks_to_string(blocks, width.saturating_sub(2));
+                indent_block(&body, "  ", "  ")
+            }
+            Block::BulletList(items) => self.bullet_list(items, width),
+            Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
+            Block::DefinitionList(items) => self.definition_list(items, width),
+            Block::HorizontalRule => "-".repeat(FILL_COLUMN),
+            Block::Table(_) => todo!("plain writer: render tables"),
+            Block::Figure(_, _, blocks) | Block::Div(_, blocks) => {
+                self.blocks_to_string(blocks, width)
+            }
+            Block::LineBlock(lines) => self.line_block(lines),
+        }
+    }
+
+    fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
+        let rendered: Vec<String> = lines
+            .iter()
+            .map(|line| {
+                let pieces = self.pieces(line);
+                pieces_to_string(&pieces)
+            })
+            .collect();
+        rendered.join("\n")
+    }
+
+    fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
+        let loose = is_loose(items);
+        let body_width = width.saturating_sub(2);
+        let rendered: Vec<String> = items
+            .iter()
+            .map(|item| {
+                let body = self.blocks_at(item, body_width, loose);
+                indent_block(&body, "- ", "  ")
+            })
+            .collect();
+        rendered.join(item_separator(loose))
+    }
+
+    fn ordered_list(
+        &mut self,
+        attrs: &ListAttributes,
+        items: &[Vec<Block>],
+        width: usize,
+    ) -> String {
+        let loose = is_loose(items);
+        let rendered: Vec<String> = items
+            .iter()
+            .enumerate()
+            .map(|(offset, item)| {
+                let number = attrs.start.saturating_add(offset_as_i32(offset));
+                let marker = ordered_marker(number, &attrs.style, &attrs.delim);
+                let field = (marker.chars().count() + 1).max(4);
+                let body = self.blocks_at(item, width.saturating_sub(field), loose);
+                let first = format!("{marker:<field$}");
+                let rest = " ".repeat(field);
+                indent_block(&body, &first, &rest)
+            })
+            .collect();
+        rendered.join(item_separator(loose))
+    }
+
+    fn definition_list(
+        &mut self,
+        items: &[(Vec<Inline>, Vec<Vec<Block>>)],
+        width: usize,
+    ) -> String {
+        let groups: Vec<String> = items
+            .iter()
+            .map(|(term, definitions)| {
+                let term_pieces = self.pieces(term);
+                let mut group = fill(&term_pieces, width);
+                for definition in definitions {
+                    let loose = is_loose_definition(definition);
+                    let body = self.blocks_at(definition, width.saturating_sub(2), loose);
+                    let indented = indent_block(&body, "  ", "  ");
+                    group.push_str(if loose { "\n\n" } else { "\n" });
+                    group.push_str(&indented);
+                }
+                group
+            })
+            .collect();
+        groups.join("\n\n")
+    }
+
+    fn pieces(&mut self, inlines: &[Inline]) -> Vec<Piece> {
+        let mut out = Vec::new();
+        self.extend_pieces(inlines, &mut out);
+        out
+    }
+
+    /// Append the inline sequence's pieces to `out`. A `Str` ending in `!` immediately before a link
+    /// or span is escaped so the reference writer does not re-read it as the image marker.
+    fn extend_pieces(&mut self, inlines: &[Inline], out: &mut Vec<Piece>) {
+        for (position, inline) in inlines.iter().enumerate() {
+            if let Inline::Str(text) = inline
+                && let Some(prefix) = text.strip_suffix('!')
+                && matches!(
+                    inlines.get(position + 1),
+                    Some(Inline::Link(..) | Inline::Span(..))
+                )
+            {
+                out.push(Piece::Text(format!("{prefix}\\!")));
+                continue;
+            }
+            self.inline(inline, out);
+        }
+    }
+
+    fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
+        match inline {
+            Inline::Str(text) | Inline::Code(_, text) => out.push(Piece::Text(text.clone())),
+            Inline::Emph(inlines)
+            | Inline::Strong(inlines)
+            | Inline::Underline(inlines)
+            | Inline::Cite(_, inlines)
+            | Inline::Link(_, inlines, _)
+            | Inline::Span(_, inlines) => self.extend_pieces(inlines, out),
+            Inline::Strikeout(inlines) => {
+                out.push(Piece::Text("~~".to_owned()));
+                self.extend_pieces(inlines, out);
+                out.push(Piece::Text("~~".to_owned()));
+            }
+            Inline::Superscript(inlines) => {
+                let inner = pieces_to_string(&self.pieces(inlines));
+                out.push(Piece::Text(to_superscript(&inner)));
+            }
+            Inline::Subscript(inlines) => {
+                let inner = pieces_to_string(&self.pieces(inlines));
+                out.push(Piece::Text(to_subscript(
+                    &inner,
+                    forces_superscript(inlines),
+                )));
+            }
+            Inline::SmallCaps(inlines) => {
+                let start = out.len();
+                self.extend_pieces(inlines, out);
+                uppercase_pieces(out, start);
+            }
+            Inline::Quoted(kind, inlines) => {
+                let (open, close) = quote_marks(kind);
+                out.push(Piece::Text(open.to_string()));
+                self.extend_pieces(inlines, out);
+                out.push(Piece::Text(close.to_string()));
+            }
+            Inline::Space | Inline::SoftBreak => out.push(Piece::Space),
+            Inline::LineBreak => out.push(Piece::Hard),
+            Inline::Math(_, _) => todo!("plain writer: render math"),
+            Inline::RawInline(format, text) => {
+                if is_plain_format(format) {
+                    out.push(Piece::Text(text.clone()));
+                }
+            }
+            Inline::Image(_, inlines, _) => {
+                out.push(Piece::Text("[".to_owned()));
+                self.extend_pieces(inlines, out);
+                out.push(Piece::Text("]".to_owned()));
+            }
+            Inline::Note(blocks) => self.note(blocks, out),
+        }
+    }
+
+    fn note(&mut self, blocks: &[Block], out: &mut Vec<Piece>) {
+        let index = self.footnotes.len();
+        self.footnotes.push(String::new());
+        let marker = format!("[{}]", index + 1);
+        let field = marker.chars().count() + 1;
+        let body = self.note_body(blocks, field);
+        let rendered = if body.is_empty() {
+            marker.clone()
+        } else {
+            format!("{marker} {body}")
+        };
+        if let Some(slot) = self.footnotes.get_mut(index) {
+            *slot = rendered;
+        }
+        out.push(Piece::Text(marker));
+    }
+
+    /// Render a footnote's body at the full fill column. The marker that the caller prepends shifts
+    /// only the first line's wrap point (modeled with `initial`); continuation lines and every later
+    /// block sit at the margin.
+    fn note_body(&mut self, blocks: &[Block], initial: usize) -> String {
+        let rendered = blocks
+            .iter()
+            .enumerate()
+            .map(|(position, block)| {
+                let is_plain = matches!(block, Block::Plain(_));
+                let text = if position == 0 {
+                    self.block_offset(block, FILL_COLUMN, initial)
+                } else {
+                    self.block(block, FILL_COLUMN)
+                };
+                (is_plain, text)
+            })
+            .collect();
+        join_loose(rendered)
+    }
+
+    /// Render a block whose first line begins `initial` columns in. Only the text blocks wrap, so
+    /// the offset is meaningful for them alone; other block kinds render at the margin.
+    fn block_offset(&mut self, block: &Block, width: usize, initial: usize) -> String {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) => {
+                let pieces = self.pieces(inlines);
+                fill_offset(&pieces, width, initial)
+            }
+            other => self.block(other, width),
+        }
+    }
+}
+
+/// Join already-rendered blocks with the document's default blank-line spacing, dropping blocks that
+/// produced no output. A [`Block::Plain`] contributes only a single newline (not a blank line)
+/// before the next visible block when an empty block falls between them — a quirk of the reference
+/// writer reproduced here.
+fn join_loose(rendered: Vec<(bool, String)>) -> String {
+    let mut out = String::new();
+    let mut previous_was_plain: Option<bool> = None;
+    let mut empty_since_previous = false;
+    for (is_plain, text) in rendered {
+        if text.is_empty() {
+            if previous_was_plain.is_some() {
+                empty_since_previous = true;
+            }
+            continue;
+        }
+        if let Some(was_plain) = previous_was_plain {
+            if was_plain && empty_since_previous {
+                out.push('\n');
+            } else {
+                out.push_str("\n\n");
+            }
+        }
+        out.push_str(&text);
+        previous_was_plain = Some(is_plain);
+        empty_since_previous = false;
+    }
+    out
+}
+
+/// Whether a list is "loose" — at least one item carries a top-level paragraph. The reference
+/// writer separates a loose list's items with a blank line and lays each item's blocks out with
+/// blank lines; a tight list uses single newlines throughout.
+fn is_loose(items: &[Vec<Block>]) -> bool {
+    !items
+        .iter()
+        .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
+}
+
+fn item_separator(loose: bool) -> &'static str {
+    if loose { "\n\n" } else { "\n" }
+}
+
+/// Whether a raw node targets this writer and should pass its content through verbatim. The
+/// reference writer emits raw content whose format matches `plain` (case-insensitively) and drops
+/// everything else.
+fn is_plain_format(format: &Format) -> bool {
+    format.0.eq_ignore_ascii_case("plain")
+}
+
+/// Whether a single definition lays out with blank lines. The reference writer renders a definition
+/// compactly only when its first block is a [`Block::Plain`]; an empty definition or one that opens
+/// with block-level content (a paragraph, list, quote, code block, …) gets blank-line spacing.
+fn is_loose_definition(blocks: &[Block]) -> bool {
+    !matches!(blocks.first(), Some(Block::Plain(_)))
+}
+
+fn offset_as_i32(offset: usize) -> i32 {
+    i32::try_from(offset).unwrap_or(i32::MAX)
+}
+
+/// Uppercase the text of every piece from `start` onward, in place (small-caps rendering).
+fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
+    for piece in pieces.iter_mut().skip(start) {
+        if let Piece::Text(text) = piece {
+            *text = text.to_uppercase();
+        }
+    }
+}
+
+/// Flatten inline pieces to a single string without line filling: breakable spaces become one
+/// space, while forced breaks become `hard`. Used where the reference writer does not wrap
+/// (line-block lines and the inner text of sub/superscripts use a newline; see [`header_text`]).
+fn join_pieces(pieces: &[Piece], hard: char) -> String {
+    let mut out = String::new();
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) => out.push_str(text),
+            Piece::Space => out.push(' '),
+            Piece::Hard => out.push(hard),
+        }
+    }
+    out
+}
+
+fn pieces_to_string(pieces: &[Piece]) -> String {
+    join_pieces(pieces, '\n')
+}
+
+/// Flatten a header's inline pieces to a single line: a forced break renders as a space, since the
+/// reference writer keeps a header on one line.
+fn header_text(pieces: &[Piece]) -> String {
+    join_pieces(pieces, ' ')
+}
+
+/// Greedily fill inline pieces to `width` columns, matching the reference writer's wrap: a breakable
+/// space becomes a line break when keeping the next word on the current line would exceed the fill
+/// column. Consecutive text runs (no intervening space) stay together; runs of spaces collapse;
+/// leading and trailing spaces on a line are dropped.
+fn fill(pieces: &[Piece], width: usize) -> String {
+    fill_offset(pieces, width, 0)
+}
+
+/// Like [`fill`], but the first line is laid out as if `initial` columns were already consumed (the
+/// reference writer's hanging-marker layout, where a footnote marker shifts the first line's wrap
+/// point but leaves continuation lines at the margin).
+fn fill_offset(pieces: &[Piece], width: usize, initial: usize) -> String {
+    let width = width.max(1);
+    let mut out = String::new();
+    let mut column = initial;
+    let mut at_line_start = initial == 0;
+    let mut pending_space = false;
+    // Consecutive text pieces (no intervening space or break) form one unbreakable word, gathered
+    // here as borrowed runs and placed only once its full width is known.
+    let mut word: Vec<&str> = Vec::new();
+    let mut word_width = 0;
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) => {
+                word.push(text);
+                word_width += display_width(text);
+            }
+            Piece::Space => {
+                place_word(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space,
+                    &word,
+                    word_width,
+                    width,
+                );
+                word.clear();
+                word_width = 0;
+                pending_space = true;
+            }
+            Piece::Hard => {
+                place_word(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space,
+                    &word,
+                    word_width,
+                    width,
+                );
+                word.clear();
+                word_width = 0;
+                if !at_line_start {
+                    out.push('\n');
+                    column = 0;
+                    at_line_start = true;
+                }
+                pending_space = false;
+            }
+        }
+    }
+    place_word(
+        &mut out,
+        &mut column,
+        &mut at_line_start,
+        pending_space,
+        &word,
+        word_width,
+        width,
+    );
+    out.trim_end_matches('\n').to_owned()
+}
+
+/// Place a gathered word onto the current line, inserting a line break in place of the preceding
+/// space when keeping the word would overflow `width`. A no-op for an empty word.
+fn place_word(
+    out: &mut String,
+    column: &mut usize,
+    at_line_start: &mut bool,
+    pending_space: bool,
+    word: &[&str],
+    word_width: usize,
+    width: usize,
+) {
+    if word.is_empty() {
+        return;
+    }
+    if *at_line_start {
+        *at_line_start = false;
+    } else if pending_space && *column + 1 + word_width > width {
+        out.push('\n');
+        *column = 0;
+        *at_line_start = false;
+    } else if pending_space {
+        out.push(' ');
+        *column += 1;
+    }
+    for part in word {
+        out.push_str(part);
+    }
+    *column += word_width;
+}
+
+/// Apply `first` to the first line and `rest` to each non-empty later line, leaving blank lines
+/// (block separators) unprefixed. This mirrors the reference writer's indentation: a hanging list
+/// marker plus continuation indent, or a uniform block-quote / code prefix.
+fn indent_block(body: &str, first: &str, rest: &str) -> String {
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        if index == 0 {
+            out.push_str(first);
+            out.push_str(line);
+        } else if !line.is_empty() {
+            out.push_str(rest);
+            out.push_str(line);
+        }
+    }
+    out
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Script {
+    Super,
+    Sub,
+}
+
+/// Render text as superscript: when every character has a Unicode superscript equivalent (digits and
+/// a small set of symbols, with spaces preserved) emit the mapped characters; otherwise fall back to
+/// the reference writer's parenthesized form (`^(…)`).
+fn to_superscript(text: &str) -> String {
+    let mapped: Option<String> = text
+        .chars()
+        .map(|ch| script_char(ch, Script::Super))
+        .collect();
+    mapped.unwrap_or_else(|| format!("^({text})"))
+}
+
+/// Render subscript text, reproducing a quirk of the reference writer: when the content carries any
+/// formatted inline (anything other than plain text or spaces) and is otherwise convertible, the
+/// characters are mapped to their *superscript* equivalents rather than subscript ones. A
+/// non-convertible run still falls back to the subscript parenthesized form.
+fn to_subscript(text: &str, force_superscript: bool) -> String {
+    let kind = if force_superscript {
+        Script::Super
+    } else {
+        Script::Sub
+    };
+    let mapped: Option<String> = text.chars().map(|ch| script_char(ch, kind)).collect();
+    mapped.unwrap_or_else(|| format!("_({text})"))
+}
+
+/// Whether a script's content holds an inline that is neither plain text nor a space. Such content
+/// triggers the reference writer's subscript-to-superscript fallback in [`to_subscript`].
+fn forces_superscript(inlines: &[Inline]) -> bool {
+    inlines
+        .iter()
+        .any(|inline| !matches!(inline, Inline::Str(_) | Inline::Space))
+}
+
+fn script_char(ch: char, kind: Script) -> Option<char> {
+    if ch == ' ' {
+        return Some(' ');
+    }
+    let mapped = match kind {
+        Script::Super => match ch {
+            '0' => '\u{2070}',
+            '1' => '\u{00b9}',
+            '2' => '\u{00b2}',
+            '3' => '\u{00b3}',
+            '4' => '\u{2074}',
+            '5' => '\u{2075}',
+            '6' => '\u{2076}',
+            '7' => '\u{2077}',
+            '8' => '\u{2078}',
+            '9' => '\u{2079}',
+            '+' => '\u{207a}',
+            '-' => '\u{207b}',
+            '=' => '\u{207c}',
+            '(' => '\u{207d}',
+            ')' => '\u{207e}',
+            _ => return None,
+        },
+        Script::Sub => match ch {
+            '0' => '\u{2080}',
+            '1' => '\u{2081}',
+            '2' => '\u{2082}',
+            '3' => '\u{2083}',
+            '4' => '\u{2084}',
+            '5' => '\u{2085}',
+            '6' => '\u{2086}',
+            '7' => '\u{2087}',
+            '8' => '\u{2088}',
+            '9' => '\u{2089}',
+            '+' => '\u{208a}',
+            '-' => '\u{208b}',
+            '=' => '\u{208c}',
+            '(' => '\u{208d}',
+            ')' => '\u{208e}',
+            _ => return None,
+        },
+    };
+    Some(mapped)
+}
+
+/// The leading marker an ordered-list item carries: its number rendered in the list's numeral style,
+/// wrapped by the list's delimiter.
+fn ordered_marker(number: i32, style: &ListNumberStyle, delim: &ListNumberDelim) -> String {
+    let numeral = numeral(number, style);
+    match delim {
+        ListNumberDelim::DefaultDelim | ListNumberDelim::Period => format!("{numeral}."),
+        ListNumberDelim::OneParen => format!("{numeral})"),
+        ListNumberDelim::TwoParens => format!("({numeral})"),
+    }
+}
+
+fn numeral(number: i32, style: &ListNumberStyle) -> String {
+    match style {
+        ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
+            number.to_string()
+        }
+        ListNumberStyle::LowerAlpha => alpha(number, false),
+        ListNumberStyle::UpperAlpha => alpha(number, true),
+        ListNumberStyle::LowerRoman => roman(number, false),
+        ListNumberStyle::UpperRoman => roman(number, true),
+    }
+}
+
+/// Bijective base-26 alphabetic numeral (1 -> a, 26 -> z, 27 -> aa). Non-positive input falls back
+/// to the decimal form, which the reference writer cannot express as a letter.
+fn alpha(number: i32, upper: bool) -> String {
+    if number < 1 {
+        return number.to_string();
+    }
+    let base = if upper { b'A' } else { b'a' };
+    let mut value = number;
+    let mut letters = Vec::new();
+    while value > 0 {
+        let remainder = (value - 1) % 26;
+        letters.push(base + u8::try_from(remainder).unwrap_or(0));
+        value = (value - 1) / 26;
+    }
+    letters.reverse();
+    String::from_utf8(letters).unwrap_or_else(|_| number.to_string())
+}
+
+/// Roman numeral for a positive number; non-positive input falls back to the decimal form.
+fn roman(number: i32, upper: bool) -> String {
+    const UNITS: [(i32, &str); 13] = [
+        (1000, "m"),
+        (900, "cm"),
+        (500, "d"),
+        (400, "cd"),
+        (100, "c"),
+        (90, "xc"),
+        (50, "l"),
+        (40, "xl"),
+        (10, "x"),
+        (9, "ix"),
+        (5, "v"),
+        (4, "iv"),
+        (1, "i"),
+    ];
+    if number < 1 {
+        return number.to_string();
+    }
+    let mut remaining = number;
+    let mut out = String::new();
+    for (value, symbol) in UNITS {
+        while remaining >= value {
+            out.push_str(symbol);
+            remaining -= value;
+        }
+    }
+    if upper { out.to_uppercase() } else { out }
+}
+
+/// Display width of a string in columns, summed over its characters.
+fn display_width(text: &str) -> usize {
+    text.chars().map(char_width).sum()
+}
+
+/// Display width of a character: zero for common combining marks, two for wide East Asian
+/// characters, one otherwise. A self-contained approximation of the reference writer's measure.
+fn char_width(ch: char) -> usize {
+    let code = ch as u32;
+    if is_control(code) {
+        return 0;
+    }
+    if code < 0x0300 {
+        return 1;
+    }
+    if is_zero_width(code) {
+        return 0;
+    }
+    if is_wide(code) { 2 } else { 1 }
+}
+
+/// C0 controls, DEL, and C1 controls occupy no display columns.
+fn is_control(code: u32) -> bool {
+    code < 0x20 || (0x7F..=0x9F).contains(&code)
+}
+
+fn is_zero_width(code: u32) -> bool {
+    matches!(code,
+        0x0300..=0x036F
+        | 0x0483..=0x0489
+        | 0x0591..=0x05BD
+        | 0x0610..=0x061A
+        | 0x064B..=0x065F
+        | 0x0670
+        | 0x06D6..=0x06DC
+        | 0x06DF..=0x06E4
+        | 0x0E31
+        | 0x0E34..=0x0E3A
+        | 0x1AB0..=0x1AFF
+        | 0x1DC0..=0x1DFF
+        | 0x200B..=0x200F
+        | 0x20D0..=0x20FF
+        | 0xFE00..=0xFE0F
+        | 0xFE20..=0xFE2F
+    )
+}
