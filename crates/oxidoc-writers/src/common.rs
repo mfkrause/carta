@@ -3,7 +3,7 @@
 
 use oxidoc_ast::QuoteType;
 
-/// Column at which inline content is wrapped, matching the reference writer's default fill width.
+/// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
 
 /// The open and close smart-quote glyphs for a quote kind.

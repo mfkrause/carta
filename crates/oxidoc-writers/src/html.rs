@@ -1,10 +1,9 @@
 //! HTML writer: renders the document model to an html5 fragment.
 //!
-//! The target is the reference `html5` output with syntax highlighting and math rendering neutralized
-//! (`--syntax-highlighting=none --mathjax`): code blocks render as a plain `<pre><code>` and math
-//! as a MathJax-style `\(…\)` / `\[…\]` passthrough span. Those two subsystems (skylighting,
-//! texmath) are deferred (see `docs/plans/slice-1-commonmark-html.md`). Output is a fragment with no
-//! trailing newline; the caller appends one.
+//! Syntax highlighting and TeX math rendering are neutralized: code blocks render as a plain
+//! `<pre><code>` and math as a MathJax-style `\(…\)` / `\[…\]` passthrough span. Those two
+//! subsystems are deferred (see `docs/plans/slice-1-commonmark-html.md`). Output is a fragment with
+//! no trailing newline; the caller appends one.
 
 use std::fmt::Write as _;
 
@@ -16,7 +15,7 @@ use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{FILL_COLUMN, is_wide, quote_marks};
 
-/// Renders a document to an html5 fragment matching the neutralized reference output.
+/// Renders a document to an html5 fragment.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct HtmlWriter;
 
@@ -32,7 +31,7 @@ impl Writer for HtmlWriter {
 
 /// Sentinel marking a breakable inline space while the document is assembled as a flat string.
 /// [`reflow`] later turns each into either a single space or a line break to fill to
-/// [`FILL_COLUMN`]. The reference writer preserves a literal `U+0000` from document content
+/// [`FILL_COLUMN`]. A literal `U+0000` from document content is preserved
 /// verbatim, so content can legitimately contain this scalar; [`protect_char`] encodes any such
 /// occurrence before reflow and [`restore`] decodes it afterwards, keeping the channel unambiguous.
 const BREAK: char = '\u{0}';
@@ -377,7 +376,7 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
 }
 
 /// Whether a figure was synthesized from a lone captioned image: its body is a single image whose
-/// alt text is the caption verbatim. The reference writer marks such a caption `aria-hidden="true"`
+/// alt text is the caption verbatim. Such a caption is marked `aria-hidden="true"`
 /// because a screen reader already announces the duplicated alt text.
 fn is_implicit_figure(caption: &Caption, blocks: &[Block]) -> bool {
     let [Block::Plain(plain)] = blocks else {
@@ -469,8 +468,7 @@ fn alignment_style(align: &Alignment) -> Option<&'static str> {
     }
 }
 
-/// A column width fraction as the whole-percent integer the reference writer emits: the fraction
-/// times 100, floored.
+/// A column width fraction as a whole-percent integer: the fraction times 100, floored.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn width_percent(fraction: f64) -> u32 {
     (fraction * 100.0).floor() as u32
@@ -534,8 +532,7 @@ fn is_known_attribute(name: &str) -> bool {
         || HTML_ATTRIBUTES.contains(&name)
 }
 
-/// HTML attribute names the reference writer emits verbatim; any other key/value attribute is
-/// `data-` prefixed. Derived empirically from the pinned binary (not from upstream source).
+/// HTML attribute names emitted verbatim; any other key/value attribute is `data-` prefixed.
 const HTML_ATTRIBUTES: &[&str] = &[
     "abbr",
     "accept",
@@ -655,7 +652,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
 ];
 
 /// Replace each [`BREAK`] sentinel with a space or a line break so that inline content fills to
-/// [`FILL_COLUMN`], matching the reference writer's greedy fill. A break point becomes a newline
+/// [`FILL_COLUMN`] with a greedy fill. A break point becomes a newline
 /// when keeping the following chunk on the current line would exceed the fill column; the chunk is
 /// the run of literal text up to the next break point or hard newline. Hard newlines (block
 /// structure) reset the column. Consecutive break points collapse to one.
@@ -702,7 +699,7 @@ fn reflow(input: &str) -> String {
     out
 }
 
-/// Display width of a character in columns, matching the reference writer's measure: zero for
+/// Display width of a character in columns: zero for
 /// combining marks, two for wide and fullwidth East Asian characters, one otherwise.
 fn char_width(ch: char) -> usize {
     let code = ch as u32;
@@ -795,8 +792,8 @@ fn escape_text(text: &str) -> String {
     escape(text, false)
 }
 
-/// Escape an attribute value, where the double quote must be entity-encoded. The reference writer
-/// applies this same policy to a `<pre><code>` block's body.
+/// Escape an attribute value, where the double quote must be entity-encoded. The same policy applies
+/// to a `<pre><code>` block's body.
 fn escape_attr(text: &str) -> String {
     escape(text, true)
 }

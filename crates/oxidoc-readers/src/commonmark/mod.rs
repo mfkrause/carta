@@ -3,8 +3,7 @@
 //! Parsing follows the spec's two-phase strategy: the block phase ([`block`]) consumes the input
 //! line by line into a tree of [`IrBlock`]s whose leaves still hold raw text, collecting link
 //! reference definitions; the inline phase ([`inline`]) then parses each leaf's text into inlines.
-//! The result is assembled into a [`Document`]. The target output is the reference `commonmark` JSON
-//! AST, verified differentially against the pinned binary (see `docs/plans/slice-1-commonmark-html.md`).
+//! The result is assembled into a [`Document`] (see `docs/plans/slice-1-commonmark-html.md`).
 
 mod block;
 mod cursor;
@@ -73,7 +72,7 @@ const TAB_STOP: usize = 4;
 /// Normalize line endings to `\n`, strip a leading UTF-8 BOM, and expand tabs to spaces.
 ///
 /// Tabs are expanded by character column (reset at each line) so the rest of the parser sees only
-/// spaces; this matches the pinned binary, which expands tabs uniformly before parsing.
+/// spaces.
 fn normalize(input: &str) -> String {
     let without_bom = input.strip_prefix('\u{feff}').unwrap_or(input);
     let mut out = String::with_capacity(without_bom.len());
