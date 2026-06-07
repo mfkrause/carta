@@ -44,9 +44,16 @@ fine — CommonMark's "link reference definition" and "character reference", Rus
 the word.
 
 - The root AST type is `Document`, never `Pandoc`.
-- The JSON interchange format requires a literal `pandoc-api-version` key. Confine that one string
-  to a single named constant in `oxidoc-ast` and treat it as an opaque external protocol identifier
-  — it is the lone unavoidable occurrence; do not let the name spread.
+- A few external formats embed the upstream name in their own wire vocabulary. Those literals are
+  unavoidable for interoperability and are the **only** sanctioned occurrences in product source.
+  Treat each as an opaque external-format token, confined to the single site that emits or parses it
+  — never let the name spread beyond these:
+  - `pandoc-api-version` — the JSON interchange root key; a single named constant in `oxidoc-ast`.
+  - `Pandoc` — the native format's top-level constructor; a parse literal in the native reader.
+  - `\pandocbounded` — a LaTeX macro emitted to bound oversized images; a literal in the LaTeX writer.
+
+  Sanctioning a new such literal takes the same justification: it is part of an external format's
+  published wire form and cannot be expressed any other way.
 - Commit messages are history, not files, but keep them provenance-neutral too.
 
 ## Code style
