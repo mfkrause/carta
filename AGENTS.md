@@ -27,6 +27,22 @@ provenance may appear **only** in: `AGENTS.md`, `README.md`, `docs/**`, and the 
 build and CI config — must contain none of it: not in identifiers, comments, doc-comments, or
 package descriptions.
 
+This extends past the upstream's *name* to any phrasing that frames the code as matching, imitating,
+or being derived from an external implementation — even an unnamed one. In product source, **state
+behavior as the code's own design**: assert what the code does, never that it reproduces what some
+other tool does. Banned in product source (non-exhaustive): "the reference writer/binary/tool", "the
+pinned binary", "the oracle", "matches/to match the reference", "matching the reference X's output",
+"derived empirically from …", "verified differentially against …", "observable contract", "a quirk
+of the reference X reproduced here". Rewrite each as a plain statement of the rule
+(*"a loose list's items are separated with a blank line"*, not *"matching how the reference writer
+separates items"*). Where a value or rule looks arbitrary without its rationale, point at `docs/**`
+rather than at the upstream tool.
+
+The test is meaning, not substring: ordinary domain vocabulary that happens to reuse these words is
+fine — CommonMark's "link reference definition" and "character reference", Rust "references", the
+"pinned toolchain" (the Rust toolchain) carry no upstream provenance and stay. Ban the *hint*, not
+the word.
+
 - The root AST type is `Document`, never `Pandoc`.
 - The JSON interchange format requires a literal `pandoc-api-version` key. Confine that one string
   to a single named constant in `oxidoc-ast` and treat it as an opaque external protocol identifier
