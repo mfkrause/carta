@@ -1002,10 +1002,10 @@ fn escape(text: &str) -> String {
 /// a boundary or opener and is not followed by whitespace; an end-string follows non-whitespace and is
 /// not followed by other text. A run boundary counts as both an opener and a closer.
 fn flanking_escape(prev: Option<char>, next: Option<char>) -> bool {
-    let could_start = prev.map_or(true, |c| c.is_whitespace() || OPENERS.contains(&c))
-        && next.map_or(true, |c| !c.is_whitespace());
+    let could_start = prev.is_none_or(|c| c.is_whitespace() || OPENERS.contains(&c))
+        && next.is_none_or(|c| !c.is_whitespace());
     let could_end = prev.is_some_and(|c| !c.is_whitespace())
-        && next.map_or(true, |c| c.is_whitespace() || CLOSERS.contains(&c));
+        && next.is_none_or(|c| c.is_whitespace() || CLOSERS.contains(&c));
     could_start || could_end
 }
 
