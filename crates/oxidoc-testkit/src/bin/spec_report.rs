@@ -6,8 +6,7 @@
 
 use std::io::Write;
 
-use oxidoc_core::{Reader, ReaderOptions};
-use oxidoc_readers::CommonmarkReader;
+use oxidoc::ReaderOptions;
 use oxidoc_testkit::commonmark_spec::examples;
 use oxidoc_testkit::differential::{self, Diff};
 
@@ -15,11 +14,17 @@ fn main() {
     // Parse-only mode: feed each example to the reader, announcing the number first so a hang is
     // pinpointed by the last line printed. No oracle involved.
     if std::env::args().any(|a| a == "--parse-only") {
+        let reader = match oxidoc::reader_for("commonmark") {
+            Ok(reader) => reader,
+            Err(error) => {
+                eprintln!("commonmark reader unavailable: {error}");
+                std::process::exit(2);
+            }
+        };
         for example in &examples() {
             print!("parsing {} ... ", example.number);
             let _ = std::io::stdout().flush();
-            let document = CommonmarkReader.read(&example.markdown, &ReaderOptions::default());
-            match document {
+            match reader.read(&example.markdown, &ReaderOptions::default()) {
                 Ok(_) => println!("ok"),
                 Err(error) => println!("error: {error}"),
             }
@@ -47,9 +52,9 @@ fn main() {
 
     for example in &examples {
         let diff = if e2e {
-            differential::e2e_html(&example.markdown)
+            differential::e2e("commonmark", "html", &example.markdown)
         } else {
-            differential::reader_json(&example.markdown)
+            differential::reader_json("commonmark", &example.markdown)
         };
         match diff {
             Ok(Diff::Match | Diff::OracleRejected { .. }) => passed += 1,

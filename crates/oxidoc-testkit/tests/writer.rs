@@ -138,7 +138,7 @@ fn writer_matches_oracle_html_across_the_model() {
 
     let mut failures = Vec::new();
     for case in cases() {
-        match differential::writer_parity(case.from, case.input).expect("run writer surface") {
+        match differential::writer("html", case.from, case.input).expect("run writer surface") {
             Diff::Match => {}
             Diff::Mismatch { detail } => failures.push(format!("{}: {detail}", case.label)),
             Diff::OxidocError { detail } => {
