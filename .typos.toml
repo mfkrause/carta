@@ -22,3 +22,5 @@ alph = "alph"
 Alph = "Alph"
 # Left when "café" renders with its accented byte as an octal escape ("caf\233").
 caf = "caf"
+# URI scheme for the iTunes Music Store, part of the recognized autolink scheme set.
+itms = "itms"
