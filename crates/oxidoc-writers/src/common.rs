@@ -1,6 +1,11 @@
 //! Shared helpers for the text-oriented writers (plain, HTML, and LaTeX): the default fill column,
 //! the greedy line-filling engine, column-width measurement, list-tightness, ordered-list delimiter
 //! wrapping, and the smart-quote glyphs.
+//!
+//! Each consumer is behind its own writer feature, so which helpers are live depends on the enabled
+//! features: a build with only one writer leaves the others' helpers unreferenced. That is expected
+//! for this toolbox, so unused-item warnings are allowed here rather than gated per item.
+#![allow(dead_code)]
 
 use oxidoc_ast::{Block, ListNumberDelim, QuoteType};
 
