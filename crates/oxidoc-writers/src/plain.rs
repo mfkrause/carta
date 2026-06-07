@@ -1,6 +1,6 @@
 //! Plain-text writer: renders the document model to unformatted text.
 //!
-//! The target is `pandoc -t plain` with default options: a fill column of 72, inline markup
+//! The target is the reference `plain` output with default options: a fill column of 72, inline markup
 //! stripped (emphasis, links, and inline code render as their textual content), and block structure
 //! conveyed through indentation alone. Output carries no trailing newline; the caller appends one.
 //!

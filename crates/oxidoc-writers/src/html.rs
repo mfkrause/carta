@@ -1,6 +1,6 @@
 //! HTML writer: renders the document model to an html5 fragment.
 //!
-//! The target is `pandoc -t html5` with syntax highlighting and math rendering neutralized
+//! The target is the reference `html5` output with syntax highlighting and math rendering neutralized
 //! (`--syntax-highlighting=none --mathjax`): code blocks render as a plain `<pre><code>` and math
 //! as a MathJax-style `\(…\)` / `\[…\]` passthrough span. Those two subsystems (skylighting,
 //! texmath) are deferred (see `docs/plans/slice-1-commonmark-html.md`). Output is a fragment with no
