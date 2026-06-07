@@ -12,7 +12,7 @@ use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, escape_xml, fill, fill_offset, indent_block, is_known_attribute,
-    is_uri_scheme, list_is_tight, offset_as_i32, ordered_marker, quote_marks,
+    list_is_tight, offset_as_i32, ordered_marker, quote_marks,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -44,34 +44,31 @@ struct State {
 }
 
 impl State {
-    /// Render a block sequence with a blank line between blocks, dropping those that produce no
-    /// output. This is the default layout (document body, blockquotes, divs, loose list items, loose
-    /// definitions). See [`join_loose`] for the [`Block::Plain`] spacing.
+    /// Render a block sequence, dropping blocks that produce no output. Blocks are separated by a
+    /// blank line, except that a [`Block::Plain`] is followed by a single newline and certain
+    /// neighbors require an HTML-comment separator (see [`needs_separator`]). This is the layout used
+    /// for the document body, blockquotes, divs, list items, and definitions.
     fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
-        let rendered = blocks
-            .iter()
-            .map(|block| (matches!(block, Block::Plain(_)), self.block(block, width)))
-            .collect();
-        join_loose(rendered)
-    }
-
-    /// Render a block sequence with a single newline between blocks: the compact layout used inside a
-    /// tight list's items and tight definitions.
-    fn blocks_tight(&mut self, blocks: &[Block], width: usize) -> String {
-        let parts: Vec<String> = blocks
-            .iter()
-            .map(|block| self.block(block, width))
-            .filter(|rendered| !rendered.is_empty())
-            .collect();
-        parts.join("\n")
-    }
-
-    fn blocks_at(&mut self, blocks: &[Block], width: usize, loose: bool) -> String {
-        if loose {
-            self.blocks_to_string(blocks, width)
-        } else {
-            self.blocks_tight(blocks, width)
+        let mut out = String::new();
+        let mut previous: Option<&Block> = None;
+        for block in blocks {
+            let text = self.block(block, width);
+            if text.is_empty() {
+                continue;
+            }
+            if let Some(previous) = previous {
+                if needs_separator(previous, block) {
+                    out.push_str("\n\n<!-- -->\n\n");
+                } else if matches!(previous, Block::Plain(_)) {
+                    out.push('\n');
+                } else {
+                    out.push_str("\n\n");
+                }
+            }
+            out.push_str(&text);
+            previous = Some(block);
         }
+        out
     }
 
     fn block(&mut self, block: &Block, width: usize) -> String {
@@ -84,7 +81,7 @@ impl State {
                 let hashes = "#".repeat(usize::try_from((*level).max(1)).unwrap_or(1));
                 let text = self.inlines_oneline(inlines, false);
                 if text.is_empty() {
-                    hashes
+                    format!("{hashes} ")
                 } else {
                     format!("{hashes} {text}")
                 }
@@ -92,7 +89,11 @@ impl State {
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => {
                 if is_html_format(format) {
-                    text.strip_suffix('\n').unwrap_or(text).to_owned()
+                    let collapsed = text.replace("\n\n", "\n&#10;");
+                    collapsed
+                        .strip_suffix('\n')
+                        .unwrap_or(&collapsed)
+                        .to_owned()
                 } else {
                     String::new()
                 }
@@ -129,7 +130,8 @@ impl State {
         let rendered: Vec<String> = items
             .iter()
             .map(|item| {
-                let body = self.blocks_at(item, body_width, loose);
+                let rendered = self.blocks_to_string(item, body_width);
+                let body = offset_horizontal_rule(item, rendered);
                 indent_block(&body, "- ", "  ")
             })
             .collect();
@@ -150,7 +152,8 @@ impl State {
                 let number = attrs.start.saturating_add(offset_as_i32(offset));
                 let marker = ordered_marker(number, &attrs.style, &attrs.delim);
                 let field = (marker.chars().count() + 1).max(4);
-                let body = self.blocks_at(item, width.saturating_sub(field), loose);
+                let rendered = self.blocks_to_string(item, width.saturating_sub(field));
+                let body = offset_horizontal_rule(item, rendered);
                 let first = format!("{marker:<field$}");
                 let rest = " ".repeat(field);
                 indent_block(&body, &first, &rest)
@@ -205,6 +208,12 @@ impl State {
     fn extend_pieces(&mut self, inlines: &[Inline], out: &mut Vec<Piece>, line_start: bool) {
         for (position, inline) in inlines.iter().enumerate() {
             let starts = line_start && position == 0;
+            if matches!(inline, Inline::Space | Inline::SoftBreak)
+                && next_is_para_interrupting_marker(inlines.get(position + 1))
+            {
+                out.push(Piece::Text(" ".to_owned()));
+                continue;
+            }
             if let Inline::Str(text) = inline
                 && let Some(prefix) = text.strip_suffix('!')
                 && matches!(inlines.get(position + 1), Some(Inline::Link(..)))
@@ -219,7 +228,10 @@ impl State {
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>, line_start: bool) {
         match inline {
             Inline::Str(text) => out.push(Piece::Text(escape_str(text, line_start))),
-            Inline::Emph(inlines) => self.wrap_markup("*", inlines, out),
+            Inline::Emph(inlines) => match inlines.as_slice() {
+                [Inline::Emph(inner)] => self.extend_pieces(inner, out, line_start),
+                _ => self.wrap_markup("*", inlines, out),
+            },
             Inline::Strong(inlines) => self.wrap_markup("**", inlines, out),
             Inline::Underline(inlines) => self.wrap_tag("u", inlines, out),
             Inline::Strikeout(inlines) => self.wrap_tag("s", inlines, out),
@@ -402,12 +414,48 @@ fn is_loose(items: &[Vec<Block>]) -> bool {
     !list_is_tight(items)
 }
 
+/// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
+/// the first: two lists of the same kind would merge into one, and an indented code block following
+/// a list would read as a continuation of the final item.
+fn needs_separator(previous: &Block, current: &Block) -> bool {
+    match (previous, current) {
+        (Block::BulletList(_), Block::BulletList(_))
+        | (Block::OrderedList(..), Block::OrderedList(..)) => true,
+        (Block::BulletList(_) | Block::OrderedList(..), Block::CodeBlock(attr, _)) => {
+            attr_is_empty(attr)
+        }
+        _ => false,
+    }
+}
+
+/// A list item whose first block is a horizontal rule cannot place the rule on the marker line,
+/// where it would read as part of the marker; the rule is pushed onto its own line below an empty
+/// marker line by prefixing the rendered body with a blank line.
+fn offset_horizontal_rule(item: &[Block], body: String) -> String {
+    if matches!(item.first(), Some(Block::HorizontalRule)) {
+        format!("\n\n{body}")
+    } else {
+        body
+    }
+}
+
+/// Whether the next inline is a bare `1.` or `1)`: an ordered-list marker whose start number is one,
+/// the only ordered marker that can interrupt a paragraph. If such a token began a wrapped
+/// continuation line it would be re-read as a list, so the space before it is held non-breakable to
+/// keep it on the line with the preceding word.
+fn next_is_para_interrupting_marker(inline: Option<&Inline>) -> bool {
+    matches!(inline, Some(Inline::Str(text)) if text == "1." || text == "1)")
+}
+
 fn item_separator(loose: bool) -> &'static str {
     if loose { "\n\n" } else { "\n" }
 }
 
 /// Prefix every line of a blockquote body with `> ` (a bare `>` on an otherwise empty line).
 fn quote_block(body: &str) -> String {
+    if body.is_empty() {
+        return "> ".to_owned();
+    }
     let mut out = String::new();
     for (index, line) in body.split('\n').enumerate() {
         if index > 0 {
@@ -431,10 +479,10 @@ fn is_html_format(format: &Format) -> bool {
 /// A code block: indented four spaces when it carries no attributes, otherwise a backtick-fenced
 /// block whose info string is the first class (`CommonMark` cannot express an id or further classes).
 fn code_block(attr: &Attr, text: &str) -> String {
-    let body = text.strip_suffix('\n').unwrap_or(text);
     if attr_is_empty(attr) {
-        return indent_block(body, "    ", "    ");
+        return indent_code(text);
     }
+    let body = text.strip_suffix('\n').unwrap_or(text);
     let fence = "`".repeat(backtick_fence_len(body));
     let info = attr.classes.first();
     let open = match info {
@@ -446,6 +494,23 @@ fn code_block(attr: &Attr, text: &str) -> String {
     } else {
         format!("{open}\n{body}\n{fence}")
     }
+}
+
+/// An indented code block: every non-blank line is prefixed with four spaces, blank lines stay
+/// empty, and trailing blank lines are dropped. Empty content yields no output.
+fn indent_code(text: &str) -> String {
+    let body = text.trim_end_matches('\n');
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        if !line.is_empty() {
+            out.push_str("    ");
+            out.push_str(line);
+        }
+    }
+    out
 }
 
 /// The backtick run length for a fenced code block: longer than the longest backtick run in the
@@ -507,13 +572,73 @@ fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
     None
 }
 
-/// Whether a string opens with a URI scheme (`scheme:`), the marker that lets it stand as a bare
-/// autolink.
+/// Whether a string is a bare URI eligible to stand as an angle-bracket autolink: it opens with a
+/// recognized scheme and every character is valid in a URI.
 fn is_uri(text: &str) -> bool {
     let Some(colon) = text.find(':') else {
         return false;
     };
-    text.get(..colon).is_some_and(is_uri_scheme)
+    text.get(..colon).is_some_and(is_known_scheme) && has_valid_uri_chars(text)
+}
+
+/// Whether `scheme` is one of the recognized URI schemes (compared case-insensitively).
+fn is_known_scheme(scheme: &str) -> bool {
+    let lowered = scheme.to_ascii_lowercase();
+    URI_SCHEMES.binary_search(&lowered.as_str()).is_ok()
+}
+
+/// Whether every character of `text` is permitted in a URI: any non-ASCII character, the unreserved
+/// and reserved ASCII punctuation, an ASCII alphanumeric, or a percent escape (`%` and two hex
+/// digits).
+fn has_valid_uri_chars(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut index = 0;
+    while let Some(&ch) = chars.get(index) {
+        if ch == '%' {
+            let valid = chars.get(index + 1).is_some_and(char::is_ascii_hexdigit)
+                && chars.get(index + 2).is_some_and(char::is_ascii_hexdigit);
+            if !valid {
+                return false;
+            }
+            index += 3;
+            continue;
+        }
+        if !is_uri_char(ch) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Whether a single character may appear literally in a URI (percent escapes aside).
+fn is_uri_char(ch: char) -> bool {
+    if !ch.is_ascii() {
+        return true;
+    }
+    ch.is_ascii_alphanumeric()
+        || matches!(
+            ch,
+            '-' | '.'
+                | '_'
+                | '~'
+                | ':'
+                | '/'
+                | '?'
+                | '#'
+                | '@'
+                | '!'
+                | '$'
+                | '&'
+                | '\''
+                | '('
+                | ')'
+                | '*'
+                | '+'
+                | ','
+                | ';'
+                | '='
+        )
 }
 
 fn attr_is_empty(attr: &Attr) -> bool {
@@ -567,10 +692,14 @@ fn escape_attr(text: &str) -> String {
 }
 
 /// Escape the `CommonMark`-significant characters of running text. The characters that can open inline
-/// markup (`` ` ``, `*`, `[`, `]`, `<`, `>`) are escaped everywhere; `_` is escaped only at a word
-/// boundary, where it could flank emphasis; a backslash is escaped only before punctuation it would
-/// otherwise consume. When `line_start` is set, the opening character is additionally escaped if it
-/// would begin a block construct (a header, a list item, or a blockquote).
+/// markup (`` ` ``, `*`, `[`, `]`, `<`, `>`) are escaped everywhere; a leading `#` is escaped so it
+/// cannot open an ATX heading; an `&` that opens a valid numeric character reference is escaped so it
+/// is not re-read as one; `_` is escaped only at a word boundary, where it could flank emphasis. A `!`
+/// directly before a `[` is escaped (leaving the `[` bare) so the pair is not read as an image marker.
+/// A backslash that precedes a non-alphanumeric character forms an escape sequence: it is written as
+/// `\\` and the following character is consumed. When `line_start` is set, the opening character is
+/// additionally escaped if it would begin a block construct (a list item or the delimiter of an
+/// ordered-list marker).
 fn escape_str(text: &str, line_start: bool) -> String {
     let chars: Vec<char> = text.chars().collect();
     let leading = if line_start {
@@ -579,32 +708,86 @@ fn escape_str(text: &str, line_start: bool) -> String {
         None
     };
     let mut out = String::with_capacity(text.len());
-    for (index, &ch) in chars.iter().enumerate() {
+    let mut index = 0;
+    while let Some(&ch) = chars.get(index) {
         if Some(index) == leading {
             out.push('\\');
             out.push(ch);
+            index += 1;
             continue;
         }
         match ch {
+            '#' if index == 0 => out.push_str("\\#"),
+            '!' if matches!(chars.get(index + 1), Some('[')) => out.push_str("\\!"),
+            '[' if index > 0 && chars.get(index - 1) == Some(&'!') => out.push('['),
             '`' | '*' | '[' | ']' | '<' | '>' => {
                 out.push('\\');
                 out.push(ch);
             }
-            '_' if is_word_boundary(&chars, index) => {
-                out.push('\\');
-                out.push('_');
-            }
-            '\\' => {
-                if chars.get(index + 1).is_none_or(char::is_ascii_punctuation) {
+            '&' if begins_character_reference(&chars, index) => out.push_str("\\&"),
+            '&' if begins_named_entity(&chars, index) => out.push_str("\\&"),
+            '_' if is_word_boundary(&chars, index) => out.push_str("\\_"),
+            '\\' => match chars.get(index + 1) {
+                Some(next) if next.is_alphanumeric() => out.push('\\'),
+                Some(_) => {
                     out.push_str("\\\\");
-                } else {
-                    out.push('\\');
+                    index += 1;
                 }
-            }
+                None => out.push_str("\\\\"),
+            },
             other => out.push(other),
         }
+        index += 1;
     }
     out
+}
+
+/// Whether an `&` at `index` opens a syntactically valid numeric character reference: `&#` followed by
+/// at least one decimal digit, or `&#x`/`&#X` followed by at least one hex digit, terminated by `;`.
+fn begins_character_reference(chars: &[char], index: usize) -> bool {
+    if chars.get(index) != Some(&'&') || chars.get(index + 1) != Some(&'#') {
+        return false;
+    }
+    let hex = matches!(chars.get(index + 2), Some('x' | 'X'));
+    let start = if hex { index + 3 } else { index + 2 };
+    let mut pos = start;
+    while chars.get(pos).is_some_and(|ch| {
+        if hex {
+            ch.is_ascii_hexdigit()
+        } else {
+            ch.is_ascii_digit()
+        }
+    }) {
+        pos += 1;
+    }
+    pos > start && chars.get(pos) == Some(&';')
+}
+
+/// Whether an `&` at `index` opens a valid named character reference: an ASCII letter followed by
+/// further ASCII alphanumerics and a `;`, whose name is one the format recognizes.
+fn begins_named_entity(chars: &[char], index: usize) -> bool {
+    if chars.get(index) != Some(&'&') {
+        return false;
+    }
+    let start = index + 1;
+    if !chars.get(start).is_some_and(char::is_ascii_alphabetic) {
+        return false;
+    }
+    let mut pos = start + 1;
+    while chars.get(pos).is_some_and(char::is_ascii_alphanumeric) {
+        pos += 1;
+    }
+    if chars.get(pos) != Some(&';') {
+        return false;
+    }
+    let name: String = chars.get(start..pos).unwrap_or_default().iter().collect();
+    entity_names::ENTITY_NAMES
+        .binary_search(&name.as_str())
+        .is_ok()
+}
+
+mod entity_names {
+    include!(concat!(env!("OUT_DIR"), "/entity_names.rs"));
 }
 
 /// The index of a leading character that must be escaped because it would otherwise start a block
@@ -618,6 +801,9 @@ fn leading_escape(chars: &[char]) -> Option<usize> {
         }
         first if first.is_ascii_digit() => {
             let delim = chars.iter().position(|ch| !ch.is_ascii_digit())?;
+            if delim > 9 {
+                return None;
+            }
             if matches!(chars.get(delim), Some('.' | ')'))
                 && chars.get(delim + 1).is_none_or(|ch| ch.is_whitespace())
             {
@@ -640,3 +826,274 @@ fn is_word_boundary(chars: &[char], index: usize) -> bool {
     let alnum = |ch: Option<&char>| ch.is_some_and(|c| c.is_alphanumeric());
     !(alnum(before) && alnum(after))
 }
+/// Recognized URI schemes, sorted for binary search. A bare URI opens with one of these.
+const URI_SCHEMES: &[&str] = &[
+    "aaa",
+    "aaas",
+    "about",
+    "acap",
+    "acct",
+    "acr",
+    "adiumxtra",
+    "afp",
+    "afs",
+    "aim",
+    "appdata",
+    "apt",
+    "attachment",
+    "aw",
+    "barion",
+    "beshare",
+    "bitcoin",
+    "bitcoincash",
+    "blob",
+    "bolo",
+    "browserext",
+    "callto",
+    "cap",
+    "chrome",
+    "chrome-extension",
+    "cid",
+    "coap",
+    "coaps",
+    "com-eventbrite-attendee",
+    "content",
+    "crid",
+    "cvs",
+    "data",
+    "dav",
+    "dict",
+    "did",
+    "dis",
+    "dlna-playcontainer",
+    "dlna-playsingle",
+    "dns",
+    "dntp",
+    "doi",
+    "dtn",
+    "dvb",
+    "ed2k",
+    "ethereum",
+    "example",
+    "facetime",
+    "fax",
+    "feed",
+    "feedready",
+    "file",
+    "filesystem",
+    "finger",
+    "fish",
+    "ftp",
+    "geo",
+    "gg",
+    "git",
+    "gizmoproject",
+    "go",
+    "gopher",
+    "graph",
+    "gtalk",
+    "h323",
+    "ham",
+    "hcp",
+    "http",
+    "https",
+    "hxxp",
+    "hxxps",
+    "hydrazone",
+    "iax",
+    "icap",
+    "icon",
+    "im",
+    "imap",
+    "info",
+    "iotdisco",
+    "ipn",
+    "ipp",
+    "ipps",
+    "irc",
+    "irc6",
+    "ircs",
+    "iris",
+    "iris.beep",
+    "iris.lwz",
+    "iris.xpc",
+    "iris.xpcs",
+    "isostore",
+    "itms",
+    "jabber",
+    "jar",
+    "jms",
+    "keyparc",
+    "lastfm",
+    "ldap",
+    "ldaps",
+    "lvlt",
+    "magnet",
+    "mailserver",
+    "mailto",
+    "maps",
+    "market",
+    "matrix",
+    "message",
+    "mid",
+    "mms",
+    "modem",
+    "monero",
+    "mongodb",
+    "moz",
+    "ms-access",
+    "ms-browser-extension",
+    "ms-drive-to",
+    "ms-enrollment",
+    "ms-excel",
+    "ms-gamebarservices",
+    "ms-getoffice",
+    "ms-help",
+    "ms-infopath",
+    "ms-media-stream-id",
+    "ms-officeapp",
+    "ms-powerpoint",
+    "ms-project",
+    "ms-publisher",
+    "ms-search-repair",
+    "ms-secondary-screen-controller",
+    "ms-secondary-screen-setup",
+    "ms-settings",
+    "ms-settings-airplanemode",
+    "ms-settings-bluetooth",
+    "ms-settings-camera",
+    "ms-settings-cellular",
+    "ms-settings-cloudstorage",
+    "ms-settings-connectabledevices",
+    "ms-settings-displays-topology",
+    "ms-settings-emailandaccounts",
+    "ms-settings-language",
+    "ms-settings-location",
+    "ms-settings-lock",
+    "ms-settings-nfctransactions",
+    "ms-settings-notifications",
+    "ms-settings-power",
+    "ms-settings-privacy",
+    "ms-settings-proximity",
+    "ms-settings-screenrotation",
+    "ms-settings-wifi",
+    "ms-settings-workplace",
+    "ms-spd",
+    "ms-sttoverlay",
+    "ms-transit-to",
+    "ms-virtualtouchpad",
+    "ms-visio",
+    "ms-walk-to",
+    "ms-whiteboard",
+    "ms-whiteboard-cmd",
+    "ms-word",
+    "msnim",
+    "msrp",
+    "msrps",
+    "mtqp",
+    "mumble",
+    "mupdate",
+    "mvn",
+    "mvrp",
+    "news",
+    "ni",
+    "nih",
+    "nntp",
+    "notes",
+    "ocf",
+    "oid",
+    "onenote",
+    "onenote-cmd",
+    "opaquelocktoken",
+    "pack",
+    "palm",
+    "paparazzi",
+    "payto",
+    "pkcs11",
+    "platform",
+    "pop",
+    "pres",
+    "prospero",
+    "proxy",
+    "psyc",
+    "pwid",
+    "qb",
+    "query",
+    "redis",
+    "rediss",
+    "reload",
+    "res",
+    "resource",
+    "rmi",
+    "rsync",
+    "rtmfp",
+    "rtmp",
+    "rtsp",
+    "rtsps",
+    "rtspu",
+    "secondlife",
+    "service",
+    "session",
+    "sftp",
+    "sgn",
+    "shttp",
+    "sieve",
+    "sip",
+    "sips",
+    "skype",
+    "smb",
+    "sms",
+    "smtp",
+    "snews",
+    "snmp",
+    "soap.beep",
+    "soap.beeps",
+    "soldat",
+    "spotify",
+    "ssh",
+    "steam",
+    "stun",
+    "stuns",
+    "submit",
+    "svn",
+    "tag",
+    "teamspeak",
+    "tel",
+    "teliaeid",
+    "telnet",
+    "tftp",
+    "things",
+    "thismessage",
+    "tip",
+    "tn3270",
+    "tool",
+    "turn",
+    "turns",
+    "tv",
+    "udp",
+    "unreal",
+    "urn",
+    "ut2004",
+    "v-event",
+    "vemmi",
+    "view-source",
+    "vnc",
+    "wais",
+    "webcal",
+    "wpid",
+    "ws",
+    "wss",
+    "wtai",
+    "wyciwyg",
+    "xcon",
+    "xcon-userid",
+    "xfire",
+    "xmlrpc.beep",
+    "xmlrpc.beeps",
+    "xmpp",
+    "xri",
+    "ymsgr",
+    "z39.50",
+    "z39.50r",
+    "z39.50s",
+];

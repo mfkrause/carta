@@ -39,36 +39,64 @@ struct State {
 }
 
 impl State {
-    /// Render a block sequence. Every block but a `Plain` contributes a trailing blank line before
-    /// the next block; blocks that render to nothing are dropped.
+    /// Render a top-level block sequence, where a paragraph stands on its own line as bare wiki text.
     fn blocks(&mut self, blocks: &[Block]) -> String {
-        let parts: Vec<String> = blocks
+        self.block_seq(blocks, false)
+    }
+
+    /// Render a block sequence. In the HTML context (inside an `<li>`) a paragraph is wrapped in
+    /// `<p>` and blocks are joined per the HTML-list spacing; otherwise paragraphs render as bare
+    /// text and blocks are joined per the top-level spacing. Blocks that render to nothing are
+    /// dropped.
+    fn block_seq(&mut self, blocks: &[Block], html: bool) -> String {
+        let rendered: Vec<(&Block, String)> = blocks
             .iter()
             .filter_map(|block| {
-                let core = self.block(block);
-                if core.is_empty() {
-                    return None;
-                }
-                Some(if matches!(block, Block::Plain(_)) {
-                    core
-                } else {
-                    format!("{core}\n")
-                })
+                let core = self.block_ctx(block, html);
+                (!core.is_empty()).then_some((block, core))
             })
             .collect();
-        parts.join("\n")
+        let mut out = String::new();
+        for (index, (block, core)) in rendered.iter().enumerate() {
+            match rendered.get(index.wrapping_sub(1)) {
+                Some((prev, _)) if index > 0 => out.push_str(separator(prev, block, html)),
+                _ if html && matches!(block, Block::HorizontalRule) => out.push_str("\n\n"),
+                _ => {}
+            }
+            out.push_str(core);
+        }
+        out
     }
 
     fn block(&mut self, block: &Block) -> String {
+        self.block_ctx(block, false)
+    }
+
+    fn block_ctx(&mut self, block: &Block, html: bool) -> String {
         match block {
-            Block::Plain(inlines) | Block::Para(inlines) => self.inlines(inlines),
+            Block::Plain(inlines) => self.inlines(inlines),
+            Block::Para(inlines) => {
+                let text = self.inlines(inlines);
+                if html {
+                    format!("<p>{text}</p>")
+                } else {
+                    guarded_paragraph(text)
+                }
+            }
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::CodeBlock(attr, text) => code_block(attr, text),
-            Block::RawBlock(format, text) => raw_passthrough(format, text),
+            Block::RawBlock(format, text) => {
+                let rendered = raw_passthrough(format, text);
+                rendered
+                    .strip_suffix('\n')
+                    .map(str::to_owned)
+                    .unwrap_or(rendered)
+            }
             Block::BlockQuote(blocks) => {
-                let body = self.blocks(blocks);
+                let body = self.block_seq(blocks, html);
                 format!("<blockquote>{}\n</blockquote>", body.trim_end_matches('\n'))
             }
+            Block::BulletList(_) | Block::OrderedList(..) if html => self.html_list(block),
             Block::BulletList(items) => self.list(block, '*', items),
             Block::OrderedList(_, items) => self.list(block, '#', items),
             Block::DefinitionList(items) => self.definition_list(items),
@@ -87,7 +115,11 @@ impl State {
         let depth = level.clamp(1, 6);
         let equals = "=".repeat(depth.unsigned_abs() as usize);
         let text = self.inlines(inlines);
-        let heading = format!("{equals} {text} {equals}");
+        let heading = if text.is_empty() {
+            format!("{equals} {equals}")
+        } else {
+            format!("{equals} {text} {equals}")
+        };
         if attr.id.is_empty() || attr.id == section_anchor(inlines) {
             heading
         } else {
@@ -145,13 +177,33 @@ impl State {
                 lines.push(prefix.clone());
                 continue;
             }
+            // An item carries its marker on its first text line; an item whose first block is a
+            // sublist has no such line, so the marker is emitted ahead of the sublist's first line.
+            let mut item_has_marker = false;
             for inner in item {
                 match inner {
-                    Block::Plain(inlines) | Block::Para(inlines) => {
+                    Block::Plain(inlines) => {
                         lines.push(format!("{prefix} {}", self.inlines(inlines)));
+                        item_has_marker = true;
                     }
-                    Block::BulletList(sub) => lines.push(self.compact_list('*', sub, &prefix)),
-                    Block::OrderedList(_, sub) => lines.push(self.compact_list('#', sub, &prefix)),
+                    Block::Para(inlines) => {
+                        let text = guarded_paragraph(self.inlines(inlines));
+                        lines.push(format!("{prefix} {text}"));
+                        item_has_marker = true;
+                    }
+                    Block::BulletList(sub) | Block::OrderedList(_, sub) => {
+                        let submarker = if matches!(inner, Block::OrderedList(..)) {
+                            '#'
+                        } else {
+                            '*'
+                        };
+                        let mut rendered = self.compact_list(submarker, sub, &prefix);
+                        if !item_has_marker {
+                            rendered = format!("{prefix} {rendered}");
+                            item_has_marker = true;
+                        }
+                        lines.push(rendered);
+                    }
                     other => lines.push(self.block(other)),
                 }
             }
@@ -170,23 +222,8 @@ impl State {
     }
 
     fn html_item(&mut self, item: &[Block]) -> String {
-        let parts: Vec<String> = item
-            .iter()
-            .map(|block| self.html_item_block(block))
-            .collect();
-        format!("<li>{}</li>", parts.join("\n"))
-    }
-
-    /// Render one block inside an HTML list item: a paragraph is wrapped in `<p>`, a plain block
-    /// contributes its bare inline content, a nested list stays in HTML form, and any other block
-    /// renders as it does elsewhere.
-    fn html_item_block(&mut self, block: &Block) -> String {
-        match block {
-            Block::Para(inlines) => format!("<p>{}</p>", self.inlines(inlines)),
-            Block::Plain(inlines) => self.inlines(inlines),
-            Block::BulletList(_) | Block::OrderedList(..) => self.html_list(block),
-            other => self.block(other),
-        }
+        let body = self.block_seq(item, true);
+        format!("<li>{}</li>", body.trim_end_matches('\n'))
     }
 
     fn table(&mut self, table: &Table) -> String {
@@ -271,7 +308,16 @@ impl State {
     }
 
     fn inlines(&mut self, inlines: &[Inline]) -> String {
-        inlines.iter().map(|inline| self.inline(inline)).collect()
+        let mut out = String::new();
+        for inline in inlines {
+            // A link or image opens with `[`; if the preceding character is also `[`, the run would
+            // read as the start of an internal link, so an empty `<nowiki/>` breaks the pair.
+            if out.ends_with('[') && matches!(inline, Inline::Link(..) | Inline::Image(..)) {
+                out.push_str("<nowiki/>");
+            }
+            out.push_str(&self.inline(inline));
+        }
+        out
     }
 
     fn inline(&mut self, inline: &Inline) -> String {
@@ -316,10 +362,14 @@ impl State {
         let label = self.inlines(inlines);
         let plain = to_plain_text(inlines);
         if is_external_uri(&target.url) {
-            if plain == target.url {
-                target.url.clone()
-            } else {
+            if plain != target.url {
                 format!("[{} {label}]", target.url)
+            } else if is_clean_autolink(&target.url) {
+                target.url.clone()
+            } else if label == target.url {
+                format!("[[{}]]", target.url)
+            } else {
+                format!("[[{}|{label}]]", target.url)
             }
         } else {
             let destination = target.url.strip_prefix('/').unwrap_or(&target.url);
@@ -348,6 +398,103 @@ impl State {
         let body = self.blocks(blocks);
         format!("<ref>{}</ref>", body.trim_end_matches('\n'))
     }
+}
+
+/// The separator between two consecutive rendered blocks. Inside an HTML list item a blank line
+/// follows a block that closes a standalone construct (a heading, rule, or list) and precedes a
+/// rule; everything else is joined by a single newline. At the top level a code block, raw block,
+/// or blockquote joins to the next block with a single newline unless that block is a rule, which
+/// always stands off by a blank line; any other pairing is separated by a blank line.
+fn separator(prev: &Block, next: &Block, html: bool) -> &'static str {
+    if html {
+        if needs_trailing_blank(prev) || matches!(next, Block::HorizontalRule) {
+            "\n\n"
+        } else {
+            "\n"
+        }
+    } else if matches!(
+        prev,
+        Block::CodeBlock(..) | Block::RawBlock(..) | Block::BlockQuote(_)
+    ) && !matches!(next, Block::HorizontalRule)
+    {
+        "\n"
+    } else {
+        "\n\n"
+    }
+}
+
+/// Whether, inside an HTML list item, a block is set off from what follows by a blank line.
+fn needs_trailing_blank(block: &Block) -> bool {
+    matches!(
+        block,
+        Block::Header(..)
+            | Block::HorizontalRule
+            | Block::BulletList(_)
+            | Block::OrderedList(..)
+            | Block::DefinitionList(_)
+    )
+}
+
+/// Guard a bare paragraph whose text would otherwise be read as block markup at the start of a line:
+/// a leading list, definition, or indentation marker is neutralized with an empty `<nowiki></nowiki>`.
+fn guarded_paragraph(rendered: String) -> String {
+    if rendered.starts_with(['*', '#', ':', ';']) {
+        format!("<nowiki></nowiki>{rendered}")
+    } else {
+        rendered
+    }
+}
+
+/// Whether a URL renders as a bare auto-linking address: every character is URL-permitted and each
+/// `%` introduces a two-digit hex escape. A URL with any other character is wrapped in link brackets
+/// so the markup stays well-formed.
+fn is_clean_autolink(url: &str) -> bool {
+    let bytes = url.as_bytes();
+    let mut index = 0;
+    while let Some(&byte) = bytes.get(index) {
+        if byte == b'%' {
+            let two_hex = bytes.get(index + 1).is_some_and(u8::is_ascii_hexdigit)
+                && bytes.get(index + 2).is_some_and(u8::is_ascii_hexdigit);
+            if !two_hex {
+                return false;
+            }
+            index += 3;
+            continue;
+        }
+        if !is_autolink_byte(byte) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Whether a byte may appear literally in a bare auto-linking URL: the unreserved, sub-delimiter,
+/// and generic-delimiter URI characters.
+fn is_autolink_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'-' | b'.'
+                | b'_'
+                | b'~'
+                | b'!'
+                | b'$'
+                | b'&'
+                | b'\''
+                | b'('
+                | b')'
+                | b'*'
+                | b'+'
+                | b','
+                | b';'
+                | b'='
+                | b':'
+                | b'/'
+                | b'?'
+                | b'#'
+                | b'@'
+        )
 }
 
 /// The anchor `MediaWiki` derives for a section heading: its plain-text content with spaces turned
@@ -413,7 +560,7 @@ fn is_simple_list(block: &Block) -> bool {
 fn is_simple_item(item: &[Block]) -> bool {
     match item {
         [] | [Block::Plain(_) | Block::Para(_)] => true,
-        [Block::Plain(_) | Block::Para(_), sublist] => is_simple_list(sublist),
+        [Block::Plain(_) | Block::Para(_), sublist] | [sublist] => is_simple_list(sublist),
         _ => false,
     }
 }
@@ -517,7 +664,7 @@ fn is_external_uri(url: &str) -> bool {
 }
 
 fn escape_text(text: &str) -> String {
-    escape_xml(text, false)
+    escape_xml(text, true)
 }
 
 fn escape_attr(text: &str) -> String {
@@ -743,6 +890,8 @@ const URI_SCHEMES: &[&str] = &[
     "info",
     "ipp",
     "ipps",
+    "irc",
+    "ircs",
     "iris",
     "jabber",
     "ldap",
