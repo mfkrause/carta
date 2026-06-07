@@ -53,8 +53,7 @@ pub trait Reader {
 
 /// Renders the document model into some target format's text.
 ///
-/// The returned string carries no trailing newline; the CLI appends exactly one to match the
-/// reference tool's observable output.
+/// The returned string carries no trailing newline; the CLI appends exactly one.
 pub trait Writer {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String>;
 }

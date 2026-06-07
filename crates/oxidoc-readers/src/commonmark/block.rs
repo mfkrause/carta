@@ -675,7 +675,7 @@ impl Parser {
             Kind::HtmlBlock(kind) => {
                 let mut text = node.text.clone();
                 // Kinds 1–5 close only on an explicit end tag; reaching end-of-input with the block
-                // still open leaves it unterminated, which the reference binary renders with a trailing blank line.
+                // still open leaves it unterminated, which surfaces as a trailing blank line in the output.
                 if node.open && matches!(kind, 1..=5) {
                     text.push('\n');
                 }
