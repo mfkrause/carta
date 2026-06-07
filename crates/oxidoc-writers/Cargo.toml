@@ -26,3 +26,6 @@ mediawiki = []
 oxidoc-ast = { workspace = true }
 oxidoc-core = { workspace = true }
 unicode-general-category = { workspace = true, optional = true }
+
+[build-dependencies]
+serde_json = { workspace = true }
