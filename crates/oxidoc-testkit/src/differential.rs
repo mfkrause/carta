@@ -1,19 +1,21 @@
 //! Differential surfaces that diff oxidoc against the pinned pandoc binary.
 //!
-//! Three surfaces, matching `docs/plans/slice-1-commonmark-html.md`:
-//! - [`reader_json`] — `CommonMark` text → JSON AST, compared by `serde_json::Value`.
-//! - [`writer_html`] — a native AST → HTML, compared byte-for-byte.
-//! - [`e2e_html`] — `CommonMark` text → HTML through the full pipeline, compared byte-for-byte.
+//! Every surface is parameterized by format name and direction and drives oxidoc through the public
+//! facade ([`oxidoc::reader_for`]/[`oxidoc::writer_for`]/[`oxidoc::convert`]), so any compiled-in
+//! format is verifiable without bespoke wiring:
+//! - [`reader_json`] — `from` text → JSON AST, compared as `serde_json::Value`.
+//! - [`writer`] — pandoc mints the AST from `input`; our `to`-writer renders it, compared against
+//!   `pandoc -f from -t to`.
+//! - [`e2e`] — `from` text → `to` through the full pipeline.
 //!
-//! HTML surfaces invoke pandoc with syntax highlighting and TeX math neutralized
-//! (`--syntax-highlighting=none --mathjax`), the same normalization the writer assumes for slice 1.
+//! Output is compared as a `serde_json::Value` for the JSON target and byte-for-byte (modulo the
+//! single trailing newline the CLI adds) for every other target. Per-target oracle normalization —
+//! e.g. neutralizing syntax highlighting and TeX math for HTML — lives in [`oracle_normalization`].
 
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use oxidoc_core::{Reader, ReaderOptions, Writer, WriterOptions};
-use oxidoc_readers::CommonmarkReader;
-use oxidoc_writers::HtmlWriter;
+use oxidoc::{ReaderOptions, WriterOptions};
 use serde_json::Value;
 
 use crate::pandoc_bin;
@@ -70,14 +72,22 @@ fn run_oracle(args: &[&str], input: &str) -> std::io::Result<Result<Vec<u8>, Str
     }
 }
 
-/// Reader surface: `CommonMark` text → JSON AST.
-pub fn reader_json(markdown: &str) -> std::io::Result<Diff> {
-    let oracle = match run_oracle(&["-f", "commonmark", "-t", "json"], markdown)? {
+/// Reader surface: `from` text → JSON AST, compared against `pandoc -f from -t json`.
+pub fn reader_json(from: &str, input: &str) -> std::io::Result<Diff> {
+    let oracle = match run_oracle(&["-f", from, "-t", "json"], input)? {
         Ok(bytes) => bytes,
         Err(stderr) => return Ok(Diff::OracleRejected { stderr }),
     };
 
-    let document = match CommonmarkReader.read(markdown, &ReaderOptions::default()) {
+    let reader = match oxidoc::reader_for(from) {
+        Ok(reader) => reader,
+        Err(error) => {
+            return Ok(Diff::OxidocError {
+                detail: error.to_string(),
+            });
+        }
+    };
+    let document = match reader.read(input, &ReaderOptions::default()) {
         Ok(document) => document,
         Err(error) => {
             return Ok(Diff::OxidocError {
@@ -102,21 +112,23 @@ pub fn reader_json(markdown: &str) -> std::io::Result<Diff> {
     })
 }
 
-/// Writer surface: render `input` (in the oracle source format `from`, e.g. `native`, `markdown`,
-/// or `html`) to HTML through our writer, compared byte-for-byte. The oracle mints both the JSON our
-/// writer consumes and the expected HTML from the same source, so any divergence is the writer's.
-pub fn writer_parity(from: &str, input: &str) -> std::io::Result<Diff> {
-    let oracle = match run_oracle(
-        &[
-            "-f",
-            from,
-            "-t",
-            "html",
-            "--syntax-highlighting=none",
-            "--mathjax",
-        ],
-        input,
-    )? {
+/// Oracle arguments that neutralize target-specific nondeterminism the writer does not reproduce.
+/// HTML output suppresses syntax highlighting and renders TeX math as `MathJax`; other targets need
+/// no normalization yet. This is the seam to extend as each new writer is verified.
+fn oracle_normalization(to: &str) -> &'static [&'static str] {
+    match to {
+        "html" | "html5" => &["--syntax-highlighting=none", "--mathjax"],
+        _ => &[],
+    }
+}
+
+/// Writer surface: pandoc mints the AST from `input` (parsed as `from`); our `to`-writer renders it,
+/// compared against `pandoc -f from -t to`. Both sides start from the same oracle AST, so any
+/// divergence is the writer's.
+pub fn writer(to: &str, from: &str, input: &str) -> std::io::Result<Diff> {
+    let mut expected_args = vec!["-f", from, "-t", to];
+    expected_args.extend_from_slice(oracle_normalization(to));
+    let oracle = match run_oracle(&expected_args, input)? {
         Ok(bytes) => bytes,
         Err(stderr) => return Ok(Diff::OracleRejected { stderr }),
     };
@@ -132,63 +144,89 @@ pub fn writer_parity(from: &str, input: &str) -> std::io::Result<Diff> {
             });
         }
     };
-    Ok(compare_html(&document, &oracle))
-}
-
-/// Writer surface for a native (pandoc) AST → HTML.
-pub fn writer_html(native: &str) -> std::io::Result<Diff> {
-    writer_parity("native", native)
-}
-
-/// End-to-end surface: `CommonMark` text → HTML through reader + writer.
-pub fn e2e_html(markdown: &str) -> std::io::Result<Diff> {
-    let oracle = match run_oracle(
-        &[
-            "-f",
-            "commonmark",
-            "-t",
-            "html",
-            "--syntax-highlighting=none",
-            "--mathjax",
-        ],
-        markdown,
-    )? {
-        Ok(bytes) => bytes,
-        Err(stderr) => return Ok(Diff::OracleRejected { stderr }),
-    };
-    let document = match CommonmarkReader.read(markdown, &ReaderOptions::default()) {
-        Ok(document) => document,
+    let writer = match oxidoc::writer_for(to) {
+        Ok(writer) => writer,
         Err(error) => {
             return Ok(Diff::OxidocError {
                 detail: error.to_string(),
             });
         }
     };
-    Ok(compare_html(&document, &oracle))
-}
-
-fn compare_html(document: &oxidoc_ast::Document, oracle: &[u8]) -> Diff {
-    let ours = match HtmlWriter.write(document, &WriterOptions::default()) {
-        Ok(html) => html,
+    let ours = match writer.write(&document, &WriterOptions::default()) {
+        Ok(output) => output,
         Err(error) => {
-            return Diff::OxidocError {
+            return Ok(Diff::OxidocError {
                 detail: error.to_string(),
-            };
+            });
         }
     };
-    // The CLI appends a single trailing newline that the writer omits; the oracle's stdout has one.
+    Ok(compare_output(to, &ours, &oracle))
+}
+
+/// End-to-end surface: `from` text → `to` through the facade, compared against `pandoc -f from -t to`.
+pub fn e2e(from: &str, to: &str, input: &str) -> std::io::Result<Diff> {
+    let mut expected_args = vec!["-f", from, "-t", to];
+    expected_args.extend_from_slice(oracle_normalization(to));
+    let oracle = match run_oracle(&expected_args, input)? {
+        Ok(bytes) => bytes,
+        Err(stderr) => return Ok(Diff::OracleRejected { stderr }),
+    };
+    let ours = match oxidoc::convert(
+        from,
+        to,
+        input,
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    ) {
+        Ok(output) => output,
+        Err(error) => {
+            return Ok(Diff::OxidocError {
+                detail: error.to_string(),
+            });
+        }
+    };
+    Ok(compare_output(to, &ours, &oracle))
+}
+
+/// Compare oxidoc's output against the oracle's: structurally for the JSON target, byte-for-byte
+/// (modulo the single trailing newline the CLI adds) otherwise.
+fn compare_output(to: &str, ours: &str, oracle: &[u8]) -> Diff {
+    if to == "json" {
+        let expected: Value = match serde_json::from_slice(oracle) {
+            Ok(value) => value,
+            Err(error) => {
+                return Diff::OxidocError {
+                    detail: format!("oracle JSON unparsable: {error}"),
+                };
+            }
+        };
+        let actual: Value = match serde_json::from_str(ours) {
+            Ok(value) => value,
+            Err(error) => {
+                return Diff::OxidocError {
+                    detail: error.to_string(),
+                };
+            }
+        };
+        return match json_first_difference(&expected, &actual) {
+            Some(detail) => Diff::Mismatch { detail },
+            None => Diff::Match,
+        };
+    }
+
+    // The CLI appends a single trailing newline that writers omit; the oracle's stdout has one.
     let expected = String::from_utf8_lossy(oracle);
     let expected = expected.strip_suffix('\n').unwrap_or(&expected);
     if ours == expected {
         Diff::Match
     } else {
         Diff::Mismatch {
-            detail: first_text_difference(expected, &ours),
+            detail: first_text_difference(expected, ours),
         }
     }
 }
 
-/// A short description of the first line where two HTML strings diverge.
+/// A short description of the first line where two text outputs diverge.
 fn first_text_difference(expected: &str, actual: &str) -> String {
     for (index, (a, b)) in expected.lines().zip(actual.lines()).enumerate() {
         if a != b {

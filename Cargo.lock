@@ -188,10 +188,8 @@ dependencies = [
 name = "oxidoc-testkit"
 version = "0.0.0"
 dependencies = [
+ "oxidoc",
  "oxidoc-ast",
- "oxidoc-core",
- "oxidoc-readers",
- "oxidoc-writers",
  "serde_json",
 ]
 

@@ -49,7 +49,10 @@ fn run_surface(
 #[test]
 fn spec_reader_matches_oracle_json() {
     let examples = require_examples();
-    let failures = run_surface(differential::reader_json, &examples);
+    let failures = run_surface(
+        |markdown| differential::reader_json("commonmark", markdown),
+        &examples,
+    );
     assert!(
         failures.is_empty(),
         "{}/{} examples diverged on the reader surface:\n{}",
@@ -62,7 +65,10 @@ fn spec_reader_matches_oracle_json() {
 #[test]
 fn spec_end_to_end_matches_oracle_html() {
     let examples = require_examples();
-    let failures = run_surface(differential::e2e_html, &examples);
+    let failures = run_surface(
+        |markdown| differential::e2e("commonmark", "html", markdown),
+        &examples,
+    );
     assert!(
         failures.is_empty(),
         "{}/{} examples diverged on the end-to-end surface:\n{}",
