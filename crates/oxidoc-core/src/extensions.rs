@@ -1,9 +1,9 @@
 //! Format extensions: the set of optional syntax features a reader or writer may honor.
 //!
-//! [`Extension`] is one named feature (matching pandoc's documented extension identifiers, an
+//! [`Extension`] is one named feature (matching the documented extension identifiers, an
 //! observable contract); [`Extensions`] is a deterministic, allocation-free set of them backed by a
-//! fixed array of 64-bit words. The set carries no 128-variant ceiling, so it scales to pandoc's
-//! full extension count. [`presets`] holds the per-flavor sets; strict `CommonMark` is the empty set.
+//! fixed array of 64-bit words. The set carries no 128-variant ceiling, so it scales to the full
+//! documented extension set. [`presets`] holds the per-flavor sets; strict `CommonMark` is the empty set.
 
 /// Generates the [`Extension`] enum together with the `ALL`/`COUNT`/`name` metadata, keeping the
 /// variant list as the single source of truth for the bitset sizing in [`Extensions`].
