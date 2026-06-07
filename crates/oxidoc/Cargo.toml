@@ -13,12 +13,16 @@ workspace = true
 
 [features]
 default = ["full"]
-full = ["read-commonmark", "read-json", "write-html", "write-json", "write-plain"]
+full = ["read-commonmark", "read-json", "write-html", "write-json", "write-plain", "read-native", "read-html", "write-native", "write-latex"]
 read-commonmark = ["dep:oxidoc-readers", "oxidoc-readers/commonmark"]
 read-json = ["dep:oxidoc-readers", "oxidoc-readers/json"]
 write-html = ["dep:oxidoc-writers", "oxidoc-writers/html"]
 write-json = ["dep:oxidoc-writers", "oxidoc-writers/json"]
 write-plain = ["dep:oxidoc-writers", "oxidoc-writers/plain"]
+read-native = ["dep:oxidoc-readers", "oxidoc-readers/native"]
+read-html = ["dep:oxidoc-readers", "oxidoc-readers/html"]
+write-native = ["dep:oxidoc-writers", "oxidoc-writers/native"]
+write-latex = ["dep:oxidoc-writers", "oxidoc-writers/latex"]
 
 [dependencies]
 oxidoc-ast = { workspace = true }

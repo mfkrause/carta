@@ -113,11 +113,13 @@ pub fn reader_json(from: &str, input: &str) -> std::io::Result<Diff> {
 }
 
 /// Oracle arguments that neutralize target-specific nondeterminism the writer does not reproduce.
-/// HTML output suppresses syntax highlighting and renders TeX math as `MathJax`; other targets need
-/// no normalization yet. This is the seam to extend as each new writer is verified.
+/// HTML output suppresses syntax highlighting and renders TeX math as `MathJax`; LaTeX suppresses
+/// syntax highlighting; other targets need no normalization yet. This is the seam to extend as each
+/// new writer is verified.
 fn oracle_normalization(to: &str) -> &'static [&'static str] {
     match to {
         "html" | "html5" => &["--syntax-highlighting=none", "--mathjax"],
+        "latex" => &["--syntax-highlighting=none"],
         _ => &[],
     }
 }

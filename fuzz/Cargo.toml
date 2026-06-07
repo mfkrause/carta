@@ -29,6 +29,20 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "native"
+path = "fuzz_targets/native.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "html"
+path = "fuzz_targets/html.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 debug = 1
 
