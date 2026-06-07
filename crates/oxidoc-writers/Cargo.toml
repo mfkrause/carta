@@ -12,12 +12,15 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["html", "json", "plain", "latex", "native"]
+default = ["html", "json", "plain", "latex", "native", "commonmark", "rst", "mediawiki"]
 html = ["dep:unicode-general-category"]
 json = []
 plain = []
 latex = []
 native = []
+commonmark = []
+rst = []
+mediawiki = []
 
 [dependencies]
 oxidoc-ast = { workspace = true }

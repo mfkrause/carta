@@ -1,13 +1,13 @@
-//! Shared helpers for the text-oriented writers (plain, HTML, and LaTeX): the default fill column,
-//! the greedy line-filling engine, column-width measurement, list-tightness, ordered-list delimiter
-//! wrapping, and the smart-quote glyphs.
+//! Shared helpers for the text-oriented writers: the default fill column, the greedy line-filling
+//! engine, column-width measurement, list-tightness, ordered-list numerals and delimiter wrapping,
+//! the smart-quote glyphs, URI-scheme recognition, and HTML attribute and entity helpers.
 //!
 //! Each consumer is behind its own writer feature, so which helpers are live depends on the enabled
 //! features: a build with only one writer leaves the others' helpers unreferenced. That is expected
 //! for this toolbox, so unused-item warnings are allowed here rather than gated per item.
 #![allow(dead_code)]
 
-use oxidoc_ast::{Block, ListNumberDelim, QuoteType};
+use oxidoc_ast::{Attr, Block, ListNumberDelim, ListNumberStyle, QuoteType};
 
 /// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
@@ -240,3 +240,245 @@ pub(crate) fn is_wide(code: u32) -> bool {
         | 0x20000..=0x3FFFD
     )
 }
+
+/// Convert a zero-based item offset to the signed step added to a list's start number, saturating an
+/// out-of-range offset rather than overflowing.
+pub(crate) fn offset_as_i32(offset: usize) -> i32 {
+    i32::try_from(offset).unwrap_or(i32::MAX)
+}
+
+/// The leading marker for an ordered-list item: its number in the list's numeral style, wrapped in
+/// the list's delimiter.
+pub(crate) fn ordered_marker(
+    number: i32,
+    style: &ListNumberStyle,
+    delim: &ListNumberDelim,
+) -> String {
+    wrap_delim(&numeral(number, style), delim)
+}
+
+/// Render a number in a list's numeral style.
+pub(crate) fn numeral(number: i32, style: &ListNumberStyle) -> String {
+    match style {
+        ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
+            number.to_string()
+        }
+        ListNumberStyle::LowerAlpha => alpha(number, false),
+        ListNumberStyle::UpperAlpha => alpha(number, true),
+        ListNumberStyle::LowerRoman => roman(number, false),
+        ListNumberStyle::UpperRoman => roman(number, true),
+    }
+}
+
+/// Bijective base-26 alphabetic numeral (1 -> a, 26 -> z, 27 -> aa). Non-positive input falls back
+/// to the decimal form, which cannot be expressed as a letter.
+pub(crate) fn alpha(number: i32, upper: bool) -> String {
+    if number < 1 {
+        return number.to_string();
+    }
+    let base = if upper { b'A' } else { b'a' };
+    let mut value = number;
+    let mut letters = Vec::new();
+    while value > 0 {
+        let remainder = (value - 1) % 26;
+        letters.push(base + u8::try_from(remainder).unwrap_or(0));
+        value = (value - 1) / 26;
+    }
+    letters.reverse();
+    String::from_utf8(letters).unwrap_or_else(|_| number.to_string())
+}
+
+/// Roman numeral for a positive number; non-positive input falls back to the decimal form.
+pub(crate) fn roman(number: i32, upper: bool) -> String {
+    const UNITS: [(i32, &str); 13] = [
+        (1000, "m"),
+        (900, "cm"),
+        (500, "d"),
+        (400, "cd"),
+        (100, "c"),
+        (90, "xc"),
+        (50, "l"),
+        (40, "xl"),
+        (10, "x"),
+        (9, "ix"),
+        (5, "v"),
+        (4, "iv"),
+        (1, "i"),
+    ];
+    if number < 1 {
+        return number.to_string();
+    }
+    let mut remaining = number;
+    let mut out = String::new();
+    for (value, symbol) in UNITS {
+        while remaining >= value {
+            out.push_str(symbol);
+            remaining -= value;
+        }
+    }
+    if upper { out.to_uppercase() } else { out }
+}
+
+/// Look up a key/value attribute by key, returning its value.
+pub(crate) fn attribute_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
+    attr.attributes
+        .iter()
+        .find(|(name, _)| name == key)
+        .map(|(_, value)| value.as_str())
+}
+
+/// Whether a string is syntactically a URI scheme: an ASCII letter followed by ASCII letters,
+/// digits, or any of `+`, `-`, `.`.
+pub(crate) fn is_uri_scheme(scheme: &str) -> bool {
+    let mut chars = scheme.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    first.is_ascii_alphabetic()
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
+}
+
+/// Escape the XML/HTML metacharacters `&`, `<`, and `>` to their entities, and additionally `"` when
+/// `escape_quotes` is set (as in an attribute value).
+pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' if escape_quotes => out.push_str("&quot;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// Whether an attribute name is emitted verbatim in HTML output. Recognized names, the `data-`/`aria-`
+/// prefixes, and a few namespaced names pass through; any other key/value attribute is `data-`
+/// prefixed by the caller.
+pub(crate) fn is_known_attribute(name: &str) -> bool {
+    name.starts_with("data-")
+        || name.starts_with("aria-")
+        || matches!(name, "epub:type" | "xml:lang" | "xmlns")
+        || HTML_ATTRIBUTES.contains(&name)
+}
+
+/// HTML attribute names emitted verbatim; any other key/value attribute is `data-` prefixed.
+const HTML_ATTRIBUTES: &[&str] = &[
+    "abbr",
+    "accept",
+    "accept-charset",
+    "accesskey",
+    "action",
+    "allow",
+    "alt",
+    "async",
+    "autocapitalize",
+    "autocomplete",
+    "autofocus",
+    "autoplay",
+    "charset",
+    "checked",
+    "cite",
+    "class",
+    "cols",
+    "colspan",
+    "content",
+    "contenteditable",
+    "controls",
+    "coords",
+    "crossorigin",
+    "data",
+    "datetime",
+    "decoding",
+    "default",
+    "defer",
+    "dir",
+    "dirname",
+    "disabled",
+    "download",
+    "draggable",
+    "enctype",
+    "enterkeyhint",
+    "for",
+    "form",
+    "formaction",
+    "formenctype",
+    "formmethod",
+    "formnovalidate",
+    "formtarget",
+    "headers",
+    "height",
+    "hidden",
+    "high",
+    "href",
+    "hreflang",
+    "id",
+    "inputmode",
+    "integrity",
+    "is",
+    "ismap",
+    "itemid",
+    "itemprop",
+    "itemref",
+    "itemscope",
+    "itemtype",
+    "kind",
+    "lang",
+    "list",
+    "loading",
+    "loop",
+    "low",
+    "max",
+    "maxlength",
+    "media",
+    "method",
+    "min",
+    "minlength",
+    "multiple",
+    "muted",
+    "name",
+    "nonce",
+    "novalidate",
+    "open",
+    "optimum",
+    "pattern",
+    "ping",
+    "placeholder",
+    "playsinline",
+    "poster",
+    "preload",
+    "readonly",
+    "referrerpolicy",
+    "rel",
+    "required",
+    "reversed",
+    "role",
+    "rows",
+    "rowspan",
+    "sandbox",
+    "scope",
+    "selected",
+    "shape",
+    "size",
+    "sizes",
+    "slot",
+    "span",
+    "spellcheck",
+    "src",
+    "srcdoc",
+    "srcset",
+    "start",
+    "step",
+    "style",
+    "tabindex",
+    "target",
+    "title",
+    "translate",
+    "type",
+    "usemap",
+    "value",
+    "width",
+    "wrap",
+];

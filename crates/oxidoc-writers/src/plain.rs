@@ -4,13 +4,12 @@
 //! their textual content), and conveys block structure through indentation alone. It carries no
 //! trailing newline; the caller appends one. This format has no public specification.
 
-use oxidoc_ast::{
-    Block, Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
-};
+use oxidoc_ast::{Block, Document, Format, Inline, ListAttributes};
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, fill, fill_offset, indent_block, list_is_tight, quote_marks, wrap_delim,
+    FILL_COLUMN, Piece, fill, fill_offset, indent_block, list_is_tight, offset_as_i32,
+    ordered_marker, quote_marks,
 };
 
 /// Renders a document to plain text.
@@ -358,10 +357,6 @@ fn is_loose_definition(blocks: &[Block]) -> bool {
     !matches!(blocks.first(), Some(Block::Plain(_)))
 }
 
-fn offset_as_i32(offset: usize) -> i32 {
-    i32::try_from(offset).unwrap_or(i32::MAX)
-}
-
 /// Uppercase the text of every piece from `start` onward, in place (small-caps rendering).
 fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
     for piece in pieces.iter_mut().skip(start) {
@@ -478,71 +473,4 @@ fn script_char(ch: char, kind: Script) -> Option<char> {
         },
     };
     Some(mapped)
-}
-
-/// The leading marker an ordered-list item carries: its number rendered in the list's numeral style,
-/// wrapped by the list's delimiter.
-fn ordered_marker(number: i32, style: &ListNumberStyle, delim: &ListNumberDelim) -> String {
-    wrap_delim(&numeral(number, style), delim)
-}
-
-fn numeral(number: i32, style: &ListNumberStyle) -> String {
-    match style {
-        ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
-            number.to_string()
-        }
-        ListNumberStyle::LowerAlpha => alpha(number, false),
-        ListNumberStyle::UpperAlpha => alpha(number, true),
-        ListNumberStyle::LowerRoman => roman(number, false),
-        ListNumberStyle::UpperRoman => roman(number, true),
-    }
-}
-
-/// Bijective base-26 alphabetic numeral (1 -> a, 26 -> z, 27 -> aa). Non-positive input falls back
-/// to the decimal form, which cannot be expressed as a letter.
-fn alpha(number: i32, upper: bool) -> String {
-    if number < 1 {
-        return number.to_string();
-    }
-    let base = if upper { b'A' } else { b'a' };
-    let mut value = number;
-    let mut letters = Vec::new();
-    while value > 0 {
-        let remainder = (value - 1) % 26;
-        letters.push(base + u8::try_from(remainder).unwrap_or(0));
-        value = (value - 1) / 26;
-    }
-    letters.reverse();
-    String::from_utf8(letters).unwrap_or_else(|_| number.to_string())
-}
-
-/// Roman numeral for a positive number; non-positive input falls back to the decimal form.
-fn roman(number: i32, upper: bool) -> String {
-    const UNITS: [(i32, &str); 13] = [
-        (1000, "m"),
-        (900, "cm"),
-        (500, "d"),
-        (400, "cd"),
-        (100, "c"),
-        (90, "xc"),
-        (50, "l"),
-        (40, "xl"),
-        (10, "x"),
-        (9, "ix"),
-        (5, "v"),
-        (4, "iv"),
-        (1, "i"),
-    ];
-    if number < 1 {
-        return number.to_string();
-    }
-    let mut remaining = number;
-    let mut out = String::new();
-    for (value, symbol) in UNITS {
-        while remaining >= value {
-            out.push_str(symbol);
-            remaining -= value;
-        }
-    }
-    if upper { out.to_uppercase() } else { out }
 }

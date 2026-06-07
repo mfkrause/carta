@@ -72,4 +72,7 @@ format_dispatch! {
     "write-plain" => "plain" => oxidoc_writers::PlainWriter;
     "write-native" => "native" => oxidoc_writers::NativeWriter;
     "write-latex" => "latex" => oxidoc_writers::LatexWriter;
+    "write-commonmark" => "commonmark" => oxidoc_writers::CommonmarkWriter;
+    "write-rst" => "rst" => oxidoc_writers::RstWriter;
+    "write-mediawiki" => "mediawiki" => oxidoc_writers::MediawikiWriter;
 }
