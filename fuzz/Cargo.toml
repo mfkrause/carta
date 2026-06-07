@@ -12,9 +12,19 @@ libfuzzer-sys = "0.4"
 oxidoc-core = { path = "../crates/oxidoc-core" }
 oxidoc-readers = { path = "../crates/oxidoc-readers" }
 
+# One target per reader: each ingests untrusted bytes and must never panic. Writers are not fuzzed
+# yet — they consume a typed `Document`, not bytes, so a writer target needs an `Arbitrary` AST
+# generator. TODO: add `arbitrary` impls across the AST and a target per writer (html, json, plain).
 [[bin]]
 name = "commonmark"
 path = "fuzz_targets/commonmark.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "json"
+path = "fuzz_targets/json.rs"
 test = false
 doc = false
 bench = false
