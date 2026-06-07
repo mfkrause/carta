@@ -64,7 +64,11 @@ jobs:
   fuzz-smoke:
     name: fuzz smoke (nightly)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per reader fuzz target (see fuzz/Cargo.toml). Add new readers here.
+        target: [commonmark, json]
     steps:
       - uses: actions/checkout@v6
       - name: Install nightly toolchain
@@ -75,11 +79,11 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-fuzz
-      - name: Smoke-run commonmark target
+      - name: Smoke-run ${{ matrix.target }} target
         # Pin the gnu target explicitly: the prebuilt cargo-fuzz from install-action is a musl
         # binary and defaults to its own musl triple, but musl links libc statically and the
         # sanitizer cannot instrument a static libc. Building for the runner's gnu host avoids it.
-        run: cargo +nightly fuzz run commonmark --target x86_64-unknown-linux-gnu -- -max_total_time=30
+        run: cargo +nightly fuzz run ${{ matrix.target }} --target x86_64-unknown-linux-gnu -- -max_total_time=30
 
   typos:
     name: typos
