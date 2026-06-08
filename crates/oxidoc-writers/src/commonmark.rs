@@ -11,8 +11,8 @@ use oxidoc_ast::{Attr, Block, Document, Format, Inline, ListAttributes, Target, 
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, escape_xml, fill, fill_offset, indent_block,
-    is_known_attribute, is_loose, item_separator, offset_as_i32, ordered_marker, quote_marks,
+    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
+    is_loose, item_separator, offset_as_i32, ordered_marker, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -99,7 +99,7 @@ impl State {
             Block::HorizontalRule => "-".repeat(FILL_COLUMN),
             Block::Div(attr, blocks) => {
                 let body = self.blocks_to_string(blocks, width);
-                format!("<div{}>\n\n{body}\n\n</div>", render_attr(attr))
+                format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
             }
             Block::LineBlock(lines) => self.line_block(lines),
             Block::Figure(_, _, _) => todo!("commonmark writer: render figures as HTML fallback"),
@@ -258,7 +258,7 @@ impl State {
                 if attr_is_empty(attr) {
                     self.extend_pieces(inlines, out, false);
                 } else {
-                    out.push(Piece::Text(format!("<span{}>", render_attr(attr))));
+                    out.push(Piece::Text(format!("<span{}>", render_html_attr(attr))));
                     self.extend_pieces(inlines, out, false);
                     out.push(Piece::Text("</span>".to_owned()));
                 }
@@ -295,7 +295,7 @@ impl State {
             out.push(Piece::Text(format!(
                 "<a href=\"{}\"{}{}>",
                 escape_attr(&target.url),
-                render_attr(attr),
+                render_html_attr(attr),
                 title_attr(&target.title)
             )));
             self.extend_pieces(inlines, out, false);
@@ -323,7 +323,7 @@ impl State {
             "<img src=\"{}\"{}{}{alt_attr} />",
             escape_attr(&target.url),
             title_attr(&target.title),
-            render_attr(attr),
+            render_html_attr(attr),
         )));
     }
 }
@@ -592,33 +592,6 @@ fn title_attr(title: &Text) -> String {
     } else {
         format!(" title=\"{}\"", escape_attr(title))
     }
-}
-
-/// Render an [`Attr`] to its HTML attribute string (leading space per attribute, empty when blank):
-/// `id`, then `class`, then key/value pairs, with unrecognized keys `data-` prefixed.
-fn render_attr(attr: &Attr) -> String {
-    use std::fmt::Write as _;
-    let mut out = String::new();
-    if !attr.id.is_empty() {
-        let _ = write!(out, " id=\"{}\"", escape_attr(&attr.id));
-    }
-    if !attr.classes.is_empty() {
-        let _ = write!(out, " class=\"{}\"", escape_attr(&attr.classes.join(" ")));
-    }
-    for (key, value) in &attr.attributes {
-        let name = if is_known_attribute(key) {
-            key.clone()
-        } else {
-            format!("data-{key}")
-        };
-        let _ = write!(out, " {name}=\"{}\"", escape_attr(value));
-    }
-    out
-}
-
-/// Escape an HTML attribute value: `&`, `<`, `>`, and `"` to their entities.
-fn escape_attr(text: &str) -> String {
-    escape_xml(text, true)
 }
 
 /// Escape the `CommonMark`-significant characters of running text. The characters that can open inline
