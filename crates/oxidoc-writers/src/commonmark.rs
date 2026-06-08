@@ -11,8 +11,8 @@ use oxidoc_ast::{Attr, Block, Document, Format, Inline, ListAttributes, Target, 
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, escape_xml, fill, fill_offset, indent_block, is_known_attribute, is_loose,
-    item_separator, join_loose, offset_as_i32, ordered_marker, quote_marks,
+    FILL_COLUMN, NotesHost, Piece, append_notes, escape_xml, fill, fill_offset, indent_block,
+    is_known_attribute, is_loose, item_separator, offset_as_i32, ordered_marker, quote_marks,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -23,16 +23,7 @@ impl Writer for CommonmarkWriter {
     fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
         let mut state = State::default();
         let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
-        let mut out = body;
-        if !state.footnotes.is_empty() {
-            let notes = state.footnotes.join("\n\n");
-            out = if out.is_empty() {
-                notes
-            } else {
-                format!("{out}\n\n{notes}")
-            };
-        }
-        Ok(out.trim_end_matches('\n').to_owned())
+        Ok(append_notes(body, &state.footnotes))
     }
 }
 
@@ -272,7 +263,10 @@ impl State {
                     out.push(Piece::Text("</span>".to_owned()));
                 }
             }
-            Inline::Note(blocks) => self.note(blocks, out),
+            Inline::Note(blocks) => {
+                let marker = self.record_note(blocks);
+                out.push(Piece::Text(marker));
+            }
         }
     }
 
@@ -332,53 +326,25 @@ impl State {
             render_attr(attr),
         )));
     }
+}
 
-    fn note(&mut self, blocks: &[Block], out: &mut Vec<Piece>) {
-        let index = self.footnotes.len();
-        self.footnotes.push(String::new());
-        let marker = format!("[{}]", index + 1);
-        let field = marker.chars().count() + 1;
-        let body = self.note_body(blocks, field);
-        let rendered = if body.is_empty() {
-            marker.clone()
-        } else {
-            format!("{marker} {body}")
-        };
-        if let Some(slot) = self.footnotes.get_mut(index) {
-            *slot = rendered;
-        }
-        out.push(Piece::Text(marker));
+impl NotesHost for State {
+    fn notes(&mut self) -> &mut Vec<String> {
+        &mut self.footnotes
     }
 
-    /// Render a footnote's body. The marker the caller prepends shifts only the first line's wrap
-    /// point (modeled with `initial`); continuation lines and later blocks sit at the margin.
-    fn note_body(&mut self, blocks: &[Block], initial: usize) -> String {
-        let rendered = blocks
-            .iter()
-            .enumerate()
-            .map(|(position, block)| {
-                let is_plain = matches!(block, Block::Plain(_));
-                let text = if position == 0 {
-                    self.block_offset(block, FILL_COLUMN, initial)
-                } else {
-                    self.block(block, FILL_COLUMN)
-                };
-                (is_plain, text)
-            })
-            .collect();
-        join_loose(rendered)
+    fn render_block(&mut self, block: &Block, width: usize) -> String {
+        self.block(block, width)
     }
 
-    /// Render a block whose first line begins `initial` columns in. Only text blocks wrap, so the
-    /// offset is meaningful for them alone; other block kinds render at the margin.
-    fn block_offset(&mut self, block: &Block, width: usize, initial: usize) -> String {
-        match block {
-            Block::Plain(inlines) | Block::Para(inlines) => {
-                let pieces = self.pieces(inlines, true);
-                fill_offset(&pieces, width, initial)
-            }
-            other => self.block(other, width),
-        }
+    fn render_offset_paragraph(
+        &mut self,
+        inlines: &[Inline],
+        width: usize,
+        initial: usize,
+    ) -> String {
+        let pieces = self.pieces(inlines, true);
+        fill_offset(&pieces, width, initial)
     }
 }
 
