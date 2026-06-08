@@ -39,6 +39,8 @@ impl Writer for MediawikiWriter {
 #[derive(Debug, Default)]
 struct State {
     has_notes: bool,
+    in_link: bool,
+    in_term: bool,
 }
 
 impl State {
@@ -108,7 +110,15 @@ impl State {
             Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
             Block::Div(attr, blocks) => {
                 let body = self.blocks(blocks);
-                format!("<div{}>\n{body}\n\n</div>", render_html_attr(attr))
+                let trailing = match blocks.last() {
+                    Some(block)
+                        if matches!(block, Block::Para(_)) || needs_trailing_blank(block) =>
+                    {
+                        "\n\n"
+                    }
+                    _ => "\n",
+                };
+                format!("<div{}>\n{body}{trailing}</div>", render_html_attr(attr))
             }
             Block::LineBlock(lines) => self.line_block(lines),
         }
@@ -150,7 +160,10 @@ impl State {
     fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> String {
         let mut lines = Vec::new();
         for (term, definitions) in items {
-            lines.push(format!("; {}", self.inlines(term)));
+            self.in_term = true;
+            let rendered_term = self.inlines(term);
+            self.in_term = false;
+            lines.push(format!("; {rendered_term}"));
             for definition in definitions {
                 let body = self.blocks(definition);
                 lines.push(format!(": {}", body.trim_end_matches('\n')));
@@ -338,6 +351,9 @@ impl State {
 
     fn inline(&mut self, inline: &Inline) -> String {
         match inline {
+            Inline::Str(text) if self.in_term => {
+                escape_text(text).replace(':', "<nowiki>:</nowiki>")
+            }
             Inline::Str(text) => escape_text(text),
             Inline::Emph(inlines) => format!("''{}''", self.inlines(inlines)),
             Inline::Strong(inlines) => format!("'''{}'''", self.inlines(inlines)),
@@ -361,7 +377,7 @@ impl State {
                 format!("<math display=\"{display}\">{text}</math>")
             }
             Inline::RawInline(format, text) => raw_passthrough(format, text),
-            Inline::Link(_, inlines, target) => self.link(inlines, target),
+            Inline::Link(attr, inlines, target) => self.link(attr, inlines, target),
             Inline::Image(attr, inlines, target) => self.image(attr, inlines, target),
             Inline::Span(attr, inlines) => {
                 format!(
@@ -374,7 +390,21 @@ impl State {
         }
     }
 
-    fn link(&mut self, inlines: &[Inline], target: &Target) -> String {
+    fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target) -> String {
+        if self.in_link {
+            return format!(
+                "<span{}>{}</span>",
+                render_html_attr(attr),
+                self.inlines(inlines)
+            );
+        }
+        self.in_link = true;
+        let rendered = self.link_markup(inlines, target);
+        self.in_link = false;
+        rendered
+    }
+
+    fn link_markup(&mut self, inlines: &[Inline], target: &Target) -> String {
         let label = self.inlines(inlines);
         let plain = to_plain_text(inlines);
         if is_external_uri(&target.url) {
@@ -398,13 +428,25 @@ impl State {
     }
 
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target) -> String {
-        let mut parts = vec![format!("File:{}", target.url)];
-        if let Some(size) = image_size(attr) {
-            parts.push(size);
+        if is_external_uri(&target.url) {
+            return format!("<nowiki></nowiki>{}<nowiki></nowiki>", target.url);
         }
+        let mut parts = vec![format!("File:{}", target.url)];
         let alt = self.inlines(inlines);
-        if !alt.is_empty() {
-            parts.push(alt);
+        if target.title == "fig:" {
+            parts.push("thumb".to_owned());
+            parts.push("none".to_owned());
+            if !alt.is_empty() {
+                parts.push(format!("alt={alt}"));
+                parts.push(alt);
+            }
+        } else {
+            if let Some(size) = image_size(attr) {
+                parts.push(size);
+            }
+            if !alt.is_empty() {
+                parts.push(alt);
+            }
         }
         format!("[[{}]]", parts.join("|"))
     }
@@ -483,11 +525,14 @@ fn ordered_open_tag(attrs: &ListAttributes) -> String {
     if attrs.start != 1 {
         let _ = write!(tag, " start=\"{}\"", attrs.start);
     }
-    let _ = write!(
-        tag,
-        " style=\"list-style-type: {};\">",
-        list_style_type(&attrs.style)
-    );
+    if !matches!(attrs.style, ListNumberStyle::DefaultStyle) {
+        let _ = write!(
+            tag,
+            " style=\"list-style-type: {};\"",
+            list_style_type(&attrs.style)
+        );
+    }
+    tag.push('>');
     tag
 }
 
