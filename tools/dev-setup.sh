@@ -22,9 +22,11 @@ check() { # check <command> <install hint>
 
 check cargo "install Rust via https://rustup.rs"
 check cargo-nextest "cargo install cargo-nextest --locked"
+check cargo-insta "cargo install cargo-insta --locked"
+check cargo-llvm-cov "cargo install cargo-llvm-cov --locked"
 check typos "cargo install typos-cli --locked"
 check cargo-deny "cargo install cargo-deny --locked"
-check cargo-llvm-cov "cargo install cargo-llvm-cov --locked"
+check jq "install jq via your package manager (e.g. brew install jq) — used by tools/conformance-suite"
 
 if [ ! -x "$repo_root/.oracle/bin/pandoc" ]; then
   echo "• oracle binary not installed — run tools/install-pandoc.sh"
