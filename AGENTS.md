@@ -22,10 +22,12 @@ of GPL source is a derivative work, and even reading the source taints the clean
 
 oxidoc must read as an independent, original implementation. The name "pandoc", the phrases
 "reference implementation", "port", "clean-room", "derived from", or any other hint of upstream
-provenance may appear **only** in: `AGENTS.md`, `README.md`, `docs/**`, and the testing toolkit
-(`crates/oxidoc-testkit/**` and `tools/**`). Every other file — all product source, Cargo manifests,
-build and CI config — must contain none of it: not in identifiers, comments, doc-comments, or
-package descriptions.
+provenance may appear **only** in: `AGENTS.md`, `README.md`, `docs/**`, the conformance tooling
+(`tools/**`), the vendored-spec attributions (`vendor/**`), and `corpus/README.md`. Every other file —
+all product source, Cargo manifests, build and CI config, and the corpus data files themselves
+(`corpus/ast/**`, `corpus/text/**`) — must contain none of it: not in identifiers, comments,
+doc-comments, or package descriptions. The corpus data files are inputs we author and own, so they
+carry no upstream provenance.
 
 This extends past the upstream's *name* to any phrasing that frames the code as matching, imitating,
 or being derived from an external implementation — even an unnamed one. In product source, **state
@@ -103,19 +105,45 @@ unknown one is `Error::UnsupportedFormat`. Reader/writer behavior is configured 
 `ReaderOptions`/`WriterOptions`, which carry an `Extensions` set (`oxidoc-core`); the CommonMark
 reader currently implements the strict preset and does not yet honor extension toggles.
 
+### Test architecture — four layers
+
+Tests are split so the everyday suite is **fully offline** and oracle-backed parity is a separate,
+CI-gated layer. See `docs/PORTING.md` and `docs/plans/refactor-2-testing-architecture.md` for the
+full design.
+
+- **Layer 0 — unit tests.** In-crate `#[cfg(test)]` modules over pure helpers and parser internals.
+  Offline, fast, edge-focused.
+- **Layer 1 — golden snapshots.** `insta` snapshots of oxidoc's **own** output, committed under
+  `crates/oxidoc/tests/snapshots/` and reviewed with `cargo insta review`. Readers:
+  `corpus/text/<fmt>/*` → snapshot AST JSON. Writers: `corpus/ast/<feature>/*` → snapshot each target
+  (minus `corpus/exclusions.tsv`). Plus the relocated offline identity tests (JSON codec in
+  `oxidoc-ast`, the native round-trip and spec-parse safety in `oxidoc`). Offline.
+- **Layer 2 — conformance suite.** `tools/conformance-suite/run.sh` — shell, **not** part of
+  `cargo test`. It runs the built `oxidoc` and the pinned pandoc oracle and diffs them across five
+  surfaces (`reader|writer|e2e|roundtrip|commands`) over `corpus/`, the 652 vendored CommonMark spec
+  examples, and the fetched pandoc corpus. Requires `.oracle/` and `jq`. CI-gated.
+- **Layer 3 — fuzz.** Reader panic-safety (nightly + `cargo-fuzz`), smoke-run in CI.
+
+No committed test data is pandoc output: golden values are oxidoc's own; the corpus under `corpus/`
+and the vendored spec under `vendor/` are inputs we own; parity is checked live against the
+gitignored oracle, never committed.
+
+### Commands
+
 - Build: `cargo build`
 - Build a single direction: `cargo build -p oxidoc --no-default-features --features read-commonmark,write-html`
-- Unit + integration tests: `cargo nextest run --workspace` (doctests separately: `cargo test --doc`)
+- Tests (Layers 0, 1, 3 + cli/convert — **fully offline**, no `.oracle/` needed):
+  `cargo nextest run --workspace` (doctests separately: `cargo test --doc`)
+- Review/accept golden snapshots after an intentional output change: `cargo insta review`
+  (never hand-edit `.snap` files).
+- Conformance (Layer 2, against pinned pandoc): `tools/conformance-suite/run.sh all`, or one surface
+  e.g. `tools/conformance-suite/run.sh writer html`. Each surface prints
+  `RESULT <surface> <group> pass=N fail=N err=N skip=N` and exits non-zero on any fail/err.
+  **Hard-requires** `.oracle/` and `jq`.
 - Fuzz a reader (nightly + `cargo-fuzz`): `cargo +nightly fuzz run commonmark` (see `fuzz/README.md`)
-- Differential tests (against pinned pandoc): `cargo nextest run -p oxidoc-testkit`. These
-  **hard-require** `.oracle/` (binary + corpus) — they fail, not skip, if it is absent. The
-  committed offline fixtures under `crates/oxidoc-testkit/fixtures/roundtrip/` round-trip without
-  any oracle. Surfaces: reader (CommonMark→JSON), writer (AST→HTML across the full model), and
-  end-to-end (CommonMark→HTML); the writer-parity suite lives in `oxidoc-testkit/tests/writer.rs`.
-- Spec-parity report: `cargo run -p oxidoc-testkit --bin spec_report -- --surface=e2e` (default
-  surface is reader→JSON; `--show=N` prints the first N divergences).
-- Product-only coverage: `cargo llvm-cov --workspace --ignore-filename-regex 'oxidoc-testkit'
-  --summary-only` (the testkit is the harness, excluded from the denominator).
+- Coverage gate (offline product crates, floored at 90%):
+  `cargo llvm-cov --workspace --summary-only --fail-under-lines 90` (run
+  `cargo llvm-cov clean --workspace` first — stale profraw skews the result).
 - Install/pin pandoc: `tools/install-pandoc.sh` (writes to gitignored `.oracle/`, records version)
 - Fetch pandoc's test corpus: `tools/fetch-pandoc-tests.sh` (sparse, gitignored, **test files only —
   no source**; see below)
@@ -128,12 +156,13 @@ Update this section as each piece lands.
 We reuse pandoc's *test data*, never its test *harness* or implementation. Two layers:
 
 - **Command tests** (`test/command/*.md`) — declarative: a pandoc invocation + input + expected
-  output. Our runner parses them and substitutes the `oxidoc` binary for `pandoc`, then diffs.
-  Directly reusable. The format grammar is documented in the corpus's own `README` (public test
-  docs, not source).
+  output. The conformance suite's `commands` surface parses them and substitutes the `oxidoc` binary
+  for `pandoc`, then diffs (skipping and counting tests that use formats/flags oxidoc does not yet
+  support). Directly reusable. The format grammar is documented in the corpus's own `README` (public
+  test docs, not source).
 - **Golden data files** (`*.native`, `*.md`, `*.html`, …) — reused as inputs only. The
   input→expected wiring lives in pandoc's Haskell test modules, which we do **not** read; instead
-  the pinned binary regenerates the expected output. One oracle, no source.
+  the pinned binary regenerates the expected output live. One oracle, no source — nothing committed.
 
 `tools/fetch-pandoc-tests.sh` pulls the corpus **at the git tag matching the pinned binary** (so
 embedded golden values are exactly that binary's output — no version-drift false positives), via a
