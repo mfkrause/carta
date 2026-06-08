@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[outer <a href="u2" id="iid" class="ic">inner</a> end](u1)

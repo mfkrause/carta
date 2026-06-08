@@ -1,0 +1,13 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Span
+        ( ""
+        , [ "" , "real" ]
+        , [ ( "" , "drop" ) , ( "keep" , "v" ) ]
+        )
+        [ Str "x" ]
+    ]
+]
