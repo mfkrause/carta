@@ -7,7 +7,10 @@
 //! span, or div that carries attributes. Output carries no trailing newline; the caller appends one.
 //! This format has no public specification.
 
-use oxidoc_ast::{Attr, Block, Document, Format, Inline, ListAttributes, Target, Text};
+use oxidoc_ast::{
+    Attr, Block, Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
+    Target, Text,
+};
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
@@ -137,12 +140,19 @@ impl State {
         width: usize,
     ) -> String {
         let loose = is_loose(items);
+        // CommonMark numbers ordered lists only in decimal, delimited by a period or a single
+        // closing parenthesis; every other numeral style collapses to decimal and a two-parenthesis
+        // delimiter collapses to the single closing form.
+        let delim = match attrs.delim {
+            ListNumberDelim::OneParen | ListNumberDelim::TwoParens => ListNumberDelim::OneParen,
+            ListNumberDelim::Period | ListNumberDelim::DefaultDelim => ListNumberDelim::Period,
+        };
         let rendered: Vec<String> = items
             .iter()
             .enumerate()
             .map(|(offset, item)| {
                 let number = attrs.start.saturating_add(offset_as_i32(offset));
-                let marker = ordered_marker(number, &attrs.style, &attrs.delim);
+                let marker = ordered_marker(number, &ListNumberStyle::Decimal, &delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let rendered = self.blocks_to_string(item, width.saturating_sub(field));
                 let body = offset_horizontal_rule(item, rendered);
