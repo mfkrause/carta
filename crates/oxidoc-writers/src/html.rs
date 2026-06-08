@@ -123,7 +123,11 @@ impl State {
     }
 
     fn bullet_list(&mut self, out: &mut String, items: &[Vec<Block>]) {
-        out.push_str("<ul>\n");
+        if !items.is_empty() && items.iter().all(|item| checkbox_state(item).is_some()) {
+            out.push_str("<ul class=\"task-list\">\n");
+        } else {
+            out.push_str("<ul>\n");
+        }
         self.list_items(out, items);
         out.push_str("\n</ul>");
     }
@@ -151,8 +155,38 @@ impl State {
                 out.push('\n');
             }
             out.push_str("<li>");
-            self.blocks(out, item);
+            match checkbox_state(item) {
+                Some(checked) => self.checkbox_item(out, item, checked),
+                None => self.blocks(out, item),
+            }
             out.push_str("</li>");
+        }
+    }
+
+    fn checkbox_item(&mut self, out: &mut String, item: &[Block], checked: bool) {
+        let input = if checked {
+            "<label><input type=\"checkbox\" checked=\"\" />"
+        } else {
+            "<label><input type=\"checkbox\" />"
+        };
+        for (index, block) in item.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            match (index, block) {
+                (0, Block::Plain(inlines)) => {
+                    out.push_str(input);
+                    self.inlines(out, inlines.get(2..).unwrap_or_default());
+                    out.push_str("</label>");
+                }
+                (0, Block::Para(inlines)) => {
+                    out.push_str("<p>");
+                    out.push_str(input);
+                    self.inlines(out, inlines.get(2..).unwrap_or_default());
+                    out.push_str("</label></p>");
+                }
+                _ => self.block(out, block),
+            }
         }
     }
 
@@ -506,6 +540,22 @@ fn is_implicit_figure(caption: &Caption, blocks: &[Block]) -> bool {
         return false;
     };
     matches!(caption.long.as_slice(), [Block::Plain(cap)] if cap == alt)
+}
+
+/// A list item is a task-list entry when its first block opens with a ballot-box character followed
+/// by a space; the boolean reports whether the box is checked.
+fn checkbox_state(item: &[Block]) -> Option<bool> {
+    let (Block::Plain(inlines) | Block::Para(inlines)) = item.first()? else {
+        return None;
+    };
+    let [Inline::Str(marker), Inline::Space, ..] = inlines.as_slice() else {
+        return None;
+    };
+    match marker.as_str() {
+        "\u{2610}" => Some(false),
+        "\u{2612}" => Some(true),
+        _ => None,
+    }
 }
 
 fn has_explicit_widths(specs: &[ColSpec]) -> bool {
