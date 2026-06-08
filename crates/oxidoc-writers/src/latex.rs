@@ -121,8 +121,12 @@ fn header(level: i32, attr: &Attr, inlines: &[Inline], width: usize) -> String {
 }
 
 fn code_block(attr: &Attr, text: &str) -> String {
+    code_block_env(attr, text, "verbatim")
+}
+
+fn code_block_env(attr: &Attr, text: &str, environment: &str) -> String {
     let body = text.strip_suffix('\n').unwrap_or(text);
-    let verbatim = format!("\\begin{{verbatim}}\n{body}\n\\end{{verbatim}}");
+    let verbatim = format!("\\begin{{{environment}}}\n{body}\n\\end{{{environment}}}");
     if attr.id.is_empty() {
         verbatim
     } else {
@@ -499,11 +503,35 @@ fn attr_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
         .map(|(_, value)| value.as_str())
 }
 
-/// Render a footnote as an inline `\footnote{…}`; its blocks hang two columns under the opening so
-/// continuation paragraphs align with the first.
+/// Render a footnote as an inline `\footnote{…}`. Its blocks hang two columns under the opening so
+/// continuation paragraphs align with the first; a code block instead sits flush against the margin
+/// in a `Verbatim` environment, since verbatim content cannot be indented, and pushes the closing
+/// brace onto its own line.
 fn note(blocks: &[Block]) -> String {
-    let body = render_blocks(blocks, FILL_COLUMN.saturating_sub(2), 0);
-    format!("{}}}", indent_block(&body, "\\footnote{", "  "))
+    let width = FILL_COLUMN.saturating_sub(2);
+    let mut parts: Vec<String> = Vec::new();
+    let mut ends_with_code = false;
+    for block in blocks {
+        let (rendered, is_code) = match block {
+            Block::CodeBlock(attr, text) => (code_block_env(attr, text, "Verbatim"), true),
+            _ => (block_to_string(block, width, 0), false),
+        };
+        if rendered.is_empty() {
+            continue;
+        }
+        ends_with_code = is_code;
+        let indented = if is_code {
+            rendered
+        } else if parts.is_empty() {
+            indent_block(&rendered, "", "  ")
+        } else {
+            indent_block(&rendered, "  ", "  ")
+        };
+        parts.push(indented);
+    }
+    let body = parts.join("\n\n");
+    let closing = if ends_with_code { "\n}" } else { "}" };
+    format!("\\footnote{{{body}{closing}")
 }
 
 fn quote_marks(kind: &QuoteType) -> (&'static str, &'static str) {
