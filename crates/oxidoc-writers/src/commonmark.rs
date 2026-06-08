@@ -294,11 +294,13 @@ impl State {
     }
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
-        if attr_is_empty(attr) {
+        if attr_is_empty(attr) || is_autolink_class(attr) {
             if let Some(autolink) = autolink(inlines, target) {
                 out.push(Piece::Text(autolink));
                 return;
             }
+        }
+        if attr_is_empty(attr) {
             out.push(Piece::Text("[".to_owned()));
             self.extend_pieces(inlines, out, false);
             out.push(Piece::Text(format!("]({})", destination(target))));
@@ -530,6 +532,14 @@ fn is_known_scheme(scheme: &str) -> bool {
 
 fn attr_is_empty(attr: &Attr) -> bool {
     attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty()
+}
+
+/// Whether a link's attributes consist solely of the `uri` or `email` class that marks it as an
+/// autolink: with no id and no further attributes, such a link is written in angle-bracket form.
+fn is_autolink_class(attr: &Attr) -> bool {
+    attr.id.is_empty()
+        && attr.attributes.is_empty()
+        && matches!(attr.classes.as_slice(), [class] if class == "uri" || class == "email")
 }
 
 fn has_dimension(attr: &Attr) -> bool {
