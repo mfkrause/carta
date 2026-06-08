@@ -432,6 +432,10 @@ impl State {
             Inline::RawInline(format, text) => {
                 if format.0.eq_ignore_ascii_case("rst") {
                     out.push(word(text.clone(), false));
+                } else if format.0.eq_ignore_ascii_case("latex")
+                    || format.0.eq_ignore_ascii_case("tex")
+                {
+                    out.push(word(format!(":raw-latex:`{text}`"), true));
                 } else {
                     out.push(Token::Marker);
                 }
