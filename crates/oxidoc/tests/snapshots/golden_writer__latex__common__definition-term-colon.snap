@@ -1,0 +1,9 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+\begin{description}
+\tightlist
+\item[term: with colon]
+definition
+\end{description}

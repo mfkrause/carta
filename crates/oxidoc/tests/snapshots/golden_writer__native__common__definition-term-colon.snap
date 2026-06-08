@@ -1,0 +1,10 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "term: with colon" ]
+      , [ [ Plain [ Str "definition" ] ] ]
+      )
+    ]
+]

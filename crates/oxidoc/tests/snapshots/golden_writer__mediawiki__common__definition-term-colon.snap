@@ -2,4 +2,5 @@
 source: crates/oxidoc/tests/golden_writer.rs
 expression: output
 ---
-[[u1|outer <span id="iid" class="ic">inner</span> end]]
+; term<nowiki>:</nowiki> with colon
+: definition
