@@ -2,4 +2,4 @@
 source: crates/oxidoc/tests/golden_writer.rs
 expression: output
 ---
-`outer  <u1>`__\ `inner <u2>`__\ ` end <u1>`__
+before [](http://example.com) after
