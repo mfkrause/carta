@@ -1,0 +1,81 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Emph",
+          "c": [
+            {
+              "t": "Str",
+              "c": "emph"
+            }
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Strong",
+          "c": [
+            {
+              "t": "Str",
+              "c": "strong"
+            }
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Strikeout",
+          "c": [
+            {
+              "t": "Str",
+              "c": "struck"
+            }
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "super"
+        },
+        {
+          "t": "Superscript",
+          "c": [
+            {
+              "t": "Str",
+              "c": "2"
+            }
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "sub"
+        },
+        {
+          "t": "Subscript",
+          "c": [
+            {
+              "t": "Str",
+              "c": "3"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

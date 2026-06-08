@@ -18,7 +18,7 @@ pub struct SpecExample {
 }
 
 /// The vendored specification text, embedded at build time so extraction needs no corpus fetch.
-const SPEC: &str = include_str!("../vendor/commonmark/spec.txt");
+const SPEC: &str = include_str!("../../../vendor/commonmark/spec.txt");
 
 /// Extract every worked example from the vendored spec, in document order.
 #[must_use]

@@ -1,0 +1,38 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Link",
+          "c": [
+            [
+              "",
+              [
+                "uri"
+              ],
+              []
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "http://example.com"
+              }
+            ],
+            [
+              "http://example.com",
+              ""
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

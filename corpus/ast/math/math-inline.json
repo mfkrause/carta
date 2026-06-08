@@ -1,0 +1,46 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "an"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "equation"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "a^2 + b^2 = c^2"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "inline"
+        }
+      ]
+    }
+  ]
+}

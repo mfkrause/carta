@@ -1,0 +1,57 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "an"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Image",
+          "c": [
+            [
+              "",
+              [],
+              []
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "alt"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "words"
+              }
+            ],
+            [
+              "pic.png",
+              ""
+            ]
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "inline"
+        }
+      ]
+    }
+  ]
+}

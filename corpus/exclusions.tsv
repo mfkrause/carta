@@ -1,0 +1,13 @@
+# Writer features not yet implemented for a target. One `target<TAB>feature` pair per line;
+# blank lines and lines beginning with `#` are ignored. The feature is the `corpus/ast/`
+# subdirectory name. Both the Rust golden-writer test and the shell conformance suite read this
+# file and skip the listed pairs, reporting the skip count. Delete a line when its writer path
+# lands, and the corpus case activates automatically.
+commonmark	figure
+commonmark	image-dimensions
+commonmark	math
+commonmark	table
+latex	table
+plain	math
+plain	table
+rst	table
