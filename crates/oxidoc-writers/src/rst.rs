@@ -918,36 +918,6 @@ fn split_run(segment: &[Inline], lead_break: bool, trail_break: bool) -> Option<
     })
 }
 
-/// Characters that may directly follow an inline-markup end without a separator.
-fn is_safe_follower(ch: char) -> bool {
-    matches!(
-        ch,
-        ' ' | '\''
-            | '"'
-            | ')'
-            | ']'
-            | '}'
-            | '>'
-            | '-'
-            | '.'
-            | ','
-            | ':'
-            | ';'
-            | '!'
-            | '?'
-            | '\\'
-            | '/'
-    )
-}
-
-/// Characters that may directly precede an inline-markup start without a separator.
-fn is_safe_preceder(ch: char) -> bool {
-    matches!(
-        ch,
-        ' ' | ':' | '/' | '-' | '"' | '\'' | '<' | '(' | '[' | '{'
-    )
-}
-
 /// Characters that may directly precede an inline-markup start-string.
 const OPENERS: &[char] = &['-', ':', '/', '\'', '"', '<', '(', '[', '{'];
 
@@ -955,6 +925,18 @@ const OPENERS: &[char] = &['-', ':', '/', '\'', '"', '<', '(', '[', '{'];
 const CLOSERS: &[char] = &[
     '-', '.', ',', ':', ';', '!', '?', '\'', '"', ')', ']', '}', '>',
 ];
+
+/// Characters that may directly follow an inline-markup end without a separator: a space, a backslash
+/// or slash, or any end-string closer.
+fn is_safe_follower(ch: char) -> bool {
+    ch == ' ' || ch == '\\' || ch == '/' || CLOSERS.contains(&ch)
+}
+
+/// Characters that may directly precede an inline-markup start without a separator: a space or any
+/// start-string opener.
+fn is_safe_preceder(ch: char) -> bool {
+    ch == ' ' || OPENERS.contains(&ch)
+}
 
 /// Escape the characters of a text run that RST would otherwise read as markup. A backslash is always
 /// doubled. A `*`, backtick, or `|` is escaped where it could open or close inline markup given its
