@@ -11,8 +11,8 @@ use oxidoc_ast::{Attr, Block, Document, Format, Inline, ListAttributes, Target, 
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, escape_xml, fill, fill_offset, indent_block, is_known_attribute,
-    list_is_tight, offset_as_i32, ordered_marker, quote_marks,
+    FILL_COLUMN, Piece, escape_xml, fill, fill_offset, indent_block, is_known_attribute, is_loose,
+    item_separator, join_loose, offset_as_i32, ordered_marker, quote_marks,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -382,38 +382,6 @@ impl State {
     }
 }
 
-/// Join already-rendered blocks with the document's default blank-line spacing, dropping blocks that
-/// produced no output. A [`Block::Plain`] contributes only a single newline (not a blank line)
-/// before the next visible block when an empty block falls between them.
-fn join_loose(rendered: Vec<(bool, String)>) -> String {
-    let mut out = String::new();
-    let mut previous_was_plain: Option<bool> = None;
-    let mut empty_since_previous = false;
-    for (is_plain, text) in rendered {
-        if text.is_empty() {
-            if previous_was_plain.is_some() {
-                empty_since_previous = true;
-            }
-            continue;
-        }
-        if let Some(was_plain) = previous_was_plain {
-            if was_plain && empty_since_previous {
-                out.push('\n');
-            } else {
-                out.push_str("\n\n");
-            }
-        }
-        out.push_str(&text);
-        previous_was_plain = Some(is_plain);
-        empty_since_previous = false;
-    }
-    out
-}
-
-fn is_loose(items: &[Vec<Block>]) -> bool {
-    !list_is_tight(items)
-}
-
 /// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
 /// the first: two lists of the same kind would merge into one, and an indented code block following
 /// a list would read as a continuation of the final item.
@@ -445,10 +413,6 @@ fn offset_horizontal_rule(item: &[Block], body: String) -> String {
 /// keep it on the line with the preceding word.
 fn next_is_para_interrupting_marker(inline: Option<&Inline>) -> bool {
     matches!(inline, Some(Inline::Str(text)) if text == "1." || text == "1)")
-}
-
-fn item_separator(loose: bool) -> &'static str {
-    if loose { "\n\n" } else { "\n" }
 }
 
 /// Prefix every line of a blockquote body with `> ` (a bare `>` on an otherwise empty line).
