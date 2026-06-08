@@ -7,7 +7,7 @@
 //! for this toolbox, so unused-item warnings are allowed here rather than gated per item.
 #![allow(dead_code)]
 
-use oxidoc_ast::{Attr, Block, ListNumberDelim, ListNumberStyle, QuoteType};
+use oxidoc_ast::{Attr, Block, Inline, ListNumberDelim, ListNumberStyle, QuoteType};
 
 /// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
@@ -158,6 +158,90 @@ pub(crate) fn list_is_tight(items: &[Vec<Block>]) -> bool {
     items
         .iter()
         .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
+}
+
+/// A text writer that gathers footnotes inline and emits them as a trailing section. Each note is
+/// referenced by a numbered `[n]` marker; its body is rendered offset so the marker shifts only the
+/// first line's wrap point. The format supplies how a block and a marker-offset leading paragraph
+/// render; the marker numbering and slot bookkeeping are shared here.
+pub(crate) trait NotesHost {
+    /// The accumulated note bodies, indexed by note number minus one.
+    fn notes(&mut self) -> &mut Vec<String>;
+
+    /// Render a block at the given fill width.
+    fn render_block(&mut self, block: &Block, width: usize) -> String;
+
+    /// Render a leading paragraph's text with its first line beginning `initial` columns in.
+    fn render_offset_paragraph(
+        &mut self,
+        inlines: &[Inline],
+        width: usize,
+        initial: usize,
+    ) -> String;
+
+    /// Record a footnote: reserve its slot before rendering (so nested notes number after it), fill
+    /// the slot with the assembled body, and return the inline `[n]` marker.
+    fn record_note(&mut self, blocks: &[Block]) -> String {
+        let index = self.notes().len();
+        self.notes().push(String::new());
+        let marker = format!("[{}]", index + 1);
+        let field = marker.chars().count() + 1;
+        let body = self.note_body(blocks, field);
+        let rendered = if body.is_empty() {
+            marker.clone()
+        } else {
+            format!("{marker} {body}")
+        };
+        if let Some(slot) = self.notes().get_mut(index) {
+            *slot = rendered;
+        }
+        marker
+    }
+
+    /// Render a footnote's body: the first block's opening line is offset by the marker width, every
+    /// later block and continuation line sits at the margin.
+    fn note_body(&mut self, blocks: &[Block], initial: usize) -> String {
+        let rendered = blocks
+            .iter()
+            .enumerate()
+            .map(|(position, block)| {
+                let is_plain = matches!(block, Block::Plain(_));
+                let text = if position == 0 {
+                    self.note_block_offset(block, FILL_COLUMN, initial)
+                } else {
+                    self.render_block(block, FILL_COLUMN)
+                };
+                (is_plain, text)
+            })
+            .collect();
+        join_loose(rendered)
+    }
+
+    /// Render a block whose first line begins `initial` columns in. Only a leading paragraph wraps,
+    /// so the offset is meaningful for it alone; other block kinds render at the margin.
+    fn note_block_offset(&mut self, block: &Block, width: usize, initial: usize) -> String {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) => {
+                self.render_offset_paragraph(inlines, width, initial)
+            }
+            other => self.render_block(other, width),
+        }
+    }
+}
+
+/// Append a gathered footnote section to a rendered body, separated by a blank line, and trim the
+/// trailing newlines. With no notes this just trims the body.
+pub(crate) fn append_notes(body: String, notes: &[String]) -> String {
+    let mut out = body;
+    if !notes.is_empty() {
+        let section = notes.join("\n\n");
+        out = if out.is_empty() {
+            section
+        } else {
+            format!("{out}\n\n{section}")
+        };
+    }
+    out.trim_end_matches('\n').to_owned()
 }
 
 /// Whether a list is loose — at least one item carries a top-level paragraph. A loose list's items
