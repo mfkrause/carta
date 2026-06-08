@@ -513,13 +513,7 @@ impl State {
         lead_break: bool,
         trail_break: bool,
     ) {
-        let is_space = |inline: &Inline| {
-            matches!(
-                inline,
-                Inline::Space | Inline::SoftBreak | Inline::LineBreak
-            )
-        };
-        let Some(first) = segment.iter().position(|inline| !is_space(inline)) else {
+        let Some(split) = split_run(segment, lead_break, trail_break) else {
             if segment.is_empty() && lead_break && trail_break {
                 out.push(word(format!("{open}\\ {close}"), true));
             } else {
@@ -529,62 +523,35 @@ impl State {
             }
             return;
         };
-        let last = segment
-            .iter()
-            .rposition(|inline| !is_space(inline))
-            .unwrap_or(first);
-        if let Some(lead) = segment.get(..first) {
-            for inline in lead {
-                if lead_break && matches!(inline, Inline::SoftBreak | Inline::LineBreak) {
-                    continue;
-                }
-                self.token(inline, true, out);
+        for inline in split.lead {
+            if lead_break && matches!(inline, Inline::SoftBreak | Inline::LineBreak) {
+                continue;
+            }
+            self.token(inline, true, out);
+        }
+        let lines = split_at(split.middle, |inline| matches!(inline, Inline::LineBreak));
+        let final_line = lines.len().saturating_sub(1);
+        for (index, line) in lines.iter().enumerate() {
+            let mut text = String::new();
+            if index == 0 {
+                text.push_str(open);
+                text.push_str(split.lead_sep);
+            }
+            text.push_str(&self.flat_nested(line, true));
+            if index == final_line {
+                text.push_str(split.trail_sep);
+                text.push_str(close);
+            }
+            out.push(word(text, true));
+            if index != final_line {
+                out.push(Token::Hard);
             }
         }
-        if let Some(middle) = segment.get(first..=last) {
-            let plain = to_plain_text(middle);
-            let lead_sep = if lead_break
-                && first == 0
-                && plain.chars().next().is_some_and(|c| !is_safe_follower(c))
-            {
-                "\\ "
-            } else {
-                ""
-            };
-            let trail_sep = if trail_break
-                && last + 1 == segment.len()
-                && plain.chars().last().is_some_and(|c| !is_safe_preceder(c))
-            {
-                "\\ "
-            } else {
-                ""
-            };
-            let lines = split_at(middle, |inline| matches!(inline, Inline::LineBreak));
-            let final_line = lines.len().saturating_sub(1);
-            for (index, line) in lines.iter().enumerate() {
-                let mut text = String::new();
-                if index == 0 {
-                    text.push_str(open);
-                    text.push_str(lead_sep);
-                }
-                text.push_str(&self.flat_nested(line, true));
-                if index == final_line {
-                    text.push_str(trail_sep);
-                    text.push_str(close);
-                }
-                out.push(word(text, true));
-                if index != final_line {
-                    out.push(Token::Hard);
-                }
+        for inline in split.trail {
+            if trail_break && matches!(inline, Inline::SoftBreak | Inline::LineBreak) {
+                continue;
             }
-        }
-        if let Some(trail) = segment.get(last + 1..) {
-            for inline in trail {
-                if trail_break && matches!(inline, Inline::SoftBreak | Inline::LineBreak) {
-                    continue;
-                }
-                self.token(inline, true, out);
-            }
+            self.token(inline, true, out);
         }
     }
 
@@ -656,52 +623,19 @@ impl State {
         lead_break: bool,
         trail_break: bool,
     ) {
-        let is_space = |inline: &Inline| {
-            matches!(
-                inline,
-                Inline::Space | Inline::SoftBreak | Inline::LineBreak
-            )
-        };
-        let Some(first) = segment.iter().position(|inline| !is_space(inline)) else {
+        let Some(split) = split_run(segment, lead_break, trail_break) else {
             for inline in segment {
                 self.token(inline, false, out);
             }
             return;
         };
-        let last = segment
-            .iter()
-            .rposition(|inline| !is_space(inline))
-            .unwrap_or(first);
-        if let Some(lead) = segment.get(..first) {
-            for inline in lead {
-                self.token(inline, false, out);
-            }
+        for inline in split.lead {
+            self.token(inline, false, out);
         }
-        if let Some(middle) = segment.get(first..=last) {
-            let plain = to_plain_text(middle);
-            let lead_sep = if lead_break
-                && first == 0
-                && plain.chars().next().is_some_and(|c| !is_safe_follower(c))
-            {
-                "\\ "
-            } else {
-                ""
-            };
-            let trail_sep = if trail_break
-                && last + 1 == segment.len()
-                && plain.chars().last().is_some_and(|c| !is_safe_preceder(c))
-            {
-                "\\ "
-            } else {
-                ""
-            };
-            let name = format!("{lead_sep}{plain}{trail_sep}");
-            self.register_image(attr, &name, target, None, out);
-        }
-        if let Some(trail) = segment.get(last + 1..) {
-            for inline in trail {
-                self.token(inline, false, out);
-            }
+        let name = format!("{}{}{}", split.lead_sep, split.plain, split.trail_sep);
+        self.register_image(attr, &name, target, None, out);
+        for inline in split.trail {
+            self.token(inline, false, out);
         }
     }
 
@@ -929,6 +863,59 @@ fn separator_needed(
 ) -> bool {
     (previous_complex && !is_safe_follower(current_first))
         || (current_complex && !is_safe_preceder(previous_last))
+}
+
+/// A phrase run partitioned around its non-space core, with the null-separator decision for each
+/// edge that abuts a broken-out child.
+struct RunSplit<'a> {
+    lead: &'a [Inline],
+    middle: &'a [Inline],
+    trail: &'a [Inline],
+    plain: String,
+    lead_sep: &'static str,
+    trail_sep: &'static str,
+}
+
+/// Partition a run into leading whitespace, its non-space core, and trailing whitespace, returning
+/// `None` when the run holds no non-space content. `lead_sep`/`trail_sep` carry the `\ ` null
+/// separator for an edge that abuts a broken-out child where the core character would otherwise read
+/// as continuing markup.
+fn split_run(segment: &[Inline], lead_break: bool, trail_break: bool) -> Option<RunSplit<'_>> {
+    let is_space = |inline: &Inline| {
+        matches!(
+            inline,
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak
+        )
+    };
+    let first = segment.iter().position(|inline| !is_space(inline))?;
+    let last = segment
+        .iter()
+        .rposition(|inline| !is_space(inline))
+        .unwrap_or(first);
+    let middle = segment.get(first..=last).unwrap_or(&[]);
+    let plain = to_plain_text(middle);
+    let lead_sep =
+        if lead_break && first == 0 && plain.chars().next().is_some_and(|c| !is_safe_follower(c)) {
+            "\\ "
+        } else {
+            ""
+        };
+    let trail_sep = if trail_break
+        && last + 1 == segment.len()
+        && plain.chars().last().is_some_and(|c| !is_safe_preceder(c))
+    {
+        "\\ "
+    } else {
+        ""
+    };
+    Some(RunSplit {
+        lead: segment.get(..first).unwrap_or(&[]),
+        middle,
+        trail: segment.get(last + 1..).unwrap_or(&[]),
+        plain,
+        lead_sep,
+        trail_sep,
+    })
 }
 
 /// Characters that may directly follow an inline-markup end without a separator.
