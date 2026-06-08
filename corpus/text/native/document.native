@@ -1,0 +1,1 @@
+Pandoc (Meta {unMeta = fromList [("title", MetaInlines [Str "T"])]}) [ Para [ Str "body" ] ]

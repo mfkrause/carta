@@ -1,0 +1,209 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "This"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "is"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "a"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "deliberately"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "long"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "paragraph"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "with"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "wide"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "中文字符"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "glyphs"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "and"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "a"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "combining"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "mark"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "é"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "so"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "writer"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "measures"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "column"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "widths"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "while"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "wrapping"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "at"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "fill"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "column"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "boundary."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Emph",
+          "c": [
+            {
+              "t": "Str",
+              "c": "emph"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "with"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Strong",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "strong"
+                }
+              ]
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "inside"
+            }
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "end"
+        }
+      ]
+    }
+  ]
+}
