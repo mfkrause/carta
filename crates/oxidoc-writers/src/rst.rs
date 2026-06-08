@@ -7,7 +7,8 @@
 //! column of 72.
 
 use oxidoc_ast::{
-    Attr, Block, Caption, Document, Format, Inline, ListAttributes, MathType, Target, to_plain_text,
+    Attr, Block, Caption, Document, Format, Inline, ListAttributes, MathType, Target, slug,
+    to_plain_text,
 };
 use oxidoc_core::{Result, Writer, WriterOptions};
 
@@ -1373,20 +1374,11 @@ fn breaks_out(inline: &Inline, kind: PhraseKind) -> bool {
 /// first letter; fall back to `section` when nothing remains. An explicit identifier equal to this is
 /// redundant and need not be emitted as a reference target.
 fn auto_identifier(inlines: &[Inline]) -> String {
-    let filtered: String = to_plain_text(inlines)
-        .chars()
-        .filter(|ch| ch.is_alphanumeric() || ch.is_whitespace() || matches!(ch, '_' | '-' | '.'))
-        .flat_map(char::to_lowercase)
-        .collect();
-    let joined = filtered.split_whitespace().collect::<Vec<_>>().join("-");
-    let slug: String = joined
-        .chars()
-        .skip_while(|ch| !ch.is_alphabetic())
-        .collect();
-    if slug.is_empty() {
+    let identifier = slug(&to_plain_text(inlines));
+    if identifier.is_empty() {
         "section".to_owned()
     } else {
-        slug
+        identifier
     }
 }
 
