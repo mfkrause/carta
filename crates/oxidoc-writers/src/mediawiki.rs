@@ -600,7 +600,12 @@ fn is_external_uri(url: &str) -> bool {
 }
 
 fn escape_text(text: &str) -> String {
-    escape_xml(text, true)
+    // C0 control characters other than tab and newline have no wiki rendering and are dropped.
+    let stripped: String = text
+        .chars()
+        .filter(|&ch| (ch as u32) >= 0x20 || ch == '\t' || ch == '\n')
+        .collect();
+    escape_xml(&stripped, true)
 }
 
 fn is_highlight_language(name: &str) -> bool {
