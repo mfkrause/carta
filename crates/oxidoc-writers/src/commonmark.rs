@@ -551,113 +551,120 @@ fn title_attr(title: &Text) -> String {
 /// additionally escaped if it would begin a block construct (a list item or the delimiter of an
 /// ordered-list marker).
 fn escape_str(text: &str, line_start: bool) -> String {
-    let chars: Vec<char> = text.chars().collect();
     let leading = if line_start {
-        leading_escape(&chars)
+        leading_escape(text)
     } else {
         None
     };
     let mut out = String::with_capacity(text.len());
-    let mut index = 0;
-    while let Some(&ch) = chars.get(index) {
-        if Some(index) == leading {
+    let mut prev: Option<char> = None;
+    let mut iter = text.char_indices().peekable();
+    while let Some((offset, ch)) = iter.next() {
+        if Some(offset) == leading {
             out.push('\\');
             out.push(ch);
-            index += 1;
+            prev = Some(ch);
             continue;
         }
+        let next = iter.peek().map(|&(_, following)| following);
+        let tail = || text.get(offset..).unwrap_or_default();
         match ch {
-            '#' if index == 0 => out.push_str("\\#"),
-            '!' if matches!(chars.get(index + 1), Some('[')) => out.push_str("\\!"),
-            '[' if index > 0 && chars.get(index - 1) == Some(&'!') => out.push('['),
+            '#' if offset == 0 => out.push_str("\\#"),
+            '!' if next == Some('[') => out.push_str("\\!"),
+            '[' if prev == Some('!') => out.push('['),
             '`' | '*' | '[' | ']' | '<' | '>' => {
                 out.push('\\');
                 out.push(ch);
             }
-            '&' if begins_character_reference(&chars, index) => out.push_str("\\&"),
-            '&' if begins_named_entity(&chars, index) => out.push_str("\\&"),
-            '_' if is_word_boundary(&chars, index) => out.push_str("\\_"),
-            '\\' => match chars.get(index + 1) {
-                Some(next) if next.is_alphanumeric() => out.push('\\'),
-                Some(_) => {
+            '&' if begins_character_reference(tail()) => out.push_str("\\&"),
+            '&' if begins_named_entity(tail()) => out.push_str("\\&"),
+            '_' if is_word_boundary(prev, next) => out.push_str("\\_"),
+            '\\' => match next {
+                Some(following) if following.is_alphanumeric() => out.push('\\'),
+                Some(following) => {
                     out.push_str("\\\\");
-                    index += 1;
+                    iter.next();
+                    prev = Some(following);
+                    continue;
                 }
                 None => out.push_str("\\\\"),
             },
             other => out.push(other),
         }
-        index += 1;
+        prev = Some(ch);
     }
     out
 }
 
-/// Whether an `&` at `index` opens a syntactically valid numeric character reference: `&#` followed by
-/// at least one decimal digit, or `&#x`/`&#X` followed by at least one hex digit, terminated by `;`.
-fn begins_character_reference(chars: &[char], index: usize) -> bool {
-    if chars.get(index) != Some(&'&') || chars.get(index + 1) != Some(&'#') {
+/// Whether `text` opens with a syntactically valid numeric character reference: `&#` followed by at
+/// least one decimal digit, or `&#x`/`&#X` followed by at least one hex digit, terminated by `;`. The
+/// reference syntax is wholly ASCII, so this scans bytes.
+fn begins_character_reference(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'&') || bytes.get(1) != Some(&b'#') {
         return false;
     }
-    let hex = matches!(chars.get(index + 2), Some('x' | 'X'));
-    let start = if hex { index + 3 } else { index + 2 };
+    let hex = matches!(bytes.get(2), Some(b'x' | b'X'));
+    let start = if hex { 3 } else { 2 };
     let mut pos = start;
-    while chars.get(pos).is_some_and(|ch| {
+    while bytes.get(pos).is_some_and(|byte| {
         if hex {
-            ch.is_ascii_hexdigit()
+            byte.is_ascii_hexdigit()
         } else {
-            ch.is_ascii_digit()
+            byte.is_ascii_digit()
         }
     }) {
         pos += 1;
     }
-    pos > start && chars.get(pos) == Some(&';')
+    pos > start && bytes.get(pos) == Some(&b';')
 }
 
-/// Whether an `&` at `index` opens a valid named character reference: an ASCII letter followed by
-/// further ASCII alphanumerics and a `;`, whose name is one the format recognizes.
-fn begins_named_entity(chars: &[char], index: usize) -> bool {
-    if chars.get(index) != Some(&'&') {
+/// Whether `text` opens with a valid named character reference: an ASCII letter followed by further
+/// ASCII alphanumerics and a `;`, whose name is one the format recognizes. The reference syntax is
+/// wholly ASCII, so this scans bytes.
+fn begins_named_entity(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'&') {
         return false;
     }
-    let start = index + 1;
-    if !chars.get(start).is_some_and(char::is_ascii_alphabetic) {
+    if !bytes.get(1).is_some_and(u8::is_ascii_alphabetic) {
         return false;
     }
-    let mut pos = start + 1;
-    while chars.get(pos).is_some_and(char::is_ascii_alphanumeric) {
+    let mut pos = 2;
+    while bytes.get(pos).is_some_and(u8::is_ascii_alphanumeric) {
         pos += 1;
     }
-    if chars.get(pos) != Some(&';') {
+    if bytes.get(pos) != Some(&b';') {
         return false;
     }
-    let name: String = chars.get(start..pos).unwrap_or_default().iter().collect();
-    entity_names::ENTITY_NAMES
-        .binary_search(&name.as_str())
-        .is_ok()
+    let name = text.get(1..pos).unwrap_or_default();
+    entity_names::ENTITY_NAMES.binary_search(&name).is_ok()
 }
 
 mod entity_names {
     include!(concat!(env!("OUT_DIR"), "/entity_names.rs"));
 }
 
-/// The index of a leading character that must be escaped because it would otherwise start a block
-/// construct: a `#` header marker, a `-`/`+` bullet marker followed by a space, or the `.`/`)`
-/// delimiter terminating a leading run of digits that forms an ordered-list marker.
-fn leading_escape(chars: &[char]) -> Option<usize> {
-    match chars.first()? {
+/// The byte offset of a leading character that must be escaped because it would otherwise start a
+/// block construct: a `#` header marker, a `-`/`+` bullet marker followed by a space, or the `.`/`)`
+/// delimiter terminating a leading run of digits that forms an ordered-list marker. The offset always
+/// falls inside an ASCII prefix, so it doubles as a character index for comparison.
+fn leading_escape(text: &str) -> Option<usize> {
+    let mut chars = text.char_indices();
+    let (_, first) = chars.next()?;
+    match first {
         '#' => Some(0),
-        '-' | '+' if chars.len() == 1 || chars.get(1).is_some_and(|ch| ch.is_whitespace()) => {
-            Some(0)
+        '-' | '+' => {
+            let followed_by_space = chars.next().is_none_or(|(_, ch)| ch.is_whitespace());
+            followed_by_space.then_some(0)
         }
         first if first.is_ascii_digit() => {
-            let delim = chars.iter().position(|ch| !ch.is_ascii_digit())?;
-            if delim > 9 {
+            let (delim_offset, delim) = chars.by_ref().find(|(_, ch)| !ch.is_ascii_digit())?;
+            if delim_offset > 9 {
                 return None;
             }
-            if matches!(chars.get(delim), Some('.' | ')'))
-                && chars.get(delim + 1).is_none_or(|ch| ch.is_whitespace())
-            {
-                Some(delim)
+            if matches!(delim, '.' | ')') && chars.next().is_none_or(|(_, ch)| ch.is_whitespace()) {
+                Some(delim_offset)
             } else {
                 None
             }
@@ -666,14 +673,10 @@ fn leading_escape(chars: &[char]) -> Option<usize> {
     }
 }
 
-/// Whether an `_` at `index` sits at a word boundary: at least one neighbor (treating the ends of
-/// the run as boundaries) is not alphanumeric, so the `_` could flank emphasis.
-fn is_word_boundary(chars: &[char], index: usize) -> bool {
-    let before = index
-        .checked_sub(1)
-        .and_then(|previous| chars.get(previous));
-    let after = chars.get(index + 1);
-    let alnum = |ch: Option<&char>| ch.is_some_and(|c| c.is_alphanumeric());
+/// Whether an `_` with the given neighbors sits at a word boundary: at least one neighbor (treating
+/// the ends of the run as boundaries) is not alphanumeric, so the `_` could flank emphasis.
+fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
+    let alnum = |ch: Option<char>| ch.is_some_and(char::is_alphanumeric);
     !(alnum(before) && alnum(after))
 }
 /// Recognized URI schemes, sorted for binary search. A bare URI opens with one of these.
