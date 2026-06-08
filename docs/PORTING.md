@@ -41,7 +41,8 @@ Crate layout (Cargo workspace):
   (`read-*`/`write-*`) that forward to the reader/writer crate features; a recognized format absent
   from the build surfaces as `Error::FormatNotEnabled`.
 - `oxidoc-cli` — the `oxidoc` binary; arg parsing + stdin/file I/O over the `oxidoc` facade.
-- `oxidoc-testkit` — differential harness (drives pandoc black-box, diffs results).
+- `tools/conformance-suite/` — shell differential harness (drives pandoc black-box, diffs results);
+  not a crate, lives outside `cargo test`. See §5.
 - `fuzz` — coverage-guided fuzz targets (`cargo-fuzz`/libFuzzer); detached from the workspace,
   built on nightly.
 - later: `oxidoc-templates`, `oxidoc-citeproc`, filter support, etc.
@@ -78,7 +79,8 @@ superset, so differential-vs-pandoc is still required).
 `oxidoc` — data only, never the harness or implementation:
 
 - *Command tests* (`test/command/*.md`) are declarative (invocation + input + expected output) and
-  shell out to the binary. `oxidoc-testkit` parses them and substitutes our binary for `pandoc`.
+  shell out to the binary. The conformance suite's `commands` surface parses them and substitutes our
+  binary for `pandoc`.
 - *Golden data files* are reused as inputs; the pinned binary regenerates the expected output (the
   input→expected wiring is Haskell we don't read).
 
