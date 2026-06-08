@@ -294,11 +294,11 @@ impl State {
     }
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
-        if attr_is_empty(attr) || is_autolink_class(attr) {
-            if let Some(autolink) = autolink(inlines, target) {
-                out.push(Piece::Text(autolink));
-                return;
-            }
+        if (attr_is_empty(attr) || is_autolink_class(attr))
+            && let Some(autolink) = autolink(inlines, target)
+        {
+            out.push(Piece::Text(autolink));
+            return;
         }
         if attr_is_empty(attr) {
             out.push(Piece::Text("[".to_owned()));
