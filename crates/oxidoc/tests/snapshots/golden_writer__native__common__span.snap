@@ -1,0 +1,13 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "a"
+    , Space
+    , Span
+        ( "s" , [ "c" ] , [ ( "data-k" , "v" ) ] ) [ Str "styled" ]
+    , Space
+    , Str "word"
+    ]
+]

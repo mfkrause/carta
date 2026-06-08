@@ -1,0 +1,19 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "water"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O"
+    , Space
+    , Str "and"
+    , Space
+    , Str "sub"
+    , Subscript [ Str "ab" ]
+    , Space
+    , Str "here"
+    ]
+]

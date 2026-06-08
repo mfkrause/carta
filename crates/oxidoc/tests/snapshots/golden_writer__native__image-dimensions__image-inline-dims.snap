@@ -1,0 +1,15 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "text"
+    , Space
+    , Image
+        ( "" , [] , [ ( "width" , "200" ) ] )
+        [ Str "alt" ]
+        ( "pic.png" , "" )
+    , Space
+    , Str "more"
+    ]
+]

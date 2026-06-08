@@ -1,0 +1,9 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<div id="d" class="note">
+
+body paragraph
+
+</div>

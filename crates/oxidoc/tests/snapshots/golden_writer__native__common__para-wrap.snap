@@ -1,0 +1,56 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "This"
+    , Space
+    , Str "is"
+    , Space
+    , Str "a"
+    , Space
+    , Str "deliberately"
+    , Space
+    , Str "long"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , Str "enough"
+    , Space
+    , Str "words"
+    , Space
+    , Str "that"
+    , Space
+    , Str "the"
+    , Space
+    , Str "writer"
+    , Space
+    , Str "must"
+    , Space
+    , Str "wrap"
+    , Space
+    , Str "it"
+    , Space
+    , Str "across"
+    , Space
+    , Str "the"
+    , Space
+    , Str "fill"
+    , Space
+    , Str "column"
+    , Space
+    , Str "boundary"
+    , Space
+    , Str "at"
+    , Space
+    , Str "least"
+    , Space
+    , Str "once"
+    , Space
+    , Str "or"
+    , Space
+    , Str "twice."
+    ]
+]

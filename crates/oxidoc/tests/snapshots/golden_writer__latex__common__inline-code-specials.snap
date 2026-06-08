@@ -1,0 +1,7 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+before
+\texttt{a\ \&\ b\ \textasciitilde{}\ c\ \textbackslash{}\ d\ \%\ e\ \#\ f\ \$\ g\ \_\ h\ \{\ i\ \}\ j\ \^{}\ k\ \textbar{}\ l\ \textless{}\ m\ \textgreater{}\ n}
+after

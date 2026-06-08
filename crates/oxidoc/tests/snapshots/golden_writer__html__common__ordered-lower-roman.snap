@@ -1,0 +1,8 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<ol type="i">
+<li>one</li>
+<li>two</li>
+</ol>

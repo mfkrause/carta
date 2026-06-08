@@ -1,0 +1,8 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<blockquote>
+<p>quoted</p>
+<p>more lines here</p>
+</blockquote>

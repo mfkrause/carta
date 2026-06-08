@@ -1,0 +1,16 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "a" , Space , Str "caption" ] ])
+    [ Plain
+        [ Image
+            ( "" , [] , [] )
+            [ Str "a" , Space , Str "caption" ]
+            ( "pic.png" , "fig title" )
+        ]
+    ]
+]
