@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["",["","real"],[["","drop"],["keep","v"]]],[{"t":"Str","c":"x"}]]}]}]}
