@@ -1,0 +1,7 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<h1 id="one">One</h1>
+<h2 id="two">Two</h2>
+<h6 id="six">Six</h6>

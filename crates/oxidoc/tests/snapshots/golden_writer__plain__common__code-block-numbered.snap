@@ -1,0 +1,6 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+    print(1)
+    print(2)

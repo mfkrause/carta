@@ -1,0 +1,18 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  outer
+
+  \begin{enumerate}
+  \def\labelenumii{\arabic{enumii}.}
+  \tightlist
+  \item
+    inner one
+  \item
+    inner two
+  \end{enumerate}
+\end{enumerate}

@@ -1,0 +1,6 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<div class="line-block">first line<br />
+second line</div>

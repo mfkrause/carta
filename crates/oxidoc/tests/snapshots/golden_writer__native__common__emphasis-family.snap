@@ -1,0 +1,18 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Emph [ Str "emph" ]
+    , Space
+    , Strong [ Str "strong" ]
+    , Space
+    , Strikeout [ Str "struck" ]
+    , Space
+    , Str "super"
+    , Superscript [ Str "2" ]
+    , Space
+    , Str "sub"
+    , Subscript [ Str "3" ]
+    ]
+]

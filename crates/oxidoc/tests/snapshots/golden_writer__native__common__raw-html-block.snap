@@ -1,0 +1,8 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Div
+    ( "" , [ "x" ] , [] )
+    [ Plain [ Str "raw" , Space , Str "block" ] ]
+]

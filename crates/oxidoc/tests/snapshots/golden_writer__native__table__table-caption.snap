@@ -1,0 +1,50 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "A"
+           , Space
+           , Str "caption"
+           , Space
+           , Str "for"
+           , Space
+           , Str "the"
+           , Space
+           , Str "table"
+           ]
+       ])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "h" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "v" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

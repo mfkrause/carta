@@ -1,0 +1,12 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! a
+! b
+|-
+| 1
+| 2
+|}

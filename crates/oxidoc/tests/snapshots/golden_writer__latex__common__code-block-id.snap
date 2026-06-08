@@ -1,0 +1,8 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+\protect\phantomsection\label{snippet}%
+\begin{verbatim}
+plain code
+\end{verbatim}

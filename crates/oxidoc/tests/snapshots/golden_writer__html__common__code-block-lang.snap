@@ -1,0 +1,6 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<pre class="rust"><code>let s = &quot;hi&quot;;
+x &lt; y &amp;&amp; y &gt; z</code></pre>

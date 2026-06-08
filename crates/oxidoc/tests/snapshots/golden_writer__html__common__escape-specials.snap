@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<p>a &amp; b % c # d _ e $ f { g } h ^ i ~ j</p>
