@@ -86,6 +86,10 @@ fn word(text: String, complex: bool) -> Token {
     }
 }
 
+fn is_word_token(token: &Token) -> bool {
+    matches!(token, Token::Word { .. })
+}
+
 impl State {
     /// Render a block sequence into the document's default layout. Consecutive blocks are separated
     /// by a blank line, except that a [`Block::Plain`] is followed by a single newline when the next
@@ -576,8 +580,60 @@ impl State {
             out.push(word(target.url.clone(), true));
             return;
         }
-        let text = self.flat_nested(label, true);
-        out.push(word(format!("`{text} <{}>`__", target.url), true));
+        if !self.tokens_nested(label, true).iter().any(is_word_token) {
+            out.push(word(format!("` <{}>`__", target.url), true));
+            return;
+        }
+        let breakouts: Vec<usize> = label
+            .iter()
+            .enumerate()
+            .filter(|(_, child)| matches!(child, Inline::Link(..)))
+            .map(|(index, _)| index)
+            .collect();
+        if breakouts.is_empty() {
+            self.link_run(label, target, out);
+            return;
+        }
+        let mut run_start = 0;
+        for &index in &breakouts {
+            let segment = label.get(run_start..index).unwrap_or(&[]);
+            self.link_run(segment, target, out);
+            if let Some(child) = label.get(index) {
+                self.token(child, true, out);
+            }
+            run_start = index + 1;
+        }
+        let segment = label.get(run_start..).unwrap_or(&[]);
+        self.link_run(segment, target, out);
+    }
+
+    /// Render one run of link label that holds no nested link, wrapping it as `` `text <url>`__ `` with
+    /// the label words left breakable so the fill engine may wrap between them. An empty run renders
+    /// nothing.
+    fn link_run(&mut self, label: &[Inline], target: &Target, out: &mut Vec<Token>) {
+        let label_tokens = self.tokens_nested(label, true);
+        let Some(first) = label_tokens.iter().position(is_word_token) else {
+            return;
+        };
+        let suffix = format!(" <{}>`__", target.url);
+        let last = label_tokens
+            .iter()
+            .rposition(is_word_token)
+            .unwrap_or(first);
+        for (index, token) in label_tokens.into_iter().enumerate() {
+            match token {
+                Token::Word { text, .. } if index == first && index == last => {
+                    out.push(word(format!("`{text}{suffix}"), true));
+                }
+                Token::Word { text, .. } if index == first => {
+                    out.push(word(format!("`{text}"), true));
+                }
+                Token::Word { text, .. } if index == last => {
+                    out.push(word(format!("{text}{suffix}"), true));
+                }
+                other => out.push(other),
+            }
+        }
     }
 
     /// Render an image. A link nested in the alt text cannot live inside a substitution, so it

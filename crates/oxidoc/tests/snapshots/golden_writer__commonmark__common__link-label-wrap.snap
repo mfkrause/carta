@@ -1,0 +1,6 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+Padding padding padding padding [a multi word link label
+here](http://example.com/path) and trailing words to push wrapping.
