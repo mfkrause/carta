@@ -343,7 +343,7 @@ impl InlineParser<'_> {
 
     /// Attempt to parse what follows `]` as an inline `(...)`, reference, collapsed, or shortcut
     /// link, returning the target and the position after it.
-    fn try_link_target(&mut self, opener_index: usize) -> Option<(Target, usize)> {
+    fn try_link_target(&self, opener_index: usize) -> Option<(Target, usize)> {
         if self.at(0) == Some('(')
             && let Some(result) = scan_inline_target(self.chars, self.pos)
         {
