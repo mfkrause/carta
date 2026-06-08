@@ -917,8 +917,10 @@ impl Converter {
     }
 
     fn cell(&mut self, cell: &Element) -> Cell {
+        let mut attr = extract_attr(cell, &["align", "rowspan", "colspan"]);
+        normalize_cell_style(&mut attr);
         Cell {
-            attr: Attr::default(),
+            attr,
             align: cell_alignment(cell),
             row_span: span_attr(cell, "rowspan"),
             col_span: span_attr(cell, "colspan"),
@@ -1208,6 +1210,34 @@ fn cell_alignment(cell: &Element) -> Alignment {
         return parsed;
     }
     Alignment::AlignDefault
+}
+
+/// Drop the `text-align` declaration from a cell's `style` attribute (its alignment is held
+/// separately) and re-render the surviving declarations as `prop: value` joined by `; `. When no
+/// declaration remains, the `style` attribute is removed entirely.
+fn normalize_cell_style(attr: &mut Attr) {
+    let Some(index) = attr.attributes.iter().position(|(key, _)| key == "style") else {
+        return;
+    };
+    let Some((_, raw)) = attr.attributes.get(index) else {
+        return;
+    };
+    let declarations: Vec<String> = raw
+        .split(';')
+        .filter_map(|decl| {
+            let (key, value) = decl.split_once(':')?;
+            let key = key.trim();
+            if key.eq_ignore_ascii_case("text-align") || key.is_empty() {
+                return None;
+            }
+            Some(format!("{key}: {}", value.trim()))
+        })
+        .collect();
+    if declarations.is_empty() {
+        attr.attributes.remove(index);
+    } else if let Some(entry) = attr.attributes.get_mut(index) {
+        entry.1 = declarations.join("; ");
+    }
 }
 
 fn parse_alignment(value: &str) -> Option<Alignment> {
