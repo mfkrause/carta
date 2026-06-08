@@ -347,6 +347,26 @@ struct Parser {
     pos: usize,
 }
 
+/// Defines a parser method that reads a constructor name and maps it to a value of `$ty`. Each arm
+/// pairs a constructor name with the expression it produces (which may itself consume further tokens,
+/// as a constructor carrying a payload does); an unrecognized name is a syntax error naming `$label`.
+macro_rules! parse_constructor {
+    (
+        $method:ident -> $ty:ty, $label:literal {
+            $( $tag:literal => $value:expr ),* $(,)?
+        }
+    ) => {
+        fn $method(&mut self) -> Result<$ty> {
+            match self.constructor()?.as_str() {
+                $( $tag => Ok($value), )*
+                other => {
+                    Err(syntax_error(format!(concat!("unknown ", $label, " '{}'"), other)))
+                }
+            }
+        }
+    };
+}
+
 impl Parser {
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.pos)
@@ -770,63 +790,55 @@ impl Parser {
         Ok((term, definitions))
     }
 
-    fn parse_quote_type(&mut self) -> Result<QuoteType> {
-        match self.constructor()?.as_str() {
-            "SingleQuote" => Ok(QuoteType::SingleQuote),
-            "DoubleQuote" => Ok(QuoteType::DoubleQuote),
-            other => Err(syntax_error(format!("unknown quote type '{other}'"))),
+    parse_constructor! {
+        parse_quote_type -> QuoteType, "quote type" {
+            "SingleQuote" => QuoteType::SingleQuote,
+            "DoubleQuote" => QuoteType::DoubleQuote,
         }
     }
 
-    fn parse_math_type(&mut self) -> Result<MathType> {
-        match self.constructor()?.as_str() {
-            "InlineMath" => Ok(MathType::InlineMath),
-            "DisplayMath" => Ok(MathType::DisplayMath),
-            other => Err(syntax_error(format!("unknown math type '{other}'"))),
+    parse_constructor! {
+        parse_math_type -> MathType, "math type" {
+            "InlineMath" => MathType::InlineMath,
+            "DisplayMath" => MathType::DisplayMath,
         }
     }
 
-    fn parse_list_number_style(&mut self) -> Result<ListNumberStyle> {
-        match self.constructor()?.as_str() {
-            "DefaultStyle" => Ok(ListNumberStyle::DefaultStyle),
-            "Example" => Ok(ListNumberStyle::Example),
-            "Decimal" => Ok(ListNumberStyle::Decimal),
-            "LowerRoman" => Ok(ListNumberStyle::LowerRoman),
-            "UpperRoman" => Ok(ListNumberStyle::UpperRoman),
-            "LowerAlpha" => Ok(ListNumberStyle::LowerAlpha),
-            "UpperAlpha" => Ok(ListNumberStyle::UpperAlpha),
-            other => Err(syntax_error(format!("unknown list number style '{other}'"))),
+    parse_constructor! {
+        parse_list_number_style -> ListNumberStyle, "list number style" {
+            "DefaultStyle" => ListNumberStyle::DefaultStyle,
+            "Example" => ListNumberStyle::Example,
+            "Decimal" => ListNumberStyle::Decimal,
+            "LowerRoman" => ListNumberStyle::LowerRoman,
+            "UpperRoman" => ListNumberStyle::UpperRoman,
+            "LowerAlpha" => ListNumberStyle::LowerAlpha,
+            "UpperAlpha" => ListNumberStyle::UpperAlpha,
         }
     }
 
-    fn parse_list_number_delim(&mut self) -> Result<ListNumberDelim> {
-        match self.constructor()?.as_str() {
-            "DefaultDelim" => Ok(ListNumberDelim::DefaultDelim),
-            "Period" => Ok(ListNumberDelim::Period),
-            "OneParen" => Ok(ListNumberDelim::OneParen),
-            "TwoParens" => Ok(ListNumberDelim::TwoParens),
-            other => Err(syntax_error(format!(
-                "unknown list number delimiter '{other}'"
-            ))),
+    parse_constructor! {
+        parse_list_number_delim -> ListNumberDelim, "list number delimiter" {
+            "DefaultDelim" => ListNumberDelim::DefaultDelim,
+            "Period" => ListNumberDelim::Period,
+            "OneParen" => ListNumberDelim::OneParen,
+            "TwoParens" => ListNumberDelim::TwoParens,
         }
     }
 
-    fn parse_citation_mode(&mut self) -> Result<CitationMode> {
-        match self.constructor()?.as_str() {
-            "AuthorInText" => Ok(CitationMode::AuthorInText),
-            "SuppressAuthor" => Ok(CitationMode::SuppressAuthor),
-            "NormalCitation" => Ok(CitationMode::NormalCitation),
-            other => Err(syntax_error(format!("unknown citation mode '{other}'"))),
+    parse_constructor! {
+        parse_citation_mode -> CitationMode, "citation mode" {
+            "AuthorInText" => CitationMode::AuthorInText,
+            "SuppressAuthor" => CitationMode::SuppressAuthor,
+            "NormalCitation" => CitationMode::NormalCitation,
         }
     }
 
-    fn parse_alignment(&mut self) -> Result<Alignment> {
-        match self.constructor()?.as_str() {
-            "AlignLeft" => Ok(Alignment::AlignLeft),
-            "AlignRight" => Ok(Alignment::AlignRight),
-            "AlignCenter" => Ok(Alignment::AlignCenter),
-            "AlignDefault" => Ok(Alignment::AlignDefault),
-            other => Err(syntax_error(format!("unknown alignment '{other}'"))),
+    parse_constructor! {
+        parse_alignment -> Alignment, "alignment" {
+            "AlignLeft" => Alignment::AlignLeft,
+            "AlignRight" => Alignment::AlignRight,
+            "AlignCenter" => Alignment::AlignCenter,
+            "AlignDefault" => Alignment::AlignDefault,
         }
     }
 
