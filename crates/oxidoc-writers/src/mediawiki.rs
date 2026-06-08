@@ -312,13 +312,26 @@ impl State {
 
     fn inlines(&mut self, inlines: &[Inline]) -> String {
         let mut out = String::new();
+        let mut pending_space = false;
         for inline in inlines {
+            if matches!(inline, Inline::Space | Inline::SoftBreak) {
+                pending_space = true;
+                continue;
+            }
+            let rendered = self.inline(inline);
+            if rendered.is_empty() {
+                continue;
+            }
+            if pending_space && !out.is_empty() {
+                out.push(' ');
+            }
+            pending_space = false;
             // A link or image opens with `[`; if the preceding character is also `[`, the run would
             // read as the start of an internal link, so an empty `<nowiki/>` breaks the pair.
             if out.ends_with('[') && matches!(inline, Inline::Link(..) | Inline::Image(..)) {
                 out.push_str("<nowiki/>");
             }
-            out.push_str(&self.inline(inline));
+            out.push_str(&rendered);
         }
         out
     }
