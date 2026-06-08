@@ -370,7 +370,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    fn ordered_marker_at(&mut self) -> Option<ListMarkerParse> {
+    fn ordered_marker_at(&self) -> Option<ListMarkerParse> {
         let mut digits = 0;
         let mut value: i64 = 0;
         while let Some(byte) = self.bytes.get(self.offset + digits) {
