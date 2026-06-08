@@ -60,7 +60,13 @@ enum AttrOrder {
 #[derive(Debug, Default)]
 struct State {
     footnotes: Vec<String>,
+    in_anchor: bool,
 }
+
+/// Class names that select a dedicated HTML element for a [`Inline::Span`] instead of a generic
+/// `<span>`. Listed in the precedence used when several apply: the first such class found becomes the
+/// outermost element, and any further ones nest inside it.
+const SEMANTIC_SPAN_TAGS: [&str; 3] = ["mark", "kbd", "dfn"];
 
 impl State {
     /// Render a block sequence into `out`, one block per line.
@@ -273,15 +279,13 @@ impl State {
             explicit => explicit,
         };
         let _ = write!(out, "<{tag}");
-        if let Some(style) = alignment_style(effective) {
-            let _ = write!(out, "{BREAK}style=\"{style}\"");
-        }
         if cell.col_span != 1 {
             let _ = write!(out, "{BREAK}colspan=\"{}\"", cell.col_span);
         }
         if cell.row_span != 1 {
             let _ = write!(out, "{BREAK}rowspan=\"{}\"", cell.row_span);
         }
+        out.push_str(&cell_attr(&cell.attr, alignment_style(effective)));
         out.push('>');
         self.blocks(out, &cell.content);
         let _ = write!(out, "</{tag}>");
@@ -337,11 +341,7 @@ impl State {
             Inline::RawInline(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
             Inline::Link(attr, inlines, target) => self.link(out, attr, inlines, target),
             Inline::Image(attr, inlines, target) => out.push_str(&image(attr, inlines, target)),
-            Inline::Span(attr, inlines) => {
-                let _ = write!(out, "<span{}>", render_attr(attr, AttrOrder::Standard));
-                self.inlines(out, inlines);
-                out.push_str("</span>");
-            }
+            Inline::Span(attr, inlines) => self.span(out, attr, inlines),
             Inline::Cite(citations, inlines) => {
                 let ids: Vec<&str> = citations
                     .iter()
@@ -365,7 +365,56 @@ impl State {
         let _ = write!(out, "</{tag}>");
     }
 
+    /// Render a span. A class naming a dedicated HTML element (see [`SEMANTIC_SPAN_TAGS`]) promotes
+    /// the span to that element: the first such class becomes the outermost tag and carries the id,
+    /// key/value attributes, and any non-semantic classes following it; further semantic classes
+    /// nest inside it as bare elements. Classes preceding the first semantic one are dropped. With no
+    /// semantic class the span renders as a generic `<span>`.
+    fn span(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline]) {
+        let first = attr
+            .classes
+            .iter()
+            .position(|class| SEMANTIC_SPAN_TAGS.contains(&class.as_str()));
+        let Some(first) = first else {
+            let _ = write!(out, "<span{}>", render_attr(attr, AttrOrder::Standard));
+            self.inlines(out, inlines);
+            out.push_str("</span>");
+            return;
+        };
+        let mut tags = Vec::new();
+        let mut remaining = Vec::new();
+        for class in attr.classes.iter().skip(first) {
+            if SEMANTIC_SPAN_TAGS.contains(&class.as_str()) {
+                tags.push(class.as_str());
+            } else {
+                remaining.insert(0, class.clone());
+            }
+        }
+        let outer = Attr {
+            id: attr.id.clone(),
+            classes: remaining,
+            attributes: attr.attributes.clone(),
+        };
+        for (index, tag) in tags.iter().enumerate() {
+            if index == 0 {
+                let _ = write!(out, "<{tag}{}>", render_attr(&outer, AttrOrder::Standard));
+            } else {
+                let _ = write!(out, "<{tag}>");
+            }
+        }
+        self.inlines(out, inlines);
+        for tag in tags.iter().rev() {
+            let _ = write!(out, "</{tag}>");
+        }
+    }
+
     fn link(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline], target: &Target) {
+        if self.in_anchor {
+            let _ = write!(out, "<span{}>", render_attr(attr, AttrOrder::Standard));
+            self.inlines(out, inlines);
+            out.push_str("</span>");
+            return;
+        }
         let _ = write!(
             out,
             "<a{BREAK}href=\"{}\"{}{}>",
@@ -373,7 +422,9 @@ impl State {
             render_attr(attr, AttrOrder::Standard),
             title_attr(&target.title)
         );
+        self.in_anchor = true;
         self.inlines(out, inlines);
+        self.in_anchor = false;
         out.push_str("</a>");
     }
 
@@ -564,6 +615,49 @@ fn render_attr(attr: &Attr, order: AttrOrder) -> String {
     }
 }
 
+/// Render a table cell's attributes, folding the column's alignment into the `style` declaration.
+/// The alignment prefixes any existing `style` value (at that value's position); with no `style`
+/// attribute present, an alignment-only `style` is emitted as the first key/value pair, after id and
+/// class. With no alignment the attributes render unchanged.
+fn cell_attr(attr: &Attr, align_style: Option<&str>) -> String {
+    let id = render_id(&attr.id);
+    let class = render_class(&attr.classes);
+    let Some(align_style) = align_style else {
+        return format!("{id}{class}{}", render_keyvals(&attr.attributes));
+    };
+    let mut keyvals = String::new();
+    let mut merged = false;
+    for (key, value) in &attr.attributes {
+        if key.is_empty() {
+            continue;
+        }
+        if key == "style" {
+            let combined = combine_style(align_style, value);
+            let _ = write!(keyvals, "{BREAK}style=\"{}\"", escape_attr(&combined));
+            merged = true;
+        } else {
+            let name = if is_known_attribute(key) {
+                key.clone()
+            } else {
+                format!("data-{key}")
+            };
+            let _ = write!(keyvals, "{BREAK}{name}=\"{}\"", escape_attr(value));
+        }
+    }
+    if merged {
+        format!("{id}{class}{keyvals}")
+    } else {
+        format!("{id}{class}{BREAK}style=\"{align_style}\"{keyvals}")
+    }
+}
+
+/// Prefix a `style` value with an alignment declaration, ensuring the result ends with a semicolon.
+fn combine_style(align_style: &str, style: &str) -> String {
+    let trimmed = style.trim();
+    let suffix = if trimmed.ends_with(';') { "" } else { ";" };
+    format!("{align_style} {trimmed}{suffix}")
+}
+
 fn render_id(id: &Text) -> String {
     if id.is_empty() {
         String::new()
@@ -573,16 +667,24 @@ fn render_id(id: &Text) -> String {
 }
 
 fn render_class(classes: &[Text]) -> String {
-    if classes.is_empty() {
+    let names: Vec<&str> = classes
+        .iter()
+        .map(Text::as_str)
+        .filter(|class| !class.is_empty())
+        .collect();
+    if names.is_empty() {
         String::new()
     } else {
-        format!("{BREAK}class=\"{}\"", escape_attr(&classes.join(" ")))
+        format!("{BREAK}class=\"{}\"", escape_attr(&names.join(" ")))
     }
 }
 
 fn render_keyvals(attributes: &[(Text, Text)]) -> String {
     let mut out = String::new();
     for (key, value) in attributes {
+        if key.is_empty() {
+            continue;
+        }
         let name = if is_known_attribute(key) {
             key.clone()
         } else {
