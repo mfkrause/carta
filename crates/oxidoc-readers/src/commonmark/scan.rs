@@ -317,7 +317,7 @@ fn decode_entity(body: &str) -> Option<String> {
             return None;
         }
         let code = u32::from_str_radix(num, 16).ok()?;
-        return Some(code_point_char(code));
+        return Some(crate::entities::code_point(code).to_string());
     }
     if let Some(num) = body.strip_prefix('#') {
         // A decimal reference is one to seven digits.
@@ -325,28 +325,9 @@ fn decode_entity(body: &str) -> Option<String> {
             return None;
         }
         let code: u32 = num.parse().ok()?;
-        return Some(code_point_char(code));
+        return Some(crate::entities::code_point(code).to_string());
     }
-    named_entity(body)
-}
-
-fn code_point_char(code: u32) -> String {
-    if code == 0 {
-        return '\u{fffd}'.to_string();
-    }
-    char::from_u32(code).unwrap_or('\u{fffd}').to_string()
-}
-
-fn named_entity(name: &str) -> Option<String> {
-    entities::ENTITIES
-        .binary_search_by(|(candidate, _)| (*candidate).cmp(name))
-        .ok()
-        .and_then(|index| entities::ENTITIES.get(index))
-        .map(|(_, characters)| (*characters).to_owned())
-}
-
-mod entities {
-    include!(concat!(env!("OUT_DIR"), "/entities_table.rs"));
+    crate::entities::lookup_named(body).map(str::to_owned)
 }
 
 /// Scan an inline link tail `(url "title")` beginning at `pos` (which points at `(`).

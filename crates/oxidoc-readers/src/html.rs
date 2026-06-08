@@ -15,7 +15,7 @@ use oxidoc_ast::{
 };
 use oxidoc_core::{Reader, ReaderOptions, Result};
 
-include!(concat!(env!("OUT_DIR"), "/entities_table.rs"));
+use crate::entities::{code_point, lookup_named};
 
 /// Parses HTML text into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -414,22 +414,7 @@ fn scan_numeric_ref(chars: &[char], start: usize) -> Option<(String, usize)> {
     let digits: String = slice(chars, digits_start, i);
     let code = u32::from_str_radix(&digits, radix).ok()?;
     let end = if chars.get(i) == Some(&';') { i + 1 } else { i };
-    Some((code_point(code), end))
-}
-
-fn code_point(code: u32) -> String {
-    if code == 0 {
-        return '\u{fffd}'.to_string();
-    }
-    char::from_u32(code).unwrap_or('\u{fffd}').to_string()
-}
-
-fn lookup_named(name: &str) -> Option<&'static str> {
-    ENTITIES
-        .binary_search_by(|(candidate, _)| (*candidate).cmp(name))
-        .ok()
-        .and_then(|index| ENTITIES.get(index))
-        .map(|(_, characters)| *characters)
+    Some((code_point(code).to_string(), end))
 }
 
 // ---------------------------------------------------------------------------
