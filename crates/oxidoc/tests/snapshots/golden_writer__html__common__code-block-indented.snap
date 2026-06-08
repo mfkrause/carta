@@ -1,0 +1,6 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<pre><code>indented code
+second line</code></pre>

@@ -1,0 +1,9 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Header
+    1
+    ( "anchor" , [ "cls" ] , [ ( "key" , "val" ) ] )
+    [ Str "Titled" ]
+]

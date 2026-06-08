@@ -1,0 +1,8 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+ref [1]_
+
+.. [1]
+   the note body

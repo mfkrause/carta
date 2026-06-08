@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"This"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"deliberately"},{"t":"Space"},{"t":"Str","c":"long"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"enough"},{"t":"Space"},{"t":"Str","c":"words"},{"t":"Space"},{"t":"Str","c":"that"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"writer"},{"t":"Space"},{"t":"Str","c":"must"},{"t":"Space"},{"t":"Str","c":"wrap"},{"t":"Space"},{"t":"Str","c":"it"},{"t":"Space"},{"t":"Str","c":"across"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"fill"},{"t":"Space"},{"t":"Str","c":"column"},{"t":"Space"},{"t":"Str","c":"boundary"},{"t":"Space"},{"t":"Str","c":"at"},{"t":"Space"},{"t":"Str","c":"least"},{"t":"Space"},{"t":"Str","c":"once"},{"t":"Space"},{"t":"Str","c":"or"},{"t":"Space"},{"t":"Str","c":"twice."}]}]}

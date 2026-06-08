@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+water H₂O and sub_(ab) here

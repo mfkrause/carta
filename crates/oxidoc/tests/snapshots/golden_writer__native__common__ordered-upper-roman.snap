@@ -1,0 +1,14 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "I."
+    , Space
+    , Str "one"
+    , SoftBreak
+    , Str "II."
+    , Space
+    , Str "two"
+    ]
+]

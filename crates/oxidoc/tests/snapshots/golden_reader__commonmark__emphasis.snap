@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"emphasis"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"strong"},{"t":"Space"},{"t":"Str","c":"emphasis"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"inline code"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Nested"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"emphasis"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"strong"}]},{"t":"Space"},{"t":"Str","c":"inside"}]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"code"},{"t":"Space"},{"t":"Str","c":"span"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"a < b && c"]},{"t":"Str","c":"."}]}]}

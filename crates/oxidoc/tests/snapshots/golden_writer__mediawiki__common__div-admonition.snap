@@ -1,0 +1,8 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<div class="note">
+be careful here
+
+</div>

@@ -1,0 +1,24 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "a"
+    , Space
+    , Str "*"
+    , Space
+    , Str "b"
+    , Space
+    , Str "`"
+    , Space
+    , Str "c"
+    , Space
+    , Str "|"
+    , Space
+    , Str "d"
+    , Space
+    , Str "and"
+    , Space
+    , Str "trailing_ref_"
+    ]
+]

@@ -1,0 +1,6 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<p><a href="http://example.com" id="l" class="ext"
+title="a title">text</a></p>

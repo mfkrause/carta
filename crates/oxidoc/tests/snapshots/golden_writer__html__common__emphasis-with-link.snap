@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<p><em>see <a href="http://example.com">text</a> here</em></p>

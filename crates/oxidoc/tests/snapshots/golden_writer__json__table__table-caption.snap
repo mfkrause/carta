@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Table","c":[["",[],[]],[null,[{"t":"Plain","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"caption"},{"t":"Space"},{"t":"Str","c":"for"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"table"}]}]],[[{"t":"AlignDefault"},{"t":"ColWidthDefault"}]],[["",[],[]],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"h"}]}]]]]]],[[["",[],[]],0,[],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"v"}]}]]]]]]],[["",[],[]],[]]]}]}

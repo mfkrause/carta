@@ -1,0 +1,5 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para [ Math DisplayMath "\\int_0^1 x \\, dx" ] ]

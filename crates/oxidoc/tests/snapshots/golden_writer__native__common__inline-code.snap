@@ -1,0 +1,12 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "a"
+    , Space
+    , Code ( "" , [] , [] ) "let x = 1;"
+    , Space
+    , Str "b"
+    ]
+]

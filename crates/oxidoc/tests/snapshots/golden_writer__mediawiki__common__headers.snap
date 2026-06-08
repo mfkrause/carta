@@ -1,0 +1,12 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+<span id="one"></span>
+= One =
+
+<span id="two"></span>
+== Two ==
+
+<span id="six"></span>
+====== Six ======

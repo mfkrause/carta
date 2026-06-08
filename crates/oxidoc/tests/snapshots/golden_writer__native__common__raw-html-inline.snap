@@ -1,0 +1,14 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "text"
+    , Space
+    , RawInline (Format "html") "<cite>"
+    , Str "raw"
+    , RawInline (Format "html") "</cite>"
+    , Space
+    , Str "more"
+    ]
+]

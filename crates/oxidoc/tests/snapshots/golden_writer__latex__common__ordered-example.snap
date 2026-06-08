@@ -1,0 +1,12 @@
+---
+source: crates/oxidoc/tests/golden_writer.rs
+expression: output
+---
+\begin{enumerate}
+\def\labelenumi{(\arabic{enumi})}
+\tightlist
+\item
+  first
+\item
+  second
+\end{enumerate}
