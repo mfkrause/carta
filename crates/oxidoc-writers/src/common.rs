@@ -692,3 +692,243 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "width",
     "wrap",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn char_width_classifies_columns() {
+        assert_eq!(char_width('a'), 1);
+        assert_eq!(char_width('é'), 1);
+        assert_eq!(char_width('Ї'), 1);
+        assert_eq!(char_width('\n'), 0);
+        assert_eq!(char_width('\t'), 0);
+        assert_eq!(char_width('\u{7F}'), 0);
+        assert_eq!(char_width('\u{85}'), 0);
+        assert_eq!(char_width('\u{0301}'), 0);
+        assert_eq!(char_width('\u{200B}'), 0);
+        assert_eq!(char_width('\u{4E00}'), 2);
+        assert_eq!(char_width('\u{FF21}'), 2);
+        assert_eq!(char_width('\u{1F600}'), 2);
+    }
+
+    #[test]
+    fn display_width_sums_characters() {
+        assert_eq!(display_width(""), 0);
+        assert_eq!(display_width("abc"), 3);
+        assert_eq!(display_width("a\u{4E00}b"), 4);
+        assert_eq!(display_width("e\u{0301}"), 1);
+    }
+
+    #[test]
+    fn escape_xml_handles_metacharacters() {
+        assert_eq!(escape_xml("a<b>&c", false), "a&lt;b&gt;&amp;c");
+        assert_eq!(escape_xml("\"q\"", false), "\"q\"");
+        assert_eq!(escape_xml("\"q\"", true), "&quot;q&quot;");
+        assert_eq!(escape_attr("<\"&>"), "&lt;&quot;&amp;&gt;");
+    }
+
+    #[test]
+    fn percent_escaped_uri_validates_escapes_and_charset() {
+        assert!(is_percent_escaped_uri("abc", false));
+        assert!(is_percent_escaped_uri("a/b?c#d", false));
+        assert!(is_percent_escaped_uri("a%20b", false));
+        assert!(!is_percent_escaped_uri("a%2", false));
+        assert!(!is_percent_escaped_uri("a%zz", false));
+        assert!(!is_percent_escaped_uri("a b", false));
+        assert!(!is_percent_escaped_uri("café", false));
+        assert!(is_percent_escaped_uri("café", true));
+    }
+
+    #[test]
+    fn uri_scheme_recognition() {
+        assert!(!is_uri_scheme(""));
+        assert!(is_uri_scheme("http"));
+        assert!(is_uri_scheme("x+y-z.w"));
+        assert!(!is_uri_scheme("1abc"));
+        assert!(!is_uri_scheme("ab cd"));
+    }
+
+    #[test]
+    fn numeral_renders_every_style() {
+        assert_eq!(numeral(5, &ListNumberStyle::Decimal), "5");
+        assert_eq!(numeral(5, &ListNumberStyle::DefaultStyle), "5");
+        assert_eq!(numeral(5, &ListNumberStyle::Example), "5");
+        assert_eq!(numeral(1, &ListNumberStyle::LowerAlpha), "a");
+        assert_eq!(numeral(27, &ListNumberStyle::LowerAlpha), "aa");
+        assert_eq!(numeral(1, &ListNumberStyle::UpperAlpha), "A");
+        assert_eq!(numeral(28, &ListNumberStyle::UpperAlpha), "AB");
+        assert_eq!(numeral(4, &ListNumberStyle::LowerRoman), "iv");
+        assert_eq!(numeral(9, &ListNumberStyle::LowerRoman), "ix");
+        assert_eq!(numeral(2024, &ListNumberStyle::UpperRoman), "MMXXIV");
+    }
+
+    #[test]
+    fn numeral_non_positive_falls_back_to_decimal() {
+        assert_eq!(alpha(0, false), "0");
+        assert_eq!(alpha(-3, true), "-3");
+        assert_eq!(roman(0, false), "0");
+        assert_eq!(roman(-1, true), "-1");
+    }
+
+    #[test]
+    fn wrap_delim_and_marker() {
+        assert_eq!(wrap_delim("3", &ListNumberDelim::Period), "3.");
+        assert_eq!(wrap_delim("3", &ListNumberDelim::DefaultDelim), "3.");
+        assert_eq!(wrap_delim("3", &ListNumberDelim::OneParen), "3)");
+        assert_eq!(wrap_delim("3", &ListNumberDelim::TwoParens), "(3)");
+        assert_eq!(
+            ordered_marker(2, &ListNumberStyle::LowerRoman, &ListNumberDelim::OneParen),
+            "ii)"
+        );
+    }
+
+    #[test]
+    fn offset_conversion_saturates() {
+        assert_eq!(offset_as_i32(0), 0);
+        assert_eq!(offset_as_i32(7), 7);
+        assert_eq!(offset_as_i32(usize::MAX), i32::MAX);
+    }
+
+    #[test]
+    fn quote_marks_per_kind() {
+        assert_eq!(
+            quote_marks(&QuoteType::SingleQuote),
+            ('\u{2018}', '\u{2019}')
+        );
+        assert_eq!(
+            quote_marks(&QuoteType::DoubleQuote),
+            ('\u{201c}', '\u{201d}')
+        );
+    }
+
+    #[test]
+    fn known_attribute_recognition() {
+        assert!(is_known_attribute("href"));
+        assert!(is_known_attribute("colspan"));
+        assert!(is_known_attribute("data-x"));
+        assert!(is_known_attribute("aria-label"));
+        assert!(is_known_attribute("epub:type"));
+        assert!(is_known_attribute("xml:lang"));
+        assert!(!is_known_attribute("wibble"));
+    }
+
+    #[test]
+    fn render_html_attr_orders_and_prefixes() {
+        let attr = Attr {
+            id: "x<".into(),
+            classes: vec!["a".into(), "b".into()],
+            attributes: vec![
+                ("href".into(), "/p?q=1&r=2".into()),
+                ("wibble".into(), "v".into()),
+            ],
+        };
+        assert_eq!(
+            render_html_attr(&attr),
+            " id=\"x&lt;\" class=\"a b\" href=\"/p?q=1&amp;r=2\" data-wibble=\"v\""
+        );
+        assert_eq!(render_html_attr(&Attr::default()), "");
+    }
+
+    #[test]
+    fn attribute_value_lookup() {
+        let attr = Attr {
+            attributes: vec![("k".into(), "v".into())],
+            ..Attr::default()
+        };
+        assert_eq!(attribute_value(&attr, "k"), Some("v"));
+        assert_eq!(attribute_value(&attr, "missing"), None);
+    }
+
+    #[test]
+    fn fill_wraps_at_column_boundary() {
+        let pieces = vec![
+            Piece::Text("hello".into()),
+            Piece::Space,
+            Piece::Text("world".into()),
+        ];
+        assert_eq!(fill(&pieces, 72), "hello world");
+        assert_eq!(fill(&pieces, 8), "hello\nworld");
+    }
+
+    #[test]
+    fn fill_collapses_spaces_and_keeps_runs_together() {
+        let pieces = vec![
+            Piece::Space,
+            Piece::Text("ab".into()),
+            Piece::Text("cd".into()),
+            Piece::Space,
+            Piece::Space,
+            Piece::Text("ef".into()),
+            Piece::Space,
+        ];
+        assert_eq!(fill(&pieces, 72), "abcd ef");
+    }
+
+    #[test]
+    fn fill_honors_hard_break() {
+        let pieces = vec![
+            Piece::Text("a".into()),
+            Piece::Hard,
+            Piece::Text("b".into()),
+        ];
+        assert_eq!(fill(&pieces, 72), "a\nb");
+    }
+
+    #[test]
+    fn fill_offset_shifts_first_line_wrap() {
+        let pieces = vec![
+            Piece::Text("aa".into()),
+            Piece::Space,
+            Piece::Text("bb".into()),
+        ];
+        assert_eq!(fill_offset(&pieces, 6, 3), "aa\nbb");
+        assert_eq!(fill_offset(&pieces, 8, 3), "aa bb");
+    }
+
+    #[test]
+    fn indent_block_applies_hanging_prefixes() {
+        assert_eq!(indent_block("a\nb\n\nc", "- ", "  "), "- a\n  b\n\n  c");
+    }
+
+    #[test]
+    fn tightness_and_separators() {
+        let tight = vec![vec![Block::Plain(vec![])], vec![]];
+        let loose = vec![vec![Block::Para(vec![])]];
+        assert!(list_is_tight(&tight));
+        assert!(!is_loose(&tight));
+        assert!(is_loose(&loose));
+        assert_eq!(item_separator(true), "\n\n");
+        assert_eq!(item_separator(false), "\n");
+    }
+
+    #[test]
+    fn join_loose_spaces_blocks() {
+        let rendered = vec![
+            (false, "A".to_owned()),
+            (false, String::new()),
+            (false, "B".to_owned()),
+        ];
+        assert_eq!(join_loose(rendered), "A\n\nB");
+        let plain_then_empty = vec![
+            (true, "x".to_owned()),
+            (false, String::new()),
+            (true, "y".to_owned()),
+        ];
+        assert_eq!(join_loose(plain_then_empty), "x\ny");
+    }
+
+    #[test]
+    fn append_notes_sections() {
+        assert_eq!(append_notes("body\n".to_owned(), &[]), "body");
+        assert_eq!(
+            append_notes("body".to_owned(), &["[1] note".to_owned()]),
+            "body\n\n[1] note"
+        );
+        assert_eq!(
+            append_notes(String::new(), &["[1] note".to_owned()]),
+            "[1] note"
+        );
+    }
+}

@@ -970,3 +970,357 @@ const URI_SCHEMES: &[&str] = &[
     "z39.50r",
     "z39.50s",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oxidoc_ast::QuoteType;
+
+    fn render(blocks: Vec<Block>) -> String {
+        CommonmarkWriter
+            .write(
+                &Document {
+                    blocks,
+                    ..Document::default()
+                },
+                &WriterOptions::default(),
+            )
+            .unwrap()
+    }
+
+    fn para(inlines: Vec<Inline>) -> Block {
+        Block::Para(inlines)
+    }
+
+    fn str_inlines(text: &str) -> Vec<Inline> {
+        vec![Inline::Str(text.to_owned())]
+    }
+
+    fn plain_item(text: &str) -> Vec<Block> {
+        vec![Block::Plain(str_inlines(text))]
+    }
+
+    #[test]
+    fn ordered_list_collapses_to_decimal_and_one_paren() {
+        let attrs = ListAttributes {
+            start: 5,
+            style: ListNumberStyle::UpperRoman,
+            delim: ListNumberDelim::TwoParens,
+        };
+        let out = render(vec![Block::OrderedList(
+            attrs,
+            vec![plain_item("a"), plain_item("b")],
+        )]);
+        assert!(out.starts_with("5)  a"));
+        assert!(out.contains("6)  b"));
+    }
+
+    #[test]
+    fn ordered_list_period_delimiter_preserved() {
+        let attrs = ListAttributes {
+            start: 1,
+            style: ListNumberStyle::LowerAlpha,
+            delim: ListNumberDelim::Period,
+        };
+        let out = render(vec![Block::OrderedList(attrs, vec![plain_item("x")])]);
+        assert!(out.starts_with("1.  x"));
+    }
+
+    #[test]
+    fn autolink_for_uri_and_mailto() {
+        let uri = Target {
+            url: "http://example.com".into(),
+            title: String::new(),
+        };
+        assert_eq!(
+            autolink(&str_inlines("http://example.com"), &uri),
+            Some("<http://example.com>".to_owned())
+        );
+        let mail = Target {
+            url: "mailto:a@b.com".into(),
+            title: String::new(),
+        };
+        assert_eq!(
+            autolink(&str_inlines("a@b.com"), &mail),
+            Some("<a@b.com>".to_owned())
+        );
+        let plain = Target {
+            url: "http://other".into(),
+            title: String::new(),
+        };
+        assert_eq!(autolink(&str_inlines("text"), &plain), None);
+    }
+
+    #[test]
+    fn uri_and_scheme_recognition() {
+        assert!(is_uri("http://example.com"));
+        assert!(!is_uri("noscheme"));
+        assert!(!is_uri("bogusscheme:rest"));
+        assert!(is_known_scheme("HTTP"));
+        assert!(is_known_scheme("mailto"));
+        assert!(!is_known_scheme("nope"));
+    }
+
+    #[test]
+    fn autolink_class_detection() {
+        let uri_class = Attr {
+            classes: vec!["uri".into()],
+            ..Attr::default()
+        };
+        let email_class = Attr {
+            classes: vec!["email".into()],
+            ..Attr::default()
+        };
+        let other = Attr {
+            classes: vec!["other".into()],
+            ..Attr::default()
+        };
+        let with_id = Attr {
+            id: "x".into(),
+            classes: vec!["uri".into()],
+            ..Attr::default()
+        };
+        assert!(is_autolink_class(&uri_class));
+        assert!(is_autolink_class(&email_class));
+        assert!(!is_autolink_class(&other));
+        assert!(!is_autolink_class(&with_id));
+    }
+
+    #[test]
+    fn link_with_autolink_class_renders_angle_form() {
+        let link = Inline::Link(
+            Attr {
+                classes: vec!["uri".into()],
+                ..Attr::default()
+            },
+            str_inlines("http://example.com"),
+            Target {
+                url: "http://example.com".into(),
+                title: String::new(),
+            },
+        );
+        assert_eq!(render(vec![para(vec![link])]), "<http://example.com>");
+    }
+
+    #[test]
+    fn attributed_link_falls_back_to_html() {
+        let link = Inline::Link(
+            Attr {
+                id: "l".into(),
+                ..Attr::default()
+            },
+            str_inlines("text"),
+            Target {
+                url: "/p".into(),
+                title: "T".into(),
+            },
+        );
+        let out = render(vec![para(vec![link])]);
+        assert!(out.contains("<a href=\"/p\" id=\"l\" title=\"T\">text</a>"));
+    }
+
+    #[test]
+    fn plain_link_uses_inline_destination() {
+        let link = Inline::Link(
+            Attr::default(),
+            str_inlines("text"),
+            Target {
+                url: "/p".into(),
+                title: "T".into(),
+            },
+        );
+        assert_eq!(render(vec![para(vec![link])]), "[text](/p \"T\")");
+    }
+
+    #[test]
+    fn consecutive_lists_get_comment_separator() {
+        let out = render(vec![
+            Block::BulletList(vec![plain_item("a")]),
+            Block::BulletList(vec![plain_item("b")]),
+        ]);
+        assert!(out.contains("<!-- -->"));
+    }
+
+    #[test]
+    fn plain_followed_by_block_uses_single_newline() {
+        let out = render(vec![
+            Block::Plain(str_inlines("a")),
+            Block::Plain(str_inlines("b")),
+        ]);
+        assert_eq!(out, "a\nb");
+    }
+
+    #[test]
+    fn empty_header_keeps_marker() {
+        assert_eq!(
+            render(vec![Block::Header(2, Attr::default(), vec![])]),
+            "## "
+        );
+    }
+
+    #[test]
+    fn raw_html_block_collapses_blank_lines() {
+        let out = render(vec![Block::RawBlock(
+            Format("html".into()),
+            "<p>\n\nx\n".into(),
+        )]);
+        assert_eq!(out, "<p>\n&#10;x");
+    }
+
+    #[test]
+    fn empty_blockquote_renders_bare_marker() {
+        assert_eq!(quote_block(""), "> ");
+        let out = render(vec![Block::BlockQuote(vec![])]);
+        assert_eq!(out, "> ");
+    }
+
+    #[test]
+    fn smallcaps_and_double_emph() {
+        assert_eq!(
+            render(vec![para(vec![Inline::SmallCaps(str_inlines("x"))])]),
+            "<span class=\"smallcaps\">x</span>"
+        );
+        let double = Inline::Emph(vec![Inline::Emph(str_inlines("x"))]);
+        assert_eq!(render(vec![para(vec![double])]), "x");
+    }
+
+    #[test]
+    fn quoted_inline_uses_glyphs() {
+        let quoted = Inline::Quoted(QuoteType::DoubleQuote, str_inlines("x"));
+        assert_eq!(render(vec![para(vec![quoted])]), "\u{201c}x\u{201d}");
+    }
+
+    #[test]
+    fn span_with_attrs_wraps_in_tag() {
+        let span = Inline::Span(
+            Attr {
+                id: "s".into(),
+                ..Attr::default()
+            },
+            str_inlines("x"),
+        );
+        assert_eq!(render(vec![para(vec![span])]), "<span id=\"s\">x</span>");
+    }
+
+    #[test]
+    fn image_with_attrs_falls_back_to_html() {
+        let image = Inline::Image(
+            Attr {
+                classes: vec!["c".into()],
+                ..Attr::default()
+            },
+            str_inlines("alt"),
+            Target {
+                url: "i.png".into(),
+                title: "T".into(),
+            },
+        );
+        let out = render(vec![para(vec![image])]);
+        assert!(out.contains("<img src=\"i.png\" title=\"T\" class=\"c\" alt=\"alt\" />"));
+    }
+
+    #[test]
+    fn code_span_pads_around_backticks() {
+        assert_eq!(code_span("plain"), "`plain`");
+        assert_eq!(code_span("a`b"), "`` a`b ``");
+        assert_eq!(code_span(" x "), "`  x  `");
+        assert_eq!(longest_backtick_run("a``b`c"), 2);
+    }
+
+    #[test]
+    fn fenced_code_block_with_class() {
+        let attr = Attr {
+            classes: vec!["rust".into()],
+            ..Attr::default()
+        };
+        assert_eq!(
+            render(vec![Block::CodeBlock(attr.clone(), "fn x(){}\n".into())]),
+            "``` rust\nfn x(){}\n```"
+        );
+        assert_eq!(
+            render(vec![Block::CodeBlock(attr, String::new())]),
+            "``` rust\n```"
+        );
+    }
+
+    #[test]
+    fn indented_code_block_without_attrs() {
+        assert_eq!(
+            render(vec![Block::CodeBlock(Attr::default(), "a\n\nb\n".into())]),
+            "    a\n\n    b"
+        );
+    }
+
+    #[test]
+    fn character_and_named_reference_detection() {
+        assert!(begins_character_reference("&#65;"));
+        assert!(begins_character_reference("&#x41;"));
+        assert!(!begins_character_reference("&#;"));
+        assert!(!begins_character_reference("&65;"));
+        assert!(begins_named_entity("&amp;"));
+        assert!(!begins_named_entity("&notareal;"));
+        assert!(!begins_named_entity("&amp"));
+    }
+
+    #[test]
+    fn escape_str_escapes_markup_and_references() {
+        assert_eq!(
+            escape_str("a*b`c[d]e<f>", false),
+            "a\\*b\\`c\\[d\\]e\\<f\\>"
+        );
+        assert_eq!(escape_str("&amp;", false), "\\&amp;");
+        assert_eq!(escape_str("&#65;", false), "\\&#65;");
+        assert_eq!(escape_str("a_b", false), "a_b");
+        assert_eq!(escape_str("a _ b", false), "a \\_ b");
+        assert_eq!(escape_str("#lead", true), "\\#lead");
+    }
+
+    #[test]
+    fn leading_escape_finds_block_starters() {
+        assert_eq!(leading_escape("#x"), Some(0));
+        assert_eq!(leading_escape("- x"), Some(0));
+        assert_eq!(leading_escape("+ x"), Some(0));
+        assert_eq!(leading_escape("-x"), None);
+        assert_eq!(leading_escape("12. x"), Some(2));
+        assert_eq!(leading_escape("12) x"), Some(2));
+        assert_eq!(leading_escape("12.x"), None);
+        assert_eq!(leading_escape("1234567890. x"), None);
+        assert_eq!(leading_escape("abc"), None);
+    }
+
+    #[test]
+    fn word_boundary_for_underscore() {
+        assert!(!is_word_boundary(Some('a'), Some('b')));
+        assert!(is_word_boundary(Some('a'), Some(' ')));
+        assert!(is_word_boundary(None, Some('a')));
+    }
+
+    #[test]
+    fn code_block_indented_then_list_separates() {
+        assert!(needs_separator(
+            &Block::BulletList(vec![plain_item("a")]),
+            &Block::CodeBlock(Attr::default(), "x".into())
+        ));
+        assert!(!needs_separator(&Block::Para(vec![]), &Block::Para(vec![])));
+    }
+
+    #[test]
+    fn destination_and_title_helpers() {
+        assert_eq!(
+            destination(&Target {
+                url: "/p".into(),
+                title: String::new()
+            }),
+            "/p"
+        );
+        assert_eq!(
+            destination(&Target {
+                url: "/p".into(),
+                title: "T".into()
+            }),
+            "/p \"T\""
+        );
+        assert_eq!(title_attr(&String::new()), "");
+        assert_eq!(title_attr(&"T".to_owned()), " title=\"T\"");
+    }
+}

@@ -1525,4 +1525,359 @@ mod tests {
         assert!(document.meta.contains_key("title"));
         assert!(document.meta.contains_key("author"));
     }
+
+    use oxidoc_ast::{Alignment, ColWidth, ListNumberStyle, Target};
+
+    fn first_block(input: &str) -> Block {
+        blocks(input).into_iter().next().expect("a block")
+    }
+
+    fn para_inlines(input: &str) -> Vec<Inline> {
+        match first_block(input) {
+            Block::Para(inlines) | Block::Plain(inlines) => inlines,
+            other => panic!("expected a paragraph, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn normalizes_crlf_and_strips_bom() {
+        let inlines = para_inlines("\u{feff}<p>a\r\nb</p>");
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("a".to_string()),
+                Inline::SoftBreak,
+                Inline::Str("b".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn ordered_list_reads_type_and_start() {
+        let Block::OrderedList(attrs, items) =
+            first_block(r#"<ol type="A" start="3"><li>x</li><li>y</li></ol>"#)
+        else {
+            panic!("expected ordered list");
+        };
+        assert_eq!(attrs.start, 3);
+        assert_eq!(attrs.style, ListNumberStyle::UpperAlpha);
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn menu_is_a_bullet_list() {
+        assert!(matches!(
+            first_block("<menu><li>a</li></menu>"),
+            Block::BulletList(_)
+        ));
+    }
+
+    #[test]
+    fn implied_li_close_splits_items() {
+        let Block::BulletList(items) = first_block("<ul><li>a<li>b</ul>") else {
+            panic!("expected bullet list");
+        };
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn pre_with_code_language_class_becomes_code_block() {
+        let Block::CodeBlock(attr, text) = first_block(
+            r#"<pre><code class="language-rust">let x = 1;
+</code></pre>"#,
+        ) else {
+            panic!("expected code block");
+        };
+        assert_eq!(attr.classes, vec!["rust".to_string()]);
+        assert_eq!(text, "let x = 1;");
+    }
+
+    #[test]
+    fn definition_list_pairs_terms_and_definitions() {
+        let Block::DefinitionList(items) =
+            first_block("<dl><dt>term</dt><dd>one</dd><dd>two</dd></dl>")
+        else {
+            panic!("expected definition list");
+        };
+        let (term, defs) = items.into_iter().next().expect("an item");
+        assert_eq!(term, vec![Inline::Str("term".to_string())]);
+        assert_eq!(defs.len(), 2);
+    }
+
+    #[test]
+    fn blockquote_wraps_child_blocks() {
+        assert!(matches!(
+            first_block("<blockquote><p>q</p></blockquote>"),
+            Block::BlockQuote(_)
+        ));
+    }
+
+    #[test]
+    fn sectioning_div_gets_a_class() {
+        let Block::Div(attr, _) = first_block("<section><p>x</p></section>") else {
+            panic!("expected div");
+        };
+        assert!(attr.classes.contains(&"section".to_string()));
+    }
+
+    #[test]
+    fn figure_separates_caption_from_content() {
+        let Block::Figure(_, caption, content) =
+            first_block("<figure><img src=\"a.png\"><figcaption>cap</figcaption></figure>")
+        else {
+            panic!("expected figure");
+        };
+        assert_eq!(caption.short, None);
+        assert!(!caption.long.is_empty());
+        assert!(!content.is_empty());
+    }
+
+    #[test]
+    fn table_reads_sections_alignment_and_spans() {
+        let input = r#"<table>
+            <caption>cap</caption>
+            <colgroup><col style="width: 25%"><col></colgroup>
+            <thead><tr><th align="right">H1</th><th>H2</th></tr></thead>
+            <tbody><tr><td colspan="2">wide</td></tr></tbody>
+            <tfoot><tr><td>f1</td><td>f2</td></tr></tfoot>
+        </table>"#;
+        let Block::Table(table) = first_block(input) else {
+            panic!("expected table");
+        };
+        assert_eq!(table.col_specs.len(), 2);
+        assert_eq!(
+            table.col_specs.first().map(|spec| spec.width.clone()),
+            Some(ColWidth::ColWidth(0.25))
+        );
+        assert_eq!(
+            table
+                .head
+                .rows
+                .first()
+                .and_then(|row| row.cells.first())
+                .map(|cell| cell.align.clone()),
+            Some(Alignment::AlignRight)
+        );
+        let body_cell_span = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .map(|cell| cell.col_span);
+        assert_eq!(body_cell_span, Some(2));
+        assert_eq!(table.foot.rows.len(), 1);
+    }
+
+    #[test]
+    fn cell_alignment_reads_text_align_style() {
+        let Block::Table(table) =
+            first_block(r#"<table><tr><td style="text-align: center">c</td></tr></table>"#)
+        else {
+            panic!("expected table");
+        };
+        let align = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .map(|cell| cell.align.clone());
+        assert_eq!(align, Some(Alignment::AlignCenter));
+    }
+
+    #[test]
+    fn every_inline_emphasis_kind_is_mapped() {
+        let inlines = para_inlines(
+            "<p><em>a</em><b>b</b><del>c</del><u>d</u><sup>e</sup><sub>f</sub><q>g</q></p>",
+        );
+        assert!(matches!(
+            inlines.as_slice(),
+            [
+                Inline::Emph(_),
+                Inline::Strong(_),
+                Inline::Strikeout(_),
+                Inline::Underline(_),
+                Inline::Superscript(_),
+                Inline::Subscript(_),
+                Inline::Quoted(_, _),
+            ]
+        ));
+    }
+
+    #[test]
+    fn class_carrying_inlines_become_spans() {
+        let inlines = para_inlines("<p><mark>m</mark><kbd>k</kbd></p>");
+        let classes: Vec<&str> = inlines
+            .iter()
+            .filter_map(|inline| match inline {
+                Inline::Span(attr, _) => attr.classes.first().map(String::as_str),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(classes, vec!["mark", "kbd"]);
+    }
+
+    #[test]
+    fn code_variants_force_classes() {
+        let inlines = para_inlines("<p><code>c</code><samp>s</samp><var>v</var></p>");
+        let classes: Vec<Vec<String>> = inlines
+            .iter()
+            .filter_map(|inline| match inline {
+                Inline::Code(attr, _) => Some(attr.classes.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            classes,
+            vec![
+                Vec::<String>::new(),
+                vec!["sample".to_string()],
+                vec!["variable".to_string()],
+            ]
+        );
+    }
+
+    #[test]
+    fn line_break_element_becomes_line_break() {
+        let inlines = para_inlines("<p>a<br>b</p>");
+        assert!(inlines.contains(&Inline::LineBreak));
+    }
+
+    #[test]
+    fn anchor_with_href_is_a_link() {
+        let inlines = para_inlines(r#"<p><a href="/u" title="T" class="x">t</a></p>"#);
+        let Some(Inline::Link(attr, _, target)) = inlines.first() else {
+            panic!("expected link");
+        };
+        assert_eq!(
+            *target,
+            Target {
+                url: "/u".to_string(),
+                title: "T".to_string()
+            }
+        );
+        assert!(attr.classes.contains(&"x".to_string()));
+    }
+
+    #[test]
+    fn anchor_with_name_is_a_span_with_id() {
+        let inlines = para_inlines(r#"<p><a name="anchor">t</a></p>"#);
+        let Some(Inline::Span(attr, _)) = inlines.first() else {
+            panic!("expected span");
+        };
+        assert_eq!(attr.id, "anchor");
+    }
+
+    #[test]
+    fn image_reads_src_title_and_alt() {
+        let inlines = para_inlines(r#"<p><img src="a.png" title="T" alt="alt text"></p>"#);
+        let Some(Inline::Image(_, alt, target)) = inlines.first() else {
+            panic!("expected image");
+        };
+        assert_eq!(target.url, "a.png");
+        assert_eq!(target.title, "T");
+        assert_eq!(
+            alt.as_slice(),
+            [
+                Inline::Str("alt".to_string()),
+                Inline::Space,
+                Inline::Str("text".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn unknown_inline_element_is_transparent() {
+        let inlines = para_inlines("<p>a<bogus>b</bogus>c</p>");
+        assert_eq!(inlines.as_slice(), [Inline::Str("abc".to_string())]);
+    }
+
+    #[test]
+    fn data_attributes_drop_their_prefix() {
+        let Block::Div(attr, _) = first_block(r#"<div id="d" data-role="note">x</div>"#) else {
+            panic!("expected div");
+        };
+        assert_eq!(attr.id, "d");
+        assert!(
+            attr.attributes
+                .contains(&("role".to_string(), "note".to_string()))
+        );
+    }
+
+    #[test]
+    fn boolean_and_unquoted_attributes_parse() {
+        let Block::OrderedList(attrs, _) = first_block("<ol reversed start=5><li>a</li></ol>")
+        else {
+            panic!("expected ordered list");
+        };
+        assert_eq!(attrs.start, 5);
+    }
+
+    #[test]
+    fn numeric_and_named_references_decode() {
+        let inlines = para_inlines("<p>&#65;&#x42;&#X43;&copy</p>");
+        assert_eq!(inlines.as_slice(), [Inline::Str("ABC\u{a9}".to_string())]);
+    }
+
+    #[test]
+    fn unknown_entity_is_left_verbatim() {
+        let inlines = para_inlines("<p>&notreal;</p>");
+        assert_eq!(inlines.as_slice(), [Inline::Str("&notreal;".to_string())]);
+    }
+
+    #[test]
+    fn style_block_is_dropped() {
+        assert!(blocks("<style>p { color: red }</style><p>x</p>").len() == 1);
+    }
+
+    #[test]
+    fn textarea_content_is_read_as_text() {
+        let inlines = para_inlines("<p><textarea>typed &amp; ok</textarea></p>");
+        assert!(
+            inlines
+                .iter()
+                .any(|inline| matches!(inline, Inline::Str(s) if s.contains('&')))
+        );
+    }
+
+    #[test]
+    fn cdata_and_processing_instructions_are_skipped() {
+        let inlines = para_inlines("<p>a<![CDATA[ junk ]]><?pi here?>b</p>");
+        assert_eq!(inlines.as_slice(), [Inline::Str("ab".to_string())]);
+    }
+
+    #[test]
+    fn doctype_declaration_is_skipped() {
+        assert!(matches!(
+            first_block("<!DOCTYPE html><p>x</p>"),
+            Block::Para(_)
+        ));
+    }
+
+    #[test]
+    fn stray_less_than_is_literal_text() {
+        let inlines = para_inlines("<p>a < b</p>");
+        assert!(
+            inlines
+                .iter()
+                .any(|inline| matches!(inline, Inline::Str(s) if s.contains('<')))
+        );
+    }
+
+    #[test]
+    fn self_closing_span_has_no_children() {
+        let inlines = para_inlines("<p>a<span/>b</p>");
+        assert!(
+            inlines
+                .iter()
+                .any(|inline| matches!(inline, Inline::Span(_, children) if children.is_empty()))
+        );
+    }
+
+    #[test]
+    fn explicit_id_on_heading_is_preserved() {
+        let Block::Header(_, attr, _) = first_block(r#"<h2 id="custom">Title</h2>"#) else {
+            panic!("expected header");
+        };
+        assert_eq!(attr.id, "custom");
+    }
 }
