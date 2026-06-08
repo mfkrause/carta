@@ -34,3 +34,6 @@ oxidoc-core = { workspace = true }
 # `default-features = false` cannot override an inherited workspace dependency.
 oxidoc-readers = { path = "../oxidoc-readers", default-features = false, optional = true }
 oxidoc-writers = { path = "../oxidoc-writers", default-features = false, optional = true }
+
+[dev-dependencies]
+insta = { workspace = true }
