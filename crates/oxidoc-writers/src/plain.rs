@@ -8,8 +8,8 @@ use oxidoc_ast::{Block, Document, Format, Inline, ListAttributes};
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, fill, fill_offset, indent_block, list_is_tight, offset_as_i32,
-    ordered_marker, quote_marks,
+    FILL_COLUMN, Piece, fill, fill_offset, indent_block, is_loose, item_separator, join_loose,
+    offset_as_i32, ordered_marker, quote_marks,
 };
 
 /// Renders a document to plain text.
@@ -303,45 +303,6 @@ impl State {
             other => self.block(other, width),
         }
     }
-}
-
-/// Join already-rendered blocks with the document's default blank-line spacing, dropping blocks that
-/// produced no output. A [`Block::Plain`] contributes only a single newline (not a blank line)
-/// before the next visible block when an empty block falls between them.
-fn join_loose(rendered: Vec<(bool, String)>) -> String {
-    let mut out = String::new();
-    let mut previous_was_plain: Option<bool> = None;
-    let mut empty_since_previous = false;
-    for (is_plain, text) in rendered {
-        if text.is_empty() {
-            if previous_was_plain.is_some() {
-                empty_since_previous = true;
-            }
-            continue;
-        }
-        if let Some(was_plain) = previous_was_plain {
-            if was_plain && empty_since_previous {
-                out.push('\n');
-            } else {
-                out.push_str("\n\n");
-            }
-        }
-        out.push_str(&text);
-        previous_was_plain = Some(is_plain);
-        empty_since_previous = false;
-    }
-    out
-}
-
-/// Whether a list is "loose" — at least one item carries a top-level paragraph. A loose list's items
-/// are separated with a blank line and each item's blocks are laid out with blank lines; a tight list
-/// uses single newlines throughout.
-fn is_loose(items: &[Vec<Block>]) -> bool {
-    !list_is_tight(items)
-}
-
-fn item_separator(loose: bool) -> &'static str {
-    if loose { "\n\n" } else { "\n" }
 }
 
 /// Whether a raw node targets this writer and should pass its content through verbatim. Raw content
