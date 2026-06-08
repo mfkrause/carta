@@ -13,7 +13,8 @@ use oxidoc_ast::{
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    attribute_value, escape_attr, escape_xml, is_uri_scheme, quote_marks, render_html_attr,
+    attribute_value, escape_attr, escape_xml, is_percent_escaped_uri, is_uri_scheme, quote_marks,
+    render_html_attr,
 };
 
 /// Renders a document to `MediaWiki` markup.
@@ -366,7 +367,7 @@ impl State {
         if is_external_uri(&target.url) {
             if plain != target.url {
                 format!("[{} {label}]", target.url)
-            } else if is_clean_autolink(&target.url) {
+            } else if is_percent_escaped_uri(&target.url, false) {
                 target.url.clone()
             } else if label == target.url {
                 format!("[[{}]]", target.url)
@@ -445,58 +446,6 @@ fn guarded_paragraph(rendered: String) -> String {
     } else {
         rendered
     }
-}
-
-/// Whether a URL renders as a bare auto-linking address: every character is URL-permitted and each
-/// `%` introduces a two-digit hex escape. A URL with any other character is wrapped in link brackets
-/// so the markup stays well-formed.
-fn is_clean_autolink(url: &str) -> bool {
-    let bytes = url.as_bytes();
-    let mut index = 0;
-    while let Some(&byte) = bytes.get(index) {
-        if byte == b'%' {
-            let two_hex = bytes.get(index + 1).is_some_and(u8::is_ascii_hexdigit)
-                && bytes.get(index + 2).is_some_and(u8::is_ascii_hexdigit);
-            if !two_hex {
-                return false;
-            }
-            index += 3;
-            continue;
-        }
-        if !is_autolink_byte(byte) {
-            return false;
-        }
-        index += 1;
-    }
-    true
-}
-
-/// Whether a byte may appear literally in a bare auto-linking URL: the unreserved, sub-delimiter,
-/// and generic-delimiter URI characters.
-fn is_autolink_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric()
-        || matches!(
-            byte,
-            b'-' | b'.'
-                | b'_'
-                | b'~'
-                | b'!'
-                | b'$'
-                | b'&'
-                | b'\''
-                | b'('
-                | b')'
-                | b'*'
-                | b'+'
-                | b','
-                | b';'
-                | b'='
-                | b':'
-                | b'/'
-                | b'?'
-                | b'#'
-                | b'@'
-        )
 }
 
 /// The anchor `MediaWiki` derives for a section heading: its plain-text content with spaces turned

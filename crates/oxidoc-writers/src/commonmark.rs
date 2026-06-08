@@ -12,7 +12,8 @@ use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
-    is_loose, item_separator, offset_as_i32, ordered_marker, quote_marks, render_html_attr,
+    is_loose, is_percent_escaped_uri, item_separator, offset_as_i32, ordered_marker, quote_marks,
+    render_html_attr,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -508,67 +509,13 @@ fn is_uri(text: &str) -> bool {
     let Some(colon) = text.find(':') else {
         return false;
     };
-    text.get(..colon).is_some_and(is_known_scheme) && has_valid_uri_chars(text)
+    text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
 }
 
 /// Whether `scheme` is one of the recognized URI schemes (compared case-insensitively).
 fn is_known_scheme(scheme: &str) -> bool {
     let lowered = scheme.to_ascii_lowercase();
     URI_SCHEMES.binary_search(&lowered.as_str()).is_ok()
-}
-
-/// Whether every character of `text` is permitted in a URI: any non-ASCII character, the unreserved
-/// and reserved ASCII punctuation, an ASCII alphanumeric, or a percent escape (`%` and two hex
-/// digits).
-fn has_valid_uri_chars(text: &str) -> bool {
-    let chars: Vec<char> = text.chars().collect();
-    let mut index = 0;
-    while let Some(&ch) = chars.get(index) {
-        if ch == '%' {
-            let valid = chars.get(index + 1).is_some_and(char::is_ascii_hexdigit)
-                && chars.get(index + 2).is_some_and(char::is_ascii_hexdigit);
-            if !valid {
-                return false;
-            }
-            index += 3;
-            continue;
-        }
-        if !is_uri_char(ch) {
-            return false;
-        }
-        index += 1;
-    }
-    true
-}
-
-/// Whether a single character may appear literally in a URI (percent escapes aside).
-fn is_uri_char(ch: char) -> bool {
-    if !ch.is_ascii() {
-        return true;
-    }
-    ch.is_ascii_alphanumeric()
-        || matches!(
-            ch,
-            '-' | '.'
-                | '_'
-                | '~'
-                | ':'
-                | '/'
-                | '?'
-                | '#'
-                | '@'
-                | '!'
-                | '$'
-                | '&'
-                | '\''
-                | '('
-                | ')'
-                | '*'
-                | '+'
-                | ','
-                | ';'
-                | '='
-        )
 }
 
 fn attr_is_empty(attr: &Attr) -> bool {
