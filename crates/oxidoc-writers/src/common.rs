@@ -463,6 +463,59 @@ pub(crate) fn is_uri_scheme(scheme: &str) -> bool {
         && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
 }
 
+/// Whether `text` is made up solely of URI-permitted characters with every `%` introducing a
+/// two-digit hex escape. ASCII alphanumerics and the unreserved, sub-delimiter, and generic-delimiter
+/// punctuation are permitted; non-ASCII characters are permitted only when `allow_non_ascii` is set.
+pub(crate) fn is_percent_escaped_uri(text: &str, allow_non_ascii: bool) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut index = 0;
+    while let Some(&ch) = chars.get(index) {
+        if ch == '%' {
+            let two_hex = chars.get(index + 1).is_some_and(char::is_ascii_hexdigit)
+                && chars.get(index + 2).is_some_and(char::is_ascii_hexdigit);
+            if !two_hex {
+                return false;
+            }
+            index += 3;
+            continue;
+        }
+        if !is_uri_char(ch, allow_non_ascii) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+fn is_uri_char(ch: char, allow_non_ascii: bool) -> bool {
+    if !ch.is_ascii() {
+        return allow_non_ascii;
+    }
+    ch.is_ascii_alphanumeric()
+        || matches!(
+            ch,
+            '-' | '.'
+                | '_'
+                | '~'
+                | ':'
+                | '/'
+                | '?'
+                | '#'
+                | '@'
+                | '!'
+                | '$'
+                | '&'
+                | '\''
+                | '('
+                | ')'
+                | '*'
+                | '+'
+                | ','
+                | ';'
+                | '='
+        )
+}
+
 /// Escape the XML/HTML metacharacters `&`, `<`, and `>` to their entities, and additionally `"` when
 /// `escape_quotes` is set (as in an attribute value).
 pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
