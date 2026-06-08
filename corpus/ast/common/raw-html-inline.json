@@ -1,0 +1,48 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "text"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "RawInline",
+          "c": [
+            "html",
+            "<cite>"
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "raw"
+        },
+        {
+          "t": "RawInline",
+          "c": [
+            "html",
+            "</cite>"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "more"
+        }
+      ]
+    }
+  ]
+}

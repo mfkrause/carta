@@ -1,0 +1,20 @@
+- tight bullet one
+- tight bullet two
+- tight bullet three
+
+1. ordered one
+2. ordered two
+
+3) ordered with paren
+
+Loose bullets:
+
+- loose one
+
+- loose two
+
+Nested:
+
+- outer
+    - inner one
+    - inner two

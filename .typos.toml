@@ -5,13 +5,16 @@
 # Exclude external reference data we don't author and shouldn't spell-check:
 # - entities.json: the HTML named-character-reference table, keyed by spec-defined entity names
 #   (e.g. &curren;, &ofr;), not prose.
-# - testkit vendor/: the vendored CommonMark spec corpus, full of deliberate test strings.
+# - vendor/: the vendored CommonMark spec corpus, full of deliberate test strings.
+# - corpus/ast, corpus/text: hand-authored test inputs full of deliberate test strings.
 extend-exclude = [
   ".oracle/",
   "target/",
   "*.lock",
   "crates/oxidoc-readers/data/entities.json",
-  "crates/oxidoc-testkit/vendor/",
+  "vendor/",
+  "corpus/ast/",
+  "corpus/text/",
 ]
 
 [default.extend-words]

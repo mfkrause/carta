@@ -1,0 +1,42 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "LineBlock",
+      "c": [
+        [
+          {
+            "t": "Str",
+            "c": "first"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "line"
+          }
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "second"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "line"
+          }
+        ]
+      ]
+    }
+  ]
+}

@@ -11,7 +11,7 @@ set -euo pipefail
 
 SPEC_VERSION="0.31.2"
 REPO="commonmark/commonmark-spec"
-DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/crates/oxidoc-testkit/vendor/commonmark"
+DEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/vendor/commonmark"
 
 base="https://raw.githubusercontent.com/${REPO}/${SPEC_VERSION}"
 
