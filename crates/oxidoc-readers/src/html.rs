@@ -9,9 +9,9 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use oxidoc_ast::{
-    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
-    ListNumberDelim, ListNumberStyle, MetaValue, QuoteType, Row, Table, TableBody, TableFoot,
-    TableHead, Target, slug, to_plain_text,
+    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
+    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table,
+    TableBody, TableFoot, TableHead, Target, slug, to_plain_text,
 };
 use oxidoc_core::{Reader, ReaderOptions, Result};
 
@@ -492,6 +492,13 @@ fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
     }
 
     while stack.len() > 1 {
+        if let Some(top) = stack.last()
+            && top.name == "a"
+            && is_blank_anchor(top)
+        {
+            stack.pop();
+            continue;
+        }
         fold_top(&mut stack);
     }
     stack
@@ -499,6 +506,15 @@ fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
         .next()
         .map(|root| root.children)
         .unwrap_or_default()
+}
+
+/// Whether an `<a>` left open at end of input carries nothing worth keeping: no element children and
+/// only whitespace text. Such a stray anchor contributes no content and is discarded.
+fn is_blank_anchor(e: &Element) -> bool {
+    e.children.iter().all(|node| match node {
+        Node::Text(text) => text.trim().is_empty(),
+        Node::Element(_) => false,
+    })
 }
 
 fn push_child(stack: &mut [Element], node: Node) {
@@ -528,6 +544,7 @@ fn close_implied(stack: &mut Vec<Element>, name: &str) {
             return;
         };
         let close = match name {
+            "a" => open == "a",
             "li" => open == "li",
             "dt" | "dd" => open == "dt" || open == "dd",
             "option" => open == "option",
@@ -675,6 +692,7 @@ fn text_inlines(e: &Element) -> Vec<Inline> {
 #[derive(Default)]
 struct Converter {
     used_ids: BTreeSet<String>,
+    in_list_item: std::cell::Cell<bool>,
 }
 
 impl Converter {
@@ -691,6 +709,14 @@ impl Converter {
         self.blocks(&refs, in_list)
     }
 
+    fn line_block_lines(&self, children: &[Node]) -> Vec<Vec<Inline>> {
+        let inlines = self.build_inlines(children);
+        inlines
+            .split(|inline| matches!(inline, Inline::LineBreak))
+            .map(|line| trim_inlines(line.to_vec()))
+            .collect()
+    }
+
     fn process<'a>(
         &mut self,
         nodes: impl Iterator<Item = &'a Node>,
@@ -701,7 +727,14 @@ impl Converter {
             match node {
                 Node::Text(text) => push_text(pending, text),
                 Node::Element(e) => {
-                    if matches!(e.name.as_str(), "script" | "style" | "head") {
+                    if e.name == "head" {
+                        continue;
+                    }
+                    if e.name == "script" && !is_math_script(e) {
+                        flush(pending, out);
+                        continue;
+                    }
+                    if e.name == "style" && is_blank_run(pending) {
                         continue;
                     }
                     if let Some(kind) = block_kind(&e.name) {
@@ -719,7 +752,17 @@ impl Converter {
 
     fn emit_block(&mut self, kind: BlockKind, e: &Element, out: &mut Vec<Block>) {
         match kind {
-            BlockKind::Para => out.push(Block::Para(trim_inlines(self.build_inlines(&e.children)))),
+            BlockKind::Para => {
+                let inlines = trim_inlines(self.build_inlines(&e.children));
+                if inlines.is_empty() {
+                    return;
+                }
+                if contains_checkbox(e) {
+                    out.push(Block::Plain(inlines));
+                } else {
+                    out.push(Block::Para(inlines));
+                }
+            }
             BlockKind::Header(level) => {
                 let inlines = trim_inlines(self.build_inlines(&e.children));
                 let attr = self.header_attr(e, &inlines);
@@ -735,8 +778,12 @@ impl Converter {
             BlockKind::Pre => out.push(Self::code_block(e)),
             BlockKind::HorizontalRule => out.push(Block::HorizontalRule),
             BlockKind::Div { sectioning } => {
-                let attr = div_attr(e, sectioning);
-                out.push(Block::Div(attr, self.child_blocks(&e.children, false)));
+                if !sectioning && is_line_block_div(e) {
+                    out.push(Block::LineBlock(self.line_block_lines(&e.children)));
+                } else {
+                    let attr = div_attr(e, sectioning);
+                    out.push(Block::Div(attr, self.child_blocks(&e.children, false)));
+                }
             }
             BlockKind::DefinitionList => out.push(self.definition_list(e)),
             BlockKind::Table => out.push(self.table(e)),
@@ -745,13 +792,26 @@ impl Converter {
     }
 
     fn list_items(&mut self, e: &Element) -> Vec<Vec<Block>> {
-        e.children
-            .iter()
-            .filter_map(|node| match node {
+        let mut items: Vec<Vec<&Node>> = Vec::new();
+        for node in &e.children {
+            match node {
                 Node::Element(item) if item.name == "li" => {
-                    Some(self.child_blocks(&item.children, true))
+                    items.push(item.children.iter().collect());
                 }
-                _ => None,
+                Node::Text(text) if text.trim().is_empty() => {}
+                _ => match items.last_mut() {
+                    Some(current) => current.push(node),
+                    None => items.push(vec![node]),
+                },
+            }
+        }
+        items
+            .into_iter()
+            .map(|nodes| {
+                let previous = self.in_list_item.replace(true);
+                let blocks = self.blocks(&nodes, true);
+                self.in_list_item.set(previous);
+                blocks
             })
             .collect()
     }
@@ -763,10 +823,19 @@ impl Converter {
             let Node::Element(item) = child else { continue };
             match item.name.as_str() {
                 "dt" => {
-                    if let Some(done) = current.take() {
-                        items.push(done);
+                    let term = trim_inlines(self.build_inlines(&item.children));
+                    match current.as_mut() {
+                        Some((existing_term, definitions)) if definitions.is_empty() => {
+                            existing_term.push(Inline::LineBreak);
+                            existing_term.extend(term);
+                        }
+                        _ => {
+                            if let Some(done) = current.take() {
+                                items.push(done);
+                            }
+                            current = Some((term, Vec::new()));
+                        }
                     }
-                    current = Some((trim_inlines(self.build_inlines(&item.children)), Vec::new()));
                 }
                 "dd" => {
                     let definition = self.child_blocks(&item.children, true);
@@ -800,7 +869,7 @@ impl Converter {
             }
             content_nodes.push(child);
         }
-        Block::Figure(attr, caption, self.blocks(&content_nodes, false))
+        Block::Figure(attr, caption, self.blocks(&content_nodes, true))
     }
 
     fn code_block(e: &Element) -> Block {
@@ -835,6 +904,7 @@ impl Converter {
         let mut head_rows = Vec::new();
         let mut body_rows = Vec::new();
         let mut foot_rows = Vec::new();
+        let mut body_row_elements: Vec<&Element> = Vec::new();
         for child in &e.children {
             let Node::Element(section) = child else {
                 continue;
@@ -848,12 +918,19 @@ impl Converter {
                 }
                 "colgroup" => col_widths = column_widths(section),
                 "thead" => head_rows.extend(self.rows(section)),
-                "tbody" => body_rows.extend(self.rows(section)),
+                "tbody" => {
+                    body_rows.extend(self.rows(section));
+                    body_row_elements.extend(row_elements(section));
+                }
                 "tfoot" => foot_rows.extend(self.rows(section)),
-                "tr" => body_rows.push(self.row(section)),
+                "tr" => {
+                    body_rows.push(self.row(section));
+                    body_row_elements.push(section);
+                }
                 _ => {}
             }
         }
+        let row_head_columns = row_head_columns(&body_row_elements);
 
         let columns = table_width(&head_rows, &body_rows, &foot_rows, col_widths.len());
         let aligns = column_alignments(body_rows.first().or_else(|| head_rows.first()), columns);
@@ -877,7 +954,7 @@ impl Converter {
             },
             bodies: vec![TableBody {
                 attr: Attr::default(),
-                row_head_columns: 0,
+                row_head_columns,
                 head: Vec::new(),
                 body: body_rows,
             }],
@@ -991,19 +1068,56 @@ impl Converter {
             }
             InlineKind::LineBreak => out.push(Inline::LineBreak),
             InlineKind::Span => {
-                out.push(Inline::Span(
-                    extract_attr(e, &[]),
-                    self.build_inlines(&e.children),
-                ));
+                let inner = self.build_inlines(&e.children);
+                if is_small_caps(e) {
+                    out.push(Inline::SmallCaps(inner));
+                } else {
+                    out.push(Inline::Span(extract_attr(e, &[]), inner));
+                }
+            }
+            InlineKind::Bdo => {
+                let inner = self.build_inlines(&e.children);
+                if let Some(dir) = attr_value(e, "dir") {
+                    let attr = Attr {
+                        id: String::new(),
+                        classes: Vec::new(),
+                        attributes: vec![("dir".to_string(), dir)],
+                    };
+                    out.push(Inline::Span(attr, inner));
+                } else {
+                    out.extend(inner);
+                }
             }
             InlineKind::SpanClass => {
                 let mut attr = extract_attr(e, &[]);
                 attr.classes.insert(0, e.name.clone());
                 out.push(Inline::Span(attr, self.build_inlines(&e.children)));
             }
-            InlineKind::Code(class) => out.push(Self::code_inline(e, class)),
-            InlineKind::Anchor => out.push(self.anchor(e)),
+            InlineKind::Code(class) => self.code_inline(out, e, class),
+            InlineKind::Anchor => self.anchor(out, e),
             InlineKind::Image => out.push(image(e)),
+            InlineKind::Style => {
+                out.push(Inline::RawInline(
+                    Format("html".to_string()),
+                    serialize_element(e),
+                ));
+            }
+            InlineKind::Script => {
+                if let Some(math_type) = math_script_type(e) {
+                    out.push(Inline::Math(math_type, collect_text(e)));
+                }
+            }
+            InlineKind::Input => {
+                if is_checkbox(e) && self.in_list_item.get() {
+                    let symbol = if attr_value(e, "checked").is_some() {
+                        '\u{2612}'
+                    } else {
+                        '\u{2610}'
+                    };
+                    out.push(Inline::Str(symbol.to_string()));
+                    out.push(Inline::Space);
+                }
+            }
             InlineKind::Transparent => {
                 for child in &e.children {
                     self.append_inline(out, child);
@@ -1012,29 +1126,143 @@ impl Converter {
         }
     }
 
-    fn code_inline(e: &Element, forced_class: Option<&str>) -> Inline {
+    fn code_inline(&self, out: &mut Vec<Inline>, e: &Element, forced_class: Option<&str>) {
         let mut attr = extract_attr(e, &[]);
         if let Some(class) = forced_class {
             attr.classes = vec![class.to_string()];
         }
-        Inline::Code(attr, collect_text(e))
+        if e.children
+            .iter()
+            .any(|node| matches!(node, Node::Element(_)))
+        {
+            let inner = self.build_inlines(&e.children);
+            codify(out, inner, &attr);
+        } else {
+            out.push(Inline::Code(attr, collect_text(e)));
+        }
     }
 
-    fn anchor(&self, e: &Element) -> Inline {
+    fn anchor(&self, out: &mut Vec<Inline>, e: &Element) {
         let inner = self.build_inlines(&e.children);
-        if let Some(href) = attr_value(e, "href") {
-            let title = attr_value(e, "title").unwrap_or_default();
-            let attr = extract_attr(e, &["href", "title"]);
-            return Inline::Link(attr, inner, Target { url: href, title });
-        }
-        let mut attr = extract_attr(e, &["name"]);
+        let (leading, trimmed, trailing) = hoist_edge_whitespace(inner);
+        let mut attr = extract_attr(e, &["href", "title", "name"]);
         if attr.id.is_empty()
             && let Some(name) = attr_value(e, "name")
         {
             attr.id = name;
         }
-        Inline::Span(attr, inner)
+        if let Some(lead) = leading {
+            out.push(lead);
+        }
+        let anchor = if let Some(href) = attr_value(e, "href") {
+            let title = attr_value(e, "title").unwrap_or_default();
+            Inline::Link(attr, trimmed, Target { url: href, title })
+        } else {
+            Inline::Span(attr, trimmed)
+        };
+        out.push(anchor);
+        if let Some(trail) = trailing {
+            out.push(trail);
+        }
     }
+}
+
+/// Render the contents of a `<code>` element that carries inline markup: each run of text becomes a
+/// [`Inline::Code`] carrying the element's attributes, while container inlines keep their structure
+/// with their own text runs codified in turn.
+fn codify(out: &mut Vec<Inline>, inlines: Vec<Inline>, attr: &Attr) {
+    let mut run = String::new();
+    let flush = |run: &mut String, out: &mut Vec<Inline>| {
+        if !run.is_empty() {
+            out.push(Inline::Code(attr.clone(), std::mem::take(run)));
+        }
+    };
+    for inline in inlines {
+        match inline {
+            Inline::Str(text) => run.push_str(&text),
+            Inline::Space | Inline::SoftBreak => run.push(' '),
+            Inline::Emph(children) => {
+                flush(&mut run, out);
+                out.push(Inline::Emph(codified(children, attr)));
+            }
+            Inline::Strong(children) => {
+                flush(&mut run, out);
+                out.push(Inline::Strong(codified(children, attr)));
+            }
+            Inline::Strikeout(children) => {
+                flush(&mut run, out);
+                out.push(Inline::Strikeout(codified(children, attr)));
+            }
+            Inline::Underline(children) => {
+                flush(&mut run, out);
+                out.push(Inline::Underline(codified(children, attr)));
+            }
+            Inline::Superscript(children) => {
+                flush(&mut run, out);
+                out.push(Inline::Superscript(codified(children, attr)));
+            }
+            Inline::Subscript(children) => {
+                flush(&mut run, out);
+                out.push(Inline::Subscript(codified(children, attr)));
+            }
+            Inline::SmallCaps(children) => {
+                flush(&mut run, out);
+                out.push(Inline::SmallCaps(codified(children, attr)));
+            }
+            Inline::Span(span_attr, children) => {
+                flush(&mut run, out);
+                out.push(Inline::Span(span_attr, codified(children, attr)));
+            }
+            Inline::Link(link_attr, children, target) => {
+                flush(&mut run, out);
+                out.push(Inline::Link(link_attr, codified(children, attr), target));
+            }
+            other => {
+                flush(&mut run, out);
+                out.push(other);
+            }
+        }
+    }
+    flush(&mut run, out);
+}
+
+fn codified(inlines: Vec<Inline>, attr: &Attr) -> Vec<Inline> {
+    let mut out = Vec::new();
+    codify(&mut out, inlines, attr);
+    out
+}
+
+/// Whether a `<span>` requests small-caps rendering, either through the `smallcaps` class or a
+/// `font-variant: small-caps` style declaration.
+fn is_small_caps(e: &Element) -> bool {
+    if e.attrs
+        .iter()
+        .any(|(key, value)| key == "class" && value.split_whitespace().any(|c| c == "smallcaps"))
+    {
+        return true;
+    }
+    attr_value(e, "style")
+        .and_then(|style| style_property(&style, "font-variant"))
+        .is_some_and(|value| value.eq_ignore_ascii_case("small-caps"))
+}
+
+/// Split an anchor's content into the whitespace at its edges and the trimmed middle. Leading and
+/// trailing breaks belong outside the anchor in HTML rendering, so they are returned to the caller to
+/// place around it.
+fn hoist_edge_whitespace(
+    mut inlines: Vec<Inline>,
+) -> (Option<Inline>, Vec<Inline>, Option<Inline>) {
+    let leading = if matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak)) {
+        Some(inlines.remove(0))
+    } else {
+        None
+    };
+    let trailing = if matches!(inlines.last(), Some(Inline::Space | Inline::SoftBreak)) {
+        inlines.pop()
+    } else {
+        None
+    };
+    (leading, inlines, trailing)
 }
 
 fn image(e: &Element) -> Inline {
@@ -1097,10 +1325,14 @@ enum InlineKind {
     Quoted,
     LineBreak,
     Span,
+    Bdo,
     SpanClass,
     Code(Option<&'static str>),
     Anchor,
     Image,
+    Style,
+    Script,
+    Input,
     Transparent,
 }
 
@@ -1115,12 +1347,16 @@ fn inline_kind(name: &str) -> InlineKind {
         "q" => InlineKind::Quoted,
         "br" => InlineKind::LineBreak,
         "span" => InlineKind::Span,
+        "bdo" => InlineKind::Bdo,
         "mark" | "small" | "abbr" | "kbd" | "dfn" => InlineKind::SpanClass,
         "code" | "tt" => InlineKind::Code(None),
         "samp" => InlineKind::Code(Some("sample")),
         "var" => InlineKind::Code(Some("variable")),
         "a" => InlineKind::Anchor,
         "img" => InlineKind::Image,
+        "style" => InlineKind::Style,
+        "script" => InlineKind::Script,
+        "input" => InlineKind::Input,
         _ => InlineKind::Transparent,
     }
 }
@@ -1149,6 +1385,11 @@ fn extract_attr(e: &Element, exclude: &[&str]) -> Attr {
         }
     }
     attr
+}
+
+fn is_line_block_div(e: &Element) -> bool {
+    let attr = extract_attr(e, &[]);
+    attr.id.is_empty() && attr.attributes.is_empty() && attr.classes == ["line-block"]
 }
 
 fn div_attr(e: &Element, sectioning: bool) -> Attr {
@@ -1260,29 +1501,165 @@ fn style_property(style: &str, property: &str) -> Option<String> {
     })
 }
 
+/// The width declared on a single `<col>` before star columns are resolved against the remainder.
+enum DeclaredWidth {
+    Fraction(f64),
+    Star,
+    None,
+}
+
 fn column_widths(colgroup: &Element) -> Vec<ColWidth> {
-    let mut widths = Vec::new();
+    let mut declared = Vec::new();
     for child in &colgroup.children {
         let Node::Element(col) = child else { continue };
         if col.name != "col" {
             continue;
         }
         let span = span_attr(col, "span");
-        let width = attr_value(col, "style")
-            .and_then(|style| style_property(&style, "width"))
-            .and_then(|value| {
-                value
-                    .strip_suffix('%')
-                    .and_then(|n| n.trim().parse::<f64>().ok())
-            })
-            .map_or(ColWidth::ColWidthDefault, |percent| {
-                ColWidth::ColWidth(percent / 100.0)
+        let width = declared_width(col);
+        for _ in 0..span.max(1) {
+            declared.push(match &width {
+                DeclaredWidth::Fraction(fraction) => DeclaredWidth::Fraction(*fraction),
+                DeclaredWidth::Star => DeclaredWidth::Star,
+                DeclaredWidth::None => DeclaredWidth::None,
             });
-        for _ in 0..span {
-            widths.push(width.clone());
         }
     }
-    widths
+    resolve_star_widths(&declared)
+}
+
+/// The width of one `<col>`: a `width="*"` shares the remaining space, a `width="N%"` or
+/// `style="width: N%"` is an explicit fraction, and anything else leaves the column unsized.
+fn declared_width(col: &Element) -> DeclaredWidth {
+    if let Some(value) = attr_value(col, "width") {
+        let value = value.trim();
+        if value == "*" {
+            return DeclaredWidth::Star;
+        }
+        if let Some(fraction) = parse_percent(value) {
+            return DeclaredWidth::Fraction(fraction);
+        }
+    }
+    attr_value(col, "style")
+        .and_then(|style| style_property(&style, "width"))
+        .and_then(|value| parse_percent(&value))
+        .map_or(DeclaredWidth::None, DeclaredWidth::Fraction)
+}
+
+fn parse_percent(value: &str) -> Option<f64> {
+    value
+        .trim()
+        .strip_suffix('%')
+        .and_then(|n| n.trim().parse::<f64>().ok())
+        .map(|percent| percent / 100.0)
+}
+
+/// Turn declared widths into [`ColWidth`]s, distributing the space left over by explicit fractions
+/// equally across the `width="*"` columns.
+#[allow(clippy::cast_precision_loss)]
+fn resolve_star_widths(declared: &[DeclaredWidth]) -> Vec<ColWidth> {
+    let explicit: f64 = declared
+        .iter()
+        .filter_map(|width| match width {
+            DeclaredWidth::Fraction(fraction) => Some(*fraction),
+            _ => None,
+        })
+        .sum();
+    let star_count = declared
+        .iter()
+        .filter(|width| matches!(width, DeclaredWidth::Star))
+        .count();
+    let star_width = if star_count == 0 {
+        0.0
+    } else {
+        ((1.0 - explicit) / star_count as f64).max(0.0)
+    };
+    declared
+        .iter()
+        .map(|width| match width {
+            DeclaredWidth::Fraction(fraction) => ColWidth::ColWidth(*fraction),
+            DeclaredWidth::Star => ColWidth::ColWidth(star_width),
+            DeclaredWidth::None => ColWidth::ColWidthDefault,
+        })
+        .collect()
+}
+
+fn row_elements(section: &Element) -> Vec<&Element> {
+    section
+        .children
+        .iter()
+        .filter_map(|node| match node {
+            Node::Element(tr) if tr.name == "tr" => Some(tr),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The count of leading header columns shared by every body row, used as a body's
+/// `RowHeadColumns`. Each row's leading header span is measured over the expanded grid so a header
+/// cell's `colspan` and a `rowspan` carried down from an earlier row both count. The result is that
+/// shared count only when all rows agree; any disagreement yields zero.
+fn row_head_columns(rows: &[&Element]) -> i32 {
+    let mut carried: Vec<Carry> = Vec::new();
+    let mut counts = Vec::new();
+    for tr in rows {
+        let mut column = 0usize;
+        let mut leading = true;
+        let mut leading_count = 0usize;
+        for node in &tr.children {
+            while let Some(carry) = carried.get_mut(column).filter(|carry| carry.rows > 0) {
+                carry.rows -= 1;
+                if carry.header {
+                    if leading {
+                        leading_count += 1;
+                    }
+                } else {
+                    leading = false;
+                }
+                column += 1;
+            }
+            let Node::Element(cell) = node else { continue };
+            if cell.name != "td" && cell.name != "th" {
+                continue;
+            }
+            let header = cell.name == "th";
+            let col_span = usize::try_from(span_attr(cell, "colspan").max(1)).unwrap_or(1);
+            let row_span = span_attr(cell, "rowspan").max(1);
+            for _ in 0..col_span {
+                if header {
+                    if leading {
+                        leading_count += 1;
+                    }
+                } else {
+                    leading = false;
+                }
+                if row_span > 1 {
+                    if carried.len() <= column {
+                        carried.resize(column + 1, Carry::default());
+                    }
+                    if let Some(slot) = carried.get_mut(column) {
+                        slot.rows = usize::try_from(row_span - 1).unwrap_or(0);
+                        slot.header = header;
+                    }
+                }
+                column += 1;
+            }
+        }
+        counts.push(leading_count);
+    }
+    match counts.split_first() {
+        Some((first, rest)) if rest.iter().all(|count| count == first) => {
+            i32::try_from(*first).unwrap_or(0)
+        }
+        _ => 0,
+    }
+}
+
+/// A cell spanning into rows below tracks how many more rows it occupies and whether it is a header.
+#[derive(Default, Clone, Copy)]
+struct Carry {
+    rows: usize,
+    header: bool,
 }
 
 fn row_width(row: &Row) -> usize {
@@ -1432,6 +1809,64 @@ fn collect_text(e: &Element) -> String {
     out
 }
 
+/// A `<script type="math/tex">` carries TeX in its body; `mode=display` selects display math.
+fn math_script_type(e: &Element) -> Option<MathType> {
+    let value = attr_value(e, "type")?;
+    let value = value.to_ascii_lowercase();
+    if !value.starts_with("math/tex") {
+        return None;
+    }
+    if value.contains("mode=display") {
+        Some(MathType::DisplayMath)
+    } else {
+        Some(MathType::InlineMath)
+    }
+}
+
+fn is_math_script(e: &Element) -> bool {
+    math_script_type(e).is_some()
+}
+
+fn is_blank_run(inlines: &[Inline]) -> bool {
+    inlines.iter().all(|inline| {
+        matches!(
+            inline,
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak
+        )
+    })
+}
+
+fn is_checkbox(e: &Element) -> bool {
+    e.name == "input"
+        && attr_value(e, "type").is_some_and(|kind| kind.eq_ignore_ascii_case("checkbox"))
+}
+
+fn contains_checkbox(e: &Element) -> bool {
+    e.children.iter().any(|node| match node {
+        Node::Element(child) => is_checkbox(child) || contains_checkbox(child),
+        Node::Text(_) => false,
+    })
+}
+
+fn serialize_element(e: &Element) -> String {
+    let mut out = String::new();
+    out.push('<');
+    out.push_str(&e.name);
+    for (key, value) in &e.attrs {
+        out.push(' ');
+        out.push_str(key);
+        out.push_str("=\"");
+        out.push_str(value);
+        out.push('"');
+    }
+    out.push('>');
+    gather_text(&e.children, &mut out);
+    out.push_str("</");
+    out.push_str(&e.name);
+    out.push('>');
+    out
+}
+
 fn gather_text(nodes: &[Node], out: &mut String) {
     for node in nodes {
         match node {
@@ -1446,7 +1881,7 @@ fn gather_text(nodes: &[Node], out: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::HtmlReader;
-    use oxidoc_ast::{Block, Inline};
+    use oxidoc_ast::{Block, Inline, MathType};
     use oxidoc_core::{Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
@@ -1909,5 +2344,115 @@ mod tests {
             panic!("expected header");
         };
         assert_eq!(attr.id, "custom");
+    }
+
+    #[test]
+    fn line_block_div_becomes_line_block() {
+        let Block::LineBlock(lines) = first_block(r#"<div class="line-block">a<br>b</div>"#) else {
+            panic!("expected line block");
+        };
+        assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn line_block_div_with_id_stays_div() {
+        assert!(matches!(
+            first_block(r#"<div class="line-block" id="x">a</div>"#),
+            Block::Div(..)
+        ));
+    }
+
+    #[test]
+    fn inline_style_becomes_raw_html() {
+        let inlines = para_inlines("<p>a<style>.x{}</style>b</p>");
+        assert!(inlines.iter().any(|inline| matches!(
+            inline,
+            Inline::RawInline(format, text)
+                if format.0 == "html" && text == "<style>.x{}</style>"
+        )));
+    }
+
+    #[test]
+    fn leading_style_block_is_dropped() {
+        assert!(matches!(
+            blocks("<style>.x{}</style><p>x</p>").as_slice(),
+            [Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn math_script_becomes_inline_math() {
+        let inlines = para_inlines(r#"<p><script type="math/tex">\D</script></p>"#);
+        assert!(matches!(
+            inlines.as_slice(),
+            [Inline::Math(MathType::InlineMath, text)] if text == "\\D"
+        ));
+    }
+
+    #[test]
+    fn display_math_script_becomes_display_math() {
+        let inlines = para_inlines(r#"<p><script type="math/tex; mode=display">\D</script></p>"#);
+        assert!(matches!(
+            inlines.as_slice(),
+            [Inline::Math(MathType::DisplayMath, _)]
+        ));
+    }
+
+    #[test]
+    fn non_math_script_is_dropped() {
+        assert!(blocks("<p><script>run()</script></p>").is_empty());
+    }
+
+    #[test]
+    fn checkbox_in_item_renders_ballot_box() {
+        let Block::BulletList(items) =
+            first_block(r#"<ul><li><input type="checkbox" checked/>do it</li></ul>"#)
+        else {
+            panic!("expected bullet list");
+        };
+        let Some([Block::Plain(inlines)]) = items.first().map(Vec::as_slice) else {
+            panic!("expected one plain block");
+        };
+        assert!(matches!(inlines.first(), Some(Inline::Str(s)) if s == "\u{2612}"));
+    }
+
+    #[test]
+    fn checkbox_outside_item_is_dropped() {
+        let inlines = para_inlines(r#"<p><input type="checkbox"/>text</p>"#);
+        assert_eq!(inlines.as_slice(), [Inline::Str("text".to_string())]);
+    }
+
+    #[test]
+    fn paragraph_with_checkbox_demotes_to_plain() {
+        assert!(matches!(
+            first_block(r#"<p><input type="checkbox"/>x</p>"#),
+            Block::Plain(_)
+        ));
+    }
+
+    #[test]
+    fn empty_paragraph_is_dropped() {
+        assert!(blocks("<p>hi</p><p></p><p>lo</p>").len() == 2);
+    }
+
+    #[test]
+    fn consecutive_terms_merge_with_line_break() {
+        let Block::DefinitionList(items) = first_block("<dl><dt>a</dt><dt>b</dt><dd>x</dd></dl>")
+        else {
+            panic!("expected definition list");
+        };
+        let Some((term, _)) = items.first() else {
+            panic!("expected one item");
+        };
+        assert!(term.contains(&Inline::LineBreak));
+    }
+
+    #[test]
+    fn stray_paragraph_in_list_attaches_to_item() {
+        let Block::BulletList(items) = first_block("<ul><li>a</li><p>b</p></ul>") else {
+            panic!("expected bullet list");
+        };
+        assert_eq!(items.len(), 1);
+        assert_eq!(items.first().map(Vec::len), Some(2));
     }
 }
