@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 
 use oxidoc_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
-    ListNumberStyle, MathType, Row, Table, TableBody, Target, Text,
+    ListNumberStyle, MathType, Row, Table, TableBody, Target, Text, to_plain_text,
 };
 use oxidoc_core::{Result, Writer, WriterOptions};
 
@@ -361,7 +361,7 @@ impl State {
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
-    let alt = inlines_to_plain(inlines);
+    let alt = to_plain_text(inlines);
     let alt_attr = if alt.is_empty() {
         String::new()
     } else {
@@ -673,32 +673,4 @@ fn escape_text(text: &str) -> String {
 /// to a `<pre><code>` block's body.
 fn escape_attr(text: &str) -> String {
     escape(text, true)
-}
-
-/// The plain-text projection of an inline sequence, used for an image's `alt` attribute: textual
-/// content is kept, formatting wrappers are flattened, and breaks become spaces.
-fn inlines_to_plain(inlines: &[Inline]) -> String {
-    let mut out = String::new();
-    for inline in inlines {
-        match inline {
-            Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => {
-                out.push_str(text);
-            }
-            Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
-            Inline::Emph(xs)
-            | Inline::Strong(xs)
-            | Inline::Strikeout(xs)
-            | Inline::Superscript(xs)
-            | Inline::Subscript(xs)
-            | Inline::Underline(xs)
-            | Inline::SmallCaps(xs)
-            | Inline::Quoted(_, xs)
-            | Inline::Span(_, xs)
-            | Inline::Link(_, xs, _)
-            | Inline::Image(_, xs, _)
-            | Inline::Cite(_, xs) => out.push_str(&inlines_to_plain(xs)),
-            Inline::RawInline(..) | Inline::Note(_) => {}
-        }
-    }
-    out
 }
