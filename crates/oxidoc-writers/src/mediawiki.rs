@@ -108,7 +108,7 @@ impl State {
             Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
             Block::Div(attr, blocks) => {
                 let body = self.blocks(blocks);
-                format!("<div{}>\n{body}\n</div>", render_html_attr(attr))
+                format!("<div{}>\n{body}\n\n</div>", render_html_attr(attr))
             }
             Block::LineBlock(lines) => self.line_block(lines),
         }
