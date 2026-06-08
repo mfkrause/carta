@@ -531,29 +531,25 @@ fn render_keyvals(attributes: &[(Text, Text)]) -> String {
 /// the run of literal text up to the next break point or hard newline. Hard newlines (block
 /// structure) reset the column. Consecutive break points collapse to one.
 fn reflow(input: &str) -> String {
-    let chars: Vec<char> = input.chars().collect();
     let mut out = String::with_capacity(input.len());
     let mut column = 0usize;
-    let mut index = 0usize;
-    while let Some(&current) = chars.get(index) {
+    let mut chars = input.chars();
+    while let Some(current) = chars.next() {
         match current {
             '\n' => {
                 out.push('\n');
                 column = 0;
-                index += 1;
             }
             BREAK => {
-                while matches!(chars.get(index), Some(&BREAK)) {
-                    index += 1;
+                while chars.clone().next() == Some(BREAK) {
+                    chars.next();
                 }
                 let mut chunk = 0usize;
-                let mut lookahead = index;
-                while let Some(&following) = chars.get(lookahead) {
+                for following in chars.clone() {
                     if following == BREAK || following == '\n' {
                         break;
                     }
                     chunk += char_width(following);
-                    lookahead += 1;
                 }
                 if column + 1 + chunk > FILL_COLUMN {
                     out.push('\n');
@@ -566,7 +562,6 @@ fn reflow(input: &str) -> String {
             other => {
                 out.push(other);
                 column += char_width(other);
-                index += 1;
             }
         }
     }
