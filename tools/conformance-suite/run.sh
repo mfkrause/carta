@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Conformance-suite dispatcher.
+#
+# Usage:
+#   run.sh <surface> [arg]   run one surface (reader|writer|e2e|roundtrip|commands),
+#                            optional arg narrows it (a format or target)
+#   run.sh all               run every surface
+#
+# Each surface prints one `RESULT <surface> <group> pass=N fail=N err=N skip=N` line per group and
+# exits non-zero if any group recorded a failure or error. `all` runs them in sequence and exits
+# non-zero if any surface did. Requires the gitignored .oracle/ (binary + fetched corpus) and a
+# built oxidoc binary; see lib.sh for provisioning hints.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SURFACES="reader writer e2e roundtrip commands"
+
+run_one() {
+  local surface="$1"
+  shift
+  local script="$DIR/surfaces/$surface.sh"
+  if [ ! -f "$script" ]; then
+    echo "error: unknown surface '$surface' (expected one of: $SURFACES all)" >&2
+    return 2
+  fi
+  bash "$script" "$@"
+}
+
+[ $# -ge 1 ] || { echo "usage: run.sh <surface|all> [arg]" >&2; exit 2; }
+
+if [ "$1" = "all" ]; then
+  rc=0
+  for surface in $SURFACES; do
+    run_one "$surface" || rc=1
+  done
+  exit "$rc"
+fi
+
+run_one "$@"
