@@ -12,7 +12,9 @@ use oxidoc_ast::{
 };
 use oxidoc_core::{Result, Writer, WriterOptions};
 
-use crate::common::{attribute_value, escape_xml, is_known_attribute, is_uri_scheme, quote_marks};
+use crate::common::{
+    attribute_value, escape_attr, escape_xml, is_uri_scheme, quote_marks, render_html_attr,
+};
 
 /// Renders a document to `MediaWiki` markup.
 #[derive(Debug, Default, Clone, Copy)]
@@ -105,7 +107,7 @@ impl State {
             Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
             Block::Div(attr, blocks) => {
                 let body = self.blocks(blocks);
-                format!("<div{}>\n{body}\n</div>", render_attr(attr))
+                format!("<div{}>\n{body}\n</div>", render_html_attr(attr))
             }
             Block::LineBlock(lines) => self.line_block(lines),
         }
@@ -136,7 +138,7 @@ impl State {
             attributes: attr.attributes.clone(),
         };
         let body = self.blocks(blocks);
-        format!("<div{}>\n{body}\n</div>", render_attr(&merged))
+        format!("<div{}>\n{body}\n</div>", render_html_attr(&merged))
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
@@ -350,7 +352,7 @@ impl State {
             Inline::Span(attr, inlines) => {
                 format!(
                     "<span{}>{}</span>",
-                    render_attr(attr),
+                    render_html_attr(attr),
                     self.inlines(inlines)
                 )
             }
@@ -615,34 +617,6 @@ fn raw_passthrough(format: &Format, text: &str) -> String {
     }
 }
 
-/// Render an [`Attr`] as an HTML attribute string with a leading space when non-empty: the id, the
-/// classes, then key/value pairs (`data-`-prefixed unless the key is a recognized HTML attribute).
-fn render_attr(attr: &Attr) -> String {
-    let mut parts = Vec::new();
-    if !attr.id.is_empty() {
-        parts.push(format!("id=\"{}\"", escape_attr(&attr.id)));
-    }
-    if !attr.classes.is_empty() {
-        parts.push(format!(
-            "class=\"{}\"",
-            escape_attr(&attr.classes.join(" "))
-        ));
-    }
-    for (key, value) in &attr.attributes {
-        let name = if is_known_attribute(key) {
-            key.clone()
-        } else {
-            format!("data-{key}")
-        };
-        parts.push(format!("{name}=\"{}\"", escape_attr(value)));
-    }
-    if parts.is_empty() {
-        String::new()
-    } else {
-        format!(" {}", parts.join(" "))
-    }
-}
-
 /// Whether a URL is an absolute reference to an external resource: it carries a scheme drawn from the
 /// known set. Internal references (page names, anchors, relative paths) use wiki-link syntax instead.
 fn is_external_uri(url: &str) -> bool {
@@ -664,10 +638,6 @@ fn is_external_uri(url: &str) -> bool {
 }
 
 fn escape_text(text: &str) -> String {
-    escape_xml(text, true)
-}
-
-fn escape_attr(text: &str) -> String {
     escape_xml(text, true)
 }
 

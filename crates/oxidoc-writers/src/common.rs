@@ -479,6 +479,33 @@ pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
     out
 }
 
+/// Escape an HTML attribute value: `&`, `<`, `>`, and `"` to their entities.
+pub(crate) fn escape_attr(text: &str) -> String {
+    escape_xml(text, true)
+}
+
+/// Render an [`Attr`] to an HTML attribute string (a leading space per attribute, empty when blank):
+/// `id`, then `class`, then key/value pairs, with unrecognized keys `data-` prefixed.
+pub(crate) fn render_html_attr(attr: &Attr) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    if !attr.id.is_empty() {
+        let _ = write!(out, " id=\"{}\"", escape_attr(&attr.id));
+    }
+    if !attr.classes.is_empty() {
+        let _ = write!(out, " class=\"{}\"", escape_attr(&attr.classes.join(" ")));
+    }
+    for (key, value) in &attr.attributes {
+        let name = if is_known_attribute(key) {
+            key.clone()
+        } else {
+            format!("data-{key}")
+        };
+        let _ = write!(out, " {name}=\"{}\"", escape_attr(value));
+    }
+    out
+}
+
 /// Whether an attribute name is emitted verbatim in HTML output. Recognized names, the `data-`/`aria-`
 /// prefixes, and a few namespaced names pass through; any other key/value attribute is `data-`
 /// prefixed by the caller.
