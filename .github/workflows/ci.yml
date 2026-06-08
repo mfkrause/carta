@@ -25,6 +25,23 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features
+      - name: Test
+        run: cargo nextest run --workspace --all-features
+      - name: Doctests
+        run: cargo test --doc --workspace --all-features
+
+  conformance:
+    name: conformance (differential)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
       - name: Cache pandoc oracle
         uses: actions/cache@v5
         with:
@@ -34,14 +51,26 @@ jobs:
         run: |
           tools/install-pandoc.sh --version="$PANDOC_PIN"
           tools/fetch-pandoc-tests.sh
-      - name: Format
-        run: cargo fmt --all --check
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features
-      - name: Test
-        run: cargo nextest run --workspace --all-features
-      - name: Doctests
-        run: cargo test --doc --workspace --all-features
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Build oxidoc
+        run: cargo build -p oxidoc
+      - name: Run conformance suite
+        run: tools/conformance-suite/run.sh all
+
+  coverage:
+    name: coverage (≥90%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Measure coverage (offline, product crates only)
+        run: cargo llvm-cov --workspace --summary-only --fail-under-lines 90
 
   minimal:
     name: minimal feature build
