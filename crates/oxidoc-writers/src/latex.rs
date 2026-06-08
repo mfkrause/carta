@@ -366,7 +366,7 @@ fn push_inline(inline: &Inline, out: &mut Vec<Piece>) {
                 out.push(Piece::Text(text.clone()));
             }
         }
-        Inline::Link(_, inlines, target) => push_link(inlines, target, out),
+        Inline::Link(attr, inlines, target) => push_link(attr, inlines, target, out),
         Inline::Image(_, inlines, target) => out.push(Piece::Text(image(inlines, target))),
         Inline::Span(attr, inlines) => {
             let mut open = if attr.id.is_empty() {
@@ -393,7 +393,10 @@ fn wrap_command(open: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
     out.push(Piece::Text("}".to_owned()));
 }
 
-fn push_link(inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
+fn push_link(attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
+    if !attr.id.is_empty() {
+        out.push(Piece::Text(phantom_label(&attr.id)));
+    }
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
         && *text == target.url
