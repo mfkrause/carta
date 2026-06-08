@@ -22,8 +22,9 @@ pub struct HtmlWriter;
 impl Writer for HtmlWriter {
     fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
         let mut state = State::default();
-        let mut out = state.blocks(&document.blocks);
-        out.push_str(&state.footnote_section());
+        let mut out = String::new();
+        state.blocks(&mut out, &document.blocks);
+        state.push_footnote_section(&mut out);
         let filled = restore(&reflow(&out));
         Ok(filled.trim_end_matches('\n').to_owned())
     }
@@ -62,129 +63,146 @@ struct State {
 }
 
 impl State {
-    /// Render a block sequence, one block per line.
-    fn blocks(&mut self, blocks: &[Block]) -> String {
-        let rendered: Vec<String> = blocks.iter().map(|block| self.block(block)).collect();
-        rendered.join("\n")
+    /// Render a block sequence into `out`, one block per line.
+    fn blocks(&mut self, out: &mut String, blocks: &[Block]) {
+        for (index, block) in blocks.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            self.block(out, block);
+        }
     }
 
-    fn block(&mut self, block: &Block) -> String {
+    fn block(&mut self, out: &mut String, block: &Block) {
         match block {
-            Block::Plain(inlines) => self.inlines(inlines),
-            Block::Para(inlines) => format!("<p>{}</p>", self.inlines(inlines)),
+            Block::Plain(inlines) => self.inlines(out, inlines),
+            Block::Para(inlines) => {
+                out.push_str("<p>");
+                self.inlines(out, inlines);
+                out.push_str("</p>");
+            }
             Block::Header(level, attr, inlines) => {
                 let tag = header_tag(*level);
-                format!(
-                    "<{tag}{}>{}</{tag}>",
-                    render_attr(attr, AttrOrder::Header),
-                    self.inlines(inlines)
-                )
+                let _ = write!(out, "<{tag}{}>", render_attr(attr, AttrOrder::Header));
+                self.inlines(out, inlines);
+                let _ = write!(out, "</{tag}>");
             }
-            Block::CodeBlock(attr, text) => format!(
-                "<pre{}><code>{}</code></pre>",
-                render_attr(attr, AttrOrder::Standard),
-                escape_attr(text)
-            ),
-            Block::RawBlock(format, text) => raw_passthrough(&format.0, text),
+            Block::CodeBlock(attr, text) => {
+                let _ = write!(
+                    out,
+                    "<pre{}><code>{}</code></pre>",
+                    render_attr(attr, AttrOrder::Standard),
+                    escape_attr(text)
+                );
+            }
+            Block::RawBlock(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
             Block::BlockQuote(blocks) => {
-                format!("<blockquote>\n{}\n</blockquote>", self.blocks(blocks))
+                out.push_str("<blockquote>\n");
+                self.blocks(out, blocks);
+                out.push_str("\n</blockquote>");
             }
-            Block::BulletList(items) => self.bullet_list(items),
-            Block::OrderedList(attrs, items) => self.ordered_list(attrs, items),
-            Block::DefinitionList(items) => self.definition_list(items),
-            Block::Div(attr, blocks) => format!(
-                "<div{}>\n{}\n</div>",
-                render_attr(attr, AttrOrder::Standard),
-                self.blocks(blocks)
-            ),
-            Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks),
-            Block::HorizontalRule => "<hr />".to_owned(),
-            Block::LineBlock(lines) => self.line_block(lines),
-            Block::Table(table) => self.table(table),
+            Block::BulletList(items) => self.bullet_list(out, items),
+            Block::OrderedList(attrs, items) => self.ordered_list(out, attrs, items),
+            Block::DefinitionList(items) => self.definition_list(out, items),
+            Block::Div(attr, blocks) => {
+                let _ = writeln!(out, "<div{}>", render_attr(attr, AttrOrder::Standard));
+                self.blocks(out, blocks);
+                out.push_str("\n</div>");
+            }
+            Block::Figure(attr, caption, blocks) => self.figure(out, attr, caption, blocks),
+            Block::HorizontalRule => out.push_str("<hr />"),
+            Block::LineBlock(lines) => self.line_block(out, lines),
+            Block::Table(table) => self.table(out, table),
         }
     }
 
-    fn bullet_list(&mut self, items: &[Vec<Block>]) -> String {
-        let lis = self.list_items(items);
-        format!("<ul>\n{}\n</ul>", lis.join("\n"))
+    fn bullet_list(&mut self, out: &mut String, items: &[Vec<Block>]) {
+        out.push_str("<ul>\n");
+        self.list_items(out, items);
+        out.push_str("\n</ul>");
     }
 
-    fn ordered_list(&mut self, attrs: &ListAttributes, items: &[Vec<Block>]) -> String {
-        let mut open = String::from("<ol");
+    fn ordered_list(&mut self, out: &mut String, attrs: &ListAttributes, items: &[Vec<Block>]) {
+        out.push_str("<ol");
         if attrs.start != 1 {
-            let _ = write!(open, " start=\"{}\"", attrs.start);
+            let _ = write!(out, " start=\"{}\"", attrs.start);
         }
         if matches!(attrs.style, ListNumberStyle::Example) {
-            open.push_str(" class=\"example\"");
+            out.push_str(" class=\"example\"");
         }
         if let Some(kind) = ordered_list_type(&attrs.style) {
-            let _ = write!(open, " type=\"{kind}\"");
+            let _ = write!(out, " type=\"{kind}\"");
         }
-        open.push('>');
-        let lis = self.list_items(items);
-        format!("{open}\n{}\n</ol>", lis.join("\n"))
+        out.push_str(">\n");
+        self.list_items(out, items);
+        out.push_str("\n</ol>");
     }
 
     /// Render each list item's blocks (newline-joined, no surrounding padding) wrapped in `<li>`.
-    fn list_items(&mut self, items: &[Vec<Block>]) -> Vec<String> {
-        items
-            .iter()
-            .map(|item| format!("<li>{}</li>", self.blocks(item)))
-            .collect()
+    fn list_items(&mut self, out: &mut String, items: &[Vec<Block>]) {
+        for (index, item) in items.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            out.push_str("<li>");
+            self.blocks(out, item);
+            out.push_str("</li>");
+        }
     }
 
-    fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> String {
-        let mut parts = Vec::new();
+    fn definition_list(&mut self, out: &mut String, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) {
+        out.push_str("<dl>");
         for (term, definitions) in items {
-            parts.push(format!("<dt>{}</dt>", self.inlines(term)));
+            out.push_str("\n<dt>");
+            self.inlines(out, term);
+            out.push_str("</dt>");
             for definition in definitions {
-                parts.push(format!("<dd>\n{}\n</dd>", self.blocks(definition)));
+                out.push_str("\n<dd>\n");
+                self.blocks(out, definition);
+                out.push_str("\n</dd>");
             }
         }
-        format!("<dl>\n{}\n</dl>", parts.join("\n"))
+        out.push_str("\n</dl>");
     }
 
-    fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block]) -> String {
-        let body = self.blocks(blocks);
-        let caption_html = if caption.long.is_empty() {
-            String::new()
-        } else {
+    fn figure(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
+        let _ = writeln!(out, "<figure{}>", render_attr(attr, AttrOrder::Standard));
+        self.blocks(out, blocks);
+        if !caption.long.is_empty() {
             let hidden = if is_implicit_figure(caption, blocks) {
                 " aria-hidden=\"true\""
             } else {
                 ""
             };
-            format!(
-                "\n<figcaption{hidden}>{}</figcaption>",
-                self.blocks(&caption.long)
-            )
-        };
-        format!(
-            "<figure{}>\n{body}{caption_html}\n</figure>",
-            render_attr(attr, AttrOrder::Standard)
-        )
+            let _ = write!(out, "\n<figcaption{hidden}>");
+            self.blocks(out, &caption.long);
+            out.push_str("</figcaption>");
+        }
+        out.push_str("\n</figure>");
     }
 
-    fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
-        let rendered: Vec<String> = lines.iter().map(|line| self.inlines(line)).collect();
-        format!(
-            "<div class=\"line-block\">{}</div>",
-            rendered.join("<br />\n")
-        )
+    fn line_block(&mut self, out: &mut String, lines: &[Vec<Inline>]) {
+        out.push_str("<div class=\"line-block\">");
+        for (index, line) in lines.iter().enumerate() {
+            if index > 0 {
+                out.push_str("<br />\n");
+            }
+            self.inlines(out, line);
+        }
+        out.push_str("</div>");
     }
 
-    fn table(&mut self, table: &Table) -> String {
-        let mut out = format!(
+    fn table(&mut self, out: &mut String, table: &Table) {
+        let _ = write!(
+            out,
             "<table{}{}>",
             render_attr(&table.attr, AttrOrder::Standard),
             table_width_style(&table.col_specs)
         );
         if !table.caption.long.is_empty() {
-            let _ = write!(
-                out,
-                "\n<caption>{}</caption>",
-                self.blocks(&table.caption.long)
-            );
+            out.push_str("\n<caption>");
+            self.blocks(out, &table.caption.long);
+            out.push_str("</caption>");
         }
         let aligns: Vec<Alignment> = table
             .col_specs
@@ -193,138 +211,173 @@ impl State {
             .collect();
         out.push_str(&colgroup(&table.col_specs));
         if !table.head.rows.is_empty() {
-            let rows = self.rows(&table.head.rows, &aligns, true);
-            let _ = write!(out, "\n<thead>\n{rows}\n</thead>");
+            out.push_str("\n<thead>\n");
+            self.rows(out, &table.head.rows, &aligns, true);
+            out.push_str("\n</thead>");
         }
         for body in &table.bodies {
-            out.push_str(&self.table_body(body, &aligns));
+            self.table_body(out, body, &aligns);
         }
         if !table.foot.rows.is_empty() {
-            let rows = self.rows(&table.foot.rows, &aligns, false);
-            let _ = write!(out, "\n<tfoot>\n{rows}\n</tfoot>");
+            out.push_str("\n<tfoot>\n");
+            self.rows(out, &table.foot.rows, &aligns, false);
+            out.push_str("\n</tfoot>");
         }
         out.push_str("\n</table>");
-        out
     }
 
-    fn table_body(&mut self, body: &TableBody, aligns: &[Alignment]) -> String {
-        let mut rows = self.rows_vec(&body.head, aligns, true);
-        rows.extend(self.rows_vec(&body.body, aligns, false));
-        format!("\n<tbody>\n{}\n</tbody>", rows.join("\n"))
+    fn table_body(&mut self, out: &mut String, body: &TableBody, aligns: &[Alignment]) {
+        out.push_str("\n<tbody>\n");
+        let mut first = true;
+        for row in &body.head {
+            if !first {
+                out.push('\n');
+            }
+            first = false;
+            self.row(out, row, aligns, true);
+        }
+        for row in &body.body {
+            if !first {
+                out.push('\n');
+            }
+            first = false;
+            self.row(out, row, aligns, false);
+        }
+        out.push_str("\n</tbody>");
     }
 
-    fn rows(&mut self, rows: &[Row], aligns: &[Alignment], header: bool) -> String {
-        self.rows_vec(rows, aligns, header).join("\n")
+    fn rows(&mut self, out: &mut String, rows: &[Row], aligns: &[Alignment], header: bool) {
+        for (index, row) in rows.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            self.row(out, row, aligns, header);
+        }
     }
 
-    fn rows_vec(&mut self, rows: &[Row], aligns: &[Alignment], header: bool) -> Vec<String> {
-        rows.iter()
-            .map(|row| {
-                let cells: Vec<String> = row
-                    .cells
-                    .iter()
-                    .enumerate()
-                    .map(|(index, cell)| self.cell(cell, aligns.get(index), header))
-                    .collect();
-                format!("<tr>\n{}\n</tr>", cells.join("\n"))
-            })
-            .collect()
+    fn row(&mut self, out: &mut String, row: &Row, aligns: &[Alignment], header: bool) {
+        out.push_str("<tr>\n");
+        for (index, cell) in row.cells.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            self.cell(out, cell, aligns.get(index), header);
+        }
+        out.push_str("\n</tr>");
     }
 
-    fn cell(&mut self, cell: &Cell, col_align: Option<&Alignment>, header: bool) -> String {
+    fn cell(&mut self, out: &mut String, cell: &Cell, col_align: Option<&Alignment>, header: bool) {
         let tag = if header { "th" } else { "td" };
         let effective = match &cell.align {
             Alignment::AlignDefault => col_align.unwrap_or(&Alignment::AlignDefault),
             explicit => explicit,
         };
-        let mut attrs = String::new();
+        let _ = write!(out, "<{tag}");
         if let Some(style) = alignment_style(effective) {
-            let _ = write!(attrs, "{BREAK}style=\"{style}\"");
+            let _ = write!(out, "{BREAK}style=\"{style}\"");
         }
         if cell.col_span != 1 {
-            let _ = write!(attrs, "{BREAK}colspan=\"{}\"", cell.col_span);
+            let _ = write!(out, "{BREAK}colspan=\"{}\"", cell.col_span);
         }
         if cell.row_span != 1 {
-            let _ = write!(attrs, "{BREAK}rowspan=\"{}\"", cell.row_span);
+            let _ = write!(out, "{BREAK}rowspan=\"{}\"", cell.row_span);
         }
-        format!("<{tag}{attrs}>{}</{tag}>", self.blocks(&cell.content))
+        out.push('>');
+        self.blocks(out, &cell.content);
+        let _ = write!(out, "</{tag}>");
     }
 
-    fn inlines(&mut self, inlines: &[Inline]) -> String {
-        inlines.iter().map(|inline| self.inline(inline)).collect()
+    fn inlines(&mut self, out: &mut String, inlines: &[Inline]) {
+        for inline in inlines {
+            self.inline(out, inline);
+        }
     }
 
-    fn inline(&mut self, inline: &Inline) -> String {
+    fn inline(&mut self, out: &mut String, inline: &Inline) {
         match inline {
-            Inline::Str(text) => escape_text(text),
-            Inline::Emph(inlines) => self.wrap("em", inlines),
-            Inline::Strong(inlines) => self.wrap("strong", inlines),
-            Inline::Strikeout(inlines) => self.wrap("del", inlines),
-            Inline::Superscript(inlines) => self.wrap("sup", inlines),
-            Inline::Subscript(inlines) => self.wrap("sub", inlines),
-            Inline::Underline(inlines) => self.wrap("u", inlines),
+            Inline::Str(text) => out.push_str(&escape_text(text)),
+            Inline::Emph(inlines) => self.wrap(out, "em", inlines),
+            Inline::Strong(inlines) => self.wrap(out, "strong", inlines),
+            Inline::Strikeout(inlines) => self.wrap(out, "del", inlines),
+            Inline::Superscript(inlines) => self.wrap(out, "sup", inlines),
+            Inline::Subscript(inlines) => self.wrap(out, "sub", inlines),
+            Inline::Underline(inlines) => self.wrap(out, "u", inlines),
             Inline::SmallCaps(inlines) => {
-                format!("<span class=\"smallcaps\">{}</span>", self.inlines(inlines))
+                out.push_str("<span class=\"smallcaps\">");
+                self.inlines(out, inlines);
+                out.push_str("</span>");
             }
             Inline::Quoted(kind, inlines) => {
                 let (open, close) = quote_marks(kind);
-                format!("{open}{}{close}", self.inlines(inlines))
+                out.push(open);
+                self.inlines(out, inlines);
+                out.push(close);
             }
-            Inline::Code(attr, text) => format!(
-                "<code{}>{}</code>",
-                render_attr(attr, AttrOrder::Standard),
-                escape_text(text)
-            ),
-            Inline::Space | Inline::SoftBreak => BREAK.to_string(),
-            Inline::LineBreak => "<br />\n".to_owned(),
+            Inline::Code(attr, text) => {
+                let _ = write!(
+                    out,
+                    "<code{}>{}</code>",
+                    render_attr(attr, AttrOrder::Standard),
+                    escape_text(text)
+                );
+            }
+            Inline::Space | Inline::SoftBreak => out.push(BREAK),
+            Inline::LineBreak => out.push_str("<br />\n"),
             Inline::Math(kind, text) => {
                 let (class, open, close) = match kind {
                     MathType::InlineMath => ("inline", "\\(", "\\)"),
                     MathType::DisplayMath => ("display", "\\[", "\\]"),
                 };
-                format!(
+                let _ = write!(
+                    out,
                     "<span class=\"math {class}\">{open}{}{close}</span>",
                     escape_text(text)
-                )
+                );
             }
-            Inline::RawInline(format, text) => raw_passthrough(&format.0, text),
-            Inline::Link(attr, inlines, target) => self.link(attr, inlines, target),
-            Inline::Image(attr, inlines, target) => image(attr, inlines, target),
-            Inline::Span(attr, inlines) => format!(
-                "<span{}>{}</span>",
-                render_attr(attr, AttrOrder::Standard),
-                self.inlines(inlines)
-            ),
+            Inline::RawInline(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
+            Inline::Link(attr, inlines, target) => self.link(out, attr, inlines, target),
+            Inline::Image(attr, inlines, target) => out.push_str(&image(attr, inlines, target)),
+            Inline::Span(attr, inlines) => {
+                let _ = write!(out, "<span{}>", render_attr(attr, AttrOrder::Standard));
+                self.inlines(out, inlines);
+                out.push_str("</span>");
+            }
             Inline::Cite(citations, inlines) => {
                 let ids: Vec<&str> = citations
                     .iter()
                     .map(|citation| citation.id.as_str())
                     .collect();
-                format!(
-                    "<span class=\"citation\" data-cites=\"{}\">{}</span>",
-                    escape_attr(&ids.join(" ")),
-                    self.inlines(inlines)
-                )
+                let _ = write!(
+                    out,
+                    "<span class=\"citation\" data-cites=\"{}\">",
+                    escape_attr(&ids.join(" "))
+                );
+                self.inlines(out, inlines);
+                out.push_str("</span>");
             }
-            Inline::Note(blocks) => self.note(blocks),
+            Inline::Note(blocks) => self.note(out, blocks),
         }
     }
 
-    fn wrap(&mut self, tag: &str, inlines: &[Inline]) -> String {
-        format!("<{tag}>{}</{tag}>", self.inlines(inlines))
+    fn wrap(&mut self, out: &mut String, tag: &str, inlines: &[Inline]) {
+        let _ = write!(out, "<{tag}>");
+        self.inlines(out, inlines);
+        let _ = write!(out, "</{tag}>");
     }
 
-    fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target) -> String {
-        format!(
-            "<a{BREAK}href=\"{}\"{}{}>{}</a>",
+    fn link(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline], target: &Target) {
+        let _ = write!(
+            out,
+            "<a{BREAK}href=\"{}\"{}{}>",
             escape_attr(&target.url),
             render_attr(attr, AttrOrder::Standard),
-            title_attr(&target.title),
-            self.inlines(inlines)
-        )
+            title_attr(&target.title)
+        );
+        self.inlines(out, inlines);
+        out.push_str("</a>");
     }
 
-    fn note(&mut self, blocks: &[Block]) -> String {
+    fn note(&mut self, out: &mut String, blocks: &[Block]) {
         let number = self.footnotes.len() + 1;
         let backlink = format!(
             "<a{BREAK}href=\"#fnref{number}\"{BREAK}class=\"footnote-back\"{BREAK}role=\"doc-backlink\">\u{21a9}\u{fe0e}</a>"
@@ -332,31 +385,47 @@ impl State {
         let body = self.note_body(blocks, &backlink);
         self.footnotes
             .push(format!("<li{BREAK}id=\"fn{number}\">{body}</li>"));
-        format!(
+        let _ = write!(
+            out,
             "<a{BREAK}href=\"#fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\"{BREAK}role=\"doc-noteref\"><sup>{number}</sup></a>"
-        )
+        );
     }
 
     /// Render a footnote's blocks, appending the backlink inside the final paragraph when the last
-    /// block is one, else as a bare trailing element (an unwrapped `Plain`) of its own.
+    /// block is one, else as a bare trailing element (an unwrapped `Plain`) of its own. The body is
+    /// returned as its own value because notes are gathered for a trailing section.
     fn note_body(&mut self, blocks: &[Block], backlink: &str) -> String {
+        let mut body = String::new();
         if let Some((Block::Para(inlines), rest)) = blocks.split_last() {
-            let head = with_trailing_newline(self.blocks(rest));
-            format!("{head}<p>{}{backlink}</p>", self.inlines(inlines))
+            self.blocks(&mut body, rest);
+            append_trailing_newline(&mut body);
+            body.push_str("<p>");
+            self.inlines(&mut body, inlines);
+            body.push_str(backlink);
+            body.push_str("</p>");
         } else {
-            let head = with_trailing_newline(self.blocks(blocks));
-            format!("{head}{backlink}")
+            self.blocks(&mut body, blocks);
+            append_trailing_newline(&mut body);
+            body.push_str(backlink);
         }
+        body
     }
 
-    fn footnote_section(&self) -> String {
+    fn push_footnote_section(&self, out: &mut String) {
         if self.footnotes.is_empty() {
-            return String::new();
+            return;
         }
-        format!(
-            "\n<section{BREAK}id=\"footnotes\"{BREAK}class=\"footnotes footnotes-end-of-document\"{BREAK}role=\"doc-endnotes\">\n<hr />\n<ol>\n{}\n</ol>\n</section>",
-            self.footnotes.join("\n")
-        )
+        let _ = write!(
+            out,
+            "\n<section{BREAK}id=\"footnotes\"{BREAK}class=\"footnotes footnotes-end-of-document\"{BREAK}role=\"doc-endnotes\">\n<hr />\n<ol>\n"
+        );
+        for (index, note) in self.footnotes.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            out.push_str(note);
+        }
+        out.push_str("\n</ol>\n</section>");
     }
 }
 
@@ -428,11 +497,10 @@ fn table_width_style(specs: &[ColSpec]) -> String {
 
 /// Append a newline to `text` unless it is empty (used to separate a footnote's leading blocks
 /// from the paragraph that carries the backlink).
-fn with_trailing_newline(mut text: String) -> String {
+fn append_trailing_newline(text: &mut String) {
     if !text.is_empty() {
         text.push('\n');
     }
-    text
 }
 
 fn title_attr(title: &Text) -> String {
