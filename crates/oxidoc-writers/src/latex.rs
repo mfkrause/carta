@@ -367,7 +367,7 @@ fn push_inline(inline: &Inline, out: &mut Vec<Piece>) {
             }
         }
         Inline::Link(attr, inlines, target) => push_link(attr, inlines, target, out),
-        Inline::Image(_, inlines, target) => out.push(Piece::Text(image(inlines, target))),
+        Inline::Image(attr, inlines, target) => out.push(Piece::Text(image(attr, inlines, target))),
         Inline::Span(attr, inlines) => {
             let mut open = if attr.id.is_empty() {
                 String::new()
@@ -411,17 +411,92 @@ fn push_link(attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Pie
     out.push(Piece::Text("}".to_owned()));
 }
 
-fn image(inlines: &[Inline], target: &Target) -> String {
+fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
     let alt = to_plain_text(inlines);
-    let options = if alt.is_empty() {
-        "keepaspectratio".to_owned()
+    let alt_option = if alt.is_empty() {
+        String::new()
     } else {
-        format!("keepaspectratio,alt={{{}}}", escape(&alt, EscapeMode::Text))
+        format!(",alt={{{}}}", escape(&alt, EscapeMode::Text))
+    };
+    let url = escape_url(&target.url);
+
+    let width = attr_value(attr, "width").and_then(Dimension::parse);
+    let height = attr_value(attr, "height").and_then(Dimension::parse);
+    if width.is_none() && height.is_none() {
+        return format!(
+            "\\pandocbounded{{\\includegraphics[keepaspectratio{alt_option}]{{{url}}}}}"
+        );
+    }
+
+    let width_option = match &width {
+        Some(dimension) => dimension.render("\\linewidth"),
+        None => "\\linewidth".to_owned(),
+    };
+    let height_option = match &height {
+        Some(dimension) => dimension.render("\\textheight"),
+        None => "\\textheight".to_owned(),
+    };
+    let aspect = if width.is_some() && height.is_some() {
+        ""
+    } else {
+        ",keepaspectratio"
     };
     format!(
-        "\\pandocbounded{{\\includegraphics[{options}]{{{}}}}}",
-        escape_url(&target.url)
+        "\\includegraphics[width={width_option},height={height_option}{aspect}{alt_option}]{{{url}}}"
     )
+}
+
+/// A parsed image dimension. A pixel or bare number is expressed in inches at 96 pixels per inch; a
+/// percentage is expressed as a fraction of a reference length; any other recognized unit is kept
+/// verbatim.
+enum Dimension {
+    Length(String),
+    Percent(f64),
+}
+
+impl Dimension {
+    fn parse(value: &str) -> Option<Dimension> {
+        let value = value.trim();
+        let split = value
+            .find(|ch: char| !(ch.is_ascii_digit() || ch == '.'))
+            .unwrap_or(value.len());
+        let (number, unit) = value.split_at(split);
+        let number: f64 = number.parse().ok()?;
+        match unit.to_ascii_lowercase().as_str() {
+            "" | "px" => Some(Dimension::Length(format!(
+                "{}in",
+                trim_number(number / 96.0)
+            ))),
+            "%" => Some(Dimension::Percent(number)),
+            "in" | "cm" | "mm" | "pt" | "pc" | "em" => {
+                Some(Dimension::Length(format!("{}{unit}", trim_number(number))))
+            }
+            _ => None,
+        }
+    }
+
+    fn render(&self, reference: &str) -> String {
+        match self {
+            Dimension::Length(rendered) => rendered.clone(),
+            Dimension::Percent(percent) => format!("{}{reference}", trim_number(percent / 100.0)),
+        }
+    }
+}
+
+/// Format a number to at most five fractional digits, dropping trailing zeros.
+fn trim_number(value: f64) -> String {
+    let formatted = format!("{value:.5}");
+    formatted
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_owned()
+}
+
+fn attr_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
+    attr.attributes
+        .iter()
+        .find(|(name, _)| name == key)
+        .map(|(_, value)| value.as_str())
 }
 
 /// Render a footnote as an inline `\footnote{…}`; its blocks hang two columns under the opening so
