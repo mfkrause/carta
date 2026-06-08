@@ -160,6 +160,47 @@ pub(crate) fn list_is_tight(items: &[Vec<Block>]) -> bool {
         .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
 }
 
+/// Whether a list is loose — at least one item carries a top-level paragraph. A loose list's items
+/// are separated with a blank line and each item's blocks are laid out with blank lines; a tight
+/// list uses single newlines throughout.
+pub(crate) fn is_loose(items: &[Vec<Block>]) -> bool {
+    !list_is_tight(items)
+}
+
+/// The separator between two list items at the given layout density: a blank line when loose, a
+/// single newline when tight.
+pub(crate) fn item_separator(loose: bool) -> &'static str {
+    if loose { "\n\n" } else { "\n" }
+}
+
+/// Join already-rendered blocks with the document's default blank-line spacing, dropping blocks that
+/// produced no output. A [`Block::Plain`] contributes only a single newline (not a blank line)
+/// before the next visible block when an empty block falls between them.
+pub(crate) fn join_loose(rendered: Vec<(bool, String)>) -> String {
+    let mut out = String::new();
+    let mut previous_was_plain: Option<bool> = None;
+    let mut empty_since_previous = false;
+    for (is_plain, text) in rendered {
+        if text.is_empty() {
+            if previous_was_plain.is_some() {
+                empty_since_previous = true;
+            }
+            continue;
+        }
+        if let Some(was_plain) = previous_was_plain {
+            if was_plain && empty_since_previous {
+                out.push('\n');
+            } else {
+                out.push_str("\n\n");
+            }
+        }
+        out.push_str(&text);
+        previous_was_plain = Some(is_plain);
+        empty_since_previous = false;
+    }
+    out
+}
+
 /// Wrap an ordered-list numeral in its delimiter: `n.`, `n)`, or `(n)`.
 pub(crate) fn wrap_delim(numeral: &str, delim: &ListNumberDelim) -> String {
     match delim {
