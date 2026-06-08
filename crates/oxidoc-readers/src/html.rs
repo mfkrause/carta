@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use oxidoc_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MetaValue, QuoteType, Row, Table, TableBody, TableFoot,
-    TableHead, Target, to_plain_text,
+    TableHead, Target, slug, to_plain_text,
 };
 use oxidoc_core::{Reader, ReaderOptions, Result};
 
@@ -1413,18 +1413,6 @@ fn gather_text(nodes: &[Node], out: &mut String) {
 
 /// Derive an ASCII-ish anchor identifier: keep letters, digits, spaces and `_-.`, lowercase, join
 /// words with hyphens, then drop any leading characters before the first letter.
-fn slug(text: &str) -> String {
-    let mut filtered = String::new();
-    for ch in text.chars() {
-        let ch = if ch == '\u{a0}' { ' ' } else { ch };
-        if ch.is_alphanumeric() || ch.is_whitespace() || ch == '_' || ch == '-' || ch == '.' {
-            filtered.extend(ch.to_lowercase());
-        }
-    }
-    let joined = filtered.split_whitespace().collect::<Vec<_>>().join("-");
-    joined.chars().skip_while(|c| !c.is_alphabetic()).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::HtmlReader;

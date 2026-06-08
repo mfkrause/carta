@@ -303,6 +303,26 @@ pub fn to_plain_text(inlines: &[Inline]) -> String {
     out
 }
 
+/// Derive a heading identifier from plain text: a non-breaking space is treated as an ordinary
+/// space, only alphanumerics, whitespace, and `_`, `-`, `.` are kept, the result is lowercased,
+/// whitespace runs collapse to single hyphens, and any leading non-letter characters are dropped.
+/// The result is empty when no alphabetic character survives.
+#[must_use]
+pub fn slug(text: &str) -> String {
+    let mut filtered = String::new();
+    for ch in text.chars() {
+        let ch = if ch == '\u{a0}' { ' ' } else { ch };
+        if ch.is_alphanumeric() || ch.is_whitespace() || matches!(ch, '_' | '-' | '.') {
+            filtered.extend(ch.to_lowercase());
+        }
+    }
+    let joined = filtered.split_whitespace().collect::<Vec<_>>().join("-");
+    joined
+        .chars()
+        .skip_while(|ch| !ch.is_alphabetic())
+        .collect()
+}
+
 fn push_plain_text(inlines: &[Inline], out: &mut String) {
     for inline in inlines {
         match inline {
