@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Para
+           [ Str "First"
+           , Space
+           , Str "caption"
+           , Space
+           , Str "paragraph"
+           ]
+       , Para
+           [ Str "Second"
+           , Space
+           , Str "caption"
+           , Space
+           , Str "paragraph"
+           ]
+       ])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "h" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "v" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]
