@@ -827,6 +827,64 @@ pub(crate) fn escape_attr(text: &str) -> String {
     escape_xml(text, true)
 }
 
+/// Resolves each table cell's true starting column within one row group, accounting for cells from
+/// earlier rows that still cover columns through their row span. Create one tracker per group of
+/// rows a span can extend over (a table head, a body's own head rows, a body's rows, a foot).
+#[cfg(any(feature = "html", feature = "mediawiki"))]
+#[derive(Debug)]
+pub(crate) struct RowSpanGrid {
+    /// Per column, how many upcoming rows a span opened in an earlier row still covers.
+    pending: Vec<i32>,
+}
+
+#[cfg(any(feature = "html", feature = "mediawiki"))]
+impl RowSpanGrid {
+    pub(crate) fn new(columns: usize) -> Self {
+        Self {
+            pending: vec![0; columns],
+        }
+    }
+
+    /// Place one row's cells: each cell lands on the first column not covered from above and
+    /// occupies its column span, and its row span is recorded for the rows that follow. Returns
+    /// each cell paired with its starting column.
+    pub(crate) fn place<'cells>(
+        &mut self,
+        cells: &'cells [carta_ast::Cell],
+    ) -> Vec<(usize, &'cells carta_ast::Cell)> {
+        let covered: Vec<usize> = self
+            .pending
+            .iter()
+            .enumerate()
+            .filter(|(_, rows)| **rows > 0)
+            .map(|(column, _)| column)
+            .collect();
+        let mut placed = Vec::with_capacity(cells.len());
+        let mut column = 0_usize;
+        for cell in cells {
+            while self.pending.get(column).copied().unwrap_or(0) > 0 {
+                column = column.saturating_add(1);
+            }
+            placed.push((column, cell));
+            let col_span = usize::try_from(cell.col_span).unwrap_or(1).max(1);
+            let end = column.saturating_add(col_span);
+            if self.pending.len() < end {
+                self.pending.resize(end, 0);
+            }
+            for slot in self.pending.iter_mut().take(end).skip(column) {
+                *slot = cell.row_span.saturating_sub(1).max(0);
+            }
+            column = end;
+        }
+        for column in covered {
+            if let Some(rows) = self.pending.get_mut(column) {
+                *rows -= 1;
+            }
+        }
+        placed
+    }
+}
+
 /// Render an [`Attr`] to an HTML attribute string (a leading space per attribute, empty when blank):
 /// `id`, then `class`, then key/value pairs, with unrecognized keys `data-` prefixed.
 pub(crate) fn render_html_attr(attr: &Attr) -> String {

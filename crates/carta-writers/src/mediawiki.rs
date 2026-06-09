@@ -13,7 +13,7 @@ use carta_ast::{
 use carta_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
+    RowSpanGrid, attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
     is_percent_escaped_uri, is_uri_scheme, quote_marks, render_html_attr,
 };
 
@@ -258,14 +258,16 @@ impl State {
             let _ = write!(out, "\n|+ {}", caption.trim_end_matches('\n'));
         }
         let mut rows: Vec<String> = Vec::new();
+        let mut head_grid = RowSpanGrid::new(aligns.len());
         for row in &table.head.rows {
-            rows.push(self.table_row(row, &aligns, true, 0));
+            rows.push(self.table_row(row, &aligns, true, 0, &mut head_grid));
         }
         for body in &table.bodies {
             rows.extend(self.body_rows(body, &aligns));
         }
+        let mut foot_grid = RowSpanGrid::new(aligns.len());
         for row in &table.foot.rows {
-            rows.push(self.table_row(row, &aligns, true, 0));
+            rows.push(self.table_row(row, &aligns, true, 0, &mut foot_grid));
         }
         for row in rows {
             let _ = write!(out, "\n{row}");
@@ -275,15 +277,17 @@ impl State {
     }
 
     fn body_rows(&mut self, body: &TableBody, aligns: &[Alignment]) -> Vec<String> {
+        let mut head_grid = RowSpanGrid::new(aligns.len());
         let mut rows: Vec<String> = body
             .head
             .iter()
-            .map(|row| self.table_row(row, aligns, true, 0))
+            .map(|row| self.table_row(row, aligns, true, 0, &mut head_grid))
             .collect();
+        let mut body_grid = RowSpanGrid::new(aligns.len());
         rows.extend(
-            body.body
-                .iter()
-                .map(|row| self.table_row(row, aligns, false, body.row_head_columns)),
+            body.body.iter().map(|row| {
+                self.table_row(row, aligns, false, body.row_head_columns, &mut body_grid)
+            }),
         );
         rows
     }
@@ -294,13 +298,13 @@ impl State {
         aligns: &[Alignment],
         header: bool,
         head_columns: i32,
+        grid: &mut RowSpanGrid,
     ) -> String {
         let mut out = format!("|-{}", render_html_attr(&row.attr));
-        let mut column = 0_i32;
-        for (index, cell) in row.cells.iter().enumerate() {
-            let rendered = self.cell(cell, aligns.get(index), header || column < head_columns);
+        let head_columns = usize::try_from(head_columns).unwrap_or(0);
+        for (column, cell) in grid.place(&row.cells) {
+            let rendered = self.cell(cell, aligns.get(column), header || column < head_columns);
             let _ = write!(out, "\n{rendered}");
-            column = column.saturating_add(cell.col_span.max(1));
         }
         out
     }
@@ -341,10 +345,12 @@ impl State {
         }
         let body = self.blocks(&cell.content);
         let content = body.trim_end_matches('\n');
-        if attrs.is_empty() {
-            format!("{marker}{content}")
-        } else {
-            format!("{marker}{}| {content}", attrs.join(" "))
+        // An empty cell ends at its last marker — no trailing space.
+        match (attrs.is_empty(), content.is_empty()) {
+            (true, true) => marker.trim_end().to_owned(),
+            (true, false) => format!("{marker}{content}"),
+            (false, true) => format!("{marker}{}|", attrs.join(" ")),
+            (false, false) => format!("{marker}{}| {content}", attrs.join(" ")),
         }
     }
 
