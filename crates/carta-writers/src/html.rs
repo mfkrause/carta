@@ -13,7 +13,7 @@ use carta_ast::{
 };
 use carta_core::{Result, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, is_known_attribute, is_wide, quote_marks};
+use crate::common::{FILL_COLUMN, RowSpanGrid, is_known_attribute, is_wide, quote_marks};
 
 /// Renders a document to an html5 fragment.
 #[derive(Debug, Default, Clone, Copy)]
@@ -251,7 +251,12 @@ impl State {
             .collect();
         out.push_str(&colgroup(&table.col_specs));
         if !table.head.rows.is_empty() {
-            out.push_str("\n<thead>\n");
+            let _ = write!(
+                out,
+                "\n<thead{}>",
+                render_attr(&table.head.attr, AttrOrder::Standard)
+            );
+            out.push('\n');
             self.rows(out, &table.head.rows, &aligns, true);
             out.push_str("\n</thead>");
         }
@@ -264,7 +269,12 @@ impl State {
             if table.bodies.is_empty() {
                 out.push('\n');
             }
-            out.push_str("<tfoot>\n");
+            let _ = write!(
+                out,
+                "<tfoot{}>",
+                render_attr(&table.foot.attr, AttrOrder::Standard)
+            );
+            out.push('\n');
             self.rows(out, &table.foot.rows, &aligns, false);
             out.push_str("\n</tfoot>");
         }
@@ -277,28 +287,42 @@ impl State {
     }
 
     fn table_body(&mut self, out: &mut String, body: &TableBody, aligns: &[Alignment]) {
-        out.push_str("\n<tbody>");
+        let _ = write!(
+            out,
+            "\n<tbody{}>",
+            render_attr(&body.attr, AttrOrder::Standard)
+        );
+        let mut head_grid = RowSpanGrid::new(aligns.len());
         for row in &body.head {
             out.push('\n');
-            self.row(out, row, aligns, true, 0);
+            self.row(out, row, aligns, true, 0, &mut head_grid);
         }
         // A blank line separates a body's own header rows from the rows that follow.
         if !body.head.is_empty() {
             out.push('\n');
         }
+        let mut body_grid = RowSpanGrid::new(aligns.len());
         for row in &body.body {
             out.push('\n');
-            self.row(out, row, aligns, false, body.row_head_columns);
+            self.row(
+                out,
+                row,
+                aligns,
+                false,
+                body.row_head_columns,
+                &mut body_grid,
+            );
         }
         out.push_str("\n</tbody>");
     }
 
     fn rows(&mut self, out: &mut String, rows: &[Row], aligns: &[Alignment], header: bool) {
+        let mut grid = RowSpanGrid::new(aligns.len());
         for (index, row) in rows.iter().enumerate() {
             if index > 0 {
                 out.push('\n');
             }
-            self.row(out, row, aligns, header, 0);
+            self.row(out, row, aligns, header, 0, &mut grid);
         }
     }
 
@@ -309,21 +333,21 @@ impl State {
         aligns: &[Alignment],
         header: bool,
         head_columns: i32,
+        grid: &mut RowSpanGrid,
     ) {
         let _ = write!(out, "<tr{}>", render_attr(&row.attr, AttrOrder::Standard));
         out.push('\n');
-        let mut column = 0_i32;
-        for (index, cell) in row.cells.iter().enumerate() {
+        let head_columns = usize::try_from(head_columns).unwrap_or(0);
+        for (index, (column, cell)) in grid.place(&row.cells).into_iter().enumerate() {
             if index > 0 {
                 out.push('\n');
             }
             self.cell(
                 out,
                 cell,
-                aligns.get(index),
+                aligns.get(column),
                 header || column < head_columns,
             );
-            column = column.saturating_add(cell.col_span.max(1));
         }
         out.push_str("\n</tr>");
     }
