@@ -9,7 +9,7 @@ thing that consults pandoc.
 ## Running
 
 ```sh
-cargo build -p oxidoc                       # the suite diffs the built debug binary
+cargo build -p oxidoc-cli                   # the suite diffs the built debug binary
 tools/conformance-suite/run.sh all          # every surface
 tools/conformance-suite/run.sh writer       # one surface
 tools/conformance-suite/run.sh writer rst   # one surface, narrowed to a format/target

@@ -29,7 +29,7 @@ require_tools() {
     missing=1
   fi
   if [ ! -x "$OX" ]; then
-    printf 'error: oxidoc binary not found at %s\n  build it: cargo build -p oxidoc\n' "$OX" >&2
+    printf 'error: oxidoc binary not found at %s\n  build it: cargo build -p oxidoc-cli\n' "$OX" >&2
     missing=1
   fi
   if ! command -v jq >/dev/null 2>&1; then
