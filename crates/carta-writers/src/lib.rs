@@ -11,6 +11,9 @@
 ))]
 mod common;
 
+#[cfg(any(feature = "plain", feature = "rst"))]
+mod grid;
+
 #[cfg(feature = "commonmark")]
 pub mod commonmark;
 #[cfg(feature = "html")]
