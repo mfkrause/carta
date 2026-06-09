@@ -7,6 +7,9 @@
 
 // Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The corpus is JSON AST, so the JSON reader is the interchange every case is read through; without
+// it there is nothing to render. Per-target, output is snapshotted only when that writer is compiled.
+#![cfg(feature = "read-json")]
 
 mod common;
 
@@ -27,9 +30,10 @@ const TARGETS: &[&str] = &[
 #[test]
 fn writer_output_snapshots() {
     let excluded = exclusions();
+    let writers = oxidoc::supported_output_formats();
     for case in corpus_cases("ast") {
         for &target in TARGETS {
-            if is_excluded(&excluded, target, &case.group) {
+            if !writers.contains(&target) || is_excluded(&excluded, target, &case.group) {
                 continue;
             }
             let output = oxidoc::convert(
