@@ -1,4 +1,4 @@
-# 🦀 carta
+# 📜 carta
 
 A reimplementation of [pandoc](https://pandoc.org) in Rust — a fast, small-footprint universal
 document converter that reads a markup format and renders it back out in another.
