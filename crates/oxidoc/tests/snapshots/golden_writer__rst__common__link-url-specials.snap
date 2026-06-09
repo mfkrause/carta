@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-`x <http://example.com/a%20b#frag>`__

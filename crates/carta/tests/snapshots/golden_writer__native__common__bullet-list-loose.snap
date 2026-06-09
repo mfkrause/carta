@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ BulletList
+    [ [ Para [ Str "a" ] ]
+    , [ Para [ Str "b" ] ]
+    , [ Para [ Str "c" ] ]
+    ]
+]

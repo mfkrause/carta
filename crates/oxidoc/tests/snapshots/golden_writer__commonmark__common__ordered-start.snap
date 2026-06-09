@@ -1,6 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-5.  five
-6.  six

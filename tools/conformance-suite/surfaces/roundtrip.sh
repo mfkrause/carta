@@ -2,8 +2,8 @@
 # Round-trip surface: exercise the JSON codec over realistic ASTs and confirm identity.
 #
 # For each `.native` document in the fetched corpus, mint the JSON AST with pandoc
-# (`pandoc -f native -t json`), feed that JSON through `oxidoc -f json -t json`, and require the
-# result to match structurally. This proves oxidoc decodes and re-encodes the interchange AST
+# (`pandoc -f native -t json`), feed that JSON through `carta -f json -t json`, and require the
+# result to match structurally. This proves carta decodes and re-encodes the interchange AST
 # without loss. The native corpus is gitignored and only present once tools/fetch-pandoc-tests.sh
 # has run; absent it, the surface reports zero cases.
 #

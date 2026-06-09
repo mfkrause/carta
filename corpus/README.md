@@ -2,15 +2,15 @@
 
 Hand-authored test inputs that drive both layers of the test suite:
 
-- **Layer 1 — golden tests** (`crates/oxidoc/tests/`, offline): snapshot oxidoc's own output for
+- **Layer 1 — golden tests** (`crates/carta/tests/`, offline): snapshot carta's own output for
   every corpus case with [`insta`](https://insta.rs). Committed snapshots live under
-  `crates/oxidoc/tests/snapshots/`; review changes with `cargo insta review`, never by hand-editing
+  `crates/carta/tests/snapshots/`; review changes with `cargo insta review`, never by hand-editing
   `.snap` files.
 - **Layer 2 — conformance suite** (`tools/conformance-suite/`, requires `.oracle/`): convert every
-  corpus case with both oxidoc and pandoc and diff the results.
+  corpus case with both carta and pandoc and diff the results.
 
 Everything here is an **input we own**. No committed file is pandoc *output* used as a golden value:
-golden expected values are oxidoc's own snapshots (Layer 1), and parity is checked live against the
+golden expected values are carta's own snapshots (Layer 1), and parity is checked live against the
 pinned pandoc binary (Layer 2). The AST-JSON inputs were authored once and are maintained as static
 data; the JSON AST shape itself is pandoc's published interchange contract.
 

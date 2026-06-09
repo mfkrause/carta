@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  a
+\item
+  b
+\item
+  c
+\end{itemize}

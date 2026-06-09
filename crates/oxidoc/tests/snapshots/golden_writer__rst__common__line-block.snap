@@ -1,6 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-| first line
-| second line

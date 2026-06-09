@@ -1,8 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-[ OrderedList
-    ( 1 , Decimal , OneParen )
-    [ [ Plain [ Str "one" ] ] , [ Plain [ Str "two" ] ] ]
-]

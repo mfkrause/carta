@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<dl>
+<dt>term: with colon</dt>
+<dd>
+definition
+</dd>
+</dl>

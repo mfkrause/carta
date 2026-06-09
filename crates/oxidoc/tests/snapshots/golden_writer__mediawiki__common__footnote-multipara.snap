@@ -1,9 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-ref<ref>first paragraph
-
-second paragraph</ref>
-
-<references />

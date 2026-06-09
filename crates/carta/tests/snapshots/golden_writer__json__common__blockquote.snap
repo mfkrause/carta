@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"BlockQuote","c":[{"t":"Para","c":[{"t":"Str","c":"quoted"}]},{"t":"Para","c":[{"t":"Str","c":"more"},{"t":"Space"},{"t":"Str","c":"lines"},{"t":"Space"},{"t":"Str","c":"here"}]}]}]}

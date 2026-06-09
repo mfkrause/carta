@@ -1,7 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-ref<ref><pre>code only</pre></ref>
-
-<references />

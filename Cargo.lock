@@ -65,6 +65,64 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
+name = "carta"
+version = "0.0.0"
+dependencies = [
+ "carta-ast",
+ "carta-core",
+ "carta-readers",
+ "carta-writers",
+ "insta",
+]
+
+[[package]]
+name = "carta-ast"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "carta-cli"
+version = "0.0.0"
+dependencies = [
+ "carta",
+ "clap",
+]
+
+[[package]]
+name = "carta-core"
+version = "0.0.0"
+dependencies = [
+ "carta-ast",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "carta-readers"
+version = "0.0.0"
+dependencies = [
+ "carta-ast",
+ "carta-core",
+ "caseless",
+ "serde",
+ "serde_json",
+ "unicode-general-category",
+]
+
+[[package]]
+name = "carta-writers"
+version = "0.0.0"
+dependencies = [
+ "carta-ast",
+ "carta-core",
+ "serde_json",
+ "unicode-general-category",
+]
+
+[[package]]
 name = "caseless"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,64 +345,6 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
-
-[[package]]
-name = "oxidoc"
-version = "0.0.0"
-dependencies = [
- "insta",
- "oxidoc-ast",
- "oxidoc-core",
- "oxidoc-readers",
- "oxidoc-writers",
-]
-
-[[package]]
-name = "oxidoc-ast"
-version = "0.0.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "oxidoc-cli"
-version = "0.0.0"
-dependencies = [
- "clap",
- "oxidoc",
-]
-
-[[package]]
-name = "oxidoc-core"
-version = "0.0.0"
-dependencies = [
- "oxidoc-ast",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "oxidoc-readers"
-version = "0.0.0"
-dependencies = [
- "caseless",
- "oxidoc-ast",
- "oxidoc-core",
- "serde",
- "serde_json",
- "unicode-general-category",
-]
-
-[[package]]
-name = "oxidoc-writers"
-version = "0.0.0"
-dependencies = [
- "oxidoc-ast",
- "oxidoc-core",
- "serde_json",
- "unicode-general-category",
-]
 
 [[package]]
 name = "prettyplease"

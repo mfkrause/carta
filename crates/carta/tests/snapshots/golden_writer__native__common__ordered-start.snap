@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ OrderedList
+    ( 5 , Decimal , Period )
+    [ [ Plain [ Str "five" ] ] , [ Plain [ Str "six" ] ] ]
+]

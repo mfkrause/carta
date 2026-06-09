@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ol class="example" type="1">
+<li>first</li>
+<li>second</li>
+</ol>

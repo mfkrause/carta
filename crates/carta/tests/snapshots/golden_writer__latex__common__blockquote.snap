@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{quote}
+quoted
+
+more lines here
+\end{quote}

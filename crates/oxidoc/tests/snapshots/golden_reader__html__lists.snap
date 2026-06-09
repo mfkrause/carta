@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_reader.rs
-expression: json
----
-{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Str","c":"a"}]}],[{"t":"Plain","c":[{"t":"Str","c":"b"}]}]]},{"t":"OrderedList","c":[[5,{"t":"DefaultStyle"},{"t":"DefaultDelim"}],[[{"t":"Plain","c":[{"t":"Str","c":"five"}]}],[{"t":"Plain","c":[{"t":"Str","c":"six"}]}]]]},{"t":"OrderedList","c":[[1,{"t":"LowerAlpha"},{"t":"DefaultDelim"}],[[{"t":"Plain","c":[{"t":"Str","c":"one"}]}],[{"t":"Plain","c":[{"t":"Str","c":"two"}]}]]]},{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Str","c":"outer"}]},{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Str","c":"inner"}]}]]}]]}]}

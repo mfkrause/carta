@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-<p>water H<sub>2</sub>O and sub<sub>ab</sub> here</p>

@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "a"
+    , Space
+    , Str "simple"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , Str "words"
+    ]
+]

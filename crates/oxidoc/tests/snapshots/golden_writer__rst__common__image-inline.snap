@@ -1,7 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-an |alt words| inline
-
-.. |alt words| image:: pic.png

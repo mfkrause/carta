@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "outer "
+        , Link
+            ( "iid" , [ "ic" ] , [] ) [ Str "inner" ] ( "u2" , "" )
+        , Str " end"
+        ]
+        ( "u1" , "" )
+    ]
+]

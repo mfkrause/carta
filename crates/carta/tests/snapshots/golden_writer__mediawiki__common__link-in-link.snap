@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[[u1|outer <span id="iid" class="ic">inner</span> end]]

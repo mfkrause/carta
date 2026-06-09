@@ -1,11 +1,11 @@
-# oxidoc — Porting Plan & Methodology
+# carta — Porting Plan & Methodology
 
 Canonical reference for the project. Compact by design: every agent should read this at the
 start of a task. Operating rules (clean-room, code style, git, commands) live in `../AGENTS.md`.
 
 ## 1. What this is
 
-oxidoc is a **clean-room reimplementation of pandoc** (Haskell → Rust). Drivers: smaller binary,
+carta is a **clean-room reimplementation of pandoc** (Haskell → Rust). Drivers: smaller binary,
 better performance, compile-time memory safety, developer experience. It is an **independent
 project**. Target scope: **broad coverage** of pandoc's ~30+ readers and writers.
 
@@ -28,24 +28,24 @@ isolable.
 
 Crate layout (Cargo workspace):
 
-- `oxidoc-ast` — AST types + JSON (de)serialization matching pandoc's `pandoc-api-version`. The
+- `carta-ast` — AST types + JSON (de)serialization matching pandoc's `pandoc-api-version`. The
   contract. Pure data.
-- `oxidoc-core` — shared options, error type, the `Reader`/`Writer` traits, the `Extension`/
+- `carta-core` — shared options, error type, the `Reader`/`Writer` traits, the `Extension`/
   `Extensions` set, and text/attribute helpers.
-- `oxidoc-readers` — one module per input format, each behind a per-format Cargo feature
+- `carta-readers` — one module per input format, each behind a per-format Cargo feature
   (`commonmark`, `json`, …).
-- `oxidoc-writers` — one module per output format, each behind a per-format Cargo feature
+- `carta-writers` — one module per output format, each behind a per-format Cargo feature
   (`html`, `json`, …).
-- `oxidoc` — the library facade and single public entry point (`convert`, `reader_for`/`writer_for`,
+- `carta` — the library facade and single public entry point (`convert`, `reader_for`/`writer_for`,
   `supported_*_formats`). Selects formats at compile time via per-direction features
   (`read-*`/`write-*`) that forward to the reader/writer crate features; a recognized format absent
   from the build surfaces as `Error::FormatNotEnabled`.
-- `oxidoc-cli` — the `oxidoc` binary; arg parsing + stdin/file I/O over the `oxidoc` facade.
+- `carta-cli` — the `carta` binary; arg parsing + stdin/file I/O over the `carta` facade.
 - `tools/conformance-suite/` — shell differential harness (drives pandoc black-box, diffs results);
   not a crate, lives outside `cargo test`. See §5.
 - `fuzz` — coverage-guided fuzz targets (`cargo-fuzz`/libFuzzer); detached from the workspace,
   built on nightly.
-- later: `oxidoc-templates`, `oxidoc-citeproc`, filter support, etc.
+- later: `carta-templates`, `carta-citeproc`, filter support, etc.
 
 ## 4. The AST contract
 
@@ -63,7 +63,7 @@ against the pinned binary's JSON during slice 0.
 
 ## 5. Two differential oracle surfaces (decouple readers from writers)
 
-- **Reader:** `oxidoc -f X -t json`  vs  `pandoc -f X -t json`  → AST equality.
+- **Reader:** `carta -f X -t json`  vs  `pandoc -f X -t json`  → AST equality.
 - **Writer:** feed `pandoc -f json` (pandoc's own AST) into our writer, diff vs `pandoc -t Y`.
 
 A reader bug can't be blamed on a writer, and vice-versa. The clean-room boundary and the
@@ -76,7 +76,7 @@ suite (CC-BY-SA) may be vendored with attribution for standard conformance (pand
 superset, so differential-vs-pandoc is still required).
 
 **Reusing pandoc's own test corpus.** Beyond inputs we author, we run pandoc's own tests against
-`oxidoc` — data only, never the harness or implementation:
+`carta` — data only, never the harness or implementation:
 
 - *Command tests* (`test/command/*.md`) are declarative (invocation + input + expected output) and
   shell out to the binary. The conformance suite's `commands` surface parses them and substitutes our

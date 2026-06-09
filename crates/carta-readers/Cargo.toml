@@ -1,0 +1,29 @@
+[package]
+name = "carta-readers"
+description = "Input-format readers: parse a source format's text into the document model."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["commonmark", "json", "html", "native"]
+commonmark = ["dep:unicode-general-category", "dep:caseless"]
+json = []
+html = []
+native = []
+
+[dependencies]
+carta-ast = { workspace = true }
+carta-core = { workspace = true }
+unicode-general-category = { workspace = true, optional = true }
+caseless = { workspace = true, optional = true }
+
+[build-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

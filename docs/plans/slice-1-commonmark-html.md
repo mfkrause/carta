@@ -5,7 +5,7 @@ Read `../PORTING.md` §3–9 and `../../AGENTS.md` first, then the slice-0 plan
 (`slice-0-ast-json-contract.md`) for the conventions this slice builds on. This document is
 self-contained: it should be possible to implement the slice from it alone.
 
-**Outcome.** `oxidoc -f commonmark -t html` is byte-identical to the pinned binary
+**Outcome.** `carta -f commonmark -t html` is byte-identical to the pinned binary
 (`--syntax-highlighting=none --mathjax`) on all 652 vendored CommonMark spec examples, and the
 reader matches the oracle JSON AST on all 652. The HTML writer additionally matches the oracle
 across the full document model (tables, definition lists, figures, footnotes, citations, math, raw
@@ -18,24 +18,24 @@ with GFM reader support in a later slice.
 
 ## 0. Goal & done criteria
 
-Stand up the first end-to-end conversion path — `oxidoc -f commonmark -t html` — by landing a
+Stand up the first end-to-end conversion path — `carta -f commonmark -t html` — by landing a
 hand-rolled **strict-CommonMark reader**, a **full-coverage HTML writer**, a uniform `Reader`/
 `Writer` trait layer, and the reader/writer/end-to-end differential surfaces. This proves the
 `readers → AST → writers` pipeline and the differential harness on a real format pair.
 
 **Definition of done:**
 
-1. `oxidoc -f commonmark -t html`, `oxidoc -f commonmark -t json`, `oxidoc -f json -t html`, and the
-   existing `oxidoc -f json -t json` all run end-to-end (stdin/file in, stdout/`-o` out).
+1. `carta -f commonmark -t html`, `carta -f commonmark -t json`, `carta -f json -t html`, and the
+   existing `carta -f json -t json` all run end-to-end (stdin/file in, stdout/`-o` out).
 2. **Reader gate (hard):** for every example in the vendored CommonMark spec suite,
-   `Value(oxidoc -f commonmark -t json) == Value(pandoc -f commonmark -t json)`. 100% parity is the
+   `Value(carta -f commonmark -t json) == Value(pandoc -f commonmark -t json)`. 100% parity is the
    bar — no silently skipped examples. Any example not yet matching is a tracked `todo!`/IOU with the
    case recorded, and the slice is **not done** while any remain (see §11 risk).
 3. **Writer gate (hard, byte-exact):** for every `.native` file in the fetched corpus (the slice-0
    set), the document minted to JSON, parsed, and re-rendered by our HTML writer equals
    `pandoc -f json -t html --syntax-highlighting=none --mathjax <doc>` byte-for-byte.
 4. **End-to-end gate:** for the spec-suite inputs and hand-authored fixtures,
-   `oxidoc -f commonmark -t html` equals
+   `carta -f commonmark -t html` equals
    `pandoc -f commonmark -t html --syntax-highlighting=none --mathjax` byte-for-byte.
 5. The pandoc command-test grammar parser (`command_test::parse`) is implemented; the runnable
    subset (input ∈ {commonmark, json}, output ∈ {json, html, html5}, no unsupported flags) passes,
@@ -66,8 +66,8 @@ hand-rolled **strict-CommonMark reader**, a **full-coverage HTML writer**, a uni
 | HTML target | **html5 fragment** (no standalone, no templates) |
 | Writer node coverage | **Full AST coverage** — every `Block`/`Inline` renders |
 | Code-highlighting + Math subsystems | **Neutralize via flags** (`--syntax-highlighting=none --mathjax`); defer skylighting + texmath to Tier C |
-| Reader/Writer API | **Traits now** (`Reader`/`Writer` in `oxidoc-core`), `&str` input, empty `#[non_exhaustive]` options structs |
-| JSON codec home | **Stays in `oxidoc-ast`**; thin `JsonReader`/`JsonWriter` adapters in the new crates |
+| Reader/Writer API | **Traits now** (`Reader`/`Writer` in `carta-core`), `&str` input, empty `#[non_exhaustive]` options structs |
+| JSON codec home | **Stays in `carta-ast`**; thin `JsonReader`/`JsonWriter` adapters in the new crates |
 | Conformance corpus | **Vendor CommonMark spec 0.31.2** under the testkit, **inputs only** (diff vs pandoc, never vs the spec's reference HTML) |
 | Reader done-bar | **100% spec-suite parity, hard gate** (gaps tracked as IOUs that block done) |
 | Writer differential gate | **Byte-exact** vs pandoc (with the two neutralizing flags) |
@@ -78,12 +78,12 @@ hand-rolled **strict-CommonMark reader**, a **full-coverage HTML writer**, a uni
 Two new crates complete the `readers → AST → writers` shape from PORTING §3.
 
 ```
-oxidoc-core      + Reader/Writer traits, ReaderOptions/WriterOptions, extended Error
-                   (gains a dependency on oxidoc-ast — no cycle: ast depends on neither)
-oxidoc-readers   NEW. modules: json (adapter), commonmark (hand-rolled)
-oxidoc-writers   NEW. modules: json (adapter), html (full-coverage writer)
-oxidoc-cli       dispatches input/output format enums over the trait impls
-oxidoc-testkit   + differential.rs (reader/writer/e2e surfaces, in-process),
+carta-core      + Reader/Writer traits, ReaderOptions/WriterOptions, extended Error
+                   (gains a dependency on carta-ast — no cycle: ast depends on neither)
+carta-readers   NEW. modules: json (adapter), commonmark (hand-rolled)
+carta-writers   NEW. modules: json (adapter), html (full-coverage writer)
+carta-cli       dispatches input/output format enums over the trait impls
+carta-testkit   + differential.rs (reader/writer/e2e surfaces, in-process),
                  + commonmark_spec.rs (vendored spec parser),
                  + command_test::parse implemented; gains dev-deps on readers/writers
 ```
@@ -91,10 +91,10 @@ oxidoc-testkit   + differential.rs (reader/writer/e2e surfaces, in-process),
 Dependency direction stays acyclic: `ast` depends on nothing internal; `core` → `ast`;
 `readers`/`writers` → `ast` + `core`; `cli`/`testkit` → all.
 
-### 2.1 The trait contract (`oxidoc-core`)
+### 2.1 The trait contract (`carta-core`)
 
 ```rust
-use oxidoc_ast::Document;
+use carta_ast::Document;
 
 pub trait Reader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document>;
@@ -117,9 +117,9 @@ pub struct WriterOptions {}
   return the document body **without** a trailing newline (see §4.1). The trait surface is stable as
   real options arrive (they extend the `#[non_exhaustive]` structs, not the signatures).
 - Implementors are unit structs: `CommonmarkReader`, `JsonReader`, `HtmlWriter`, `JsonWriter`.
-- `Result` is `oxidoc_core::Result`.
+- `Result` is `carta_core::Result`.
 
-### 2.2 Error type extension (`oxidoc-core`)
+### 2.2 Error type extension (`carta-core`)
 
 Add to the existing enum (slice-0 §4):
 
@@ -244,7 +244,7 @@ with methods `block`, `inline`, `inlines`, `attr(ctx, &Attr)`, `escape_text`, `e
 joining via a helper that interleaves `\n`. `HtmlWriter::write` builds the state, renders blocks,
 appends the footnote section, returns `out`. No panics, no indexing — iterate, use `.get()`.
 
-## 4. CLI dispatch (`oxidoc-cli`)
+## 4. CLI dispatch (`carta-cli`)
 
 ### 4.1 Pipeline & newline ownership
 
@@ -267,7 +267,7 @@ value → `Error::UnsupportedFormat` (the sanctioned non-panic for unsupported f
 to its trait impl (a `match` returning `&dyn Reader`/`&dyn Writer`, or direct calls). Keep `--from`
 and `--to` required, as in slice 0.
 
-## 5. HTML writer (`oxidoc-writers::html`) — build order
+## 5. HTML writer (`carta-writers::html`) — build order
 
 Writer-first. Build node-by-node and differential-verify against the corpus (§6.2) as you go:
 
@@ -283,17 +283,17 @@ Writer-first. Build node-by-node and differential-verify against the corpus (§6
 After each step the writer differential (§6.2) should monotonically reduce failures. The order means
 the easy, high-frequency nodes are correct before the rare, verbose ones.
 
-## 6. Differential harness (`oxidoc-testkit`)
+## 6. Differential harness (`carta-testkit`)
 
 Three programmatic surfaces run **in-process** (call the trait impls directly — simpler and faster
 than shelling out, and sidesteps cross-crate `CARGO_BIN_EXE`). The command-test runner (§6.4) is the
-exception: it needs the real binary, so that integration test lives in `oxidoc-cli/tests/` where
-`env!("CARGO_BIN_EXE_oxidoc")` is available, using testkit's parser + comparison helpers.
+exception: it needs the real binary, so that integration test lives in `carta-cli/tests/` where
+`env!("CARGO_BIN_EXE_carta")` is available, using testkit's parser + comparison helpers.
 
 Reuse slice-0 infrastructure: `mint_golden` (cached `.native`→JSON), `oracle_dir`/`pandoc_bin`,
 `collect_files_with_extension`, and the `Value` first-difference reporter (`roundtrip::first_difference`).
 
-### 6.1 Reader surface — `oxidoc -f commonmark -t json` vs pandoc
+### 6.1 Reader surface — `carta -f commonmark -t json` vs pandoc
 
 For each spec example input (§7) and hand-authored input:
 `Value(to_json(CommonmarkReader.read(input))) == Value(pandoc -f commonmark -t json input)`.
@@ -308,7 +308,7 @@ compare **byte-exact** to `pandoc -f json -t html --syntax-highlighting=none --m
 the pandoc html output keyed on version + minted-json bytes + args). On mismatch, report the file and
 the first differing byte offset with a short context window.
 
-### 6.3 End-to-end surface — `oxidoc -f commonmark -t html` vs pandoc
+### 6.3 End-to-end surface — `carta -f commonmark -t html` vs pandoc
 
 For spec inputs + fixtures: `HtmlWriter.write(CommonmarkReader.read(input))` + `\n` compared
 byte-exact to `pandoc -f commonmark -t html --syntax-highlighting=none --mathjax`. This is implied by
@@ -334,7 +334,7 @@ splitting `args` (drop the leading `pandoc`), `input`, `expected`. The runner:
   `--syntax-highlighting=none`, `--mathjax`). Inject `--syntax-highlighting=none --mathjax` for html
   output so expectations match our neutralized target — **skip** any html test whose expected output
   contains highlighting/texmath markup (those were generated without our flags); count them.
-- Runs the oxidoc binary with the test's args, feeds `input` on stdin, compares stdout byte-exact to
+- Runs the carta binary with the test's args, feeds `input` on stdin, compares stdout byte-exact to
   `expected`.
 - **Reports** counts: passed / failed / skipped-unrunnable, with reasons. Most `html-writer`/`figures`
   command tests feed `-f native` (no native reader in slice 1) and are therefore skipped — this is
@@ -348,7 +348,7 @@ instructions, never silently skips. The spec-suite tests require the vendored `s
 
 ## 7. Vendored CommonMark spec suite (inputs only)
 
-- Vendor `spec.txt` at **CommonMark 0.31.2** under `crates/oxidoc-testkit/vendor/commonmark/spec.txt`
+- Vendor `spec.txt` at **CommonMark 0.31.2** under `crates/carta-testkit/vendor/commonmark/spec.txt`
   with a sibling `LICENSE` (CC-BY-SA-4.0) and a short `ATTRIBUTION.md` (source URL + version +
   license). This is the CommonMark project's own file — unrelated to pandoc, **no clean-room concern**
   — and PORTING §5 explicitly permits vendoring the conformance suite with attribution.
@@ -365,17 +365,17 @@ instructions, never silently skips. The spec-suite tests require the vendored `s
 
 Reuse the slice-0 pattern: small hand-authored cases that run without the oracle.
 
-- **Writer fixtures**: `crates/oxidoc-testkit/fixtures/html/` — pairs of `(input.json, expected.html)`
+- **Writer fixtures**: `crates/carta-testkit/fixtures/html/` — pairs of `(input.json, expected.html)`
   authored to match our neutralized target, covering every block/inline node (mirrors the §3 table),
   including the footnote section, a table, a figure with/without caption, and the header attr-order
   quirk. Offline test: `HtmlWriter.write(from_json(input)) + "\n" == expected`.
-- **Reader fixtures**: `crates/oxidoc-testkit/fixtures/commonmark/` — `(input.md, expected.json)`
+- **Reader fixtures**: `crates/carta-testkit/fixtures/commonmark/` — `(input.md, expected.json)`
   pairs for representative constructs. Offline test: `Value(to_json(read(input))) == Value(expected)`.
 
 These give readable regression cases and keep a meaningful slice-1 signal green for agents/CI without
 the oracle.
 
-## 9. CommonMark reader (`oxidoc-readers::commonmark`) — architecture
+## 9. CommonMark reader (`carta-readers::commonmark`) — architecture
 
 Hand-rolled, two-phase, following the CommonMark spec's recommended structure. The spec
 (`vendor/commonmark/spec.txt`, public CC-BY-SA) is the **specification** source; the pinned pandoc
@@ -418,7 +418,7 @@ Each commit builds, is clippy/fmt clean, and keeps `todo!`s only at sanctioned s
 
 1. `feat(core): reader/writer traits, options, and utf-8 error` — §2.1–2.2.
 2. `feat(writers): scaffold crate with json writer adapter` — crate + `JsonWriter` delegating to
-   `oxidoc_ast::to_json`; wire nothing else yet.
+   `carta_ast::to_json`; wire nothing else yet.
 3. `feat(readers): scaffold crate with json reader adapter` — crate + `JsonReader`.
 4. `refactor(cli): dispatch via reader/writer traits` — replace the slice-0 inline json path with
    trait dispatch + format enums (still json→json only); behavior unchanged, gate stays green.
@@ -426,12 +426,12 @@ Each commit builds, is clippy/fmt clean, and keeps `todo!`s only at sanctioned s
 6. `feat(writers): html writer — block containers, code, figure` — §5 step 5.
 7. `feat(writers): html writer — math passthrough, cite, footnotes, table` — §5 steps 6–7.
 8. `test(testkit): writer differential surface against the corpus` — §6.2 + §8 writer fixtures.
-   (After this, `oxidoc -f json -t html` is done and corpus-green.)
+   (After this, `carta -f json -t html` is done and corpus-green.)
 9. `feat(readers): commonmark block structure` — §9.1.
 10. `feat(readers): commonmark inline parsing` — §9.2.
 11. `build(testkit): vendor commonmark spec suite + fetch tool` — §7.
 12. `test(testkit): reader + end-to-end differential surfaces` — §6.1, §6.3 + §8 reader fixtures.
-13. `feat(testkit): command-test grammar parser + runner` — §6.4 (runner test in `oxidoc-cli/tests/`).
+13. `feat(testkit): command-test grammar parser + runner` — §6.4 (runner test in `carta-cli/tests/`).
 14. `feat(cli): enable commonmark→html / commonmark→json paths` — flip the format enums on; the
     end-to-end gate is the acceptance check.
 15. `docs: mark slice 1 landed; update AGENTS build/test section` — record new crates + commands.

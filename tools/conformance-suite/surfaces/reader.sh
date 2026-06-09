@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reader surface: parse text into the JSON AST and diff against pandoc.
 #
-# For each `corpus/text/<fmt>/*` case, compare `oxidoc -f <fmt> -t json` against
+# For each `corpus/text/<fmt>/*` case, compare `carta -f <fmt> -t json` against
 # `pandoc -f <fmt> -t json` (jq -S). For commonmark, additionally run every worked example from the
 # CommonMark spec as a dedicated group so the spec-parity count stays visible.
 #

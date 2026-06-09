@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-<p><a href="u1">outer <span id="iid" class="ic">inner</span> end</a></p>

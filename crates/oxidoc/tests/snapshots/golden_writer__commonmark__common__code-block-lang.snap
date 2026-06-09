@@ -1,8 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-``` rust
-let s = "hi";
-x < y && y > z
-```

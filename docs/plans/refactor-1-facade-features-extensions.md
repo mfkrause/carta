@@ -4,10 +4,10 @@ Status: **landed**. Owner: refactor-1.
 Read `../PORTING.md` §3 and `../../AGENTS.md` first. This document is self-contained: it should be
 possible to execute the refactor from it alone. It does **not** add any reader or writer; it
 reshapes the workspace so the upcoming format fleet (PORTING §6 Tier A/B) can land in isolated,
-independently-selectable, independently-testable units, and so oxidoc ships as a library as well as
+independently-selectable, independently-testable units, and so carta ships as a library as well as
 a binary.
 
-**Outcome.** A new `oxidoc` library crate becomes the single public entry point (high-level
+**Outcome.** A new `carta` library crate becomes the single public entry point (high-level
 `convert()` plus low-level re-exports); every reader and writer is selectable at compile time via
 per-direction Cargo features; a hand-rolled `Extension`/`Extensions` type is threaded through the
 options structs; the no-`HashMap` determinism rule is lint-enforced; and a `fuzz/` crate scaffolds
@@ -21,20 +21,20 @@ Deferred (not in scope): **#3** (testkit format-genericization + golden-snapshot
 
 **Definition of done:**
 
-1. A new `oxidoc` **library** crate exists and is the only crate a downstream consumer needs to
+1. A new `carta` **library** crate exists and is the only crate a downstream consumer needs to
    depend on. It exposes `convert(from, to, input, &ReaderOptions, &WriterOptions) -> Result<String>`,
    `supported_input_formats()` / `supported_output_formats()`, and re-exports the AST and the
    `Reader`/`Writer` traits + concrete reader/writer types.
-2. `oxidoc-cli` depends only on `oxidoc` (+ clap); the format-dispatch logic no longer lives in the
-   binary. The `oxidoc` binary's observable behavior is unchanged (all `crates/oxidoc-cli/tests/cli.rs`
+2. `carta-cli` depends only on `carta` (+ clap); the format-dispatch logic no longer lives in the
+   binary. The `carta` binary's observable behavior is unchanged (all `crates/carta-cli/tests/cli.rs`
    pass verbatim, including the `markdown`/`html5` aliases and every error message).
 3. Each reader and writer is behind a per-direction Cargo feature. `default` builds all implemented
-   formats; `cargo build -p oxidoc --no-default-features --features read-commonmark,write-html`
+   formats; `cargo build -p carta --no-default-features --features read-commonmark,write-html`
    builds a binary/library with exactly those two formats and nothing else compiled in. A build with
    **zero** format features also compiles (every `convert` then returns `FormatNotEnabled`).
 4. A format name that is recognized but not compiled in yields `Error::FormatNotEnabled`; an
    unknown name yields `Error::UnsupportedFormat`. The two are distinguishable.
-5. `oxidoc-core` defines `Extension` (typed enum) and `Extensions` (hand-rolled fixed-word bitset,
+5. `carta-core` defines `Extension` (typed enum) and `Extensions` (hand-rolled fixed-word bitset,
    no dependency, no 128-variant cap, const-constructible presets). Both `ReaderOptions` and
    `WriterOptions` carry an `extensions: Extensions` field. The CommonMark reader documents that it
    implements the strict-CommonMark (empty) preset; engine generalization is explicitly deferred.
@@ -55,14 +55,14 @@ the 2nd markdown variant lands); testkit format-genericization and committed gol
 
 | Decision | Choice |
 | --- | --- |
-| Facade layout | Separate `oxidoc` **library** crate; `oxidoc-cli` stays a thin binary depending on it |
+| Facade layout | Separate `carta` **library** crate; `carta-cli` stays a thin binary depending on it |
 | Facade API | High-level `convert()` + `supported_*_formats()`, **plus** re-exports of the AST and `Reader`/`Writer` traits + concrete types |
 | Dispatch | Static `#[cfg]`-gated `match` in the facade; no auto-registration, no unsafe |
-| Feature scheme | Per-direction features at the crate level (`oxidoc-readers/commonmark`, `oxidoc-writers/html`); facade exposes `read-*`/`write-*` that forward |
+| Feature scheme | Per-direction features at the crate level (`carta-readers/commonmark`, `carta-writers/html`); facade exposes `read-*`/`write-*` that forward |
 | Default features | `default = all implemented formats` (+ a `full` alias); minimal builds via `--no-default-features` |
 | Gating guard | A `--no-default-features` CI build job |
 | Options model | One shared `ReaderOptions`/`WriterOptions` (trait signatures unchanged) carrying an `extensions` field |
-| Extensions type | Typed `Extension` enum + **hand-rolled fixed-word (`[u64; N]`) bitset**, in `oxidoc-core` |
+| Extensions type | Typed `Extension` enum + **hand-rolled fixed-word (`[u64; N]`) bitset**, in `carta-core` |
 | Markdown prep | Plumb extensions through options; CommonMark reader asserts the empty preset; **defer** the engine extraction and any `markdown/` relocation |
 | Determinism lint | Global `disallowed-types` for `HashMap`/`HashSet` + per-site `#[allow]` where needed (none needed today) |
 | Fuzzing | `fuzz/` crate now (excluded from workspace) + one `commonmark` target + non-blocking nightly CI smoke |
@@ -72,22 +72,22 @@ the 2nd markdown variant lands); testkit format-genericization and committed gol
 
 ```
 crates/
-  oxidoc-ast/        (unchanged)
-  oxidoc-core/       + extensions module; options gain `extensions`; + FormatNotEnabled error
-  oxidoc-readers/    + per-format features; optional unicode/caseless deps; cfg-gated modules
-  oxidoc-writers/    + per-format features; optional unicode dep; cfg-gated modules
-  oxidoc/            NEW facade library: registry + convert() + re-exports
-  oxidoc-cli/        depends only on `oxidoc` (+ clap); dispatch removed
-  oxidoc-testkit/    unchanged (depends on readers/writers directly; genericization is #3, deferred)
+  carta-ast/        (unchanged)
+  carta-core/       + extensions module; options gain `extensions`; + FormatNotEnabled error
+  carta-readers/    + per-format features; optional unicode/caseless deps; cfg-gated modules
+  carta-writers/    + per-format features; optional unicode dep; cfg-gated modules
+  carta/            NEW facade library: registry + convert() + re-exports
+  carta-cli/        depends only on `carta` (+ clap); dispatch removed
+  carta-testkit/    unchanged (depends on readers/writers directly; genericization is #3, deferred)
 fuzz/                NEW, excluded from the workspace (own [workspace] table)
   Cargo.toml
   fuzz_targets/commonmark.rs
 ```
 
-Dependency direction is unchanged and acyclic: `ast → core → {readers, writers} → oxidoc → oxidoc-cli`.
+Dependency direction is unchanged and acyclic: `ast → core → {readers, writers} → carta → carta-cli`.
 The facade is the only crate that knows the set of formats; readers/writers remain mutually unaware.
 
-## 3. `oxidoc-core` — extensions + options + error (#5, part of #1)
+## 3. `carta-core` — extensions + options + error (#5, part of #1)
 
 ### 3.1 `extensions` module
 
@@ -264,14 +264,14 @@ would only add dead code today).
 
 ## 4. Compile-time feature gating (#2)
 
-### 4.1 `oxidoc-readers`
+### 4.1 `carta-readers`
 
 Make the format-specific deps optional and gate the modules:
 
 ```toml
 [dependencies]
-oxidoc-ast = { workspace = true }
-oxidoc-core = { workspace = true }
+carta-ast = { workspace = true }
+carta-core = { workspace = true }
 unicode-general-category = { workspace = true, optional = true }
 caseless = { workspace = true, optional = true }
 
@@ -298,12 +298,12 @@ pub use json::JsonReader;
 `build.rs` (entities table) is left as-is: it is cheap and the generated file is only `include!`d
 from the `commonmark` module, so it is harmless when that feature is off.
 
-### 4.2 `oxidoc-writers`
+### 4.2 `carta-writers`
 
 ```toml
 [dependencies]
-oxidoc-ast = { workspace = true }
-oxidoc-core = { workspace = true }
+carta-ast = { workspace = true }
+carta-core = { workspace = true }
 unicode-general-category = { workspace = true, optional = true }
 
 [features]
@@ -314,22 +314,22 @@ json = []
 
 `lib.rs` mirrors the readers' cfg-gating.
 
-### 4.3 `oxidoc` facade
+### 4.3 `carta` facade
 
 ```toml
 [dependencies]
-oxidoc-ast = { workspace = true }
-oxidoc-core = { workspace = true }
-oxidoc-readers = { workspace = true, default-features = false, optional = true }
-oxidoc-writers = { workspace = true, default-features = false, optional = true }
+carta-ast = { workspace = true }
+carta-core = { workspace = true }
+carta-readers = { workspace = true, default-features = false, optional = true }
+carta-writers = { workspace = true, default-features = false, optional = true }
 
 [features]
 default = ["full"]
 full = ["read-commonmark", "read-json", "write-html", "write-json"]
-read-commonmark = ["dep:oxidoc-readers", "oxidoc-readers/commonmark"]
-read-json       = ["dep:oxidoc-readers", "oxidoc-readers/json"]
-write-html      = ["dep:oxidoc-writers", "oxidoc-writers/html"]
-write-json      = ["dep:oxidoc-writers", "oxidoc-writers/json"]
+read-commonmark = ["dep:carta-readers", "carta-readers/commonmark"]
+read-json       = ["dep:carta-readers", "carta-readers/json"]
+write-html      = ["dep:carta-writers", "carta-writers/html"]
+write-json      = ["dep:carta-writers", "carta-writers/json"]
 ```
 
 Making the sub-crates `optional` + `dep:` means a zero-format build does not compile them at all.
@@ -338,7 +338,7 @@ Making the sub-crates `optional` + `dep:` means a zero-format build does not com
 cfg arms (no top-level `use`, so zero-format builds have no dangling imports):
 
 ```rust
-use oxidoc_core::{Error, Reader, Result, Writer};
+use carta_core::{Error, Reader, Result, Writer};
 
 const KNOWN_INPUT_FORMATS: &[&str] = &["commonmark", "markdown", "json"];
 const KNOWN_OUTPUT_FORMATS: &[&str] = &["html", "html5", "json"];
@@ -346,9 +346,9 @@ const KNOWN_OUTPUT_FORMATS: &[&str] = &["html", "html5", "json"];
 pub fn reader_for(name: &str) -> Result<Box<dyn Reader>> {
     match name {
         #[cfg(feature = "read-json")]
-        "json" => Ok(Box::new(oxidoc_readers::JsonReader)),
+        "json" => Ok(Box::new(carta_readers::JsonReader)),
         #[cfg(feature = "read-commonmark")]
-        "commonmark" | "markdown" => Ok(Box::new(oxidoc_readers::CommonmarkReader)),
+        "commonmark" | "markdown" => Ok(Box::new(carta_readers::CommonmarkReader)),
         other => Err(resolution_error(other, KNOWN_INPUT_FORMATS)),
     }
 }
@@ -356,9 +356,9 @@ pub fn reader_for(name: &str) -> Result<Box<dyn Reader>> {
 pub fn writer_for(name: &str) -> Result<Box<dyn Writer>> {
     match name {
         #[cfg(feature = "write-json")]
-        "json" => Ok(Box::new(oxidoc_writers::JsonWriter)),
+        "json" => Ok(Box::new(carta_writers::JsonWriter)),
         #[cfg(feature = "write-html")]
-        "html" | "html5" => Ok(Box::new(oxidoc_writers::HtmlWriter)),
+        "html" | "html5" => Ok(Box::new(carta_writers::HtmlWriter)),
         other => Err(resolution_error(other, KNOWN_OUTPUT_FORMATS)),
     }
 }
@@ -396,9 +396,9 @@ The alias mapping (`markdown`→commonmark, `html5`→html) is preserved exactly
 `src/lib.rs`:
 
 ```rust
-pub use oxidoc_ast as ast;
-pub use oxidoc_ast::Document;
-pub use oxidoc_core::{
+pub use carta_ast as ast;
+pub use carta_ast::Document;
+pub use carta_core::{
     Error, Extension, Extensions, Reader, ReaderOptions, Result, Writer, WriterOptions,
 };
 
@@ -424,19 +424,19 @@ pub fn convert(
 Add a small `tests/` integration test for the facade: `convert` happy paths for the compiled-in
 formats and `FormatNotEnabled` vs `UnsupportedFormat` classification (needs no oracle).
 
-### 4.4 `oxidoc-cli`
+### 4.4 `carta-cli`
 
 ```toml
 [dependencies]
-oxidoc = { workspace = true }
+carta = { workspace = true }
 clap  = { workspace = true }
 ```
 
 `main.rs` drops `InputFormat`/`OutputFormat`/`FromStr`/`reader()`/`writer()` and calls
-`oxidoc::convert`. The missing-flag errors keep their current wording (`"… is required"`), the
+`carta::convert`. The missing-flag errors keep their current wording (`"… is required"`), the
 trailing-newline ownership stays in the CLI, and file/stdin I/O is unchanged.
 
-Add `oxidoc = { path = "crates/oxidoc" }` to `[workspace.dependencies]`.
+Add `carta = { path = "crates/carta" }` to `[workspace.dependencies]`.
 
 ## 5. Determinism lint (#4)
 
@@ -459,7 +459,7 @@ convention):
 
 ```toml
 [package]
-name = "oxidoc-fuzz"
+name = "carta-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -469,8 +469,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-oxidoc-core = { path = "../crates/oxidoc-core" }
-oxidoc-readers = { path = "../crates/oxidoc-readers" }
+carta-core = { path = "../crates/carta-core" }
+carta-readers = { path = "../crates/carta-readers" }
 
 [[bin]]
 name = "commonmark"
@@ -490,8 +490,8 @@ debug = 1
 ```rust
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use oxidoc_core::{Reader, ReaderOptions};
-use oxidoc_readers::CommonmarkReader;
+use carta_core::{Reader, ReaderOptions};
+use carta_readers::CommonmarkReader;
 
 // Bar: no panic, no hang on any input (PORTING §8). UTF-8 only — the reader's contract is `&str`.
 fuzz_target!(|data: &[u8]| {
@@ -510,8 +510,8 @@ Add to `.github/workflows/ci.yml`:
 
 - A **`minimal`** job (stable toolchain, no oracle needed): builds the feature-gating guard.
   ```
-  cargo build -p oxidoc --no-default-features --features read-commonmark,write-html
-  cargo build -p oxidoc --no-default-features            # zero formats must still compile
+  cargo build -p carta --no-default-features --features read-commonmark,write-html
+  cargo build -p carta --no-default-features            # zero formats must still compile
   ```
 - A **`fuzz-smoke`** job, `continue-on-error: true` (non-blocking), nightly toolchain, installs
   `cargo-fuzz`, runs `cargo +nightly fuzz run commonmark -- -max_total_time=30`.
@@ -527,9 +527,9 @@ Each step ends green (`fmt` + `clippy --all-targets --all-features` + `nextest -
    `FormatNotEnabled` variant) + unit tests; CommonMark reader doc note (§3.4).
 2. `refactor(readers): gate formats behind per-format features` — §4.1.
 3. `refactor(writers): gate formats behind per-format features` — §4.2.
-4. `feat(oxidoc): add facade library with registry and convert()` — §4.3 + facade tests + workspace
+4. `feat(carta): add facade library with registry and convert()` — §4.3 + facade tests + workspace
    dep entry.
-5. `refactor(cli): dispatch through the oxidoc facade` — §4.4.
+5. `refactor(cli): dispatch through the carta facade` — §4.4.
 6. `style(lint): disallow HashMap/HashSet for deterministic output` — §5.
 7. `test(fuzz): scaffold cargo-fuzz crate with a commonmark target` — §6.
 8. `ci: add no-default-features build and nightly fuzz smoke jobs` — §7.

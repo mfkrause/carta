@@ -2,7 +2,7 @@
 # Writer surface: render the AST-JSON corpus to each target and diff against pandoc.
 #
 # For each `corpus/ast/<feature>/*.json` not excluded for the target, compare
-# `oxidoc -f json -t <target>` against `pandoc -f json -t <target>` (with oracle normalization).
+# `carta -f json -t <target>` against `pandoc -f json -t <target>` (with oracle normalization).
 # JSON targets compare structurally; every other target compares as text. Excluded
 # (target, feature) pairs from exclusions.tsv are skipped and counted.
 #

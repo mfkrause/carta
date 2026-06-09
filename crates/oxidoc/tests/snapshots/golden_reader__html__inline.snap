@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_reader.rs
-expression: json
----
-{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"emphasis"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"strong"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"code"]},{"t":"Space"},{"t":"Str","c":"run."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"link"}],["http://example.com","t"]]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"alt"}],["pic.png",""]]},{"t":"Space"},{"t":"Str","c":"image."}]},{"t":"Para","c":[{"t":"Str","c":"Entities"},{"t":"Space"},{"t":"Str","c":"&"},{"t":"Space"},{"t":"Str","c":"©"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"raw"},{"t":"Space"},{"t":"Str","c":"inline."}]}]}
