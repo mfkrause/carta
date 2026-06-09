@@ -18,7 +18,7 @@ json = []
 plain = []
 latex = []
 native = []
-commonmark = []
+commonmark = ["html"]
 rst = []
 mediawiki = []
 

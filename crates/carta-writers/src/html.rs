@@ -21,13 +21,19 @@ pub struct HtmlWriter;
 
 impl Writer for HtmlWriter {
     fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
-        let mut out = String::new();
-        state.blocks(&mut out, &document.blocks);
-        state.push_footnote_section(&mut out);
-        let filled = restore(&reflow(&out));
-        Ok(filled.trim_end_matches('\n').to_owned())
+        Ok(render_fragment(&document.blocks))
     }
+}
+
+/// Render a block sequence to an html5 fragment, including the footnote section for any notes the
+/// blocks carry. The fragment carries no trailing newline.
+pub(crate) fn render_fragment(blocks: &[Block]) -> String {
+    let mut state = State::default();
+    let mut out = String::new();
+    state.blocks(&mut out, blocks);
+    state.push_footnote_section(&mut out);
+    let filled = restore(&reflow(&out));
+    filled.trim_end_matches('\n').to_owned()
 }
 
 /// Sentinel marking a breakable inline space while the document is assembled as a flat string.

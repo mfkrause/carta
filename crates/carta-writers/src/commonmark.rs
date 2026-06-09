@@ -84,11 +84,7 @@ impl State {
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => {
                 if is_html_format(format) {
-                    let collapsed = text.replace("\n\n", "\n&#10;");
-                    collapsed
-                        .strip_suffix('\n')
-                        .unwrap_or(&collapsed)
-                        .to_owned()
+                    collapse_html_block(text)
                 } else {
                     String::new()
                 }
@@ -107,7 +103,9 @@ impl State {
             }
             Block::LineBlock(lines) => self.line_block(lines),
             Block::Figure(_, _, _) => todo!("commonmark writer: render figures as HTML fallback"),
-            Block::Table(_) => todo!("commonmark writer: render tables as HTML fallback"),
+            Block::Table(_) => {
+                collapse_html_block(&crate::html::render_fragment(std::slice::from_ref(block)))
+            }
         }
     }
 
@@ -417,6 +415,16 @@ fn quote_block(body: &str) -> String {
 /// Whether a raw node targets HTML and should pass its content through verbatim.
 fn is_html_format(format: &Format) -> bool {
     matches!(format.0.as_str(), "html" | "html4" | "html5")
+}
+
+/// Keep an embedded HTML block a single `CommonMark` block: each blank line inside it becomes a
+/// line holding a `&#10;` character reference, and a trailing newline is dropped.
+fn collapse_html_block(text: &str) -> String {
+    let collapsed = text.replace("\n\n", "\n&#10;");
+    collapsed
+        .strip_suffix('\n')
+        .unwrap_or(&collapsed)
+        .to_owned()
 }
 
 /// A code block: indented four spaces when it carries no attributes, otherwise a backtick-fenced
