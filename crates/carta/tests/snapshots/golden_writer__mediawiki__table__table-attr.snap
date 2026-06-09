@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{| id="tbl" class="wikitable fancy" data-key="value"
+|+ Captioned and attributed
+|-
+! h1
+! h2
+|- class="odd"
+| id="cell-id"| a
+| b
+|}

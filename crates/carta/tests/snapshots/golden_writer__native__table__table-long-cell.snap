@@ -1,0 +1,98 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "k" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "description" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "a" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "this"
+                    , Space
+                    , Str "cell"
+                    , Space
+                    , Str "holds"
+                    , Space
+                    , Str "a"
+                    , Space
+                    , Str "deliberately"
+                    , Space
+                    , Str "long"
+                    , Space
+                    , Str "run"
+                    , Space
+                    , Str "of"
+                    , Space
+                    , Str "text"
+                    , Space
+                    , Str "that"
+                    , Space
+                    , Str "cannot"
+                    , Space
+                    , Str "fit"
+                    , Space
+                    , Str "inside"
+                    , Space
+                    , Str "one"
+                    , Space
+                    , Str "seventy-two"
+                    , Space
+                    , Str "column"
+                    , Space
+                    , Str "line"
+                    , Space
+                    , Str "and"
+                    , Space
+                    , Str "therefore"
+                    , Space
+                    , Str "forces"
+                    , Space
+                    , Str "a"
+                    , Space
+                    , Str "layout"
+                    , Space
+                    , Str "decision"
+                    ]
+                ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Table","c":[["",[],[]],[[{"t":"Str","c":"Short"},{"t":"Space"},{"t":"Str","c":"form"}],[{"t":"Plain","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"full"},{"t":"Space"},{"t":"Str","c":"caption"},{"t":"Space"},{"t":"Str","c":"text"}]}]],[[{"t":"AlignDefault"},{"t":"ColWidthDefault"}]],[["",[],[]],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"h"}]}]]]]]],[[["",[],[]],0,[],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"v"}]}]]]]]]],[["",[],[]],[]]]}]}
