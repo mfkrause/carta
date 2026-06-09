@@ -13,8 +13,8 @@ use oxidoc_ast::{
 use oxidoc_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    attribute_value, escape_attr, escape_xml, is_percent_escaped_uri, is_uri_scheme, quote_marks,
-    render_html_attr,
+    attribute_value, escape_attr, escape_xml, is_known_scheme, is_percent_escaped_uri,
+    is_uri_scheme, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `MediaWiki` markup.
@@ -639,9 +639,7 @@ fn is_external_uri(url: &str) -> bool {
     if scheme.is_empty() || !is_uri_scheme(scheme) {
         return false;
     }
-    URI_SCHEMES
-        .iter()
-        .any(|known| scheme.eq_ignore_ascii_case(known))
+    is_known_scheme(scheme)
 }
 
 fn escape_text(text: &str) -> String {
@@ -838,89 +836,4 @@ const HIGHLIGHT_LANGUAGES: &[&str] = &[
     "ps1",
     "docker",
     "make",
-];
-
-/// URI schemes treated as external links. A URL whose scheme is absent from this set is rendered as
-/// an internal wiki link.
-const URI_SCHEMES: &[&str] = &[
-    "aaa",
-    "about",
-    "acap",
-    "acct",
-    "cap",
-    "cid",
-    "coap",
-    "coaps",
-    "crid",
-    "data",
-    "dav",
-    "dict",
-    "dns",
-    "example",
-    "file",
-    "ftp",
-    "geo",
-    "go",
-    "gopher",
-    "h323",
-    "http",
-    "https",
-    "iax",
-    "icap",
-    "im",
-    "imap",
-    "info",
-    "ipp",
-    "ipps",
-    "irc",
-    "ircs",
-    "iris",
-    "jabber",
-    "ldap",
-    "mailto",
-    "mid",
-    "msrp",
-    "msrps",
-    "mtqp",
-    "mupdate",
-    "news",
-    "nfs",
-    "nntp",
-    "opaquelocktoken",
-    "pkcs11",
-    "pop",
-    "pres",
-    "reload",
-    "rtsp",
-    "rtsps",
-    "rtspu",
-    "service",
-    "session",
-    "shttp",
-    "sieve",
-    "sip",
-    "sips",
-    "sms",
-    "snmp",
-    "soap.beep",
-    "soap.beeps",
-    "ssh",
-    "stun",
-    "stuns",
-    "tag",
-    "tel",
-    "telnet",
-    "tftp",
-    "thismessage",
-    "tip",
-    "tn3270",
-    "turn",
-    "turns",
-    "tv",
-    "urn",
-    "vemmi",
-    "vnc",
-    "ws",
-    "wss",
-    "xmpp",
 ];
