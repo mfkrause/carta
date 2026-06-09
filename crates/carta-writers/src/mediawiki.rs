@@ -13,8 +13,8 @@ use carta_ast::{
 use carta_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    attribute_value, escape_attr, escape_xml, is_known_scheme, is_percent_escaped_uri,
-    is_uri_scheme, quote_marks, render_html_attr,
+    attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
+    is_percent_escaped_uri, is_uri_scheme, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `MediaWiki` markup.
@@ -248,20 +248,24 @@ impl State {
             .iter()
             .map(|spec| spec.align.clone())
             .collect();
-        let mut out = String::from("{| class=\"wikitable\"");
+        // The table's own attributes render on the `{|` line, with `wikitable` always the first
+        // class.
+        let mut table_attr = table.attr.clone();
+        table_attr.classes.insert(0, "wikitable".to_owned());
+        let mut out = format!("{{|{}", render_html_attr(&table_attr));
         if !table.caption.long.is_empty() {
             let caption = self.blocks(&table.caption.long);
             let _ = write!(out, "\n|+ {}", caption.trim_end_matches('\n'));
         }
         let mut rows: Vec<String> = Vec::new();
         for row in &table.head.rows {
-            rows.push(self.table_row(row, &aligns, true));
+            rows.push(self.table_row(row, &aligns, true, 0));
         }
         for body in &table.bodies {
             rows.extend(self.body_rows(body, &aligns));
         }
         for row in &table.foot.rows {
-            rows.push(self.table_row(row, &aligns, true));
+            rows.push(self.table_row(row, &aligns, true, 0));
         }
         for row in rows {
             let _ = write!(out, "\n{row}");
@@ -274,26 +278,29 @@ impl State {
         let mut rows: Vec<String> = body
             .head
             .iter()
-            .map(|row| self.table_row(row, aligns, true))
+            .map(|row| self.table_row(row, aligns, true, 0))
             .collect();
         rows.extend(
             body.body
                 .iter()
-                .map(|row| self.table_row(row, aligns, false)),
+                .map(|row| self.table_row(row, aligns, false, body.row_head_columns)),
         );
         rows
     }
 
-    fn table_row(&mut self, row: &Row, aligns: &[Alignment], header: bool) -> String {
-        let cells: Vec<String> = row
-            .cells
-            .iter()
-            .enumerate()
-            .map(|(index, cell)| self.cell(cell, aligns.get(index), header))
-            .collect();
-        let mut out = String::from("|-");
-        for cell in cells {
-            let _ = write!(out, "\n{cell}");
+    fn table_row(
+        &mut self,
+        row: &Row,
+        aligns: &[Alignment],
+        header: bool,
+        head_columns: i32,
+    ) -> String {
+        let mut out = format!("|-{}", render_html_attr(&row.attr));
+        let mut column = 0_i32;
+        for (index, cell) in row.cells.iter().enumerate() {
+            let rendered = self.cell(cell, aligns.get(index), header || column < head_columns);
+            let _ = write!(out, "\n{rendered}");
+            column = column.saturating_add(cell.col_span.max(1));
         }
         out
     }
@@ -304,7 +311,17 @@ impl State {
             Alignment::AlignDefault => col_align.unwrap_or(&Alignment::AlignDefault),
             explicit => explicit,
         };
+        // Cell attribute order: id, class, spans, alignment style, then key/value pairs.
         let mut attrs = Vec::new();
+        if !cell.attr.id.is_empty() {
+            attrs.push(format!("id=\"{}\"", escape_attr(&cell.attr.id)));
+        }
+        if !cell.attr.classes.is_empty() {
+            attrs.push(format!(
+                "class=\"{}\"",
+                escape_attr(&cell.attr.classes.join(" "))
+            ));
+        }
         if cell.row_span != 1 {
             attrs.push(format!("rowspan=\"{}\"", cell.row_span));
         }
@@ -313,6 +330,14 @@ impl State {
         }
         if let Some(style) = alignment_style(effective) {
             attrs.push(format!("style=\"{style}\""));
+        }
+        for (key, value) in &cell.attr.attributes {
+            let name = if is_known_attribute(key) {
+                key.clone()
+            } else {
+                format!("data-{key}")
+            };
+            attrs.push(format!("{name}=\"{}\"", escape_attr(value)));
         }
         let body = self.blocks(&cell.content);
         let content = body.trim_end_matches('\n');
