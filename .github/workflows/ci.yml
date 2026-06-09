@@ -54,7 +54,7 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: Build oxidoc
-        run: cargo build -p oxidoc
+        run: cargo build -p oxidoc-cli
       - name: Run conformance suite
         run: tools/conformance-suite/run.sh all
 
