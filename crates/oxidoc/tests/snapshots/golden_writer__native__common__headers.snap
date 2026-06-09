@@ -1,8 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-[ Header 1 ( "one" , [] , [] ) [ Str "One" ]
-, Header 2 ( "two" , [] , [] ) [ Str "Two" ]
-, Header 6 ( "six" , [] , [] ) [ Str "Six" ]
-]

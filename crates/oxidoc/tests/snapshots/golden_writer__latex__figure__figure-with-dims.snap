@@ -1,9 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-\begin{figure}
-\centering
-\includegraphics[width=2.08333in,height=\textheight,keepaspectratio,alt={alt text}]{pic.png}
-\caption{alt text}
-\end{figure}

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "caf\233"
+    , Space
+    , Str "r\233sum\233"
+    , Space
+    , Str "na\239ve"
+    ]
+]

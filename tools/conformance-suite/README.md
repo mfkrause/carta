@@ -1,15 +1,15 @@
 # Conformance suite
 
-Differential conformance tests: run oxidoc and the pinned pandoc oracle over the same inputs and
-diff their output. This is the layer that proves **oxidoc == pandoc**; it is pure shell, lives
+Differential conformance tests: run carta and the pinned pandoc oracle over the same inputs and
+diff their output. This is the layer that proves **carta == pandoc**; it is pure shell, lives
 outside `cargo test`, and is gated as a required CI job. The offline Rust suites (unit + golden
-snapshots) prove oxidoc against its own frozen output and need no oracle; this suite is the only
+snapshots) prove carta against its own frozen output and need no oracle; this suite is the only
 thing that consults pandoc.
 
 ## Running
 
 ```sh
-cargo build -p oxidoc-cli                   # the suite diffs the built debug binary
+cargo build -p carta-cli                   # the suite diffs the built debug binary
 tools/conformance-suite/run.sh all          # every surface
 tools/conformance-suite/run.sh writer       # one surface
 tools/conformance-suite/run.sh writer rst   # one surface, narrowed to a format/target
@@ -21,14 +21,14 @@ Each surface prints one line per group:
 RESULT <surface> <group> pass=N fail=N err=N skip=N
 ```
 
-- **pass** — oxidoc and the oracle agree.
+- **pass** — carta and the oracle agree.
 - **fail** — they disagree; the first divergence is dumped to `$CONF_WORK/<surface>-<group>.log`.
-- **err** — oxidoc errored or panicked where the oracle produced output.
+- **err** — carta errored or panicked where the oracle produced output.
 - **skip** — the oracle rejected the input, or the case is an excluded/unsupported direction (see
   each surface below). Skips are never silent — they are counted and reported.
 
 `run.sh` exits non-zero if any surface recorded a `fail` or `err`. **The suite is expected to be red
-until oxidoc reaches full parity** — every `fail` is a real conformance gap the suite has surfaced,
+until carta reaches full parity** — every `fail` is a real conformance gap the suite has surfaced,
 and CI gates on them so they cannot regress further or be forgotten.
 
 ## Requirements
@@ -44,8 +44,8 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 
 ## Environment
 
-- `OXIDOC_BIN` — path to the oxidoc binary (default `target/debug/oxidoc`).
-- `CONF_WORK` — scratch + per-case diff logs (default `$TMPDIR/oxidoc-conformance`).
+- `OXIDOC_BIN` — path to the carta binary (default `target/debug/carta`).
+- `CONF_WORK` — scratch + per-case diff logs (default `$TMPDIR/carta-conformance`).
 
 ## Surfaces
 
@@ -54,19 +54,19 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 | `reader` | `-f FMT -t json`, compared with `jq -S` | `corpus/text/<fmt>/*` + the 652 CommonMark spec examples (commonmark) |
 | `writer` | `-f json -t TARGET`, JSON structurally / others as text | `corpus/ast/<feature>/*` minus `corpus/exclusions.tsv` |
 | `e2e` | `-f FMT -t TARGET` full pipeline | `corpus/text/<fmt>/*` to every target; spec examples to HTML |
-| `roundtrip` | JSON codec identity: `pandoc -f native -t json` then `oxidoc -f json -t json` | fetched `.native` corpus |
+| `roundtrip` | JSON codec identity: `pandoc -f native -t json` then `carta -f json -t json` | fetched `.native` corpus |
 | `commands` | declarative command tests, vs a live normalized oracle | `.oracle/tests/test/command/*.md` |
 
 ### Comparison and normalization
 
 - **JSON targets** (`json`, and the reader/roundtrip surfaces) are canonicalized with `jq -S` before
   diffing, so object-key order is never a divergence.
-- **Text targets** strip one trailing newline from each side (oxidoc's CLI and pandoc each append
+- **Text targets** strip one trailing newline from each side (carta's CLI and pandoc each append
   one) and byte-compare.
-- The oracle is run with normalization flags that neutralize nondeterminism oxidoc does not
+- The oracle is run with normalization flags that neutralize nondeterminism carta does not
   reproduce: HTML gets `--syntax-highlighting=none --mathjax`, LaTeX gets
   `--syntax-highlighting=none`. Applied to the pandoc side only (`oracle_norm` in `lib.sh`).
-- An input the oracle itself rejects is a `skip`, never counted against oxidoc.
+- An input the oracle itself rejects is a `skip`, never counted against carta.
 
 ### Writer exclusions
 
@@ -84,7 +84,7 @@ through both binaries.
 Two deliberate scoping choices:
 
 1. **Compared against a live normalized oracle, not the baked expected.** The committed expected
-   output was produced without oxidoc's deterministic normalization (suppressed syntax highlighting,
+   output was produced without carta's deterministic normalization (suppressed syntax highlighting,
    MathJax), so diffing against it would flag intentional deltas as failures. Re-running the oracle
    with normalization is the correct reference and keeps this surface consistent with the others.
 2. **Strict allowlist.** Only tests whose command is a bare `pandoc` invocation using exclusively

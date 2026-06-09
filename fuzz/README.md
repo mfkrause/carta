@@ -1,6 +1,6 @@
 # Fuzzing
 
-Coverage-guided fuzz targets for oxidoc's readers, built on [`cargo-fuzz`] /
+Coverage-guided fuzz targets for carta's readers, built on [`cargo-fuzz`] /
 [libFuzzer]. This crate is **detached from the root workspace** (it has its own
 `[workspace]` table) because libFuzzer needs a nightly toolchain and a sanitizer,
 which the stable-pinned workspace does not use.

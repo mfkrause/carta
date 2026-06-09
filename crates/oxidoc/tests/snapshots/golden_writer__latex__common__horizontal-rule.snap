@@ -1,9 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-above
-
-\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
-
-below

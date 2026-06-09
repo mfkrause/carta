@@ -1,9 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-[ LineBlock
-    [ [ Str "first" , Space , Str "line" ]
-    , [ Str "second" , Space , Str "line" ]
-    ]
-]

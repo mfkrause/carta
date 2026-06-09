@@ -1,9 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={a caption}]{pic.png}}
-\caption{a caption}
-\end{figure}

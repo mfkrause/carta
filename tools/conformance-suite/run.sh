@@ -9,7 +9,7 @@
 # Each surface prints one `RESULT <surface> <group> pass=N fail=N err=N skip=N` line per group and
 # exits non-zero if any group recorded a failure or error. `all` runs them in sequence and exits
 # non-zero if any surface did. Requires the gitignored .oracle/ (binary + fetched corpus) and a
-# built oxidoc binary; see lib.sh for provisioning hints.
+# built carta binary; see lib.sh for provisioning hints.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

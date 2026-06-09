@@ -1,9 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-<ul>
-<li>a</li>
-<li>b</li>
-<li>c</li>
-</ul>

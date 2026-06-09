@@ -2,9 +2,9 @@
 # Command-test surface: reuse pandoc's declarative command tests as differential cases.
 #
 # Each test is a fenced block: a `% pandoc <args>` line, the stdin input, a `^D` separator, then the
-# expected stdout. We parse (args, input) with awk and run the conversion through oxidoc and the
+# expected stdout. We parse (args, input) with awk and run the conversion through carta and the
 # oracle, comparing the two live outputs — NOT the baked expected. The baked expected was produced
-# without oxidoc's deterministic normalization (suppressed syntax highlighting, MathJax math), so it
+# without carta's deterministic normalization (suppressed syntax highlighting, MathJax math), so it
 # would register intentional deltas as failures; a freshly normalized oracle run is the correct
 # reference and keeps this surface consistent with every other one.
 #

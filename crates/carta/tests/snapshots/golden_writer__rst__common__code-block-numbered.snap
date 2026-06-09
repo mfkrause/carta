@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.. code:: python
+   :number-lines:
+
+   print(1)
+   print(2)

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+x [1]_ y [2]_
+
+.. [1]
+   first
+
+.. [2]
+   second

@@ -1,0 +1,39 @@
+[package]
+name = "carta"
+description = "Document converter library: parse a source format and render it to a target format."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["full"]
+full = ["read-commonmark", "read-json", "write-html", "write-json", "write-plain", "read-native", "read-html", "write-native", "write-latex", "write-commonmark", "write-rst", "write-mediawiki"]
+read-commonmark = ["dep:carta-readers", "carta-readers/commonmark"]
+read-json = ["dep:carta-readers", "carta-readers/json"]
+write-html = ["dep:carta-writers", "carta-writers/html"]
+write-json = ["dep:carta-writers", "carta-writers/json"]
+write-plain = ["dep:carta-writers", "carta-writers/plain"]
+read-native = ["dep:carta-readers", "carta-readers/native"]
+read-html = ["dep:carta-readers", "carta-readers/html"]
+write-native = ["dep:carta-writers", "carta-writers/native"]
+write-latex = ["dep:carta-writers", "carta-writers/latex"]
+write-commonmark = ["dep:carta-writers", "carta-writers/commonmark"]
+write-rst = ["dep:carta-writers", "carta-writers/rst"]
+write-mediawiki = ["dep:carta-writers", "carta-writers/mediawiki"]
+
+[dependencies]
+carta-ast = { workspace = true }
+carta-core = { workspace = true }
+# Referenced by path (not the workspace table) so this crate can own their feature selection:
+# `default-features = false` cannot override an inherited workspace dependency.
+carta-readers = { path = "../carta-readers", default-features = false, optional = true }
+carta-writers = { path = "../carta-writers", default-features = false, optional = true }
+
+[dev-dependencies]
+insta = { workspace = true }

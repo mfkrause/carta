@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\href{u1}{outer \protect\phantomsection\label{iid}\href{u2}{inner} end}

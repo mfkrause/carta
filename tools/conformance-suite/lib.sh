@@ -1,7 +1,7 @@
 # Shared primitives for the conformance suite: path discovery, oracle normalization, output
 # comparison, spec-example extraction, and result tallying. Sourced by run.sh and every surface.
 #
-# The suite diffs oxidoc against the pinned pandoc binary across each conversion surface. pandoc's
+# The suite diffs carta against the pinned pandoc binary across each conversion surface. pandoc's
 # output is the reference; on any non-`json` target it carries a single trailing newline that is
 # stripped from both sides before comparison, and JSON targets are compared after canonical key
 # sorting so object-key order never registers as a divergence.
@@ -13,12 +13,12 @@ CONF_LIB_SOURCED=1
 CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$CONF_DIR/../.." && pwd)"
 ORACLE="$ROOT/.oracle/bin/pandoc"
-OX="${OXIDOC_BIN:-$ROOT/target/debug/oxidoc}"
+OX="${OXIDOC_BIN:-$ROOT/target/debug/carta}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
 CORPUS="$ROOT/corpus"
 EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"
-WORK="${CONF_WORK:-${TMPDIR:-/tmp}/oxidoc-conformance}"
+WORK="${CONF_WORK:-${TMPDIR:-/tmp}/carta-conformance}"
 mkdir -p "$WORK"
 
 # Fail loudly with provisioning instructions when a prerequisite is missing.
@@ -29,7 +29,7 @@ require_tools() {
     missing=1
   fi
   if [ ! -x "$OX" ]; then
-    printf 'error: oxidoc binary not found at %s\n  build it: cargo build -p oxidoc-cli\n' "$OX" >&2
+    printf 'error: carta binary not found at %s\n  build it: cargo build -p carta-cli\n' "$OX" >&2
     missing=1
   fi
   if ! command -v jq >/dev/null 2>&1; then
@@ -39,7 +39,7 @@ require_tools() {
   [ "$missing" -eq 0 ] || exit 1
 }
 
-# Oracle flags that neutralize target nondeterminism oxidoc does not reproduce: HTML suppresses
+# Oracle flags that neutralize target nondeterminism carta does not reproduce: HTML suppresses
 # syntax highlighting and renders math via MathJax; LaTeX suppresses syntax highlighting. Applied to
 # the pandoc side only.
 oracle_norm() {
@@ -63,7 +63,7 @@ is_excluded() {
 compare_json() {
   local a="$WORK/.cmp.oracle.json" b="$WORK/.cmp.ox.json"
   jq -S . "$1" >"$a" 2>/dev/null || { echo "oracle JSON unparsable"; return 1; }
-  jq -S . "$2" >"$b" 2>/dev/null || { echo "oxidoc JSON unparsable"; return 1; }
+  jq -S . "$2" >"$b" 2>/dev/null || { echo "carta JSON unparsable"; return 1; }
   cmp -s "$a" "$b" && return 0
   diff "$a" "$b" | head -n 8
   return 1
@@ -96,8 +96,8 @@ report() { echo "RESULT $1 $2 pass=$PASS fail=$FAIL err=$ERR skip=$SKIP"; }
 SUITE_RC=0
 tally_group() { if [ "$FAIL" -gt 0 ] || [ "$ERR" -gt 0 ]; then SUITE_RC=1; fi; }
 
-# One differential case: convert `input` with the oracle and with oxidoc, then compare.
-# Usage: run_diff <json|text> <label> <input_file> <oracle_arg_string> <oxidoc_arg_string>
+# One differential case: convert `input` with the oracle and with carta, then compare.
+# Usage: run_diff <json|text> <label> <input_file> <oracle_arg_string> <carta_arg_string>
 # Word-splitting of the arg strings is intentional (they are space-separated flags we control).
 run_diff() {
   local mode="$1" label="$2" input="$3" oargs="$4" xargs="$5"

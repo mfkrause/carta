@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+*emph* **strong** <s>struck</s> super<sup>2</sup> sub<sub>3</sub>

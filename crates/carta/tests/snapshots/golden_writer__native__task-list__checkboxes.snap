@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ BulletList
+    [ [ Plain [ Str "\9744" , Space , Str "todo" ] ]
+    , [ Plain [ Str "\9746" , Space , Str "done" ] ]
+    ]
+]
