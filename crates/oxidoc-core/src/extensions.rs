@@ -46,6 +46,19 @@ define_extensions! {
 const WORD_BITS: usize = u64::BITS as usize;
 const WORDS: usize = Extension::COUNT.div_ceil(WORD_BITS);
 
+// The bitset indexing in `from_list` is sound only while each variant's discriminant equals its
+// position in `ALL` (so every `ext as usize` lands in `0..COUNT`). The macro emits no explicit
+// discriminants, so this holds — asserted at compile time here, turning a future edit that breaks
+// contiguity into a build failure rather than an out-of-bounds index.
+#[allow(clippy::indexing_slicing)]
+const _: () = {
+    let mut i = 0;
+    while i < Extension::ALL.len() {
+        assert!(Extension::ALL[i] as usize == i);
+        i += 1;
+    }
+};
+
 /// A deterministic, allocation-free set of [`Extension`]s, backed by a fixed array of 64-bit words
 /// indexed by each variant's position in [`Extension::ALL`].
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -66,9 +79,9 @@ impl Extensions {
 
     /// The set containing exactly `list`. Const so presets are `const` values.
     #[must_use]
-    // Const indexing: `bit < Extension::COUNT` (variant discriminants are `0..COUNT`), so
-    // `bit / WORD_BITS < WORDS`; `i < list.len()`. Both indices are provably in bounds, and
-    // slice `get` is not usable across all const contexts on the pinned toolchain.
+    // Const indexing: contiguity (asserted above) gives `bit < COUNT`, so `bit / WORD_BITS < WORDS`;
+    // `i < list.len()`. Both indices are in bounds, and slice `get` is not usable across all const
+    // contexts on the pinned toolchain.
     #[allow(clippy::indexing_slicing)]
     pub const fn from_list(list: &[Extension]) -> Self {
         let mut words = [0u64; WORDS];
