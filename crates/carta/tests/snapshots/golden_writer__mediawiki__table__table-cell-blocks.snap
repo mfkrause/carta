@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! name
+! notes
+|-
+| alpha
+| first paragraph
+
+* one
+* two
+|}

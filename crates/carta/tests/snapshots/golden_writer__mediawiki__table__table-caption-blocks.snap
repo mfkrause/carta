@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{| class="wikitable"
+|+ First caption paragraph
+
+Second caption paragraph
+|-
+! h
+|-
+| v
+|}
