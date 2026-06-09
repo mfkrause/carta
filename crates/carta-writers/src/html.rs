@@ -259,29 +259,36 @@ impl State {
             self.table_body(out, body, &aligns);
         }
         if !table.foot.rows.is_empty() {
-            out.push_str("\n<tfoot>\n");
+            // The foot opens directly after `</tbody>`; only a footless body section or a
+            // bodiless foot gets its own line.
+            if table.bodies.is_empty() {
+                out.push('\n');
+            }
+            out.push_str("<tfoot>\n");
             self.rows(out, &table.foot.rows, &aligns, false);
             out.push_str("\n</tfoot>");
+        }
+        // A table that ends without body rows (no bodies, or a trailing foot) closes after a
+        // blank line.
+        if table.bodies.is_empty() || !table.foot.rows.is_empty() {
+            out.push('\n');
         }
         out.push_str("\n</table>");
     }
 
     fn table_body(&mut self, out: &mut String, body: &TableBody, aligns: &[Alignment]) {
-        out.push_str("\n<tbody>\n");
-        let mut first = true;
+        out.push_str("\n<tbody>");
         for row in &body.head {
-            if !first {
-                out.push('\n');
-            }
-            first = false;
-            self.row(out, row, aligns, true);
+            out.push('\n');
+            self.row(out, row, aligns, true, 0);
+        }
+        // A blank line separates a body's own header rows from the rows that follow.
+        if !body.head.is_empty() {
+            out.push('\n');
         }
         for row in &body.body {
-            if !first {
-                out.push('\n');
-            }
-            first = false;
-            self.row(out, row, aligns, false);
+            out.push('\n');
+            self.row(out, row, aligns, false, body.row_head_columns);
         }
         out.push_str("\n</tbody>");
     }
@@ -291,17 +298,32 @@ impl State {
             if index > 0 {
                 out.push('\n');
             }
-            self.row(out, row, aligns, header);
+            self.row(out, row, aligns, header, 0);
         }
     }
 
-    fn row(&mut self, out: &mut String, row: &Row, aligns: &[Alignment], header: bool) {
-        out.push_str("<tr>\n");
+    fn row(
+        &mut self,
+        out: &mut String,
+        row: &Row,
+        aligns: &[Alignment],
+        header: bool,
+        head_columns: i32,
+    ) {
+        let _ = write!(out, "<tr{}>", render_attr(&row.attr, AttrOrder::Standard));
+        out.push('\n');
+        let mut column = 0_i32;
         for (index, cell) in row.cells.iter().enumerate() {
             if index > 0 {
                 out.push('\n');
             }
-            self.cell(out, cell, aligns.get(index), header);
+            self.cell(
+                out,
+                cell,
+                aligns.get(index),
+                header || column < head_columns,
+            );
+            column = column.saturating_add(cell.col_span.max(1));
         }
         out.push_str("\n</tr>");
     }
@@ -580,8 +602,10 @@ fn colgroup(specs: &[ColSpec]) -> String {
     format!("\n<colgroup>\n{}\n</colgroup>", cols.join("\n"))
 }
 
-/// The `style="width:N%;"` a table carries when any column has an explicit width: the column
-/// fractions summed and floored to a whole percent. Empty when every column uses the default width.
+/// The `style="width:N%;"` a table carries when its explicit column widths leave it narrower
+/// than the page: the column fractions summed and rounded to a whole percent. Empty when every
+/// column uses the default width, and also when the fractions already cover the full width.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn table_width_style(specs: &[ColSpec]) -> String {
     if !has_explicit_widths(specs) {
         return String::new();
@@ -593,7 +617,13 @@ fn table_width_style(specs: &[ColSpec]) -> String {
             ColWidth::ColWidthDefault => 0.0,
         })
         .sum();
-    format!("{BREAK}style=\"width:{}%;\"", width_percent(total))
+    if total >= 1.0 {
+        return String::new();
+    }
+    format!(
+        "{BREAK}style=\"width:{}%;\"",
+        (total * 100.0).round() as u32
+    )
 }
 
 /// Append a newline to `text` unless it is empty (used to separate a footnote's leading blocks
