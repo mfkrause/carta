@@ -12,7 +12,9 @@ use oxidoc_ast::{
 };
 use oxidoc_core::{Result, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, Piece, fill, indent_block, list_is_tight, wrap_delim};
+use crate::common::{
+    FILL_COLUMN, Piece, attribute_value, fill, indent_block, list_is_tight, wrap_delim,
+};
 
 /// Renders a document to a LaTeX fragment.
 #[derive(Debug, Default, Clone, Copy)]
@@ -424,8 +426,8 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
     };
     let url = escape_url(&target.url);
 
-    let width = attr_value(attr, "width").and_then(Dimension::parse);
-    let height = attr_value(attr, "height").and_then(Dimension::parse);
+    let width = attribute_value(attr, "width").and_then(Dimension::parse);
+    let height = attribute_value(attr, "height").and_then(Dimension::parse);
     if width.is_none() && height.is_none() {
         return format!(
             "\\pandocbounded{{\\includegraphics[keepaspectratio{alt_option}]{{{url}}}}}"
@@ -494,13 +496,6 @@ fn trim_number(value: f64) -> String {
         .trim_end_matches('0')
         .trim_end_matches('.')
         .to_owned()
-}
-
-fn attr_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
-    attr.attributes
-        .iter()
-        .find(|(name, _)| name == key)
-        .map(|(_, value)| value.as_str())
 }
 
 /// Render a footnote as an inline `\footnote{…}`. Its blocks hang two columns under the opening so
