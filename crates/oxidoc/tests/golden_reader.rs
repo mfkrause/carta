@@ -6,6 +6,9 @@
 
 // Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The JSON writer is the interchange used to snapshot reader output; without it there is nothing to
+// freeze. Per-case, a corpus group is snapshotted only when its reader is also compiled in.
+#![cfg(feature = "write-json")]
 
 mod common;
 
@@ -14,7 +17,11 @@ use oxidoc::{ReaderOptions, WriterOptions};
 
 #[test]
 fn reader_ast_snapshots() {
+    let readers = oxidoc::supported_input_formats();
     for case in corpus_cases("text") {
+        if !readers.contains(&case.group.as_str()) {
+            continue;
+        }
         let json = oxidoc::convert(
             &case.group,
             "json",

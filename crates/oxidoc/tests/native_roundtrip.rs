@@ -9,6 +9,8 @@
 
 // This whole file is test code, where panicking on a known case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// Exercises the native reader/writer pair directly, so both must be compiled in.
+#![cfg(all(feature = "read-native", feature = "write-native"))]
 
 use oxidoc::ast::{
     Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth, Document,
