@@ -1,7 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-[ Header
-    1 ( "hidden" , [ "unnumbered" ] , [] ) [ Str "Hidden" ]
-]

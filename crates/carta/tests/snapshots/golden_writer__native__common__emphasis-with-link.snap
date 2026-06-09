@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Emph
+        [ Str "see"
+        , Space
+        , Link
+            ( "" , [] , [] )
+            [ Str "text" ]
+            ( "http://example.com" , "" )
+        , Space
+        , Str "here"
+        ]
+    ]
+]

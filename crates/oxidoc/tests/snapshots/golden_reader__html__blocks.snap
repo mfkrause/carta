@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_reader.rs
-expression: json
----
-{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["one",[],[]],[{"t":"Str","c":"One"}]]},{"t":"Header","c":[2,["anchor",[],[]],[{"t":"Str","c":"Two"}]]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"paragraph."}]},{"t":"BlockQuote","c":[{"t":"Para","c":[{"t":"Str","c":"quoted"}]}]},{"t":"CodeBlock","c":[["",["rust"],[]],"let x = 1;"]},{"t":"HorizontalRule"},{"t":"Div","c":[["d",["note"],[]],[{"t":"Para","c":[{"t":"Str","c":"body"}]}]]}]}

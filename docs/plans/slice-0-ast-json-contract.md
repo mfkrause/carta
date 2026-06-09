@@ -6,16 +6,16 @@ possible to implement the slice from this document alone.
 
 ## 0. Goal & done criteria
 
-Freeze the document AST and its JSON interchange representation in `oxidoc-ast`, wire a JSON
-reader and JSON writer so `oxidoc -f json -t json` runs end-to-end, and build a differential
-round-trip harness in `oxidoc-testkit`.
+Freeze the document AST and its JSON interchange representation in `carta-ast`, wire a JSON
+reader and JSON writer so `carta -f json -t json` runs end-to-end, and build a differential
+round-trip harness in `carta-testkit`.
 
 **Definition of done:**
 
-1. `oxidoc -f json -t json` reads pandoc-shaped JSON on stdin (or a file) and writes the
+1. `carta -f json -t json` reads pandoc-shaped JSON on stdin (or a file) and writes the
    re-serialized document to stdout (or `-o`).
 2. Round-trip gate is green: for every golden JSON minted from the corpus's `.native` files,
-   `Value(pandoc_json) == Value(oxidoc_output)` (see §6). Hard-requires the fetched corpus.
+   `Value(pandoc_json) == Value(carta_output)` (see §6). Hard-requires the fetched corpus.
 3. Tag-coverage assertion passes: every AST tag in the known set (§3) appears at least once across
    the minted corpus; the test fails listing any missing tag.
 4. Committed hand-authored input fixtures pass an offline self-round-trip (no oracle needed).
@@ -29,7 +29,7 @@ validation, templates/standalone output, streaming I/O.
 
 ## 1. The wire contract (derived from the pinned binary, never from memory)
 
-All shapes below were observed from `oxidoc/.oracle/bin/pandoc` (pandoc 3.10,
+All shapes below were observed from `carta/.oracle/bin/pandoc` (pandoc 3.10,
 `pandoc-api-version` = `[1,23,1,2]`). Re-derive with the binary if anything is unclear; never read
 pandoc source.
 
@@ -139,9 +139,9 @@ targeted committed fixture (see §7) and document why. If the binary emits a tag
 the test must also fail (our set is stale) — assert set-equality of {known} vs {seen ∪ fixtures},
 not just subset.
 
-## 3. AST modeling (`oxidoc-ast`)
+## 3. AST modeling (`carta-ast`)
 
-Single module tree under `crates/oxidoc-ast/src/`. Suggested files: `lib.rs` (re-exports + docs +
+Single module tree under `crates/carta-ast/src/`. Suggested files: `lib.rs` (re-exports + docs +
 the api-version constant), `ast.rs` (types), `serde_impls.rs` (manual array (de)serializers).
 
 ### 3.1 Text and shared aliases
@@ -250,12 +250,12 @@ catches any out-of-range surprise. Derive `Debug, Clone, PartialEq` on every typ
 
 ### 3.5 Verification while building the AST
 
-After the types compile, before the harness exists, add unit tests in `oxidoc-ast` that assert
+After the types compile, before the harness exists, add unit tests in `carta-ast` that assert
 exact byte output for a couple of the committed fixtures (§7) — these catch tagging/field-order
 mistakes early with readable diffs. (Byte equality is fine *here* because we author these inputs in
 canonical form; the corpus gate in §6 stays Value-based.)
 
-## 4. `oxidoc-core` — error type
+## 4. `carta-core` — error type
 
 ```rust
 #[derive(Debug, thiserror::Error)]
@@ -279,16 +279,16 @@ Add `thiserror` to workspace deps. Keep this minimal; slice 1 extends it.
 
 The JSON reader/writer are thin and live where slice 1 expects readers/writers, but for slice 0
 the simplest home is small functions. Recommended: put `from_json(&[u8]) -> Result<Document>` and
-`to_json_writer<W: Write>(&Document, W) -> Result<()>` in `oxidoc-ast` (it already owns serde), and
+`to_json_writer<W: Write>(&Document, W) -> Result<()>` in `carta-ast` (it already owns serde), and
 have the CLI call them. The writer uses `serde_json::to_writer` (compact) then writes a trailing
 `\n`. Idiomatic ryu floats — no custom number formatting.
 
-### 5.2 CLI (`oxidoc-cli`)
+### 5.2 CLI (`carta-cli`)
 
 Add `clap` (derive API). Minimal surface:
 
 ```
-oxidoc [--from/-f <FORMAT>] [--to/-t <FORMAT>] [-o/--output <FILE>] [INPUT]
+carta [--from/-f <FORMAT>] [--to/-t <FORMAT>] [-o/--output <FILE>] [INPUT]
 ```
 
 - `--from`/`--to` default to nothing; slice 0 requires both to be `json`. Any other value →
@@ -299,7 +299,7 @@ oxidoc [--from/-f <FORMAT>] [--to/-t <FORMAT>] [-o/--output <FILE>] [INPUT]
 - Pipeline: read bytes → `from_json` → `to_json_writer`. No filters.
 - `main` returns `Result`/exits non-zero on error, printing the error to stderr. No panics.
 
-## 6. Differential round-trip harness (`oxidoc-testkit`)
+## 6. Differential round-trip harness (`carta-testkit`)
 
 ### 6.1 Minting golden JSON
 
@@ -336,14 +336,14 @@ unexpected tags (our model is stale).
 
 ### 6.4 Test layout
 
-Round-trip and coverage tests are integration tests in `oxidoc-testkit`
-(`crates/oxidoc-testkit/tests/`). They use the existing path helpers (`oracle_dir`, `pandoc_bin`,
+Round-trip and coverage tests are integration tests in `carta-testkit`
+(`crates/carta-testkit/tests/`). They use the existing path helpers (`oracle_dir`, `pandoc_bin`,
 `pandoc_tests_dir`). Keep the minting + caching + comparison logic in library functions so tests
 stay declarative.
 
 ## 7. Committed hand-authored fixtures (offline, day 1)
 
-A handful of `*.json` inputs under `crates/oxidoc-testkit/fixtures/roundtrip/` (committed; these are
+A handful of `*.json` inputs under `crates/carta-testkit/fixtures/roundtrip/` (committed; these are
 authored *inputs*, not pandoc-minted golden output, so they don't violate the "no generated
 fixtures committed" rule). Each is canonical pandoc-shaped JSON we write by hand, matching the
 shapes in §1. Cover at minimum: an empty doc, a meta block exercising all 6 `MetaValue` variants,

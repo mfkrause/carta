@@ -21,11 +21,11 @@ caseless = "0.2"
 insta = "1"
 
 # Internal crates
-oxidoc = { path = "crates/oxidoc" }
-oxidoc-ast = { path = "crates/oxidoc-ast" }
-oxidoc-core = { path = "crates/oxidoc-core" }
-oxidoc-readers = { path = "crates/oxidoc-readers" }
-oxidoc-writers = { path = "crates/oxidoc-writers" }
+carta = { path = "crates/carta" }
+carta-ast = { path = "crates/carta-ast" }
+carta-core = { path = "crates/carta-core" }
+carta-readers = { path = "crates/carta-readers" }
+carta-writers = { path = "crates/carta-writers" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

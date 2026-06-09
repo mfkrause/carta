@@ -1,6 +1,6 @@
-# AGENTS.md — operating rules for oxidoc
+# AGENTS.md — operating rules for carta
 
-oxidoc is a **clean-room reimplementation of pandoc in Rust**. This file is the operating rules.
+carta is a **clean-room reimplementation of pandoc in Rust**. This file is the operating rules.
 Read `docs/PORTING.md` for architecture, methodology, and roadmap.
 
 ## The rule that overrides everything: clean-room
@@ -15,12 +15,12 @@ Read `docs/PORTING.md` for architecture, methodology, and roadmap.
 - pandoc is installed black-box in gitignored `.oracle/`. Its outputs are golden values;
   generated fixtures are **never committed**.
 
-Why: oxidoc must be a legally and architecturally independent project. A line-by-line translation
+Why: carta must be a legally and architecturally independent project. A line-by-line translation
 of GPL source is a derivative work, and even reading the source taints the clean-room boundary.
 
 ## Source hygiene — no upstream provenance
 
-oxidoc must read as an independent, original implementation. The name "pandoc", the phrases
+carta must read as an independent, original implementation. The name "pandoc", the phrases
 "reference implementation", "port", "clean-room", "derived from", or any other hint of upstream
 provenance may appear **only** in: `AGENTS.md`, `README.md`, `docs/**`, the conformance tooling
 (`tools/**`), the vendored-spec attributions (`vendor/**`), and `corpus/README.md`. Every other file —
@@ -50,7 +50,7 @@ the word.
   unavoidable for interoperability and are the **only** sanctioned occurrences in product source.
   Treat each as an opaque external-format token, confined to the single site that emits or parses it
   — never let the name spread beyond these:
-  - `pandoc-api-version` — the JSON interchange root key; a single named constant in `oxidoc-ast`.
+  - `pandoc-api-version` — the JSON interchange root key; a single named constant in `carta-ast`.
   - `Pandoc` — the native format's top-level constructor; a parse literal in the native reader.
   - `\pandocbounded` — a LaTeX macro emitted to bound oversized images; a literal in the LaTeX writer.
 
@@ -88,21 +88,21 @@ the word.
 
 Slices 0 and 1 have landed:
 
-- **Slice 0** — the document model and JSON interchange codec (`oxidoc-ast`), and the
-  `oxidoc -f json -t json` conversion path.
-- **Slice 1** — the `CommonMark` reader (`oxidoc-readers`) and HTML writer (`oxidoc-writers`),
-  exposing `oxidoc -f commonmark -t html` (and `-t json` from CommonMark, `-f json -t html`).
+- **Slice 0** — the document model and JSON interchange codec (`carta-ast`), and the
+  `carta -f json -t json` conversion path.
+- **Slice 1** — the `CommonMark` reader (`carta-readers`) and HTML writer (`carta-writers`),
+  exposing `carta -f commonmark -t html` (and `-t json` from CommonMark, `-f json -t html`).
   Byte-identical to the pinned binary on all 652 vendored CommonMark spec examples; ~96%
   product-crate line coverage.
 
-A library facade (`oxidoc`) is the single public entry point — `convert`, `reader_for`/`writer_for`,
+A library facade (`carta`) is the single public entry point — `convert`, `reader_for`/`writer_for`,
 `supported_input_formats`/`supported_output_formats`, and the document model re-exported as `ast`.
 The CLI is a thin shell over it. Formats are selected at compile time through per-direction features
 on the facade (`read-commonmark`, `read-json`, `write-html`, `write-json`; `default = full` enables
 all). Each forwards to a per-format feature on the reader/writer crate, so a build can carry a single
 direction. A format that is recognized but compiled out is an `Error::FormatNotEnabled`; a genuinely
 unknown one is `Error::UnsupportedFormat`. Reader/writer behavior is configured through
-`ReaderOptions`/`WriterOptions`, which carry an `Extensions` set (`oxidoc-core`); the CommonMark
+`ReaderOptions`/`WriterOptions`, which carry an `Extensions` set (`carta-core`); the CommonMark
 reader currently implements the strict preset and does not yet honor extension toggles.
 
 ### Test architecture — four layers
@@ -113,25 +113,25 @@ full design.
 
 - **Layer 0 — unit tests.** In-crate `#[cfg(test)]` modules over pure helpers and parser internals.
   Offline, fast, edge-focused.
-- **Layer 1 — golden snapshots.** `insta` snapshots of oxidoc's **own** output, committed under
-  `crates/oxidoc/tests/snapshots/` and reviewed with `cargo insta review`. Readers:
+- **Layer 1 — golden snapshots.** `insta` snapshots of carta's **own** output, committed under
+  `crates/carta/tests/snapshots/` and reviewed with `cargo insta review`. Readers:
   `corpus/text/<fmt>/*` → snapshot AST JSON. Writers: `corpus/ast/<feature>/*` → snapshot each target
   (minus `corpus/exclusions.tsv`). Plus the relocated offline identity tests (JSON codec in
-  `oxidoc-ast`, the native round-trip and spec-parse safety in `oxidoc`). Offline.
+  `carta-ast`, the native round-trip and spec-parse safety in `carta`). Offline.
 - **Layer 2 — conformance suite.** `tools/conformance-suite/run.sh` — shell, **not** part of
-  `cargo test`. It runs the built `oxidoc` and the pinned pandoc oracle and diffs them across five
+  `cargo test`. It runs the built `carta` and the pinned pandoc oracle and diffs them across five
   surfaces (`reader|writer|e2e|roundtrip|commands`) over `corpus/`, the 652 vendored CommonMark spec
   examples, and the fetched pandoc corpus. Requires `.oracle/` and `jq`. CI-gated.
 - **Layer 3 — fuzz.** Reader panic-safety (nightly + `cargo-fuzz`), smoke-run in CI.
 
-No committed test data is pandoc output: golden values are oxidoc's own; the corpus under `corpus/`
+No committed test data is pandoc output: golden values are carta's own; the corpus under `corpus/`
 and the vendored spec under `vendor/` are inputs we own; parity is checked live against the
 gitignored oracle, never committed.
 
 ### Commands
 
 - Build: `cargo build`
-- Build a single direction: `cargo build -p oxidoc --no-default-features --features read-commonmark,write-html`
+- Build a single direction: `cargo build -p carta --no-default-features --features read-commonmark,write-html`
 - Tests (Layers 0, 1, 3 + cli/convert — **fully offline**, no `.oracle/` needed):
   `cargo nextest run --workspace` (doctests separately: `cargo test --doc`)
 - Review/accept golden snapshots after an intentional output change: `cargo insta review`
@@ -156,8 +156,8 @@ Update this section as each piece lands.
 We reuse pandoc's *test data*, never its test *harness* or implementation. Two layers:
 
 - **Command tests** (`test/command/*.md`) — declarative: a pandoc invocation + input + expected
-  output. The conformance suite's `commands` surface parses them and substitutes the `oxidoc` binary
-  for `pandoc`, then diffs (skipping and counting tests that use formats/flags oxidoc does not yet
+  output. The conformance suite's `commands` surface parses them and substitutes the `carta` binary
+  for `pandoc`, then diffs (skipping and counting tests that use formats/flags carta does not yet
   support). Directly reusable. The format grammar is documented in the corpus's own `README` (public
   test docs, not source).
 - **Golden data files** (`*.native`, `*.md`, `*.html`, …) — reused as inputs only. The

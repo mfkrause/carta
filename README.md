@@ -1,10 +1,10 @@
-# 🦀 oxidoc
+# 🦀 carta
 
 A reimplementation of [pandoc](https://pandoc.org) in Rust — a fast, small-footprint universal
 document converter that reads a markup format and renders it back out in another.
 
 > [!WARNING]
-> oxidoc is an **early prototype under active development**. Only a small slice of pandoc's formats
+> carta is an **early prototype under active development**. Only a small slice of pandoc's formats
 > is implemented today, the API is unstable, and it is not yet ready for production use.
 
 ## Goals
@@ -18,9 +18,9 @@ document converter that reads a markup format and renders it back out in another
 No releases yet — build from source. Requires Rust 1.93+ (stable).
 
 ```sh
-cd oxidoc
+cd carta
 cargo build --release
-# binary at target/release/oxidoc
+# binary at target/release/carta
 ```
 
 ## Usage
@@ -29,19 +29,19 @@ cargo build --release
 
 ```sh
 # CommonMark to HTML
-oxidoc -f commonmark -t html input.md -o output.html
+carta -f commonmark -t html input.md -o output.html
 
 # read from stdin, write to stdout
-echo '# Hello' | oxidoc -f commonmark -t html
+echo '# Hello' | carta -f commonmark -t html
 
 # inspect the document model
-oxidoc -f commonmark -t json input.md
+carta -f commonmark -t json input.md
 ```
 
 ### Library
 
 ```rust
-use oxidoc::{convert, ReaderOptions, WriterOptions};
+use carta::{convert, ReaderOptions, WriterOptions};
 
 let html = convert(
     "commonmark",
@@ -56,7 +56,7 @@ Formats are selected at compile time via per-direction features, so a build can 
 directions it needs:
 
 ```sh
-cargo build -p oxidoc --no-default-features --features read-commonmark,write-html
+cargo build -p carta --no-default-features --features read-commonmark,write-html
 ```
 
 ## Development
@@ -68,14 +68,14 @@ cargo clippy --all-targets          # lint
 cargo +nightly fuzz run commonmark  # fuzz a reader (see fuzz/README.md)
 ```
 
-The workspace splits into `oxidoc-ast` (the document model), `oxidoc-core` (shared traits and
-options), `oxidoc-readers`, `oxidoc-writers`, the `oxidoc` library facade, and the `oxidoc-cli`
+The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and
+options), `carta-readers`, `carta-writers`, the `carta` library facade, and the `carta-cli`
 binary. See [`docs/PORTING.md`](docs/PORTING.md) for the architecture and roadmap.
 
 ## License
 
 Copyright © 2026 Maximilian Krause.
 
-oxidoc is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
+carta is free software: you can redistribute it and/or modify it under the terms of the GNU Affero
 General Public License, version 3, as published by the Free Software Foundation. See
 [`LICENSE`](LICENSE) for the full text.

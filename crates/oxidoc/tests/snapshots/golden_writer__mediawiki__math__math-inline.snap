@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-an equation <math display="inline">a^2 + b^2 = c^2</math> inline

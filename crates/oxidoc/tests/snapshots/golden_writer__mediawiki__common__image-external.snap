@@ -1,5 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-<nowiki></nowiki>https://example.org/i.png<nowiki></nowiki>

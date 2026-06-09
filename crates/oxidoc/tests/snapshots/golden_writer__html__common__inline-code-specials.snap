@@ -1,7 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-<p>before
-<code>a &amp; b ~ c \ d % e # f $ g _ h { i } j ^ k | l &lt; m &gt; n</code>
-after</p>

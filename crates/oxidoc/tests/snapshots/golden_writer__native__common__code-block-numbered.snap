@@ -1,8 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-[ CodeBlock
-    ( "" , [ "python" , "numberLines" ] , [] )
-    "print(1)\nprint(2)"
-]

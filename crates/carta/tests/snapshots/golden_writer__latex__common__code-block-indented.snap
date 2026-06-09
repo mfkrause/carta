@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{verbatim}
+indented code
+second line
+\end{verbatim}

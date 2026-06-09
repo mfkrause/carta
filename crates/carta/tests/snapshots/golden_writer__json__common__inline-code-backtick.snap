@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"use"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"a `b` c"]},{"t":"Space"},{"t":"Str","c":"here"}]}]}

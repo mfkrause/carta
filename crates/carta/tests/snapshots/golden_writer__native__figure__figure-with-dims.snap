@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "alt" , Space , Str "text" ] ])
+    [ Plain
+        [ Image
+            ( "" , [] , [ ( "width" , "200" ) ] )
+            [ Str "alt" , Space , Str "text" ]
+            ( "pic.png" , "t" )
+        ]
+    ]
+]

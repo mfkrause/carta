@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "see"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "knuth1984"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 1
+            , citationHash = 0
+            }
+        ]
+        [ Str "[@knuth1984]" ]
+    , Space
+    , Str "for"
+    , Space
+    , Str "details"
+    ]
+]

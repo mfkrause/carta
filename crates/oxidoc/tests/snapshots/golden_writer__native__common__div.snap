@@ -1,8 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-[ Div
-    ( "d" , [ "note" ] , [] )
-    [ Para [ Str "body" , Space , Str "paragraph" ] ]
-]

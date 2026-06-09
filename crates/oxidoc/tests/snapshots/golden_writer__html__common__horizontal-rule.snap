@@ -1,7 +1,0 @@
----
-source: crates/oxidoc/tests/golden_writer.rs
-expression: output
----
-<p>above</p>
-<hr />
-<p>below</p>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p>This is a deliberately long paragraph with wide 中文字符 glyphs and a
+combining mark é so the writer measures column widths while wrapping at
+the fill column boundary.</p>

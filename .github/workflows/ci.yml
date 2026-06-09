@@ -53,8 +53,8 @@ jobs:
           tools/fetch-pandoc-tests.sh
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-      - name: Build oxidoc
-        run: cargo build -p oxidoc-cli
+      - name: Build carta
+        run: cargo build -p carta-cli
       - name: Run conformance suite
         run: tools/conformance-suite/run.sh all
 
@@ -84,11 +84,11 @@ jobs:
         with:
           tool: cargo-nextest
       - name: Build single-direction config
-        run: cargo build -p oxidoc --no-default-features --features read-commonmark,write-html
+        run: cargo build -p carta --no-default-features --features read-commonmark,write-html
       - name: Test single-direction config
-        run: cargo nextest run -p oxidoc --no-default-features --features read-commonmark,write-html
+        run: cargo nextest run -p carta --no-default-features --features read-commonmark,write-html
       - name: Build zero-format config
-        run: cargo build -p oxidoc --no-default-features
+        run: cargo build -p carta --no-default-features
 
   fuzz-smoke:
     name: fuzz smoke (nightly)

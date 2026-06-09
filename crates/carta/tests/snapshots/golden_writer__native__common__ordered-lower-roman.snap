@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ OrderedList
+    ( 1 , LowerRoman , Period )
+    [ [ Plain [ Str "one" ] ] , [ Plain [ Str "two" ] ] ]
+]
