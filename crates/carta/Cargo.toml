@@ -37,3 +37,8 @@ carta-writers = { path = "../carta-writers", default-features = false, optional 
 
 [dev-dependencies]
 insta = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "convert"
+harness = false
