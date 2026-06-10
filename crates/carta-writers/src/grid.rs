@@ -512,12 +512,15 @@ fn auto_grid_widths(natural: &[usize], minword: &[usize], columns: usize) -> Vec
     let mut remaining: Vec<usize> = (0..columns).collect();
     while !remaining.is_empty() {
         let share = budget / remaining.len();
-        let fits: Vec<usize> = remaining
-            .iter()
-            .copied()
-            .filter(|&index| natural.get(index).copied().unwrap_or(0) <= share)
-            .collect();
-        if fits.is_empty() {
+        let mut fits = vec![false; columns];
+        for &index in &remaining {
+            if natural.get(index).copied().unwrap_or(0) <= share
+                && let Some(slot) = fits.get_mut(index)
+            {
+                *slot = true;
+            }
+        }
+        if fits.iter().all(|fit| !fit) {
             for &index in &remaining {
                 let floor = minword.get(index).copied().unwrap_or(0);
                 if let Some(slot) = assigned.get_mut(index) {
@@ -526,14 +529,15 @@ fn auto_grid_widths(natural: &[usize], minword: &[usize], columns: usize) -> Vec
             }
             break;
         }
-        for &index in &fits {
+        let is_fit = |index: usize| fits.get(index).copied().unwrap_or(false);
+        for &index in remaining.iter().filter(|&&index| is_fit(index)) {
             let width = natural.get(index).copied().unwrap_or(0);
             if let Some(slot) = assigned.get_mut(index) {
                 *slot = Some(width);
             }
             budget = budget.saturating_sub(width);
         }
-        remaining.retain(|index| !fits.contains(index));
+        remaining.retain(|&index| !is_fit(index));
     }
     (0..columns)
         .map(|index| {
