@@ -16,7 +16,7 @@ findings are recorded below so they aren't re-audited.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | Criterion bench suite (readers/writers/convert + pathological inputs) | P1 | M | — | TODO |
+| 001 | Criterion bench suite (readers/writers/convert + pathological inputs) | P1 | M | — | DONE (commit `57560f1` on `advisor/001-criterion-benches`, reviewed+approved; awaiting operator merge. Adversarial inputs sized 32 KiB — inline resolver is quadratic, see plan's Executed note) |
 | 002 | Release profile tuning (lto, codegen-units=1, strip) | P1 | S | — | DONE (commit `c6bff34` on `worktree-agent-a3cfa78557ce4e2a6`, reviewed+approved; awaiting operator merge) |
 | 003 | Linear delimiter-stack inline emphasis/bracket resolution | P1 | M | 001 | TODO |
 | 004 | Allocation hygiene bundle (6 reader hot-path sites) | P2 | M | 001 (soft) | TODO |
