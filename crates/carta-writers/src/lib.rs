@@ -11,7 +11,7 @@
 ))]
 mod common;
 
-#[cfg(any(feature = "plain", feature = "rst"))]
+#[cfg(any(feature = "plain", feature = "rst", feature = "latex"))]
 mod grid;
 
 #[cfg(feature = "commonmark")]
