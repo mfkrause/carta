@@ -1,6 +1,6 @@
-# Shared primitives for the benchmark suite: path discovery, release-build, oracle normalization,
-# timing via hyperfine, peak-RSS measurement, and table formatting. Sourced by run.sh, gen-fixtures.sh
-# and every surface.
+# Benchmark-suite primitives: release-build, timing via hyperfine, peak-RSS measurement, and table
+# formatting. Path anchors and the oracle contract come from tools/shared.sh. Sourced by run.sh,
+# gen-fixtures.sh and every surface.
 #
 # The suite times carta against the pinned pandoc binary on equivalent work — identical -f/-t flags,
 # pandoc normalized so both produce the same output (no syntax highlighting, MathJax for HTML). It
@@ -15,11 +15,9 @@ BENCH_LIB_SOURCED=1
 export LC_ALL=C
 
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$BENCH_DIR/../.." && pwd)"
-ORACLE="$ROOT/.oracle/bin/pandoc"
+. "$BENCH_DIR/../shared.sh"
 ORACLE_VERSION_FILE="$ROOT/.oracle/PANDOC_VERSION"
 OX="${OXIDOC_BIN:-$ROOT/target/release/carta}"
-CORPUS="$ROOT/corpus"
 SEED="$CORPUS/bench/seed.md"
 
 # Tunables (env-overridable).
@@ -78,16 +76,6 @@ ensure_release_binary() {
 }
 
 oracle_version() { [ -f "$ORACLE_VERSION_FILE" ] && cat "$ORACLE_VERSION_FILE" || echo "unknown"; }
-
-# pandoc flags that neutralize target nondeterminism carta does not reproduce, so both tools do the
-# same work: HTML suppresses syntax highlighting and renders math via MathJax; LaTeX suppresses
-# highlighting. Applied to the pandoc side only.
-oracle_norm() {
-  case "$1" in
-    html | html5) echo "--syntax-highlighting=none --mathjax" ;;
-    latex) echo "--syntax-highlighting=none" ;;
-  esac
-}
 
 # Parse one size token (e.g. 10k, 100k, 1m, 2048) into bytes on stdout.
 size_to_bytes() {

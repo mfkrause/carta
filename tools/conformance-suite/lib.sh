@@ -1,5 +1,5 @@
-# Shared primitives for the conformance suite: path discovery, oracle normalization, output
-# comparison, spec-example extraction, and result tallying. Sourced by run.sh and every surface.
+# Conformance-suite primitives: output comparison, spec-example extraction, and result tallying. Path
+# anchors and the oracle contract come from tools/shared.sh. Sourced by run.sh and every surface.
 #
 # The suite diffs carta against the pinned pandoc binary across each conversion surface. pandoc's
 # output is the reference; on any non-`json` target it carries a single trailing newline that is
@@ -11,11 +11,9 @@
 CONF_LIB_SOURCED=1
 
 CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$CONF_DIR/../.." && pwd)"
-ORACLE="$ROOT/.oracle/bin/pandoc"
+. "$CONF_DIR/../shared.sh"
 OX="${OXIDOC_BIN:-$ROOT/target/debug/carta}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
-CORPUS="$ROOT/corpus"
 EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"
 WORK="${CONF_WORK:-${TMPDIR:-/tmp}/carta-conformance}"
@@ -37,16 +35,6 @@ require_tools() {
     missing=1
   fi
   [ "$missing" -eq 0 ] || exit 1
-}
-
-# Oracle flags that neutralize target nondeterminism carta does not reproduce: HTML suppresses
-# syntax highlighting and renders math via MathJax; LaTeX suppresses syntax highlighting. Applied to
-# the pandoc side only.
-oracle_norm() {
-  case "$1" in
-    html | html5) echo "--syntax-highlighting=none --mathjax" ;;
-    latex) echo "--syntax-highlighting=none" ;;
-  esac
 }
 
 # A target whose output is compared structurally as JSON rather than byte-for-byte.
