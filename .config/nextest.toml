@@ -1,0 +1,10 @@
+# nextest configuration.
+#
+# leak-timeout is the grace period nextest waits, after a test reports done, for any subprocess it
+# spawned to release the test's stdout/stderr pipes. The default (100ms) occasionally trips on plain
+# process-teardown jitter on a loaded machine and flags an in-process test (which spawns nothing) as
+# "leaky". A wider window absorbs that jitter while still catching a genuine leak: the suite's only
+# subprocess — the CLI integration tests — is spawned with piped stdio and fully reaped via
+# wait_with_output, so a real leak would hold the pipes open far longer than this.
+[profile.default]
+leak-timeout = "500ms"
