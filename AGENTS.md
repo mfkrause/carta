@@ -91,8 +91,9 @@ Landed so far:
 - **Document model + JSON codec** (`carta-ast`) — the Block/Inline model and the JSON interchange
   codec, with the `carta -f json -t json` path.
 - **Readers** (`carta-readers`) — CommonMark, HTML, native, and JSON. The CommonMark reader is
-  byte-identical to the oracle on all 652 vendored spec examples and implements the strict preset
-  (extension toggles are not yet honored).
+  byte-identical to the oracle on all 652 vendored spec examples and honors a low-complexity set of
+  extension toggles (`strikeout`, `superscript`, `subscript`, `hard_line_breaks`, `task_lists`,
+  `raw_html`); other toggles are not yet wired.
 - **Writers** (`carta-writers`) — HTML, LaTeX, reStructuredText, plain, CommonMark, MediaWiki,
   native, and JSON. **Tables render across every writer**, including spans, alignments, fractional
   widths, captions, and multiple bodies; plain/reStructuredText/LaTeX share a text-grid layout
@@ -109,7 +110,7 @@ all). Each forwards to a per-format feature on the reader/writer crate, so a bui
 direction. A format that is recognized but compiled out is an `Error::FormatNotEnabled`; a genuinely
 unknown one is `Error::UnsupportedFormat`. Reader/writer behavior is configured through
 `ReaderOptions`/`WriterOptions`, which carry an `Extensions` set (`carta-core`); the CommonMark
-reader currently implements the strict preset and does not yet honor extension toggles.
+reader honors the low-complexity toggles listed above and otherwise defaults to the strict preset.
 
 ### Test architecture — four layers
 
