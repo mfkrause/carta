@@ -9,7 +9,6 @@ TARGETS="html latex rst plain commonmark mediawiki native json"
 [ $# -gt 0 ] && TARGETS="$1"
 
 for target in $TARGETS; do
-  group_reset
   table_header "writer — json → $target"
   norm="$(oracle_norm "$target")"
   for size in $(sizes_list); do
@@ -18,7 +17,6 @@ for target in $TARGETS; do
     bench_pair "writer/$target/$size" "$input" "$(file_bytes "$input")" \
       "-f json -t $target $norm" "-f json -t $target"
   done
-  tally_group
 done
 
 exit "$SUITE_RC"
