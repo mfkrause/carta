@@ -33,3 +33,26 @@ fn reader_ast_snapshots() {
         insta::assert_snapshot!(format!("{}__{}", case.group, case.label), json);
     }
 }
+
+/// Reader golden tests for extension toggles: each `corpus/text-ext/<spec>/*` directory is named for
+/// the full format spec it is parsed with (e.g. `commonmark+strikeout`).
+#[test]
+fn reader_ext_ast_snapshots() {
+    let readers = carta::supported_input_formats();
+    for case in corpus_cases("text-ext") {
+        let (base, _) = carta::parse_format_spec(&case.group)
+            .unwrap_or_else(|error| panic!("parse format spec {}: {error}", case.group));
+        if !readers.contains(&base.as_str()) {
+            continue;
+        }
+        let json = carta::convert(
+            &case.group,
+            "json",
+            &case.input,
+            &ReaderOptions::default(),
+            &WriterOptions::default(),
+        )
+        .unwrap_or_else(|error| panic!("convert {}/{} -> json: {error}", case.group, case.label));
+        insta::assert_snapshot!(format!("{}__{}", case.group, case.label), json);
+    }
+}

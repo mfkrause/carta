@@ -25,6 +25,23 @@ for fmt in $FORMATS; do
   tally_group
 done
 
+# Extension-toggle cases: each `corpus/text-ext/<spec>/*` directory is named for the full format
+# spec (e.g. `commonmark+strikeout`) it should be parsed with, for both carta and pandoc. All current
+# specs are commonmark-based, so they run alongside the commonmark group.
+if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
+  conf_reset "reader-ext"
+  for spec_dir in "$CORPUS"/text-ext/*; do
+    [ -d "$spec_dir" ] || continue
+    spec="$(basename "$spec_dir")"
+    for input in "$spec_dir"/*; do
+      [ -f "$input" ] || continue
+      run_diff json "reader-ext/$spec/$(basename "$input")" "$input" "-f $spec -t json" "-f $spec -t json"
+    done
+  done
+  report reader ext
+  tally_group
+fi
+
 # CommonMark spec examples — exhaustive reader parity, reported on its own line.
 if echo "$FORMATS" | grep -qw commonmark; then
   specdir="$WORK/spec"

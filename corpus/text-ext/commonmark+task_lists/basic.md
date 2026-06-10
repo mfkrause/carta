@@ -1,0 +1,3 @@
+- [ ] unchecked item
+- [x] checked item
+- [X] also checked
