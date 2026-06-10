@@ -146,6 +146,9 @@ gitignored oracle, never committed.
   e.g. `tools/conformance-suite/run.sh writer html`. Each surface prints
   `RESULT <surface> <group> pass=N fail=N err=N skip=N` and exits non-zero on any fail/err.
   **Hard-requires** `.oracle/` and `jq`.
+- Benchmark vs pandoc (perf, not correctness; manual, never CI): `tools/bench-suite/run.sh all`, or one
+  surface e.g. `tools/bench-suite/run.sh writer latex`. **Hard-requires** `hyperfine`, `jq`, `.oracle/`;
+  builds the release binary itself. Machine-specific; nothing committed but `docs/BENCHMARKS.md`.
 - Fuzz a reader (nightly + `cargo-fuzz`): `cargo +nightly fuzz run commonmark` (see `fuzz/README.md`)
 - Coverage gate (offline product crates, floored at 90%):
   `cargo llvm-cov --workspace --summary-only --fail-under-lines 90` (run
