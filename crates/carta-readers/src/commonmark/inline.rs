@@ -756,12 +756,21 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
             }
         }
 
-        // `openers_bottom` entries that pointed into the inner delimiter-list range
-        // [opener_di+1, current] are now stale. Clamp them conservatively to opener_di so future
-        // searches start from a valid position.
+        // Adjust `openers_bottom` for the delimiter-list compaction that just happened.
+        //
+        // After `delims.drain(opener_di+1..current)` + conditional removes:
+        //   - Values <= opener_di: unchanged.
+        //   - Values in (opener_di, current): pointed into the now-removed inner span → clamp to
+        //     opener_di (those openers no longer exist in the list).
+        //   - Values >= current: shifted down by (current - opener_di - 1) for the drain, then
+        //     by -1 for each removed endpoint (closer and/or opener).
+        let inner_drain = current - opener_di - 1;
+        let endpoint_removes = usize::from(closer_empty) + usize::from(opener_empty);
         for v in openers_bottom.values_mut() {
-            if *v > opener_di {
+            if *v > opener_di && *v < current {
                 *v = opener_di;
+            } else if *v >= current {
+                *v = v.saturating_sub(inner_drain + endpoint_removes);
             }
         }
 
