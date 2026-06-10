@@ -153,8 +153,6 @@ struct Delimiter {
     count: usize,
     can_open: bool,
     can_close: bool,
-    /// For `[` / `![` openers used by link resolution; inactive once consumed or deactivated.
-    active: bool,
     /// Whether this is an image opener (`![`).
     image: bool,
     /// Source index just past a bracket opener, where its raw label text begins. Unused otherwise.
@@ -169,6 +167,7 @@ fn parse_inlines(text: &str, refs: &RefMap, ext: Extensions) -> Vec<Inline> {
         nodes: Vec::new(),
         refs,
         ext,
+        bracket_stack: Vec::new(),
     };
     parser.run();
     let mut nodes = parser.nodes;
@@ -182,6 +181,9 @@ struct InlineParser<'a> {
     nodes: Vec<Node>,
     refs: &'a RefMap,
     ext: Extensions,
+    /// Indices into `nodes` for each open `[` or `![` delimiter, in parse order. O(1) lookup of
+    /// the most recent bracket opener instead of a backward scan through all nodes.
+    bracket_stack: Vec<usize>,
 }
 
 impl InlineParser<'_> {
@@ -370,19 +372,19 @@ impl InlineParser<'_> {
             count,
             can_open,
             can_close,
-            active: true,
             image: false,
             text_start: self.pos,
         }));
     }
 
     fn push_open_bracket(&mut self, image: bool) {
+        let node_index = self.nodes.len();
+        self.bracket_stack.push(node_index);
         self.nodes.push(Node::Delimiter(Delimiter {
             ch: b'[',
             count: 1,
             can_open: true,
             can_close: false,
-            active: true,
             image,
             text_start: self.pos,
         }));
@@ -390,19 +392,14 @@ impl InlineParser<'_> {
 
     fn close_bracket(&mut self) {
         self.pos += 1;
-        let Some(opener_index) = self.last_bracket_opener() else {
+        let Some(&opener_index) = self.bracket_stack.last() else {
             self.push_text(']');
             return;
         };
         let is_image = matches!(self.nodes.get(opener_index), Some(Node::Delimiter(d)) if d.image);
-        let active = matches!(self.nodes.get(opener_index), Some(Node::Delimiter(d)) if d.active);
-        if !active {
-            self.literalize_bracket(opener_index);
-            self.push_text(']');
-            return;
-        }
 
         if let Some((target, next)) = self.try_link_target(opener_index) {
+            self.bracket_stack.pop();
             self.pos = next;
             self.build_link(opener_index, is_image, target);
             if !is_image {
@@ -411,6 +408,7 @@ impl InlineParser<'_> {
             return;
         }
         // Not a valid link: the opener reverts to its literal `[` / `![`, and `]` stays literal.
+        self.bracket_stack.pop();
         self.literalize_bracket(opener_index);
         self.push_text(']');
     }
@@ -425,22 +423,28 @@ impl InlineParser<'_> {
         }
     }
 
-    fn last_bracket_opener(&self) -> Option<usize> {
-        self.nodes
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(i, node)| matches!(node, Node::Delimiter(d) if d.ch == b'[').then_some(i))
-    }
-
+    /// Deactivate all non-image `[` openers before `before` in the node list, preventing them
+    /// from forming links that would contain the link just built. Deactivated openers are
+    /// removed from the bracket stack and converted to literal text immediately, so future
+    /// `]` characters cannot accidentally revive them.
     fn deactivate_earlier_brackets(&mut self, before: usize) {
-        for node in self.nodes.get_mut(..before).into_iter().flatten() {
-            if let Node::Delimiter(d) = node
-                && d.ch == b'['
-                && !d.image
-            {
-                d.active = false;
+        // Walk the stack; entries with node_index < before are the earlier openers.
+        // Iterate forward; when we remove an entry, the next entry shifts into position `i`,
+        // so we do not increment in that case.
+        let mut i = 0;
+        while i < self.bracket_stack.len() {
+            let Some(ni) = self.bracket_stack.get(i).copied() else {
+                break;
+            };
+            if ni < before {
+                let is_image = matches!(self.nodes.get(ni), Some(Node::Delimiter(d)) if d.image);
+                if !is_image {
+                    self.bracket_stack.remove(i);
+                    self.literalize_bracket(ni);
+                    continue; // don't increment — next entry shifted into position i
+                }
             }
+            i += 1;
         }
     }
 
@@ -488,6 +492,9 @@ impl InlineParser<'_> {
     fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target) {
         let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
+        // Any bracket stack entries that pointed into the split-off range are now part of the
+        // inner node list passed to process_emphasis; they no longer belong to the outer parse.
+        self.bracket_stack.retain(|&ni| ni < opener_index);
         process_emphasis(&mut inner, 0, self.ext);
         let content = collapse(inner);
         let inline = if is_image {
@@ -506,77 +513,265 @@ fn def_target(def: &LinkDef) -> Target {
     }
 }
 
+/// A record in the delimiter list used by [`process_emphasis`].
+#[derive(Debug, Clone)]
+struct DelimEntry {
+    /// Index into `nodes` where this delimiter lives.
+    node_index: usize,
+    ch: u8,
+    count: usize,
+    can_open: bool,
+    can_close: bool,
+}
+
 /// Resolve emphasis/strong (`*`/`_`) and format (`~`/`^`) delimiters in `nodes`, starting at
 /// `stack_bottom`.
 ///
-/// All four delimiter kinds share one matching loop: a closer pairs with the nearest preceding
-/// opener of the same character that passes the rule of 3, and the pair is wrapped, decremented, and
-/// (when emptied) dropped. They differ only in how a matched pair's length maps to a node — see
-/// [`match_use_count`] and [`wrap_emphasis`].
+/// Implements the linear algorithm from the spec ("An algorithm for parsing nested emphasis and
+/// links", `CommonMark` spec §A): a single left-to-right pass over closers, with per-bucket
+/// `openers_bottom` lower bounds that prevent re-scanning already-rejected opener ranges.
+///
+/// All four delimiter kinds share one matching loop. They differ only in how a matched pair's
+/// length maps to a node — see [`match_use_count`] and [`wrap_emphasis`].
+// `opener_di` (delimiter-list index) and `opener_ni` (node index) are intentionally close names
+// for two distinct indices into two distinct arrays.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
 fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions) {
-    let mut closer = stack_bottom;
-    while closer < nodes.len() {
-        let closer_ch = match nodes.get(closer) {
-            Some(Node::Delimiter(d)) if d.can_close && is_delimiter_char(d.ch) => d.ch,
-            _ => {
-                closer += 1;
+    // Build the delimiter list: one entry per Node::Delimiter in [stack_bottom..] that is an
+    // emphasis-class delimiter (not a bracket opener).
+    let mut delims: Vec<DelimEntry> = nodes
+        .iter()
+        .enumerate()
+        .skip(stack_bottom)
+        .filter_map(|(ni, node)| match node {
+            Node::Delimiter(d) if is_delimiter_char(d.ch) => Some(DelimEntry {
+                node_index: ni,
+                ch: d.ch,
+                count: d.count,
+                can_open: d.can_open,
+                can_close: d.can_close,
+            }),
+            _ => None,
+        })
+        .collect();
+
+    // `openers_bottom[bucket]` is the minimum delimiter-list index to search for an opener.
+    //
+    // Bucket key: `(char_index, count_mod3, can_also_open, long_enough_for_two)`.
+    // The first three fields follow the spec directly (§A: "indexed to the length of the
+    // closing delimiter run modulo 3 and to whether the closing delimiter can also be an opener").
+    // The fourth — `closer_count >= 2` — is required for `~` when strikeout is on but subscript
+    // is off: `match_use_count` returns `None` for a length-1 tilde pair, so a length-1 closer
+    // must not share an `openers_bottom` slot with a length-2+ closer. Any future delimiter kind
+    // whose opener acceptance depends on a count threshold must derive its slot key from the same
+    // invariant: two closers may share a slot only if every opener accepts or rejects them
+    // identically.
+    let mut openers_bottom = std::collections::BTreeMap::<(u8, usize, bool, bool), usize>::new();
+
+    let mut current = 0usize; // index into `delims`, advances only forward
+
+    while current < delims.len() {
+        let Some(current_entry) = delims.get(current) else {
+            break;
+        };
+        let (closer_ch, closer_count, closer_can_open, closer_can_close) =
+            (current_entry.ch, current_entry.count, current_entry.can_open, current_entry.can_close);
+        let closer_ni = current_entry.node_index;
+        if !closer_can_close {
+            current += 1;
+            continue;
+        }
+
+        let bucket = (
+            closer_ch,
+            closer_count % 3,
+            closer_can_open,
+            closer_count >= 2,
+        );
+        let bottom = *openers_bottom.get(&bucket).unwrap_or(&0);
+
+        // Scan backward from just before `current` down to `bottom` for a matching opener.
+        let mut found: Option<usize> = None; // delimiter-list index of the matched opener
+        let mut scan = current;
+        while scan > bottom {
+            scan -= 1;
+            let Some(entry) = delims.get(scan) else {
+                break;
+            };
+            if !entry.can_open || entry.ch != closer_ch {
                 continue;
             }
-        };
-        let closer_count = delimiter_count(nodes, closer);
-
-        // Find a matching opener below: same character, rule of 3 satisfied, and a length pairing
-        // that the enabled extensions actually map to a node.
-        let mut opener = None;
-        let mut index = closer;
-        while index > stack_bottom {
-            index -= 1;
-            if let Some(Node::Delimiter(d)) = nodes.get(index)
-                && d.can_open
-                && d.ch == closer_ch
-                && emphasis_match(d, nodes, closer)
-                && let Some(use_count) = match_use_count(d.count, closer_count, closer_ch, ext)
-            {
-                opener = Some((index, use_count));
+            // Rule of 3 and match_use_count check — we need a temporary Delimiter value to
+            // reuse `emphasis_match`, which borrows `nodes` by index.
+            let use_count = match_use_count(entry.count, closer_count, closer_ch, ext);
+            if use_count.is_none() {
+                // `match_use_count` rejected this opener; keep scanning — do not advance
+                // `openers_bottom` for this slot just because one opener was rejected.
+                continue;
+            }
+            // Re-derive the Delimiter from `nodes` for the rule-of-3 check.
+            let ni = entry.node_index;
+            let rule_ok = match nodes.get(ni) {
+                Some(Node::Delimiter(d)) => emphasis_match(d, nodes, closer_ni),
+                _ => false,
+            };
+            if rule_ok {
+                found = Some(scan);
                 break;
             }
         }
-        let Some((opener_index, use_count)) = opener else {
-            // No opener; if this delimiter also can't open, it's inert.
-            if let Some(Node::Delimiter(d)) = nodes.get(closer)
-                && !d.can_open
-            {
-                convert_delimiter_to_text(nodes, closer);
+
+        let Some(opener_di) = found else {
+            // No opener found: advance openers_bottom to exclude this closer's position in future
+            // searches for the same bucket.
+            openers_bottom.insert(bucket, current);
+            // A delimiter that can't open is now known to be inert as a closer too.
+            if !closer_can_open {
+                // convert_delimiter_to_text replaces the node variant in-place; no index shift.
+                convert_delimiter_to_text(nodes, closer_ni);
             }
-            closer += 1;
+            current += 1;
             continue;
         };
 
-        // Wrap the nodes strictly between opener and closer, then place the wrapped inline back
-        // between the two (now adjacent) delimiters before trimming their counts.
-        let inner: Vec<Node> = nodes.drain(opener_index + 1..closer).collect();
+        // --- Match found: splice nodes and update the delimiter list ---
+
+        let Some(opener_entry) = delims.get(opener_di) else {
+            break;
+        };
+        let (opener_ni, opener_count) = (opener_entry.node_index, opener_entry.count);
+
+        // Retrieve use_count (already validated above).
+        let use_count = match_use_count(opener_count, closer_count, closer_ch, ext).unwrap_or(1);
+
+        // Drain all nodes strictly between opener and closer into `content`, collapse, and wrap.
+        let inner: Vec<Node> = nodes.drain(opener_ni + 1..closer_ni).collect();
         let content = collapse(inner);
         let wrapped = wrap_emphasis(closer_ch, use_count, content);
-        let wrapped_index = opener_index + 1;
-        nodes.insert(wrapped_index, Node::Inline(wrapped));
+        // Insert the wrapped inline where the inner content was.
+        nodes.insert(opener_ni + 1, Node::Inline(wrapped));
 
-        // Decrement counts and drop emptied delimiters, closer first so the opener index holds.
-        let closer_index = wrapped_index + 1;
-        decrement_delimiter(nodes, closer_index, use_count);
-        decrement_delimiter(nodes, opener_index, use_count);
-        let mut removable = [closer_index, opener_index];
-        removable.sort_unstable_by(|a, b| b.cmp(a));
-        for index in removable {
-            if matches!(nodes.get(index), Some(Node::Delimiter(d)) if d.count == 0) {
-                nodes.remove(index);
+        // After drain(opener_ni+1..closer_ni) and insert(opener_ni+1), the closer node is at
+        // opener_ni + 2. We then conditionally remove the closer and opener delimiter nodes,
+        // which shifts remaining node_index values. Track all of that in one place.
+        let new_closer_ni = opener_ni + 2;
+
+        // Decrement delimiter counts (closer first; it's at the higher index).
+        decrement_delimiter(nodes, new_closer_ni, use_count);
+        decrement_delimiter(nodes, opener_ni, use_count);
+
+        // Reflect decrements back into `delims`.
+        let new_closer_count = closer_count.saturating_sub(use_count);
+        let new_opener_count = opener_count.saturating_sub(use_count);
+        if let Some(e) = delims.get_mut(current) {
+            e.count = new_closer_count;
+        }
+        if let Some(e) = delims.get_mut(opener_di) {
+            e.count = new_opener_count;
+        }
+
+        // Drop emptied delimiter nodes from `nodes`, highest index first so lower indices hold.
+        let closer_empty = new_closer_count == 0;
+        let opener_empty = new_opener_count == 0;
+        if closer_empty {
+            nodes.remove(new_closer_ni);
+        }
+        if opener_empty {
+            nodes.remove(opener_ni);
+        }
+
+        // Compute the total shift experienced by node indices that were strictly above closer_ni
+        // in the original node vector, after all four operations (drain, insert, remove×0/1/2):
+        //
+        //   drain(opener_ni+1..closer_ni): removes (closer_ni - opener_ni - 1) nodes above opener_ni
+        //   insert at opener_ni+1: adds 1 node above opener_ni
+        //   remove(new_closer_ni) if closer_empty: removes 1 node that was at new_closer_ni
+        //   remove(opener_ni) if opener_empty: removes 1 node at opener_ni (below closer)
+        //
+        // For a node_index N > closer_ni (i.e., above the old closer):
+        //   after drain+insert: new pos = N + opener_ni - closer_ni + 2
+        //   after remove(closer) if empty: -1
+        //   after remove(opener) if empty: -1
+        // Total shift = (opener_ni - closer_ni + 2) - closer_empty - opener_empty.
+        let above_shift = 2_isize
+            + (opener_ni.cast_signed() - closer_ni.cast_signed())
+            - isize::from(closer_empty)
+            - isize::from(opener_empty);
+
+        // The surviving closer's final node_index (only relevant when !closer_empty):
+        //   after drain+insert it's at new_closer_ni = opener_ni+2;
+        //   after remove(opener) if empty: it shifts to opener_ni+1.
+        let final_closer_ni = opener_ni + 1 + usize::from(!opener_empty);
+
+        // Update the delimiter list:
+        // Step A: remove inner delimiter entries (consumed into the wrapped span).
+        delims.drain(opener_di + 1..current);
+        // After this drain, the old `current` entry is now at opener_di + 1.
+        let current_di_after = opener_di + 1;
+
+        // Step B: remove the closer and opener entries from `delims` if they are now empty.
+        // Closer is at current_di_after; remove it first (higher index).
+        if closer_empty {
+            delims.remove(current_di_after);
+        }
+        if opener_empty {
+            delims.remove(opener_di);
+        }
+
+        // Step C: update node_index for all surviving entries.
+        //
+        // After Steps A and B, `delims` contains no entries for the now-wrapped inner span.
+        // The surviving delimiter entries fall into three groups:
+        //   1. Entries at or before opener_di with node_index <= opener_ni: unchanged.
+        //   2. The surviving opener (if !opener_empty) at delimiter index opener_di,
+        //      node_index = opener_ni: already correct.
+        //   3. The surviving closer (if !closer_empty): node_index must be final_closer_ni.
+        //   4. Entries after the match with node_index > closer_ni: shift by above_shift.
+        //
+        // Determine where the "entries after the match" start in the updated delimiter list.
+        let first_after_di = match (opener_empty, closer_empty) {
+            (true, true) => opener_di,
+            (false, true) => opener_di + 1, // opener at opener_di; nothing else in the region
+            (true, false) => {
+                // closer survived at opener_di; update its node_index.
+                if let Some(e) = delims.get_mut(opener_di) {
+                    e.node_index = final_closer_ni;
+                }
+                opener_di + 1
+            }
+            (false, false) => {
+                // opener at opener_di; closer at opener_di + 1; update closer's node_index.
+                if let Some(e) = delims.get_mut(opener_di + 1) {
+                    e.node_index = final_closer_ni;
+                }
+                opener_di + 2
+            }
+        };
+
+        // Apply the total shift to all entries that come after the match region.
+        if above_shift != 0 {
+            for entry in delims.get_mut(first_after_di..).into_iter().flatten() {
+                entry.node_index =
+                    usize::try_from(entry.node_index.cast_signed() + above_shift).unwrap_or(0);
             }
         }
 
-        closer = stack_bottom;
+        // `openers_bottom` entries that pointed into the inner delimiter-list range
+        // [opener_di+1, current] are now stale. Clamp them conservatively to opener_di so future
+        // searches start from a valid position.
+        for v in openers_bottom.values_mut() {
+            if *v > opener_di {
+                *v = opener_di;
+            }
+        }
+
+        // Resume from opener_di: the surviving closer (if any) may still match further openers.
+        current = opener_di;
     }
+
     // Any leftover delimiters become literal text.
-    for index in 0..nodes.len() {
-        convert_delimiter_to_text(nodes, index);
+    for entry in &delims {
+        convert_delimiter_to_text(nodes, entry.node_index);
     }
 }
 
@@ -643,13 +838,6 @@ fn emphasis_match(opener: &Delimiter, nodes: &[Node], closer: usize) -> bool {
         }
     }
     true
-}
-
-fn delimiter_count(nodes: &[Node], index: usize) -> usize {
-    match nodes.get(index) {
-        Some(Node::Delimiter(d)) => d.count,
-        _ => 0,
-    }
 }
 
 fn decrement_delimiter(nodes: &mut [Node], index: usize, by: usize) {
