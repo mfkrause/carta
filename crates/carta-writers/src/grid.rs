@@ -6,6 +6,11 @@ use carta_ast::{Alignment, ColSpec, ColWidth, Row};
 
 use crate::common::display_width;
 
+/// A cell span (`row_span`/`col_span`) as a count: never below one, never negative.
+pub(crate) fn span_count(value: i32) -> usize {
+    usize::try_from(value.max(1)).unwrap_or(1)
+}
+
 /// One table cell: its content already rendered to lines, plus the rectangle of columns and
 /// rows it covers. Spans below 1 are treated as 1.
 pub(crate) struct GridCell {
@@ -180,28 +185,10 @@ fn place(table: &GridTable, columns: usize) -> Layout {
 /// where a horizontal segment meets a vertical divider, `|` where only a divider passes through,
 /// the fill character where a horizontal run crosses a merged (column-spanned) boundary, and a
 /// space inside a spanned rectangle. The alignment-marking separator always divides every column.
-fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
-    let row_count = layout.sections.len();
-    let columns = table.col_widths.len();
-    let section_above = boundary.checked_sub(1).and_then(|r| layout.sections.get(r));
-    let section_below = layout.sections.get(boundary);
-    let fill = match (section_above, section_below) {
-        (None, _) => '-',
-        (Some(above), Some(below)) if above == below => '-',
-        (Some(_), Some(_)) => '=',
-        // The bottom border closes the last section: a body ends with a plain rule, while a head
-        // (a header-only table) or a foot ends with a section rule.
-        (Some(Section::Body), None) => '-',
-        (Some(_), None) => '=',
-    };
-    let marks_alignment = match (section_above, section_below) {
-        // The boundary that closes the head carries the marks; with no head, the top border.
-        (Some(Section::Head), Some(below)) => below != &Section::Head,
-        (None, _) => table.head.is_empty(),
-        _ => false,
-    };
-
-    let drawn: Vec<bool> = (0..columns)
+/// For each column, whether this boundary draws a horizontal rule there: it does unless a row span
+/// crosses the boundary in that column, in which case the cell continues uninterrupted.
+fn drawn_columns(layout: &Layout, boundary: usize, row_count: usize, columns: usize) -> Vec<bool> {
+    (0..columns)
         .map(|col| {
             !(boundary > 0
                 && boundary < row_count
@@ -214,7 +201,31 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
                         .get(boundary)
                         .and_then(|slots| slots.get(col)))
         })
-        .collect();
+        .collect()
+}
+
+fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
+    let row_count = layout.sections.len();
+    let columns = table.col_widths.len();
+    let section_above = boundary.checked_sub(1).and_then(|r| layout.sections.get(r));
+    let section_below = layout.sections.get(boundary);
+    // Arms stay separate per boundary kind (top / intra-section / inter-section / bottom).
+    #[allow(clippy::match_same_arms)]
+    let fill = match (section_above, section_below) {
+        (None, _) => '-',
+        (Some(above), Some(below)) if above == below => '-',
+        (Some(_), Some(_)) => '=',
+        (Some(Section::Body), None) => '-',
+        (Some(_), None) => '=',
+    };
+    let marks_alignment = match (section_above, section_below) {
+        // The boundary that closes the head carries the marks; with no head, the top border.
+        (Some(Section::Head), Some(below)) => below != &Section::Head,
+        (None, _) => table.head.is_empty(),
+        _ => false,
+    };
+
+    let drawn = drawn_columns(layout, boundary, row_count, columns);
 
     let cell_at = |row: usize, col: usize| {
         layout
@@ -393,8 +404,8 @@ pub(crate) fn place_columns(rows: &[&Row], columns: usize) -> Vec<Vec<(usize, us
             if col >= columns {
                 break;
             }
-            let col_span = (cell.col_span.max(1) as usize).min(columns - col);
-            let row_span = (cell.row_span.max(1) as usize).min(rows.len() - row_index);
+            let col_span = span_count(cell.col_span).min(columns - col);
+            let row_span = span_count(cell.row_span).min(rows.len() - row_index);
             for covered_row in row_index..row_index + row_span {
                 for covered_col in col..col + col_span {
                     if let Some(slot) = occupied
@@ -421,12 +432,16 @@ pub(crate) fn merged_width(content: &[usize], start: usize, span: usize) -> usiz
 }
 
 /// The content width a fractional column spec maps to in a grid table.
+// Layout arithmetic over a bounded fraction (0.0–1.0): truncation by `floor` is intended.
+#[allow(clippy::cast_possible_truncation)]
 fn explicit_grid_width(fraction: f64) -> i64 {
     (fraction * 72.0).floor() as i64 - 3
 }
 
 /// Resolve grid content widths: explicit fractional specs when present, otherwise a
 /// content-proportional fit.
+// A small width clamped non-negative by `max(0)` converts back to usize exactly.
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 pub(crate) fn grid_content_widths(
     specs: &[ColSpec],
     natural: &[usize],
@@ -463,6 +478,13 @@ pub(crate) fn grid_content_widths(
 
 /// The minimum width each column spanned by a multi-column cell must hold so the merged field can
 /// carry the combined fractional width of the columns it covers.
+// Layout arithmetic over small bounded widths: the signed intermediates are clamped by `max(0)`
+// before converting back, and column counts never approach `i64`/`usize` limits.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
 fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize) -> usize {
     let span_fraction: f64 = (start..start + span)
         .filter_map(|index| match specs.get(index).map(|spec| &spec.width) {
@@ -478,6 +500,11 @@ fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize) -> usize {
 
 /// Distribute the available width across columns: a column narrower than its fair share keeps its
 /// natural width and frees the surplus; the rest split what remains, floored at their longest word.
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
+)]
 fn auto_grid_widths(natural: &[usize], minword: &[usize], columns: usize) -> Vec<usize> {
     let available = 71i64 - 3 * columns as i64;
     let mut budget = available.max(0) as usize;

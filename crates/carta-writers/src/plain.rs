@@ -279,6 +279,13 @@ impl State {
             .map(
                 |index| match table.col_specs.get(index).map(|spec| &spec.width) {
                     Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
+                        // A bounded fraction scaled to a small column width: `floor`/`max(0.0)`
+                        // make the conversion exact and non-negative.
+                        #[allow(
+                            clippy::cast_precision_loss,
+                            clippy::cast_possible_truncation,
+                            clippy::cast_sign_loss
+                        )]
                         let scaled = (fraction * MULTILINE_WIDTH as f64).floor().max(0.0) as usize;
                         scaled.max(minword.get(index).copied().unwrap_or(0) + 2)
                     }
@@ -437,8 +444,8 @@ impl State {
                 let lines = self.cell_lines(&cell.content, width);
                 cells.push(grid::GridCell {
                     lines,
-                    row_span: cell.row_span.max(1) as usize,
-                    col_span: cell.col_span.max(1) as usize,
+                    row_span: grid::span_count(cell.row_span),
+                    col_span: grid::span_count(cell.col_span),
                 });
             }
             result.push(grid::GridRow { cells });
