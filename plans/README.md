@@ -21,7 +21,7 @@ findings are recorded below so they aren't re-audited.
 | 003 | Linear delimiter-stack inline emphasis/bracket resolution | P1 | M | 001 | TODO |
 | 004 | Allocation hygiene bundle (6 reader hot-path sites) | P2 | M | 001 (soft) | TODO |
 | 005 | Spike: byte-offset scanning + boxed `Inline` variants (report, not merge) | P2 | M | 001 (hard) | TODO |
-| 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | IN PROGRESS |
+| 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
