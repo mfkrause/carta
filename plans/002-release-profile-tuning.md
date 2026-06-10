@@ -49,7 +49,7 @@ The release binary builds with `cargo build --release -p carta-cli` and lands at
 |---------|---------|---------------------|
 | Release build | `cargo build --release -p carta-cli` | exit 0 |
 | Binary size | `ls -l target/release/carta` | prints size |
-| Smoke test | `echo '# Hi' \| ./target/release/carta -f commonmark -t html` | prints `<h1 id="hi">Hi</h1>` |
+| Smoke test | `echo '# Hi' \| ./target/release/carta -f commonmark -t html` | prints `<h1>Hi</h1>` (strict CommonMark generates no heading identifiers; the reader snapshot `golden_reader__commonmark__headings.snap` pins the empty attr) |
 | Tests | `cargo nextest run --workspace` | all pass (unaffected; runs in dev profile) |
 | Benches (if plan 001 landed) | `cargo bench -p carta` | exit 0 |
 
@@ -108,7 +108,7 @@ echo '# Hi' | ./target/release/carta -f commonmark -t html
 
 Record old vs. new binary size in the commit message body. If plan 001 landed, re-run `cargo bench -p carta` — note that criterion benches run in the `bench` profile which inherits `release`, so improvements should show there too.
 
-**Verify**: smoke test prints `<h1 id="hi">Hi</h1>`; new size ≤ old size.
+**Verify**: smoke test prints `<h1>Hi</h1>` (strict CommonMark generates no heading identifiers; the reader snapshot `golden_reader__commonmark__headings.snap` pins the empty attr); new size ≤ old size.
 
 ## Test plan
 
@@ -120,7 +120,7 @@ No new tests — config only. Gate on the existing suite:
 ## Done criteria
 
 - [ ] `cargo build --release -p carta-cli` exits 0
-- [ ] `echo '# Hi' | ./target/release/carta -f commonmark -t html` prints `<h1 id="hi">Hi</h1>`
+- [ ] `echo '# Hi' | ./target/release/carta -f commonmark -t html` prints `<h1>Hi</h1>` (strict CommonMark generates no heading identifiers; the reader snapshot `golden_reader__commonmark__headings.snap` pins the empty attr)
 - [ ] `cargo nextest run --workspace` exits 0
 - [ ] Binary size before/after recorded in the commit message
 - [ ] `overflow-checks = true` still present in `[profile.release]`
