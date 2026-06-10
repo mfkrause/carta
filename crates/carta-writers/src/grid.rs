@@ -189,13 +189,10 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
         (None, _) => '-',
         (Some(above), Some(below)) if above == below => '-',
         (Some(_), Some(_)) => '=',
-        (Some(_), None) => {
-            if table.foot.is_empty() {
-                '-'
-            } else {
-                '='
-            }
-        }
+        // The bottom border closes the last section: a body ends with a plain rule, while a head
+        // (a header-only table) or a foot ends with a section rule.
+        (Some(Section::Body), None) => '-',
+        (Some(_), None) => '=',
     };
     let marks_alignment = match (section_above, section_below) {
         // The boundary that closes the head carries the marks; with no head, the top border.
@@ -785,6 +782,22 @@ mod tests {
              | h1 | h2 |\n\
              +====+====+\n\
              | f1 | f2 |\n\
+             +====+====+"
+        );
+    }
+
+    #[test]
+    fn header_only_table_closes_with_a_section_rule() {
+        let output = render_table(
+            vec![4, 4],
+            vec![row(vec![cell("h1"), cell("h2")])],
+            Vec::new(),
+            Vec::new(),
+        );
+        assert_eq!(
+            output,
+            "+----+----+\n\
+             | h1 | h2 |\n\
              +====+====+"
         );
     }
