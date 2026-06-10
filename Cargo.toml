@@ -57,3 +57,6 @@ opt-level = 2
 # correctness-critical parser.
 [profile.release]
 overflow-checks = true
+lto = true
+codegen-units = 1
+strip = "symbols"
