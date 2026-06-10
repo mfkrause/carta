@@ -5,8 +5,7 @@
 //! trailing newline; the caller appends one. This format has no public specification.
 
 use carta_ast::{
-    Alignment, Attr, Block, Cell, ColSpec, ColWidth, Document, Format, Inline, ListAttributes, Row,
-    Table,
+    Alignment, Attr, Block, Cell, ColWidth, Document, Format, Inline, ListAttributes, Row, Table,
 };
 use carta_core::{Result, Writer, WriterOptions};
 
@@ -320,9 +319,9 @@ impl State {
         let head: Vec<&Row> = table.head.rows.iter().collect();
         let body = body_rows(table);
         let foot: Vec<&Row> = table.foot.rows.iter().collect();
-        let head_layout = place_columns(&head, columns);
-        let body_layout = place_columns(&body, columns);
-        let foot_layout = place_columns(&foot, columns);
+        let head_layout = grid::place_columns(&head, columns);
+        let body_layout = grid::place_columns(&body, columns);
+        let foot_layout = grid::place_columns(&foot, columns);
 
         let snapshot = self.footnotes.len();
         let mut natural = vec![0usize; columns];
@@ -343,7 +342,8 @@ impl State {
             .copied()
             .filter(|&(_, span)| span > 1)
             .collect();
-        let content = grid_content_widths(&table.col_specs, &natural, &minword, &colspans, columns);
+        let content =
+            grid::grid_content_widths(&table.col_specs, &natural, &minword, &colspans, columns);
         let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
         let head_grid = self.grid_rows(&head, &head_layout, &content);
         let body_grid = self.grid_rows(&body, &body_layout, &content);
@@ -400,7 +400,7 @@ impl State {
                     continue;
                 };
                 let lines = self.cell_lines(&cell.content, MEASURE_WIDTH);
-                let (width, word) = measure_lines(&lines);
+                let (width, word) = grid::measure_lines(&lines);
                 let share_natural = width.div_ceil(span.max(1));
                 let share_word = word.div_ceil(span.max(1));
                 for column in start..start + span {
@@ -433,7 +433,7 @@ impl State {
                 else {
                     continue;
                 };
-                let width = merged_width(content, start, span);
+                let width = grid::merged_width(content, start, span);
                 let lines = self.cell_lines(&cell.content, width);
                 cells.push(grid::GridCell {
                     lines,
@@ -855,171 +855,11 @@ fn measure_pieces(pieces: &[Piece]) -> (usize, usize) {
     (natural.max(line), minword.max(word))
 }
 
-/// The widest line and widest whitespace-delimited token across a set of rendered lines.
-fn measure_lines(lines: &[String]) -> (usize, usize) {
-    let mut natural = 0usize;
-    let mut minword = 0usize;
-    for line in lines {
-        natural = natural.max(display_width(line));
-        for token in line.split_whitespace() {
-            minword = minword.max(display_width(token));
-        }
-    }
-    (natural, minword)
-}
-
 /// Whether any piece carries non-empty text.
 fn pieces_nonempty(pieces: &[Piece]) -> bool {
     pieces
         .iter()
         .any(|piece| matches!(piece, Piece::Text(text) if !text.is_empty()))
-}
-
-/// Resolve each cell to its starting column and column span, honoring spans already placed in
-/// earlier rows via an occupancy matrix.
-fn place_columns(rows: &[&Row], columns: usize) -> Vec<Vec<(usize, usize)>> {
-    let mut occupied: Vec<Vec<bool>> = (0..rows.len()).map(|_| vec![false; columns]).collect();
-    let mut result = Vec::with_capacity(rows.len());
-    for (row_index, row) in rows.iter().enumerate() {
-        let mut placements = Vec::with_capacity(row.cells.len());
-        let mut col = 0usize;
-        for cell in &row.cells {
-            while col < columns
-                && occupied
-                    .get(row_index)
-                    .and_then(|slots| slots.get(col))
-                    .copied()
-                    .unwrap_or(false)
-            {
-                col += 1;
-            }
-            if col >= columns {
-                break;
-            }
-            let col_span = (cell.col_span.max(1) as usize).min(columns - col);
-            let row_span = (cell.row_span.max(1) as usize).min(rows.len() - row_index);
-            for covered_row in row_index..row_index + row_span {
-                for covered_col in col..col + col_span {
-                    if let Some(slot) = occupied
-                        .get_mut(covered_row)
-                        .and_then(|slots| slots.get_mut(covered_col))
-                    {
-                        *slot = true;
-                    }
-                }
-            }
-            placements.push((col, col_span));
-            col += col_span;
-        }
-        result.push(placements);
-    }
-    result
-}
-
-/// The content width of a cell spanning `span` columns from `start`, including the borders absorbed
-/// between the merged columns.
-fn merged_width(content: &[usize], start: usize, span: usize) -> usize {
-    let total: usize = content.iter().skip(start).take(span).sum();
-    total + 3 * span.saturating_sub(1)
-}
-
-/// The content width a fractional column spec maps to in a grid table.
-fn explicit_grid_width(fraction: f64) -> i64 {
-    (fraction * 72.0).floor() as i64 - 3
-}
-
-/// Resolve grid content widths: explicit fractional specs when present, otherwise a
-/// content-proportional fit.
-fn grid_content_widths(
-    specs: &[ColSpec],
-    natural: &[usize],
-    minword: &[usize],
-    colspans: &[(usize, usize)],
-    columns: usize,
-) -> Vec<usize> {
-    let explicit = specs.iter().any(|spec| match &spec.width {
-        ColWidth::ColWidth(fraction) => *fraction > 0.0 && explicit_grid_width(*fraction) > 0,
-        ColWidth::ColWidthDefault => false,
-    });
-    if !explicit {
-        return auto_grid_widths(natural, minword, columns);
-    }
-    let mut widths: Vec<usize> = (0..columns)
-        .map(|index| match specs.get(index).map(|spec| &spec.width) {
-            Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
-                let scaled = explicit_grid_width(*fraction).max(0) as usize;
-                scaled.max(minword.get(index).copied().unwrap_or(0))
-            }
-            _ => natural.get(index).copied().unwrap_or(0),
-        })
-        .collect();
-    for &(start, span) in colspans {
-        let floor = colspan_width_floor(specs, start, span);
-        for column in start..start + span {
-            if let Some(value) = widths.get_mut(column) {
-                *value = (*value).max(floor);
-            }
-        }
-    }
-    widths
-}
-
-/// The minimum width each column spanned by a multi-column cell must hold so the merged field can
-/// carry the combined fractional width of the columns it covers.
-fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize) -> usize {
-    let span_fraction: f64 = (start..start + span)
-        .filter_map(|index| match specs.get(index).map(|spec| &spec.width) {
-            Some(ColWidth::ColWidth(fraction)) => Some(*fraction),
-            _ => None,
-        })
-        .sum();
-    let required = ((span_fraction * 72.0).floor() as i64 - 1).max(0);
-    let interior = span.saturating_sub(1) as i64;
-    let span = span.max(1) as i64;
-    ((required - interior + span - 1) / span).max(0) as usize
-}
-
-/// Distribute the available width across columns: a column narrower than its fair share keeps its
-/// natural width and frees the surplus; the rest split what remains, floored at their longest word.
-fn auto_grid_widths(natural: &[usize], minword: &[usize], columns: usize) -> Vec<usize> {
-    let available = 71i64 - 3 * columns as i64;
-    let mut budget = available.max(0) as usize;
-    let mut assigned: Vec<Option<usize>> = vec![None; columns];
-    let mut remaining: Vec<usize> = (0..columns).collect();
-    while !remaining.is_empty() {
-        let share = budget / remaining.len();
-        let fits: Vec<usize> = remaining
-            .iter()
-            .copied()
-            .filter(|&index| natural.get(index).copied().unwrap_or(0) <= share)
-            .collect();
-        if fits.is_empty() {
-            for &index in &remaining {
-                let floor = minword.get(index).copied().unwrap_or(0);
-                if let Some(slot) = assigned.get_mut(index) {
-                    *slot = Some(share.max(floor));
-                }
-            }
-            break;
-        }
-        for &index in &fits {
-            let width = natural.get(index).copied().unwrap_or(0);
-            if let Some(slot) = assigned.get_mut(index) {
-                *slot = Some(width);
-            }
-            budget = budget.saturating_sub(width);
-        }
-        remaining.retain(|index| !fits.contains(index));
-    }
-    (0..columns)
-        .map(|index| {
-            assigned
-                .get(index)
-                .copied()
-                .flatten()
-                .unwrap_or_else(|| natural.get(index).copied().unwrap_or(0))
-        })
-        .collect()
 }
 
 /// Render a table's attributes as a trailing `{#id .class key="value"}` suffix, or `None` when the
