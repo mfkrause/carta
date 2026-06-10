@@ -13,8 +13,8 @@ use carta_ast::{
 use carta_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, display_width, fill, indent_block, is_known_scheme,
-    is_uri_scheme, offset_as_i32, ordered_marker, quote_marks,
+    FILL_COLUMN, Piece, attribute_value, block_inlines, body_rows, display_width, fill,
+    indent_block, is_known_scheme, is_uri_scheme, offset_as_i32, ordered_marker, quote_marks,
 };
 use crate::grid;
 
@@ -1048,23 +1048,6 @@ impl State {
 /// Width used to render a simple-table cell: large enough that its content never wraps, so a
 /// column's width is the natural extent of its widest cell.
 const SIMPLE_WIDTH: usize = 100_000;
-
-/// Every row of every body, intermediate head rows included, in document order.
-fn body_rows(table: &Table) -> Vec<&Row> {
-    table
-        .bodies
-        .iter()
-        .flat_map(|body| body.head.iter().chain(body.body.iter()))
-        .collect()
-}
-
-/// The inline content of a block, or an empty slice for a block that carries none directly.
-fn block_inlines(block: &Block) -> &[Inline] {
-    match block {
-        Block::Plain(inlines) | Block::Para(inlines) => inlines,
-        _ => &[],
-    }
-}
 
 /// A simple table's `=` rule: a run of `=` per column width, joined by single spaces.
 fn equals_rule(widths: &[usize]) -> String {
