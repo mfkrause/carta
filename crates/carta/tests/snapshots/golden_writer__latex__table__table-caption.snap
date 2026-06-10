@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{longtable}[]{@{}l@{}}
+\caption{A caption for the table}\tabularnewline
+\toprule\noalign{}
+h \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+h \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+v \\
+\end{longtable}
