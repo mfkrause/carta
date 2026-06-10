@@ -6,7 +6,7 @@
 > and is referenced from the report. Follow the steps in order; honor the STOP
 > conditions. When done, update the status row in `plans/README.md`.
 >
-> **Drift check (run first)**: `git diff --stat 5e110f9..HEAD -- crates/carta-ast/src/ast.rs crates/carta-readers/src/commonmark/inline.rs crates/carta-readers/src/html/tokenize.rs`
+> **Drift check (run first)**: `git diff --stat f5d2e3b..HEAD -- crates/carta-ast/src/ast.rs crates/carta-readers/src/commonmark/inline.rs crates/carta-readers/src/html/tokenize.rs`
 > On any in-scope drift, re-verify the "Current state" excerpts before
 > proceeding; on a mismatch, treat it as a STOP condition.
 
@@ -17,7 +17,7 @@
 - **Risk**: LOW (no production code merges)
 - **Depends on**: plans/001-criterion-bench-suite.md (hard dependency — without benches there is nothing to measure against)
 - **Category**: perf
-- **Planned at**: commit `5e110f9`, 2026-06-10
+- **Planned at**: commit `5e110f9`, 2026-06-10 (reconciled at `f5d2e3b`, 2026-06-10 — no in-scope drift, excerpts re-verified)
 
 ## Why this matters
 
@@ -92,7 +92,7 @@ fn node_sizes() {
 }
 ```
 
-Record the actual numbers in the report (run with `cargo nextest run -p carta-ast --no-capture`). Then capture the baseline: full `cargo bench -p carta` output and peak RSS converting a ~10 MB generated CommonMark file (generate with the plan-001 bench generators, written to a temp file via a small `cargo run` or by copying a generator into a scratch test).
+Record the actual numbers in the report (run with `cargo nextest run -p carta-ast --no-capture`). Then capture the baseline: full `cargo bench -p carta` output and peak RSS converting a ~10 MB generated CommonMark file (generate with the plan-001 bench generators, written to a temp file via a small `cargo run` or by copying a generator into a scratch test; alternatively, repeat `corpus/bench/seed.md` to size — `tools/bench-suite/gen-fixtures.sh` builds sized CommonMark fixtures under `target/bench/` this way and needs only `jq` plus a `cargo build --release -p carta-cli` binary, with `BENCH_SIZES=10m` for the 10 MB case).
 
 **Verify**: report file exists with a "Baseline" section containing node sizes, bench summary, peak RSS.
 

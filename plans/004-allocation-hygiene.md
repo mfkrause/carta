@@ -7,7 +7,7 @@
 > in `plans/README.md` — unless a reviewer dispatched you and told you they
 > maintain the index.
 >
-> **Drift check (run first)**: `git diff --stat 5e110f9..HEAD -- crates/carta-readers/src/commonmark/scan.rs crates/carta-readers/src/commonmark/html_block.rs crates/carta-readers/src/html/convert.rs crates/carta-ast/src/ast.rs`
+> **Drift check (run first)**: `git diff --stat f5d2e3b..HEAD -- crates/carta-readers/src/commonmark/scan.rs crates/carta-readers/src/commonmark/html_block.rs crates/carta-readers/src/html/convert.rs crates/carta-ast/src/ast.rs`
 > If any in-scope file changed since this plan was written, compare the
 > "Current state" excerpts against the live code before proceeding; on a
 > mismatch, treat it as a STOP condition.
@@ -19,7 +19,7 @@
 - **Risk**: LOW
 - **Depends on**: plans/001-criterion-bench-suite.md (for before/after numbers; the fixes are safe without it)
 - **Category**: perf
-- **Planned at**: commit `5e110f9`, 2026-06-10
+- **Planned at**: commit `5e110f9`, 2026-06-10 (reconciled at `f5d2e3b`, 2026-06-10 — no in-scope drift, excerpts re-verified)
 
 ## Why this matters
 
