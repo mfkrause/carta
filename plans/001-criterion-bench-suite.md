@@ -7,7 +7,7 @@
 > in `plans/README.md` — unless a reviewer dispatched you and told you they
 > maintain the index.
 >
-> **Drift check (run first)**: `git diff --stat 5e110f9..HEAD -- Cargo.toml crates/carta/`
+> **Drift check (run first)**: `git diff --stat f5d2e3b..HEAD -- Cargo.toml crates/carta/`
 > If any in-scope file changed since this plan was written, compare the
 > "Current state" excerpts against the live code before proceeding; on a
 > mismatch, treat it as a STOP condition.
@@ -19,11 +19,11 @@
 - **Risk**: LOW
 - **Depends on**: none
 - **Category**: perf
-- **Planned at**: commit `5e110f9`, 2026-06-10
+- **Planned at**: commit `5e110f9`, 2026-06-10 (reconciled at `f5d2e3b`, 2026-06-10 — no in-scope code drift; premise prose refreshed after `tools/bench-suite/` landed)
 
 ## Why this matters
 
-Performance is the project's first stated goal (README: "Performance and a smaller binary than pandoc"), yet the workspace contains no benchmarks at all — no `benches/` directory, no criterion dependency. Every performance claim and every perf-motivated change is currently unverifiable. This plan establishes the measurement baseline that all other perf plans (002–005) verify against. Without it, those plans cannot prove their value or detect regressions.
+Performance is the project's first stated goal (README: "Performance and a smaller binary than pandoc"). A comparative CLI-level benchmark suite now exists (`tools/bench-suite/`, hyperfine-driven, times the release binary against the pinned pandoc), but its design record (`docs/plans/benchmark-suite.md`, decision 1) deliberately scoped out an in-process criterion layer — it measures whole-process head-to-head numbers, requires `.oracle/`, and has no pathological inputs. What it cannot do is what plans 003–005 need: isolate per-function hot paths offline, with adversarial inputs (`emphasis_heavy`, `pathological_brackets`), at statistically meaningful per-iteration resolution. This plan adds exactly that missing layer: offline criterion benches in `crates/carta/benches/`, distinct from and complementary to `tools/bench-suite/`. Per the same decision record, these stay out of CI (see Maintenance notes).
 
 ## Current state
 
@@ -43,6 +43,8 @@ Performance is the project's first stated goal (README: "Performance and a small
 - `crates/carta/Cargo.toml` — has `[dev-dependencies] insta = { workspace = true }`; default feature `full` enables all readers/writers. No `[[bench]]` section.
 - `corpus/text/commonmark/*.md` — ten small (~75-byte) feature-focused CommonMark inputs (emphasis.md, lists.md, links-images.md, …). Too small to benchmark directly; useful as building blocks for synthetic inputs.
 - `corpus/ast/` — JSON AST fixtures usable as writer-bench inputs via the `json` reader.
+- `corpus/bench/seed.md` — the authored ~3 KB strict-CommonMark seed the CLI bench suite repeats to size; usable here as another realistic mixed-feature input.
+- `tools/bench-suite/` — the hyperfine CLI comparison suite (shell, oracle-backed, manual). This plan does not touch it; the two suites answer different questions (see Why this matters).
 - Tests run with `cargo nextest run --workspace`; benches are not part of that.
 
 Repo conventions that apply:
@@ -76,7 +78,7 @@ Repo conventions that apply:
 
 ## Git workflow
 
-- Branch: `advisor/001-bench-suite` off `main` (note: a branch `feat/bench-suite` exists at the same commit as `main` with zero commits; using it instead is acceptable if the operator prefers).
+- Branch: `advisor/001-criterion-benches` off `main`. Do NOT reuse `feat/bench-suite` — that branch carried the (now landed) hyperfine CLI suite, a different deliverable.
 - Conventional Commits, e.g. `test(bench): add criterion suite for readers, writers, and convert`.
 - Stage explicit paths only (`git add Cargo.toml crates/carta/Cargo.toml crates/carta/benches/convert.rs`). Never `git add -A`.
 - Do NOT push.
@@ -175,5 +177,5 @@ Stop and report back (do not improvise) if:
 ## Maintenance notes
 
 - Plans 002–005 cite these benches as their verification mechanism; bench names (`read_commonmark`, `emphasis_heavy`, `pathological_brackets`) are referenced there — renaming them breaks those plans.
-- Wiring `cargo bench` into CI (e.g. with regression thresholds via `criterion`'s baselines or `critcmp`) is deferred; revisit once numbers stabilize.
+- Do not wire `cargo bench` into CI: `docs/plans/benchmark-suite.md` (decision 1) records perf-regression-gating in CI as deliberately rejected (shared-runner noise). These benches are a local, on-demand tool, like `tools/bench-suite/`.
 - When new readers/writers land, extend `write_targets`/`read_*` rather than creating parallel bench files.

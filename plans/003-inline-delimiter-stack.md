@@ -7,7 +7,7 @@
 > in `plans/README.md` — unless a reviewer dispatched you and told you they
 > maintain the index.
 >
-> **Drift check (run first)**: `git diff --stat 5e110f9..HEAD -- crates/carta-readers/src/commonmark/inline.rs`
+> **Drift check (run first)**: `git diff --stat f5d2e3b..HEAD -- crates/carta-readers/src/commonmark/inline.rs`
 > If the file changed since this plan was written, compare the "Current state"
 > excerpts against the live code before proceeding; on a mismatch, treat it as
 > a STOP condition.
@@ -19,7 +19,7 @@
 - **Risk**: MED
 - **Depends on**: plans/001-criterion-bench-suite.md (provides `emphasis_heavy` and `pathological_brackets` regression benches)
 - **Category**: perf
-- **Planned at**: commit `5e110f9`, 2026-06-10
+- **Planned at**: commit `5e110f9`, 2026-06-10 (reconciled at `f5d2e3b`, 2026-06-10 — no in-scope drift, excerpts re-verified). The CLI bench suite that landed in the meantime (`tools/bench-suite/`) does not substitute for plan 001's `emphasis_heavy`/`pathological_brackets` benches; the dependency stands.
 
 ## Why this matters
 
