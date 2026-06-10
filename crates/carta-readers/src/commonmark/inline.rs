@@ -157,6 +157,13 @@ struct Delimiter {
     image: bool,
     /// Source index just past a bracket opener, where its raw label text begins. Unused otherwise.
     text_start: usize,
+    /// Whether this bracket opener is still eligible to form a link or image. Non-bracket
+    /// delimiters leave this `false` (the field is unused for them).
+    ///
+    /// A `[` opener is deactivated when a link is successfully built whose text span contains
+    /// it — a link may not contain another link. On `]`, an inactive opener is popped and
+    /// literalized without attempting any link-target parse (spec §6.3, rule 6).
+    active: bool,
 }
 
 fn parse_inlines(text: &str, refs: &RefMap, ext: Extensions) -> Vec<Inline> {
@@ -374,6 +381,7 @@ impl InlineParser<'_> {
             can_close,
             image: false,
             text_start: self.pos,
+            active: false,
         }));
     }
 
@@ -387,6 +395,7 @@ impl InlineParser<'_> {
             can_close: false,
             image,
             text_start: self.pos,
+            active: true,
         }));
     }
 
@@ -396,7 +405,19 @@ impl InlineParser<'_> {
             self.push_text(']');
             return;
         };
-        let is_image = matches!(self.nodes.get(opener_index), Some(Node::Delimiter(d)) if d.image);
+        let (is_image, is_active) = match self.nodes.get(opener_index) {
+            Some(Node::Delimiter(d)) => (d.image, d.active),
+            _ => (false, false),
+        };
+
+        // An inactive opener cannot form a link. Pop it, literalize, and emit `]` as text —
+        // do not look further down the stack (spec §6.3, rule 6).
+        if !is_active {
+            self.bracket_stack.pop();
+            self.literalize_bracket(opener_index);
+            self.push_text(']');
+            return;
+        }
 
         if let Some((target, next)) = self.try_link_target(opener_index) {
             self.bracket_stack.pop();
@@ -423,28 +444,20 @@ impl InlineParser<'_> {
         }
     }
 
-    /// Deactivate all non-image `[` openers before `before` in the node list, preventing them
-    /// from forming links that would contain the link just built. Deactivated openers are
-    /// removed from the bracket stack and converted to literal text immediately, so future
-    /// `]` characters cannot accidentally revive them.
+    /// Mark all non-image `[` openers that appear before `before` in the node list as inactive,
+    /// preventing them from forming links that would contain the link just built. Inactive openers
+    /// remain on the bracket stack so that a later `]` can consume them one at a time (spec §6.3,
+    /// rule 6): each `]` pops the top inactive entry, literalizes it, and emits `]` as text.
     fn deactivate_earlier_brackets(&mut self, before: usize) {
-        // Walk the stack; entries with node_index < before are the earlier openers.
-        // Iterate forward; when we remove an entry, the next entry shifts into position `i`,
-        // so we do not increment in that case.
-        let mut i = 0;
-        while i < self.bracket_stack.len() {
-            let Some(ni) = self.bracket_stack.get(i).copied() else {
-                break;
-            };
-            if ni < before {
-                let is_image = matches!(self.nodes.get(ni), Some(Node::Delimiter(d)) if d.image);
-                if !is_image {
-                    self.bracket_stack.remove(i);
-                    self.literalize_bracket(ni);
-                    continue; // don't increment — next entry shifted into position i
-                }
+        for &ni in &self.bracket_stack {
+            if ni >= before {
+                continue;
             }
-            i += 1;
+            if let Some(Node::Delimiter(d)) = self.nodes.get_mut(ni)
+                && !d.image
+            {
+                d.active = false;
+            }
         }
     }
 
@@ -1351,6 +1364,30 @@ mod inline_tests {
                 Inline::Space,
                 str("c"),
             ])]
+        );
+    }
+
+    #[test]
+    fn nested_image_with_inner_link_and_deactivated_bracket() {
+        // ![[[foo](uri1)](uri2)](uri3)
+        //
+        // The outermost `![` is an image opener. The first `[` inside is a plain bracket opener.
+        // `[foo](uri1)` matches as a link; that success deactivates the `[` opener between the
+        // image `![` and `[foo]`. The next `]` encounters that deactivated opener: it must pop
+        // it, literalize it, and emit `]` as text — not look further to the image opener below.
+        // Only the final `](uri3)` closes the image.
+        //
+        // Expected: Image(uri3, alt=[Str("["), Link([Str("foo")], uri1), Str("](uri2)")])
+        assert_eq!(
+            p("![[[foo](uri1)](uri2)](uri3)"),
+            vec![image(
+                vec![
+                    str("["),
+                    link(vec![str("foo")], "uri1"),
+                    str("](uri2)"),
+                ],
+                "uri3",
+            )]
         );
     }
 }
