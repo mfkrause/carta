@@ -10,8 +10,9 @@ use carta_ast::{
 use carta_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, display_width, fill, fill_offset, indent_block,
-    is_loose, item_separator, join_loose, offset_as_i32, ordered_marker, quote_marks,
+    FILL_COLUMN, NotesHost, Piece, append_notes, block_inlines, body_rows, display_width, fill,
+    fill_offset, indent_block, is_loose, item_separator, join_loose, offset_as_i32, ordered_marker,
+    quote_marks,
 };
 use crate::grid;
 
@@ -717,23 +718,6 @@ fn cell_has_break(cell: &Cell) -> bool {
         && cell_inlines(cell)
             .iter()
             .any(|inline| matches!(inline, Inline::LineBreak))
-}
-
-/// The inline content of a block, or an empty slice for a block that carries none directly.
-fn block_inlines(block: &Block) -> &[Inline] {
-    match block {
-        Block::Plain(inlines) | Block::Para(inlines) => inlines,
-        _ => &[],
-    }
-}
-
-/// Every row of every body, intermediate head rows included, in document order.
-fn body_rows(table: &Table) -> Vec<&Row> {
-    table
-        .bodies
-        .iter()
-        .flat_map(|body| body.head.iter().chain(body.body.iter()))
-        .collect()
 }
 
 /// A row of column underlines: a run of dashes per column width, joined by single spaces.
