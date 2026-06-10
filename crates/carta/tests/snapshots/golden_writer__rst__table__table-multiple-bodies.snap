@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+== ==
+h1 h2
+== ==
+a1 a2
+b1 b2
+== ==
