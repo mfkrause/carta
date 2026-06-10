@@ -6,6 +6,7 @@
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
 use carta_ast::{Attr, Block, Inline, Target};
+use carta_core::{Extension, Extensions};
 
 use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
@@ -13,30 +14,124 @@ use super::scan::{
 };
 use super::{IrBlock, LinkDef, RefMap, para, plain};
 
-pub(crate) fn resolve_blocks(ir: &[IrBlock], refs: &RefMap) -> Vec<Block> {
-    ir.iter().map(|block| resolve_block(block, refs)).collect()
+/// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
+const TASK_UNCHECKED: &str = "\u{2610}";
+/// The checked checkbox emitted for a checked task-list item (`- [x]`).
+const TASK_CHECKED: &str = "\u{2612}";
+
+pub(crate) fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, ext: Extensions) -> Vec<Block> {
+    let mut out = Vec::with_capacity(ir.len());
+    for block in ir {
+        resolve_block(block, refs, ext, &mut out);
+    }
+    out
 }
 
-fn resolve_block(block: &IrBlock, refs: &RefMap) -> Block {
+fn resolve_block(block: &IrBlock, refs: &RefMap, ext: Extensions, out: &mut Vec<Block>) {
     match block {
-        IrBlock::Para(text) => para(parse_inlines(text, refs)),
-        IrBlock::Plain(text) => plain(parse_inlines(text, refs)),
+        IrBlock::Para(text) => out.push(para(parse_inlines(text, refs, ext))),
+        IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, ext))),
         IrBlock::Heading(level, text) => {
-            Block::Header(*level, Attr::default(), parse_inlines(text, refs))
+            out.push(Block::Header(
+                *level,
+                Attr::default(),
+                parse_inlines(text, refs, ext),
+            ));
         }
-        IrBlock::CodeBlock(attr, text) => Block::CodeBlock(attr.clone(), text.clone()),
+        IrBlock::CodeBlock(attr, text) => out.push(Block::CodeBlock(attr.clone(), text.clone())),
         IrBlock::RawHtml(text) => {
-            Block::RawBlock(carta_ast::Format("html".to_owned()), text.clone())
+            out.push(Block::RawBlock(
+                carta_ast::Format("html".to_owned()),
+                text.clone(),
+            ));
         }
-        IrBlock::ThematicBreak => Block::HorizontalRule,
-        IrBlock::BlockQuote(children) => Block::BlockQuote(resolve_blocks(children, refs)),
-        IrBlock::BulletList(items) => {
-            Block::BulletList(items.iter().map(|i| resolve_blocks(i, refs)).collect())
+        IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
+        IrBlock::BlockQuote(children) => {
+            out.push(Block::BlockQuote(resolve_blocks(children, refs, ext)));
         }
-        IrBlock::OrderedList(attrs, items) => Block::OrderedList(
+        IrBlock::BulletList(items) => resolve_bullet_list(items, refs, ext, out),
+        IrBlock::OrderedList(attrs, items) => out.push(Block::OrderedList(
             attrs.clone(),
-            items.iter().map(|i| resolve_blocks(i, refs)).collect(),
-        ),
+            items.iter().map(|i| resolve_blocks(i, refs, ext)).collect(),
+        )),
+    }
+}
+
+/// Resolve a bullet list, applying the `task_lists` transform when enabled.
+///
+/// With `task_lists` on, a leading `[ ]`/`[x]`/`[X]` marker on an item's first leaf block becomes a
+/// checkbox character, and the list is partitioned into maximal runs of consecutive task / non-task
+/// items, each run emitted as its own bullet list. With it off, the items form a single list
+/// unchanged.
+fn resolve_bullet_list(
+    items: &[Vec<IrBlock>],
+    refs: &RefMap,
+    ext: Extensions,
+    out: &mut Vec<Block>,
+) {
+    let task_lists = ext.contains(Extension::TaskLists);
+    let mut run: Vec<Vec<Block>> = Vec::new();
+    let mut run_is_task: Option<bool> = None;
+
+    for item in items {
+        let marker = if task_lists {
+            item.first().and_then(task_marker_block)
+        } else {
+            None
+        };
+        let is_task = marker.is_some();
+        if run_is_task.is_some_and(|previous| previous != is_task) {
+            out.push(Block::BulletList(std::mem::take(&mut run)));
+        }
+        run_is_task = Some(is_task);
+        run.push(resolve_item(item, marker.as_ref(), refs, ext));
+    }
+    if !run.is_empty() {
+        out.push(Block::BulletList(run));
+    }
+}
+
+/// Resolve a single list item's blocks, substituting `marker` (a first block whose task marker has
+/// already been rewritten) for the item's original first block when present.
+fn resolve_item(
+    item: &[IrBlock],
+    marker: Option<&IrBlock>,
+    refs: &RefMap,
+    ext: Extensions,
+) -> Vec<Block> {
+    let mut out = Vec::new();
+    let mut blocks = item.iter();
+    if let Some(first) = blocks.next() {
+        resolve_block(marker.unwrap_or(first), refs, ext, &mut out);
+    }
+    for block in blocks {
+        resolve_block(block, refs, ext, &mut out);
+    }
+    out
+}
+
+/// If `block` is a leaf paragraph whose text begins with a task-list marker, return a copy with the
+/// marker replaced by its checkbox character; otherwise `None`.
+fn task_marker_block(block: &IrBlock) -> Option<IrBlock> {
+    match block {
+        IrBlock::Para(text) => task_marker_replacement(text).map(IrBlock::Para),
+        IrBlock::Plain(text) => task_marker_replacement(text).map(IrBlock::Plain),
+        _ => None,
+    }
+}
+
+/// Replace a leading `[ ]`/`[x]`/`[X]` (followed by a space or end of text) with its checkbox,
+/// keeping the remainder; `None` if `text` has no such marker.
+fn task_marker_replacement(text: &str) -> Option<String> {
+    let (marker, rest) = text
+        .strip_prefix("[ ]")
+        .map(|rest| (TASK_UNCHECKED, rest))
+        .or_else(|| text.strip_prefix("[x]").map(|rest| (TASK_CHECKED, rest)))
+        .or_else(|| text.strip_prefix("[X]").map(|rest| (TASK_CHECKED, rest)))?;
+    if rest.is_empty() || rest.starts_with(' ') {
+        Some(format!("{marker}{rest}"))
+    } else {
+        None
     }
 }
 
@@ -66,17 +161,18 @@ struct Delimiter {
     text_start: usize,
 }
 
-fn parse_inlines(text: &str, refs: &RefMap) -> Vec<Inline> {
+fn parse_inlines(text: &str, refs: &RefMap, ext: Extensions) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut parser = InlineParser {
         chars: &chars,
         pos: 0,
         nodes: Vec::new(),
         refs,
+        ext,
     };
     parser.run();
     let mut nodes = parser.nodes;
-    process_emphasis(&mut nodes, 0);
+    process_emphasis(&mut nodes, 0, ext);
     collapse(nodes)
 }
 
@@ -85,6 +181,7 @@ struct InlineParser<'a> {
     pos: usize,
     nodes: Vec<Node>,
     refs: &'a RefMap,
+    ext: Extensions,
 }
 
 impl InlineParser<'_> {
@@ -105,6 +202,12 @@ impl InlineParser<'_> {
                 '&' => self.entity(),
                 '\n' => self.line_ending(),
                 '*' | '_' => self.emphasis_run(ch as u8),
+                '~' if self.ext.contains(Extension::Subscript)
+                    || self.ext.contains(Extension::Strikeout) =>
+                {
+                    self.emphasis_run(b'~');
+                }
+                '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
                 '[' => {
                     self.pos += 1;
                     self.push_open_bracket(false);
@@ -242,7 +345,7 @@ impl InlineParser<'_> {
         while matches!(self.peek(), Some(' ' | '\t')) {
             self.pos += 1;
         }
-        if hard || backslash_hard {
+        if hard || backslash_hard || self.ext.contains(Extension::HardLineBreaks) {
             self.nodes.push(Node::LineBreak);
         } else {
             self.nodes.push(Node::SoftBreak);
@@ -385,7 +488,7 @@ impl InlineParser<'_> {
     fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target) {
         let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
-        process_emphasis(&mut inner, 0);
+        process_emphasis(&mut inner, 0, self.ext);
         let content = collapse(inner);
         let inline = if is_image {
             Inline::Image(Attr::default(), content, target)
@@ -403,22 +506,27 @@ fn def_target(def: &LinkDef) -> Target {
     }
 }
 
-/// Resolve emphasis/strong delimiters in `nodes`, starting at `stack_bottom`.
-fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize) {
+/// Resolve emphasis/strong (`*`/`_`) and format (`~`/`^`) delimiters in `nodes`, starting at
+/// `stack_bottom`.
+///
+/// All four delimiter kinds share one matching loop: a closer pairs with the nearest preceding
+/// opener of the same character that passes the rule of 3, and the pair is wrapped, decremented, and
+/// (when emptied) dropped. They differ only in how a matched pair's length maps to a node — see
+/// [`match_use_count`] and [`wrap_emphasis`].
+fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions) {
     let mut closer = stack_bottom;
     while closer < nodes.len() {
-        let is_closer = matches!(nodes.get(closer), Some(Node::Delimiter(d)) if d.can_close && (d.ch == b'*' || d.ch == b'_'));
-        if !is_closer {
-            closer += 1;
-            continue;
-        }
-        let closer_ch = if let Some(Node::Delimiter(d)) = nodes.get(closer) {
-            d.ch
-        } else {
-            closer += 1;
-            continue;
+        let closer_ch = match nodes.get(closer) {
+            Some(Node::Delimiter(d)) if d.can_close && is_delimiter_char(d.ch) => d.ch,
+            _ => {
+                closer += 1;
+                continue;
+            }
         };
-        // Find a matching opener below.
+        let closer_count = delimiter_count(nodes, closer);
+
+        // Find a matching opener below: same character, rule of 3 satisfied, and a length pairing
+        // that the enabled extensions actually map to a node.
         let mut opener = None;
         let mut index = closer;
         while index > stack_bottom {
@@ -427,6 +535,7 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize) {
                 && d.can_open
                 && d.ch == closer_ch
                 && emphasis_match(d, nodes, closer)
+                && match_use_count(d.count, closer_count, closer_ch, ext).is_some()
             {
                 opener = Some(index);
                 break;
@@ -443,30 +552,22 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize) {
             continue;
         };
 
-        let use_count = {
-            let opener_count = delimiter_count(nodes, opener_index);
-            let closer_count = delimiter_count(nodes, closer);
-            if opener_count >= 2 && closer_count >= 2 {
-                2
-            } else {
-                1
-            }
+        let opener_count = delimiter_count(nodes, opener_index);
+        let Some(use_count) = match_use_count(opener_count, closer_count, closer_ch, ext) else {
+            closer += 1;
+            continue;
         };
 
         // Wrap the nodes strictly between opener and closer, then place the wrapped inline back
         // between the two (now adjacent) delimiters before trimming their counts.
         let inner: Vec<Node> = nodes.drain(opener_index + 1..closer).collect();
         let content = collapse(inner);
-        let wrapped = if use_count == 2 {
-            Inline::Strong(content)
-        } else {
-            Inline::Emph(content)
-        };
-        let emph_index = opener_index + 1;
-        nodes.insert(emph_index, Node::Inline(wrapped));
+        let wrapped = wrap_emphasis(closer_ch, use_count, content);
+        let wrapped_index = opener_index + 1;
+        nodes.insert(wrapped_index, Node::Inline(wrapped));
 
         // Decrement counts and drop emptied delimiters, closer first so the opener index holds.
-        let closer_index = emph_index + 1;
+        let closer_index = wrapped_index + 1;
         decrement_delimiter(nodes, closer_index, use_count);
         decrement_delimiter(nodes, opener_index, use_count);
         let mut removable = [closer_index, opener_index];
@@ -479,11 +580,55 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize) {
 
         closer = stack_bottom;
     }
-    // Any leftover emphasis delimiters become literal text.
+    // Any leftover delimiters become literal text.
     for index in 0..nodes.len() {
-        if matches!(nodes.get(index), Some(Node::Delimiter(d)) if d.ch == b'*' || d.ch == b'_') {
-            convert_delimiter_to_text(nodes, index);
+        convert_delimiter_to_text(nodes, index);
+    }
+}
+
+/// Whether `ch` names a delimiter run resolved by [`process_emphasis`].
+fn is_delimiter_char(ch: u8) -> bool {
+    matches!(ch, b'*' | b'_' | b'~' | b'^')
+}
+
+/// How many delimiters a matched opener/closer pair consumes, or `None` when the enabled extensions
+/// give the pair no meaning (so the search must look further or leave the run literal).
+///
+/// `*`/`_` consume two when both runs can (strong) else one (emphasis). `^` consumes one per layer
+/// (superscript). `~` consumes two for a strikeout when both runs allow it and `strikeout` is on,
+/// otherwise one for a subscript when `subscript` is on; with neither it is not a delimiter.
+fn match_use_count(
+    opener_count: usize,
+    closer_count: usize,
+    ch: u8,
+    ext: Extensions,
+) -> Option<usize> {
+    let both_at_least_two = opener_count >= 2 && closer_count >= 2;
+    match ch {
+        b'*' | b'_' => Some(if both_at_least_two { 2 } else { 1 }),
+        b'^' => Some(1),
+        b'~' => {
+            if both_at_least_two && ext.contains(Extension::Strikeout) {
+                Some(2)
+            } else if ext.contains(Extension::Subscript) {
+                Some(1)
+            } else {
+                None
+            }
         }
+        _ => None,
+    }
+}
+
+/// Wrap `content` in the inline a matched delimiter pair denotes, given its character and the number
+/// of delimiters consumed.
+fn wrap_emphasis(ch: u8, use_count: usize, content: Vec<Inline>) -> Inline {
+    match (ch, use_count) {
+        (b'~', 2) => Inline::Strikeout(content),
+        (b'~', _) => Inline::Subscript(content),
+        (b'^', _) => Inline::Superscript(content),
+        (_, 2) => Inline::Strong(content),
+        (_, _) => Inline::Emph(content),
     }
 }
 
@@ -522,7 +667,7 @@ fn decrement_delimiter(nodes: &mut [Node], index: usize, by: usize) {
 fn convert_delimiter_to_text(nodes: &mut [Node], index: usize) {
     if let Some(node) = nodes.get_mut(index)
         && let Node::Delimiter(d) = node
-        && (d.ch == b'*' || d.ch == b'_')
+        && is_delimiter_char(d.ch)
     {
         let literal: String = std::iter::repeat_n(d.ch as char, d.count).collect();
         *node = Node::Text(literal);
@@ -598,12 +743,17 @@ fn flanking(ch: u8, before: Option<char>, after: Option<char>) -> (bool, bool) {
     let left_flanking = !after_ws && (!after_punct || before_ws || before_punct);
     let right_flanking = !before_ws && (!before_punct || after_ws || after_punct);
 
-    if ch == b'_' {
-        let can_open = left_flanking && (!right_flanking || before_punct);
-        let can_close = right_flanking && (!left_flanking || after_punct);
-        (can_open, can_close)
-    } else {
-        (left_flanking, right_flanking)
+    match ch {
+        b'_' => {
+            let can_open = left_flanking && (!right_flanking || before_punct);
+            let can_close = right_flanking && (!left_flanking || after_punct);
+            (can_open, can_close)
+        }
+        // Subscript/superscript/strikeout delimiters anchor only on whitespace: a run opens unless
+        // a space follows it and closes unless a space precedes it. The rule-of-three guard
+        // (`emphasis_match`) still applies on top of this.
+        b'~' | b'^' => (!after_ws, !before_ws),
+        _ => (left_flanking, right_flanking),
     }
 }
 
@@ -663,5 +813,83 @@ fn normalize_code(content: &str) -> String {
             .to_owned()
     } else {
         collapsed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TASK_CHECKED, TASK_UNCHECKED, flanking, match_use_count, task_marker_replacement};
+    use carta_core::{Extension, Extensions};
+
+    fn exts(list: &[Extension]) -> Extensions {
+        Extensions::from_list(list)
+    }
+
+    #[test]
+    fn subscript_superscript_flanking_anchors_only_on_whitespace() {
+        // A run opens unless whitespace follows and closes unless whitespace precedes; the
+        // punctuation sub-clauses that `*`/`_` honor do not apply.
+        for ch in [b'~', b'^'] {
+            assert_eq!(flanking(ch, None, Some('a')), (true, false));
+            assert_eq!(flanking(ch, Some('a'), None), (false, true));
+            assert_eq!(flanking(ch, Some('.'), Some('a')), (true, true));
+            assert_eq!(flanking(ch, Some('a'), Some('!')), (true, true));
+            assert_eq!(flanking(ch, Some(' '), Some('a')), (true, false));
+            assert_eq!(flanking(ch, Some('a'), Some(' ')), (false, true));
+        }
+    }
+
+    #[test]
+    fn asterisk_flanking_keeps_full_rules() {
+        // `*` opener followed by punctuation and preceded by a letter is not left-flanking.
+        assert_eq!(flanking(b'*', Some('a'), Some('!')), (false, true));
+        // `_` keeps its intraword restriction: between two letters it can neither open nor close.
+        assert_eq!(flanking(b'_', Some('a'), Some('b')), (false, false));
+    }
+
+    #[test]
+    fn use_count_maps_tilde_by_enabled_extension() {
+        let strike = exts(&[Extension::Strikeout]);
+        let sub = exts(&[Extension::Subscript]);
+        let both = exts(&[Extension::Strikeout, Extension::Subscript]);
+
+        // Two-on-two is a strikeout only when strikeout is on; otherwise it falls back to subscript.
+        assert_eq!(match_use_count(2, 2, b'~', strike), Some(2));
+        assert_eq!(match_use_count(2, 2, b'~', sub), Some(1));
+        assert_eq!(match_use_count(2, 2, b'~', both), Some(2));
+        // A length-one run can only be a subscript.
+        assert_eq!(match_use_count(1, 2, b'~', strike), None);
+        assert_eq!(match_use_count(1, 2, b'~', sub), Some(1));
+        // With neither extension a tilde is inert.
+        assert_eq!(match_use_count(2, 2, b'~', Extensions::empty()), None);
+    }
+
+    #[test]
+    fn use_count_for_caret_and_emphasis() {
+        assert_eq!(match_use_count(1, 1, b'^', Extensions::empty()), Some(1));
+        assert_eq!(match_use_count(3, 3, b'^', Extensions::empty()), Some(1));
+        assert_eq!(match_use_count(2, 2, b'*', Extensions::empty()), Some(2));
+        assert_eq!(match_use_count(1, 2, b'_', Extensions::empty()), Some(1));
+    }
+
+    #[test]
+    fn task_marker_replacement_recognizes_only_bounded_markers() {
+        assert_eq!(
+            task_marker_replacement("[ ] todo").as_deref(),
+            Some(&*format!("{TASK_UNCHECKED} todo"))
+        );
+        assert_eq!(
+            task_marker_replacement("[x] done").as_deref(),
+            Some(&*format!("{TASK_CHECKED} done"))
+        );
+        assert_eq!(
+            task_marker_replacement("[X]").as_deref(),
+            Some(TASK_CHECKED)
+        );
+        // A marker glued to following text is not a task marker.
+        assert_eq!(task_marker_replacement("[ ]todo"), None);
+        // Unknown fill characters are not markers.
+        assert_eq!(task_marker_replacement("[y] no"), None);
+        assert_eq!(task_marker_replacement("plain"), None);
     }
 }
