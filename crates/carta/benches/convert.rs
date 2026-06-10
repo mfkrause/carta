@@ -15,8 +15,6 @@ const LARGE: usize = 1024 * 1024;
 /// 32 KiB keeps an iteration near one second while still making that worst case unmistakable.
 const ADVERSARIAL_LARGE: usize = 32 * 1024;
 
-/// Repeats `block` until the accumulated string reaches `bytes`, keeping the result within ±10% of
-/// the target by stopping once the threshold is crossed and the final block fits the tolerance.
 fn fill_to(bytes: usize, block: &str) -> String {
     let block = if block.is_empty() { " " } else { block };
     let mut out = String::with_capacity(bytes + block.len());
