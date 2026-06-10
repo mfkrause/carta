@@ -20,6 +20,34 @@
 - **Depends on**: none
 - **Category**: perf
 - **Planned at**: commit `5e110f9`, 2026-06-10 (reconciled at `f5d2e3b`, 2026-06-10 — no in-scope code drift; premise prose refreshed after `tools/bench-suite/` landed)
+- **Executed**: 2026-06-10, commit `57560f1` on branch `advisor/001-criterion-benches` (worktree `agent-a0d07458c7e1fa1d6`), reviewed and approved. Two deviations, both reviewer-sanctioned:
+  - `emphasis_heavy`/`pathological_brackets` use `ADVERSARIAL_LARGE = 32 KiB` instead of 1 MiB — the inline resolver's worst case is quadratic in delimiter count (measured 4× time per input doubling; ~20 min for one 1 MiB parse), which tripped this plan's own ">60 s per iteration set" STOP condition. The quadratic signal plan 003 needs is fully captured at 32 KiB (10 KiB → 107 ms, 32 KiB → 1.17 s).
+  - The smoke command must be scoped: `cargo bench -p carta --bench convert -- --quick`. The unscoped form also runs the lib's libtest harness, which rejects `--quick` (same gotcha as plan 002's smoke test). The command table and done criteria below are amended accordingly.
+- **Baseline** (median estimates from the full run at `57560f1`, recorded here per step 4):
+
+  ```
+  read_commonmark/prose/small                  267.12 µs
+  read_commonmark/prose/large                  35.377 ms
+  read_commonmark/links/small                  273.05 µs
+  read_commonmark/links/large                  29.617 ms
+  read_commonmark/lists/small                  569.38 µs
+  read_commonmark/lists/large                  66.630 ms
+  read_commonmark/emphasis_heavy/small         106.67 ms
+  read_commonmark/emphasis_heavy/large         1.1737 s
+  read_commonmark/pathological_brackets/small  2.6662 ms
+  read_commonmark/pathological_brackets/large  59.682 ms
+  write_targets/html                           31.119 ms
+  write_targets/plain                          13.008 ms
+  write_targets/commonmark                     17.473 ms
+  write_targets/rst                            29.287 ms
+  write_targets/latex                          15.542 ms
+  write_targets/mediawiki                      14.476 ms
+  write_targets/native                         26.741 ms
+  write_targets/json                           10.460 ms
+  convert_end_to_end/prose                     46.936 ms
+  convert_end_to_end/lists                     78.319 ms
+  read_corpus/commonmark                       3.8413 ms
+  ```
 
 ## Why this matters
 
@@ -61,7 +89,7 @@ Repo conventions that apply:
 | Tests | `cargo nextest run --workspace` | all pass |
 | Lint | `cargo clippy --all-targets` | exit 0, no new warnings |
 | Run benches | `cargo bench -p carta` | benches compile and report times |
-| Smoke-run benches fast | `cargo bench -p carta -- --quick` | exit 0 |
+| Smoke-run benches fast | `cargo bench -p carta --bench convert -- --quick` | exit 0 |
 
 ## Scope
 
@@ -158,7 +186,7 @@ Benches are the deliverable; no unit tests required. Confirm the existing suite 
 
 ## Done criteria
 
-- [ ] `cargo bench -p carta -- --quick` exits 0 and lists all four groups
+- [x] `cargo bench -p carta --bench convert -- --quick` exits 0 and lists all four groups
 - [ ] `cargo nextest run --workspace` exits 0
 - [ ] `cargo clippy --all-targets` exits 0 with no new warnings
 - [ ] `grep -ri pandoc crates/carta/benches/` returns no matches
