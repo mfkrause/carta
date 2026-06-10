@@ -12,7 +12,7 @@ PAIRS="commonmark:html commonmark:json"
 for pair in $PAIRS; do
   from="${pair%%:*}"
   to="${pair##*:}"
-  conf_reset
+  group_reset
   table_header "startup — $from → $to (near-empty input)"
   norm="$(oracle_norm "$to")"
   input="$FIXTURES/startup.md"

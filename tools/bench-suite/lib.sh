@@ -169,7 +169,6 @@ bench_pair() {
   p_rss=$(measure_rss "$input" $ORACLE $oargs)
 
   emit_row "$label" "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss"
-  PASS=$((PASS + 1))
 }
 
 # Render one table row from raw seconds/bytes. Derives speedup, throughput, and human units.
@@ -196,8 +195,8 @@ table_header() {
   echo "|--------|---------------------|---------------------|---------|------------|-----------|------------|"
 }
 
-# Per-group tally and failure logging.
-conf_reset() { PASS=0 FAIL=0 ERR=0; }
+# Per-group error tally: each surface resets before its table, then folds any errors into SUITE_RC.
+group_reset() { ERR=0; }
 note_err() { ERR=$((ERR + 1)); echo "ERR  $1: $2" >&2; }
 SUITE_RC=0
 tally_group() { [ "${ERR:-0}" -gt 0 ] && SUITE_RC=1; return 0; }
