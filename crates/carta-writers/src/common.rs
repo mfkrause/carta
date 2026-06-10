@@ -1036,6 +1036,25 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "wrap",
 ];
 
+/// The inline content of a block, or an empty slice for a block that carries none directly.
+#[cfg(any(feature = "plain", feature = "rst"))]
+pub(crate) fn block_inlines(block: &Block) -> &[Inline] {
+    match block {
+        Block::Plain(inlines) | Block::Para(inlines) => inlines,
+        _ => &[],
+    }
+}
+
+/// Every row of every body, intermediate head rows included, in document order.
+#[cfg(any(feature = "plain", feature = "rst"))]
+pub(crate) fn body_rows(table: &carta_ast::Table) -> Vec<&carta_ast::Row> {
+    table
+        .bodies
+        .iter()
+        .flat_map(|body| body.head.iter().chain(body.body.iter()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
