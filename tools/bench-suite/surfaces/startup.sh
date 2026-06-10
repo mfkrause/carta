@@ -12,7 +12,6 @@ PAIRS="commonmark:html commonmark:json"
 for pair in $PAIRS; do
   from="${pair%%:*}"
   to="${pair##*:}"
-  group_reset
   table_header "startup — $from → $to (near-empty input)"
   norm="$(oracle_norm "$to")"
   input="$FIXTURES/startup.md"
@@ -20,7 +19,6 @@ for pair in $PAIRS; do
   [ -s "$input" ] || continue
   bench_pair "startup/$from-$to" "$input" "$(file_bytes "$input")" \
     "-f $from -t $to $norm" "-f $from -t $to"
-  tally_group
 done
 
 exit "$SUITE_RC"

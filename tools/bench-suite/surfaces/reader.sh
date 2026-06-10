@@ -8,7 +8,6 @@ FORMATS="commonmark html"
 [ $# -gt 0 ] && FORMATS="$1"
 
 for fmt in $FORMATS; do
-  group_reset
   table_header "reader — $fmt → json"
   for size in $(sizes_list); do
     input="$(fixture_for "$fmt" "$size")"
@@ -16,7 +15,6 @@ for fmt in $FORMATS; do
     bench_pair "reader/$fmt/$size" "$input" "$(file_bytes "$input")" \
       "-f $fmt -t json" "-f $fmt -t json"
   done
-  tally_group
 done
 
 exit "$SUITE_RC"
