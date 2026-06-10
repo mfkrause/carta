@@ -63,7 +63,11 @@ const GENERATORS: &[(&str, Generator, usize)] = &[
     ("links", links, LARGE),
     ("lists", lists, LARGE),
     ("emphasis_heavy", emphasis_heavy, ADVERSARIAL_LARGE),
-    ("pathological_brackets", pathological_brackets, ADVERSARIAL_LARGE),
+    (
+        "pathological_brackets",
+        pathological_brackets,
+        ADVERSARIAL_LARGE,
+    ),
 ];
 
 /// Reads every `corpus/text/commonmark/*.md` input and concatenates them, repeating until the
@@ -81,7 +85,10 @@ fn corpus_mixed() -> String {
         one_pass.push_str(&fs::read_to_string(path).expect("corpus file is readable"));
         one_pass.push_str("\n\n");
     }
-    assert!(!one_pass.is_empty(), "found no corpus/text/commonmark/*.md inputs");
+    assert!(
+        !one_pass.is_empty(),
+        "found no corpus/text/commonmark/*.md inputs"
+    );
     fill_to(100 * 1024, &one_pass)
 }
 
@@ -103,7 +110,9 @@ fn read_commonmark(c: &mut Criterion) {
 
 fn write_targets(c: &mut Criterion) {
     let reader = reader_for("commonmark").unwrap();
-    let document = reader.read(&prose(LARGE), &ReaderOptions::default()).unwrap();
+    let document = reader
+        .read(&prose(LARGE), &ReaderOptions::default())
+        .unwrap();
     let options = WriterOptions::default();
     let targets = [
         "html",
@@ -134,7 +143,14 @@ fn convert_end_to_end(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(input.len() as u64));
         group.bench_function(*name, |b| {
             b.iter(|| {
-                convert("commonmark", "html", input, &reader_options, &writer_options).unwrap()
+                convert(
+                    "commonmark",
+                    "html",
+                    input,
+                    &reader_options,
+                    &writer_options,
+                )
+                .unwrap()
             });
         });
     }
@@ -153,5 +169,11 @@ fn read_corpus(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, read_commonmark, write_targets, convert_end_to_end, read_corpus);
+criterion_group!(
+    benches,
+    read_commonmark,
+    write_targets,
+    convert_end_to_end,
+    read_corpus
+);
 criterion_main!(benches);
