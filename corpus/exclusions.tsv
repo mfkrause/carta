@@ -6,6 +6,5 @@
 commonmark	figure
 commonmark	image-dimensions
 commonmark	math
-latex	table
 latex	task-list
 plain	math
