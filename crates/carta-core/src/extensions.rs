@@ -25,6 +25,12 @@ macro_rules! define_extensions {
             pub const fn name(self) -> &'static str {
                 match self { $(Extension::$variant => $name),+ }
             }
+
+            /// The extension named `name`, or `None` if no extension uses that identifier.
+            #[must_use]
+            pub fn from_name(name: &str) -> Option<Extension> {
+                match name { $($name => Some(Extension::$variant),)+ _ => None }
+            }
         }
     };
 }
@@ -41,6 +47,8 @@ define_extensions! {
     TexMathDollars => "tex_math_dollars",
     FencedDivs => "fenced_divs",
     BracketedSpans => "bracketed_spans",
+    HardLineBreaks => "hard_line_breaks",
+    RawHtml => "raw_html",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
@@ -117,6 +125,16 @@ impl Extensions {
         if let Some(word) = self.0.get_mut(bit / WORD_BITS) {
             *word &= !(1u64 << (bit % WORD_BITS));
         }
+    }
+
+    /// The union of this set and `other`.
+    #[must_use]
+    pub fn union(self, other: Extensions) -> Extensions {
+        let mut words = self.0;
+        for (word, &add) in words.iter_mut().zip(other.0.iter()) {
+            *word |= add;
+        }
+        Extensions(words)
     }
 
     /// Whether the set is empty.
@@ -203,5 +221,27 @@ mod tests {
     fn names_are_stable() {
         assert_eq!(Extension::Footnotes.name(), "footnotes");
         assert_eq!(Extension::Autolink.name(), "autolink_bare_uris");
+        assert_eq!(Extension::HardLineBreaks.name(), "hard_line_breaks");
+        assert_eq!(Extension::RawHtml.name(), "raw_html");
+    }
+
+    #[test]
+    fn from_name_round_trips_every_variant() {
+        for ext in Extension::ALL {
+            assert_eq!(Extension::from_name(ext.name()), Some(*ext));
+        }
+        assert_eq!(Extension::from_name("not_an_extension"), None);
+        assert_eq!(Extension::from_name(""), None);
+    }
+
+    #[test]
+    fn union_combines_both_sides() {
+        let a = Extensions::from_list(&[Extension::Strikeout]);
+        let b = Extensions::from_list(&[Extension::Subscript]);
+        let combined = a.union(b);
+        assert!(combined.contains(Extension::Strikeout));
+        assert!(combined.contains(Extension::Subscript));
+        assert!(!combined.contains(Extension::Superscript));
+        assert_eq!(a.union(Extensions::empty()), a);
     }
 }

@@ -25,6 +25,8 @@ pub enum Error {
     UnsupportedFormat(String),
     #[error("format '{0}' is recognized but not enabled in this build")]
     FormatNotEnabled(String),
+    #[error("unknown extension: {0}")]
+    UnknownExtension(String),
 }
 
 /// A `Result` whose error is [`Error`].
