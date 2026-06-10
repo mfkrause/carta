@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+==== ============
+項目 値
+==== ============
+名前 漢字テキスト
+x    y
+==== ============
