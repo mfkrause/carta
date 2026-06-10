@@ -14,19 +14,20 @@ mod scan;
 use std::collections::BTreeMap;
 
 use carta_ast::{Attr, Block, Document, Inline, ListAttributes};
-use carta_core::{Reader, ReaderOptions, Result};
+use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 /// Parses `CommonMark` text into the document model.
 ///
-/// Implements the strict `CommonMark` preset ([`carta_core::presets::COMMONMARK`], the empty
-/// extension set). Honoring `options.extensions` is deferred to the configurable markdown engine
-/// (see `docs/plans/refactor-1-facade-features-extensions.md` §3.4).
+/// The strict `CommonMark` preset is the empty extension set; `options.extensions` additionally
+/// enables `strikeout`, `subscript`, `superscript`, `hard_line_breaks`, and `task_lists`
+/// (see `plans/006-commonmark-easy-extensions.md`). `raw_html` is always honored, so toggling it has
+/// no effect on the produced document.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CommonmarkReader;
 
 impl Reader for CommonmarkReader {
-    fn read(&self, input: &str, _options: &ReaderOptions) -> Result<Document> {
-        Ok(parse(input))
+    fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
+        Ok(parse(input, options.extensions))
     }
 }
 
@@ -56,10 +57,10 @@ pub(crate) struct LinkDef {
 /// Link reference definitions, keyed by their normalized label.
 pub(crate) type RefMap = BTreeMap<String, LinkDef>;
 
-fn parse(input: &str) -> Document {
+fn parse(input: &str, extensions: Extensions) -> Document {
     let normalized = normalize(input);
     let (ir, refs) = block::parse(&normalized);
-    let blocks = inline::resolve_blocks(&ir, &refs);
+    let blocks = inline::resolve_blocks(&ir, &refs, extensions);
     Document {
         blocks,
         ..Document::default()
