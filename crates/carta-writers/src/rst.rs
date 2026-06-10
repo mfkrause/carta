@@ -814,7 +814,7 @@ impl State {
                 if col >= columns {
                     break;
                 }
-                let span = (cell.col_span.max(1) as usize).min(columns - col);
+                let span = grid::span_count(cell.col_span).min(columns - col);
                 let lines = self.cell_lines(&cell.content, SIMPLE_WIDTH);
                 let content = lines
                     .iter()
@@ -871,7 +871,7 @@ impl State {
             if col >= columns {
                 break;
             }
-            let span = (cell.col_span.max(1) as usize).min(columns - col);
+            let span = grid::span_count(cell.col_span).min(columns - col);
             if let Some(slot) = col_lines.get_mut(col) {
                 *slot = self.cell_lines(&cell.content, SIMPLE_WIDTH);
             }
@@ -880,10 +880,10 @@ impl State {
         }
         // A blank first column would leave the row line starting with whitespace, which a simple
         // table reads as a continuation rather than an empty cell; a lone backslash marks it.
-        if let Some(first) = col_lines.first_mut() {
-            if first.is_empty() {
-                first.push("\\".to_owned());
-            }
+        if let Some(first) = col_lines.first_mut()
+            && first.is_empty()
+        {
+            first.push("\\".to_owned());
         }
         let height = col_lines.iter().map(Vec::len).max().unwrap_or(0).max(1);
         for line in 0..height {
@@ -995,8 +995,8 @@ impl State {
                 let lines = self.cell_lines(&cell.content, width);
                 cells.push(grid::GridCell {
                     lines,
-                    row_span: cell.row_span.max(1) as usize,
-                    col_span: cell.col_span.max(1) as usize,
+                    row_span: grid::span_count(cell.row_span),
+                    col_span: grid::span_count(cell.col_span),
                 });
             }
             result.push(grid::GridRow { cells });
