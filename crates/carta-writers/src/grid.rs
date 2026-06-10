@@ -175,10 +175,14 @@ fn place(table: &GridTable, columns: usize) -> Layout {
 }
 
 /// The border line above row `boundary` (or the bottom border when `boundary` equals the row
-/// count). `=` marks a section change and the bottom of a footed table; cells spanning the
-/// boundary leave their columns blank, with `+` junctions only next to drawn segments.
+/// count). `=` marks a section change and the bottom of a footed table. A column's segment is
+/// blank where a cell spans the boundary vertically; the junction between two columns is `+`
+/// where a horizontal segment meets a vertical divider, `|` where only a divider passes through,
+/// the fill character where a horizontal run crosses a merged (column-spanned) boundary, and a
+/// space inside a spanned rectangle. The alignment-marking separator always divides every column.
 fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
     let row_count = layout.sections.len();
+    let columns = table.col_widths.len();
     let section_above = boundary.checked_sub(1).and_then(|r| layout.sections.get(r));
     let section_below = layout.sections.get(boundary);
     let fill = match (section_above, section_below) {
@@ -200,9 +204,9 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
         _ => false,
     };
 
-    let continuing: Vec<bool> = (0..table.col_widths.len())
+    let drawn: Vec<bool> = (0..columns)
         .map(|col| {
-            boundary > 0
+            !(boundary > 0
                 && boundary < row_count
                 && layout
                     .occupancy
@@ -211,16 +215,73 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
                     == layout
                         .occupancy
                         .get(boundary)
-                        .and_then(|slots| slots.get(col))
+                        .and_then(|slots| slots.get(col)))
         })
         .collect();
 
+    let cell_at = |row: usize, col: usize| {
+        layout
+            .occupancy
+            .get(row)
+            .and_then(|slots| slots.get(col))
+            .copied()
+    };
+    let exposes = |row: usize, col: usize| cell_at(row, col - 1) != cell_at(row, col);
+    // The separator that leads a section (the top border, or a boundary where the section changes)
+    // divides a column wherever any row of the section below splits it, so a span heading a
+    // multi-row section does not erase a boundary that a lower row re-exposes. A boundary inside a
+    // section divides where the row immediately below splits it.
+    let leads_section = boundary < row_count
+        && (boundary == 0 || layout.sections.get(boundary - 1) != layout.sections.get(boundary));
+    // Whether a vertical divider passes through the boundary point between column `col - 1` and
+    // `col`: when the cells on either side differ in the row above or below, or — on the
+    // alignment-marking separator — when an adjacent column carries an alignment colon there that
+    // a merged run would otherwise swallow.
+    let divider = |col: usize| -> bool {
+        let aligned = marks_alignment
+            && table.aligns.is_some_and(|aligns| {
+                aligns.get(col - 1).is_some_and(marks_right)
+                    || aligns.get(col).is_some_and(marks_left)
+            });
+        let below = if leads_section {
+            let section = layout.sections.get(boundary).copied();
+            (boundary..row_count)
+                .take_while(|&row| layout.sections.get(row).copied() == section)
+                .any(|row| exposes(row, col))
+        } else {
+            boundary < row_count && exposes(boundary, col)
+        };
+        aligned || (boundary > 0 && exposes(boundary - 1, col)) || below
+    };
+    let junction = |col: usize| -> char {
+        if col == 0 {
+            return if drawn.first().copied().unwrap_or(false) {
+                '+'
+            } else {
+                '|'
+            };
+        }
+        if col == columns {
+            return if drawn.get(columns - 1).copied().unwrap_or(false) {
+                '+'
+            } else {
+                '|'
+            };
+        }
+        let horizontal = drawn.get(col - 1).copied().unwrap_or(false)
+            || drawn.get(col).copied().unwrap_or(false);
+        match (horizontal, divider(col)) {
+            (true, true) => '+',
+            (false, true) => '|',
+            (true, false) => fill,
+            (false, false) => ' ',
+        }
+    };
+
     let mut line = String::new();
     for (col, &width) in table.col_widths.iter().enumerate() {
-        line.push(junction(&continuing, col, table.col_widths.len()));
-        if continuing.get(col).copied().unwrap_or(false) {
-            line.extend(std::iter::repeat_n(' ', width));
-        } else {
+        line.push(junction(col));
+        if drawn.get(col).copied().unwrap_or(false) {
             let align = if marks_alignment {
                 table
                     .aligns
@@ -231,14 +292,22 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
                 Alignment::AlignDefault
             };
             line.push_str(&segment(fill, width, &align));
+        } else {
+            line.extend(std::iter::repeat_n(' ', width));
         }
     }
-    line.push(junction(
-        &continuing,
-        table.col_widths.len(),
-        table.col_widths.len(),
-    ));
+    line.push(junction(columns));
     line
+}
+
+/// Whether an alignment places a colon on the left edge of its column's separator segment.
+fn marks_left(align: &Alignment) -> bool {
+    matches!(align, Alignment::AlignLeft | Alignment::AlignCenter)
+}
+
+/// Whether an alignment places a colon on the right edge of its column's separator segment.
+fn marks_right(align: &Alignment) -> bool {
+    matches!(align, Alignment::AlignRight | Alignment::AlignCenter)
 }
 
 /// A column's stretch of a separator line, with alignment colons replacing the first and/or
@@ -258,20 +327,6 @@ fn segment(fill: char, width: usize, align: &Alignment) -> String {
         *last = ':';
     }
     chars.into_iter().collect()
-}
-
-/// The character where a separator line crosses the boundary before column `col`: `+` next to
-/// any drawn segment, `|` at the table edge along a spanning cell, blank inside one.
-fn junction(continuing: &[bool], col: usize, columns: usize) -> char {
-    let left_drawn = col > 0 && !continuing.get(col - 1).copied().unwrap_or(true);
-    let right_drawn = col < columns && !continuing.get(col).copied().unwrap_or(true);
-    if left_drawn || right_drawn {
-        '+'
-    } else if col == 0 || col == columns {
-        '|'
-    } else {
-        ' '
-    }
 }
 
 fn content_line(
@@ -466,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn rectangular_span_blanks_interior_junctions() {
+    fn rectangular_span_merges_the_boundary_it_covers() {
         let output = render_table(
             vec![4, 4, 3],
             Vec::new(),
@@ -478,11 +533,11 @@ mod tests {
         );
         assert_eq!(
             output,
-            "+----+----+---+\n\
+            "+---------+---+\n\
              | span    | a |\n\
              |         +---+\n\
              |         | b |\n\
-             +----+----+---+"
+             +---------+---+"
         );
     }
 
