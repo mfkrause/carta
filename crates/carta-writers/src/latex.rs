@@ -360,7 +360,10 @@ impl ColumnPlan {
                 })
                 .collect()
         } else if columns > 0 {
-            vec![1.0 / columns as f64; columns]
+            // A table's column count is tiny; the reciprocal loses no meaningful precision.
+            #[allow(clippy::cast_precision_loss)]
+            let equal = 1.0 / columns as f64;
+            vec![equal; columns]
         } else {
             Vec::new()
         };
