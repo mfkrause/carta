@@ -86,14 +86,20 @@ the word.
 
 ## Build & test
 
-Slices 0 and 1 have landed:
+Landed so far:
 
-- **Slice 0** — the document model and JSON interchange codec (`carta-ast`), and the
-  `carta -f json -t json` conversion path.
-- **Slice 1** — the `CommonMark` reader (`carta-readers`) and HTML writer (`carta-writers`),
-  exposing `carta -f commonmark -t html` (and `-t json` from CommonMark, `-f json -t html`).
-  Byte-identical to the pinned binary on all 652 vendored CommonMark spec examples; ~96%
-  product-crate line coverage.
+- **Document model + JSON codec** (`carta-ast`) — the Block/Inline model and the JSON interchange
+  codec, with the `carta -f json -t json` path.
+- **Readers** (`carta-readers`) — CommonMark, HTML, native, and JSON. The CommonMark reader is
+  byte-identical to the oracle on all 652 vendored spec examples and implements the strict preset
+  (extension toggles are not yet honored).
+- **Writers** (`carta-writers`) — HTML, LaTeX, reStructuredText, plain, CommonMark, MediaWiki,
+  native, and JSON. **Tables render across every writer**, including spans, alignments, fractional
+  widths, captions, and multiple bodies; plain/reStructuredText/LaTeX share a text-grid layout
+  engine (`grid.rs`).
+
+The offline suite is green and the full conformance suite passes on every surface; product-crate
+line coverage is ~93%.
 
 A library facade (`carta`) is the single public entry point — `convert`, `reader_for`/`writer_for`,
 `supported_input_formats`/`supported_output_formats`, and the document model re-exported as `ast`.
