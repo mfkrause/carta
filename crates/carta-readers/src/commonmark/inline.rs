@@ -535,25 +535,19 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
                 && d.can_open
                 && d.ch == closer_ch
                 && emphasis_match(d, nodes, closer)
-                && match_use_count(d.count, closer_count, closer_ch, ext).is_some()
+                && let Some(use_count) = match_use_count(d.count, closer_count, closer_ch, ext)
             {
-                opener = Some(index);
+                opener = Some((index, use_count));
                 break;
             }
         }
-        let Some(opener_index) = opener else {
+        let Some((opener_index, use_count)) = opener else {
             // No opener; if this delimiter also can't open, it's inert.
             if let Some(Node::Delimiter(d)) = nodes.get(closer)
                 && !d.can_open
             {
                 convert_delimiter_to_text(nodes, closer);
             }
-            closer += 1;
-            continue;
-        };
-
-        let opener_count = delimiter_count(nodes, opener_index);
-        let Some(use_count) = match_use_count(opener_count, closer_count, closer_ch, ext) else {
             closer += 1;
             continue;
         };
