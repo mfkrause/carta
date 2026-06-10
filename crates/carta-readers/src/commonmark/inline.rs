@@ -887,3 +887,273 @@ mod tests {
         assert_eq!(task_marker_replacement("plain"), None);
     }
 }
+
+#[cfg(test)]
+mod inline_tests {
+    use std::collections::BTreeMap;
+
+    use carta_ast::{Attr, Inline, Target};
+
+    use super::{LinkDef, RefMap, parse_inlines};
+    use carta_core::{Extension, Extensions};
+
+    fn no_ext() -> Extensions {
+        Extensions::empty()
+    }
+
+    fn exts(list: &[Extension]) -> Extensions {
+        Extensions::from_list(list)
+    }
+
+    fn empty_refs() -> RefMap {
+        BTreeMap::new()
+    }
+
+    fn ref_map(entries: &[(&str, &str)]) -> RefMap {
+        let mut m = BTreeMap::new();
+        for (k, v) in entries {
+            m.insert(
+                k.to_string(),
+                LinkDef {
+                    url: v.to_string(),
+                    title: String::new(),
+                },
+            );
+        }
+        m
+    }
+
+    fn p(text: &str) -> Vec<Inline> {
+        parse_inlines(text, &empty_refs(), no_ext())
+    }
+
+    fn pe(text: &str, ext: Extensions) -> Vec<Inline> {
+        parse_inlines(text, &empty_refs(), ext)
+    }
+
+    fn str(s: &str) -> Inline {
+        Inline::Str(s.to_owned())
+    }
+
+    fn link(content: Vec<Inline>, url: &str) -> Inline {
+        Inline::Link(
+            Attr::default(),
+            content,
+            Target {
+                url: url.to_owned(),
+                title: String::new(),
+            },
+        )
+    }
+
+    fn image(alt: Vec<Inline>, url: &str) -> Inline {
+        Inline::Image(
+            Attr::default(),
+            alt,
+            Target {
+                url: url.to_owned(),
+                title: String::new(),
+            },
+        )
+    }
+
+    // --- Emphasis and strong ---
+
+    #[test]
+    fn nested_emphasis_and_strong() {
+        // *a **b** c* → Emph([a, Strong([b]), c])
+        assert_eq!(
+            p("*a **b** c*"),
+            vec![Inline::Emph(vec![
+                str("a"),
+                Inline::Space,
+                Inline::Strong(vec![str("b")]),
+                Inline::Space,
+                str("c"),
+            ])]
+        );
+    }
+
+    #[test]
+    fn mixed_asterisk_and_underscore() {
+        // *a _b_ c* → Emph([a, Emph([b]), c])
+        assert_eq!(
+            p("*a _b_ c*"),
+            vec![Inline::Emph(vec![
+                str("a"),
+                Inline::Space,
+                Inline::Emph(vec![str("b")]),
+                Inline::Space,
+                str("c"),
+            ])]
+        );
+    }
+
+    #[test]
+    fn triple_asterisk_produces_emph_of_strong() {
+        // ***a*** → Emph([Strong([a])])
+        assert_eq!(
+            p("***a***"),
+            vec![Inline::Emph(vec![Inline::Strong(vec![str("a")])])]
+        );
+    }
+
+    #[test]
+    fn rule_of_3_prevents_outer_strong() {
+        // **a*b** — the `*` closer + `**` opener sum is 3 which would violate rule-of-3 when one
+        // side can both open and close, so the `*b` ends up literal inside Strong.
+        assert_eq!(
+            p("**a*b**"),
+            vec![Inline::Strong(vec![str("a*b")])]
+        );
+    }
+
+    #[test]
+    fn rule_of_3_prevents_inner_strong() {
+        // *a**b* — **b closes with * giving sum=3 but both must be mult-of-3 which they aren't,
+        // so the **b is left literal.
+        assert_eq!(p("*a**b*"), vec![Inline::Emph(vec![str("a**b")])]);
+    }
+
+    #[test]
+    fn unmatched_openers_become_literal() {
+        assert_eq!(p("*a"), vec![str("*a")]);
+        assert_eq!(p("a*"), vec![str("a*")]);
+        // **a* — the single * can close an emphasis inside the **, leaving ** - 1 = * literal
+        assert_eq!(p("**a*"), vec![str("*"), Inline::Emph(vec![str("a")])]);
+    }
+
+    #[test]
+    fn underscore_intraword_stays_literal() {
+        // `_` between word chars cannot open or close (spec §6.3 rules).
+        assert_eq!(p("a_b_c"), vec![str("a_b_c")]);
+        assert_eq!(p("_a_b"), vec![str("_a_b")]);
+    }
+
+    // --- Links and images ---
+
+    #[test]
+    fn inline_link_and_image() {
+        assert_eq!(p("[a](u)"), vec![link(vec![str("a")], "u")]);
+        assert_eq!(p("![i](u)"), vec![image(vec![str("i")], "u")]);
+    }
+
+    #[test]
+    fn reference_link_with_and_without_ref() {
+        // Without ref: stays literal.
+        assert_eq!(p("[a][r]"), vec![str("[a][r]")]);
+        // With ref defined: resolves.
+        let refs = ref_map(&[("r", "http://r")]);
+        let result = parse_inlines("[a][r]", &refs, no_ext());
+        assert_eq!(result, vec![link(vec![str("a")], "http://r")]);
+    }
+
+    #[test]
+    fn nested_bracket_in_link_text() {
+        // [[a]](u) — the inner [a] becomes a literal `[a]` in the link text because it has no
+        // matching target of its own, and the outer pair provides the `(u)` target.
+        assert_eq!(
+            p("[[a]](u)"),
+            vec![link(vec![str("[a]")], "u")]
+        );
+    }
+
+    #[test]
+    fn unmatched_brackets_are_literal() {
+        assert_eq!(p("]]]"), vec![str("]]]")]);
+    }
+
+    #[test]
+    fn link_suppresses_earlier_bracket_openers() {
+        // [a [b](u) c](v) — the inner [b](u) is a valid link; its `[` opener then causes
+        // the outer `[a ` opener to be deactivated (it cannot form a link containing a link),
+        // so the outer `[` and `](v)` stay literal.
+        assert_eq!(
+            p("[a [b](u) c](v)"),
+            vec![
+                str("[a"),
+                Inline::Space,
+                link(vec![str("b")], "u"),
+                Inline::Space,
+                str("c](v)"),
+            ]
+        );
+    }
+
+    #[test]
+    fn emphasis_inside_link_text() {
+        assert_eq!(
+            p("[*a*](u)"),
+            vec![link(vec![Inline::Emph(vec![str("a")])], "u")]
+        );
+    }
+
+    // --- Extension delimiters ---
+
+    #[test]
+    fn strikeout_double_tilde() {
+        assert_eq!(
+            pe("~~a~~", exts(&[Extension::Strikeout])),
+            vec![Inline::Strikeout(vec![str("a")])]
+        );
+    }
+
+    #[test]
+    fn subscript_single_tilde() {
+        assert_eq!(
+            pe("~a~", exts(&[Extension::Subscript])),
+            vec![Inline::Subscript(vec![str("a")])]
+        );
+    }
+
+    #[test]
+    fn superscript_caret() {
+        assert_eq!(
+            pe("^a^", exts(&[Extension::Superscript])),
+            vec![Inline::Superscript(vec![str("a")])]
+        );
+    }
+
+    #[test]
+    fn double_tilde_with_subscript_only_becomes_nested_subscript() {
+        // Strikeout off, subscript on: ~~a~~ is two nested subscripts (each `~` consumed one).
+        assert_eq!(
+            pe("~~a~~", exts(&[Extension::Subscript])),
+            vec![Inline::Subscript(vec![Inline::Subscript(vec![str("a")])])]
+        );
+    }
+
+    #[test]
+    fn single_tilde_skipped_when_strikeout_only() {
+        // `~a~~b~~` with strikeout on but subscript off: length-1 run has no strikeout mapping
+        // (`match_use_count` returns None), so it stays literal; `~~b~~` matches as strikeout.
+        assert_eq!(
+            pe("~a~~b~~", exts(&[Extension::Strikeout])),
+            vec![str("~a"), Inline::Strikeout(vec![str("b")])]
+        );
+    }
+
+    #[test]
+    fn unmatched_tilde_run_stays_literal_when_strikeout_only() {
+        // `~~a~` — the single `~` is a closer that can't find an opener (the `~~` needs length-2
+        // pair and subscript is off), so the whole thing stays literal.
+        assert_eq!(
+            pe("~~a~", exts(&[Extension::Strikeout])),
+            vec![str("~~a~")]
+        );
+    }
+
+    #[test]
+    fn mixed_asterisk_and_strikeout() {
+        assert_eq!(
+            pe("*a ~~b~~ c*", exts(&[Extension::Strikeout])),
+            vec![Inline::Emph(vec![
+                str("a"),
+                Inline::Space,
+                Inline::Strikeout(vec![str("b")]),
+                Inline::Space,
+                str("c"),
+            ])]
+        );
+    }
+}
