@@ -48,9 +48,14 @@ gen_ast() { # <out> <target_bytes>
     >"$out"
 }
 
+gen_rc=0
 derive() { # <in> <fmt> <out>
   fresh "$3" && return 0
-  "$OX" -f commonmark -t "$2" <"$1" >"$3"
+  if ! "$OX" -f commonmark -t "$2" <"$1" >"$3"; then
+    echo "error: failed to derive $(basename "$3") via carta -t $2" >&2
+    rm -f "$3"
+    gen_rc=1
+  fi
 }
 
 for size in $(sizes_list); do
@@ -68,4 +73,5 @@ startup_md="$FIXTURES/startup.md"
 if ! fresh "$startup_md"; then printf 'A startup probe paragraph.\n' >"$startup_md"; fi
 derive "$startup_md" json "$FIXTURES/startup.ast.json"
 
+[ "$gen_rc" -eq 0 ] || exit 1
 echo "fixtures ready in $FIXTURES" >&2
