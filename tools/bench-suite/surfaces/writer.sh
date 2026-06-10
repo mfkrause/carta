@@ -9,7 +9,7 @@ TARGETS="html latex rst plain commonmark mediawiki native json"
 [ $# -gt 0 ] && TARGETS="$1"
 
 for target in $TARGETS; do
-  conf_reset
+  group_reset
   table_header "writer — json → $target"
   norm="$(oracle_norm "$target")"
   for size in $(sizes_list); do
