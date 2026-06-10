@@ -195,11 +195,9 @@ table_header() {
   echo "|--------|---------------------|---------------------|---------|------------|-----------|------------|"
 }
 
-# Per-group error tally: each surface resets before its table, then folds any errors into SUITE_RC.
-group_reset() { ERR=0; }
-note_err() { ERR=$((ERR + 1)); echo "ERR  $1: $2" >&2; }
+# Any benchmark error flips the suite return code; each surface exits with it.
 SUITE_RC=0
-tally_group() { [ "${ERR:-0}" -gt 0 ] && SUITE_RC=1; return 0; }
+note_err() { SUITE_RC=1; echo "ERR  $1: $2" >&2; }
 
 # Comma list -> space list (for iterating BENCH_SIZES).
 sizes_list() { printf '%s\n' "$BENCH_SIZES" | tr ',' ' '; }

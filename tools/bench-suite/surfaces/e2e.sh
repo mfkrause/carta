@@ -11,7 +11,6 @@ PAIRS="commonmark:html commonmark:latex commonmark:rst commonmark:json"
 for pair in $PAIRS; do
   from="${pair%%:*}"
   to="${pair##*:}"
-  group_reset
   table_header "e2e — $from → $to"
   norm="$(oracle_norm "$to")"
   for size in $(sizes_list); do
@@ -20,7 +19,6 @@ for pair in $PAIRS; do
     bench_pair "e2e/$from-$to/$size" "$input" "$(file_bytes "$input")" \
       "-f $from -t $to $norm" "-f $from -t $to"
   done
-  tally_group
 done
 
 exit "$SUITE_RC"
