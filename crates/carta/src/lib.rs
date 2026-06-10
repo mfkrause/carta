@@ -13,18 +13,23 @@ pub use carta_core::{
     Error, Extension, Extensions, Reader, ReaderOptions, Result, Writer, WriterOptions, presets,
 };
 
+mod format_spec;
 mod registry;
 
+pub use format_spec::parse_format_spec;
 pub use registry::{reader_for, supported_input_formats, supported_output_formats, writer_for};
 
 /// Converts `input` from format `from` to format `to`.
+///
+/// Each format may carry `+ext`/`-ext` toggles (e.g. `commonmark+strikeout-raw_html`); the selected
+/// extensions are merged with any already present in the supplied options.
 ///
 /// The returned string carries no trailing newline; callers that emit to a stream append their own
 /// (the CLI appends exactly one).
 ///
 /// # Errors
-/// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`])
-/// and any reader/writer error encountered during conversion.
+/// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
+/// [`Error::UnknownExtension`]) and any reader/writer error encountered during conversion.
 pub fn convert(
     from: &str,
     to: &str,
@@ -32,8 +37,17 @@ pub fn convert(
     reader_options: &ReaderOptions,
     writer_options: &WriterOptions,
 ) -> Result<String> {
-    let reader = reader_for(from)?;
-    let writer = writer_for(to)?;
-    let document = reader.read(input, reader_options)?;
-    writer.write(&document, writer_options)
+    let (from_base, from_ext) = parse_format_spec(from)?;
+    let (to_base, to_ext) = parse_format_spec(to)?;
+
+    let reader = reader_for(&from_base)?;
+    let writer = writer_for(&to_base)?;
+
+    let mut reader_options = reader_options.clone();
+    reader_options.extensions = from_ext.union(reader_options.extensions);
+    let mut writer_options = writer_options.clone();
+    writer_options.extensions = to_ext.union(writer_options.extensions);
+
+    let document = reader.read(input, &reader_options)?;
+    writer.write(&document, &writer_options)
 }
