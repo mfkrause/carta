@@ -11,7 +11,7 @@ PAIRS="commonmark:html commonmark:latex commonmark:rst commonmark:json"
 for pair in $PAIRS; do
   from="${pair%%:*}"
   to="${pair##*:}"
-  conf_reset
+  group_reset
   table_header "e2e — $from → $to"
   norm="$(oracle_norm "$to")"
   for size in $(sizes_list); do
