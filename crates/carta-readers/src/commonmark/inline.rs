@@ -587,8 +587,12 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
         let Some(current_entry) = delims.get(current) else {
             break;
         };
-        let (closer_ch, closer_count, closer_can_open, closer_can_close) =
-            (current_entry.ch, current_entry.count, current_entry.can_open, current_entry.can_close);
+        let (closer_ch, closer_count, closer_can_open, closer_can_close) = (
+            current_entry.ch,
+            current_entry.count,
+            current_entry.can_open,
+            current_entry.can_close,
+        );
         let closer_ni = current_entry.node_index;
         if !closer_can_close {
             current += 1;
@@ -706,8 +710,7 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
         //   after remove(closer) if empty: -1
         //   after remove(opener) if empty: -1
         // Total shift = (opener_ni - closer_ni + 2) - closer_empty - opener_empty.
-        let above_shift = 2_isize
-            + (opener_ni.cast_signed() - closer_ni.cast_signed())
+        let above_shift = 2_isize + (opener_ni.cast_signed() - closer_ni.cast_signed())
             - isize::from(closer_empty)
             - isize::from(opener_empty);
 
@@ -1212,10 +1215,7 @@ mod inline_tests {
     fn rule_of_3_prevents_outer_strong() {
         // **a*b** — the `*` closer + `**` opener sum is 3 which would violate rule-of-3 when one
         // side can both open and close, so the `*b` ends up literal inside Strong.
-        assert_eq!(
-            p("**a*b**"),
-            vec![Inline::Strong(vec![str("a*b")])]
-        );
+        assert_eq!(p("**a*b**"), vec![Inline::Strong(vec![str("a*b")])]);
     }
 
     #[test]
@@ -1262,10 +1262,7 @@ mod inline_tests {
     fn nested_bracket_in_link_text() {
         // [[a]](u) — the inner [a] becomes a literal `[a]` in the link text because it has no
         // matching target of its own, and the outer pair provides the `(u)` target.
-        assert_eq!(
-            p("[[a]](u)"),
-            vec![link(vec![str("[a]")], "u")]
-        );
+        assert_eq!(p("[[a]](u)"), vec![link(vec![str("[a]")], "u")]);
     }
 
     #[test]
@@ -1347,10 +1344,7 @@ mod inline_tests {
     fn unmatched_tilde_run_stays_literal_when_strikeout_only() {
         // `~~a~` — the single `~` is a closer that can't find an opener (the `~~` needs length-2
         // pair and subscript is off), so the whole thing stays literal.
-        assert_eq!(
-            pe("~~a~", exts(&[Extension::Strikeout])),
-            vec![str("~~a~")]
-        );
+        assert_eq!(pe("~~a~", exts(&[Extension::Strikeout])), vec![str("~~a~")]);
     }
 
     #[test]
@@ -1381,11 +1375,7 @@ mod inline_tests {
         assert_eq!(
             p("![[[foo](uri1)](uri2)](uri3)"),
             vec![image(
-                vec![
-                    str("["),
-                    link(vec![str("foo")], "uri1"),
-                    str("](uri2)"),
-                ],
+                vec![str("["), link(vec![str("foo")], "uri1"), str("](uri2)"),],
                 "uri3",
             )]
         );
