@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+before \c
+.UR http://example.com
+.UE \c
+\ after

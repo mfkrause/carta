@@ -76,4 +76,8 @@ format_dispatch! {
     "write-rst" => "rst" => carta_writers::RstWriter;
     "write-mediawiki" => "mediawiki" => carta_writers::MediawikiWriter;
     "write-typst" => "typst" => carta_writers::TypstWriter;
+    "write-dokuwiki" => "dokuwiki" => carta_writers::DokuwikiWriter;
+    "write-jira" => "jira" => carta_writers::JiraWriter;
+    "write-asciidoc" => "asciidoc" => carta_writers::AsciidocWriter;
+    "write-man" => "man" => carta_writers::ManWriter;
 }

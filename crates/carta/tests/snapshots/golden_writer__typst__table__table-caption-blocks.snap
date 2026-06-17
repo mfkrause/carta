@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 1,
+    align: (auto,),
+    table.header([h],),
+    table.hline(),
+    [v],
+  )]
+  , caption: [First caption paragraph
+
+  Second caption paragraph
+
+  ]
+  , kind: table
+  )

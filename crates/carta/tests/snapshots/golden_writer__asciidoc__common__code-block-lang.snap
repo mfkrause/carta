@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[source,rust]
+----
+let s = "hi";
+x < y && y > z
+----

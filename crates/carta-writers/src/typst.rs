@@ -15,7 +15,7 @@ use carta_ast::{
 };
 use carta_core::{Result, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, display_width};
+use crate::common::{FILL_COLUMN, attribute_value, display_width};
 
 /// Renders a document to Typst markup (no trailing newline).
 #[derive(Debug, Default, Clone, Copy)]
@@ -730,13 +730,6 @@ fn trim_decimals(text: &str) -> String {
     } else {
         text.to_owned()
     }
-}
-
-fn attribute_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
-    attr.attributes
-        .iter()
-        .find(|(name, _)| name == key)
-        .map(|(_, value)| value.as_str())
 }
 
 fn math(kind: &MathType, text: &str) -> String {

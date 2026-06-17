@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l l.
+T{
+name
+T}@T{
+notes
+T}
+_
+T{
+alpha
+T}@T{
+.PP
+first paragraph
+.IP \(bu 2
+one
+.IP \(bu 2
+two
+T}
+.TE

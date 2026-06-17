@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (auto,auto,),
+    table.header([k], [description],),
+    table.hline(),
+    [a], [this cell holds a deliberately long run of text that cannot
+    fit inside one seventy-two column line and therefore forces a layout
+    decision],
+  )]
+  , kind: table
+  )

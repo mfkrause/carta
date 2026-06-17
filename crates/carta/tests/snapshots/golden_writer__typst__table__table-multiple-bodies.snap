@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#figure(
+  align(center)[#table(
+    columns: 2,
+    align: (auto,auto,),
+    table.header([h1], [h2],),
+    table.hline(),
+    [a1], [a2],
+    [b1], [b2],
+  )]
+  , kind: table
+  )

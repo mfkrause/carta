@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.alt text
+image::pic.png[alt text,title="t",width=200]

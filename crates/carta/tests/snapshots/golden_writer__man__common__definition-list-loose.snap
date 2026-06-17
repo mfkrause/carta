@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.TP
+Term
+Definition one
+.RS
+.PP
+Definition two
+.RE

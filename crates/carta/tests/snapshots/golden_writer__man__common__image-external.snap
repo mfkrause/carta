@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+[IMAGE: \c
+.UR https://example.org/i.png
+alt
+.UE \c
+]

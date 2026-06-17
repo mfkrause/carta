@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l l.
+T{
+項目
+T}@T{
+値
+T}
+_
+T{
+名前
+T}@T{
+漢字テキスト
+T}
+T{
+x
+T}@T{
+y
+T}
+.TE

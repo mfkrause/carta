@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+before
+\f[CR]a & b \(ti c \(rs d % e # f $ g _ h { i } j \(ha k | l < m > n\f[R]
+after

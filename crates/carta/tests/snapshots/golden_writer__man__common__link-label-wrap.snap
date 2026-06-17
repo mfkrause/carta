@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Padding padding padding padding \c
+.UR http://example.com/path
+a multi word link label here
+.UE \c
+\ and trailing words to push wrapping.

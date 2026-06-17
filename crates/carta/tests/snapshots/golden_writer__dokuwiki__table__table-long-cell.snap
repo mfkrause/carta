@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+^k^description                                                                                                                              ^
+|a|this cell holds a deliberately long run of text that cannot fit inside one seventy-two column line and therefore forces a layout decision|

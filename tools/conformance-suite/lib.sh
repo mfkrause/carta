@@ -40,11 +40,15 @@ require_tools() {
 # A target whose output is compared structurally as JSON rather than byte-for-byte.
 is_json_target() { [ "$1" = "json" ]; }
 
-# 0 when (target, feature) is listed as not-yet-implemented in exclusions.tsv.
+# 0 when the case is listed as not-yet-implemented in exclusions.tsv. An entry is
+# `target<TAB>feature` (the whole feature directory) or `target<TAB>feature/case` (one case stem).
 is_excluded() {
-  local target="$1" feature="$2"
+  local target="$1" feature="$2" case="${3:-}"
   [ -f "$EXCLUSIONS" ] || return 1
-  grep -v '^[[:space:]]*#' "$EXCLUSIONS" | grep -q "^${target}	${feature}\$"
+  local active
+  active="$(grep -v '^[[:space:]]*#' "$EXCLUSIONS")"
+  printf '%s\n' "$active" | grep -q "^${target}	${feature}\$" && return 0
+  [ -n "$case" ] && printf '%s\n' "$active" | grep -q "^${target}	${feature}/${case}\$"
 }
 
 # Compare two JSON files after canonical key sorting. Prints a brief diff and returns 1 on mismatch.
