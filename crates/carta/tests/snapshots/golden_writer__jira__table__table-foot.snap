@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+|| h1 || h2 ||
+| a | b |
+| sum | 3 |

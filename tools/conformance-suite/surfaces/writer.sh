@@ -11,7 +11,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-TARGETS="html latex rst plain commonmark mediawiki native json"
+TARGETS="html latex rst plain commonmark mediawiki native json typst dokuwiki jira asciidoc man"
 [ $# -gt 0 ] && TARGETS="$1"
 
 for target in $TARGETS; do
@@ -21,7 +21,7 @@ for target in $TARGETS; do
   for input in "$CORPUS"/ast/*/*.json; do
     [ -f "$input" ] || continue
     feature="$(basename "$(dirname "$input")")"
-    if is_excluded "$target" "$feature"; then
+    if is_excluded "$target" "$feature" "$(basename "$input" .json)"; then
       SKIP=$((SKIP + 1))
       continue
     fi

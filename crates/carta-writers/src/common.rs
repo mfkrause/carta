@@ -449,12 +449,66 @@ pub(crate) fn roman(number: i32, upper: bool) -> String {
     if upper { out.to_uppercase() } else { out }
 }
 
+/// How a raw-passthrough payload's trailing newlines are handled before emission.
+#[cfg(any(
+    feature = "dokuwiki",
+    feature = "jira",
+    feature = "man",
+    feature = "asciidoc"
+))]
+#[derive(Clone, Copy)]
+pub(crate) enum RawTrim {
+    /// Emit the payload verbatim.
+    Keep,
+    /// Drop a single trailing newline.
+    DropOne,
+    /// Drop every trailing newline.
+    DropAll,
+}
+
+/// Emit a raw block or inline payload only when its format names this writer's token, otherwise drop
+/// it. Recognition is case-insensitive. The trailing-newline policy is the writer's own.
+#[cfg(any(
+    feature = "dokuwiki",
+    feature = "jira",
+    feature = "man",
+    feature = "asciidoc"
+))]
+pub(crate) fn raw_passthrough(
+    format: &carta_ast::Format,
+    text: &str,
+    token: &str,
+    trim: RawTrim,
+) -> String {
+    if !format.0.eq_ignore_ascii_case(token) {
+        return String::new();
+    }
+    match trim {
+        RawTrim::Keep => text.to_owned(),
+        RawTrim::DropOne => text.strip_suffix('\n').unwrap_or(text).to_owned(),
+        RawTrim::DropAll => text.trim_end_matches('\n').to_owned(),
+    }
+}
+
 /// Look up a key/value attribute by key, returning its value.
 pub(crate) fn attribute_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
     attr.attributes
         .iter()
         .find(|(name, _)| name == key)
         .map(|(_, value)| value.as_str())
+}
+
+/// Split a CSS length into its leading numeric run (digits, `.`, sign) and the trailing unit. A
+/// value with no unit yields an empty unit; a value with no numeric prefix yields an empty number.
+#[cfg(any(feature = "dokuwiki", feature = "asciidoc"))]
+pub(crate) fn split_length_unit(raw: &str) -> (&str, &str) {
+    let boundary = raw
+        .find(|ch: char| !(ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == '+'))
+        .unwrap_or(raw.len());
+    (
+        raw.get(..boundary).unwrap_or(raw),
+        raw.get(boundary..).unwrap_or(""),
+    )
 }
 
 /// Whether a string is syntactically a URI scheme: an ASCII letter followed by ASCII letters,
@@ -827,17 +881,47 @@ pub(crate) fn escape_attr(text: &str) -> String {
     escape_xml(text, true)
 }
 
+/// One column slot of a laid-out row: the start of a cell, or a column covered by a column or row
+/// span (or a column the row's cells never reached). A consumer renders a covered slot as its own
+/// filler placeholder.
+#[cfg(any(
+    feature = "html",
+    feature = "mediawiki",
+    feature = "dokuwiki",
+    feature = "jira",
+    feature = "man",
+    feature = "asciidoc"
+))]
+pub(crate) enum GridSlot<'cell> {
+    Cell(usize, &'cell carta_ast::Cell),
+    Covered,
+}
+
 /// Resolves each table cell's true starting column within one row group, accounting for cells from
 /// earlier rows that still cover columns through their row span. Create one tracker per group of
 /// rows a span can extend over (a table head, a body's own head rows, a body's rows, a foot).
-#[cfg(any(feature = "html", feature = "mediawiki"))]
+#[cfg(any(
+    feature = "html",
+    feature = "mediawiki",
+    feature = "dokuwiki",
+    feature = "jira",
+    feature = "man",
+    feature = "asciidoc"
+))]
 #[derive(Debug)]
 pub(crate) struct RowSpanGrid {
     /// Per column, how many upcoming rows a span opened in an earlier row still covers.
     pending: Vec<i32>,
 }
 
-#[cfg(any(feature = "html", feature = "mediawiki"))]
+#[cfg(any(
+    feature = "html",
+    feature = "mediawiki",
+    feature = "dokuwiki",
+    feature = "jira",
+    feature = "man",
+    feature = "asciidoc"
+))]
 impl RowSpanGrid {
     pub(crate) fn new(columns: usize) -> Self {
         Self {
@@ -852,6 +936,24 @@ impl RowSpanGrid {
         &mut self,
         cells: &'cells [carta_ast::Cell],
     ) -> Vec<(usize, &'cells carta_ast::Cell)> {
+        self.place_slots(cells)
+            .into_iter()
+            .filter_map(|slot| match slot {
+                GridSlot::Cell(column, cell) => Some((column, cell)),
+                GridSlot::Covered => None,
+            })
+            .collect()
+    }
+
+    /// Place one row's cells, surfacing every column slot in order: a cell at its starting column,
+    /// or a covered placeholder for a column held by a column span, a row span opened above, or the
+    /// trailing columns a row span still holds past the row's own cells. Columns the row never
+    /// reached (no span covers them) are not emitted; a consumer that lays out a fixed column count
+    /// pads those itself.
+    pub(crate) fn place_slots<'cells>(
+        &mut self,
+        cells: &'cells [carta_ast::Cell],
+    ) -> Vec<GridSlot<'cells>> {
         let covered: Vec<usize> = self
             .pending
             .iter()
@@ -859,15 +961,19 @@ impl RowSpanGrid {
             .filter(|(_, rows)| **rows > 0)
             .map(|(column, _)| column)
             .collect();
-        let mut placed = Vec::with_capacity(cells.len());
+        let mut slots: Vec<GridSlot<'cells>> = Vec::with_capacity(cells.len());
         let mut column = 0_usize;
         for cell in cells {
             while self.pending.get(column).copied().unwrap_or(0) > 0 {
+                slots.push(GridSlot::Covered);
                 column = column.saturating_add(1);
             }
-            placed.push((column, cell));
+            slots.push(GridSlot::Cell(column, cell));
             let col_span = usize::try_from(cell.col_span).unwrap_or(1).max(1);
             let end = column.saturating_add(col_span);
+            for _ in 1..col_span {
+                slots.push(GridSlot::Covered);
+            }
             if self.pending.len() < end {
                 self.pending.resize(end, 0);
             }
@@ -876,12 +982,16 @@ impl RowSpanGrid {
             }
             column = end;
         }
+        while self.pending.get(column).copied().unwrap_or(0) > 0 {
+            slots.push(GridSlot::Covered);
+            column = column.saturating_add(1);
+        }
         for column in covered {
             if let Some(rows) = self.pending.get_mut(column) {
                 *rows -= 1;
             }
         }
-        placed
+        slots
     }
 }
 

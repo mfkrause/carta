@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+Captioned and attributed
+.TS
+tab(@);
+l l.
+T{
+h1
+T}@T{
+h2
+T}
+_
+T{
+a
+T}@T{
+b
+T}
+.TE

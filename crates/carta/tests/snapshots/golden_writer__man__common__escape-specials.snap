@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+a & b % c # d _ e $ f { g } h \(ha i \(ti j

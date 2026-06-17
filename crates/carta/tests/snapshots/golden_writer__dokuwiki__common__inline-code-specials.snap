@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+before ''%%a & b ~ c \ d % e # f $ g _ h { i } j ^ k | l < m > n%%'' after

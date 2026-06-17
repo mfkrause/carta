@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#heading(level: 1, numbering: none)[Hidden]
+<hidden>

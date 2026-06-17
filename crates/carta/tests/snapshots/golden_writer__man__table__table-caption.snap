@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+A caption for the table
+.TS
+tab(@);
+l.
+T{
+h
+T}
+_
+T{
+v
+T}
+.TE

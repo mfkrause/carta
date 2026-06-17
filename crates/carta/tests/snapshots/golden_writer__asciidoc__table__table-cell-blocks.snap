@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[cols=",",options="header",]
+|===
+|name |notes
+|alpha a|
+first paragraph
+
+* one
+* two
+
+|===

@@ -25,6 +25,11 @@ const TARGETS: &[&str] = &[
     "commonmark",
     "rst",
     "mediawiki",
+    "typst",
+    "dokuwiki",
+    "jira",
+    "asciidoc",
+    "man",
 ];
 
 #[test]
@@ -33,7 +38,9 @@ fn writer_output_snapshots() {
     let writers = carta::supported_output_formats();
     for case in corpus_cases("ast") {
         for &target in TARGETS {
-            if !writers.contains(&target) || is_excluded(&excluded, target, &case.group) {
+            if !writers.contains(&target)
+                || is_excluded(&excluded, target, &case.group, &case.label)
+            {
                 continue;
             }
             let output = carta::convert(
