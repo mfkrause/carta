@@ -13,7 +13,7 @@ workspace = true
 
 [features]
 default = ["full"]
-full = ["read-commonmark", "read-json", "write-html", "write-json", "write-plain", "read-native", "read-html", "write-native", "write-latex", "write-commonmark", "write-rst", "write-mediawiki"]
+full = ["read-commonmark", "read-json", "write-html", "write-json", "write-plain", "read-native", "read-html", "write-native", "write-latex", "write-commonmark", "write-rst", "write-mediawiki", "write-typst"]
 read-commonmark = ["dep:carta-readers", "carta-readers/commonmark"]
 read-json = ["dep:carta-readers", "carta-readers/json"]
 write-html = ["dep:carta-writers", "carta-writers/html"]
@@ -26,6 +26,7 @@ write-latex = ["dep:carta-writers", "carta-writers/latex"]
 write-commonmark = ["dep:carta-writers", "carta-writers/commonmark"]
 write-rst = ["dep:carta-writers", "carta-writers/rst"]
 write-mediawiki = ["dep:carta-writers", "carta-writers/mediawiki"]
+write-typst = ["dep:carta-writers", "carta-writers/typst"]
 
 [dependencies]
 carta-ast = { workspace = true }

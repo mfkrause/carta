@@ -7,7 +7,8 @@
     feature = "latex",
     feature = "commonmark",
     feature = "rst",
-    feature = "mediawiki"
+    feature = "mediawiki",
+    feature = "typst"
 ))]
 mod common;
 
@@ -30,6 +31,8 @@ pub mod native;
 pub mod plain;
 #[cfg(feature = "rst")]
 pub mod rst;
+#[cfg(feature = "typst")]
+pub mod typst;
 
 #[cfg(feature = "commonmark")]
 pub use commonmark::CommonmarkWriter;
@@ -47,3 +50,5 @@ pub use native::NativeWriter;
 pub use plain::PlainWriter;
 #[cfg(feature = "rst")]
 pub use rst::RstWriter;
+#[cfg(feature = "typst")]
+pub use typst::TypstWriter;
