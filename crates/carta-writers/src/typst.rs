@@ -343,15 +343,14 @@ fn render_table(table: &Table) -> String {
 /// Render a table caption within `[..]`. A single inline block stays on one line; richer content is
 /// laid out as an indented block, two columns in.
 fn table_caption(content: &[Block]) -> String {
-    match content {
-        [Block::Plain(inlines) | Block::Para(inlines)] => format!("[{}]", inline_run(inlines)),
-        _ => {
-            let mut body = blocks(content);
-            if !matches!(content.last(), Some(Block::Plain(_))) {
-                body.push('\n');
-            }
-            format!("[{}\n  ]", indent_continuation(&body, "  "))
+    if let [Block::Plain(inlines) | Block::Para(inlines)] = content {
+        format!("[{}]", inline_run(inlines))
+    } else {
+        let mut body = blocks(content);
+        if !matches!(content.last(), Some(Block::Plain(_))) {
+            body.push('\n');
         }
+        format!("[{}\n  ]", indent_continuation(&body, "  "))
     }
 }
 
@@ -440,7 +439,10 @@ fn table_cell(cell: &Cell, column: usize, indent: usize) -> String {
         prefix = format!("table.cell({})", spans.join(", "));
     }
     let bracket_column = column + display_width(&prefix);
-    format!("{prefix}{}", cell_content(&cell.content, bracket_column, indent))
+    format!(
+        "{prefix}{}",
+        cell_content(&cell.content, bracket_column, indent)
+    )
 }
 
 /// Render a cell's content within `[..]`. A single block of inline content fills against the column
@@ -790,7 +792,11 @@ fn escape_text(text: &str, after_space: bool, first_text: bool) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
     for (index, &ch) in chars.iter().enumerate() {
-        let previous = if index == 0 { None } else { chars.get(index - 1) };
+        let previous = if index == 0 {
+            None
+        } else {
+            chars.get(index - 1)
+        };
         let has_more = index + 1 < chars.len();
         let escape = match ch {
             '*' | '_' | '`' | '\\' | '#' | '$' | '@' | '<' | '>' | '~' | '[' | ']' | '"' | '\'' => {
@@ -944,19 +950,25 @@ mod tests {
     #[test]
     fn inline_code_with_backtick_falls_back() {
         assert_eq!(
-            render(vec![para(vec![Inline::Code(Attr::default(), "a`b".into())])]),
+            render(vec![para(vec![Inline::Code(
+                Attr::default(),
+                "a`b".into()
+            )])]),
             "#raw(\"a`b\")"
         );
     }
 
     #[test]
     fn paragraph_wraps_at_fill_column() {
-        let words: Vec<Inline> =
-            std::iter::repeat([str_inline("word"), Inline::Space].into_iter().collect::<Vec<_>>())
-                .take(15)
-                .flatten()
-                .chain(std::iter::once(str_inline("end")))
-                .collect();
+        let words: Vec<Inline> = std::iter::repeat_n(
+            [str_inline("word"), Inline::Space]
+                .into_iter()
+                .collect::<Vec<_>>(),
+            15,
+        )
+        .flatten()
+        .chain(std::iter::once(str_inline("end")))
+        .collect();
         let rendered = render(vec![para(words)]);
         assert!(rendered.contains('\n'));
         assert!(rendered.lines().all(|line| line.len() <= FILL_COLUMN));
@@ -1034,7 +1046,10 @@ mod tests {
         assert_eq!(render(vec![para(vec![str_inline("-x")])]), "\\-x");
         assert_eq!(render(vec![para(vec![str_inline("a-b")])]), "a-b");
         assert_eq!(render(vec![para(vec![str_inline("a---b")])]), "a-\\-\\-b");
-        assert_eq!(render(vec![para(vec![str_inline("http://a")])]), "http:/\\/a");
+        assert_eq!(
+            render(vec![para(vec![str_inline("http://a")])]),
+            "http:/\\/a"
+        );
         assert_eq!(render(vec![para(vec![str_inline("a.b")])]), "a.b");
         assert_eq!(render(vec![para(vec![str_inline(".x")])]), "\\.x");
         assert_eq!(render(vec![para(vec![str_inline("(ab)")])]), "\\(ab)");
@@ -1054,7 +1069,9 @@ mod tests {
     #[test]
     fn smart_dashes_spelled_out() {
         assert_eq!(
-            render(vec![para(vec![str_inline("en\u{2013}dash em\u{2014}dash")])]),
+            render(vec![para(vec![str_inline(
+                "en\u{2013}dash em\u{2014}dash"
+            )])]),
             "en--dash em---dash"
         );
     }
