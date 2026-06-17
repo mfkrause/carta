@@ -1,7 +1,7 @@
 //! Offline panic-safety net: parse every worked example from the vendored `CommonMark` spec and
-//! require the reader to return `Ok`. The spec text is embedded at build time, so this needs no
-//! oracle or corpus fetch. It does not assert *what* the AST is (that is the conformance suite's
-//! parity job) — only that no spec example makes the reader error or panic.
+//! require the reader to return `Ok`. The spec text is embedded at build time, so this runs fully
+//! offline. It does not assert *what* the AST is (that is the conformance suite's differential job)
+//! — only that no spec example makes the reader error or panic.
 
 // Integration-test harness code: panicking on a known example is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
