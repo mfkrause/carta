@@ -12,7 +12,7 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["html", "json", "plain", "latex", "native", "commonmark", "rst", "mediawiki"]
+default = ["html", "json", "plain", "latex", "native", "commonmark", "rst", "mediawiki", "typst"]
 html = ["dep:unicode-general-category"]
 json = []
 plain = []
@@ -21,6 +21,7 @@ native = []
 commonmark = ["html"]
 rst = []
 mediawiki = []
+typst = []
 
 [dependencies]
 carta-ast = { workspace = true }
