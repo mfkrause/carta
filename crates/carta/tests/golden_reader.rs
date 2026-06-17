@@ -1,8 +1,8 @@
 //! Layer 1 reader golden tests: snapshot carta's own JSON AST for each `corpus/text/<fmt>/*` case.
 //!
-//! These freeze current reader output and run fully offline. Correctness against pandoc is the
-//! conformance suite's job; this layer is the regression net and the no-oracle guarantee. Snapshots
-//! are reviewed with `cargo insta review`; never hand-edit the `.snap` files.
+//! These freeze current reader output and run fully offline; this layer is the regression net and
+//! the offline guarantee, while differential parity is the conformance suite's job. Snapshots are
+//! reviewed with `cargo insta review`; never hand-edit the `.snap` files.
 
 // Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

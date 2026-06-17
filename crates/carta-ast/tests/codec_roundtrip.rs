@@ -1,5 +1,5 @@
 //! Offline codec identity over the shared AST corpus: decode each `corpus/ast/**` document into the
-//! model, re-encode it, and assert the JSON is semantically unchanged. No oracle is involved — the
+//! model, re-encode it, and assert the JSON is semantically unchanged. It runs fully offline — the
 //! corpus files are inputs we author — so this gates the JSON codec on every run.
 //!
 //! Equality is by `serde_json::Value`, not bytes: it ignores object-key order and float formatting
