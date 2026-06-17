@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.RS
+.PP
+quoted
+.PP
+more lines here
+.RE

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#link("u1")[outer #link("u2")[inner] end]

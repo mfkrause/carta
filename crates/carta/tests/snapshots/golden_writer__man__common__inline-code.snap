@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+a \f[CR]let x = 1;\f[R] b

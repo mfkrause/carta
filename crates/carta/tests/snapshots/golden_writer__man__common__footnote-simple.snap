@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+ref[1]
+.SH NOTES
+.SS [1]
+.PP
+the note body

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[width="19%",cols="29%,71%",options="header",]
+|===
+|a |b
+|1 |2
+|===

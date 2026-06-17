@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.A caption for the table
+[cols="",options="header",]
+|===
+|h
+|v
+|===

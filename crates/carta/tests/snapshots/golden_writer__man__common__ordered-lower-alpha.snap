@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.IP "a." 3
+one
+.IP "b." 3
+two
