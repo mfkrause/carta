@@ -75,4 +75,5 @@ format_dispatch! {
     "write-commonmark" => "commonmark" => carta_writers::CommonmarkWriter;
     "write-rst" => "rst" => carta_writers::RstWriter;
     "write-mediawiki" => "mediawiki" => carta_writers::MediawikiWriter;
+    "write-typst" => "typst" => carta_writers::TypstWriter;
 }
