@@ -5,6 +5,12 @@ Reconciled on 2026-06-10 at commit `f5d2e3b`: no in-scope source drift in any pl
 premise prose was refreshed (the hyperfine CLI bench suite, `tools/bench-suite/`, landed between
 the two commits — it complements but does not replace plan 001's in-process criterion benches)
 and drift-check SHAs were bumped to `f5d2e3b`. All five plans remain valid and TODO.
+Plan 003 reconciled again on 2026-06-10 at `cf540ef` before execution: plan 006's extension work
+(`a0c456d`) added `~`/`^` delimiter kinds to the emphasis walk and `e21042c` moved use-count
+selection into the opener search. The quadratic finding is unchanged; 003's excerpts, Step-1
+test matrix (extension cases), Step-2 `openers_bottom` bucketing invariant, and Step-5 bench
+math (adversarial large is 32 KiB, not 1 MiB) were refreshed. 001 and 002 are merged to main
+(rebased, so their original SHAs are not ancestors; content verified present at `cf540ef`).
 Execute in the order below unless dependencies say otherwise. Each executor: read the plan
 fully before starting, honor its STOP conditions, and update your row when done.
 
@@ -18,7 +24,7 @@ findings are recorded below so they aren't re-audited.
 |------|-------|----------|--------|------------|--------|
 | 001 | Criterion bench suite (readers/writers/convert + pathological inputs) | P1 | M | — | DONE (commit `57560f1` on `advisor/001-criterion-benches`, reviewed+approved; awaiting operator merge. Adversarial inputs sized 32 KiB — inline resolver is quadratic, see plan's Executed note) |
 | 002 | Release profile tuning (lto, codegen-units=1, strip) | P1 | S | — | DONE (commit `c6bff34` on `worktree-agent-a3cfa78557ce4e2a6`, reviewed+approved; awaiting operator merge) |
-| 003 | Linear delimiter-stack inline emphasis/bracket resolution | P1 | M | 001 | TODO |
+| 003 | Linear delimiter-stack inline emphasis/bracket resolution | P1 | M | 001 | DONE (PR [#16](https://github.com/mfkrause/carta/pull/16), head `02e1e7b`, reviewed+approved after one revision. Full conformance suite green. Caveat: `pathological_brackets` went linear (9.5×→3.7×) but `emphasis_heavy` remains ~10× — see plan's Executed note) |
 | 004 | Allocation hygiene bundle (6 reader hot-path sites) | P2 | M | 001 (soft) | TODO |
 | 005 | Spike: byte-offset scanning + boxed `Inline` variants (report, not merge) | P2 | M | 001 (hard) | TODO |
 | 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | DONE |
@@ -37,7 +43,9 @@ Plan 006 is manually authored (feature work, not from the performance improve ru
 - 003 hard-requires 001's `emphasis_heavy` / `pathological_brackets` benches as its
   regression proof; its correctness gate (snapshots byte-identical) works without 001.
 - 004 is safe without 001 but its before/after step needs the benches.
-- 005 cannot start without 001 (it is purely a measurement exercise).
+- 005 cannot start without 001 (it is purely a measurement exercise). 003's residual quadratic
+  (`emphasis_heavy` — per-match Vec node splices dominate on matched-pair-heavy input) is a
+  candidate question for 005's representation spike; see 003's Executed note.
 - 002 and 001 are independent and can run in parallel.
 
 ## Findings considered and rejected (do not re-audit)
