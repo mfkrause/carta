@@ -1,5 +1,5 @@
-//! Facade integration tests: the high-level `convert` entry point and format-name resolution. No
-//! oracle needed — outputs are the writers' own deterministic text. The error-classification cases
+//! Facade integration tests: the high-level `convert` entry point and format-name resolution. These
+//! run fully offline — outputs are the writers' own deterministic text. The error-classification cases
 //! are feature-gated so they assert the right branch under both `--all-features` and a minimal
 //! `--no-default-features --features read-commonmark,write-html` build.
 

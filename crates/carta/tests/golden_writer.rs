@@ -2,7 +2,7 @@
 //! rendered to every target, minus the `(target, feature)` pairs listed in `corpus/exclusions.tsv`.
 //!
 //! The corpus is full-model AST-JSON, so this exercises writer node shapes no reader can produce.
-//! Snapshots freeze current output and run offline; parity against pandoc is the conformance suite's
+//! Snapshots freeze current output and run offline; differential parity is the conformance suite's
 //! job. Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
 
 // Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.

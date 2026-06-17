@@ -1,6 +1,6 @@
 //! End-to-end tests for the `carta` binary: format dispatch, aliases, file vs stdin/stdout I/O,
 //! and the error paths. The binary is invoked as a subprocess (`CARGO_BIN_EXE_carta`); outputs are
-//! the writer's own deterministic text, so no oracle is needed.
+//! the writer's own deterministic text, so these run fully offline.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
