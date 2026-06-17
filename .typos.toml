@@ -27,3 +27,5 @@ Alph = "Alph"
 caf = "caf"
 # URI scheme for the iTunes Music Store, part of the recognized autolink scheme set.
 itms = "itms"
+# man macro pair delimiting a hyperlink: .UR opens a URL, .UE ends it.
+UE = "UE"
