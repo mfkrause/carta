@@ -406,7 +406,7 @@ fn attr_dimension(attr: &Attr, name: &str) -> Option<u64> {
 
 /// Convert a CSS length to whole pixels at 96 dpi, truncating toward zero. Recognized units are
 /// `px`, `in`, `cm`, `mm`, `pc`, `pt`, and `em`; a bare number is taken as pixels. A value that is
-/// negative, non-finite, unparseable, or in an unsupported unit (e.g. `%`, `ex`) yields `None`.
+/// negative, non-finite, unparsable, or in an unsupported unit (e.g. `%`, `ex`) yields `None`.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn dimension_pixels(raw: &str) -> Option<u64> {
     let (number, unit) = split_length_unit(raw.trim());
