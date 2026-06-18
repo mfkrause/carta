@@ -7,7 +7,7 @@ use carta_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
-use super::{IrBlock, RefMap, TAB_STOP, attr, html_block, scan};
+use super::{IrBlock, RefMap, TAB_STOP, attr, html_block, scan, table};
 
 /// Parse the normalized input into the block tree plus the collected link references.
 pub(crate) fn parse(input: &str, extensions: Extensions) -> (Vec<IrBlock>, RefMap) {
@@ -229,6 +229,12 @@ impl Parser {
             }
         }
 
+        // A pipe table that has begun in an open paragraph claims its rows here, before the block
+        // openers below could read a row's leading `-`, `>`, `#`, etc. as the start of a new block.
+        if self.continue_pipe_table(container, all_matched, blank, &cursor) {
+            return;
+        }
+
         // The deepest block open before this line opens any new ones. When a container went
         // unmatched in phase 1, this is the tip of the unmatched chain hanging below `matched`.
         let matched = container;
@@ -274,6 +280,41 @@ impl Parser {
         }
 
         self.add_line(container, started_new, blank, &mut cursor);
+    }
+
+    /// Let an in-progress pipe table claim a continuation line before the block openers run,
+    /// returning `true` when the line was absorbed as a table row and needs no further handling. A
+    /// row without a pipe ends the table: the open paragraph closes and the line is reparsed.
+    fn continue_pipe_table(
+        &mut self,
+        container: usize,
+        all_matched: bool,
+        blank: bool,
+        cursor: &Cursor,
+    ) -> bool {
+        if !self.extensions.contains(Extension::PipeTables) || !all_matched || blank {
+            return false;
+        }
+        let Some(para) = self
+            .last_open_child(container)
+            .filter(|&c| matches!(self.kind(c), Some(Kind::Paragraph)))
+        else {
+            return false;
+        };
+        let rest = cursor.rest();
+        let paragraph = self.node_text(para);
+        match table::classify_continuation(&paragraph, &rest) {
+            table::Continuation::Absorb => {
+                self.append_text(para, &rest);
+                self.append_text(para, "\n");
+                true
+            }
+            table::Continuation::Terminate => {
+                self.close(para);
+                false
+            }
+            table::Continuation::NotTable => false,
+        }
     }
 
     /// Close `tip` and each ancestor up to (but not including) `until`.
@@ -657,7 +698,17 @@ impl Parser {
                 if trimmed.is_empty() {
                     return None;
                 }
-                IrBlock::Para(trimmed.to_owned())
+                if self.extensions.contains(Extension::PipeTables)
+                    && let Some((alignments, header, rows)) = table::try_parse(trimmed)
+                {
+                    IrBlock::Table {
+                        alignments,
+                        header,
+                        rows,
+                    }
+                } else {
+                    IrBlock::Para(trimmed.to_owned())
+                }
             }
             Kind::Heading(level) => IrBlock::Heading(*level, node.text.trim().to_owned()),
             Kind::ThematicBreak => IrBlock::ThematicBreak,
