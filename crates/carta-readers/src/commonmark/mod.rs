@@ -270,6 +270,16 @@ mod tests {
     }
 
     #[test]
+    fn bare_marker_trailed_by_spaces_leaves_an_empty_item() {
+        // The whitespace after a contentless marker is not a non-blank line, so it leaves the item
+        // empty rather than opening an indented code block inside it.
+        assert!(matches!(
+            blocks("-     \n").as_slice(),
+            [Block::BulletList(items)] if items.as_slice() == [Vec::new()]
+        ));
+    }
+
+    #[test]
     fn empty_list_marker_still_cannot_interrupt_a_same_level_paragraph() {
         // At the same level the restriction holds: an empty marker is absorbed into the paragraph.
         // (`*` is used rather than `-` so the line is not read as a setext heading underline.)
