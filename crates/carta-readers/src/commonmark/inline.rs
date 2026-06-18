@@ -5,7 +5,10 @@
 //! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
-use carta_ast::{Attr, Block, Inline, MathType, QuoteType, Target};
+use carta_ast::{
+    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Inline, MathType, QuoteType, Row,
+    Table, TableBody, TableFoot, TableHead, Target,
+};
 use carta_core::{Extension, Extensions};
 
 use super::attr;
@@ -52,6 +55,68 @@ fn resolve_block(block: &IrBlock, refs: &RefMap, ext: Extensions, out: &mut Vec<
             attrs.clone(),
             items.iter().map(|i| resolve_blocks(i, refs, ext)).collect(),
         )),
+        IrBlock::Table {
+            alignments,
+            header,
+            rows,
+        } => out.push(resolve_table(alignments, header, rows, refs, ext)),
+    }
+}
+
+/// Build a pipe table: column specs from the alignments, the header in a single-row `TableHead`,
+/// and the body rows in one `TableBody`. Every cell's trimmed text parses into inlines wrapped in a
+/// single `Plain`; an empty cell carries no blocks. Captions, footers, widths, spans, and row-head
+/// columns are all the structurally empty defaults.
+fn resolve_table(
+    alignments: &[Alignment],
+    header: &[String],
+    rows: &[Vec<String>],
+    refs: &RefMap,
+    ext: Extensions,
+) -> Block {
+    let col_specs = alignments
+        .iter()
+        .map(|align| ColSpec {
+            align: align.clone(),
+            width: ColWidth::ColWidthDefault,
+        })
+        .collect();
+    let make_row = |cells: &[String]| Row {
+        attr: Attr::default(),
+        cells: cells.iter().map(|text| make_cell(text, refs, ext)).collect(),
+    };
+    Block::Table(Box::new(Table {
+        attr: Attr::default(),
+        caption: Caption::default(),
+        col_specs,
+        head: TableHead {
+            attr: Attr::default(),
+            rows: vec![make_row(header)],
+        },
+        bodies: vec![TableBody {
+            attr: Attr::default(),
+            row_head_columns: 0,
+            head: Vec::new(),
+            body: rows.iter().map(|cells| make_row(cells)).collect(),
+        }],
+        foot: TableFoot::default(),
+    }))
+}
+
+/// Build one table cell. A non-empty cell's text parses into inlines wrapped in a `Plain`; an empty
+/// or whitespace-only cell carries an empty block list.
+fn make_cell(text: &str, refs: &RefMap, ext: Extensions) -> Cell {
+    let content = if text.is_empty() {
+        Vec::new()
+    } else {
+        vec![Block::Plain(parse_inlines(text, refs, ext))]
+    };
+    Cell {
+        attr: Attr::default(),
+        align: Alignment::AlignDefault,
+        row_span: 1,
+        col_span: 1,
+        content,
     }
 }
 
