@@ -18,11 +18,14 @@ use common::{corpus_cases, exclusions, is_excluded};
 
 const TARGETS: &[&str] = &[
     "html",
+    "html4",
     "json",
     "plain",
     "native",
     "latex",
     "commonmark",
+    "markdown",
+    "gfm",
     "rst",
     "mediawiki",
     "typst",
@@ -30,6 +33,9 @@ const TARGETS: &[&str] = &[
     "jira",
     "asciidoc",
     "man",
+    "opml",
+    "beamer",
+    "revealjs",
 ];
 
 #[test]

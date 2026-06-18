@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{longtable}[]{@{}l@{}}
+\caption[Short form]{The full caption text}\tabularnewline
+\toprule\noalign{}
+h \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+h \\
+\midrule\noalign{}
+\endhead
+v \\
+\bottomrule\noalign{}
+\end{longtable}
+\end{frame}

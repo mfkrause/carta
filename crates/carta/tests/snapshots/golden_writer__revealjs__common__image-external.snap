@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p><img data-src="https://example.org/i.png" alt="alt" /></p>
+</section>

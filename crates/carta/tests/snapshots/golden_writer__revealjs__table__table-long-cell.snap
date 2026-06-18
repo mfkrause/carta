@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<table>
+<thead>
+<tr>
+<th>k</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a</td>
+<td>this cell holds a deliberately long run of text that cannot fit
+inside one seventy-two column line and therefore forces a layout
+decision</td>
+</tr>
+</tbody>
+</table>
+</section>

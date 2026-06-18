@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ol class="example" style="list-style-type: decimal">
+<li>first</li>
+<li>second</li>
+</ol>

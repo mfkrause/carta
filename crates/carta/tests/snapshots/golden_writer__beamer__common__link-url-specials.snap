@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\href{http://example.com/a\%20b\#frag}{x}
+\end{frame}

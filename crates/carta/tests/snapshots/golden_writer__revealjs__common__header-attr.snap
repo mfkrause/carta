@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="anchor" class="title-slide slide level1 cls"
+data-key="val">
+<h1 class="cls" data-key="val">Titled</h1>
+
+</section>

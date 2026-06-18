@@ -15,7 +15,7 @@ CORPUS="$ROOT/corpus"
 # highlighting. Applied to the pandoc side only.
 oracle_norm() {
   case "$1" in
-    html | html5) echo "--syntax-highlighting=none --mathjax" ;;
-    latex) echo "--syntax-highlighting=none" ;;
+    html | html5 | html4 | revealjs) echo "--syntax-highlighting=none --mathjax" ;;
+    latex | beamer) echo "--syntax-highlighting=none" ;;
   esac
 }

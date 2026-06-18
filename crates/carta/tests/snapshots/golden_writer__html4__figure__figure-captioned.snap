@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div class="float">
+<img src="pic.png" title="fig title" alt="a caption" />
+<div class="figcaption">a caption</div>
+</div>

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p><kbd id="theid" class="rest mid" data-k="v"><mark>x</mark></kbd>
+<dfn>term</dfn></p>
+</section>

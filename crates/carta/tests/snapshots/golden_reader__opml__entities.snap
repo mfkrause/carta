@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"author":{"t":"MetaList","c":[]},"date":{"t":"MetaInlines","c":[]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Entities"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"references"}]}},"blocks":[{"t":"Header","c":[1,["",[],[]],[{"t":"Str","c":"Tom"},{"t":"Space"},{"t":"Str","c":"&"},{"t":"Space"},{"t":"Str","c":"Jerry"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"friends"}]]},{"t":"Para","c":[{"t":"Str","c":"Plain"},{"t":"Space"},{"t":"Str","c":"note"},{"t":"Space"},{"t":"Str","c":"text."}]},{"t":"Header","c":[1,["",[],[]],[{"t":"Str","c":"Numeric"},{"t":"Space"},{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"B"},{"t":"Space"},{"t":"Str","c":"here"}]]}]}

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+text
+\includegraphics[width=2.08333in,height=\textheight,keepaspectratio,alt={alt}]{pic.png}
+more
+\end{frame}

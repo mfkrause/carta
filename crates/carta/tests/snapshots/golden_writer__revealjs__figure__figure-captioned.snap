@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<figure>
+<img data-src="pic.png" title="fig title" alt="a caption" />
+<figcaption aria-hidden="true">a caption</figcaption>
+</figure>
+</section>

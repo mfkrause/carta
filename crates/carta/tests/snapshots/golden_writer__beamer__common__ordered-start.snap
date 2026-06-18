@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{enumerate}
+\setcounter{enumi}{4}
+\tightlist
+\item
+  five
+\item
+  six
+\end{enumerate}
+\end{frame}

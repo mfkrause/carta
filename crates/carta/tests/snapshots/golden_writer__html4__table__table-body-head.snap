@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>h1</th>
+<th>h2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th>group</th>
+<th>values</th>
+</tr>
+
+<tr>
+<th>k1</th>
+<td>v1</td>
+</tr>
+<tr>
+<th>k2</th>
+<td>v2</td>
+</tr>
+</tbody>
+</table>

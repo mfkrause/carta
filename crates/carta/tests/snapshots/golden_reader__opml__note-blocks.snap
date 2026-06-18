@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"author":{"t":"MetaList","c":[{"t":"MetaInlines","c":[{"t":"Str","c":"Author"},{"t":"Space"},{"t":"Str","c":"Name"}]}]},"date":{"t":"MetaInlines","c":[{"t":"Str","c":"2020-01-02"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Notes"}]}},"blocks":[{"t":"Header","c":[1,["",[],[]],[{"t":"Str","c":"Heading"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"note"}]]},{"t":"Para","c":[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"emphasis"}]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"strong"}]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"blank"},{"t":"Space"},{"t":"Str","c":"line."}]}]}

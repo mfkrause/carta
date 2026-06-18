@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\section{One}\label{one}
+
+\subsection{Two}\label{two}
+
+\begin{frame}{Six}
+\protect\phantomsection\label{six}
+\end{frame}
