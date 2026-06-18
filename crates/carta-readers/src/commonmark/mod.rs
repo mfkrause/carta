@@ -5,6 +5,7 @@
 //! reference definitions; the inline phase ([`inline`]) then parses each leaf's text into inlines.
 //! The result is assembled into a [`Document`] (see `docs/plans/slice-1-commonmark-html.md`).
 
+mod attr;
 mod block;
 mod cursor;
 mod html_block;
@@ -59,7 +60,7 @@ pub(crate) type RefMap = BTreeMap<String, LinkDef>;
 
 fn parse(input: &str, extensions: Extensions) -> Document {
     let normalized = normalize(input);
-    let (ir, refs) = block::parse(&normalized);
+    let (ir, refs) = block::parse(&normalized, extensions);
     let blocks = inline::resolve_blocks(&ir, &refs, extensions);
     Document {
         blocks,
