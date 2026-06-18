@@ -6,6 +6,7 @@
 //! The result is assembled into a [`Document`] (see `docs/plans/slice-1-commonmark-html.md`).
 
 mod attr;
+mod autolink;
 mod block;
 mod cursor;
 mod html_block;
