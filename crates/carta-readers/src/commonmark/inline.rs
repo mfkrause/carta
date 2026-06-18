@@ -61,7 +61,9 @@ pub(crate) fn resolve_document(
         by_id: &by_id,
         in_definition: false,
     };
-    resolve_blocks(ir, refs, top, ext)
+    let mut blocks = resolve_blocks(ir, refs, top, ext);
+    super::identifiers::assign_header_identifiers(&mut blocks, ext);
+    blocks
 }
 
 fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, notes: Notes, ext: Extensions) -> Vec<Block> {
