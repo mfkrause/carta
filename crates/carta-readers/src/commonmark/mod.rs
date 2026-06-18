@@ -94,10 +94,15 @@ pub(crate) type RefMap = BTreeMap<String, LinkDef>;
 /// gathered for that footnote, resolved into a `Note` at every matching reference.
 pub(crate) type FootnoteDefs = BTreeMap<String, Vec<IrBlock>>;
 
+/// Example-list item numbers, keyed by `@label`. The block phase walks every example list in
+/// document order, assigning each distinct label the next number in a single shared sequence; a
+/// later `@label` reference resolves to that number.
+pub(crate) type ExampleMap = BTreeMap<String, i32>;
+
 fn parse(input: &str, extensions: Extensions) -> Document {
     let normalized = normalize(input);
-    let (ir, refs, footnotes) = block::parse(&normalized, extensions);
-    let blocks = inline::resolve_document(&ir, refs, &footnotes, extensions);
+    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions);
+    let blocks = inline::resolve_document(&ir, refs, &footnotes, &examples, extensions);
     Document {
         blocks,
         ..Document::default()
@@ -1066,5 +1071,158 @@ mod tests {
     #[test]
     fn with_the_extension_off_a_letter_marker_is_paragraph_text() {
         assert!(matches!(blocks("a. one\n").as_slice(), [Block::Para(_)]));
+    }
+
+    /// Every example list in `input` (parsed with example lists on) as (start, style, delim, item
+    /// count), in document order, descendants included.
+    fn example_lists(input: &str) -> Vec<(i32, ListNumberStyle, ListNumberDelim, usize)> {
+        fn collect(
+            blocks: &[Block],
+            out: &mut Vec<(i32, ListNumberStyle, ListNumberDelim, usize)>,
+        ) {
+            for block in blocks {
+                match block {
+                    Block::OrderedList(attrs, items) => {
+                        out.push((
+                            attrs.start,
+                            attrs.style.clone(),
+                            attrs.delim.clone(),
+                            items.len(),
+                        ));
+                        for item in items {
+                            collect(item, out);
+                        }
+                    }
+                    Block::BulletList(items) => {
+                        for item in items {
+                            collect(item, out);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        collect(&blocks_with(input, Extension::ExampleLists), &mut out);
+        out
+    }
+
+    /// The flattened text of every top-level paragraph in `input` (example lists on), joined by a
+    /// space — enough to observe how `@label` references resolve.
+    fn example_text(input: &str) -> String {
+        blocks_with(input, Extension::ExampleLists)
+            .iter()
+            .filter_map(|block| match block {
+                Block::Para(inlines) => Some(flatten_inlines(inlines)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn the_three_example_markers_open_example_lists() {
+        use ListNumberDelim::{OneParen, Period, TwoParens};
+        use ListNumberStyle::Example;
+        assert_eq!(
+            example_lists("(@) one\n\n@. two\n\n@) three\n"),
+            [
+                (1, Example, TwoParens, 1),
+                (2, Example, Period, 1),
+                (3, Example, OneParen, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_reference_resolves_to_its_example_number() {
+        assert_eq!(example_text("(@a) apple\n\nSee (@a).\n"), "See (1).");
+    }
+
+    #[test]
+    fn a_bare_reference_drops_the_parentheses() {
+        assert_eq!(example_text("(@a) apple\n\nbare @a end\n"), "bare 1 end");
+    }
+
+    #[test]
+    fn the_counter_skips_ordinary_ordered_lists() {
+        // A plain decimal list between two examples does not advance the example counter.
+        assert_eq!(
+            example_lists("(@a) x\n\n1. p\n2. q\n\n(@b) y\n"),
+            [
+                (1, ListNumberStyle::Example, ListNumberDelim::TwoParens, 1),
+                (1, ListNumberStyle::Decimal, ListNumberDelim::Period, 2),
+                (2, ListNumberStyle::Example, ListNumberDelim::TwoParens, 1),
+            ]
+        );
+        assert_eq!(
+            example_text("(@a) x\n\n1. p\n2. q\n\n(@b) y\n\nRefs (@a) and (@b)\n"),
+            "Refs (1) and (2)"
+        );
+    }
+
+    #[test]
+    fn a_repeated_label_reuses_its_number() {
+        use ListNumberDelim::{OneParen, Period, TwoParens};
+        use ListNumberStyle::Example;
+        // The second `@a` neither takes a fresh number nor advances the counter, so the distinct
+        // label `@b` is two, not three. Three delimiters keep the examples in separate lists.
+        assert_eq!(
+            example_lists("(@a) x\n\n@a. y\n\n@b) z\n"),
+            [
+                (1, Example, TwoParens, 1),
+                (1, Example, Period, 1),
+                (2, Example, OneParen, 1),
+            ]
+        );
+        assert_eq!(
+            example_text("(@a) x\n\n@a. y\n\n@b) z\n\nRef (@a) (@b)\n"),
+            "Ref (1) (2)"
+        );
+    }
+
+    #[test]
+    fn an_anonymous_example_advances_the_counter() {
+        // The unreferenceable `(@)` takes number one, so the following labelled example is two.
+        assert_eq!(
+            example_lists("(@) x\n\n@a. y\n"),
+            [
+                (1, ListNumberStyle::Example, ListNumberDelim::TwoParens, 1),
+                (2, ListNumberStyle::Example, ListNumberDelim::Period, 1),
+            ]
+        );
+        assert_eq!(example_text("(@) x\n\n@a. y\n\nSee (@a)\n"), "See (2)");
+    }
+
+    #[test]
+    fn an_anonymous_reference_stays_literal() {
+        assert_eq!(example_text("(@) x\n\nSee (@).\n"), "See (@).");
+    }
+
+    #[test]
+    fn an_undefined_reference_stays_literal() {
+        assert_eq!(example_text("(@a) x\n\nSee (@b).\n"), "See (@b).");
+    }
+
+    #[test]
+    fn a_reference_resolves_within_emphasis_but_not_within_code() {
+        // Emphasis content is parsed, so the reference resolves; a code span is verbatim.
+        assert_eq!(example_text("(@a) x\n\n*em (@a)*\n"), "em (1)");
+        assert_eq!(example_text("(@a) x\n\n`(@a)`\n"), "(@a)");
+    }
+
+    #[test]
+    fn the_counter_spans_nested_example_lists() {
+        // Reading order crosses container boundaries: the example nested in a bullet is two.
+        assert_eq!(
+            example_text("(@a) x\n\n- bullet\n\n    (@b) nested\n\nRefs (@a) and (@b)\n"),
+            "Refs (1) and (2)"
+        );
+    }
+
+    #[test]
+    fn with_the_extension_off_an_example_marker_is_paragraph_text() {
+        assert!(matches!(blocks("(@) one\n").as_slice(), [Block::Para(_)]));
+        assert!(matches!(blocks("@a. one\n").as_slice(), [Block::Para(_)]));
     }
 }

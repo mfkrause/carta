@@ -19,23 +19,25 @@ use super::scan::{
     scan_html_tag, scan_inline_target,
 };
 use super::identifiers::HeaderNumbering;
-use super::{FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
+use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
 const TASK_UNCHECKED: &str = "\u{2610}";
 /// The checked checkbox emitted for a checked task-list item (`- [x]`).
 const TASK_CHECKED: &str = "\u{2612}";
 
-/// Footnote resolution context threaded through the inline phase.
+/// Document-level reference context threaded through the inline phase.
 ///
-/// A reference `[^label]` resolves only when `label` is in `defined`. At the top level it becomes a
-/// `Note` carrying the matching content from `by_id`; inside a definition's own body it collapses to
-/// an empty string rather than nesting another note.
+/// A footnote reference `[^label]` resolves only when `label` is in `defined`. At the top level it
+/// becomes a `Note` carrying the matching content from `by_id`; inside a definition's own body it
+/// collapses to an empty string rather than nesting another note. An example reference `@label`
+/// resolves to its number from `examples`.
 #[derive(Clone, Copy)]
-struct Notes<'a> {
+struct RefContext<'a> {
     defined: &'a BTreeSet<String>,
     by_id: &'a BTreeMap<String, Vec<Block>>,
     in_definition: bool,
+    examples: &'a ExampleMap,
 }
 
 /// Resolve the whole document: collect the headings reachable by implicit reference, then each
@@ -45,6 +47,7 @@ pub(crate) fn resolve_document(
     ir: &[IrBlock],
     mut refs: RefMap,
     footnotes: &FootnoteDefs,
+    examples: &ExampleMap,
     ext: Extensions,
 ) -> Vec<Block> {
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
@@ -52,26 +55,29 @@ pub(crate) fn resolve_document(
     // Headings register their references up front so a reference resolves to a heading anywhere in
     // the document, including one that appears later or inside a footnote definition.
     if ext.contains(Extension::ImplicitHeaderReferences) {
-        let probe = Notes {
+        let probe = RefContext {
             defined: &defined,
             by_id: &empty,
             in_definition: false,
+            examples,
         };
         register_header_references(ir, &mut refs, probe, ext);
     }
-    let in_def = Notes {
+    let in_def = RefContext {
         defined: &defined,
         by_id: &empty,
         in_definition: true,
+        examples,
     };
     let by_id: BTreeMap<String, Vec<Block>> = footnotes
         .iter()
         .map(|(key, body)| (key.clone(), resolve_blocks(body, &refs, in_def, ext)))
         .collect();
-    let top = Notes {
+    let top = RefContext {
         defined: &defined,
         by_id: &by_id,
         in_definition: false,
+        examples,
     };
     let mut blocks = resolve_blocks(ir, &refs, top, ext);
     super::identifiers::assign_header_identifiers(&mut blocks, ext);
@@ -83,7 +89,7 @@ pub(crate) fn resolve_document(
 /// numbered with the same algorithm that later assigns their `attr` ids, so the two agree. An
 /// already-defined label is left untouched, so an explicit definition outranks a heading and, among
 /// headings, the first with a given label wins — while every heading still advances the numbering.
-fn register_header_references(ir: &[IrBlock], refs: &mut RefMap, notes: Notes, ext: Extensions) {
+fn register_header_references(ir: &[IrBlock], refs: &mut RefMap, notes: RefContext, ext: Extensions) {
     let mut numbering = HeaderNumbering::new(ext);
     gather_headers(ir, refs, notes, ext, &mut numbering);
 }
@@ -91,7 +97,7 @@ fn register_header_references(ir: &[IrBlock], refs: &mut RefMap, notes: Notes, e
 fn gather_headers(
     ir: &[IrBlock],
     refs: &mut RefMap,
-    notes: Notes,
+    notes: RefContext,
     ext: Extensions,
     numbering: &mut HeaderNumbering,
 ) {
@@ -126,7 +132,7 @@ fn gather_headers(
     }
 }
 
-fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, notes: Notes, ext: Extensions) -> Vec<Block> {
+fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Block> {
     let mut out = Vec::with_capacity(ir.len());
     for block in ir {
         resolve_block(block, refs, notes, ext, &mut out);
@@ -137,7 +143,7 @@ fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, notes: Notes, ext: Extensions) 
 fn resolve_block(
     block: &IrBlock,
     refs: &RefMap,
-    notes: Notes,
+    notes: RefContext,
     ext: Extensions,
     out: &mut Vec<Block>,
 ) {
@@ -245,7 +251,7 @@ fn resolve_table(
     header: &[String],
     rows: &[Vec<String>],
     refs: &RefMap,
-    notes: Notes,
+    notes: RefContext,
     ext: Extensions,
 ) -> Block {
     let col_specs = alignments
@@ -282,7 +288,7 @@ fn resolve_table(
 
 /// Build one table cell. A non-empty cell's text parses into inlines wrapped in a `Plain`; an empty
 /// or whitespace-only cell carries an empty block list.
-fn make_cell(text: &str, refs: &RefMap, notes: Notes, ext: Extensions) -> Cell {
+fn make_cell(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Cell {
     let content = if text.is_empty() {
         Vec::new()
     } else {
@@ -306,7 +312,7 @@ fn make_cell(text: &str, refs: &RefMap, notes: Notes, ext: Extensions) -> Cell {
 fn resolve_bullet_list(
     items: &[Vec<IrBlock>],
     refs: &RefMap,
-    notes: Notes,
+    notes: RefContext,
     ext: Extensions,
     out: &mut Vec<Block>,
 ) {
@@ -338,7 +344,7 @@ fn resolve_item(
     item: &[IrBlock],
     marker: Option<&IrBlock>,
     refs: &RefMap,
-    notes: Notes,
+    notes: RefContext,
     ext: Extensions,
 ) -> Vec<Block> {
     let mut out = Vec::new();
@@ -453,7 +459,7 @@ enum Explicit {
 // `notes` (the footnote context) and `nodes` (the in-progress inline list) are distinct concepts
 // that unavoidably read alike.
 #[allow(clippy::similar_names)]
-fn parse_inlines(text: &str, refs: &RefMap, notes: Notes, ext: Extensions) -> Vec<Inline> {
+fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut parser = InlineParser {
         chars: &chars,
@@ -479,7 +485,7 @@ struct InlineParser<'a> {
     pos: usize,
     nodes: Vec<Node>,
     refs: &'a RefMap,
-    notes: Notes<'a>,
+    notes: RefContext<'a>,
     ext: Extensions,
     /// Indices into `nodes` for each open `[` or `![` delimiter, in parse order. O(1) lookup of
     /// the most recent bracket opener instead of a backward scan through all nodes.
@@ -511,6 +517,7 @@ impl InlineParser<'_> {
                     self.emphasis_run(b'~');
                 }
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
+                '@' if self.ext.contains(Extension::ExampleLists) => self.example_ref(),
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
                 '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
                 '.' if self.ext.contains(Extension::Smart) => self.smart_ellipsis(),
@@ -545,6 +552,33 @@ impl InlineParser<'_> {
         } else {
             self.nodes.push(Node::Text(value.to_owned()));
         }
+    }
+
+    /// Resolve an example-list reference `@label` at the cursor. A label assigned a number by an
+    /// example item becomes that number; an undefined or empty label leaves the `@` as literal text,
+    /// so the rest of the run reparses normally.
+    fn example_ref(&mut self) {
+        let mut len = 0;
+        while matches!(
+            self.at(1 + len),
+            Some('0'..='9' | 'a'..='z' | 'A'..='Z' | '-' | '_')
+        ) {
+            len += 1;
+        }
+        if len > 0 {
+            let label: String = self
+                .chars
+                .get(self.pos + 1..self.pos + 1 + len)
+                .map(|run| run.iter().collect())
+                .unwrap_or_default();
+            if let Some(number) = self.notes.examples.get(&label) {
+                self.pos += 1 + len;
+                self.push_str(&number.to_string());
+                return;
+            }
+        }
+        self.pos += 1;
+        self.push_text('@');
     }
 
     fn backslash(&mut self) {
@@ -1774,18 +1808,21 @@ mod inline_tests {
 
     use carta_ast::{Attr, Block, Inline, Target};
 
-    use super::{LinkDef, Notes, RefMap, parse_inlines};
+    use super::{ExampleMap, LinkDef, RefContext, RefMap, parse_inlines};
     use carta_core::{Extension, Extensions};
 
     static NO_DEFINED: BTreeSet<String> = BTreeSet::new();
     static NO_BY_ID: BTreeMap<String, Vec<Block>> = BTreeMap::new();
+    static NO_EXAMPLES: ExampleMap = BTreeMap::new();
 
-    /// A footnote context with no definitions, for tests that exercise non-footnote inline syntax.
-    fn no_notes() -> Notes<'static> {
-        Notes {
+    /// An empty reference context, for tests that exercise inline syntax without footnotes or example
+    /// references.
+    fn no_notes() -> RefContext<'static> {
+        RefContext {
             defined: &NO_DEFINED,
             by_id: &NO_BY_ID,
             in_definition: false,
+            examples: &NO_EXAMPLES,
         }
     }
 
