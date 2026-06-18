@@ -5,12 +5,15 @@
 //! before the first `+`/`-`) is what [`reader_for`](crate::reader_for)/[`writer_for`](crate::writer_for)
 //! resolve; the resulting [`Extensions`] is merged into the reader/writer options.
 
-use carta_core::{Error, Extension, Extensions, Result};
+use carta_core::{Error, Extension, Extensions, Result, presets};
 
 /// The extensions enabled by default for `base`, before any `+`/`-` toggles.
 fn default_extensions(base: &str) -> Extensions {
     match base {
-        "commonmark" | "markdown" => Extensions::from_list(&[Extension::RawHtml]),
+        "commonmark" => Extensions::from_list(&[Extension::RawHtml]),
+        "commonmark_x" => presets::COMMONMARK_X,
+        "markdown" => presets::MARKDOWN,
+        "gfm" => presets::GFM,
         _ => Extensions::empty(),
     }
 }
@@ -89,5 +92,35 @@ mod tests {
     fn unknown_extension_is_an_error() {
         let err = parse_format_spec("commonmark+bogus").unwrap_err();
         assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
+    }
+
+    #[test]
+    fn markdown_default_is_the_broad_dialect() {
+        let (base, ext) = parse_format_spec("markdown").unwrap();
+        assert_eq!(base, "markdown");
+        assert!(ext.contains(Extension::Smart));
+        assert!(ext.contains(Extension::DefinitionLists));
+        assert!(ext.contains(Extension::PipeTables));
+    }
+
+    #[test]
+    fn gfm_and_commonmark_x_presets_resolve() {
+        let (base, ext) = parse_format_spec("gfm").unwrap();
+        assert_eq!(base, "gfm");
+        assert!(ext.contains(Extension::Strikeout));
+        assert!(ext.contains(Extension::PipeTables));
+        assert!(!ext.contains(Extension::DefinitionLists));
+
+        let (base, ext) = parse_format_spec("commonmark_x").unwrap();
+        assert_eq!(base, "commonmark_x");
+        assert!(ext.contains(Extension::FencedDivs));
+    }
+
+    #[test]
+    fn toggles_apply_over_a_preset() {
+        let (_, ext) = parse_format_spec("markdown-smart-pipe_tables").unwrap();
+        assert!(!ext.contains(Extension::Smart));
+        assert!(!ext.contains(Extension::PipeTables));
+        assert!(ext.contains(Extension::DefinitionLists));
     }
 }

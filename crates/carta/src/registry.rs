@@ -57,7 +57,7 @@ format_dispatch! {
     trait: Reader;
     resolve: reader_for;
     supported: supported_input_formats;
-    "read-commonmark" => "commonmark" | "markdown" => carta_readers::CommonmarkReader;
+    "read-commonmark" => "commonmark" | "commonmark_x" | "markdown" | "gfm" => carta_readers::CommonmarkReader;
     "read-json" => "json" => carta_readers::JsonReader;
     "read-native" => "native" => carta_readers::NativeReader;
     "read-html" => "html" => carta_readers::HtmlReader;
