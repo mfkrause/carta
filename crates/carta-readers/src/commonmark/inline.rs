@@ -5,7 +5,7 @@
 //! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
-use carta_ast::{Attr, Block, Inline, MathType, Target};
+use carta_ast::{Attr, Block, Inline, MathType, QuoteType, Target};
 use carta_core::{Extension, Extensions};
 
 use super::attr;
@@ -258,6 +258,9 @@ impl InlineParser<'_> {
                     self.emphasis_run(b'~');
                 }
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
+                '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
+                '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
+                '.' if self.ext.contains(Extension::Smart) => self.smart_ellipsis(),
                 '[' => {
                     self.pos += 1;
                     self.push_open_bracket(false);
@@ -480,7 +483,7 @@ impl InlineParser<'_> {
             self.chars.get(start - 1).copied()
         };
         let after = self.peek();
-        let (can_open, can_close) = flanking(ch, before, after);
+        let (can_open, can_close) = run_flanking(ch, before, after);
         self.nodes.push(Node::Delimiter(Delimiter {
             ch,
             count,
@@ -490,6 +493,35 @@ impl InlineParser<'_> {
             text_start: self.pos,
             active: false,
         }));
+    }
+
+    /// Replace a run of two or more `-` with em/en dashes; a lone `-` stays literal. A run folds
+    /// into the fewest dashes that reproduce its length: groups of three become em dashes (`—`)
+    /// and groups of two become en dashes (`–`), preferring em dashes for any odd remainder.
+    fn smart_dash(&mut self) {
+        let mut len = 0;
+        while self.peek() == Some('-') {
+            self.pos += 1;
+            len += 1;
+        }
+        if len == 1 {
+            self.push_text('-');
+            return;
+        }
+        let out = fold_dash_run(len);
+        self.push_str(&out);
+    }
+
+    /// Replace each run of three dots with an ellipsis (`…`), leaving any remaining one or two dots
+    /// literal. Dots separated by other characters are never joined.
+    fn smart_ellipsis(&mut self) {
+        let mut len = 0;
+        while self.peek() == Some('.') {
+            self.pos += 1;
+            len += 1;
+        }
+        let out = fold_ellipsis_run(len);
+        self.push_str(&out);
     }
 
     fn push_open_bracket(&mut self, image: bool) {
@@ -986,7 +1018,22 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
 
 /// Whether `ch` names a delimiter run resolved by [`process_emphasis`].
 fn is_delimiter_char(ch: u8) -> bool {
-    matches!(ch, b'*' | b'_' | b'~' | b'^')
+    matches!(ch, b'*' | b'_' | b'~' | b'^' | b'\'' | b'"')
+}
+
+/// Whether `ch` is a smart-quote delimiter (`'` or `"`).
+fn is_quote(ch: u8) -> bool {
+    matches!(ch, b'\'' | b'"')
+}
+
+/// Open/close eligibility for a delimiter run, dispatching to the smart-quote rule for `'`/`"` and
+/// to the emphasis rule for everything else.
+fn run_flanking(ch: u8, before: Option<char>, after: Option<char>) -> (bool, bool) {
+    if is_quote(ch) {
+        quote_flanking(ch, before, after)
+    } else {
+        flanking(ch, before, after)
+    }
 }
 
 /// How many delimiters a matched opener/closer pair consumes, or `None` when the enabled extensions
@@ -1004,7 +1051,7 @@ fn match_use_count(
     let both_at_least_two = opener_count >= 2 && closer_count >= 2;
     match ch {
         b'*' | b'_' => Some(if both_at_least_two { 2 } else { 1 }),
-        b'^' => Some(1),
+        b'^' | b'\'' | b'"' => Some(1),
         b'~' => {
             if both_at_least_two && ext.contains(Extension::Strikeout) {
                 Some(2)
@@ -1022,6 +1069,8 @@ fn match_use_count(
 /// of delimiters consumed.
 fn wrap_emphasis(ch: u8, use_count: usize, content: Vec<Inline>) -> Inline {
     match (ch, use_count) {
+        (b'\'', _) => Inline::Quoted(QuoteType::SingleQuote, content),
+        (b'"', _) => Inline::Quoted(QuoteType::DoubleQuote, content),
         (b'~', 2) => Inline::Strikeout(content),
         (b'~', _) => Inline::Subscript(content),
         (b'^', _) => Inline::Superscript(content),
@@ -1049,6 +1098,45 @@ fn emphasis_match(opener: &Delimiter, nodes: &[Node], closer: usize) -> bool {
     true
 }
 
+/// The literal text an unmatched delimiter run reverts to. An unmatched smart quote becomes a curly
+/// quote — a single quote closes (`’`) and a double quote opens (`“`); every other delimiter is its
+/// own character repeated.
+fn delimiter_literal(ch: u8, count: usize) -> String {
+    match ch {
+        b'\'' => "\u{2019}".repeat(count),
+        b'"' => "\u{201c}".repeat(count),
+        _ => std::iter::repeat_n(ch as char, count).collect(),
+    }
+}
+
+/// Fold a run of `len` hyphens (`len >= 2`) into the fewest em (`—`) and en (`–`) dashes that sum to
+/// its length: a multiple of three is all em dashes, an even length is all en dashes, and an odd
+/// length that is not a multiple of three takes one or two en dashes — whichever leaves a multiple of
+/// three — with the rest em dashes.
+fn fold_dash_run(len: usize) -> String {
+    let (em, en) = if len.is_multiple_of(3) {
+        (len / 3, 0)
+    } else if len.is_multiple_of(2) {
+        (0, len / 2)
+    } else {
+        let en = if len % 3 == 1 { 2 } else { 1 };
+        ((len - 2 * en) / 3, en)
+    };
+    let mut out = String::with_capacity((em + en) * 3);
+    out.extend(std::iter::repeat_n('\u{2014}', em));
+    out.extend(std::iter::repeat_n('\u{2013}', en));
+    out
+}
+
+/// Fold a run of `len` dots into one ellipsis (`…`) per group of three, leaving the remaining one or
+/// two dots literal.
+fn fold_ellipsis_run(len: usize) -> String {
+    let mut out = String::with_capacity(len / 3 * 3 + len % 3);
+    out.extend(std::iter::repeat_n('\u{2026}', len / 3));
+    out.extend(std::iter::repeat_n('.', len % 3));
+    out
+}
+
 fn decrement_delimiter(nodes: &mut [Node], index: usize, by: usize) {
     if let Some(Node::Delimiter(d)) = nodes.get_mut(index) {
         d.count = d.count.saturating_sub(by);
@@ -1060,8 +1148,7 @@ fn convert_delimiter_to_text(nodes: &mut [Node], index: usize) {
         && let Node::Delimiter(d) = node
         && is_delimiter_char(d.ch)
     {
-        let literal: String = std::iter::repeat_n(d.ch as char, d.count).collect();
-        *node = Node::Text(literal);
+        *node = Node::Text(delimiter_literal(d.ch, d.count));
     }
 }
 
@@ -1079,11 +1166,7 @@ fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
     for node in nodes {
         match node {
             Node::Text(t) => text.push_str(&t),
-            Node::Delimiter(d) => {
-                for _ in 0..d.count {
-                    text.push(d.ch as char);
-                }
-            }
+            Node::Delimiter(d) => text.push_str(&delimiter_literal(d.ch, d.count)),
             Node::Inline(inline) => {
                 flush(&mut text, &mut out);
                 out.push(inline);
@@ -1148,6 +1231,26 @@ fn flanking(ch: u8, before: Option<char>, after: Option<char>) -> (bool, bool) {
     }
 }
 
+/// Open/close eligibility for a smart-quote run at a boundary. A run opens only when it is
+/// left-flanking and not glued to a preceding letter or digit, and closes only when it is
+/// right-flanking and not glued to a following letter or digit. The leftover-curly fallback then
+/// turns an unmatched single quote into an apostrophe and an unmatched double quote into an opener.
+fn quote_flanking(_ch: u8, before: Option<char>, after: Option<char>) -> (bool, bool) {
+    let before_ws = before.is_none_or(is_unicode_whitespace);
+    let after_ws = after.is_none_or(is_unicode_whitespace);
+    let before_punct = before.is_some_and(is_punctuation);
+    let after_punct = after.is_some_and(is_punctuation);
+    let before_alnum = before.is_some_and(char::is_alphanumeric);
+    let after_alnum = after.is_some_and(char::is_alphanumeric);
+
+    let left_flanking = !after_ws && (!after_punct || before_ws || before_punct);
+    let right_flanking = !before_ws && (!before_punct || after_ws || after_punct);
+
+    let can_open = left_flanking && !before_alnum;
+    let can_close = right_flanking && !after_alnum;
+    (can_open, can_close)
+}
+
 fn is_unicode_whitespace(ch: char) -> bool {
     ch == ' '
         || ch == '\t'
@@ -1210,8 +1313,8 @@ fn normalize_code(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        TASK_CHECKED, TASK_UNCHECKED, flanking, match_use_count, split_header_attr,
-        task_marker_replacement,
+        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, flanking, fold_dash_run, fold_ellipsis_run,
+        match_use_count, quote_flanking, split_header_attr, task_marker_replacement,
     };
     use carta_core::{Extension, Extensions};
 
@@ -1282,6 +1385,64 @@ mod tests {
         assert_eq!(match_use_count(3, 3, b'^', Extensions::empty()), Some(1));
         assert_eq!(match_use_count(2, 2, b'*', Extensions::empty()), Some(2));
         assert_eq!(match_use_count(1, 2, b'_', Extensions::empty()), Some(1));
+    }
+
+    #[test]
+    fn dash_runs_fold_em_heavy() {
+        let em = '\u{2014}';
+        let en = '\u{2013}';
+        // Multiples of three are all em; even lengths are all en.
+        assert_eq!(fold_dash_run(2), en.to_string());
+        assert_eq!(fold_dash_run(3), em.to_string());
+        assert_eq!(fold_dash_run(4), format!("{en}{en}"));
+        assert_eq!(fold_dash_run(6), format!("{em}{em}"));
+        // Odd lengths that are not multiples of three are em-heavy with a one- or two-en tail.
+        assert_eq!(fold_dash_run(5), format!("{em}{en}"));
+        assert_eq!(fold_dash_run(7), format!("{em}{en}{en}"));
+        assert_eq!(fold_dash_run(11), format!("{em}{em}{em}{en}"));
+        assert_eq!(fold_dash_run(13), format!("{em}{em}{em}{en}{en}"));
+        assert_eq!(fold_dash_run(17), format!("{em}{em}{em}{em}{em}{en}"));
+        // Each em dash accounts for three hyphens and each en dash for two, so the widths sum back to
+        // the original run length with no hyphens left over.
+        for len in 2..=40 {
+            let folded = fold_dash_run(len);
+            let width: usize = folded
+                .chars()
+                .map(|c| if c == em { 3 } else { 2 })
+                .sum();
+            assert_eq!(width, len, "len={len} folded={folded}");
+        }
+    }
+
+    #[test]
+    fn ellipsis_runs_fold_in_threes() {
+        assert_eq!(fold_ellipsis_run(0), "");
+        assert_eq!(fold_ellipsis_run(1), ".");
+        assert_eq!(fold_ellipsis_run(2), "..");
+        assert_eq!(fold_ellipsis_run(3), "\u{2026}");
+        assert_eq!(fold_ellipsis_run(4), "\u{2026}.");
+        assert_eq!(fold_ellipsis_run(7), "\u{2026}\u{2026}.");
+    }
+
+    #[test]
+    fn unmatched_smart_quotes_become_curly() {
+        // A single quote that never pairs closes (’); an unmatched double quote opens (“).
+        assert_eq!(delimiter_literal(b'\'', 1), "\u{2019}");
+        assert_eq!(delimiter_literal(b'"', 1), "\u{201c}");
+        assert_eq!(delimiter_literal(b'\'', 2), "\u{2019}\u{2019}");
+        // Other delimiters revert to their own character.
+        assert_eq!(delimiter_literal(b'*', 3), "***");
+    }
+
+    #[test]
+    fn quote_flanking_blocks_intraword_pairing() {
+        // A quote between alphanumerics can neither open nor close, so contractions stay apostrophes.
+        assert_eq!(quote_flanking(b'\'', Some('n'), Some('t')), (false, false));
+        // Whitespace-anchored quotes open on the left edge and close on the right.
+        assert_eq!(quote_flanking(b'"', Some(' '), Some('a')), (true, false));
+        assert_eq!(quote_flanking(b'"', Some('a'), Some(' ')), (false, true));
+        // A quote hugging punctuation can both open and close.
+        assert_eq!(quote_flanking(b'\'', Some('('), Some('a')), (true, false));
     }
 
     #[test]
