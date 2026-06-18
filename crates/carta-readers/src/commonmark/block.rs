@@ -562,7 +562,13 @@ impl Parser {
         // already inside a list): an empty item cannot interrupt, and an ordered marker must start
         // at 1. Inside an open list any marker is allowed — a matching one continues the list, a
         // differing one ends it and begins a new sibling list.
-        let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
+        //
+        // The paragraph must be a direct child of the container the marker opens into: a paragraph
+        // hanging in a deeper, unmatched container (left open only for a possible lazy continuation)
+        // is at a different level, so the marker starts a fresh list rather than interrupting it.
+        let in_paragraph = self
+            .last_open_child(container)
+            .is_some_and(|child| matches!(self.kind(child), Some(Kind::Paragraph)));
         let inside_list = matches!(self.kind(container), Some(Kind::List(_)));
         if in_paragraph && !inside_list {
             if parsed.blank_after {
