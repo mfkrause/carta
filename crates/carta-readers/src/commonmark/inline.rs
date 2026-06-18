@@ -114,6 +114,13 @@ fn gather_headers(
                     gather_headers(item, refs, notes, ext, numbering);
                 }
             }
+            IrBlock::DefinitionList(items) => {
+                for item in items {
+                    for definition in &item.definitions {
+                        gather_headers(definition, refs, notes, ext, numbering);
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -166,6 +173,20 @@ fn resolve_block(
             lines
                 .iter()
                 .map(|line| parse_inlines(line, refs, notes, ext))
+                .collect(),
+        )),
+        IrBlock::DefinitionList(items) => out.push(Block::DefinitionList(
+            items
+                .iter()
+                .map(|item| {
+                    let term = parse_inlines(&item.term, refs, notes, ext);
+                    let definitions = item
+                        .definitions
+                        .iter()
+                        .map(|blocks| resolve_blocks(blocks, refs, notes, ext))
+                        .collect();
+                    (term, definitions)
+                })
                 .collect(),
         )),
         IrBlock::BulletList(items) => resolve_bullet_list(items, refs, notes, ext, out),
