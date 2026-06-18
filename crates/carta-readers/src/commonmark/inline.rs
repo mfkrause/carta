@@ -162,6 +162,12 @@ fn resolve_block(
         IrBlock::BlockQuote(children) => {
             out.push(Block::BlockQuote(resolve_blocks(children, refs, notes, ext)));
         }
+        IrBlock::LineBlock(lines) => out.push(Block::LineBlock(
+            lines
+                .iter()
+                .map(|line| parse_inlines(line, refs, notes, ext))
+                .collect(),
+        )),
         IrBlock::BulletList(items) => resolve_bullet_list(items, refs, notes, ext, out),
         IrBlock::OrderedList(attrs, items) => out.push(Block::OrderedList(
             attrs.clone(),
