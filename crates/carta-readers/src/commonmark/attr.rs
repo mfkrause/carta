@@ -38,7 +38,11 @@ pub(crate) fn parse_attributes_chars(chars: &[char], start: usize) -> Option<(At
             }
             Some('#') => {
                 index += 1;
-                attr.id = read_token(chars, &mut index);
+                let id = read_token(chars, &mut index);
+                if id.is_empty() {
+                    return None;
+                }
+                attr.id = id;
             }
             Some('.') => {
                 index += 1;
@@ -204,6 +208,15 @@ mod tests {
         assert!(parse_attributes("{foo}").is_none());
         assert!(parse_attributes("{#x foo}").is_none());
         assert!(parse_attributes("{.a !!}").is_none());
+    }
+
+    #[test]
+    fn empty_identifier_token_is_invalid() {
+        // A `#` with no following token is not a valid identifier, so the whole block fails to
+        // parse — even when a later token would be well-formed.
+        assert!(parse_attributes("{#}").is_none());
+        assert!(parse_attributes("{# #b}").is_none());
+        assert!(parse_attributes("{#a #}").is_none());
     }
 
     #[test]
