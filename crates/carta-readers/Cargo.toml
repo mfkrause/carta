@@ -12,11 +12,14 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["commonmark", "json", "html", "native"]
+default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml"]
 commonmark = ["dep:unicode-general-category", "dep:caseless"]
 json = []
 html = []
 native = []
+csv = []
+tsv = ["csv"]
+opml = ["commonmark"]
 
 [dependencies]
 carta-ast = { workspace = true }
