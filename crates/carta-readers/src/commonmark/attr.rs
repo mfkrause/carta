@@ -12,13 +12,24 @@ use carta_ast::Attr;
 /// a well-formed block (a bare-word token, or no closing brace).
 pub(crate) fn parse_attributes(s: &str) -> Option<(Attr, usize)> {
     let chars: Vec<char> = s.chars().collect();
-    if chars.first().copied() != Some('{') {
+    let (attr, end) = parse_attributes_chars(&chars, 0)?;
+    let consumed = chars
+        .get(..end)
+        .map_or(0, |head| head.iter().map(|ch| ch.len_utf8()).sum());
+    Some((attr, consumed))
+}
+
+/// Parse an attribute block at `chars[start..]`, which must begin with `{`. Returns the parsed
+/// [`Attr`] and the char index just past the closing brace, or `None` when the block is not
+/// well-formed (a bare-word token, or no closing brace).
+pub(crate) fn parse_attributes_chars(chars: &[char], start: usize) -> Option<(Attr, usize)> {
+    if chars.get(start).copied() != Some('{') {
         return None;
     }
-    let mut index = 1;
+    let mut index = start + 1;
     let mut attr = Attr::default();
     loop {
-        skip_ws(&chars, &mut index);
+        skip_ws(chars, &mut index);
         match chars.get(index).copied() {
             None => return None,
             Some('}') => {
@@ -27,31 +38,44 @@ pub(crate) fn parse_attributes(s: &str) -> Option<(Attr, usize)> {
             }
             Some('#') => {
                 index += 1;
-                attr.id = read_token(&chars, &mut index);
+                attr.id = read_token(chars, &mut index);
             }
             Some('.') => {
                 index += 1;
-                let class = read_token(&chars, &mut index);
+                let class = read_token(chars, &mut index);
                 if class.is_empty() {
                     return None;
                 }
                 attr.classes.push(class);
             }
             Some(_) => {
-                let key = read_key(&chars, &mut index);
+                let key = read_key(chars, &mut index);
                 if key.is_empty() || chars.get(index).copied() != Some('=') {
                     return None;
                 }
                 index += 1;
-                let value = read_value(&chars, &mut index);
+                let value = read_value(chars, &mut index);
                 attr.attributes.push((key, value));
             }
         }
     }
-    let consumed = chars
-        .get(..index)
-        .map_or(0, |head| head.iter().map(|ch| ch.len_utf8()).sum());
-    Some((attr, consumed))
+    Some((attr, index))
+}
+
+/// Whether `attr` carries any identifier, class, or key/value pair. An attribute block that parses
+/// to nothing (`{}`) is not consumed by inline attribute targets.
+pub(crate) fn is_non_empty(attr: &Attr) -> bool {
+    !attr.id.is_empty() || !attr.classes.is_empty() || !attr.attributes.is_empty()
+}
+
+/// Merge `extra` into `into`: the first non-empty identifier is kept, while classes and key/value
+/// pairs accumulate in source order. Used when consecutive attribute blocks attach to one target.
+pub(crate) fn merge(into: &mut Attr, extra: Attr) {
+    if into.id.is_empty() {
+        into.id = extra.id;
+    }
+    into.classes.extend(extra.classes);
+    into.attributes.extend(extra.attributes);
 }
 
 fn is_token_end(ch: char) -> bool {

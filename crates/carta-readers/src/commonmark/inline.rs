@@ -8,6 +8,7 @@
 use carta_ast::{Attr, Block, Inline, MathType, Target};
 use carta_core::{Extension, Extensions};
 
+use super::attr;
 use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
     scan_html_tag, scan_inline_target,
@@ -32,11 +33,8 @@ fn resolve_block(block: &IrBlock, refs: &RefMap, ext: Extensions, out: &mut Vec<
         IrBlock::Para(text) => out.push(para(parse_inlines(text, refs, ext))),
         IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, ext))),
         IrBlock::Heading(level, text) => {
-            out.push(Block::Header(
-                *level,
-                Attr::default(),
-                parse_inlines(text, refs, ext),
-            ));
+            let (content, attr) = split_header_attr(text, ext);
+            out.push(Block::Header(*level, attr, parse_inlines(content, refs, ext)));
         }
         IrBlock::CodeBlock(attr, text) => out.push(Block::CodeBlock(attr.clone(), text.clone())),
         IrBlock::RawHtml(text) => {
@@ -135,6 +133,38 @@ fn task_marker_replacement(text: &str) -> Option<String> {
     }
 }
 
+/// Split a trailing attribute block off a heading's text when header attributes are enabled,
+/// returning the content to parse as inlines and the heading's attribute. The block must be the
+/// last non-blank run on the line (`# Title {#id .cls}`); an empty block (`{}`) is left in the text.
+fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
+    if !(ext.contains(Extension::HeaderAttributes) || ext.contains(Extension::Attributes)) {
+        return (text, Attr::default());
+    }
+    let trimmed = text.trim_end();
+    if !trimmed.ends_with('}') {
+        return (text, Attr::default());
+    }
+    let chars: Vec<char> = trimmed.chars().collect();
+    for start in (0..chars.len()).rev() {
+        if chars.get(start) != Some(&'{') {
+            continue;
+        }
+        // The block must be set off from the heading text by whitespace, else it belongs to the
+        // preceding word rather than the heading.
+        let preceded_by_space = start == 0 || chars.get(start - 1).copied().is_some_and(is_unicode_whitespace);
+        if preceded_by_space
+            && let Some((attr, end)) = attr::parse_attributes_chars(&chars, start)
+            && end == chars.len()
+            && attr::is_non_empty(&attr)
+        {
+            let byte_start: usize = chars.get(..start).map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
+            let content = text.get(..byte_start).unwrap_or(text).trim_end();
+            return (content, attr);
+        }
+    }
+    (text, Attr::default())
+}
+
 /// A node in the in-progress inline list. Delimiter runs stay as nodes until emphasis resolution.
 #[derive(Debug, Clone)]
 enum Node {
@@ -164,6 +194,16 @@ struct Delimiter {
     /// it — a link may not contain another link. On `]`, an inactive opener is popped and
     /// literalized without attempting any link-target parse (spec §6.3, rule 6).
     active: bool,
+}
+
+/// Outcome of resolving an explicit link target after a closing `]`.
+enum Explicit {
+    /// An inline or reference target resolved to this destination, ending at the given position.
+    Target(Target, usize),
+    /// An explicit reference was present but its label is undefined: not a link.
+    Failed,
+    /// No explicit target syntax follows; a span or shortcut reference may still apply.
+    None,
 }
 
 fn parse_inlines(text: &str, refs: &RefMap, ext: Extensions) -> Vec<Inline> {
@@ -291,10 +331,9 @@ impl InlineParser<'_> {
                         .map(|s| s.iter().collect())
                         .unwrap_or_default();
                     self.pos = scan + close;
-                    self.nodes.push(Node::Inline(Inline::Code(
-                        Attr::default(),
-                        normalize_code(&content),
-                    )));
+                    let attr = self.take_code_attr();
+                    self.nodes
+                        .push(Node::Inline(Inline::Code(attr, normalize_code(&content))));
                     return;
                 }
                 scan += close;
@@ -478,28 +517,110 @@ impl InlineParser<'_> {
             _ => (false, false),
         };
 
-        // An inactive opener cannot form a link. Pop it, literalize, and emit `]` as text —
-        // do not look further down the stack (spec §6.3, rule 6).
-        if !is_active {
+        // An active opener may form a link or image from an explicit inline `(...)` target or an
+        // explicit `[label]`/`[]` reference. (An inactive `[` cannot — a link may not contain
+        // another link, spec §6.3 rule 6 — but it may still open a bracketed span.)
+        if is_active {
+            match self.resolve_explicit(opener_index) {
+                Explicit::Target(target, next) => {
+                    self.finish_link(opener_index, is_image, target, next);
+                    return;
+                }
+                // An explicit reference whose label is undefined is not a link; the brackets stay
+                // literal and no span or shortcut fallback is tried.
+                Explicit::Failed => {
+                    self.bracket_stack.pop();
+                    self.literalize_bracket(opener_index);
+                    self.push_text(']');
+                    return;
+                }
+                Explicit::None => {}
+            }
+        }
+
+        // With no explicit target, a non-image bracket directly followed by a non-empty attribute
+        // block is a span — this wins over a shortcut reference of the same label.
+        if !is_image
+            && self.ext.contains(Extension::BracketedSpans)
+            && let Some((attr, next)) = self.scan_attr_block()
+        {
             self.bracket_stack.pop();
-            self.literalize_bracket(opener_index);
-            self.push_text(']');
+            self.pos = next;
+            self.build_span(opener_index, attr);
             return;
         }
 
-        if let Some((target, next)) = self.try_link_target(opener_index) {
-            self.bracket_stack.pop();
-            self.pos = next;
-            self.build_link(opener_index, is_image, target);
-            if !is_image {
-                self.deactivate_earlier_brackets(opener_index);
+        // A shortcut reference: the bracket's own text names the definition.
+        if is_active {
+            let key = normalize_label(&self.raw_label(opener_index));
+            if let Some(target) = self.refs.get(&key).map(def_target) {
+                self.finish_link(opener_index, is_image, target, self.pos);
+                return;
             }
-            return;
         }
-        // Not a valid link: the opener reverts to its literal `[` / `![`, and `]` stays literal.
+
+        // Otherwise the opener reverts to its literal `[` / `![`, and `]` stays literal.
         self.bracket_stack.pop();
         self.literalize_bracket(opener_index);
         self.push_text(']');
+    }
+
+    /// Pop the opener, consume an optional trailing attribute block, and emit the link or image.
+    fn finish_link(&mut self, opener_index: usize, is_image: bool, target: Target, next: usize) {
+        self.bracket_stack.pop();
+        self.pos = next;
+        let attr = self.take_link_attr();
+        self.build_link(opener_index, is_image, target, attr);
+        if !is_image {
+            self.deactivate_earlier_brackets(opener_index);
+        }
+    }
+
+    /// Parse one or more consecutive non-empty attribute blocks at the cursor, merged into a single
+    /// [`Attr`], with the position past the last block. An empty block (`{}`) alone is not consumed;
+    /// a space between blocks ends the run.
+    fn scan_attr_block(&self) -> Option<(Attr, usize)> {
+        let (mut merged, mut next) = attr::parse_attributes_chars(self.chars, self.pos)?;
+        while let Some((more, after)) = attr::parse_attributes_chars(self.chars, next) {
+            attr::merge(&mut merged, more);
+            next = after;
+        }
+        attr::is_non_empty(&merged).then_some((merged, next))
+    }
+
+    /// Consume an attribute block following an inline code span when the relevant extension is on,
+    /// advancing the cursor; otherwise the default attribute.
+    fn take_code_attr(&mut self) -> Attr {
+        if (self.ext.contains(Extension::InlineCodeAttributes)
+            || self.ext.contains(Extension::Attributes))
+            && let Some((parsed, next)) = self.scan_attr_block()
+        {
+            self.pos = next;
+            return parsed;
+        }
+        Attr::default()
+    }
+
+    /// Consume an attribute block following a link or image when the relevant extension is on,
+    /// advancing the cursor; otherwise the default attribute.
+    fn take_link_attr(&mut self) -> Attr {
+        if (self.ext.contains(Extension::LinkAttributes) || self.ext.contains(Extension::Attributes))
+            && let Some((parsed, next)) = self.scan_attr_block()
+        {
+            self.pos = next;
+            return parsed;
+        }
+        Attr::default()
+    }
+
+    /// Build a span from a non-image bracket opener and its inner content.
+    fn build_span(&mut self, opener_index: usize, attr: Attr) {
+        let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
+        self.nodes.pop(); // remove the opener delimiter
+        self.bracket_stack.retain(|&ni| ni < opener_index);
+        process_emphasis(&mut inner, 0, self.ext);
+        let content = collapse(inner);
+        self.nodes.push(Node::Inline(Inline::Span(attr, content)));
     }
 
     /// Turn an unmatched bracket opener back into the literal text it stands for.
@@ -529,33 +650,28 @@ impl InlineParser<'_> {
         }
     }
 
-    /// Attempt to parse what follows `]` as an inline `(...)`, reference, collapsed, or shortcut
-    /// link, returning the target and the position after it.
-    fn try_link_target(&self, opener_index: usize) -> Option<(Target, usize)> {
+    /// Resolve an explicit link target following `]`: an inline `(...)` destination or an explicit
+    /// `[label]`/`[]` reference. Shortcut references (the bracket's own text) are handled separately
+    /// so a bracketed span can take precedence over them.
+    fn resolve_explicit(&self, opener_index: usize) -> Explicit {
         if self.at(0) == Some('(')
-            && let Some(result) = scan_inline_target(self.chars, self.pos)
+            && let Some((target, next)) = scan_inline_target(self.chars, self.pos)
         {
-            return Some(result);
+            return Explicit::Target(target, next);
         }
-        // Reference forms. Labels match on their raw source text (the closing `]` sits at `pos - 1`).
-        let label_text = self.raw_label(opener_index);
+        // Explicit reference. Labels match on their raw source text (the closing `]` sits at `pos - 1`).
         if let Some((label, next)) = scan_following_label(self.chars, self.pos) {
             let key = if label.is_empty() {
-                normalize_label(&label_text)
+                normalize_label(&self.raw_label(opener_index))
             } else {
                 normalize_label(&label)
             };
-            if let Some(def) = self.refs.get(&key) {
-                return Some((def_target(def), next));
-            }
-            return None;
+            return match self.refs.get(&key).map(def_target) {
+                Some(target) => Explicit::Target(target, next),
+                None => Explicit::Failed,
+            };
         }
-        // Shortcut reference.
-        let key = normalize_label(&label_text);
-        if let Some(def) = self.refs.get(&key) {
-            return Some((def_target(def), self.pos));
-        }
-        None
+        Explicit::None
     }
 
     /// The raw source between a bracket opener and the closing `]` just consumed.
@@ -570,7 +686,7 @@ impl InlineParser<'_> {
             .unwrap_or_default()
     }
 
-    fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target) {
+    fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target, attr: Attr) {
         let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         // Any bracket stack entries that pointed into the split-off range are now part of the
@@ -579,9 +695,9 @@ impl InlineParser<'_> {
         process_emphasis(&mut inner, 0, self.ext);
         let content = collapse(inner);
         let inline = if is_image {
-            Inline::Image(Attr::default(), content, target)
+            Inline::Image(attr, content, target)
         } else {
-            Inline::Link(Attr::default(), content, target)
+            Inline::Link(attr, content, target)
         };
         self.nodes.push(Node::Inline(inline));
     }
@@ -1093,11 +1209,32 @@ fn normalize_code(content: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{TASK_CHECKED, TASK_UNCHECKED, flanking, match_use_count, task_marker_replacement};
+    use super::{
+        TASK_CHECKED, TASK_UNCHECKED, flanking, match_use_count, split_header_attr,
+        task_marker_replacement,
+    };
     use carta_core::{Extension, Extensions};
 
     fn exts(list: &[Extension]) -> Extensions {
         Extensions::from_list(list)
+    }
+
+    #[test]
+    fn header_attr_split_requires_extension_and_trailing_block() {
+        let on = exts(&[Extension::HeaderAttributes]);
+        // A trailing block separated by whitespace is the heading's attribute.
+        let (content, attr) = split_header_attr("Title {#id .cls}", on);
+        assert_eq!(content, "Title");
+        assert_eq!(attr.id, "id");
+        assert_eq!(attr.classes, ["cls"]);
+        // A block glued to the preceding word belongs to that word, not the heading.
+        assert_eq!(split_header_attr("Title{#id}", on).0, "Title{#id}");
+        // An empty block is left in the text.
+        assert_eq!(split_header_attr("Title {}", on).0, "Title {}");
+        // Without the extension the text is untouched.
+        let (content, attr) = split_header_attr("Title {#id}", Extensions::empty());
+        assert_eq!(content, "Title {#id}");
+        assert!(attr.id.is_empty());
     }
 
     #[test]
@@ -1479,6 +1616,103 @@ mod inline_tests {
     #[test]
     fn dollar_is_literal_without_the_extension() {
         assert_eq!(p("$a+b$"), vec![str("$a+b$")]);
+    }
+
+    // --- Attributes: spans, inline code, links ---
+
+    fn span(attr: Attr, content: Vec<Inline>) -> Inline {
+        Inline::Span(attr, content)
+    }
+
+    fn attr(id: &str, classes: &[&str], kv: &[(&str, &str)]) -> Attr {
+        Attr {
+            id: id.to_owned(),
+            classes: classes.iter().map(|c| (*c).to_owned()).collect(),
+            attributes: kv
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect(),
+        }
+    }
+
+    fn attrs() -> Extensions {
+        exts(&[Extension::Attributes])
+    }
+
+    #[test]
+    fn bracketed_span_carries_attributes() {
+        assert_eq!(
+            pe("[text]{.cls #id}", exts(&[Extension::BracketedSpans])),
+            vec![span(attr("id", &["cls"], &[]), vec![str("text")])]
+        );
+    }
+
+    #[test]
+    fn empty_attribute_block_is_not_a_span() {
+        assert_eq!(
+            pe("[text]{}", exts(&[Extension::BracketedSpans])),
+            vec![str("[text]{}")]
+        );
+    }
+
+    #[test]
+    fn consecutive_attribute_blocks_merge_first_id_wins() {
+        // Adjacent blocks accumulate classes and key/value pairs; the first identifier is kept.
+        assert_eq!(
+            pe("[x]{#one .a}{#two .b k=v}", exts(&[Extension::BracketedSpans])),
+            vec![span(
+                attr("one", &["a", "b"], &[("k", "v")]),
+                vec![str("x")]
+            )]
+        );
+    }
+
+    #[test]
+    fn span_wins_over_shortcut_reference() {
+        let refs = ref_map(&[("text", "http://r")]);
+        let ext = exts(&[Extension::BracketedSpans]);
+        assert_eq!(
+            parse_inlines("[text]{.c}", &refs, ext),
+            vec![span(attr("", &["c"], &[]), vec![str("text")])]
+        );
+    }
+
+    #[test]
+    fn inline_code_takes_attributes() {
+        assert_eq!(
+            pe("`code`{.rust #x}", attrs()),
+            vec![Inline::Code(attr("x", &["rust"], &[]), "code".to_owned())]
+        );
+        // A space before the block leaves it unattached (no wrapper artifact is produced).
+        assert_eq!(
+            pe("`code` x", attrs()),
+            vec![Inline::Code(Attr::default(), "code".to_owned()), Inline::Space, str("x")]
+        );
+    }
+
+    #[test]
+    fn link_and_image_take_attributes() {
+        let link_with_attr = Inline::Link(
+            attr("home", &["external"], &[]),
+            vec![str("t")],
+            Target { url: "u".to_owned(), title: String::new() },
+        );
+        assert_eq!(pe("[t](u){.external #home}", attrs()), vec![link_with_attr]);
+        let image_with_attr = Inline::Image(
+            attr("", &[], &[("width", "200")]),
+            vec![str("a")],
+            Target { url: "i".to_owned(), title: String::new() },
+        );
+        assert_eq!(pe("![a](i){width=200}", attrs()), vec![image_with_attr]);
+    }
+
+    #[test]
+    fn attributes_require_the_extension() {
+        // Without any attribute extension the block stays literal text.
+        assert_eq!(
+            p("[text]{.cls}"),
+            vec![str("[text]{.cls}")]
+        );
     }
 
     #[test]
