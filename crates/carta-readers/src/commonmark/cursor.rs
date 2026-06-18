@@ -342,6 +342,30 @@ impl<'a> Cursor<'a> {
             .is_some_and(|tail| tail.iter().all(|byte| matches!(byte, b' ' | b'\t')))
     }
 
+    /// If the line begins with a footnote-definition marker `[^label]:`, consume the marker and
+    /// return its raw label (the text between `[^` and `]`). The label is non-empty and holds no
+    /// further brackets; the closing `]` must be followed immediately by a colon. No content space
+    /// after the colon is consumed, so the remaining line keeps its indentation for block parsing.
+    pub(super) fn footnote_def_marker(&mut self) -> Option<String> {
+        let rest = self.remaining();
+        let body = rest.strip_prefix("[^")?;
+        let end = body.find(']')?;
+        let label = body.get(..end)?;
+        if label.is_empty() || label.contains('[') {
+            return None;
+        }
+        if body.as_bytes().get(end + 1) != Some(&b':') {
+            return None;
+        }
+        let marker = rest.get(..end + 4)?; // "[^" + label + "]:"
+        let marker_len = marker.len();
+        let marker_columns = marker.chars().count();
+        let label = label.to_owned();
+        self.offset += marker_len;
+        self.column += marker_columns;
+        Some(label)
+    }
+
     pub(super) fn list_marker_at(&mut self) -> Option<ListMarkerParse> {
         let byte = self.peek()?;
         match byte {

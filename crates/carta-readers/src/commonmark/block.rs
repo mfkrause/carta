@@ -7,10 +7,10 @@ use carta_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
-use super::{IrBlock, RefMap, TAB_STOP, attr, html_block, scan, table};
+use super::{FootnoteDefs, IrBlock, RefMap, TAB_STOP, attr, html_block, scan, table};
 
-/// Parse the normalized input into the block tree plus the collected link references.
-pub(crate) fn parse(input: &str, extensions: Extensions) -> (Vec<IrBlock>, RefMap) {
+/// Parse the normalized input into the block tree plus the collected link and footnote references.
+pub(crate) fn parse(input: &str, extensions: Extensions) -> (Vec<IrBlock>, RefMap, FootnoteDefs) {
     let mut parser = Parser::new(extensions);
     for line in split_lines(input) {
         parser.process_line(line);
@@ -36,6 +36,9 @@ enum Kind {
     BlockQuote,
     List(ListInfo),
     Item(ItemInfo),
+    /// A footnote definition, holding its normalized label. Its content is gathered like a list
+    /// item (a four-column continuation indent) and collected out of the body by [`Parser::finish`].
+    FootnoteDef(String),
     Paragraph,
     Heading(i32),
     IndentedCode,
@@ -134,7 +137,7 @@ impl Parser {
     /// Whether a block of `kind` may be a direct child of `container`.
     fn can_contain(&self, container: usize, kind: &Kind) -> bool {
         match self.kind(container) {
-            Some(Kind::Document | Kind::BlockQuote | Kind::Item(_)) => {
+            Some(Kind::Document | Kind::BlockQuote | Kind::Item(_) | Kind::FootnoteDef(_)) => {
                 !matches!(kind, Kind::Item(_))
             }
             Some(Kind::List(_)) => matches!(kind, Kind::Item(_)),
@@ -353,7 +356,13 @@ impl Parser {
     fn is_container(&self, index: usize) -> bool {
         matches!(
             self.kind(index),
-            Some(Kind::Document | Kind::BlockQuote | Kind::List(_) | Kind::Item(_))
+            Some(
+                Kind::Document
+                    | Kind::BlockQuote
+                    | Kind::List(_)
+                    | Kind::Item(_)
+                    | Kind::FootnoteDef(_)
+            )
         )
     }
 
@@ -394,6 +403,23 @@ impl Parser {
                     }
                 } else if cursor.indent() >= info.indent {
                     cursor.advance_columns(info.indent);
+                    Continue::Matched
+                } else {
+                    Continue::NotMatched
+                }
+            }
+            // A footnote definition's content continues under a four-column indent, the same as a
+            // list item; an unindented non-blank line ends it (an open paragraph may still take it
+            // as a lazy continuation, handled by the caller).
+            Some(Kind::FootnoteDef(_)) => {
+                if cursor.is_blank() {
+                    if self.nodes.get(index).is_some_and(|n| n.children.is_empty()) {
+                        Continue::NotMatched
+                    } else {
+                        Continue::Matched
+                    }
+                } else if cursor.indent() >= TAB_STOP {
+                    cursor.advance_columns(TAB_STOP);
                     Continue::Matched
                 } else {
                     Continue::NotMatched
@@ -471,6 +497,15 @@ impl Parser {
                 cursor.consume_optional_space();
                 let parent = self.place(container, &Kind::BlockQuote);
                 return Some(self.append_child(parent, Node::new(Kind::BlockQuote)));
+            }
+            // A footnote definition opens here, interrupting any open paragraph; its content is then
+            // gathered by the enclosing container loop, the same as a block quote's.
+            if self.extensions.contains(Extension::Footnotes)
+                && let Some(label) = cursor.footnote_def_marker()
+            {
+                let key = scan::normalize_label(&label);
+                let parent = self.place(container, &Kind::FootnoteDef(key.clone()));
+                return Some(self.append_child(parent, Node::new(Kind::FootnoteDef(key))));
             }
             if let Some(level) = cursor.atx_heading() {
                 let parent = self.place(container, &Kind::Heading(level));
@@ -645,7 +680,7 @@ impl Parser {
         }
     }
 
-    fn finish(mut self) -> (Vec<IrBlock>, RefMap) {
+    fn finish(mut self) -> (Vec<IrBlock>, RefMap, FootnoteDefs) {
         // Pre-pass: pull link reference definitions out of every paragraph.
         for index in 0..self.nodes.len() {
             if matches!(self.kind(index), Some(Kind::Paragraph)) {
@@ -656,8 +691,23 @@ impl Parser {
                 }
             }
         }
+        let footnotes = self.collect_footnotes();
         let blocks = self.build_children(0);
-        (blocks, self.refs)
+        (blocks, self.refs, footnotes)
+    }
+
+    /// Gather every footnote definition's block content, keyed by its normalized label. Definitions
+    /// are visited in document order (node-creation order); when a label repeats, the first wins.
+    fn collect_footnotes(&self) -> FootnoteDefs {
+        let mut footnotes = FootnoteDefs::new();
+        for index in 0..self.nodes.len() {
+            if let Some(Kind::FootnoteDef(key)) = self.kind(index)
+                && !footnotes.contains_key(key)
+            {
+                footnotes.insert(key.clone(), self.build_children(index));
+            }
+        }
+        footnotes
     }
 
     fn node_text(&self, index: usize) -> String {
@@ -692,7 +742,9 @@ impl Parser {
     fn build_block(&self, index: usize) -> Option<IrBlock> {
         let node = self.nodes.get(index)?;
         let block = match &node.kind {
-            Kind::Document | Kind::Item(_) => return None,
+            // A footnote definition is lifted out of the body into the footnote map; its former
+            // container stays but empties.
+            Kind::Document | Kind::Item(_) | Kind::FootnoteDef(_) => return None,
             Kind::Paragraph => {
                 let trimmed = node.text.trim();
                 if trimmed.is_empty() {
