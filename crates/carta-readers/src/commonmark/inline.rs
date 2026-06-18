@@ -5,7 +5,7 @@
 //! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
-use carta_ast::{Attr, Block, Inline, Target};
+use carta_ast::{Attr, Block, Inline, MathType, Target};
 use carta_core::{Extension, Extensions};
 
 use super::scan::{
@@ -207,6 +207,7 @@ impl InlineParser<'_> {
             match ch {
                 '\\' => self.backslash(),
                 '`' => self.code_span(),
+                '$' if self.ext.contains(Extension::TexMathDollars) => self.dollar_math(),
                 '<' => self.left_angle(),
                 '&' => self.entity(),
                 '\n' => self.line_ending(),
@@ -308,6 +309,73 @@ impl InlineParser<'_> {
             .map(|s| s.iter().collect())
             .unwrap_or_default();
         self.push_str(&literal);
+    }
+
+    /// Parse `$…$` (inline) or `$$…$$` (display) TeX math at the cursor.
+    ///
+    /// A `$$` opener is display math, closed by the next `$$`; if no closing `$$` follows, the first
+    /// `$` is literal and the second is reconsidered (it may open inline math). A single `$` opens
+    /// inline math only when followed by a non-space character and closed by an unescaped `$` that is
+    /// preceded by a non-space and not followed by a digit; inline content holds no unescaped `$`, so
+    /// a failed first closer leaves the opener literal.
+    fn dollar_math(&mut self) {
+        if self.at(1) == Some('$') {
+            if let Some((content, next)) = self.scan_display_math() {
+                self.pos = next;
+                self.nodes
+                    .push(Node::Inline(Inline::Math(MathType::DisplayMath, content)));
+                return;
+            }
+        } else if let Some((content, next)) = self.scan_inline_math() {
+            self.pos = next;
+            self.nodes
+                .push(Node::Inline(Inline::Math(MathType::InlineMath, content)));
+            return;
+        }
+        self.pos += 1;
+        self.push_text('$');
+    }
+
+    /// Scan inline math starting at the opening `$`. Returns the content and the index past the
+    /// closing `$`, or `None` if no valid `$…$` begins here.
+    fn scan_inline_math(&self) -> Option<(String, usize)> {
+        if self.at(1).is_none_or(is_unicode_whitespace) {
+            return None;
+        }
+        let content_start = self.pos + 1;
+        let mut i = content_start;
+        while let Some(&ch) = self.chars.get(i) {
+            if ch == '\\' && self.chars.get(i + 1).is_some() {
+                i += 2;
+                continue;
+            }
+            if ch == '$' {
+                let prev_space = self.chars.get(i - 1).copied().is_none_or(is_unicode_whitespace);
+                let next_digit = self.chars.get(i + 1).is_some_and(char::is_ascii_digit);
+                if prev_space || next_digit {
+                    return None;
+                }
+                let content: String = self.chars.get(content_start..i)?.iter().collect();
+                return Some((content, i + 1));
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// Scan display math starting at the opening `$$`. Returns the content and the index past the
+    /// closing `$$`, or `None` if no closing `$$` follows.
+    fn scan_display_math(&self) -> Option<(String, usize)> {
+        let content_start = self.pos + 2;
+        let mut i = content_start;
+        while self.chars.get(i).is_some() {
+            if self.chars.get(i) == Some(&'$') && self.chars.get(i + 1) == Some(&'$') {
+                let content: String = self.chars.get(content_start..i)?.iter().collect();
+                return Some((content, i + 2));
+            }
+            i += 1;
+        }
+        None
     }
 
     fn left_angle(&mut self) {
@@ -1361,6 +1429,58 @@ mod inline_tests {
         );
     }
 
+    // --- TeX math ---
+
+    fn math_inline(content: &str) -> Inline {
+        Inline::Math(carta_ast::MathType::InlineMath, content.to_owned())
+    }
+
+    fn math_display(content: &str) -> Inline {
+        Inline::Math(carta_ast::MathType::DisplayMath, content.to_owned())
+    }
+
+    fn math() -> Extensions {
+        exts(&[Extension::TexMathDollars])
+    }
+
+    #[test]
+    fn inline_and_display_math() {
+        assert_eq!(pe("$a+b$", math()), vec![math_inline("a+b")]);
+        assert_eq!(pe("$$x=y$$", math()), vec![math_display("x=y")]);
+        // Display math keeps interior spaces verbatim.
+        assert_eq!(pe("$$ x $$", math()), vec![math_display(" x ")]);
+    }
+
+    #[test]
+    fn dollar_amounts_are_not_math() {
+        // An opener must be followed by a non-space; a closer may not follow a digit or trail a space.
+        assert_eq!(
+            pe("$5 and $10", math()),
+            vec![str("$5"), Inline::Space, str("and"), Inline::Space, str("$10")]
+        );
+        assert_eq!(pe("$a$5", math()), vec![str("$a$5")]);
+        assert_eq!(pe("$ a$", math()), vec![str("$"), Inline::Space, str("a$")]);
+    }
+
+    #[test]
+    fn math_content_is_verbatim_but_honors_backslash_escape() {
+        // `_`/`*` inside math do not start emphasis.
+        assert_eq!(pe("$x_1*y*$", math()), vec![math_inline("x_1*y*")]);
+        // An escaped dollar inside content does not close the span.
+        assert_eq!(pe(r"$a\$b$", math()), vec![math_inline(r"a\$b")]);
+    }
+
+    #[test]
+    fn failed_display_falls_back_to_inline() {
+        // `$$x$` has no closing `$$`; the first `$` is literal and `$x$` parses as inline math.
+        assert_eq!(pe("$$x$", math()), vec![str("$"), math_inline("x")]);
+    }
+
+    #[test]
+    fn dollar_is_literal_without_the_extension() {
+        assert_eq!(p("$a+b$"), vec![str("$a+b$")]);
+    }
+
     #[test]
     fn nested_image_with_inner_link_and_deactivated_bracket() {
         // ![[[foo](uri1)](uri2)](uri3)
@@ -1381,3 +1501,4 @@ mod inline_tests {
         );
     }
 }
+
