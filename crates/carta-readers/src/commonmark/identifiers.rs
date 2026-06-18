@@ -23,15 +23,53 @@ use carta_core::{Extension, Extensions};
 
 /// Fill in empty header identifiers across the document in reading order.
 pub(crate) fn assign_header_identifiers(blocks: &mut [Block], ext: Extensions) {
-    let algorithm = if ext.contains(Extension::GfmAutoIdentifiers) {
-        Algorithm::Gfm
-    } else if ext.contains(Extension::AutoIdentifiers) {
-        Algorithm::Markdown
-    } else {
+    let mut numbering = HeaderNumbering::new(ext);
+    if numbering.algorithm.is_none() {
         return;
-    };
-    let mut registry = Registry::default();
-    walk(blocks, algorithm, &mut registry);
+    }
+    walk(blocks, &mut numbering);
+}
+
+/// Hands out header identifiers in reading order, applying the active algorithm's disambiguation.
+///
+/// One instance threads the disambiguation state through a whole document, so a header's id depends
+/// on every header before it. With no auto-identifier algorithm enabled, a header keeps the id it
+/// was written with (an explicit `{#id}`, or empty).
+pub(crate) struct HeaderNumbering {
+    algorithm: Option<Algorithm>,
+    registry: Registry,
+}
+
+impl HeaderNumbering {
+    pub(crate) fn new(ext: Extensions) -> Self {
+        let algorithm = if ext.contains(Extension::GfmAutoIdentifiers) {
+            Some(Algorithm::Gfm)
+        } else if ext.contains(Extension::AutoIdentifiers) {
+            Some(Algorithm::Markdown)
+        } else {
+            None
+        };
+        Self {
+            algorithm,
+            registry: Registry::default(),
+        }
+    }
+
+    /// The id for the next header in reading order: an explicit id is kept (and reserved so later
+    /// derived ids avoid it); otherwise one is derived from the header text. Advances disambiguation
+    /// state on every call, so an unchanged sequence of calls always yields the same identifiers.
+    pub(crate) fn id_for(&mut self, explicit_id: &str, inlines: &[Inline]) -> String {
+        let Some(algorithm) = self.algorithm else {
+            return explicit_id.to_owned();
+        };
+        if explicit_id.is_empty() {
+            let base = slug(algorithm, &stringify(inlines));
+            self.registry.assign(algorithm, base)
+        } else {
+            self.registry.reserve(algorithm, explicit_id);
+            explicit_id.to_owned()
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -85,39 +123,34 @@ impl Registry {
     }
 }
 
-fn walk(blocks: &mut [Block], algorithm: Algorithm, registry: &mut Registry) {
+fn walk(blocks: &mut [Block], numbering: &mut HeaderNumbering) {
     for block in blocks {
         match block {
             Block::Header(_, attr, inlines) => {
-                if attr.id.is_empty() {
-                    let base = slug(algorithm, &stringify(inlines));
-                    attr.id = registry.assign(algorithm, base);
-                } else {
-                    registry.reserve(algorithm, &attr.id);
-                }
+                attr.id = numbering.id_for(&attr.id, inlines);
             }
             Block::BlockQuote(children)
             | Block::Div(_, children)
-            | Block::Figure(_, _, children) => walk(children, algorithm, registry),
+            | Block::Figure(_, _, children) => walk(children, numbering),
             Block::BulletList(items) | Block::OrderedList(_, items) => {
                 for item in items {
-                    walk(item, algorithm, registry);
+                    walk(item, numbering);
                 }
             }
             Block::DefinitionList(items) => {
                 for (_, definitions) in items {
                     for definition in definitions {
-                        walk(definition, algorithm, registry);
+                        walk(definition, numbering);
                     }
                 }
             }
-            Block::Table(table) => walk_table(table, algorithm, registry),
+            Block::Table(table) => walk_table(table, numbering),
             _ => {}
         }
     }
 }
 
-fn walk_table(table: &mut Table, algorithm: Algorithm, registry: &mut Registry) {
+fn walk_table(table: &mut Table, numbering: &mut HeaderNumbering) {
     let body_rows = table
         .bodies
         .iter_mut()
@@ -130,7 +163,7 @@ fn walk_table(table: &mut Table, algorithm: Algorithm, registry: &mut Registry) 
         .chain(table.foot.rows.iter_mut());
     for row in rows {
         for cell in &mut row.cells {
-            walk(&mut cell.content, algorithm, registry);
+            walk(&mut cell.content, numbering);
         }
     }
 }
