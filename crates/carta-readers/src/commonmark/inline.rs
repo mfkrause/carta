@@ -1341,7 +1341,14 @@ fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
     for node in nodes {
         match node {
             Node::Text(t) => text.push_str(&t),
-            Node::Delimiter(d) => text.push_str(&delimiter_literal(d.ch, d.count)),
+            Node::Delimiter(d) => {
+                // An unmatched image opener carries its `!` in the `image` flag rather than a
+                // separate node, so restore it when the bracket reverts to literal text.
+                if d.image {
+                    text.push('!');
+                }
+                text.push_str(&delimiter_literal(d.ch, d.count));
+            }
             Node::Inline(inline) => {
                 flush(&mut text, &mut out);
                 out.push(inline);
@@ -1799,6 +1806,13 @@ mod inline_tests {
     fn inline_link_and_image() {
         assert_eq!(p("[a](u)"), vec![link(vec![str("a")], "u")]);
         assert_eq!(p("![i](u)"), vec![image(vec![str("i")], "u")]);
+    }
+
+    #[test]
+    fn unmatched_image_opener_keeps_its_bang() {
+        // An image opener that never finds a closing `]` reverts to the literal `![`, not `[`.
+        assert_eq!(p("![x"), vec![str("![x")]);
+        assert_eq!(p("![[a]x"), vec![str("![[a]x")]);
     }
 
     #[test]
