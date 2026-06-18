@@ -243,12 +243,23 @@ impl Parser {
         let matched = container;
         let old_tip = self.deepest_open(matched);
 
-        // Record the blank against the block it trails — the deepest already-finalized block, or
-        // the still-open container if it has no content yet. This drives loose-list classification:
-        // a blank after an item's last block (or after an empty item) marks the line blank even
-        // though the block was closed before this line was read.
+        // Record the blank against the block it trails — this drives loose-list classification.
+        // When every container matched, it lands on the deepest already-finalized block (or the
+        // still-open container if it has no content yet), so a blank after an item's last block (or
+        // after an empty item) marks the line blank even though the block was closed before this
+        // line was read. When a container went unmatched, the blank ends that container at the
+        // boundary: it attaches to the deepest matched container's last child, so a block quote (or
+        // any block) that a blank line terminates still counts toward the enclosing list's
+        // looseness.
         if blank {
-            let target = self.blank_trails(old_tip);
+            let target = if all_matched {
+                self.blank_trails(old_tip)
+            } else {
+                self.nodes
+                    .get(matched)
+                    .and_then(|node| node.children.last().copied())
+                    .unwrap_or(matched)
+            };
             if let Some(node) = self.nodes.get_mut(target) {
                 node.last_line_blank = true;
             }

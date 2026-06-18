@@ -305,4 +305,22 @@ mod tests {
             [Block::Para(_)]
         ));
     }
+
+    #[test]
+    fn blank_ending_a_nested_block_quote_makes_the_list_loose() {
+        // The blank line after the first item's block quote leaves that quote unmatched, so it
+        // ends there and the blank counts toward the list's looseness. A loose list keeps its item
+        // paragraphs as `Para` (a tight list would demote them to `Plain`).
+        let result = blocks("- item\n  > q\n\n- item2\n");
+        let [Block::BulletList(items)] = result.as_slice() else {
+            panic!("expected a single bullet list, got {result:?}");
+        };
+        let Some([first, ..]) = items.first().map(Vec::as_slice) else {
+            panic!("the first item should have content");
+        };
+        assert!(
+            matches!(first, Block::Para(_)),
+            "loose list should keep the item paragraph as Para, got {first:?}"
+        );
+    }
 }
