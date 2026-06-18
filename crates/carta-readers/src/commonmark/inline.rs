@@ -18,6 +18,7 @@ use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
     scan_html_tag, scan_inline_target,
 };
+use super::identifiers::HeaderNumbering;
 use super::{FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
@@ -37,16 +38,27 @@ struct Notes<'a> {
     in_definition: bool,
 }
 
-/// Resolve the whole document: first each footnote definition's body (where nested references
-/// collapse to empty), then the body itself (where references become notes).
+/// Resolve the whole document: collect the headings reachable by implicit reference, then each
+/// footnote definition's body (where nested references collapse to empty), then the body itself
+/// (where references become notes).
 pub(crate) fn resolve_document(
     ir: &[IrBlock],
-    refs: &RefMap,
+    mut refs: RefMap,
     footnotes: &FootnoteDefs,
     ext: Extensions,
 ) -> Vec<Block> {
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
     let empty = BTreeMap::new();
+    // Headings register their references up front so a reference resolves to a heading anywhere in
+    // the document, including one that appears later or inside a footnote definition.
+    if ext.contains(Extension::ImplicitHeaderReferences) {
+        let probe = Notes {
+            defined: &defined,
+            by_id: &empty,
+            in_definition: false,
+        };
+        register_header_references(ir, &mut refs, probe, ext);
+    }
     let in_def = Notes {
         defined: &defined,
         by_id: &empty,
@@ -54,16 +66,57 @@ pub(crate) fn resolve_document(
     };
     let by_id: BTreeMap<String, Vec<Block>> = footnotes
         .iter()
-        .map(|(key, body)| (key.clone(), resolve_blocks(body, refs, in_def, ext)))
+        .map(|(key, body)| (key.clone(), resolve_blocks(body, &refs, in_def, ext)))
         .collect();
     let top = Notes {
         defined: &defined,
         by_id: &by_id,
         in_definition: false,
     };
-    let mut blocks = resolve_blocks(ir, refs, top, ext);
+    let mut blocks = resolve_blocks(ir, &refs, top, ext);
     super::identifiers::assign_header_identifiers(&mut blocks, ext);
     blocks
+}
+
+/// Walk the block tree in reading order, registering one reference definition per heading: its
+/// source text, normalized like any reference label, paired with a `#id` target. Headings are
+/// numbered with the same algorithm that later assigns their `attr` ids, so the two agree. An
+/// already-defined label is left untouched, so an explicit definition outranks a heading and, among
+/// headings, the first with a given label wins — while every heading still advances the numbering.
+fn register_header_references(ir: &[IrBlock], refs: &mut RefMap, notes: Notes, ext: Extensions) {
+    let mut numbering = HeaderNumbering::new(ext);
+    gather_headers(ir, refs, notes, ext, &mut numbering);
+}
+
+fn gather_headers(
+    ir: &[IrBlock],
+    refs: &mut RefMap,
+    notes: Notes,
+    ext: Extensions,
+    numbering: &mut HeaderNumbering,
+) {
+    for block in ir {
+        match block {
+            IrBlock::Heading(_, text) => {
+                let (content, attr) = split_header_attr(text, ext);
+                let inlines = parse_inlines(content, refs, notes, ext);
+                let id = numbering.id_for(&attr.id, &inlines);
+                refs.entry(normalize_label(content)).or_insert(LinkDef {
+                    url: format!("#{id}"),
+                    title: String::new(),
+                });
+            }
+            IrBlock::Div(_, children) | IrBlock::BlockQuote(children) => {
+                gather_headers(children, refs, notes, ext, numbering);
+            }
+            IrBlock::BulletList(items) | IrBlock::OrderedList(_, items) => {
+                for item in items {
+                    gather_headers(item, refs, notes, ext, numbering);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, notes: Notes, ext: Extensions) -> Vec<Block> {

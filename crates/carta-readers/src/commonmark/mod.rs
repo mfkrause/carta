@@ -67,7 +67,10 @@ pub(crate) struct LinkDef {
     pub title: String,
 }
 
-/// Link reference definitions, keyed by their normalized label.
+/// Reference definitions keyed by their normalized label: the explicit `[label]: url` definitions,
+/// plus the implicit definitions a heading contributes when `implicit_header_references` is on. A
+/// heading's label is its source text normalized the same way, so both kinds resolve through one
+/// lookup; an explicit definition, registered first, wins over a heading with the same label.
 pub(crate) type RefMap = BTreeMap<String, LinkDef>;
 
 /// Footnote definitions, keyed by their normalized label; each value is the still-raw block content
@@ -77,7 +80,7 @@ pub(crate) type FootnoteDefs = BTreeMap<String, Vec<IrBlock>>;
 fn parse(input: &str, extensions: Extensions) -> Document {
     let normalized = normalize(input);
     let (ir, refs, footnotes) = block::parse(&normalized, extensions);
-    let blocks = inline::resolve_document(&ir, &refs, &footnotes, extensions);
+    let blocks = inline::resolve_document(&ir, refs, &footnotes, extensions);
     Document {
         blocks,
         ..Document::default()
@@ -150,6 +153,19 @@ mod tests {
     fn blocks_with(input: &str, ext: Extension) -> Vec<Block> {
         let mut extensions = Extensions::empty();
         extensions.insert(ext);
+        let mut options = ReaderOptions::default();
+        options.extensions = extensions;
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+            .blocks
+    }
+
+    fn blocks_with_many(input: &str, exts: &[Extension]) -> Vec<Block> {
+        let mut extensions = Extensions::empty();
+        for ext in exts {
+            extensions.insert(*ext);
+        }
         let mut options = ReaderOptions::default();
         options.extensions = extensions;
         CommonmarkReader
@@ -517,5 +533,110 @@ mod tests {
     #[test]
     fn auto_identifiers_off_leaves_headers_unidentified() {
         assert_eq!(header_ids(&blocks("# Hello World\n")), [""]);
+    }
+
+    const HEADER_REFS: &[Extension] =
+        &[Extension::GfmAutoIdentifiers, Extension::ImplicitHeaderReferences];
+
+    /// The link and image targets reached from every paragraph, in order.
+    fn reference_targets(blocks: &[Block]) -> Vec<String> {
+        fn collect(inlines: &[Inline], out: &mut Vec<String>) {
+            for inline in inlines {
+                match inline {
+                    Inline::Link(_, _, target) | Inline::Image(_, _, target) => {
+                        out.push(target.url.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for block in blocks {
+            if let Block::Para(inlines) = block {
+                collect(inlines, &mut out);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn implicit_header_references_resolve_a_shortcut_reference() {
+        let result = blocks_with_many("# Some Heading\n\n[Some Heading]\n", HEADER_REFS);
+        // The heading registers a definition keyed by its label, so the bare reference links to
+        // the heading's identifier.
+        assert_eq!(reference_targets(&result), ["#some-heading"]);
+    }
+
+    #[test]
+    fn implicit_header_references_match_full_collapsed_and_image_forms() {
+        let result = blocks_with_many(
+            "# Some Heading\n\n[text][Some Heading] [Some Heading][] ![Some Heading]\n",
+            HEADER_REFS,
+        );
+        // Full, collapsed, and image references all resolve to the same anchor.
+        assert_eq!(
+            reference_targets(&result),
+            ["#some-heading", "#some-heading", "#some-heading"]
+        );
+    }
+
+    #[test]
+    fn implicit_header_references_fold_case_and_collapse_whitespace() {
+        let result =
+            blocks_with_many("# Some Heading\n\n[SOME    HEADING]\n", HEADER_REFS);
+        assert_eq!(reference_targets(&result), ["#some-heading"]);
+    }
+
+    #[test]
+    fn implicit_header_references_match_on_label_source_not_decoded_text() {
+        // The label is matched against the heading's literal source, so the marked-up form
+        // resolves while the same words without the emphasis markers do not.
+        let result = blocks_with_many(
+            "# Heading with *emphasis*\n\n[Heading with *emphasis*] [Heading with emphasis]\n",
+            HEADER_REFS,
+        );
+        assert_eq!(reference_targets(&result), ["#heading-with-emphasis"]);
+    }
+
+    #[test]
+    fn an_explicit_definition_outranks_an_implicit_header_reference() {
+        let result = blocks_with_many(
+            "# Linked Elsewhere\n\n[Linked Elsewhere]: https://example.com/x\n\n[Linked Elsewhere]\n",
+            HEADER_REFS,
+        );
+        // An explicit definition with the same label is registered first and keeps the link.
+        assert_eq!(reference_targets(&result), ["https://example.com/x"]);
+    }
+
+    #[test]
+    fn a_repeated_heading_is_reachable_only_through_the_first() {
+        let result = blocks_with_many(
+            "# Twice\n\n# Twice\n\n[Twice]\n",
+            HEADER_REFS,
+        );
+        // The first heading keeps the bare identifier; the reference resolves to it, not the
+        // disambiguated second occurrence.
+        assert_eq!(reference_targets(&result), ["#twice"]);
+    }
+
+    #[test]
+    fn implicit_header_references_resolve_before_their_heading() {
+        let result = blocks_with_many("[Later Section]\n\n# Later Section\n", HEADER_REFS);
+        // A reference may precede the heading it points at.
+        assert_eq!(reference_targets(&result), ["#later-section"]);
+    }
+
+    #[test]
+    fn implicit_header_references_off_leaves_the_label_literal() {
+        let result = blocks_with("# Some Heading\n\n[Some Heading]\n", Extension::GfmAutoIdentifiers);
+        assert!(reference_targets(&result).is_empty());
+        let [_, Block::Para(inlines)] = result.as_slice() else {
+            panic!("expected a heading then a paragraph, got {result:?}");
+        };
+        assert!(
+            inlines
+                .iter()
+                .any(|i| matches!(i, Inline::Str(s) if s.contains("[Some")))
+        );
     }
 }
