@@ -480,6 +480,22 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
     inlines
 }
 
+/// Parse standalone text — a document metadata value — into inlines with no reference context, so
+/// footnote and example references in the text resolve to nothing.
+pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions) -> Vec<Inline> {
+    let defined = BTreeSet::new();
+    let by_id = BTreeMap::new();
+    let examples = ExampleMap::new();
+    let refs = RefMap::new();
+    let notes = RefContext {
+        defined: &defined,
+        by_id: &by_id,
+        in_definition: false,
+        examples: &examples,
+    };
+    parse_inlines(text, &refs, notes, ext)
+}
+
 struct InlineParser<'a> {
     chars: &'a [char],
     pos: usize,
