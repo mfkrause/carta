@@ -157,7 +157,7 @@ pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
 #[cfg(test)]
 mod tests {
     use super::CommonmarkReader;
-    use carta_ast::{Block, Inline};
+    use carta_ast::{Block, Inline, ListNumberDelim, ListNumberStyle};
     use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
@@ -925,5 +925,146 @@ mod tests {
         let blocks = blocks("apple\n: red\n");
         assert!(matches!(blocks.as_slice(), [Block::Para(_)]));
         assert!(definition_items(&blocks).is_empty());
+    }
+
+    /// Each ordered list in `input` (parsed with fancy lists on) reduced to its
+    /// `(start, style, delimiter, item count)`.
+    fn ordered_lists(input: &str) -> Vec<(i32, ListNumberStyle, ListNumberDelim, usize)> {
+        fn collect(
+            blocks: &[Block],
+            out: &mut Vec<(i32, ListNumberStyle, ListNumberDelim, usize)>,
+        ) {
+            for block in blocks {
+                if let Block::OrderedList(attrs, items) = block {
+                    out.push((attrs.start, attrs.style.clone(), attrs.delim.clone(), items.len()));
+                    for item in items {
+                        collect(item, out);
+                    }
+                }
+            }
+        }
+        let mut out = Vec::new();
+        collect(&blocks_with(input, Extension::FancyLists), &mut out);
+        out
+    }
+
+    #[test]
+    fn lowercase_letters_form_an_alphabetic_list() {
+        assert_eq!(
+            ordered_lists("a. one\nb. two\nc. three\n"),
+            [(1, ListNumberStyle::LowerAlpha, ListNumberDelim::Period, 3)]
+        );
+    }
+
+    #[test]
+    fn an_alphabetic_list_starts_at_its_first_letter() {
+        assert_eq!(
+            ordered_lists("c. three\nd. four\n"),
+            [(3, ListNumberStyle::LowerAlpha, ListNumberDelim::Period, 2)]
+        );
+    }
+
+    #[test]
+    fn a_roman_run_is_a_roman_list() {
+        assert_eq!(
+            ordered_lists("i. one\nii. two\niii. three\niv. four\n"),
+            [(1, ListNumberStyle::LowerRoman, ListNumberDelim::Period, 4)]
+        );
+    }
+
+    #[test]
+    fn a_lone_i_opens_a_roman_list() {
+        assert_eq!(
+            ordered_lists("i. only\n"),
+            [(1, ListNumberStyle::LowerRoman, ListNumberDelim::Period, 1)]
+        );
+    }
+
+    #[test]
+    fn an_alphabetic_list_absorbs_a_following_i() {
+        // `h. i. j.` is one alphabetic list: `i` continues it as the ninth letter rather than
+        // restarting as a roman one.
+        assert_eq!(
+            ordered_lists("h. eight\ni. nine\nj. ten\n"),
+            [(8, ListNumberStyle::LowerAlpha, ListNumberDelim::Period, 3)]
+        );
+    }
+
+    #[test]
+    fn a_multi_letter_roman_does_not_continue_an_alphabetic_list() {
+        assert_eq!(
+            ordered_lists("a. one\nii. two\n"),
+            [
+                (1, ListNumberStyle::LowerAlpha, ListNumberDelim::Period, 1),
+                (2, ListNumberStyle::LowerRoman, ListNumberDelim::Period, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_lone_i_after_a_list_reads_as_the_ninth_letter() {
+        // Following another list, the ambiguous `i` resolves to the alphabetic reading.
+        assert_eq!(
+            ordered_lists("1. one\ni. two\n"),
+            [
+                (1, ListNumberStyle::Decimal, ListNumberDelim::Period, 1),
+                (9, ListNumberStyle::LowerAlpha, ListNumberDelim::Period, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn parenthesized_and_single_paren_delimiters_are_distinguished() {
+        assert_eq!(
+            ordered_lists("(a) one\n"),
+            [(1, ListNumberStyle::LowerAlpha, ListNumberDelim::TwoParens, 1)]
+        );
+        assert_eq!(
+            ordered_lists("a) one\n"),
+            [(1, ListNumberStyle::LowerAlpha, ListNumberDelim::OneParen, 1)]
+        );
+    }
+
+    #[test]
+    fn an_uppercase_letter_and_period_need_two_spaces() {
+        // One space reads as an ordinary sentence; two spaces make it a list.
+        assert!(matches!(
+            blocks_with("B. Franklin\n", Extension::FancyLists).as_slice(),
+            [Block::Para(_)]
+        ));
+        assert_eq!(
+            ordered_lists("B.  item\n"),
+            [(2, ListNumberStyle::UpperAlpha, ListNumberDelim::Period, 1)]
+        );
+    }
+
+    #[test]
+    fn an_uppercase_letter_with_one_space_is_a_list_under_other_delimiters() {
+        // The two-space rule guards only the period; a paren delimiter is unambiguous.
+        assert_eq!(
+            ordered_lists("B) item\n"),
+            [(2, ListNumberStyle::UpperAlpha, ListNumberDelim::OneParen, 1)]
+        );
+    }
+
+    #[test]
+    fn only_a_decimal_one_interrupts_a_paragraph() {
+        assert!(matches!(
+            blocks_with("text\na. item\n", Extension::FancyLists).as_slice(),
+            [Block::Para(_)]
+        ));
+        assert!(matches!(
+            blocks_with("text\n1. item\n", Extension::FancyLists).as_slice(),
+            [Block::Para(_), Block::OrderedList(..)]
+        ));
+        assert!(matches!(
+            blocks_with("text\n(1) item\n", Extension::FancyLists).as_slice(),
+            [Block::Para(_), Block::OrderedList(..)]
+        ));
+    }
+
+    #[test]
+    fn with_the_extension_off_a_letter_marker_is_paragraph_text() {
+        assert!(matches!(blocks("a. one\n").as_slice(), [Block::Para(_)]));
     }
 }

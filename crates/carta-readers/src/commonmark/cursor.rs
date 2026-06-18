@@ -6,7 +6,7 @@
 //! code openers, and list markers. It holds no tree state; recognizing a construct and acting on it
 //! are separate concerns owned by the block phase.
 
-use carta_ast::ListNumberDelim;
+use carta_ast::{ListNumberDelim, ListNumberStyle};
 
 use super::{TAB_STOP, scan};
 
@@ -20,14 +20,20 @@ pub(super) struct FenceInfo {
     pub(super) info: String,
 }
 
-/// A parsed list marker: its kind and delimiter, the start number for ordered lists, the marker's
-/// own width in columns, and whether only whitespace follows it (an empty item opener).
+/// A parsed list marker: its kind, the number style and delimiter, the start number for ordered
+/// lists, the marker's own width in columns, and whether only whitespace follows it (an empty item
+/// opener).
 #[derive(Debug)]
 pub(super) struct ListMarkerParse {
     pub(super) bullet: bool,
     pub(super) marker: u8,
+    pub(super) style: ListNumberStyle,
     pub(super) delim: ListNumberDelim,
     pub(super) start: i32,
+    /// Whether the enumerator is a single letter (`a`, `i`, …) rather than a multi-letter roman
+    /// numeral or a number. A lone letter is ambiguous between alphabetic and roman readings, which
+    /// governs whether it can continue a neighbouring list.
+    pub(super) single_letter: bool,
     pub(super) marker_width: usize,
     pub(super) blank_after: bool,
 }
@@ -380,7 +386,10 @@ impl<'a> Cursor<'a> {
         Some(rest_is_blank(self.bytes, self.offset + 1))
     }
 
-    pub(super) fn list_marker_at(&mut self) -> Option<ListMarkerParse> {
+    /// If the cursor sits at a list marker, return its parse. With `fancy` set, ordered enumerators
+    /// also recognize alphabetic and roman styles and the `(x)` parenthesized delimiter; otherwise
+    /// only decimal `n.`/`n)` enumerators count.
+    pub(super) fn list_marker_at(&self, fancy: bool) -> Option<ListMarkerParse> {
         let byte = self.peek()?;
         match byte {
             b'-' | b'+' | b'*' => {
@@ -397,26 +406,107 @@ impl<'a> Cursor<'a> {
                 Some(ListMarkerParse {
                     bullet: true,
                     marker: byte,
+                    style: ListNumberStyle::DefaultStyle,
                     delim: ListNumberDelim::DefaultDelim,
                     start: 1,
+                    single_letter: false,
                     marker_width: 1,
                     blank_after,
                 })
             }
-            b'0'..=b'9' => self.ordered_marker_at(),
+            b'0'..=b'9' => self.enumerator_at(self.offset),
+            b'a'..=b'z' | b'A'..=b'Z' if fancy => self.enumerator_at(self.offset),
+            b'(' if fancy => self.paren_enumerator_at(),
             _ => None,
         }
     }
 
-    fn ordered_marker_at(&self) -> Option<ListMarkerParse> {
-        let mut digits = 0;
+    /// Parse an enumerator with a trailing `.` or `)` delimiter at `body`. Used for both decimal and
+    /// (when fancy lists are on) alphabetic/roman enumerators.
+    fn enumerator_at(&self, body: usize) -> Option<ListMarkerParse> {
+        let (style, start, len) = parse_enum_body(self.bytes, body)?;
+        let delim_byte = self.bytes.get(body + len).copied();
+        let delim = match delim_byte {
+            Some(b'.') => ListNumberDelim::Period,
+            Some(b')') => ListNumberDelim::OneParen,
+            _ => return None,
+        };
+        let after = body + len + 1;
+        let blank_after = rest_is_blank(self.bytes, after);
+        if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
+            return None;
+        }
+        // An uppercase letter followed by a period needs two spaces of separation before content, so
+        // a sentence opener like "B. Franklin" is not mistaken for a list (the gap is unnecessary
+        // when the item is empty, since nothing follows to be confused).
+        if delim == ListNumberDelim::Period
+            && matches!(
+                style,
+                ListNumberStyle::UpperAlpha | ListNumberStyle::UpperRoman
+            )
+            && !blank_after
+            && !two_spaces_at(self.bytes, after)
+        {
+            return None;
+        }
+        let single_letter = single_letter(&style, len);
+        Some(ListMarkerParse {
+            bullet: false,
+            marker: delim_byte.unwrap_or(b'.'),
+            style,
+            delim,
+            start,
+            single_letter,
+            marker_width: len + 1,
+            blank_after,
+        })
+    }
+
+    /// Parse a parenthesized enumerator `(x)` at the cursor (fancy lists only).
+    fn paren_enumerator_at(&self) -> Option<ListMarkerParse> {
+        let body = self.offset + 1;
+        let (style, start, len) = parse_enum_body(self.bytes, body)?;
+        if self.bytes.get(body + len) != Some(&b')') {
+            return None;
+        }
+        let after = body + len + 1;
+        let blank_after = rest_is_blank(self.bytes, after);
+        if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
+            return None;
+        }
+        let single_letter = single_letter(&style, len);
+        Some(ListMarkerParse {
+            bullet: false,
+            marker: b'(',
+            style,
+            delim: ListNumberDelim::TwoParens,
+            start,
+            single_letter,
+            marker_width: len + 2,
+            blank_after,
+        })
+    }
+}
+
+/// Whether an enumerator of `len` bytes in `style` is a single alphabetic/roman letter.
+fn single_letter(style: &ListNumberStyle, len: usize) -> bool {
+    len == 1 && !matches!(style, ListNumberStyle::Decimal)
+}
+
+/// Parse an ordered-list enumerator value at `start`: a run of digits (decimal), or a run of
+/// same-case ASCII letters read as alphabetic (single letter) or roman. Returns the number style,
+/// the natural start value, and the enumerator's byte length (excluding any delimiter).
+fn parse_enum_body(bytes: &[u8], start: usize) -> Option<(ListNumberStyle, i32, usize)> {
+    let first = bytes.get(start).copied()?;
+    if first.is_ascii_digit() {
+        let mut len = 0;
         let mut value: i64 = 0;
-        while let Some(byte) = self.bytes.get(self.offset + digits) {
+        while let Some(byte) = bytes.get(start + len) {
             if byte.is_ascii_digit() {
-                digits += 1;
-                // CommonMark caps an ordered-list start at 9 digits; a longer run is not a marker.
-                // Enforce it before accumulating so `value` cannot overflow.
-                if digits > 9 {
+                len += 1;
+                // An ordered-list start caps at 9 digits; a longer run is not a marker. Enforce the
+                // cap before accumulating so `value` cannot overflow.
+                if len > 9 {
                     return None;
                 }
                 value = value * 10 + i64::from(byte - b'0');
@@ -424,29 +514,91 @@ impl<'a> Cursor<'a> {
                 break;
             }
         }
-        if digits == 0 {
-            return None;
+        return Some((ListNumberStyle::Decimal, i32::try_from(value).unwrap_or(1), len));
+    }
+    if !first.is_ascii_alphabetic() {
+        return None;
+    }
+    let upper = first.is_ascii_uppercase();
+    let mut len = 0;
+    while let Some(byte) = bytes.get(start + len) {
+        if byte.is_ascii_alphabetic() && byte.is_ascii_uppercase() == upper {
+            len += 1;
+        } else {
+            break;
         }
-        let delim_byte = self.bytes.get(self.offset + digits).copied();
-        let delim = match delim_byte {
-            Some(b'.') => ListNumberDelim::Period,
-            Some(b')') => ListNumberDelim::OneParen,
-            _ => return None,
+    }
+    if len == 1 {
+        // A lone `i`/`I` reads as roman one; every other single letter is alphabetic.
+        if first == b'i' || first == b'I' {
+            let style = if upper {
+                ListNumberStyle::UpperRoman
+            } else {
+                ListNumberStyle::LowerRoman
+            };
+            return Some((style, 1, 1));
+        }
+        let style = if upper {
+            ListNumberStyle::UpperAlpha
+        } else {
+            ListNumberStyle::LowerAlpha
         };
-        let after = self.bytes.get(self.offset + digits + 1);
-        let blank_after = rest_is_blank(self.bytes, self.offset + digits + 1);
-        if !matches!(after, None | Some(b' ' | b'\t')) {
-            return None;
+        return Some((style, alpha_value(first), 1));
+    }
+    // A multi-letter enumerator is only valid as a roman numeral.
+    let value = roman_value(bytes.get(start..start + len)?)?;
+    let style = if upper {
+        ListNumberStyle::UpperRoman
+    } else {
+        ListNumberStyle::LowerRoman
+    };
+    Some((style, value, len))
+}
+
+/// Alphabetic enumerator value: `a`/`A` → 1 … `z`/`Z` → 26.
+fn alpha_value(byte: u8) -> i32 {
+    i32::from(byte.to_ascii_lowercase() - b'a') + 1
+}
+
+/// Value of a single roman digit, case-insensitive.
+fn roman_digit(byte: u8) -> Option<i32> {
+    Some(match byte.to_ascii_lowercase() {
+        b'i' => 1,
+        b'v' => 5,
+        b'x' => 10,
+        b'l' => 50,
+        b'c' => 100,
+        b'd' => 500,
+        b'm' => 1000,
+        _ => return None,
+    })
+}
+
+/// Value of a roman numeral, or `None` if any character is not a roman digit. Uses the subtractive
+/// rule (a smaller digit before a larger one subtracts), so `iv` → 4 and `xl` → 40.
+fn roman_value(run: &[u8]) -> Option<i32> {
+    let mut total = 0i32;
+    let mut prev = 0i32;
+    let mut idx = run.len();
+    while idx > 0 {
+        idx -= 1;
+        let value = roman_digit(*run.get(idx)?)?;
+        if value < prev {
+            total -= value;
+        } else {
+            total += value;
+            prev = value;
         }
-        let start = i32::try_from(value).unwrap_or(1);
-        Some(ListMarkerParse {
-            bullet: false,
-            marker: delim_byte.unwrap_or(b'.'),
-            delim,
-            start,
-            marker_width: digits + 1,
-            blank_after,
-        })
+    }
+    (total > 0).then_some(total)
+}
+
+/// Whether at least two columns of whitespace begin at `idx` — two spaces, or a single tab.
+fn two_spaces_at(bytes: &[u8], idx: usize) -> bool {
+    match bytes.get(idx) {
+        Some(b'\t') => true,
+        Some(b' ') => matches!(bytes.get(idx + 1), Some(b' ' | b'\t')),
+        _ => false,
     }
 }
 
