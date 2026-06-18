@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Outline document</title>
+  </head>
+  <body>
+    <outline text="First section" _note="Intro paragraph.">
+      <outline text="A subsection" _note="Body of the subsection."/>
+      <outline text="Another subsection"/>
+    </outline>
+    <outline text="Second section" _note="Closing words."/>
+  </body>
+</opml>

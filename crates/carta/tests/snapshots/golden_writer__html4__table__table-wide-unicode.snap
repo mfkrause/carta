@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>名前</td>
+<td>漢字テキスト</td>
+</tr>
+<tr>
+<td>x</td>
+<td>y</td>
+</tr>
+</tbody>
+</table>

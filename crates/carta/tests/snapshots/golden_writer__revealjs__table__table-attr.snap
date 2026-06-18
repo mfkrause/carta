@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<table id="tbl" class="fancy" data-key="value">
+<caption>Captioned and attributed</caption>
+<thead>
+<tr>
+<th>h1</th>
+<th>h2</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td id="cell-id">a</td>
+<td>b</td>
+</tr>
+</tbody>
+</table>
+</section>

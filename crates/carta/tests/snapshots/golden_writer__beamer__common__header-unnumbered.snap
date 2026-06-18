@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\section*{Hidden}\label{hidden}
+\addcontentsline{toc}{section}{Hidden}

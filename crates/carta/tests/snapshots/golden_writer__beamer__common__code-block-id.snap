@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]
+\protect\phantomsection\label{snippet}%
+\begin{verbatim}
+plain code
+\end{verbatim}
+\end{frame}

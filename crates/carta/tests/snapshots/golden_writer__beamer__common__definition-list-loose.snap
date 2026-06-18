@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{description}
+\item[Term]
+Definition one
+
+Definition two
+\end{description}
+\end{frame}

@@ -8,6 +8,7 @@ commonmark	figure
 commonmark	image-dimensions
 commonmark	math
 latex	task-list
+beamer	task-list
 plain	math
 typst	math
 jira	math

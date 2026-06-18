@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ul class="task-list">
+<li><label><input type="checkbox" />todo</label></li>
+<li><label><input type="checkbox" checked="" />done</label></li>
+</ul>

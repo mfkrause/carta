@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><img src="https://example.org/i.png" alt="alt" /></p>

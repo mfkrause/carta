@@ -43,6 +43,27 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "csv"
+path = "fuzz_targets/csv.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tsv"
+path = "fuzz_targets/tsv.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "opml"
+path = "fuzz_targets/opml.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 debug = 1
 
