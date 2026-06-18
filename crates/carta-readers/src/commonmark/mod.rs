@@ -258,6 +258,25 @@ mod tests {
     }
 
     #[test]
+    fn empty_list_marker_below_an_unmatched_container_starts_a_list() {
+        // The paragraph that the `- ` could interrupt sits in the unmatched block quote, a level
+        // below where the marker opens, so the marker is not interrupting it: the quote closes and
+        // an empty bullet list begins rather than the `- ` continuing the paragraph lazily.
+        let result = blocks("> two\n- \n");
+        assert!(matches!(
+            result.as_slice(),
+            [Block::BlockQuote(_), Block::BulletList(items)] if items.as_slice() == [Vec::new()]
+        ));
+    }
+
+    #[test]
+    fn empty_list_marker_still_cannot_interrupt_a_same_level_paragraph() {
+        // At the same level the restriction holds: an empty marker is absorbed into the paragraph.
+        // (`*` is used rather than `-` so the line is not read as a setext heading underline.)
+        assert!(matches!(blocks("para\n* \n").as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
     fn long_digit_run_is_not_an_ordered_list() {
         // Regression (found by fuzzing): a digit run longer than nine is not an ordered-list
         // marker, and computing its start value must not overflow.
