@@ -38,11 +38,12 @@ fn reader_ast_snapshots() {
 /// the full format spec it is parsed with (e.g. `commonmark+strikeout`).
 #[test]
 fn reader_ext_ast_snapshots() {
-    let readers = carta::supported_input_formats();
     for case in corpus_cases("text-ext") {
         let (base, _) = carta::parse_format_spec(&case.group)
             .unwrap_or_else(|error| panic!("parse format spec {}: {error}", case.group));
-        if !readers.contains(&base.as_str()) {
+        // A base that resolves to a compiled reader is testable, including the dialect aliases
+        // (`markdown`, `gfm`, `commonmark_x`) that share one reader but are not its canonical name.
+        if carta::reader_for(&base).is_err() {
             continue;
         }
         let json = carta::convert(

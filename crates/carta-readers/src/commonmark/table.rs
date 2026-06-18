@@ -69,15 +69,7 @@ pub(crate) fn classify_continuation(paragraph: &str, line: &str) -> Continuation
     let Some(delimiter_line) = existing.next() else {
         return Continuation::NotTable;
     };
-    let header = split_cells(header_line);
-    if !is_pipe_row(header_line, &header) {
-        return Continuation::NotTable;
-    }
-    let aligned = matches!(
-        parse_delimiter(delimiter_line),
-        Some(alignments) if alignments.len() == header.len()
-    );
-    if !aligned {
+    if !opens_table(header_line, delimiter_line) {
         return Continuation::NotTable;
     }
     if is_pipe_row(line, &split_cells(line)) {
@@ -85,6 +77,19 @@ pub(crate) fn classify_continuation(paragraph: &str, line: &str) -> Continuation
     } else {
         Continuation::Terminate
     }
+}
+
+/// Whether `header_line` immediately followed by `delimiter_line` starts a pipe table: the header is
+/// a pipe row and the delimiter parses to the same number of columns.
+pub(crate) fn opens_table(header_line: &str, delimiter_line: &str) -> bool {
+    let header = split_cells(header_line);
+    if !is_pipe_row(header_line, &header) {
+        return false;
+    }
+    matches!(
+        parse_delimiter(delimiter_line),
+        Some(alignments) if alignments.len() == header.len()
+    )
 }
 
 /// Split one table row into its trimmed cell texts.

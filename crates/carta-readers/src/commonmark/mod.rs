@@ -49,6 +49,10 @@ pub(crate) enum IrBlock {
     /// A fenced div: its attributes and the recursively-parsed block content.
     Div(Attr, Vec<IrBlock>),
     BlockQuote(Vec<IrBlock>),
+    /// A line block: one entry per source line, each still-raw text parsed into inlines in the
+    /// inline phase. Division into lines and any preserved leading spaces are already baked into
+    /// the strings.
+    LineBlock(Vec<String>),
     BulletList(Vec<Vec<IrBlock>>),
     OrderedList(ListAttributes, Vec<Vec<IrBlock>>),
     /// A pipe table: per-column alignments, the header row's cell texts, and the body rows' cell
@@ -638,5 +642,130 @@ mod tests {
                 .iter()
                 .any(|i| matches!(i, Inline::Str(s) if s.contains("[Some")))
         );
+    }
+
+    const LINE_BLOCKS: &[Extension] = &[Extension::LineBlocks];
+    const LINE_BLOCKS_TABLES: &[Extension] = &[Extension::LineBlocks, Extension::PipeTables];
+
+    /// Plain-text rendering of one inline run, enough to assert a line block's entries.
+    fn flatten_inlines(inlines: &[Inline]) -> String {
+        let mut out = String::new();
+        for inline in inlines {
+            match inline {
+                Inline::Str(text) | Inline::Code(_, text) => out.push_str(text),
+                Inline::Space => out.push(' '),
+                Inline::Emph(children)
+                | Inline::Strong(children)
+                | Inline::Link(_, children, _) => out.push_str(&flatten_inlines(children)),
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// The flattened text of every entry across all line blocks in a document.
+    fn line_block_entries(blocks: &[Block]) -> Vec<String> {
+        let mut entries = Vec::new();
+        for block in blocks {
+            if let Block::LineBlock(lines) = block {
+                entries.extend(lines.iter().map(|line| flatten_inlines(line)));
+            }
+        }
+        entries
+    }
+
+    #[test]
+    fn line_block_keeps_each_marked_line_as_its_own_entry() {
+        let blocks = blocks_with_many("| Line one\n| Line two\n", LINE_BLOCKS);
+        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_)]));
+        assert_eq!(line_block_entries(&blocks), ["Line one", "Line two"]);
+    }
+
+    #[test]
+    fn line_block_preserves_leading_spaces_as_non_breaking() {
+        let blocks = blocks_with_many("|   indented\n", LINE_BLOCKS);
+        assert_eq!(line_block_entries(&blocks), ["\u{a0}\u{a0}indented"]);
+    }
+
+    #[test]
+    fn line_block_bar_alone_is_an_empty_entry() {
+        let blocks = blocks_with_many("|\n| after\n", LINE_BLOCKS);
+        assert_eq!(line_block_entries(&blocks), ["", "after"]);
+    }
+
+    #[test]
+    fn line_block_folds_an_indented_continuation_into_the_entry_above() {
+        let blocks = blocks_with_many("| first part\n  second part\n", LINE_BLOCKS);
+        assert_eq!(line_block_entries(&blocks), ["first part second part"]);
+    }
+
+    #[test]
+    fn line_block_collapses_internal_runs_and_drops_trailing_space() {
+        let blocks = blocks_with_many("| a    b    c   \n", LINE_BLOCKS);
+        assert_eq!(line_block_entries(&blocks), ["a b c"]);
+    }
+
+    #[test]
+    fn line_block_all_space_entry_collapses_to_empty() {
+        let blocks = blocks_with_many("|    \n| x\n", LINE_BLOCKS);
+        assert_eq!(line_block_entries(&blocks), ["", "x"]);
+    }
+
+    #[test]
+    fn a_bar_without_a_following_space_is_not_a_line_block() {
+        let blocks = blocks_with_many("|nospace\n", LINE_BLOCKS);
+        assert!(matches!(blocks.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn a_line_block_does_not_interrupt_a_paragraph() {
+        let blocks = blocks_with_many("ordinary text\n| still the paragraph\n", LINE_BLOCKS);
+        assert!(matches!(blocks.as_slice(), [Block::Para(_)]));
+        assert!(line_block_entries(&blocks).is_empty());
+    }
+
+    #[test]
+    fn a_blank_line_ends_a_line_block() {
+        let blocks = blocks_with_many("| a\n\nplain\n", LINE_BLOCKS);
+        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_), Block::Para(_)]));
+    }
+
+    #[test]
+    fn a_whitespace_only_line_continues_a_non_empty_entry() {
+        // Unlike a wholly blank line, a line of only spaces folds into the entry above it (adding
+        // nothing), so the block stays open and the next bar line is a second entry.
+        let blocks = blocks_with_many("| a\n  \n| b\n", LINE_BLOCKS);
+        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_)]));
+        assert_eq!(line_block_entries(&blocks), ["a", "b"]);
+    }
+
+    #[test]
+    fn a_continuation_under_an_empty_entry_ends_the_block() {
+        // With no content to extend, a whitespace-led line closes the block and is reparsed.
+        let blocks = blocks_with_many("| \n |\n", LINE_BLOCKS);
+        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_), Block::Para(_)]));
+        assert_eq!(line_block_entries(&blocks), [""]);
+    }
+
+    #[test]
+    fn a_delimiter_row_under_a_single_bar_line_makes_a_table() {
+        let blocks = blocks_with_many("| a | b |\n|---|---|\n| 1 | 2 |\n", LINE_BLOCKS_TABLES);
+        assert!(matches!(blocks.as_slice(), [Block::Table(_)]));
+        assert!(line_block_entries(&blocks).is_empty());
+    }
+
+    #[test]
+    fn a_bar_line_with_no_delimiter_stays_a_line_block() {
+        let blocks = blocks_with_many("| a | b |\nplain\n", LINE_BLOCKS_TABLES);
+        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_), Block::Para(_)]));
+    }
+
+    #[test]
+    fn with_the_extension_off_a_bar_line_is_literal_paragraph_text() {
+        let blocks = blocks("| a\n");
+        let [Block::Para(inlines)] = blocks.as_slice() else {
+            panic!("expected a single paragraph, got {blocks:?}");
+        };
+        assert!(matches!(inlines.first(), Some(Inline::Str(text)) if text == "|"));
     }
 }

@@ -43,6 +43,10 @@ enum Kind {
     /// least the opening length closes it.
     FencedDiv(DivInfo),
     Paragraph,
+    /// A line block: each source line is appended raw (a `|`-led line opens a new entry, an
+    /// indented line continues the previous). The lines are split apart and prepared in
+    /// [`Parser::build_block`].
+    LineBlock,
     Heading(i32),
     IndentedCode,
     FencedCode(FenceInfo),
@@ -313,6 +317,12 @@ impl Parser {
             return;
         }
 
+        // An open line block claims its `|`-led and indented continuation lines here, before the
+        // openers below could read a line's leading content as the start of a new block.
+        if self.continue_line_block(container, all_matched, &cursor) {
+            return;
+        }
+
         // The deepest block open before this line opens any new ones. When a container went
         // unmatched in phase 1, this is the tip of the unmatched chain hanging below `matched`.
         let matched = container;
@@ -395,25 +405,67 @@ impl Parser {
         if !self.extensions.contains(Extension::PipeTables) || !all_matched || blank {
             return false;
         }
-        let Some(para) = self
+        let Some(leaf) = self
             .last_open_child(container)
-            .filter(|&c| matches!(self.kind(c), Some(Kind::Paragraph)))
+            .filter(|&c| matches!(self.kind(c), Some(Kind::Paragraph | Kind::LineBlock)))
         else {
             return false;
         };
         let rest = cursor.rest();
-        let paragraph = self.node_text(para);
-        match table::classify_continuation(&paragraph, &rest) {
+        let header = self.node_text(leaf);
+        // A line block becomes a table only on its very first line: a delimiter row directly under
+        // the opening `|` line reinterprets it as a table header. Past the first line the block is
+        // committed to being a line block.
+        if matches!(self.kind(leaf), Some(Kind::LineBlock)) {
+            if !single_line(&header) || !table::opens_table(header.trim_end(), &rest) {
+                return false;
+            }
+            if let Some(node) = self.nodes.get_mut(leaf) {
+                node.kind = Kind::Paragraph;
+            }
+            self.append_text(leaf, &rest);
+            self.append_text(leaf, "\n");
+            return true;
+        }
+        match table::classify_continuation(&header, &rest) {
             table::Continuation::Absorb => {
-                self.append_text(para, &rest);
-                self.append_text(para, "\n");
+                self.append_text(leaf, &rest);
+                self.append_text(leaf, "\n");
                 true
             }
             table::Continuation::Terminate => {
-                self.close(para);
+                self.close(leaf);
                 false
             }
             table::Continuation::NotTable => false,
+        }
+    }
+
+    /// Let an open line block claim its continuation lines before the block openers run. A `|` flush
+    /// at the line start opens a new entry. A line led by whitespace continues the previous entry,
+    /// but only while that entry holds content: a continuation under an empty entry, a flush-left
+    /// non-bar line, and a wholly empty line all end the block (the line is then reparsed). Returns
+    /// `true` when the line was absorbed.
+    fn continue_line_block(&mut self, container: usize, all_matched: bool, cursor: &Cursor) -> bool {
+        if !self.extensions.contains(Extension::LineBlocks) || !all_matched {
+            return false;
+        }
+        let Some(block) = self
+            .last_open_child(container)
+            .filter(|&c| matches!(self.kind(c), Some(Kind::LineBlock)))
+        else {
+            return false;
+        };
+        let remaining = cursor.remaining();
+        let absorb = is_line_block_marker(remaining)
+            || (remaining.starts_with(' ') && !last_entry_is_empty(&self.node_text(block)));
+        if absorb {
+            self.append_text(block, &cursor.rest());
+            self.append_text(block, "\n");
+            true
+        } else {
+            self.close(block);
+            false
         }
     }
 
@@ -729,6 +781,22 @@ impl Parser {
                 self.close(index);
                 return Some(index);
             }
+            // A line block opens only on a `|` flush at the line start, and never interrupts a
+            // paragraph. Its whole line is taken as the first entry; later lines are claimed by
+            // `continue_line_block` before the openers run.
+            if self.extensions.contains(Extension::LineBlocks)
+                && indent == 0
+                && !in_paragraph
+                && is_line_block_marker(cursor.remaining())
+            {
+                let raw = cursor.rest();
+                cursor.advance_chars(raw.chars().count());
+                let parent = self.place(container, &Kind::LineBlock);
+                let index = self.append_child(parent, Node::new(Kind::LineBlock));
+                self.append_text(index, &raw);
+                self.append_text(index, "\n");
+                return Some(index);
+            }
             if let Some(list) = self.list_marker(container, indent, cursor) {
                 return Some(list);
             }
@@ -839,6 +907,7 @@ impl Parser {
                 Some(
                     Kind::Heading(_)
                     | Kind::ThematicBreak
+                    | Kind::LineBlock
                     | Kind::IndentedCode
                     | Kind::FencedCode(_)
                     | Kind::HtmlBlock(_),
@@ -960,6 +1029,7 @@ impl Parser {
                     IrBlock::Para(trimmed.to_owned())
                 }
             }
+            Kind::LineBlock => IrBlock::LineBlock(line_block_lines(&node.text)),
             Kind::Heading(level) => IrBlock::Heading(*level, node.text.trim().to_owned()),
             Kind::ThematicBreak => IrBlock::ThematicBreak,
             Kind::IndentedCode => {
@@ -1164,6 +1234,68 @@ fn div_close_fence(line: &str) -> Option<usize> {
 
 fn strip_one_trailing_newline(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
+}
+
+/// A line opens or extends a line block when a `|` sits at its start, followed by a space or the
+/// line's end.
+fn is_line_block_marker(line: &str) -> bool {
+    line == "|" || line.starts_with("| ")
+}
+
+/// Whether `text` (a node's accumulated lines, each terminated by a newline) holds exactly one
+/// non-empty line.
+fn single_line(text: &str) -> bool {
+    let body = text.strip_suffix('\n').unwrap_or(text);
+    !body.is_empty() && !body.contains('\n')
+}
+
+/// Whether a line block's current (final) entry is empty: its last line is a `|` marker carrying no
+/// content. A content-bearing line stays non-empty once written, so checking the final line alone is
+/// enough — an empty entry is only ever followed by another marker line, never folded into.
+fn last_entry_is_empty(text: &str) -> bool {
+    let last = text.trim_end_matches('\n').rsplit('\n').next().unwrap_or("");
+    last.strip_prefix('|')
+        .is_some_and(|rest| rest.trim_matches([' ', '\t']).is_empty())
+}
+
+/// Split a line block's accumulated raw lines into prepared per-entry strings. A `|`-led line opens
+/// a new entry — its `|` and one following space dropped, any remaining leading spaces kept as
+/// non-breaking spaces so they survive inline parsing — while any other line continues the previous
+/// entry, joined to it by a single space.
+fn line_block_lines(text: &str) -> Vec<String> {
+    let mut entries: Vec<String> = Vec::new();
+    for raw in text.lines() {
+        if let Some(rest) = raw.strip_prefix('|') {
+            let rest = rest.strip_prefix(' ').unwrap_or(rest);
+            // Trailing whitespace is dropped first, so an all-space entry collapses to empty
+            // rather than to a run of preserved leading spaces.
+            entries.push(preserve_leading_spaces(rest.trim_end_matches([' ', '\t'])));
+        } else if let Some(last) = entries.last_mut() {
+            last.push(' ');
+            last.push_str(raw.trim());
+        } else {
+            entries.push(raw.trim().to_owned());
+        }
+    }
+    // A whitespace-only continuation folds nothing into its entry but leaves a dangling separator
+    // space; drop any such trailing run, leaving preserved leading spaces untouched.
+    for entry in &mut entries {
+        let kept = entry.trim_end_matches([' ', '\t']).len();
+        entry.truncate(kept);
+    }
+    entries
+}
+
+/// Replace a run of leading ASCII spaces with non-breaking spaces.
+fn preserve_leading_spaces(s: &str) -> String {
+    let trimmed = s.trim_start_matches(' ');
+    let spaces = s.len() - trimmed.len();
+    let mut out = String::with_capacity(s.len() + spaces);
+    for _ in 0..spaces {
+        out.push('\u{a0}');
+    }
+    out.push_str(trimmed);
+    out
 }
 
 /// Drop trailing whitespace-only lines (and the final line ending), keeping interior blank lines.
