@@ -49,6 +49,33 @@ define_extensions! {
     BracketedSpans => "bracketed_spans",
     HardLineBreaks => "hard_line_breaks",
     RawHtml => "raw_html",
+    // Attribute-bearing syntax: `{#id .class key=val}` on headers, code, links/images, and spans.
+    HeaderAttributes => "header_attributes",
+    FencedCodeAttributes => "fenced_code_attributes",
+    InlineCodeAttributes => "inline_code_attributes",
+    LinkAttributes => "link_attributes",
+    // The combined attribute toggle (enables the attribute syntaxes as a group).
+    Attributes => "attributes",
+    // Block constructs.
+    DefinitionLists => "definition_lists",
+    GridTables => "grid_tables",
+    MultilineTables => "multiline_tables",
+    SimpleTables => "simple_tables",
+    TableCaptions => "table_captions",
+    LineBlocks => "line_blocks",
+    // List-marker richness.
+    FancyLists => "fancy_lists",
+    ExampleLists => "example_lists",
+    Startnum => "startnum",
+    // Document metadata.
+    YamlMetadataBlock => "yaml_metadata_block",
+    PandocTitleBlock => "pandoc_title_block",
+    // Header identifiers and the references they enable.
+    AutoIdentifiers => "auto_identifiers",
+    GfmAutoIdentifiers => "gfm_auto_identifiers",
+    ImplicitHeaderReferences => "implicit_header_references",
+    // Bare images with a caption become figures.
+    ImplicitFigures => "implicit_figures",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
@@ -167,12 +194,73 @@ pub mod presets {
     /// Strict `CommonMark`: no extensions.
     pub const COMMONMARK: Extensions = Extensions::empty();
 
-    /// `GitHub`-Flavored Markdown. A documented target for a future reader; no consumer yet.
+    /// `GitHub`-Flavored Markdown.
     pub const GFM: Extensions = Extensions::from_list(&[
         Extension::Strikeout,
         Extension::PipeTables,
         Extension::TaskLists,
         Extension::Autolink,
+        Extension::Footnotes,
+        Extension::TexMathDollars,
+        Extension::GfmAutoIdentifiers,
+        Extension::RawHtml,
+    ]);
+
+    /// `CommonMark` with the common pandoc extensions enabled.
+    pub const COMMONMARK_X: Extensions = Extensions::from_list(&[
+        Extension::Smart,
+        Extension::Strikeout,
+        Extension::Superscript,
+        Extension::Subscript,
+        Extension::PipeTables,
+        Extension::Footnotes,
+        Extension::TaskLists,
+        Extension::TexMathDollars,
+        Extension::FencedDivs,
+        Extension::BracketedSpans,
+        Extension::RawHtml,
+        Extension::Attributes,
+        Extension::HeaderAttributes,
+        Extension::FencedCodeAttributes,
+        Extension::InlineCodeAttributes,
+        Extension::LinkAttributes,
+        Extension::DefinitionLists,
+        Extension::FancyLists,
+        Extension::GfmAutoIdentifiers,
+        Extension::ImplicitHeaderReferences,
+    ]);
+
+    /// The pandoc Markdown dialect: the broad default extension set.
+    pub const MARKDOWN: Extensions = Extensions::from_list(&[
+        Extension::Smart,
+        Extension::Strikeout,
+        Extension::Superscript,
+        Extension::Subscript,
+        Extension::PipeTables,
+        Extension::Footnotes,
+        Extension::TaskLists,
+        Extension::TexMathDollars,
+        Extension::FencedDivs,
+        Extension::BracketedSpans,
+        Extension::RawHtml,
+        Extension::HeaderAttributes,
+        Extension::FencedCodeAttributes,
+        Extension::InlineCodeAttributes,
+        Extension::LinkAttributes,
+        Extension::DefinitionLists,
+        Extension::GridTables,
+        Extension::MultilineTables,
+        Extension::SimpleTables,
+        Extension::TableCaptions,
+        Extension::LineBlocks,
+        Extension::FancyLists,
+        Extension::ExampleLists,
+        Extension::Startnum,
+        Extension::YamlMetadataBlock,
+        Extension::PandocTitleBlock,
+        Extension::AutoIdentifiers,
+        Extension::ImplicitHeaderReferences,
+        Extension::ImplicitFigures,
     ]);
 }
 
@@ -214,7 +302,21 @@ mod tests {
         assert!(presets::COMMONMARK.is_empty());
         assert!(presets::GFM.contains(Extension::Strikeout));
         assert!(presets::GFM.contains(Extension::TaskLists));
-        assert!(!presets::GFM.contains(Extension::Footnotes));
+        assert!(presets::GFM.contains(Extension::PipeTables));
+        // GFM has no subscript/superscript; those belong to the broader pandoc dialects.
+        assert!(!presets::GFM.contains(Extension::Subscript));
+        assert!(!presets::GFM.contains(Extension::Superscript));
+    }
+
+    #[test]
+    fn markdown_and_commonmark_x_presets_are_broad() {
+        assert!(presets::MARKDOWN.contains(Extension::DefinitionLists));
+        assert!(presets::MARKDOWN.contains(Extension::YamlMetadataBlock));
+        assert!(presets::MARKDOWN.contains(Extension::Smart));
+        assert!(presets::COMMONMARK_X.contains(Extension::FencedDivs));
+        assert!(presets::COMMONMARK_X.contains(Extension::Attributes));
+        // The strict CommonMark dialect keeps none of these.
+        assert!(presets::COMMONMARK.is_empty());
     }
 
     #[test]
