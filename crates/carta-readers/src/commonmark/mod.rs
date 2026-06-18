@@ -9,11 +9,13 @@ mod attr;
 mod autolink;
 mod block;
 mod cursor;
+mod frontmatter;
 mod html_block;
 mod identifiers;
 mod inline;
 mod scan;
 mod table;
+mod yaml;
 
 use std::collections::BTreeMap;
 
@@ -31,7 +33,17 @@ pub struct CommonmarkReader;
 
 impl Reader for CommonmarkReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        Ok(parse(input, options.extensions))
+        let ext = options.extensions;
+        let normalized = normalize(input);
+        let (meta, body) = frontmatter::extract(&normalized, ext)?;
+        let source = body.as_deref().unwrap_or(&normalized);
+        let (ir, refs, footnotes, examples) = block::parse(source, ext);
+        let blocks = inline::resolve_document(&ir, refs, &footnotes, &examples, ext);
+        Ok(Document {
+            meta,
+            blocks,
+            ..Document::default()
+        })
     }
 }
 
@@ -99,14 +111,13 @@ pub(crate) type FootnoteDefs = BTreeMap<String, Vec<IrBlock>>;
 /// later `@label` reference resolves to that number.
 pub(crate) type ExampleMap = BTreeMap<String, i32>;
 
-fn parse(input: &str, extensions: Extensions) -> Document {
-    let normalized = normalize(input);
+/// Parse the text of a block-level metadata value into blocks, reusing the full block and inline
+/// pipeline. Front matter is not re-extracted, so a metadata value never recurses into another
+/// metadata block.
+pub(crate) fn parse_meta_blocks(text: &str, extensions: Extensions) -> Vec<Block> {
+    let normalized = normalize(text);
     let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions);
-    let blocks = inline::resolve_document(&ir, refs, &footnotes, &examples, extensions);
-    Document {
-        blocks,
-        ..Document::default()
-    }
+    inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
 }
 
 /// Width of a tab stop in columns, used when expanding tabs during preprocessing.
@@ -1224,5 +1235,81 @@ mod tests {
     fn with_the_extension_off_an_example_marker_is_paragraph_text() {
         assert!(matches!(blocks("(@) one\n").as_slice(), [Block::Para(_)]));
         assert!(matches!(blocks("@a. one\n").as_slice(), [Block::Para(_)]));
+    }
+
+    fn document(input: &str, exts: &[Extension]) -> carta_ast::Document {
+        let mut options = ReaderOptions::default();
+        options.extensions = Extensions::from_list(exts);
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+    }
+
+    #[test]
+    fn a_yaml_metadata_block_populates_meta_and_is_removed_from_the_body() {
+        use carta_ast::MetaValue;
+        let doc = document(
+            "---\ntitle: A Note\nflag: true\nempty: ~\nrevision: 007\n---\n\nBody.\n",
+            &[Extension::YamlMetadataBlock],
+        );
+        assert!(matches!(
+            doc.meta.get("title"),
+            Some(MetaValue::MetaInlines(_))
+        ));
+        assert_eq!(doc.meta.get("flag"), Some(&MetaValue::MetaBool(true)));
+        assert_eq!(
+            doc.meta.get("empty"),
+            Some(&MetaValue::MetaString(String::new()))
+        );
+        // An unquoted numeric scalar is canonicalized before it is parsed as inline markdown.
+        assert_eq!(
+            doc.meta.get("revision"),
+            Some(&MetaValue::MetaInlines(vec![Inline::Str("7".to_owned())]))
+        );
+        assert!(matches!(doc.blocks.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn a_yaml_block_without_a_closing_fence_is_not_metadata() {
+        let doc = document(
+            "---\ntitle: A Note\n\nBody.\n",
+            &[Extension::YamlMetadataBlock],
+        );
+        assert!(doc.meta.is_empty());
+    }
+
+    #[test]
+    fn yaml_metadata_is_inert_without_the_extension() {
+        let doc = document("---\nk: v\n---\n\nBody.\n", &[]);
+        assert!(doc.meta.is_empty());
+    }
+
+    #[test]
+    fn a_title_block_sets_title_author_and_date() {
+        use carta_ast::MetaValue;
+        let doc = document(
+            "% A Note\n% Ada; Grace\n% 2026\n\nBody.\n",
+            &[Extension::PandocTitleBlock],
+        );
+        assert!(matches!(
+            doc.meta.get("title"),
+            Some(MetaValue::MetaInlines(_))
+        ));
+        match doc.meta.get("author") {
+            Some(MetaValue::MetaList(authors)) => assert_eq!(authors.len(), 2),
+            other => panic!("expected two authors, got {other:?}"),
+        }
+        assert!(matches!(doc.meta.get("date"), Some(MetaValue::MetaInlines(_))));
+        assert!(matches!(doc.blocks.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn malformed_yaml_metadata_is_an_error() {
+        let mut options = ReaderOptions::default();
+        options.extensions = Extensions::from_list(&[Extension::YamlMetadataBlock]);
+        let error = CommonmarkReader
+            .read("---\nx: [\n---\n\nBody.\n", &options)
+            .expect_err("malformed metadata should fail");
+        assert!(matches!(error, carta_core::Error::InvalidMetadata(_)));
     }
 }

@@ -27,6 +27,8 @@ pub enum Error {
     FormatNotEnabled(String),
     #[error("unknown extension: {0}")]
     UnknownExtension(String),
+    #[error("invalid document metadata: {0}")]
+    InvalidMetadata(String),
 }
 
 /// A `Result` whose error is [`Error`].
