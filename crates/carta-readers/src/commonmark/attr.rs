@@ -7,12 +7,30 @@
 
 use carta_ast::Attr;
 
+/// Which identifier survives when an attribute block carries more than one `#id` token.
+#[derive(Clone, Copy)]
+pub(crate) enum IdPolicy {
+    /// Keep the first identifier; later ones are dropped (fenced-div openers).
+    First,
+    /// Keep the last identifier, overriding earlier ones (headers, code, spans, links).
+    Last,
+}
+
 /// Parse an attribute block at the start of `s`, which must begin with `{`. Returns the parsed
 /// [`Attr`] and the number of bytes consumed (both braces included), or `None` when `s` does not open
-/// a well-formed block (a bare-word token, or no closing brace).
+/// a well-formed block (a bare-word token, or no closing brace). A repeated `#id` keeps the last.
 pub(crate) fn parse_attributes(s: &str) -> Option<(Attr, usize)> {
+    parse_attributes_with(s, IdPolicy::Last)
+}
+
+/// Like [`parse_attributes`], but a repeated `#id` keeps the first.
+pub(crate) fn parse_attributes_first_id(s: &str) -> Option<(Attr, usize)> {
+    parse_attributes_with(s, IdPolicy::First)
+}
+
+fn parse_attributes_with(s: &str, policy: IdPolicy) -> Option<(Attr, usize)> {
     let chars: Vec<char> = s.chars().collect();
-    let (attr, end) = parse_attributes_chars(&chars, 0)?;
+    let (attr, end) = parse_attributes_chars_with(&chars, 0, policy)?;
     let consumed = chars
         .get(..end)
         .map_or(0, |head| head.iter().map(|ch| ch.len_utf8()).sum());
@@ -21,8 +39,16 @@ pub(crate) fn parse_attributes(s: &str) -> Option<(Attr, usize)> {
 
 /// Parse an attribute block at `chars[start..]`, which must begin with `{`. Returns the parsed
 /// [`Attr`] and the char index just past the closing brace, or `None` when the block is not
-/// well-formed (a bare-word token, or no closing brace).
+/// well-formed (a bare-word token, or no closing brace). A repeated `#id` keeps the last.
 pub(crate) fn parse_attributes_chars(chars: &[char], start: usize) -> Option<(Attr, usize)> {
+    parse_attributes_chars_with(chars, start, IdPolicy::Last)
+}
+
+fn parse_attributes_chars_with(
+    chars: &[char],
+    start: usize,
+    policy: IdPolicy,
+) -> Option<(Attr, usize)> {
     if chars.get(start).copied() != Some('{') {
         return None;
     }
@@ -42,7 +68,9 @@ pub(crate) fn parse_attributes_chars(chars: &[char], start: usize) -> Option<(At
                 if id.is_empty() {
                     return None;
                 }
-                attr.id = id;
+                if matches!(policy, IdPolicy::Last) || attr.id.is_empty() {
+                    attr.id = id;
+                }
             }
             Some('.') => {
                 index += 1;
@@ -164,6 +192,17 @@ mod tests {
     #[test]
     fn last_id_wins() {
         assert_eq!(attr("{#one #two}").0.id, "two");
+    }
+
+    #[test]
+    fn first_id_wins_under_the_first_policy() {
+        let (a, _) = super::parse_attributes_first_id("{#one #two}").expect("well-formed block");
+        assert_eq!(a.id, "one");
+        // Classes and pairs still accumulate; only the identifier precedence differs.
+        let (b, _) =
+            super::parse_attributes_first_id("{.a #x .b #y}").expect("well-formed block");
+        assert_eq!(b.id, "x");
+        assert_eq!(b.classes, ["a", "b"]);
     }
 
     #[test]

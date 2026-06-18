@@ -98,6 +98,9 @@ fn resolve_block(
             ));
         }
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
+        IrBlock::Div(attr, children) => {
+            out.push(Block::Div(attr.clone(), resolve_blocks(children, refs, notes, ext)));
+        }
         IrBlock::BlockQuote(children) => {
             out.push(Block::BlockQuote(resolve_blocks(children, refs, notes, ext)));
         }
