@@ -36,6 +36,10 @@ pub(super) struct ListMarkerParse {
     pub(super) single_letter: bool,
     pub(super) marker_width: usize,
     pub(super) blank_after: bool,
+    /// For an example-list marker (`(@label)`, `@label.`, `@label)`), the label that lets a later
+    /// `@label` reference resolve to this item's number; `None` for the anonymous `@` and every
+    /// non-example marker.
+    pub(super) example_label: Option<String>,
 }
 
 /// A tab-aware cursor over a single input line.
@@ -389,7 +393,7 @@ impl<'a> Cursor<'a> {
     /// If the cursor sits at a list marker, return its parse. With `fancy` set, ordered enumerators
     /// also recognize alphabetic and roman styles and the `(x)` parenthesized delimiter; otherwise
     /// only decimal `n.`/`n)` enumerators count.
-    pub(super) fn list_marker_at(&self, fancy: bool) -> Option<ListMarkerParse> {
+    pub(super) fn list_marker_at(&self, fancy: bool, example: bool) -> Option<ListMarkerParse> {
         let byte = self.peek()?;
         match byte {
             b'-' | b'+' | b'*' => {
@@ -412,9 +416,14 @@ impl<'a> Cursor<'a> {
                     single_letter: false,
                     marker_width: 1,
                     blank_after,
+                    example_label: None,
                 })
             }
             b'0'..=b'9' => self.enumerator_at(self.offset),
+            b'@' if example => self.example_marker_bare(),
+            b'(' if example && self.bytes.get(self.offset + 1) == Some(&b'@') => {
+                self.example_marker_paren()
+            }
             b'a'..=b'z' | b'A'..=b'Z' if fancy => self.enumerator_at(self.offset),
             b'(' if fancy => self.paren_enumerator_at(),
             _ => None,
@@ -459,6 +468,7 @@ impl<'a> Cursor<'a> {
             single_letter,
             marker_width: len + 1,
             blank_after,
+            example_label: None,
         })
     }
 
@@ -484,8 +494,75 @@ impl<'a> Cursor<'a> {
             single_letter,
             marker_width: len + 2,
             blank_after,
+            example_label: None,
         })
     }
+
+    /// Parse a bare example-list marker `@label.` or `@label)` at the cursor (example lists only).
+    /// The label is optional: a lone `@` opens an anonymous, unreferenceable item.
+    fn example_marker_bare(&self) -> Option<ListMarkerParse> {
+        let body = self.offset + 1;
+        let (label, len) = parse_example_label(self.bytes, body);
+        let delim = match self.bytes.get(body + len) {
+            Some(b'.') => ListNumberDelim::Period,
+            Some(b')') => ListNumberDelim::OneParen,
+            _ => return None,
+        };
+        self.example_marker(delim, label, body + len + 1)
+    }
+
+    /// Parse a parenthesized example-list marker `(@label)` at the cursor (example lists only).
+    fn example_marker_paren(&self) -> Option<ListMarkerParse> {
+        let body = self.offset + 2;
+        let (label, len) = parse_example_label(self.bytes, body);
+        if self.bytes.get(body + len) != Some(&b')') {
+            return None;
+        }
+        self.example_marker(ListNumberDelim::TwoParens, label, body + len + 1)
+    }
+
+    /// Assemble an example-list marker that ends at byte `after`, once its delimiter and label are
+    /// known. The number style is fixed; the start is a placeholder the block phase replaces with the
+    /// item's position in the document-wide example sequence.
+    fn example_marker(
+        &self,
+        delim: ListNumberDelim,
+        label: String,
+        after: usize,
+    ) -> Option<ListMarkerParse> {
+        if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
+            return None;
+        }
+        Some(ListMarkerParse {
+            bullet: false,
+            marker: b'@',
+            style: ListNumberStyle::Example,
+            delim,
+            start: 1,
+            single_letter: false,
+            marker_width: after - self.offset,
+            blank_after: rest_is_blank(self.bytes, after),
+            example_label: (!label.is_empty()).then_some(label),
+        })
+    }
+}
+
+/// Consume an example-list label — a run of `[A-Za-z0-9_-]` — at `start`, returning it and its byte
+/// length. An empty run is valid: it marks the anonymous `@`.
+fn parse_example_label(bytes: &[u8], start: usize) -> (String, usize) {
+    let mut len = 0;
+    while let Some(byte) = bytes.get(start + len) {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_') {
+            len += 1;
+        } else {
+            break;
+        }
+    }
+    let label = bytes
+        .get(start..start + len)
+        .map(|run| String::from_utf8_lossy(run).into_owned())
+        .unwrap_or_default();
+    (label, len)
 }
 
 /// Whether an enumerator of `len` bytes in `style` is a single alphabetic/roman letter.
