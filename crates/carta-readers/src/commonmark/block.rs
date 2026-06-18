@@ -68,6 +68,7 @@ enum Kind {
 struct ListInfo {
     bullet: bool,
     marker: u8,
+    style: ListNumberStyle,
     delim: ListNumberDelim,
     start: i32,
 }
@@ -962,12 +963,15 @@ impl Parser {
         marker_indent: usize,
         cursor: &mut Cursor,
     ) -> Option<usize> {
-        let parsed = cursor.list_marker_at()?;
+        let fancy = self.extensions.contains(Extension::FancyLists);
+        let parsed = cursor.list_marker_at(fancy)?;
 
         // These restrictions apply only when the marker would interrupt a *bare* paragraph (one not
-        // already inside a list): an empty item cannot interrupt, and an ordered marker must start
-        // at 1. Inside an open list any marker is allowed — a matching one continues the list, a
-        // differing one ends it and begins a new sibling list.
+        // already inside a list): an empty item cannot interrupt, and an ordered marker may only
+        // interrupt when it is a decimal `1.`/`1)` — any other enumerator (a non-1 start, or an
+        // alphabetic/roman/parenthesized one) is too easily confused with running prose. Inside an
+        // open list any marker is allowed — a matching one continues the list, a differing one ends
+        // it and begins a new sibling list.
         //
         // The paragraph must be a direct child of the container the marker opens into: a paragraph
         // hanging in a deeper, unmatched container (left open only for a possible lazy continuation)
@@ -980,7 +984,9 @@ impl Parser {
             if parsed.blank_after {
                 return None;
             }
-            if !parsed.bullet && parsed.start != 1 {
+            let decimal_one =
+                matches!(parsed.style, ListNumberStyle::Decimal) && parsed.start == 1;
+            if !parsed.bullet && !decimal_one {
                 return None;
             }
         }
@@ -1022,14 +1028,39 @@ impl Parser {
                 self.close(last);
             }
         }
+        // A lone `i`/`I` enumerator is ambiguous between roman one and the ninth letter. When the
+        // new list directly follows another list it reads as alphabetic; opening a document or
+        // following any other block it reads as roman (the value chosen by `parse_enum_body`).
+        let info = if self.preceding_is_list(parent) {
+            demote_lone_roman(info)
+        } else {
+            info
+        };
         self.append_child(parent, Node::new(Kind::List(info)))
     }
 
+    /// Whether `parent`'s last child — open or closed — is a list, so a new sibling list abuts it.
+    fn preceding_is_list(&self, parent: usize) -> bool {
+        self.nodes
+            .get(parent)
+            .and_then(|node| node.children.last().copied())
+            .is_some_and(|child| matches!(self.kind(child), Some(Kind::List(_))))
+    }
+
     fn list_matches(&self, index: usize, parsed: &ListMarkerParse) -> bool {
-        matches!(
-            self.kind(index),
-            Some(Kind::List(info)) if info.bullet == parsed.bullet && info.marker == parsed.marker
-        )
+        let Some(Kind::List(info)) = self.kind(index) else {
+            return false;
+        };
+        if info.bullet != parsed.bullet {
+            return false;
+        }
+        if info.bullet {
+            // Bullet lists group by the marker character: switching `-`/`+`/`*` starts a new list.
+            return info.marker == parsed.marker;
+        }
+        // Ordered lists group by delimiter and by whether this marker reads as a continuation of the
+        // list's established number style.
+        info.delim == parsed.delim && continues_ordered(&info.style, parsed)
     }
 
     fn add_line(&mut self, container: usize, started_new: bool, blank: bool, cursor: &mut Cursor) {
@@ -1260,7 +1291,7 @@ impl Parser {
         } else {
             let attrs = ListAttributes {
                 start: info.start,
-                style: ListNumberStyle::Decimal,
+                style: info.style.clone(),
                 delim: info.delim.clone(),
             };
             IrBlock::OrderedList(attrs, items)
@@ -1331,9 +1362,61 @@ fn list_info(parsed: &ListMarkerParse) -> ListInfo {
     ListInfo {
         bullet: parsed.bullet,
         marker: parsed.marker,
+        style: parsed.style.clone(),
         delim: parsed.delim.clone(),
         start: parsed.start,
     }
+}
+
+/// Reread a lone roman `i`/`I` (the only roman enumerator whose start is one) as the ninth letter
+/// of its alphabet. Any other list info is returned unchanged.
+fn demote_lone_roman(info: ListInfo) -> ListInfo {
+    let style = match info.style {
+        ListNumberStyle::LowerRoman if info.start == 1 => ListNumberStyle::LowerAlpha,
+        ListNumberStyle::UpperRoman if info.start == 1 => ListNumberStyle::UpperAlpha,
+        _ => return info,
+    };
+    ListInfo {
+        style,
+        start: 9,
+        ..info
+    }
+}
+
+/// Whether `marker` reads as a continuation of an ordered list whose established style is
+/// `list_style` (the delimiter is checked separately). The list's first item fixes the style; each
+/// later marker is reread in that style rather than its own:
+///
+/// - a decimal list takes only decimal markers;
+/// - an alphabetic list takes any single letter of its case (so `h. i. j.` is one list, `i` read as
+///   the ninth letter);
+/// - a roman list takes any roman numeral of its case, plus the single letters whose position is a
+///   roman value (`a`, `e`, `j`) — the same letters a roman sequence can reach.
+fn continues_ordered(list_style: &ListNumberStyle, marker: &ListMarkerParse) -> bool {
+    use ListNumberStyle::{Decimal, LowerAlpha, LowerRoman, UpperAlpha, UpperRoman};
+    let lower = matches!(marker.style, LowerAlpha | LowerRoman);
+    let upper = matches!(marker.style, UpperAlpha | UpperRoman);
+    match list_style {
+        Decimal => matches!(marker.style, Decimal),
+        LowerAlpha => lower && marker.single_letter,
+        UpperAlpha => upper && marker.single_letter,
+        LowerRoman => lower && continues_roman(marker),
+        UpperRoman => upper && continues_roman(marker),
+        ListNumberStyle::DefaultStyle | ListNumberStyle::Example => false,
+    }
+}
+
+/// Whether `marker` reads as a roman numeral continuing a roman list: a multi-letter roman, the lone
+/// roman `i`/`I`, or a single letter whose alphabet position is itself a roman digit or a roman
+/// value (`a`=1, `e`=5, `j`=10).
+fn continues_roman(marker: &ListMarkerParse) -> bool {
+    if !marker.single_letter {
+        return matches!(marker.style, ListNumberStyle::LowerRoman | ListNumberStyle::UpperRoman);
+    }
+    matches!(
+        marker.style,
+        ListNumberStyle::LowerRoman | ListNumberStyle::UpperRoman
+    ) || matches!(marker.start, 1 | 3 | 4 | 5 | 9 | 10 | 12 | 13 | 22 | 24)
 }
 
 fn fence_attr(info: &str, extensions: Extensions) -> Attr {
