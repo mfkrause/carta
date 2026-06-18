@@ -12,10 +12,11 @@ mod cursor;
 mod html_block;
 mod inline;
 mod scan;
+mod table;
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Attr, Block, Document, Inline, ListAttributes};
+use carta_ast::{Alignment, Attr, Block, Document, Inline, ListAttributes};
 use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 /// Parses `CommonMark` text into the document model.
@@ -47,6 +48,13 @@ pub(crate) enum IrBlock {
     BlockQuote(Vec<IrBlock>),
     BulletList(Vec<Vec<IrBlock>>),
     OrderedList(ListAttributes, Vec<Vec<IrBlock>>),
+    /// A pipe table: per-column alignments, the header row's cell texts, and the body rows' cell
+    /// texts. Each cell's text is parsed into inlines in the inline phase.
+    Table {
+        alignments: Vec<Alignment>,
+        header: Vec<String>,
+        rows: Vec<Vec<String>>,
+    },
 }
 
 /// A resolved link reference definition: its destination URL and optional title.
