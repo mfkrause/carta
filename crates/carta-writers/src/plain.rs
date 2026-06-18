@@ -5,14 +5,16 @@
 //! trailing newline; the caller appends one. This format has no public specification.
 
 use carta_ast::{
-    Alignment, Attr, Block, Cell, ColWidth, Document, Format, Inline, ListAttributes, Row, Table,
+    Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, Row, Table,
 };
 use carta_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, block_inlines, body_rows, display_width, fill,
-    fill_offset, indent_block, is_loose, item_separator, join_loose, offset_as_i32, ordered_marker,
-    quote_marks,
+    FILL_COLUMN, MEASURE_WIDTH, MULTILINE_WIDTH, NotesHost, Piece, TableForm, append_notes,
+    block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
+    fill_offset, filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose,
+    lay_row, measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks,
+    table_form,
 };
 use crate::grid;
 
@@ -639,218 +641,6 @@ fn pieces_to_string(pieces: &[Piece]) -> String {
 /// header on one line.
 fn header_text(pieces: &[Piece]) -> String {
     join_pieces(pieces, ' ')
-}
-
-/// Width used to render a grid cell when measuring its natural extent, before column widths are
-/// fixed: large enough that no reflow occurs.
-const MEASURE_WIDTH: usize = 100_000;
-
-/// The character budget a fractional column width scales against in a multiline table.
-const MULTILINE_WIDTH: usize = 71;
-
-#[derive(Clone, Copy)]
-enum TableForm {
-    Simple,
-    Multiline,
-    Grid,
-}
-
-/// Choose the rendering form for a table. Spans, block-level cell content, or a footer demand a
-/// grid; an explicit column width or a forced break within a cell demands the multiline form;
-/// otherwise the compact simple form suffices.
-fn table_form(table: &Table) -> TableForm {
-    let rows: Vec<&Row> = table
-        .head
-        .rows
-        .iter()
-        .chain(
-            table
-                .bodies
-                .iter()
-                .flat_map(|body| body.head.iter().chain(body.body.iter())),
-        )
-        .chain(table.foot.rows.iter())
-        .collect();
-    let has_span = rows.iter().any(|row| {
-        row.cells
-            .iter()
-            .any(|cell| cell.row_span > 1 || cell.col_span > 1)
-    });
-    let has_complex = rows
-        .iter()
-        .any(|row| row.cells.iter().any(|cell| !is_simple_cell(cell)));
-    let has_foot = !table.foot.rows.is_empty();
-    if has_span || has_complex || has_foot {
-        return TableForm::Grid;
-    }
-    let has_explicit = table
-        .col_specs
-        .iter()
-        .any(|spec| matches!(spec.width, ColWidth::ColWidth(fraction) if fraction > 0.0));
-    let has_break = rows.iter().any(|row| row.cells.iter().any(cell_has_break));
-    if has_explicit || has_break {
-        TableForm::Multiline
-    } else {
-        TableForm::Simple
-    }
-}
-
-/// A cell that holds at most one paragraph of inline content, the precondition for the simple and
-/// multiline forms.
-fn is_simple_cell(cell: &Cell) -> bool {
-    matches!(
-        cell.content.as_slice(),
-        [] | [Block::Plain(_) | Block::Para(_)]
-    )
-}
-
-/// The inline content of a simple cell, or an empty slice for anything richer.
-fn cell_inlines(cell: &Cell) -> &[Inline] {
-    match cell.content.first() {
-        Some(Block::Plain(inlines) | Block::Para(inlines)) => inlines,
-        _ => &[],
-    }
-}
-
-/// Whether a simple cell contains a forced line break, which forces the multiline form.
-fn cell_has_break(cell: &Cell) -> bool {
-    is_simple_cell(cell)
-        && cell_inlines(cell)
-            .iter()
-            .any(|inline| matches!(inline, Inline::LineBreak))
-}
-
-/// A row of column underlines: a run of dashes per column width, joined by single spaces.
-fn dash_rule(field: &[usize]) -> String {
-    field
-        .iter()
-        .map(|width| "-".repeat(*width))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Pad `text` to `width`, placing the slack according to the column's alignment.
-fn pad_align(text: &str, width: usize, align: &Alignment) -> String {
-    let used = display_width(text);
-    let pad = width.saturating_sub(used);
-    match align {
-        Alignment::AlignRight => format!("{}{text}", " ".repeat(pad)),
-        Alignment::AlignCenter => {
-            let left = pad / 2;
-            format!("{}{text}{}", " ".repeat(left), " ".repeat(pad - left))
-        }
-        Alignment::AlignLeft | Alignment::AlignDefault => format!("{text}{}", " ".repeat(pad)),
-    }
-}
-
-/// Lay a row of already-rendered cells across the column fields, stacking multi-line cells and
-/// trimming the trailing edge of each output line.
-fn lay_row(cells: &[Vec<String>], field: &[usize], aligns: &[&Alignment]) -> Vec<String> {
-    let height = cells.iter().map(Vec::len).max().unwrap_or(1).max(1);
-    (0..height)
-        .map(|line| {
-            let mut parts: Vec<String> = Vec::with_capacity(cells.len());
-            for (index, cell) in cells.iter().enumerate() {
-                let text = cell.get(line).map_or("", String::as_str);
-                let width = field.get(index).copied().unwrap_or(0);
-                let align = aligns
-                    .get(index)
-                    .copied()
-                    .unwrap_or(&Alignment::AlignDefault);
-                parts.push(pad_align(text, width, align));
-            }
-            if let Some(last) = parts.last_mut() {
-                *last = last.trim_end().to_owned();
-            }
-            parts.join(" ")
-        })
-        .collect()
-}
-
-/// Reflow a row's inline pieces to fill each column, returning the wrapped lines per cell.
-fn filled_cells(row: &[Vec<Piece>], field: &[usize]) -> Vec<Vec<String>> {
-    row.iter()
-        .enumerate()
-        .map(|(index, pieces)| {
-            let width = field.get(index).copied().unwrap_or(0);
-            let text = fill(pieces, width);
-            if text.is_empty() {
-                vec![String::new()]
-            } else {
-                text.split('\n').map(str::to_owned).collect()
-            }
-        })
-        .collect()
-}
-
-/// Append the body rows of a multiline table, separating rows with a blank line. A lone row still
-/// gets a trailing blank to keep it visually distinct from the closing rule.
-fn extend_multiline_body(
-    lines: &mut Vec<String>,
-    body: &[Vec<Vec<Piece>>],
-    field: &[usize],
-    aligns: &[&Alignment],
-) {
-    let count = body.len();
-    for (index, row) in body.iter().enumerate() {
-        lines.extend(lay_row(&filled_cells(row, field), field, aligns));
-        let last = index + 1 == count;
-        if !last || count == 1 {
-            lines.push(String::new());
-        }
-    }
-}
-
-/// Indent every non-empty line by `indent` columns, leaving blank lines empty.
-fn indent_lines(lines: &[String], indent: usize) -> String {
-    let prefix = " ".repeat(indent);
-    lines
-        .iter()
-        .map(|line| {
-            if line.is_empty() {
-                String::new()
-            } else {
-                format!("{prefix}{line}")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// The natural (unwrapped) width and longest-word width of a sequence of inline pieces.
-fn measure_pieces(pieces: &[Piece]) -> (usize, usize) {
-    let mut natural = 0usize;
-    let mut line = 0usize;
-    let mut word = 0usize;
-    let mut minword = 0usize;
-    for piece in pieces {
-        match piece {
-            Piece::Text(text) => {
-                let width = display_width(text);
-                line += width;
-                word += width;
-            }
-            Piece::Space => {
-                line += 1;
-                minword = minword.max(word);
-                word = 0;
-            }
-            Piece::Hard => {
-                natural = natural.max(line);
-                minword = minword.max(word);
-                line = 0;
-                word = 0;
-            }
-        }
-    }
-    (natural.max(line), minword.max(word))
-}
-
-/// Whether any piece carries non-empty text.
-fn pieces_nonempty(pieces: &[Piece]) -> bool {
-    pieces
-        .iter()
-        .any(|piece| matches!(piece, Piece::Text(text) if !text.is_empty()))
 }
 
 /// Render a table's attributes as a trailing `{#id .class key="value"}` suffix, or `None` when the

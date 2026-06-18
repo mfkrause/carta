@@ -12,13 +12,15 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["html", "json", "plain", "latex", "native", "commonmark", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man"]
+default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "beamer", "revealjs"]
 html = ["dep:unicode-general-category"]
 json = []
 plain = []
 latex = []
 native = []
 commonmark = ["html"]
+markdown = ["html"]
+gfm = ["html"]
 rst = []
 mediawiki = []
 typst = []
@@ -26,6 +28,10 @@ dokuwiki = []
 jira = []
 asciidoc = []
 man = []
+opml = ["markdown"]
+beamer = ["latex", "slides"]
+revealjs = ["html", "slides"]
+slides = []
 
 [dependencies]
 carta-ast = { workspace = true }
