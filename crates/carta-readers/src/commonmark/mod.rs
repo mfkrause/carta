@@ -45,6 +45,8 @@ pub(crate) enum IrBlock {
     CodeBlock(Attr, String),
     RawHtml(String),
     ThematicBreak,
+    /// A fenced div: its attributes and the recursively-parsed block content.
+    Div(Attr, Vec<IrBlock>),
     BlockQuote(Vec<IrBlock>),
     BulletList(Vec<Vec<IrBlock>>),
     OrderedList(ListAttributes, Vec<Vec<IrBlock>>),
@@ -304,6 +306,84 @@ mod tests {
             blocks("1234567890. a\n").as_slice(),
             [Block::Para(_)]
         ));
+    }
+
+    #[test]
+    fn fenced_div_bare_word_names_a_single_class() {
+        let result = blocks_with("::: warning\nbody\n:::\n", Extension::FencedDivs);
+        let [Block::Div(attr, children)] = result.as_slice() else {
+            panic!("expected a single div, got {result:?}");
+        };
+        assert!(attr.id.is_empty());
+        assert_eq!(attr.classes, ["warning"]);
+        assert!(attr.attributes.is_empty());
+        assert!(matches!(children.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn fenced_div_brace_spec_carries_id_classes_and_pairs() {
+        let result = blocks_with("::: {#a .b .c k=v}\nbody\n:::\n", Extension::FencedDivs);
+        let [Block::Div(attr, _)] = result.as_slice() else {
+            panic!("expected a single div, got {result:?}");
+        };
+        assert_eq!(attr.id, "a");
+        assert_eq!(attr.classes, ["b", "c"]);
+        assert_eq!(
+            attr.attributes,
+            [("k".to_owned(), "v".to_owned())]
+        );
+    }
+
+    #[test]
+    fn fenced_divs_nest_with_the_inner_closing_first() {
+        let result =
+            blocks_with("::: outer\n::: inner\nx\n:::\ny\n:::\n", Extension::FencedDivs);
+        let [Block::Div(outer, outer_children)] = result.as_slice() else {
+            panic!("expected a single outer div, got {result:?}");
+        };
+        assert_eq!(outer.classes, ["outer"]);
+        let [Block::Div(inner, _), Block::Para(_)] = outer_children.as_slice() else {
+            panic!("outer should hold an inner div then a paragraph, got {outer_children:?}");
+        };
+        assert_eq!(inner.classes, ["inner"]);
+    }
+
+    #[test]
+    fn a_shorter_colon_run_does_not_close_a_longer_fence() {
+        // The div opens with four colons, so a three-colon line inside it is ordinary text and the
+        // div runs to the matching four-colon close.
+        let result =
+            blocks_with(":::: wide\n:::\nstill inside\n::::\n", Extension::FencedDivs);
+        let [Block::Div(attr, children)] = result.as_slice() else {
+            panic!("expected a single div, got {result:?}");
+        };
+        assert_eq!(attr.classes, ["wide"]);
+        assert!(matches!(children.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn fenced_div_syntax_without_the_extension_stays_text() {
+        // With the toggle off, the colon fences are ordinary paragraph text and no div is produced.
+        let result = blocks("::: warning\nbody\n:::\n");
+        assert!(result.iter().all(|b| !matches!(b, Block::Div(..))));
+    }
+
+    #[test]
+    fn blank_after_a_div_in_a_list_item_makes_the_list_loose() {
+        let result =
+            blocks_with("- ::: note\n  inside\n  :::\n\n  after\n", Extension::FencedDivs);
+        // The blank between the closed div and `after` is a gap inside the item, so the list is
+        // loose and the trailing paragraph stays `Para` rather than being demoted to `Plain`.
+        let [Block::BulletList(items)] = result.as_slice() else {
+            panic!("expected a single bullet list, got {result:?}");
+        };
+        let Some([Block::Div(..), tail]) = items.first().map(Vec::as_slice) else {
+            panic!("the item should hold a div then a trailing block, got {items:?}");
+        };
+        assert!(
+            matches!(tail, Block::Para(_)),
+            "loose list should keep the trailing paragraph as Para, got {tail:?}"
+        );
     }
 
     #[test]

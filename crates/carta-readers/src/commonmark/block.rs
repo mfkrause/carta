@@ -39,6 +39,9 @@ enum Kind {
     /// A footnote definition, holding its normalized label. Its content is gathered like a list
     /// item (a four-column continuation indent) and collected out of the body by [`Parser::finish`].
     FootnoteDef(String),
+    /// A fenced div (see [`DivInfo`]). Content is parsed recursively; a bare colon-run line of at
+    /// least the opening length closes it.
+    FencedDiv(DivInfo),
     Paragraph,
     Heading(i32),
     IndentedCode,
@@ -59,6 +62,30 @@ struct ListInfo {
 struct ItemInfo {
     /// Column indent required for a continuation line to belong to this item.
     indent: usize,
+}
+
+#[derive(Debug, Clone)]
+struct DivInfo {
+    /// The opening fence's colon-run length; a closing fence must be at least this long.
+    fence: usize,
+    /// The column the opening fence began at. Continuation lines re-base to this column, so the
+    /// indentation of inner blocks is measured relative to it rather than the line start.
+    indent: usize,
+    attr: Attr,
+}
+
+/// Outcome of the phase-1 container descent for one line.
+struct Descent {
+    /// The deepest container that matched the line's continuation markers.
+    container: usize,
+    /// Whether every open container matched (a `false` marks where lazy continuation and block
+    /// closing apply).
+    all_matched: bool,
+    /// The fenced divs matched on the descent, innermost last, each with the line as it stood at
+    /// that div's indentation.
+    div_path: Vec<(usize, String)>,
+    /// Set when an open leaf consumed the whole line, so no further processing is needed.
+    consumed: bool,
 }
 
 #[derive(Debug)]
@@ -137,9 +164,13 @@ impl Parser {
     /// Whether a block of `kind` may be a direct child of `container`.
     fn can_contain(&self, container: usize, kind: &Kind) -> bool {
         match self.kind(container) {
-            Some(Kind::Document | Kind::BlockQuote | Kind::Item(_) | Kind::FootnoteDef(_)) => {
-                !matches!(kind, Kind::Item(_))
-            }
+            Some(
+                Kind::Document
+                | Kind::BlockQuote
+                | Kind::Item(_)
+                | Kind::FootnoteDef(_)
+                | Kind::FencedDiv(..),
+            ) => !matches!(kind, Kind::Item(_)),
             Some(Kind::List(_)) => matches!(kind, Kind::Item(_)),
             _ => false,
         }
@@ -159,13 +190,17 @@ impl Parser {
         container
     }
 
-    fn process_line(&mut self, line: &str) {
-        let mut cursor = Cursor::new(line);
-
-        // Phase 1: descend through open *containers*, matching each one's continuation marker.
-        // Leaves terminate the descent — they are handled below, not entered as containers.
+    /// Descend through the open containers, matching each one's continuation marker against the
+    /// line. Leaves terminate the descent — they are handled by [`Parser::process_line`], not
+    /// entered as containers.
+    fn descend_containers(&mut self, cursor: &mut Cursor) -> Descent {
         let mut container = 0;
         let mut all_matched = true;
+        // The fenced divs matched on this descent, innermost last, each paired with the line as it
+        // stood at that div's own indentation (before it re-based its content). A close fence is
+        // judged against this path: it is read at each div's level in turn, so one buried under a
+        // div's re-base indent (or a nested item's deeper indent) reads as content instead.
+        let mut div_path: Vec<(usize, String)> = Vec::new();
         loop {
             let Some(child) = self.last_open_child(container) else {
                 break;
@@ -173,14 +208,54 @@ impl Parser {
             if !self.is_container(child) {
                 break;
             }
-            match self.try_continue(child, &mut cursor) {
-                Continue::Matched => container = child,
+            let div_fence_line =
+                matches!(self.kind(child), Some(Kind::FencedDiv(..))).then(|| cursor.rest());
+            match self.try_continue(child, cursor) {
+                Continue::Matched => {
+                    container = child;
+                    if let Some(line) = div_fence_line {
+                        div_path.push((child, line));
+                    }
+                }
                 Continue::NotMatched => {
                     all_matched = false;
                     break;
                 }
-                Continue::MatchedLeaf => return,
+                Continue::MatchedLeaf => {
+                    return Descent {
+                        container,
+                        all_matched,
+                        div_path,
+                        consumed: true,
+                    };
+                }
             }
+        }
+        Descent {
+            container,
+            all_matched,
+            div_path,
+            consumed: false,
+        }
+    }
+
+    fn process_line(&mut self, line: &str) {
+        let mut cursor = Cursor::new(line);
+
+        // Phase 1: descend through open containers, matching each one's continuation marker.
+        let Descent {
+            mut container,
+            all_matched,
+            div_path,
+            consumed,
+        } = self.descend_containers(&mut cursor);
+        if consumed {
+            return;
+        }
+
+        // A bare colon-run line can close an open fenced div, popping everything nested inside it.
+        if self.close_fenced_div(container, &div_path) {
+            return;
         }
 
         // An open code/html leaf (reachable only when every container matched) consumes the line.
@@ -260,7 +335,14 @@ impl Parser {
                     .and_then(|node| node.children.last().copied())
                     .unwrap_or(matched)
             };
-            if let Some(node) = self.nodes.get_mut(target) {
+            // A blank line that lands inside a still-open fenced div is internal to the div, not a
+            // gap between the enclosing item's blocks, so it must not make that item's list loose.
+            // (Once the div closes, a following blank trails it at the item's level and does count.)
+            let internal_to_open_div = matches!(self.kind(target), Some(Kind::FencedDiv(..)))
+                && self.nodes.get(target).is_some_and(|node| node.open);
+            if !internal_to_open_div
+                && let Some(node) = self.nodes.get_mut(target)
+            {
                 node.last_line_blank = true;
             }
         }
@@ -350,10 +432,18 @@ impl Parser {
     /// The block a trailing blank line attaches to: descend through finalized last-children so the
     /// blank lands on the content it follows (e.g. a closed code block) rather than its still-open
     /// container. Stops at an empty container, which the blank then trails directly.
+    ///
+    /// Descent follows the list structure only. Loose-list classification reads the same
+    /// List/Item chain, so the blank must mark a block on it: descending into a closed block quote
+    /// or fenced div would bury the mark where the classification never looks, leaving the list
+    /// wrongly tight. Such a block is itself the trailing block, so the blank stops there.
     fn blank_trails(&self, mut index: usize) -> usize {
         while let Some(&last) = self.nodes.get(index).and_then(|node| node.children.last()) {
             if self.nodes.get(last).is_some_and(|node| !node.open) {
                 index = last;
+                if !matches!(self.kind(index), Some(Kind::List(_) | Kind::Item(_))) {
+                    break;
+                }
             } else {
                 break;
             }
@@ -368,6 +458,69 @@ impl Parser {
         index
     }
 
+    /// If the current line closes an open fenced div, close that div and everything nested inside it
+    /// — a colon fence preempts even an open code block — and return `true`. It is honored only when
+    /// the descent reached the innermost open div, so a fence shallower than a still-open nested div
+    /// stays ordinary content (which an enclosing div may then hold) rather than closing that div or
+    /// an ancestor. `div_path` holds the divs matched on this line, innermost last, each paired with
+    /// the line as it stood at that div's indentation.
+    fn close_fenced_div(&mut self, container: usize, div_path: &[(usize, String)]) -> bool {
+        if !self.extensions.contains(Extension::FencedDivs) {
+            return false;
+        }
+        let Some((inner, inner_line)) = div_path.last() else {
+            return false;
+        };
+        if self.innermost_open_div() != Some(*inner) {
+            return false;
+        }
+        let Some(count) = div_close_fence(inner_line) else {
+            return false;
+        };
+        let Some(target) = self.div_close_target(div_path, count) else {
+            return false;
+        };
+        let tip = self.deepest_open(container);
+        let stop = self.parent(target);
+        self.close_chain(tip, stop);
+        true
+    }
+
+    /// The innermost open fenced div anywhere in the tree, or `None` when none is open.
+    fn innermost_open_div(&self) -> Option<usize> {
+        let mut node = self.deepest_open(0);
+        loop {
+            if matches!(self.kind(node), Some(Kind::FencedDiv(..))) {
+                return Some(node);
+            }
+            let parent = self.parent(node);
+            if parent == node {
+                return None;
+            }
+            node = parent;
+        }
+    }
+
+    /// Choose which fenced div a closing run of `count` colons shuts. The matched divs are read
+    /// innermost first, each paired with the closing line as it stood at that div's indentation; the
+    /// first div long enough to be closed by `count` colons is the target. A div the closing line
+    /// sits more than three columns into is unreachable and, with every div outside it indented at
+    /// least as far, ends the search — the line is ordinary content rather than a fence.
+    fn div_close_target(&self, div_path: &[(usize, String)], count: usize) -> Option<usize> {
+        for (node, line) in div_path.iter().rev() {
+            let leading = line.len() - line.trim_start_matches(' ').len();
+            if leading > 3 {
+                return None;
+            }
+            if let Some(Kind::FencedDiv(info)) = self.kind(*node)
+                && info.fence <= count
+            {
+                return Some(*node);
+            }
+        }
+        None
+    }
+
     fn is_container(&self, index: usize) -> bool {
         matches!(
             self.kind(index),
@@ -377,6 +530,7 @@ impl Parser {
                     | Kind::List(_)
                     | Kind::Item(_)
                     | Kind::FootnoteDef(_)
+                    | Kind::FencedDiv(..)
             )
         )
     }
@@ -394,6 +548,13 @@ impl Parser {
         match self.kind(index).cloned() {
             // A list is a transparent container: it consumes nothing and defers to its items.
             Some(Kind::List(_)) => Continue::Matched,
+            // A fenced div re-bases its content to the column it opened at: it consumes up to that
+            // many leading columns, then stays open until a matching close fence (handled in
+            // `process_line`) or end of input.
+            Some(Kind::FencedDiv(info)) => {
+                cursor.advance_columns(info.indent);
+                Continue::Matched
+            }
             Some(Kind::BlockQuote) => {
                 let checkpoint = cursor.checkpoint();
                 cursor.skip_up_to_three_spaces();
@@ -521,6 +682,22 @@ impl Parser {
                 let key = scan::normalize_label(&label);
                 let parent = self.place(container, &Kind::FootnoteDef(key.clone()));
                 return Some(self.append_child(parent, Node::new(Kind::FootnoteDef(key))));
+            }
+            // A fenced div opens on a colon-run line carrying a valid attribute spec; it may
+            // interrupt a paragraph. The whole fence line is consumed, so the div opens empty.
+            if self.extensions.contains(Extension::FencedDivs) {
+                let opener = div_open_fence(cursor.remaining());
+                if let Some((count, attr)) = opener {
+                    let width = cursor.remaining().chars().count();
+                    cursor.advance_chars(width);
+                    let kind = Kind::FencedDiv(DivInfo {
+                        fence: count,
+                        indent,
+                        attr,
+                    });
+                    let parent = self.place(container, &kind);
+                    return Some(self.append_child(parent, Node::new(kind)));
+                }
             }
             if let Some(level) = cursor.atx_heading() {
                 let parent = self.place(container, &Kind::Heading(level));
@@ -809,6 +986,7 @@ impl Parser {
                 IrBlock::RawHtml(text)
             }
             Kind::BlockQuote => IrBlock::BlockQuote(self.build_children(index)),
+            Kind::FencedDiv(info) => IrBlock::Div(info.attr.clone(), self.build_children(index)),
             Kind::List(info) => self.build_list(index, info),
         };
         Some(block)
@@ -928,6 +1106,60 @@ fn fence_attr(info: &str, extensions: Extensions) -> Attr {
         classes: vec![language.to_owned()],
         attributes: Vec::new(),
     }
+}
+
+/// If `line` (already past any container markers and leading indent) opens a fenced div — a run of
+/// three or more colons followed by a valid attribute spec — return the colon count and the parsed
+/// attributes. A bare colon run with no spec is not an opener (it can only close).
+fn div_open_fence(line: &str) -> Option<(usize, Attr)> {
+    let after_colons = line.trim_start_matches(':');
+    let count = line.len() - after_colons.len();
+    if count < 3 {
+        return None;
+    }
+    let attr = div_open_attr(after_colons.trim())?;
+    Some((count, attr))
+}
+
+/// Parse a fenced-div opener's attribute spec (the text after the colons, already trimmed). It is
+/// either a single brace block of valid attributes or a single bare word taken verbatim as the sole
+/// class; anything else (empty, multiple words, junk after a brace) is not a valid opener.
+fn div_open_attr(spec: &str) -> Option<Attr> {
+    if spec.is_empty() {
+        return None;
+    }
+    if spec.starts_with('{')
+        && let Some((attr, consumed)) = attr::parse_attributes_first_id(spec)
+        && attr::is_non_empty(&attr)
+        && spec.get(consumed..).is_some_and(|rest| rest.trim().is_empty())
+    {
+        return Some(attr);
+    }
+    // Bare-word form: a single whitespace-free token becomes the sole class, kept verbatim (a
+    // leading dot is not stripped).
+    if spec.chars().any(char::is_whitespace) {
+        return None;
+    }
+    Some(Attr {
+        id: String::new(),
+        classes: vec![spec.to_owned()],
+        attributes: Vec::new(),
+    })
+}
+
+/// If `line` (already past any container markers) is a closing div fence — up to three spaces of
+/// indent, then a run of three or more colons, then only whitespace — return the colon count.
+fn div_close_fence(line: &str) -> Option<usize> {
+    let after_spaces = line.trim_start_matches(' ');
+    if line.len() - after_spaces.len() > 3 {
+        return None;
+    }
+    let after_colons = after_spaces.trim_start_matches(':');
+    let count = after_spaces.len() - after_colons.len();
+    if count < 3 || !after_colons.trim().is_empty() {
+        return None;
+    }
+    Some(count)
 }
 
 fn strip_one_trailing_newline(text: &str) -> String {
