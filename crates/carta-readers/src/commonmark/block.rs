@@ -7,7 +7,7 @@ use carta_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
-use super::{FootnoteDefs, IrBlock, RefMap, TAB_STOP, attr, html_block, scan, table};
+use super::{FootnoteDefs, IrBlock, IrDefItem, RefMap, TAB_STOP, attr, html_block, scan, table};
 
 /// Parse the normalized input into the block tree plus the collected link and footnote references.
 pub(crate) fn parse(input: &str, extensions: Extensions) -> (Vec<IrBlock>, RefMap, FootnoteDefs) {
@@ -47,6 +47,16 @@ enum Kind {
     /// indented line continues the previous). The lines are split apart and prepared in
     /// [`Parser::build_block`].
     LineBlock,
+    /// A definition list, holding one [`Kind::DefinitionItem`] per term. A transparent container:
+    /// it consumes nothing on continuation and defers to its items.
+    DefinitionList,
+    /// One term of a definition list: its raw term text and whether the entry is tight (its
+    /// definition paragraphs render as `Plain` rather than `Para`). A transparent container holding
+    /// one [`Kind::Definition`] per `:`/`~` marker.
+    DefinitionItem { term: String, tight: bool },
+    /// One definition body of a definition list. Its content continues under a four-column indent
+    /// like a list item; `indent` is the column its content begins at.
+    Definition { indent: usize },
     Heading(i32),
     IndentedCode,
     FencedCode(FenceInfo),
@@ -173,7 +183,8 @@ impl Parser {
                 | Kind::BlockQuote
                 | Kind::Item(_)
                 | Kind::FootnoteDef(_)
-                | Kind::FencedDiv(..),
+                | Kind::FencedDiv(..)
+                | Kind::Definition { .. },
             ) => !matches!(kind, Kind::Item(_)),
             Some(Kind::List(_)) => matches!(kind, Kind::Item(_)),
             _ => false,
@@ -583,6 +594,9 @@ impl Parser {
                     | Kind::Item(_)
                     | Kind::FootnoteDef(_)
                     | Kind::FencedDiv(..)
+                    | Kind::DefinitionList
+                    | Kind::DefinitionItem { .. }
+                    | Kind::Definition { .. }
             )
         )
     }
@@ -598,8 +612,17 @@ impl Parser {
     /// Try to continue an open container (block quote / list item) or open leaf on this line.
     fn try_continue(&mut self, index: usize, cursor: &mut Cursor) -> Continue {
         match self.kind(index).cloned() {
-            // A list is a transparent container: it consumes nothing and defers to its items.
-            Some(Kind::List(_)) => Continue::Matched,
+            // A list (and the two grouping levels of a definition list) is a transparent container:
+            // it consumes nothing and defers to its items.
+            Some(Kind::List(_) | Kind::DefinitionList | Kind::DefinitionItem { .. }) => {
+                Continue::Matched
+            }
+            // A definition body continues under its content indent, like a list item — except that
+            // an as-yet-empty body survives a blank line, so a deferred indented paragraph still
+            // joins it.
+            Some(Kind::Definition { indent }) => {
+                self.continue_item_like(index, indent, true, cursor)
+            }
             // A fenced div re-bases its content to the column it opened at: it consumes up to that
             // many leading columns, then stays open until a matching close fence (handled in
             // `process_line`) or end of input.
@@ -621,21 +644,7 @@ impl Parser {
                     Continue::NotMatched
                 }
             }
-            Some(Kind::Item(info)) => {
-                if cursor.is_blank() {
-                    // A blank line continues the item only if it already has content.
-                    if self.nodes.get(index).is_some_and(|n| n.children.is_empty()) {
-                        Continue::NotMatched
-                    } else {
-                        Continue::Matched
-                    }
-                } else if cursor.indent() >= info.indent {
-                    cursor.advance_columns(info.indent);
-                    Continue::Matched
-                } else {
-                    Continue::NotMatched
-                }
-            }
+            Some(Kind::Item(info)) => self.continue_item_like(index, info.indent, false, cursor),
             // A footnote definition's content continues under a four-column indent, the same as a
             // list item; an unindented non-blank line ends it (an open paragraph may still take it
             // as a lazy continuation, handled by the caller).
@@ -675,6 +684,32 @@ impl Parser {
                 Continue::MatchedLeaf
             }
             _ => Continue::NotMatched,
+        }
+    }
+
+    /// Continue a content container whose lines belong to it under a fixed `indent` (a list item or
+    /// a definition body): a non-blank line continues it when indented to the content column, which
+    /// is then consumed. A blank line continues it once it has content; when it is still empty,
+    /// `blank_keeps_empty` decides — a list item ends, while a definition body waits for a deferred
+    /// indented paragraph.
+    fn continue_item_like(
+        &self,
+        index: usize,
+        indent: usize,
+        blank_keeps_empty: bool,
+        cursor: &mut Cursor,
+    ) -> Continue {
+        if cursor.is_blank() {
+            if !blank_keeps_empty && self.nodes.get(index).is_some_and(|n| n.children.is_empty()) {
+                Continue::NotMatched
+            } else {
+                Continue::Matched
+            }
+        } else if cursor.indent() >= indent {
+            cursor.advance_columns(indent);
+            Continue::Matched
+        } else {
+            Continue::NotMatched
         }
     }
 
@@ -781,21 +816,15 @@ impl Parser {
                 self.close(index);
                 return Some(index);
             }
-            // A line block opens only on a `|` flush at the line start, and never interrupts a
-            // paragraph. Its whole line is taken as the first entry; later lines are claimed by
-            // `continue_line_block` before the openers run.
-            if self.extensions.contains(Extension::LineBlocks)
-                && indent == 0
-                && !in_paragraph
-                && is_line_block_marker(cursor.remaining())
+            if let Some(block) = self.open_line_block(container, indent, in_paragraph, cursor) {
+                return Some(block);
+            }
+            // A definition marker turns the preceding paragraph into a term, or adds a definition to
+            // the open entry. Its content is then opened by the enclosing loop inside the new body.
+            if self.extensions.contains(Extension::DefinitionLists)
+                && let Some(body) = self.open_definition(container, indent, cursor)
             {
-                let raw = cursor.rest();
-                cursor.advance_chars(raw.chars().count());
-                let parent = self.place(container, &Kind::LineBlock);
-                let index = self.append_child(parent, Node::new(Kind::LineBlock));
-                self.append_text(index, &raw);
-                self.append_text(index, "\n");
-                return Some(index);
+                return Some(body);
             }
             if let Some(list) = self.list_marker(container, indent, cursor) {
                 return Some(list);
@@ -807,6 +836,123 @@ impl Parser {
     fn last_open_leaf_kind(&self, container: usize) -> Option<Kind> {
         let leaf = self.deepest_open(container);
         self.kind(leaf).cloned()
+    }
+
+    /// Open a line block on a `|` flush at the line start. A line block never interrupts a paragraph
+    /// and never carries leading indentation; its whole line is its first entry, with later lines
+    /// claimed by `continue_line_block` before the openers run.
+    fn open_line_block(
+        &mut self,
+        container: usize,
+        indent: usize,
+        in_paragraph: bool,
+        cursor: &mut Cursor,
+    ) -> Option<usize> {
+        if !self.extensions.contains(Extension::LineBlocks)
+            || indent != 0
+            || in_paragraph
+            || !is_line_block_marker(cursor.remaining())
+        {
+            return None;
+        }
+        let raw = cursor.rest();
+        cursor.advance_chars(raw.chars().count());
+        let parent = self.place(container, &Kind::LineBlock);
+        let index = self.append_child(parent, Node::new(Kind::LineBlock));
+        self.append_text(index, &raw);
+        self.append_text(index, "\n");
+        Some(index)
+    }
+
+    /// Open a definition body at a `:`/`~` marker, returning the new [`Kind::Definition`] container
+    /// the enclosing loop then fills. The marker either starts a fresh definition of the open entry
+    /// (when the cursor sits directly in a [`Kind::DefinitionItem`]) or, when the container's last
+    /// child is a paragraph, turns that paragraph into a term — extending an immediately preceding
+    /// definition list or beginning a new one. A marker in any other position is not consumed.
+    fn open_definition(
+        &mut self,
+        container: usize,
+        marker_indent: usize,
+        cursor: &mut Cursor,
+    ) -> Option<usize> {
+        let blank_after = cursor.definition_marker_at()?;
+        let item = if matches!(self.kind(container), Some(Kind::DefinitionItem { .. })) {
+            container
+        } else {
+            self.start_definition_item(container)?
+        };
+        let indent = Self::consume_definition_marker(marker_indent, blank_after, cursor);
+        Some(self.append_child(item, Node::new(Kind::Definition { indent })))
+    }
+
+    /// Turn the container's last child — which must be a non-empty paragraph — into a definition
+    /// term, returning the [`Kind::DefinitionItem`] that now holds it. The term joins an immediately
+    /// preceding definition list, else opens a new one. Returns `None` when there is no term
+    /// paragraph to consume, leaving the marker as ordinary text.
+    fn start_definition_item(&mut self, container: usize) -> Option<usize> {
+        let &term_index = self.nodes.get(container)?.children.last()?;
+        let term_node = self.nodes.get(term_index)?;
+        if !matches!(term_node.kind, Kind::Paragraph) || term_node.text.trim().is_empty() {
+            return None;
+        }
+        let term = term_node.text.trim().to_owned();
+        let tight = !term_node.last_line_blank;
+        let previous = self
+            .nodes
+            .get(container)
+            .and_then(|node| node.children.iter().rev().nth(1).copied());
+        let list = match previous {
+            Some(prev) if matches!(self.kind(prev), Some(Kind::DefinitionList)) => {
+                self.reopen_definition_list(prev);
+                if let Some(node) = self.nodes.get_mut(container) {
+                    node.children.pop();
+                }
+                prev
+            }
+            _ => {
+                if let Some(node) = self.nodes.get_mut(container) {
+                    node.children.pop();
+                }
+                self.append_child(container, Node::new(Kind::DefinitionList))
+            }
+        };
+        Some(self.append_child(list, Node::new(Kind::DefinitionItem { term, tight })))
+    }
+
+    /// Reopen a definition list to accept a further term, closing the entry it last held so the new
+    /// item descends as a sibling rather than nesting under the old one.
+    fn reopen_definition_list(&mut self, list: usize) {
+        if let Some(node) = self.nodes.get_mut(list) {
+            node.open = true;
+        }
+        if let Some(&last_item) = self.nodes.get(list).and_then(|node| node.children.last()) {
+            self.close(last_item);
+        }
+    }
+
+    /// Consume a definition marker (`:`/`~` plus its following spaces) and return the column its
+    /// content begins at. One through four spaces widen the content indent by that many columns;
+    /// five or more collapse to a single column. An empty marker takes no content column at all, so
+    /// its body begins one column past the marker — deferred indented lines join it as their own
+    /// paragraph rather than continuing it.
+    fn consume_definition_marker(
+        marker_indent: usize,
+        blank_after: bool,
+        cursor: &mut Cursor,
+    ) -> usize {
+        cursor.advance_chars(1);
+        let after_marker = cursor.indent();
+        let content_offset = if blank_after {
+            0
+        } else if after_marker > TAB_STOP {
+            1
+        } else {
+            after_marker
+        };
+        if !blank_after {
+            cursor.advance_columns(content_offset);
+        }
+        marker_indent + 1 + content_offset
     }
 
     /// Try to open a list item (and its containing list) at the cursor.
@@ -1010,8 +1156,13 @@ impl Parser {
         let node = self.nodes.get(index)?;
         let block = match &node.kind {
             // A footnote definition is lifted out of the body into the footnote map; its former
-            // container stays but empties.
-            Kind::Document | Kind::Item(_) | Kind::FootnoteDef(_) => return None,
+            // container stays but empties. The two grouping levels of a definition list carry no
+            // block of their own — the list is built from its items, each item from its definitions.
+            Kind::Document
+            | Kind::Item(_)
+            | Kind::FootnoteDef(_)
+            | Kind::DefinitionItem { .. }
+            | Kind::Definition { .. } => return None,
             Kind::Paragraph => {
                 let trimmed = node.text.trim();
                 if trimmed.is_empty() {
@@ -1030,6 +1181,7 @@ impl Parser {
                 }
             }
             Kind::LineBlock => IrBlock::LineBlock(line_block_lines(&node.text)),
+            Kind::DefinitionList => self.build_definition_list(index),
             Kind::Heading(level) => IrBlock::Heading(*level, node.text.trim().to_owned()),
             Kind::ThematicBreak => IrBlock::ThematicBreak,
             Kind::IndentedCode => {
@@ -1060,6 +1212,35 @@ impl Parser {
             Kind::List(info) => self.build_list(index, info),
         };
         Some(block)
+    }
+
+    /// Build a definition list from its item and definition containers. Each item contributes its
+    /// term text and the block content of each `:`/`~` definition; a tight item demotes its
+    /// definitions' top-level paragraphs to `Plain`.
+    fn build_definition_list(&self, index: usize) -> IrBlock {
+        let mut items = Vec::new();
+        if let Some(list) = self.nodes.get(index) {
+            for &item_index in &list.children {
+                let Some(Kind::DefinitionItem { term, tight }) = self.kind(item_index) else {
+                    continue;
+                };
+                let mut definitions = Vec::new();
+                if let Some(item) = self.nodes.get(item_index) {
+                    for &def_index in &item.children {
+                        let mut blocks = self.build_children(def_index);
+                        if *tight {
+                            demote_loose_paragraphs(&mut blocks);
+                        }
+                        definitions.push(blocks);
+                    }
+                }
+                items.push(IrDefItem {
+                    term: term.clone(),
+                    definitions,
+                });
+            }
+        }
+        IrBlock::DefinitionList(items)
     }
 
     fn build_list(&self, index: usize, info: &ListInfo) -> IrBlock {

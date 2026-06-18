@@ -53,6 +53,10 @@ pub(crate) enum IrBlock {
     /// inline phase. Division into lines and any preserved leading spaces are already baked into
     /// the strings.
     LineBlock(Vec<String>),
+    /// A definition list: one entry per term. Each term's raw text is parsed into inlines in the
+    /// inline phase; its definitions are already-resolved block lists with tight-vs-loose paragraph
+    /// demotion applied.
+    DefinitionList(Vec<IrDefItem>),
     BulletList(Vec<Vec<IrBlock>>),
     OrderedList(ListAttributes, Vec<Vec<IrBlock>>),
     /// A pipe table: per-column alignments, the header row's cell texts, and the body rows' cell
@@ -62,6 +66,15 @@ pub(crate) enum IrBlock {
         header: Vec<String>,
         rows: Vec<Vec<String>>,
     },
+}
+
+/// One entry of a definition list: a term plus its definitions. The term holds raw text awaiting
+/// the inline phase; each definition is its block content (paragraph demotion to `Plain` already
+/// applied for tight entries).
+#[derive(Debug, Clone)]
+pub(crate) struct IrDefItem {
+    pub term: String,
+    pub definitions: Vec<Vec<IrBlock>>,
 }
 
 /// A resolved link reference definition: its destination URL and optional title.
@@ -653,7 +666,7 @@ mod tests {
         for inline in inlines {
             match inline {
                 Inline::Str(text) | Inline::Code(_, text) => out.push_str(text),
-                Inline::Space => out.push(' '),
+                Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
                 Inline::Emph(children)
                 | Inline::Strong(children)
                 | Inline::Link(_, children, _) => out.push_str(&flatten_inlines(children)),
@@ -767,5 +780,150 @@ mod tests {
             panic!("expected a single paragraph, got {blocks:?}");
         };
         assert!(matches!(inlines.first(), Some(Inline::Str(text)) if text == "|"));
+    }
+
+    /// The (term-text, definitions) pairs of the first definition list in a document.
+    fn definition_items(blocks: &[Block]) -> Vec<(String, Vec<Vec<Block>>)> {
+        for block in blocks {
+            if let Block::DefinitionList(items) = block {
+                return items
+                    .iter()
+                    .map(|(term, defs)| (flatten_inlines(term), defs.clone()))
+                    .collect();
+            }
+        }
+        Vec::new()
+    }
+
+    #[test]
+    fn a_term_above_a_colon_line_becomes_one_tight_definition() {
+        let items = definition_items(&blocks_with("apple\n: red\n", Extension::DefinitionLists));
+        let [(term, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        assert_eq!(term, "apple");
+        assert!(matches!(defs.as_slice(), [one] if matches!(one.as_slice(), [Block::Plain(_)])));
+    }
+
+    #[test]
+    fn a_term_carries_several_definitions_under_colon_or_tilde_markers() {
+        let items =
+            definition_items(&blocks_with("water\n: clear\n~ vital\n", Extension::DefinitionLists));
+        let [(term, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        assert_eq!(term, "water");
+        assert_eq!(defs.len(), 2);
+    }
+
+    #[test]
+    fn consecutive_terms_join_one_list() {
+        let items =
+            definition_items(&blocks_with("a\n: x\n\nb\n: y\n", Extension::DefinitionLists));
+        let terms: Vec<&str> = items.iter().map(|(term, _)| term.as_str()).collect();
+        assert_eq!(terms, ["a", "b"]);
+    }
+
+    #[test]
+    fn a_blank_line_before_the_marker_makes_the_definition_loose() {
+        let items =
+            definition_items(&blocks_with("planet\n\n: orbits\n", Extension::DefinitionLists));
+        let [(_, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        assert!(matches!(defs.as_slice(), [one] if matches!(one.as_slice(), [Block::Para(_)])));
+    }
+
+    #[test]
+    fn an_indented_continuation_keeps_a_second_block_in_the_definition() {
+        let items = definition_items(&blocks_with(
+            "essay\n: first.\n\n  second.\n",
+            Extension::DefinitionLists,
+        ));
+        let [(_, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        let [blocks] = defs.as_slice() else {
+            panic!("expected one definition, got {defs:?}");
+        };
+        assert_eq!(blocks.len(), 2);
+    }
+
+    #[test]
+    fn a_definition_holds_a_nested_block_when_indented_to_the_content_column() {
+        let items = definition_items(&blocks_with(
+            "shapes\n: items:\n\n    - circle\n    - square\n",
+            Extension::DefinitionLists,
+        ));
+        let [(_, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        let [blocks] = defs.as_slice() else {
+            panic!("expected one definition, got {defs:?}");
+        };
+        assert!(matches!(blocks.as_slice(), [Block::Plain(_), Block::BulletList(_)]));
+    }
+
+    #[test]
+    fn lines_above_the_marker_fold_into_one_term() {
+        let items =
+            definition_items(&blocks_with("one\ntwo\n: both\n", Extension::DefinitionLists));
+        let [(term, _)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        assert_eq!(term, "one two");
+    }
+
+    #[test]
+    fn an_unindented_line_lazily_continues_the_definition() {
+        let items =
+            definition_items(&blocks_with("apple\n: red\norange\n", Extension::DefinitionLists));
+        let [(_, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        let [blocks] = defs.as_slice() else {
+            panic!("expected one definition, got {defs:?}");
+        };
+        assert!(matches!(blocks.as_slice(), [Block::Plain(_)]));
+    }
+
+    #[test]
+    fn a_colon_without_a_following_space_is_not_a_marker() {
+        let blocks = blocks_with("term\n:def\n", Extension::DefinitionLists);
+        assert!(matches!(blocks.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn an_empty_definition_yields_an_empty_block_list() {
+        let blocks = blocks_with("T\n:\nmore\n", Extension::DefinitionLists);
+        let items = definition_items(&blocks);
+        let [(term, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        assert_eq!(term, "T");
+        assert!(matches!(defs.as_slice(), [one] if one.is_empty()));
+        // The unindented line ends the list and stands as its own paragraph.
+        assert!(matches!(blocks.as_slice(), [Block::DefinitionList(_), Block::Para(_)]));
+    }
+
+    #[test]
+    fn an_empty_definition_absorbs_a_deferred_indented_block() {
+        // A blank line does not close an as-yet-empty definition; the indented line that follows
+        // becomes its body.
+        let items = definition_items(&blocks_with(
+            "T\n:\n\n    code\n",
+            Extension::DefinitionLists,
+        ));
+        let [(_, defs)] = items.as_slice() else {
+            panic!("expected one item, got {items:?}");
+        };
+        assert!(matches!(defs.as_slice(), [one] if matches!(one.as_slice(), [Block::Plain(_)])));
+    }
+
+    #[test]
+    fn with_the_extension_off_a_colon_line_is_literal_paragraph_text() {
+        let blocks = blocks("apple\n: red\n");
+        assert!(matches!(blocks.as_slice(), [Block::Para(_)]));
+        assert!(definition_items(&blocks).is_empty());
     }
 }

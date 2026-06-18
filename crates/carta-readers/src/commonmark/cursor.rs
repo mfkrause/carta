@@ -366,6 +366,20 @@ impl<'a> Cursor<'a> {
         Some(label)
     }
 
+    /// If the cursor sits at a definition-list marker — a single `:` or `~` followed by a space, a
+    /// tab, or the line's end — return whether only whitespace follows it (an empty definition). The
+    /// marker char is not consumed.
+    pub(super) fn definition_marker_at(&self) -> Option<bool> {
+        let byte = self.peek()?;
+        if byte != b':' && byte != b'~' {
+            return None;
+        }
+        if !matches!(self.bytes.get(self.offset + 1), None | Some(b' ' | b'\t')) {
+            return None;
+        }
+        Some(rest_is_blank(self.bytes, self.offset + 1))
+    }
+
     pub(super) fn list_marker_at(&mut self) -> Option<ListMarkerParse> {
         let byte = self.peek()?;
         match byte {
