@@ -219,7 +219,11 @@ fn parse_inlines(text: &str, refs: &RefMap, ext: Extensions) -> Vec<Inline> {
     parser.run();
     let mut nodes = parser.nodes;
     process_emphasis(&mut nodes, 0, ext);
-    collapse(nodes)
+    let mut inlines = collapse(nodes);
+    if ext.contains(Extension::Autolink) {
+        super::autolink::autolink_inlines(&mut inlines);
+    }
+    inlines
 }
 
 struct InlineParser<'a> {
