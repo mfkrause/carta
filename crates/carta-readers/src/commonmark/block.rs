@@ -4,13 +4,14 @@
 //! collected into the [`RefMap`].
 
 use carta_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
+use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
-use super::{IrBlock, RefMap, TAB_STOP, html_block, scan};
+use super::{IrBlock, RefMap, TAB_STOP, attr, html_block, scan};
 
 /// Parse the normalized input into the block tree plus the collected link references.
-pub(crate) fn parse(input: &str) -> (Vec<IrBlock>, RefMap) {
-    let mut parser = Parser::new();
+pub(crate) fn parse(input: &str, extensions: Extensions) -> (Vec<IrBlock>, RefMap) {
+    let mut parser = Parser::new(extensions);
     for line in split_lines(input) {
         parser.process_line(line);
     }
@@ -85,13 +86,15 @@ impl Node {
 struct Parser {
     nodes: Vec<Node>,
     refs: RefMap,
+    extensions: Extensions,
 }
 
 impl Parser {
-    fn new() -> Self {
+    fn new(extensions: Extensions) -> Self {
         Parser {
             nodes: vec![Node::new(Kind::Document)],
             refs: RefMap::new(),
+            extensions,
         }
     }
 
@@ -662,7 +665,7 @@ impl Parser {
                 IrBlock::CodeBlock(Attr::default(), strip_trailing_blank_lines(&node.text))
             }
             Kind::FencedCode(fence) => {
-                let attr = fence_attr(&fence.info);
+                let attr = fence_attr(&fence.info, self.extensions);
                 // A closing fence drops the final newline; a block ended by end-of-input (still
                 // open) keeps it.
                 let text = if node.open {
@@ -780,10 +783,20 @@ fn list_info(parsed: &ListMarkerParse) -> ListInfo {
     }
 }
 
-fn fence_attr(info: &str) -> Attr {
+fn fence_attr(info: &str, extensions: Extensions) -> Attr {
     let info = info.trim();
     if info.is_empty() {
         return Attr::default();
+    }
+    // With fenced-code attributes enabled, a `{…}` info string is a full attribute block; the whole
+    // info must be the block, else it falls back to the bare-language reading.
+    if (extensions.contains(Extension::FencedCodeAttributes)
+        || extensions.contains(Extension::Attributes))
+        && info.starts_with('{')
+        && let Some((parsed, consumed)) = attr::parse_attributes(info)
+        && info.get(consumed..).is_some_and(|rest| rest.trim().is_empty())
+    {
+        return parsed;
     }
     let language = info.split_whitespace().next().unwrap_or("");
     Attr {
