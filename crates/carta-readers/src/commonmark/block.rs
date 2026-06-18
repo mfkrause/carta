@@ -7,10 +7,16 @@ use carta_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
-use super::{FootnoteDefs, IrBlock, IrDefItem, RefMap, TAB_STOP, attr, html_block, scan, table};
+use super::{
+    ExampleMap, FootnoteDefs, IrBlock, IrDefItem, RefMap, TAB_STOP, attr, html_block, scan, table,
+};
 
-/// Parse the normalized input into the block tree plus the collected link and footnote references.
-pub(crate) fn parse(input: &str, extensions: Extensions) -> (Vec<IrBlock>, RefMap, FootnoteDefs) {
+/// Parse the normalized input into the block tree plus the collected link, footnote, and example
+/// references.
+pub(crate) fn parse(
+    input: &str,
+    extensions: Extensions,
+) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
     let mut parser = Parser::new(extensions);
     for line in split_lines(input) {
         parser.process_line(line);
@@ -77,6 +83,9 @@ struct ListInfo {
 struct ItemInfo {
     /// Column indent required for a continuation line to belong to this item.
     indent: usize,
+    /// For an example-list item, its `@label` (or `None` for the anonymous `@`); `None` for every
+    /// other item. The label resolves later `@label` references to this item's number.
+    example_label: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -964,7 +973,8 @@ impl Parser {
         cursor: &mut Cursor,
     ) -> Option<usize> {
         let fancy = self.extensions.contains(Extension::FancyLists);
-        let parsed = cursor.list_marker_at(fancy)?;
+        let example = self.extensions.contains(Extension::ExampleLists);
+        let parsed = cursor.list_marker_at(fancy, example)?;
 
         // These restrictions apply only when the marker would interrupt a *bare* paragraph (one not
         // already inside a list): an empty item cannot interrupt, and an ordered marker may only
@@ -1008,6 +1018,7 @@ impl Parser {
         let list_index = self.ensure_list(container, &parsed);
         let item = Node::new(Kind::Item(ItemInfo {
             indent: item_indent,
+            example_label: parsed.example_label.clone(),
         }));
         Some(self.append_child(list_index, item))
     }
@@ -1124,7 +1135,7 @@ impl Parser {
         }
     }
 
-    fn finish(mut self) -> (Vec<IrBlock>, RefMap, FootnoteDefs) {
+    fn finish(mut self) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
         // Pre-pass: pull link reference definitions out of every paragraph.
         for index in 0..self.nodes.len() {
             if matches!(self.kind(index), Some(Kind::Paragraph)) {
@@ -1136,8 +1147,58 @@ impl Parser {
             }
         }
         let footnotes = self.collect_footnotes();
+        let examples = self.number_examples();
         let blocks = self.build_children(0);
-        (blocks, self.refs, footnotes)
+        (blocks, self.refs, footnotes, examples)
+    }
+
+    /// Number every example-list item in one document-wide sequence and record the label→number map.
+    /// Each example list's `start` becomes its first item's number; the map drives `@label`
+    /// references during the inline phase.
+    fn number_examples(&mut self) -> ExampleMap {
+        let mut counter = 0;
+        let mut map = ExampleMap::new();
+        self.number_examples_in(0, &mut counter, &mut map);
+        map
+    }
+
+    /// Walk `index` and its descendants in document order, assigning example numbers. Items are
+    /// visited before the content nested beneath them, so a nested example list continues the same
+    /// sequence in reading order.
+    fn number_examples_in(&mut self, index: usize, counter: &mut i32, map: &mut ExampleMap) {
+        let Some(node) = self.nodes.get(index) else {
+            return;
+        };
+        let is_example =
+            matches!(&node.kind, Kind::List(info) if info.style == ListNumberStyle::Example);
+        let children = node.children.clone();
+        if !is_example {
+            for child in children {
+                self.number_examples_in(child, counter, map);
+            }
+            return;
+        }
+        let mut start = None;
+        for item in children {
+            let Some(item_node) = self.nodes.get(item) else {
+                continue;
+            };
+            let Kind::Item(info) = &item_node.kind else {
+                continue;
+            };
+            let label = info.example_label.clone();
+            let item_children = item_node.children.clone();
+            start.get_or_insert(next_example_number(label, counter, map));
+            for child in item_children {
+                self.number_examples_in(child, counter, map);
+            }
+        }
+        if let Some(start) = start
+            && let Some(node) = self.nodes.get_mut(index)
+            && let Kind::List(info) = &mut node.kind
+        {
+            info.start = start;
+        }
     }
 
     /// Gather every footnote definition's block content, keyed by its normalized label. Definitions
@@ -1358,6 +1419,21 @@ enum Continue {
     NotMatched,
 }
 
+/// The number for an example item, given its `@label` (or `None` for the anonymous `@`). A new or
+/// anonymous item advances the shared counter; a repeated label reuses its first number.
+fn next_example_number(label: Option<String>, counter: &mut i32, map: &mut ExampleMap) -> i32 {
+    if let Some(label) = &label
+        && let Some(&number) = map.get(label)
+    {
+        return number;
+    }
+    *counter += 1;
+    if let Some(label) = label {
+        map.insert(label, *counter);
+    }
+    *counter
+}
+
 fn list_info(parsed: &ListMarkerParse) -> ListInfo {
     ListInfo {
         bullet: parsed.bullet,
@@ -1402,7 +1478,9 @@ fn continues_ordered(list_style: &ListNumberStyle, marker: &ListMarkerParse) -> 
         UpperAlpha => upper && marker.single_letter,
         LowerRoman => lower && continues_roman(marker),
         UpperRoman => upper && continues_roman(marker),
-        ListNumberStyle::DefaultStyle | ListNumberStyle::Example => false,
+        // An example list groups every example marker of the same delimiter, regardless of label.
+        ListNumberStyle::Example => matches!(marker.style, ListNumberStyle::Example),
+        ListNumberStyle::DefaultStyle => false,
     }
 }
 
