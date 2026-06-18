@@ -1,0 +1,1716 @@
+//! Markdown writer engine: renders the document model to a markdown family text format.
+//!
+//! Two surface variants share this engine, selected by a [`MarkdownConfig`]: the full-featured
+//! markdown variant emits the format's extended syntax (attribute blocks on headers, links, images
+//! and spans; native subscript/superscript; fenced divs; pipe-free space-aligned and bordered
+//! tables; citation syntax; raw passthrough with a format tag) and downgrades smart punctuation to
+//! ASCII; the GitHub variant restricts itself to that dialect's constructs (pipe tables, task-list
+//! checkboxes, native strikeout) and falls back to inline or block HTML for everything it cannot
+//! express, keeping smart punctuation verbatim. Inline content wraps at a fill column of 72. Output
+//! carries no trailing newline; the caller appends one.
+
+use carta_ast::{
+    Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColWidth, Document, Format,
+    Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, Row, Table, Target, Text,
+};
+use carta_core::{Result, Writer, WriterOptions};
+
+use crate::common::{
+    FILL_COLUMN, MEASURE_WIDTH, MULTILINE_WIDTH, NotesHost, Piece, TableForm, append_notes,
+    block_inlines, body_rows, cell_inlines, dash_rule, display_width, escape_attr,
+    extend_multiline_body, fill, fill_offset, filled_cells, indent_block, indent_lines,
+    is_known_scheme, is_loose, is_percent_escaped_uri, is_simple_cell, item_separator, lay_row,
+    measure_pieces, offset_as_i32, ordered_marker, pad_align, pieces_nonempty, quote_marks,
+    render_html_attr, table_form,
+};
+use crate::grid;
+
+/// Which markdown dialect the engine renders. The variants differ in which constructs have native
+/// syntax versus an HTML fallback, in list and table forms, and in smart-punctuation handling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Variant {
+    /// The full-featured markdown dialect.
+    Extended,
+    /// The GitHub-flavored dialect.
+    GitHub,
+}
+
+/// The rendering configuration shared by both entry points and exposed to sibling writers that embed
+/// markdown (the outline writer renders note text through this engine).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MarkdownConfig {
+    variant: Variant,
+}
+
+impl MarkdownConfig {
+    pub(crate) fn extended() -> Self {
+        Self {
+            variant: Variant::Extended,
+        }
+    }
+
+    pub(crate) fn github() -> Self {
+        Self {
+            variant: Variant::GitHub,
+        }
+    }
+
+    fn is_github(self) -> bool {
+        self.variant == Variant::GitHub
+    }
+
+    /// Whether the dialect downgrades smart punctuation (curly quotes, en/em dashes, ellipsis) to
+    /// their ASCII forms on output.
+    fn downgrades_smart(self) -> bool {
+        self.variant == Variant::Extended
+    }
+}
+
+/// Renders a document to the full-featured markdown dialect.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownWriter;
+
+impl Writer for MarkdownWriter {
+    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+        Ok(render_document(document, MarkdownConfig::extended()))
+    }
+}
+
+/// Renders a document to the GitHub-flavored markdown dialect.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct GfmWriter;
+
+impl Writer for GfmWriter {
+    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+        Ok(render_document(document, MarkdownConfig::github()))
+    }
+}
+
+fn render_document(document: &Document, config: MarkdownConfig) -> String {
+    let mut state = State::new(config);
+    let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
+    append_notes(body, &state.footnotes)
+}
+
+/// Render a block sequence as a markdown fragment, accumulating footnotes for a trailing section.
+/// Exposed so a writer embedding markdown text can render a block list through this engine.
+pub(crate) fn render_blocks(blocks: &[Block], config: MarkdownConfig) -> String {
+    let mut state = State::new(config);
+    let body = state.blocks_to_string(blocks, FILL_COLUMN);
+    append_notes(body, &state.footnotes)
+}
+
+#[derive(Debug)]
+struct State {
+    config: MarkdownConfig,
+    footnotes: Vec<String>,
+}
+
+impl State {
+    fn new(config: MarkdownConfig) -> Self {
+        Self {
+            config,
+            footnotes: Vec::new(),
+        }
+    }
+
+    fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+        let mut out = String::new();
+        let mut previous: Option<&Block> = None;
+        for block in blocks {
+            let text = self.block(block, width);
+            if text.is_empty() {
+                continue;
+            }
+            if let Some(previous) = previous {
+                if needs_separator(previous, block) {
+                    out.push_str("\n\n<!-- -->\n\n");
+                } else if matches!(previous, Block::Plain(_)) {
+                    out.push('\n');
+                } else {
+                    out.push_str("\n\n");
+                }
+            }
+            out.push_str(&text);
+            previous = Some(block);
+        }
+        out
+    }
+
+    fn block(&mut self, block: &Block, width: usize) -> String {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) => {
+                let pieces = self.pieces(inlines);
+                fill(&pieces, width)
+            }
+            Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
+            Block::CodeBlock(attr, text) => self.code_block(attr, text),
+            Block::RawBlock(format, text) => self.raw_block(format, text),
+            Block::BlockQuote(blocks) => {
+                let body = self.blocks_to_string(blocks, width.saturating_sub(2));
+                quote_block(&body)
+            }
+            Block::BulletList(items) => self.bullet_list(items, width),
+            Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
+            Block::DefinitionList(items) => self.definition_list(items, width),
+            Block::HorizontalRule => "-".repeat(FILL_COLUMN),
+            Block::Div(attr, blocks) => self.div(attr, blocks, width),
+            Block::LineBlock(lines) => self.line_block(lines),
+            Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks),
+            Block::Table(table) => self.table(table, width),
+        }
+    }
+
+    fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+        let hashes = "#".repeat(usize::try_from(level.max(1)).unwrap_or(1));
+        let text = self.inlines_oneline(inlines);
+        let suffix = if self.config.is_github() || header_attr_implicit(attr, inlines) {
+            String::new()
+        } else {
+            format!(" {}", pandoc_attr(attr))
+        };
+        if text.is_empty() {
+            format!("{hashes}{suffix}").trim_end().to_owned()
+        } else {
+            format!("{hashes} {text}{suffix}")
+        }
+    }
+
+    fn code_block(&mut self, attr: &Attr, text: &str) -> String {
+        let body = text.strip_suffix('\n').unwrap_or(text);
+        let info = if self.config.is_github() {
+            github_code_info(attr)
+        } else {
+            extended_code_info(attr)
+        };
+        let Some(info) = info else {
+            return indent_code(text);
+        };
+        let fence = "`".repeat(backtick_fence_len(body));
+        if body.is_empty() {
+            format!("{fence}{info}\n{fence}")
+        } else {
+            format!("{fence}{info}\n{body}\n{fence}")
+        }
+    }
+
+    fn raw_block(&mut self, format: &Format, text: &str) -> String {
+        if self.config.is_github() {
+            if is_html_format(format) {
+                collapse_trailing_newline(text)
+            } else {
+                String::new()
+            }
+        } else {
+            collapse_trailing_newline(text)
+        }
+    }
+
+    fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
+        if self.config.is_github() {
+            let body = self.blocks_to_string(blocks, width);
+            return format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr));
+        }
+        let body = self.blocks_to_string(blocks, width);
+        let fence = ":".repeat(colon_fence_len(&body));
+        let opener = div_opener(attr);
+        if body.is_empty() {
+            format!("{fence}{opener}\n{fence}")
+        } else {
+            format!("{fence}{opener}\n{body}\n{fence}")
+        }
+    }
+
+    fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
+        if self.config.is_github() {
+            let rendered: Vec<String> = lines
+                .iter()
+                .map(|line| self.inlines_oneline(line))
+                .collect();
+            return rendered.join("\\\n");
+        }
+        let rendered: Vec<String> = lines
+            .iter()
+            .map(|line| format!("| {}", self.inlines_oneline(line)))
+            .collect();
+        rendered.join("\n")
+    }
+
+    fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
+        if let Some(rendered) = self.task_list(items, width) {
+            return rendered;
+        }
+        let loose = is_loose(items);
+        let body_width = width.saturating_sub(2);
+        let rendered: Vec<String> = items
+            .iter()
+            .map(|item| {
+                let body = self.blocks_to_string(item, body_width);
+                let body = offset_horizontal_rule(item, body);
+                indent_block(&body, "- ", "  ")
+            })
+            .collect();
+        rendered.join(item_separator(loose))
+    }
+
+    /// A bullet list every item of which begins with a checkbox glyph renders as a task list. Each
+    /// item's leading glyph and the space after it are replaced with the `[ ]`/`[x]` marker.
+    fn task_list(&mut self, items: &[Vec<Block>], width: usize) -> Option<String> {
+        let marks: Option<Vec<bool>> = items.iter().map(|item| checkbox_state(item)).collect();
+        let marks = marks?;
+        let loose = is_loose(items);
+        let body_width = width.saturating_sub(2);
+        let rendered: Vec<String> = items
+            .iter()
+            .zip(marks)
+            .map(|(item, checked)| {
+                let stripped = strip_checkbox(item);
+                let body = self.blocks_to_string(&stripped, body_width);
+                let marker = if checked { "- [x] " } else { "- [ ] " };
+                indent_block(&body, marker, "  ")
+            })
+            .collect();
+        Some(rendered.join(item_separator(loose)))
+    }
+
+    fn ordered_list(
+        &mut self,
+        attrs: &ListAttributes,
+        items: &[Vec<Block>],
+        width: usize,
+    ) -> String {
+        let loose = is_loose(items);
+        let (style, delim) = self.ordered_marks(attrs);
+        let rendered: Vec<String> = items
+            .iter()
+            .enumerate()
+            .map(|(offset, item)| {
+                let number = attrs.start.saturating_add(offset_as_i32(offset));
+                let marker = ordered_marker(number, &style, &delim);
+                let field = (marker.chars().count() + 1).max(4);
+                let body = self.blocks_to_string(item, width.saturating_sub(field));
+                let body = offset_horizontal_rule(item, body);
+                let first = format!("{marker:<field$}");
+                let rest = " ".repeat(field);
+                indent_block(&body, &first, &rest)
+            })
+            .collect();
+        rendered.join(item_separator(loose))
+    }
+
+    /// The numeral style and delimiter to render an ordered list with. The GitHub dialect collapses
+    /// every style to decimal and every delimiter to a period or a single closing parenthesis.
+    fn ordered_marks(&self, attrs: &ListAttributes) -> (ListNumberStyle, ListNumberDelim) {
+        if self.config.is_github() {
+            let delim = match attrs.delim {
+                ListNumberDelim::OneParen | ListNumberDelim::TwoParens => ListNumberDelim::OneParen,
+                ListNumberDelim::Period | ListNumberDelim::DefaultDelim => ListNumberDelim::Period,
+            };
+            return (ListNumberStyle::Decimal, delim);
+        }
+        (attrs.style.clone(), attrs.delim.clone())
+    }
+
+    fn definition_list(
+        &mut self,
+        items: &[(Vec<Inline>, Vec<Vec<Block>>)],
+        width: usize,
+    ) -> String {
+        if self.config.is_github() {
+            return self.definition_list_fallback(items, width);
+        }
+        let groups: Vec<String> = items
+            .iter()
+            .map(|(term, definitions)| self.definition_group(term, definitions, width))
+            .collect();
+        groups.join("\n\n")
+    }
+
+    /// One term and its definitions in the extended dialect: the term on its own line, then each
+    /// definition introduced by `:` with a two-column hanging indent.
+    fn definition_group(
+        &mut self,
+        term: &[Inline],
+        definitions: &[Vec<Block>],
+        width: usize,
+    ) -> String {
+        let term_line = self.inlines_oneline(term);
+        let loose = definitions.iter().any(|blocks| {
+            blocks.iter().any(|block| !matches!(block, Block::Plain(_))) || blocks.len() > 1
+        });
+        let bodies: Vec<String> = definitions
+            .iter()
+            .map(|definition| {
+                let body = self.blocks_to_string(definition, width.saturating_sub(2));
+                indent_block(&body, ": ", "  ")
+            })
+            .collect();
+        let separator = if loose { "\n\n" } else { "\n" };
+        let definitions = bodies.join(separator);
+        if loose {
+            format!("{term_line}\n\n{definitions}")
+        } else {
+            format!("{term_line}\n{definitions}")
+        }
+    }
+
+    /// The GitHub dialect has no definition-list syntax: each term renders as a line ending in a
+    /// hard break and its definitions follow as ordinary blocks.
+    fn definition_list_fallback(
+        &mut self,
+        items: &[(Vec<Inline>, Vec<Vec<Block>>)],
+        width: usize,
+    ) -> String {
+        let groups: Vec<String> = items
+            .iter()
+            .map(|(term, definitions)| {
+                let term_line = self.inlines_oneline(term);
+                let bodies: Vec<String> = definitions
+                    .iter()
+                    .map(|definition| self.blocks_to_string(definition, width))
+                    .collect();
+                let body = bodies.join("\n\n");
+                if body.is_empty() {
+                    format!("{term_line}  ")
+                } else {
+                    format!("{term_line}  \n{body}")
+                }
+            })
+            .collect();
+        groups.join("\n\n")
+    }
+
+    fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block]) -> String {
+        if self.config.is_github() {
+            return crate::html::render_fragment(&[Block::Figure(
+                attr.clone(),
+                caption.clone(),
+                blocks.to_vec(),
+            )]);
+        }
+        if let Some(rendered) = self.implicit_figure(attr, caption, blocks) {
+            return rendered;
+        }
+        crate::html::render_fragment(&[Block::Figure(
+            attr.clone(),
+            caption.clone(),
+            blocks.to_vec(),
+        )])
+    }
+
+    /// A figure renders as a bare image when it carries no attributes and its body is a single image
+    /// in a `Plain` block whose own attributes hold neither an identifier nor classes. The visible
+    /// text is the caption; the image's alt text, when non-empty and not already equal to the
+    /// caption, is preserved as an `alt` attribute. Returns `None` when the shorthand does not apply,
+    /// so the caller can fall back to an HTML figure.
+    fn implicit_figure(
+        &mut self,
+        attr: &Attr,
+        caption: &Caption,
+        blocks: &[Block],
+    ) -> Option<String> {
+        if !attr_is_empty(attr) {
+            return None;
+        }
+        let [Block::Plain(inlines)] = blocks else {
+            return None;
+        };
+        let [Inline::Image(image_attr, alt, target)] = inlines.as_slice() else {
+            return None;
+        };
+        if !image_attr.id.is_empty() || !image_attr.classes.is_empty() {
+            return None;
+        }
+        let caption_inlines = caption_blocks_as_inlines(&caption.long)?;
+        let alt_text = carta_ast::to_plain_text(alt);
+        let mut image_attr = image_attr.clone();
+        if !alt_text.is_empty() && alt_text != carta_ast::to_plain_text(&caption_inlines) {
+            image_attr
+                .attributes
+                .insert(0, ("alt".to_owned(), alt_text));
+        }
+        let mut out = Vec::new();
+        self.image(&image_attr, &caption_inlines, target, &mut out);
+        Some(pieces_to_string(&out))
+    }
+
+    fn table(&mut self, table: &Table, _width: usize) -> String {
+        if self.config.is_github() {
+            return self.github_table(table);
+        }
+        if table.col_specs.is_empty() {
+            return String::new();
+        }
+        let form = table_form(table);
+        let body = match form {
+            TableForm::Simple => self.simple_table(table),
+            TableForm::Multiline => self.multiline_table(table),
+            TableForm::Grid => self.grid_table(table),
+        };
+        match self.table_caption(table, form) {
+            Some(caption) if body.is_empty() => caption,
+            Some(caption) => format!("{body}\n\n{caption}"),
+            None => body,
+        }
+    }
+
+    /// A GitHub table: a pipe table when every cell is a single line and no cell spans, otherwise an
+    /// HTML table. A column-aligned pipe table whose columns together exceed the fill column drops to
+    /// a narrow form with single-space cell padding. The caption follows the table as its own block.
+    fn github_table(&mut self, table: &Table) -> String {
+        if !pipe_representable(table) {
+            return crate::html::render_fragment(&[Block::Table(Box::new(table.clone()))]);
+        }
+        let columns = table.col_specs.len();
+        if columns == 0 {
+            return "||\n||".to_owned();
+        }
+        let aligns: Vec<Alignment> = table
+            .col_specs
+            .iter()
+            .map(|spec| spec.align.clone())
+            .collect();
+        let head_rows: Vec<&Row> = table.head.rows.iter().collect();
+        let data_rows: Vec<&Row> = body_rows(table)
+            .into_iter()
+            .chain(table.foot.rows.iter())
+            .collect();
+        let header = head_rows.first();
+        let header_cells = self.pipe_cells(header.map(|row| row.cells.as_slice()), columns);
+        let data: Vec<Vec<String>> = data_rows
+            .iter()
+            .map(|row| self.pipe_cells(Some(&row.cells), columns))
+            .collect();
+        let mut col_widths = vec![3usize; columns];
+        for cells in std::iter::once(&header_cells).chain(data.iter()) {
+            for (index, cell) in cells.iter().enumerate() {
+                if let Some(slot) = col_widths.get_mut(index) {
+                    *slot = (*slot).max(display_width(cell));
+                }
+            }
+        }
+        let narrow = col_widths.iter().sum::<usize>() > FILL_COLUMN;
+        let (row_widths, sep_widths) = if narrow {
+            (vec![0usize; columns], vec![2usize; columns])
+        } else {
+            (col_widths.clone(), col_widths)
+        };
+        let mut lines = vec![pipe_row(&header_cells, &row_widths, &aligns)];
+        lines.push(pipe_separator(&sep_widths, &aligns));
+        for cells in &data {
+            lines.push(pipe_row(cells, &row_widths, &aligns));
+        }
+        let table_text = lines.join("\n");
+        match self.github_caption(&table.caption, &table.attr) {
+            Some(caption) => format!("{table_text}\n\n{caption}"),
+            None => table_text,
+        }
+    }
+
+    /// The GitHub-table caption: the caption blocks reflowed and concatenated with a backslash hard
+    /// break between blocks, carrying any table attributes as a trailing `{#id .class key="value"}`
+    /// suffix. `None` when the caption is empty.
+    fn github_caption(&mut self, caption: &Caption, attr: &Attr) -> Option<String> {
+        let mut pieces: Vec<Piece> = Vec::new();
+        for block in &caption.long {
+            if !pieces.is_empty() {
+                pieces.push(Piece::Text("\\".to_owned()));
+                pieces.push(Piece::Hard);
+            }
+            self.extend_pieces(block_inlines(block), &mut pieces);
+        }
+        if !pieces_nonempty(&pieces) {
+            return None;
+        }
+        if let Some(suffix) = attribute_suffix(attr) {
+            pieces.push(Piece::Space);
+            pieces.push(Piece::Text(suffix));
+        }
+        Some(fill(&pieces, FILL_COLUMN))
+    }
+
+    /// Render the cells of one pipe-table row to single-line strings, padding the row out to the
+    /// column count with empty cells.
+    fn pipe_cells(&mut self, cells: Option<&[Cell]>, columns: usize) -> Vec<String> {
+        let mut out = Vec::with_capacity(columns);
+        let cells = cells.unwrap_or(&[]);
+        for index in 0..columns {
+            let text = cells
+                .get(index)
+                .map(|cell| self.cell_oneline(cell))
+                .unwrap_or_default();
+            out.push(text);
+        }
+        out
+    }
+
+    /// Render a cell's content to a single line for a pipe table, escaping the cell delimiter.
+    fn cell_oneline(&mut self, cell: &Cell) -> String {
+        let inlines = cell_inlines(cell);
+        self.inlines_oneline(inlines)
+            .replace('|', "\\|")
+            .trim()
+            .to_owned()
+    }
+
+    /// A simple table: one line per cell, the column width sized to the widest cell plus two. A
+    /// non-empty header is underlined with a per-column dash rule; a headerless table is fenced by
+    /// dash rules above and below. Indented two columns.
+    fn simple_table(&mut self, table: &Table) -> String {
+        let columns = table.col_specs.len();
+        let aligns: Vec<&Alignment> = table.col_specs.iter().map(|spec| &spec.align).collect();
+        let header: Vec<Vec<String>> = table
+            .head
+            .rows
+            .iter()
+            .map(|row| self.simple_row(row, columns))
+            .collect();
+        let body: Vec<Vec<String>> = body_rows(table)
+            .iter()
+            .map(|row| self.simple_row(row, columns))
+            .collect();
+        let has_header = header
+            .iter()
+            .any(|row| row.iter().any(|text| !text.is_empty()));
+
+        let mut field = vec![0usize; columns];
+        for row in header.iter().chain(body.iter()) {
+            for (index, text) in row.iter().enumerate() {
+                if let Some(width) = field.get_mut(index) {
+                    *width = (*width).max(display_width(text) + 2);
+                }
+            }
+        }
+        let rule = dash_rule(&field);
+        let mut lines: Vec<String> = Vec::new();
+        let lay = |row: &[String]| {
+            let cells: Vec<Vec<String>> = row.iter().map(|text| vec![text.clone()]).collect();
+            lay_row(&cells, &field, &aligns)
+        };
+        if has_header {
+            for row in &header {
+                lines.extend(lay(row));
+            }
+            lines.push(rule);
+            for row in &body {
+                lines.extend(lay(row));
+            }
+        } else {
+            lines.push(rule.clone());
+            for row in &body {
+                lines.extend(lay(row));
+            }
+            lines.push(rule);
+        }
+        indent_lines(&lines, 2)
+    }
+
+    /// Render a row's cells to single lines, one per column, padding a short row with empty cells.
+    fn simple_row(&mut self, row: &Row, columns: usize) -> Vec<String> {
+        let mut out = vec![String::new(); columns];
+        for (index, cell) in row.cells.iter().enumerate() {
+            if let Some(slot) = out.get_mut(index) {
+                *slot = self.inlines_oneline(cell_inlines(cell));
+            }
+        }
+        out
+    }
+
+    /// A multiline table: cells wrap within their column and rows are separated by blank lines.
+    /// Column widths come from explicit fractional specs (floored at the widest unbreakable word)
+    /// or, lacking those, from the natural content width. Indented two columns.
+    fn multiline_table(&mut self, table: &Table) -> String {
+        let columns = table.col_specs.len();
+        let aligns: Vec<&Alignment> = table.col_specs.iter().map(|spec| &spec.align).collect();
+        let header: Vec<Vec<Vec<Piece>>> = table
+            .head
+            .rows
+            .iter()
+            .map(|row| self.row_pieces(row, columns))
+            .collect();
+        let body: Vec<Vec<Vec<Piece>>> = body_rows(table)
+            .iter()
+            .map(|row| self.row_pieces(row, columns))
+            .collect();
+        let has_header = header
+            .iter()
+            .any(|row| row.iter().any(|cell| pieces_nonempty(cell)));
+
+        let mut natural = vec![0usize; columns];
+        let mut minword = vec![0usize; columns];
+        for row in header.iter().chain(body.iter()) {
+            for (index, cell) in row.iter().enumerate() {
+                let (width, word) = measure_pieces(cell);
+                if let Some(value) = natural.get_mut(index) {
+                    *value = (*value).max(width);
+                }
+                if let Some(value) = minword.get_mut(index) {
+                    *value = (*value).max(word);
+                }
+            }
+        }
+        let field: Vec<usize> = (0..columns)
+            .map(
+                |index| match table.col_specs.get(index).map(|spec| &spec.width) {
+                    Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
+                        // A bounded fraction scaled to a small column width: `floor`/`max(0.0)` make
+                        // the conversion exact and non-negative.
+                        #[allow(
+                            clippy::cast_precision_loss,
+                            clippy::cast_possible_truncation,
+                            clippy::cast_sign_loss
+                        )]
+                        let scaled = (fraction * MULTILINE_WIDTH as f64).floor().max(0.0) as usize;
+                        scaled.max(minword.get(index).copied().unwrap_or(0) + 2)
+                    }
+                    _ => natural.get(index).copied().unwrap_or(0) + 2,
+                },
+            )
+            .collect();
+
+        let contiguous = "-".repeat(field.iter().sum::<usize>() + columns.saturating_sub(1));
+        let percolumn = dash_rule(&field);
+        let mut lines: Vec<String> = Vec::new();
+        if has_header {
+            lines.push(contiguous.clone());
+            for row in &header {
+                lines.extend(lay_row(&filled_cells(row, &field), &field, &aligns));
+            }
+            lines.push(percolumn);
+            extend_multiline_body(&mut lines, &body, &field, &aligns);
+            lines.push(contiguous);
+        } else {
+            lines.push(percolumn.clone());
+            extend_multiline_body(&mut lines, &body, &field, &aligns);
+            lines.push(percolumn);
+        }
+        indent_lines(&lines, 2)
+    }
+
+    /// Render a row's cells to inline pieces, one entry per column, padding a short row with empty
+    /// cells. Building the pieces once records any footnotes a single time.
+    fn row_pieces(&mut self, row: &Row, columns: usize) -> Vec<Vec<Piece>> {
+        let mut out: Vec<Vec<Piece>> = (0..columns).map(|_| Vec::new()).collect();
+        for (index, cell) in row.cells.iter().enumerate() {
+            if let Some(slot) = out.get_mut(index) {
+                *slot = self.pieces(cell_inlines(cell));
+            }
+        }
+        out
+    }
+
+    /// A bordered grid table built on the shared grid engine, with content widths from explicit
+    /// fractional specs when present and a content-proportional fit otherwise.
+    fn grid_table(&mut self, table: &Table) -> String {
+        let columns = table.col_specs.len();
+        let aligns: Vec<Alignment> = table
+            .col_specs
+            .iter()
+            .map(|spec| spec.align.clone())
+            .collect();
+        let head: Vec<&Row> = table.head.rows.iter().collect();
+        let body = body_rows(table);
+        let foot: Vec<&Row> = table.foot.rows.iter().collect();
+        let head_layout = grid::place_columns(&head, columns);
+        let body_layout = grid::place_columns(&body, columns);
+        let foot_layout = grid::place_columns(&foot, columns);
+
+        let snapshot = self.footnotes.len();
+        let mut natural = vec![0usize; columns];
+        let mut minword = vec![0usize; columns];
+        for (rows, layout) in [
+            (&head, &head_layout),
+            (&body, &body_layout),
+            (&foot, &foot_layout),
+        ] {
+            self.measure_grid(rows, layout, &mut natural, &mut minword);
+        }
+        self.footnotes.truncate(snapshot);
+
+        let colspans: Vec<(usize, usize)> = [&head_layout, &body_layout, &foot_layout]
+            .into_iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .filter(|&(_, span)| span > 1)
+            .collect();
+        let content =
+            grid::grid_content_widths(&table.col_specs, &natural, &minword, &colspans, columns);
+        let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
+        let head_grid = self.grid_rows(&head, &head_layout, &content);
+        let body_grid = self.grid_rows(&body, &body_layout, &content);
+        let foot_grid = self.grid_rows(&foot, &foot_layout, &content);
+
+        grid::render(&grid::GridTable {
+            col_widths,
+            aligns: Some(aligns.as_slice()),
+            head: head_grid,
+            body: body_grid,
+            foot: foot_grid,
+        })
+    }
+
+    fn measure_grid(
+        &mut self,
+        rows: &[&Row],
+        layout: &[Vec<(usize, usize)>],
+        natural: &mut [usize],
+        minword: &mut [usize],
+    ) {
+        for (row_index, row) in rows.iter().enumerate() {
+            for (cell_index, cell) in row.cells.iter().enumerate() {
+                let Some(&(start, span)) = layout
+                    .get(row_index)
+                    .and_then(|placements| placements.get(cell_index))
+                else {
+                    continue;
+                };
+                let lines = self.cell_lines(&cell.content, MEASURE_WIDTH);
+                let (width, word) = grid::measure_lines(&lines);
+                let share_natural = width.div_ceil(span.max(1));
+                let share_word = word.div_ceil(span.max(1));
+                for column in start..start + span {
+                    if let Some(value) = natural.get_mut(column) {
+                        *value = (*value).max(share_natural);
+                    }
+                    if let Some(value) = minword.get_mut(column) {
+                        *value = (*value).max(share_word);
+                    }
+                }
+            }
+        }
+    }
+
+    fn grid_rows(
+        &mut self,
+        rows: &[&Row],
+        layout: &[Vec<(usize, usize)>],
+        content: &[usize],
+    ) -> Vec<grid::GridRow> {
+        let mut result = Vec::with_capacity(rows.len());
+        for (row_index, row) in rows.iter().enumerate() {
+            let mut cells = Vec::with_capacity(row.cells.len());
+            for (cell_index, cell) in row.cells.iter().enumerate() {
+                let Some(&(start, span)) = layout
+                    .get(row_index)
+                    .and_then(|placements| placements.get(cell_index))
+                else {
+                    continue;
+                };
+                let width = grid::merged_width(content, start, span);
+                let lines = self.cell_lines(&cell.content, width);
+                cells.push(grid::GridCell {
+                    lines,
+                    row_span: grid::span_count(cell.row_span),
+                    col_span: grid::span_count(cell.col_span),
+                });
+            }
+            result.push(grid::GridRow { cells });
+        }
+        result
+    }
+
+    fn cell_lines(&mut self, content: &[Block], width: usize) -> Vec<String> {
+        let rendered = self.blocks_to_string(content, width.max(1));
+        if rendered.is_empty() {
+            Vec::new()
+        } else {
+            rendered.split('\n').map(str::to_owned).collect()
+        }
+    }
+
+    /// The caption block, prefixed `: ` and indented to match the table form (two columns for simple
+    /// and multiline tables, none for grids). A non-empty caption carries any table attributes as a
+    /// trailing `{#id .class key="value"}` suffix.
+    fn table_caption(&mut self, table: &Table, form: TableForm) -> Option<String> {
+        let base = if matches!(form, TableForm::Grid) {
+            0
+        } else {
+            2
+        };
+        let mut pieces: Vec<Piece> = Vec::new();
+        for block in &table.caption.long {
+            if !pieces.is_empty() {
+                pieces.push(Piece::Text("\\".to_owned()));
+                pieces.push(Piece::Hard);
+            }
+            self.extend_pieces(block_inlines(block), &mut pieces);
+        }
+        if !pieces_nonempty(&pieces) {
+            return None;
+        }
+        if let Some(suffix) = attribute_suffix(&table.attr) {
+            pieces.push(Piece::Space);
+            pieces.push(Piece::Text(suffix));
+        }
+        let body = fill_offset(&pieces, FILL_COLUMN.saturating_sub(base), 2);
+        let first = format!("{}: ", " ".repeat(base));
+        let rest = " ".repeat(base);
+        Some(indent_block(&body, &first, &rest))
+    }
+
+    fn inlines_oneline(&mut self, inlines: &[Inline]) -> String {
+        let pieces = self.pieces(inlines);
+        let mut out = String::new();
+        for piece in &pieces {
+            match piece {
+                Piece::Text(text) => out.push_str(text),
+                Piece::Space | Piece::Hard => out.push(' '),
+            }
+        }
+        out
+    }
+
+    fn pieces(&mut self, inlines: &[Inline]) -> Vec<Piece> {
+        let mut out = Vec::new();
+        self.extend_pieces(inlines, &mut out);
+        out
+    }
+
+    fn extend_pieces(&mut self, inlines: &[Inline], out: &mut Vec<Piece>) {
+        for (position, inline) in inlines.iter().enumerate() {
+            if let Inline::Str(text) = inline
+                && let Some(prefix) = text.strip_suffix('!')
+                && matches!(inlines.get(position + 1), Some(Inline::Link(..)))
+            {
+                out.push(Piece::Text(format!("{}\\!", self.escape_str(prefix))));
+                continue;
+            }
+            self.inline(inline, out);
+        }
+    }
+
+    fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
+        match inline {
+            Inline::Str(text) => out.push(Piece::Text(self.escape_str(text))),
+            Inline::Emph(inlines) => self.wrap_markup("*", inlines, out),
+            Inline::Strong(inlines) => self.wrap_markup("**", inlines, out),
+            Inline::Strikeout(inlines) => self.wrap_markup("~~", inlines, out),
+            Inline::Underline(inlines) => {
+                if self.config.is_github() {
+                    self.wrap_tag("u", inlines, out);
+                } else {
+                    self.wrap_span(&underline_attr(), inlines, out);
+                }
+            }
+            Inline::Superscript(inlines) => {
+                if self.config.is_github() {
+                    self.wrap_tag("sup", inlines, out);
+                } else {
+                    self.wrap_markup("^", inlines, out);
+                }
+            }
+            Inline::Subscript(inlines) => {
+                if self.config.is_github() {
+                    self.wrap_tag("sub", inlines, out);
+                } else {
+                    self.wrap_markup("~", inlines, out);
+                }
+            }
+            Inline::SmallCaps(inlines) => {
+                if self.config.is_github() {
+                    out.push(Piece::Text("<span class=\"smallcaps\">".to_owned()));
+                    self.extend_pieces(inlines, out);
+                    out.push(Piece::Text("</span>".to_owned()));
+                } else {
+                    self.wrap_span(&smallcaps_attr(), inlines, out);
+                }
+            }
+            Inline::Quoted(kind, inlines) => {
+                let (open, close) = if self.config.downgrades_smart() {
+                    ascii_quote_marks(kind)
+                } else {
+                    quote_marks(kind)
+                };
+                out.push(Piece::Text(open.to_string()));
+                self.extend_pieces(inlines, out);
+                out.push(Piece::Text(close.to_string()));
+            }
+            Inline::Cite(citations, inlines) => self.cite(citations, inlines, out),
+            Inline::Code(_, text) => out.push(Piece::Text(code_span(text))),
+            Inline::Space | Inline::SoftBreak => out.push(Piece::Space),
+            Inline::LineBreak => {
+                out.push(Piece::Text("\\".to_owned()));
+                out.push(Piece::Hard);
+            }
+            Inline::Math(kind, text) => out.push(Piece::Text(self.math(kind, text))),
+            Inline::RawInline(format, text) => self.raw_inline(format, text, out),
+            Inline::Link(attr, inlines, target) => self.link(attr, inlines, target, out),
+            Inline::Image(attr, inlines, target) => self.image(attr, inlines, target, out),
+            Inline::Span(attr, inlines) => {
+                if attr_is_empty(attr) {
+                    self.extend_pieces(inlines, out);
+                } else if self.config.is_github() {
+                    out.push(Piece::Text(format!("<span{}>", render_html_attr(attr))));
+                    self.extend_pieces(inlines, out);
+                    out.push(Piece::Text("</span>".to_owned()));
+                } else {
+                    self.wrap_span(attr, inlines, out);
+                }
+            }
+            Inline::Note(blocks) => {
+                let marker = self.record_note(blocks);
+                out.push(Piece::Text(marker));
+            }
+        }
+    }
+
+    fn math(&self, kind: &MathType, text: &str) -> String {
+        match (self.config.is_github(), kind) {
+            (false, MathType::InlineMath) => format!("${text}$"),
+            (false, MathType::DisplayMath) => format!("$${text}$$"),
+            (true, MathType::InlineMath) => format!("$`{text}`$"),
+            (true, MathType::DisplayMath) => format!("``` math\n{text}\n```"),
+        }
+    }
+
+    fn raw_inline(&mut self, format: &Format, text: &str, out: &mut Vec<Piece>) {
+        if self.config.is_github() {
+            if is_html_format(format) {
+                out.push(Piece::Text(text.to_owned()));
+            }
+            return;
+        }
+        let fence = "`".repeat((longest_backtick_run(text) + 1).max(1));
+        out.push(Piece::Text(format!(
+            "{fence}{text}{fence}{{={}}}",
+            format.0
+        )));
+    }
+
+    /// Render a citation. The extended dialect reconstructs citation syntax; the GitHub dialect has
+    /// no citation extension, so it renders the citation's display inlines instead.
+    fn cite(&mut self, citations: &[Citation], inlines: &[Inline], out: &mut Vec<Piece>) {
+        if self.config.is_github() {
+            self.extend_pieces(inlines, out);
+            return;
+        }
+        let text = self.render_citations(citations);
+        out.push(Piece::Text(text));
+    }
+
+    fn render_citations(&mut self, citations: &[Citation]) -> String {
+        if let [single] = citations
+            && single.mode == CitationMode::AuthorInText
+        {
+            let prefix = self.affix(&single.prefix);
+            let suffix = self.affix(&single.suffix);
+            let mut out = String::new();
+            if !prefix.is_empty() {
+                out.push_str(&prefix);
+                out.push(' ');
+            }
+            out.push('@');
+            out.push_str(&single.id);
+            if !suffix.is_empty() {
+                out.push(' ');
+                out.push_str(&suffix);
+            }
+            return out;
+        }
+        let parts: Vec<String> = citations
+            .iter()
+            .map(|citation| self.citation_in_brackets(citation))
+            .collect();
+        format!("[{}]", parts.join("; "))
+    }
+
+    fn citation_in_brackets(&mut self, citation: &Citation) -> String {
+        let prefix = self.affix(&citation.prefix);
+        let suffix = self.affix(&citation.suffix);
+        let mut out = String::new();
+        if !prefix.is_empty() {
+            out.push_str(&prefix);
+            out.push(' ');
+        }
+        if citation.mode == CitationMode::SuppressAuthor {
+            out.push('-');
+        }
+        out.push('@');
+        out.push_str(&citation.id);
+        if !suffix.is_empty() {
+            out.push(' ');
+            out.push_str(&suffix);
+        }
+        out
+    }
+
+    fn affix(&mut self, inlines: &[Inline]) -> String {
+        self.inlines_oneline(inlines)
+    }
+
+    fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        out.push(Piece::Text(marker.to_owned()));
+        self.extend_pieces(inlines, out);
+        out.push(Piece::Text(marker.to_owned()));
+    }
+
+    fn wrap_tag(&mut self, tag: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        out.push(Piece::Text(format!("<{tag}>")));
+        self.extend_pieces(inlines, out);
+        out.push(Piece::Text(format!("</{tag}>")));
+    }
+
+    fn wrap_span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
+        out.push(Piece::Text("[".to_owned()));
+        self.extend_pieces(inlines, out);
+        out.push(Piece::Text(format!("]{{{}}}", pandoc_attr_body(attr))));
+    }
+
+    fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
+        if (attr_is_empty(attr) || is_autolink_class(attr))
+            && let Some(autolink) = autolink(inlines, target)
+        {
+            out.push(Piece::Text(autolink));
+            return;
+        }
+        if self.config.is_github() && !attr_is_empty(attr) {
+            out.push(Piece::Text(format!(
+                "<a href=\"{}\"{}{}>",
+                escape_attr(&target.url),
+                render_html_attr(attr),
+                title_attr(&target.title)
+            )));
+            self.extend_pieces(inlines, out);
+            out.push(Piece::Text("</a>".to_owned()));
+            return;
+        }
+        out.push(Piece::Text("[".to_owned()));
+        self.extend_pieces(inlines, out);
+        let attr_suffix = if attr_is_empty(attr) {
+            String::new()
+        } else {
+            pandoc_attr(attr)
+        };
+        out.push(Piece::Text(format!(
+            "]({}){attr_suffix}",
+            destination(target)
+        )));
+    }
+
+    fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
+        if self.config.is_github() && (has_dimension(attr) || !attr_is_empty(attr)) {
+            out.push(Piece::Text(image_html(attr, inlines, target)));
+            return;
+        }
+        out.push(Piece::Text("![".to_owned()));
+        self.extend_pieces(inlines, out);
+        let attr_suffix = if attr_is_empty(attr) {
+            String::new()
+        } else {
+            pandoc_attr(attr)
+        };
+        out.push(Piece::Text(format!(
+            "]({}){attr_suffix}",
+            destination(target)
+        )));
+    }
+
+    /// Escape the markdown-significant characters of running text. Inline-markup openers (`` ` ``,
+    /// `*`, `[`, `]`, `<`, `>`, `|`), the math delimiter `$`, and entity-introducing `&` are escaped
+    /// in every dialect; `~`/`^` (sub/superscript) and a word-initial `@` (citation) are escaped only
+    /// in the extended dialect. A `#` run that would open a heading is escaped at the start of a line;
+    /// `_` is escaped at a word boundary. A backslash is escaped per dialect.
+    fn escape_str(&self, text: &str) -> String {
+        let github = self.config.is_github();
+        let downgraded;
+        let text = if self.config.downgrades_smart() {
+            downgraded = downgrade_smart(text);
+            downgraded.as_str()
+        } else {
+            text
+        };
+        let mut out = String::with_capacity(text.len());
+        let mut prev: Option<char> = None;
+        let mut iter = text.char_indices().peekable();
+        while let Some((offset, ch)) = iter.next() {
+            let next = iter.peek().map(|&(_, following)| following);
+            let at_start = offset == 0;
+            let word_start = at_start || prev.is_some_and(char::is_whitespace);
+            let tail = || text.get(offset..).unwrap_or_default();
+            match ch {
+                '#' if word_start && starts_heading(tail()) => out.push_str("\\#"),
+                '!' if next == Some('[') => out.push_str("\\!"),
+                '`' | '*' | '[' | ']' | '<' | '>' | '|' | '$' => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '~' | '^' if !github => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '@' if !github && word_start => out.push_str("\\@"),
+                '&' if begins_character_reference(tail()) => out.push_str("\\&"),
+                '&' if begins_named_entity(tail()) => out.push_str("\\&"),
+                '_' if is_word_boundary(prev, next) => out.push_str("\\_"),
+                '\\' => self.escape_backslash(next, &mut out),
+                other => out.push(other),
+            }
+            prev = Some(ch);
+        }
+        out
+    }
+
+    /// Escape a backslash. The extended dialect doubles every backslash; the GitHub dialect doubles
+    /// only a trailing backslash and otherwise emits it verbatim.
+    fn escape_backslash(&self, next: Option<char>, out: &mut String) {
+        if self.config.is_github() {
+            match next {
+                None => out.push_str("\\\\"),
+                Some(_) => out.push('\\'),
+            }
+        } else {
+            out.push_str("\\\\");
+        }
+    }
+}
+
+impl NotesHost for State {
+    fn notes(&mut self) -> &mut Vec<String> {
+        &mut self.footnotes
+    }
+
+    fn render_block(&mut self, block: &Block, width: usize) -> String {
+        self.block(block, width)
+    }
+
+    fn render_offset_paragraph(
+        &mut self,
+        inlines: &[Inline],
+        width: usize,
+        initial: usize,
+    ) -> String {
+        let pieces = self.pieces(inlines);
+        fill_offset(&pieces, width, initial)
+    }
+
+    fn record_note(&mut self, blocks: &[Block]) -> String {
+        let index = self.notes().len();
+        self.notes().push(String::new());
+        let marker = format!("[^{}]", index + 1);
+        let label = format!("{marker}:");
+        let body = self.note_body(blocks, 4);
+        let starts_inline = matches!(blocks.first(), Some(Block::Plain(_) | Block::Para(_)));
+        let rendered = if body.is_empty() {
+            label
+        } else if starts_inline {
+            format!("{label} {body}")
+        } else {
+            format!("{label}\n{}", indent_block(&body, "    ", "    "))
+        };
+        if let Some(slot) = self.notes().get_mut(index) {
+            *slot = rendered;
+        }
+        marker
+    }
+
+    fn note_body(&mut self, blocks: &[Block], _initial: usize) -> String {
+        let rendered: Vec<(bool, String)> = blocks
+            .iter()
+            .enumerate()
+            .map(|(position, block)| {
+                let is_plain = matches!(block, Block::Plain(_));
+                let text = self.render_block(block, FILL_COLUMN);
+                let text = if position == 0 {
+                    text
+                } else {
+                    indent_block(&text, "    ", "    ")
+                };
+                (is_plain, text)
+            })
+            .collect();
+        crate::common::join_loose(rendered)
+    }
+}
+
+fn pieces_to_string(pieces: &[Piece]) -> String {
+    let mut out = String::new();
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) => out.push_str(text),
+            Piece::Space => out.push(' '),
+            Piece::Hard => out.push('\n'),
+        }
+    }
+    out
+}
+
+fn needs_separator(previous: &Block, current: &Block) -> bool {
+    match (previous, current) {
+        (Block::BulletList(_), Block::BulletList(_))
+        | (Block::OrderedList(..), Block::OrderedList(..)) => true,
+        (Block::BulletList(_) | Block::OrderedList(..), Block::CodeBlock(attr, _)) => {
+            attr_is_empty(attr)
+        }
+        _ => false,
+    }
+}
+
+fn offset_horizontal_rule(item: &[Block], body: String) -> String {
+    if matches!(item.first(), Some(Block::HorizontalRule)) {
+        format!("\n\n{body}")
+    } else {
+        body
+    }
+}
+
+fn quote_block(body: &str) -> String {
+    if body.is_empty() {
+        return "> ".to_owned();
+    }
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        if line.is_empty() {
+            out.push('>');
+        } else {
+            out.push_str("> ");
+            out.push_str(line);
+        }
+    }
+    out
+}
+
+fn is_html_format(format: &Format) -> bool {
+    matches!(format.0.as_str(), "html" | "html4" | "html5")
+}
+
+fn collapse_trailing_newline(text: &str) -> String {
+    text.strip_suffix('\n').unwrap_or(text).to_owned()
+}
+
+/// Whether a `#` run at the current position would open an ATX heading: one to six `#` followed by a
+/// space or the end of the run.
+fn starts_heading(text: &str) -> bool {
+    let hashes = text.chars().take_while(|&c| c == '#').count();
+    if hashes == 0 || hashes > 6 {
+        return false;
+    }
+    matches!(text.chars().nth(hashes), None | Some(' '))
+}
+
+/// The info string for a fenced code block in the extended dialect, or `None` to render it indented
+/// (no attributes). A lone class becomes a bare language tag; anything richer uses the attribute
+/// block form.
+fn extended_code_info(attr: &Attr) -> Option<String> {
+    if attr_is_empty(attr) {
+        return None;
+    }
+    if attr.id.is_empty()
+        && attr.attributes.is_empty()
+        && let [class] = attr.classes.as_slice()
+    {
+        return Some(format!(" {class}"));
+    }
+    Some(format!(" {}", pandoc_attr(attr)))
+}
+
+/// The info string for a fenced code block in the GitHub dialect, or `None` for indented output:
+/// only the first class survives, as a bare language tag.
+fn github_code_info(attr: &Attr) -> Option<String> {
+    match attr.classes.first() {
+        Some(class) if !class.is_empty() => Some(format!(" {class}")),
+        _ if attr_is_empty(attr) => None,
+        _ => Some(String::new()),
+    }
+}
+
+fn indent_code(text: &str) -> String {
+    let body = text.trim_end_matches('\n');
+    let mut out = String::new();
+    for (index, line) in body.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        if !line.is_empty() {
+            out.push_str("    ");
+            out.push_str(line);
+        }
+    }
+    out
+}
+
+fn backtick_fence_len(text: &str) -> usize {
+    let mut longest = 0;
+    for line in text.split('\n') {
+        let run = line.chars().take_while(|&c| c == '`').count();
+        longest = longest.max(run);
+    }
+    (longest + 1).max(3)
+}
+
+/// The colon-fence length for a fenced div: longer than the longest leading colon run already in the
+/// body (so a nested div's fence is strictly shorter), and at least three.
+fn colon_fence_len(body: &str) -> usize {
+    let mut longest = 0;
+    for line in body.split('\n') {
+        let run = line.chars().take_while(|&c| c == ':').count();
+        longest = longest.max(run);
+    }
+    (longest + 1).max(3)
+}
+
+/// The text following a fenced-div opener: a bare class when the div carries only a single class,
+/// otherwise an attribute block.
+fn div_opener(attr: &Attr) -> String {
+    if attr.id.is_empty()
+        && attr.attributes.is_empty()
+        && let [class] = attr.classes.as_slice()
+    {
+        return format!(" {class}");
+    }
+    format!(" {}", pandoc_attr(attr))
+}
+
+/// Replace smart-punctuation glyphs with their ASCII equivalents for a dialect that does not write
+/// them: ellipsis, en/em dashes, and curly quotes.
+fn downgrade_smart(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '…' => out.push_str("..."),
+            '—' => out.push_str("---"),
+            '–' => out.push_str("--"),
+            '“' | '”' => out.push('"'),
+            '‘' | '’' => out.push('\''),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+fn code_span(text: &str) -> String {
+    let max_run = longest_backtick_run(text);
+    let fence = "`".repeat((max_run + 1).max(1));
+    let needs_padding = max_run > 0
+        || (text.starts_with(' ') && text.ends_with(' ') && text.chars().any(|ch| ch != ' '));
+    if needs_padding {
+        format!("{fence} {text} {fence}")
+    } else {
+        format!("{fence}{text}{fence}")
+    }
+}
+
+fn longest_backtick_run(text: &str) -> usize {
+    let mut longest = 0;
+    let mut current = 0;
+    for ch in text.chars() {
+        if ch == '`' {
+            current += 1;
+            longest = longest.max(current);
+        } else {
+            current = 0;
+        }
+    }
+    longest
+}
+
+fn destination(target: &Target) -> String {
+    if target.title.is_empty() {
+        target.url.clone()
+    } else {
+        format!("{} \"{}\"", target.url, escape_title(&target.title))
+    }
+}
+
+fn escape_title(title: &str) -> String {
+    title.replace('"', "\\\"")
+}
+
+fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
+    let [Inline::Str(text)] = inlines else {
+        return None;
+    };
+    if &target.url == text && is_uri(text) {
+        return Some(format!("<{text}>"));
+    }
+    if target.url == format!("mailto:{text}") {
+        return Some(format!("<{text}>"));
+    }
+    None
+}
+
+fn is_uri(text: &str) -> bool {
+    let Some(colon) = text.find(':') else {
+        return false;
+    };
+    text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
+}
+
+fn attr_is_empty(attr: &Attr) -> bool {
+    attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty()
+}
+
+/// Flatten a figure caption's blocks into one inline sequence for the implicit-figure form: each
+/// paragraph contributes its inlines and successive paragraphs are joined by a line break. An empty
+/// caption yields an empty sequence. Returns `None` if any block is not a paragraph, leaving a
+/// richly structured caption to fall back to an HTML figure.
+fn caption_blocks_as_inlines(blocks: &[Block]) -> Option<Vec<Inline>> {
+    let mut inlines = Vec::new();
+    for (index, block) in blocks.iter().enumerate() {
+        let (Block::Plain(paragraph) | Block::Para(paragraph)) = block else {
+            return None;
+        };
+        if index > 0 {
+            inlines.push(Inline::LineBreak);
+        }
+        inlines.extend(paragraph.iter().cloned());
+    }
+    Some(inlines)
+}
+
+/// Whether a header's attributes are exactly the identifier a reader would derive from its text, so
+/// the explicit `{#id}` block is redundant and can be dropped.
+fn header_attr_implicit(attr: &Attr, inlines: &[Inline]) -> bool {
+    attr.classes.is_empty()
+        && attr.attributes.is_empty()
+        && (attr.id.is_empty() || attr.id == carta_ast::slug(&carta_ast::to_plain_text(inlines)))
+}
+
+fn is_autolink_class(attr: &Attr) -> bool {
+    attr.id.is_empty()
+        && attr.attributes.is_empty()
+        && matches!(attr.classes.as_slice(), [class] if class == "uri" || class == "email")
+}
+
+fn has_dimension(attr: &Attr) -> bool {
+    attr.attributes
+        .iter()
+        .any(|(key, _)| matches!(key.as_str(), "width" | "height"))
+}
+
+fn title_attr(title: &Text) -> String {
+    if title.is_empty() {
+        String::new()
+    } else {
+        format!(" title=\"{}\"", escape_attr(title))
+    }
+}
+
+/// An image rendered as an HTML `<img>` element (the GitHub fallback for an image carrying
+/// attributes).
+fn image_html(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
+    let alt = carta_ast::to_plain_text(inlines);
+    let alt_attr = if alt.is_empty() {
+        String::new()
+    } else {
+        format!(" alt=\"{}\"", escape_attr(&alt))
+    };
+    format!(
+        "<img src=\"{}\"{}{}{alt_attr} />",
+        escape_attr(&target.url),
+        title_attr(&target.title),
+        render_html_attr(attr),
+    )
+}
+
+/// The attribute block of a header, link, image, or code block: `{#id .class key="val"}` with the
+/// leading brace.
+fn pandoc_attr(attr: &Attr) -> String {
+    format!("{{{}}}", pandoc_attr_body(attr))
+}
+
+/// The body of an attribute block (without the braces): id, then classes, then key/value pairs,
+/// each separated by a space. Unlike HTML attributes, unknown keys are emitted verbatim.
+fn pandoc_attr_body(attr: &Attr) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if !attr.id.is_empty() {
+        parts.push(format!("#{}", attr.id));
+    }
+    for class in &attr.classes {
+        if class.is_empty() {
+            continue;
+        }
+        parts.push(format!(".{class}"));
+    }
+    for (key, value) in &attr.attributes {
+        parts.push(format!("{key}=\"{}\"", value.replace('"', "\\\"")));
+    }
+    parts.join(" ")
+}
+
+fn underline_attr() -> Attr {
+    Attr {
+        classes: vec!["underline".to_owned()],
+        ..Attr::default()
+    }
+}
+
+fn smallcaps_attr() -> Attr {
+    Attr {
+        classes: vec!["smallcaps".to_owned()],
+        ..Attr::default()
+    }
+}
+
+/// The straight ASCII quote glyphs for a quote kind, used when the dialect downgrades smart
+/// punctuation.
+fn ascii_quote_marks(kind: &carta_ast::QuoteType) -> (char, char) {
+    match kind {
+        carta_ast::QuoteType::SingleQuote => ('\'', '\''),
+        carta_ast::QuoteType::DoubleQuote => ('"', '"'),
+    }
+}
+
+/// Whether a list item's first block opens with a checkbox glyph, and if so whether it is checked.
+/// `None` when the item is not a checkbox item.
+fn checkbox_state(item: &[Block]) -> Option<bool> {
+    let (Block::Plain(inlines) | Block::Para(inlines)) = item.first()? else {
+        return None;
+    };
+    match inlines.first()? {
+        Inline::Str(text) if text == "\u{2610}" => Some(false),
+        Inline::Str(text) if text == "\u{2612}" => Some(true),
+        _ => None,
+    }
+}
+
+/// Remove the leading checkbox glyph and the space after it from a list item's first block.
+fn strip_checkbox(item: &[Block]) -> Vec<Block> {
+    let mut blocks = item.to_vec();
+    if let Some(Block::Plain(inlines) | Block::Para(inlines)) = blocks.first_mut()
+        && matches!(inlines.first(), Some(Inline::Str(text)) if text == "\u{2610}" || text == "\u{2612}")
+    {
+        inlines.remove(0);
+        if matches!(inlines.first(), Some(Inline::Space)) {
+            inlines.remove(0);
+        }
+    }
+    blocks
+}
+
+/// Whether a table can render as a pipe table: every cell holds at most one paragraph of inline
+/// content that fits on a single line (no forced break), and no cell spans more than one row or
+/// column. A table failing this falls back to an HTML render.
+fn pipe_representable(table: &Table) -> bool {
+    let rows = table
+        .head
+        .rows
+        .iter()
+        .chain(body_rows(table))
+        .chain(table.foot.rows.iter());
+    rows.flat_map(|row| row.cells.iter()).all(|cell| {
+        cell.row_span <= 1
+            && cell.col_span <= 1
+            && is_simple_cell(cell)
+            && !cell_inlines(cell)
+                .iter()
+                .any(|inline| matches!(inline, Inline::LineBreak))
+    })
+}
+
+/// Render a table's attributes as a trailing `{#id .class key="value"}` suffix, or `None` when the
+/// table carries no attributes.
+fn attribute_suffix(attr: &Attr) -> Option<String> {
+    if attr_is_empty(attr) {
+        return None;
+    }
+    Some(pandoc_attr(attr))
+}
+
+/// One pipe-table row: each cell padded to its column width and wrapped in `| … |`. Alignment
+/// controls the padding side.
+fn pipe_row(cells: &[String], widths: &[usize], aligns: &[Alignment]) -> String {
+    let mut out = String::from("|");
+    for (index, width) in widths.iter().enumerate() {
+        let text = cells.get(index).map_or("", String::as_str);
+        let align = aligns
+            .get(index)
+            .cloned()
+            .unwrap_or(Alignment::AlignDefault);
+        out.push(' ');
+        out.push_str(&pad_align(text, *width, &align));
+        out.push_str(" |");
+    }
+    out
+}
+
+/// The pipe-table alignment separator row: a dash run per column, with colons marking each column's
+/// alignment, padded to the column width.
+fn pipe_separator(widths: &[usize], aligns: &[Alignment]) -> String {
+    let mut out = String::from("|");
+    for (index, &width) in widths.iter().enumerate() {
+        let align = aligns
+            .get(index)
+            .cloned()
+            .unwrap_or(Alignment::AlignDefault);
+        out.push_str(&pipe_dashes(width, &align));
+        out.push('|');
+    }
+    out
+}
+
+/// One column's alignment-separator field: a dash run spanning the column's full interior width
+/// (`width + 2`, matching a content field's surrounding spaces), with colons replacing the edge
+/// dashes per alignment and no surrounding padding.
+fn pipe_dashes(width: usize, align: &Alignment) -> String {
+    let interior = width + 2;
+    let mut field = String::with_capacity(interior);
+    match align {
+        Alignment::AlignLeft => {
+            field.push(':');
+            field.push_str(&"-".repeat(interior.saturating_sub(1)));
+        }
+        Alignment::AlignRight => {
+            field.push_str(&"-".repeat(interior.saturating_sub(1)));
+            field.push(':');
+        }
+        Alignment::AlignCenter => {
+            field.push(':');
+            field.push_str(&"-".repeat(interior.saturating_sub(2)));
+            field.push(':');
+        }
+        Alignment::AlignDefault => field.push_str(&"-".repeat(interior)),
+    }
+    field
+}
+
+fn begins_character_reference(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'&') || bytes.get(1) != Some(&b'#') {
+        return false;
+    }
+    let hex = matches!(bytes.get(2), Some(b'x' | b'X'));
+    let start = if hex { 3 } else { 2 };
+    let mut pos = start;
+    while bytes.get(pos).is_some_and(|byte| {
+        if hex {
+            byte.is_ascii_hexdigit()
+        } else {
+            byte.is_ascii_digit()
+        }
+    }) {
+        pos += 1;
+    }
+    pos > start && bytes.get(pos) == Some(&b';')
+}
+
+fn begins_named_entity(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'&') {
+        return false;
+    }
+    if !bytes.get(1).is_some_and(u8::is_ascii_alphabetic) {
+        return false;
+    }
+    let mut pos = 2;
+    while bytes.get(pos).is_some_and(u8::is_ascii_alphanumeric) {
+        pos += 1;
+    }
+    if bytes.get(pos) != Some(&b';') {
+        return false;
+    }
+    let name = text.get(1..pos).unwrap_or_default();
+    entity_names::ENTITY_NAMES.binary_search(&name).is_ok()
+}
+
+mod entity_names {
+    include!(concat!(env!("OUT_DIR"), "/entity_names.rs"));
+}
+
+fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
+    let alnum = |ch: Option<char>| ch.is_some_and(char::is_alphanumeric);
+    !(alnum(before) && alnum(after))
+}
