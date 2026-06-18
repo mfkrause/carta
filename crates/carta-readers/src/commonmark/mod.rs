@@ -403,4 +403,76 @@ mod tests {
             "loose list should keep the item paragraph as Para, got {first:?}"
         );
     }
+
+    #[test]
+    fn image_only_paragraph_becomes_a_figure_captioned_by_its_alt_text() {
+        let result = blocks_with("![a gull](gull.png)\n", Extension::ImplicitFigures);
+        let [Block::Figure(attr, caption, body)] = result.as_slice() else {
+            panic!("expected a single figure, got {result:?}");
+        };
+        assert_eq!(*attr, carta_ast::Attr::default());
+        assert!(caption.short.is_none());
+        // The caption is a clone of the image's alt inlines wrapped in one `Plain`.
+        let [Block::Plain(caption_inlines)] = caption.long.as_slice() else {
+            panic!("caption should be a single Plain, got {:?}", caption.long);
+        };
+        assert!(matches!(
+            caption_inlines.as_slice(),
+            [Inline::Str(a), Inline::Space, Inline::Str(b)] if a == "a" && b == "gull"
+        ));
+        // The body is the original image, unchanged, inside a single `Plain`.
+        let [Block::Plain(image_inlines)] = body.as_slice() else {
+            panic!("body should be a single Plain, got {body:?}");
+        };
+        let [Inline::Image(_, alt, target)] = image_inlines.as_slice() else {
+            panic!("body should wrap an Image, got {image_inlines:?}");
+        };
+        assert_eq!(*caption_inlines, *alt, "alt is duplicated into the caption");
+        assert_eq!(target.url, "gull.png");
+    }
+
+    #[test]
+    fn an_empty_alt_image_stays_a_paragraph() {
+        // The decisive condition is a non-empty alt; a title does not change that.
+        let result = blocks_with("![](spacer.png \"t\")\n", Extension::ImplicitFigures);
+        let [Block::Para(inlines)] = result.as_slice() else {
+            panic!("expected a paragraph, got {result:?}");
+        };
+        assert!(matches!(inlines.as_slice(), [Inline::Image(_, alt, _)] if alt.is_empty()));
+    }
+
+    #[test]
+    fn the_image_title_is_not_used_as_the_caption() {
+        let result = blocks_with("![cap](c.png \"tooltip\")\n", Extension::ImplicitFigures);
+        let [Block::Figure(_, caption, _)] = result.as_slice() else {
+            panic!("expected a figure, got {result:?}");
+        };
+        let [Block::Plain(inlines)] = caption.long.as_slice() else {
+            panic!("caption should be a single Plain, got {:?}", caption.long);
+        };
+        assert!(matches!(inlines.as_slice(), [Inline::Str(s)] if s == "cap"));
+    }
+
+    #[test]
+    fn an_extra_inline_or_a_wrapper_keeps_the_paragraph() {
+        // A second inline disqualifies the paragraph.
+        assert!(matches!(
+            blocks_with("look at ![this](i.png)\n", Extension::ImplicitFigures).as_slice(),
+            [Block::Para(_)]
+        ));
+        // A link wrapping the image makes the link the sole inline, not the image.
+        let linked = blocks_with("[![a](i.png)](u)\n", Extension::ImplicitFigures);
+        let [Block::Para(inlines)] = linked.as_slice() else {
+            panic!("expected a paragraph, got {linked:?}");
+        };
+        assert!(matches!(inlines.as_slice(), [Inline::Link(..)]));
+    }
+
+    #[test]
+    fn implicit_figures_off_keeps_the_image_paragraph() {
+        assert!(matches!(
+            blocks("![a gull](gull.png)\n").as_slice(),
+            [Block::Para(_)]
+        ));
+    }
 }

@@ -80,7 +80,10 @@ fn resolve_block(
     out: &mut Vec<Block>,
 ) {
     match block {
-        IrBlock::Para(text) => out.push(para(parse_inlines(text, refs, notes, ext))),
+        IrBlock::Para(text) => {
+            let inlines = parse_inlines(text, refs, notes, ext);
+            out.push(para_or_figure(inlines, ext));
+        }
         IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, notes, ext))),
         IrBlock::Heading(level, text) => {
             let (content, attr) = split_header_attr(text, ext);
@@ -117,6 +120,37 @@ fn resolve_block(
             header,
             rows,
         } => out.push(resolve_table(alignments, header, rows, refs, notes, ext)),
+    }
+}
+
+/// Rewrite an image-only paragraph into a `Figure` when `implicit_figures` is enabled.
+///
+/// The trigger is exact: the paragraph's sole inline is an `Image` whose alt-text list is
+/// non-empty. The image's identifier is hoisted onto the figure; its classes and key/value
+/// attributes stay on the image. The caption is a clone of the alt inlines wrapped in a `Plain`,
+/// and the image (with its id cleared) is preserved verbatim in the figure body. Anything else —
+/// extra inlines, an empty alt, a link- or emphasis-wrapped image — stays an ordinary paragraph.
+fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
+    if !ext.contains(Extension::ImplicitFigures) {
+        return para(inlines);
+    }
+    let one: Result<[Inline; 1], Vec<Inline>> = inlines.try_into();
+    match one {
+        Ok([Inline::Image(mut attr, alt, target)]) if !alt.is_empty() => {
+            let figure_attr = Attr {
+                id: std::mem::take(&mut attr.id),
+                classes: Vec::new(),
+                attributes: Vec::new(),
+            };
+            let caption = Caption {
+                short: None,
+                long: vec![Block::Plain(alt.clone())],
+            };
+            let image = Inline::Image(attr, alt, target);
+            Block::Figure(figure_attr, caption, vec![Block::Plain(vec![image])])
+        }
+        Ok([only]) => para(vec![only]),
+        Err(inlines) => para(inlines),
     }
 }
 
