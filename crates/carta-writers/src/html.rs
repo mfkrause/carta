@@ -25,15 +25,162 @@ impl Writer for HtmlWriter {
     }
 }
 
+/// Renders a document to an html4 fragment. The html4 dialect uses presentational attributes
+/// (`align`, `width`) where html5 uses inline `style`, wraps figures in `<div class="float">`
+/// rather than `<figure>`, groups footnotes in a `<div>` rather than a `<section>`, drops the
+/// ARIA document roles, and emits non-standard attributes by their bare name rather than under a
+/// `data-` prefix.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Html4Writer;
+
+impl Writer for Html4Writer {
+    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+        Ok(render_with_flavor(&document.blocks, Flavor::Html4))
+    }
+}
+
+/// The HTML dialect a render targets. They differ in a handful of element and attribute choices;
+/// every divergence is keyed off this value.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Flavor {
+    #[default]
+    Html5,
+    Html4,
+    /// The dialect of an html5 slide deck: identical to [`Flavor::Html5`] except that footnote
+    /// links carry the deck's in-page navigation prefix on their fragment targets.
+    // Constructed only by the slide writer; absent when its feature is sliced out of the build.
+    #[allow(dead_code)]
+    Slides,
+}
+
+/// The fragment-target prefix on a footnote link. The slide dialect routes links through the deck's
+/// in-page navigation, so its fragments are reached as `#/<id>` rather than `#<id>`.
+fn fragment_prefix(flavor: Flavor) -> &'static str {
+    match flavor {
+        Flavor::Slides => "#/",
+        Flavor::Html5 | Flavor::Html4 => "#",
+    }
+}
+
+/// Drives html5 block rendering across a slide deck's frames, gathering every frame's footnotes into
+/// one accumulator so they can be emitted as a single trailing section. Each method returns an
+/// unreflowed fragment carrying the break sentinels; the caller assembles the slide structure around
+/// the fragments and then calls [`fill_slides`] once over the whole document.
+// Used by the slide writer; unreferenced when its feature is sliced out of the build.
+#[allow(dead_code)]
+pub(crate) struct SlideRenderer {
+    state: State,
+}
+
+#[allow(dead_code)]
+impl SlideRenderer {
+    #[must_use]
+    pub(crate) fn new() -> Self {
+        Self {
+            state: State {
+                flavor: Flavor::Slides,
+                ..State::default()
+            },
+        }
+    }
+
+    /// The open tag of a slide's `<section>`: the header's `id`, then a `class` whose value is the
+    /// given class words followed by the header's own classes, then the header's key/value pairs. A
+    /// titleless slide passes an empty `attr`, yielding the class words alone.
+    #[must_use]
+    pub(crate) fn section_open(attr: &Attr, class_words: &[&str]) -> String {
+        let mut classes: Vec<String> = class_words.iter().map(|word| (*word).to_owned()).collect();
+        classes.extend(attr.classes.iter().cloned());
+        let mut tag = String::from("<section");
+        tag.push_str(&render_id(&attr.id));
+        tag.push_str(&render_class(&classes));
+        tag.push_str(&render_keyvals(&attr.attributes, Flavor::Slides));
+        tag.push('>');
+        tag
+    }
+
+    /// A slide title rendered as its heading element with the header's classes and key/value pairs
+    /// but without its `id` (the `id` belongs to the enclosing `<section>`).
+    #[must_use]
+    pub(crate) fn title(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+        let tag = header_tag(level);
+        let titleless = Attr {
+            id: String::new(),
+            classes: attr.classes.clone(),
+            attributes: attr.attributes.clone(),
+        };
+        let mut out = format!(
+            "<{tag}{}>",
+            render_attr(&titleless, AttrOrder::Header, Flavor::Slides)
+        );
+        self.state.inlines(&mut out, inlines);
+        let _ = write!(out, "</{tag}>");
+        out
+    }
+
+    /// A frame body rendered as an html5 fragment; any footnotes it carries join the accumulator.
+    #[must_use]
+    pub(crate) fn body(&mut self, blocks: &[Block]) -> String {
+        let mut out = String::new();
+        self.state.blocks(&mut out, blocks);
+        out
+    }
+
+    /// The accumulated footnotes as a trailing `<section>`, or `None` when no note was rendered.
+    #[must_use]
+    pub(crate) fn footnote_section(&self) -> Option<String> {
+        let mut out = String::new();
+        self.state.push_footnote_section(&mut out);
+        // `push_footnote_section` opens with a leading newline that joins the section to preceding
+        // content; the deck supplies its own separator, so drop it.
+        let trimmed = out.trim_start_matches('\n');
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_owned())
+        }
+    }
+}
+
+/// Resolve the break sentinels in an assembled slide document, filling inline runs to the fill
+/// column, and trim the trailing newlines. Counterpart to the per-frame rendering on
+/// [`SlideRenderer`].
+// Used by the slide writer; unreferenced when its feature is sliced out of the build.
+#[allow(dead_code)]
+#[must_use]
+pub(crate) fn fill_slides(assembled: &str) -> String {
+    restore(&reflow(assembled))
+        .trim_end_matches('\n')
+        .to_owned()
+}
+
 /// Render a block sequence to an html5 fragment, including the footnote section for any notes the
 /// blocks carry. The fragment carries no trailing newline.
 pub(crate) fn render_fragment(blocks: &[Block]) -> String {
-    let mut state = State::default();
+    render_with_flavor(blocks, Flavor::Html5)
+}
+
+fn render_with_flavor(blocks: &[Block], flavor: Flavor) -> String {
+    let mut state = State {
+        flavor,
+        ..State::default()
+    };
     let mut out = String::new();
     state.blocks(&mut out, blocks);
     state.push_footnote_section(&mut out);
     let filled = restore(&reflow(&out));
     filled.trim_end_matches('\n').to_owned()
+}
+
+/// Render an inline sequence to a single line of html, with every breakable space emitted as one
+/// ordinary space (no reflow). Exposed for writers that embed inline html in an attribute value.
+// Used by the outline writer; unreferenced when its feature is sliced out of the build.
+#[allow(dead_code)]
+pub(crate) fn render_inline_line(inlines: &[Inline]) -> String {
+    let mut state = State::default();
+    let mut out = String::new();
+    state.inlines(&mut out, inlines);
+    out.replace(BREAK, " ")
 }
 
 /// Sentinel marking a breakable inline space while the document is assembled as a flat string.
@@ -67,6 +214,7 @@ enum AttrOrder {
 struct State {
     footnotes: Vec<String>,
     in_anchor: bool,
+    flavor: Flavor,
 }
 
 /// Class names that select a dedicated HTML element for a [`Inline::Span`] instead of a generic
@@ -95,7 +243,15 @@ impl State {
             }
             Block::Header(level, attr, inlines) => {
                 let tag = header_tag(*level);
-                let _ = write!(out, "<{tag}{}>", render_attr(attr, AttrOrder::Header));
+                let rendered = match self.flavor {
+                    Flavor::Html5 | Flavor::Slides => {
+                        render_attr(attr, AttrOrder::Header, self.flavor)
+                    }
+                    Flavor::Html4 => {
+                        render_attr(&heading_attr_html4(attr), AttrOrder::Header, self.flavor)
+                    }
+                };
+                let _ = write!(out, "<{tag}{rendered}>");
                 self.inlines(out, inlines);
                 let _ = write!(out, "</{tag}>");
             }
@@ -103,7 +259,7 @@ impl State {
                 let _ = write!(
                     out,
                     "<pre{}><code>{}</code></pre>",
-                    render_attr(attr, AttrOrder::Standard),
+                    render_attr(attr, AttrOrder::Standard, self.flavor),
                     escape_attr(text)
                 );
             }
@@ -117,7 +273,11 @@ impl State {
             Block::OrderedList(attrs, items) => self.ordered_list(out, attrs, items),
             Block::DefinitionList(items) => self.definition_list(out, items),
             Block::Div(attr, blocks) => {
-                let _ = writeln!(out, "<div{}>", render_attr(attr, AttrOrder::Standard));
+                let _ = writeln!(
+                    out,
+                    "<div{}>",
+                    render_attr(attr, AttrOrder::Standard, self.flavor)
+                );
                 self.blocks(out, blocks);
                 out.push_str("\n</div>");
             }
@@ -146,8 +306,17 @@ impl State {
         if matches!(attrs.style, ListNumberStyle::Example) {
             out.push_str(" class=\"example\"");
         }
-        if let Some(kind) = ordered_list_type(&attrs.style) {
-            let _ = write!(out, " type=\"{kind}\"");
+        match self.flavor {
+            Flavor::Html5 | Flavor::Slides => {
+                if let Some(kind) = ordered_list_type(&attrs.style) {
+                    let _ = write!(out, " type=\"{kind}\"");
+                }
+            }
+            Flavor::Html4 => {
+                if let Some(name) = list_style_type(&attrs.style) {
+                    let _ = write!(out, " style=\"list-style-type: {name}\"");
+                }
+            }
         }
         out.push_str(">\n");
         self.list_items(out, items);
@@ -212,7 +381,18 @@ impl State {
     }
 
     fn figure(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
-        let _ = writeln!(out, "<figure{}>", render_attr(attr, AttrOrder::Standard));
+        match self.flavor {
+            Flavor::Html5 | Flavor::Slides => self.figure_html5(out, attr, caption, blocks),
+            Flavor::Html4 => self.figure_html4(out, attr, caption, blocks),
+        }
+    }
+
+    fn figure_html5(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
+        let _ = writeln!(
+            out,
+            "<figure{}>",
+            render_attr(attr, AttrOrder::Standard, self.flavor)
+        );
         self.blocks(out, blocks);
         if !caption.long.is_empty() {
             let hidden = if is_implicit_figure(caption, blocks) {
@@ -225,6 +405,21 @@ impl State {
             out.push_str("</figcaption>");
         }
         out.push_str("\n</figure>");
+    }
+
+    fn figure_html4(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
+        let _ = writeln!(
+            out,
+            "<div class=\"float\"{}>",
+            render_attr(attr, AttrOrder::Standard, self.flavor)
+        );
+        self.blocks(out, blocks);
+        if !caption.long.is_empty() {
+            out.push_str("\n<div class=\"figcaption\">");
+            self.blocks(out, &caption.long);
+            out.push_str("</div>");
+        }
+        out.push_str("\n</div>");
     }
 
     fn line_block(&mut self, out: &mut String, lines: &[Vec<Inline>]) {
@@ -242,7 +437,7 @@ impl State {
         let _ = write!(
             out,
             "<table{}{}>",
-            render_attr(&table.attr, AttrOrder::Standard),
+            render_attr(&table.attr, AttrOrder::Standard, self.flavor),
             table_width_style(&table.col_specs)
         );
         if !table.caption.long.is_empty() {
@@ -255,12 +450,12 @@ impl State {
             .iter()
             .map(|spec| spec.align.clone())
             .collect();
-        out.push_str(&colgroup(&table.col_specs));
+        out.push_str(&colgroup(&table.col_specs, self.flavor));
         if !table.head.rows.is_empty() {
             let _ = write!(
                 out,
                 "\n<thead{}>",
-                render_attr(&table.head.attr, AttrOrder::Standard)
+                render_attr(&table.head.attr, AttrOrder::Standard, self.flavor)
             );
             out.push('\n');
             self.rows(out, &table.head.rows, &aligns, true);
@@ -278,7 +473,7 @@ impl State {
             let _ = write!(
                 out,
                 "<tfoot{}>",
-                render_attr(&table.foot.attr, AttrOrder::Standard)
+                render_attr(&table.foot.attr, AttrOrder::Standard, self.flavor)
             );
             out.push('\n');
             self.rows(out, &table.foot.rows, &aligns, false);
@@ -296,7 +491,7 @@ impl State {
         let _ = write!(
             out,
             "\n<tbody{}>",
-            render_attr(&body.attr, AttrOrder::Standard)
+            render_attr(&body.attr, AttrOrder::Standard, self.flavor)
         );
         let mut head_grid = RowSpanGrid::new(aligns.len());
         for row in &body.head {
@@ -341,7 +536,11 @@ impl State {
         head_columns: i32,
         grid: &mut RowSpanGrid,
     ) {
-        let _ = write!(out, "<tr{}>", render_attr(&row.attr, AttrOrder::Standard));
+        let _ = write!(
+            out,
+            "<tr{}>",
+            render_attr(&row.attr, AttrOrder::Standard, self.flavor)
+        );
         out.push('\n');
         let head_columns = usize::try_from(head_columns).unwrap_or(0);
         for (index, (column, cell)) in grid.place(&row.cells).into_iter().enumerate() {
@@ -371,7 +570,12 @@ impl State {
         if cell.row_span != 1 {
             let _ = write!(out, "{BREAK}rowspan=\"{}\"", cell.row_span);
         }
-        out.push_str(&cell_attr(&cell.attr, alignment_style(effective)));
+        match self.flavor {
+            Flavor::Html5 | Flavor::Slides => {
+                out.push_str(&cell_attr(&cell.attr, alignment_style(effective)));
+            }
+            Flavor::Html4 => out.push_str(&cell_attr_html4(&cell.attr, effective)),
+        }
         out.push('>');
         self.blocks(out, &cell.content);
         let _ = write!(out, "</{tag}>");
@@ -407,7 +611,7 @@ impl State {
                 let _ = write!(
                     out,
                     "<code{}>{}</code>",
-                    render_attr(attr, AttrOrder::Standard),
+                    render_attr(attr, AttrOrder::Standard, self.flavor),
                     escape_text(text)
                 );
             }
@@ -426,18 +630,25 @@ impl State {
             }
             Inline::RawInline(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
             Inline::Link(attr, inlines, target) => self.link(out, attr, inlines, target),
-            Inline::Image(attr, inlines, target) => out.push_str(&image(attr, inlines, target)),
+            Inline::Image(attr, inlines, target) => {
+                out.push_str(&image(attr, inlines, target, self.flavor));
+            }
             Inline::Span(attr, inlines) => self.span(out, attr, inlines),
             Inline::Cite(citations, inlines) => {
-                let ids: Vec<&str> = citations
-                    .iter()
-                    .map(|citation| citation.id.as_str())
-                    .collect();
-                let _ = write!(
-                    out,
-                    "<span class=\"citation\" data-cites=\"{}\">",
-                    escape_attr(&ids.join(" "))
-                );
+                match self.flavor {
+                    Flavor::Html5 | Flavor::Slides => {
+                        let ids: Vec<&str> = citations
+                            .iter()
+                            .map(|citation| citation.id.as_str())
+                            .collect();
+                        let _ = write!(
+                            out,
+                            "<span class=\"citation\" data-cites=\"{}\">",
+                            escape_attr(&ids.join(" "))
+                        );
+                    }
+                    Flavor::Html4 => out.push_str("<span class=\"citation\">"),
+                }
                 self.inlines(out, inlines);
                 out.push_str("</span>");
             }
@@ -462,7 +673,11 @@ impl State {
             .iter()
             .position(|class| SEMANTIC_SPAN_TAGS.contains(&class.as_str()));
         let Some(first) = first else {
-            let _ = write!(out, "<span{}>", render_attr(attr, AttrOrder::Standard));
+            let _ = write!(
+                out,
+                "<span{}>",
+                render_attr(attr, AttrOrder::Standard, self.flavor)
+            );
             self.inlines(out, inlines);
             out.push_str("</span>");
             return;
@@ -483,7 +698,11 @@ impl State {
         };
         for (index, tag) in tags.iter().enumerate() {
             if index == 0 {
-                let _ = write!(out, "<{tag}{}>", render_attr(&outer, AttrOrder::Standard));
+                let _ = write!(
+                    out,
+                    "<{tag}{}>",
+                    render_attr(&outer, AttrOrder::Standard, self.flavor)
+                );
             } else {
                 let _ = write!(out, "<{tag}>");
             }
@@ -496,7 +715,11 @@ impl State {
 
     fn link(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline], target: &Target) {
         if self.in_anchor {
-            let _ = write!(out, "<span{}>", render_attr(attr, AttrOrder::Standard));
+            let _ = write!(
+                out,
+                "<span{}>",
+                render_attr(attr, AttrOrder::Standard, self.flavor)
+            );
             self.inlines(out, inlines);
             out.push_str("</span>");
             return;
@@ -505,7 +728,7 @@ impl State {
             out,
             "<a{BREAK}href=\"{}\"{}{}>",
             escape_attr(&target.url),
-            render_attr(attr, AttrOrder::Standard),
+            render_attr(attr, AttrOrder::Standard, self.flavor),
             title_attr(&target.title)
         );
         self.in_anchor = true;
@@ -516,15 +739,24 @@ impl State {
 
     fn note(&mut self, out: &mut String, blocks: &[Block]) {
         let number = self.footnotes.len() + 1;
+        let prefix = fragment_prefix(self.flavor);
+        let backlink_role = match self.flavor {
+            Flavor::Html5 | Flavor::Slides => format!("{BREAK}role=\"doc-backlink\""),
+            Flavor::Html4 => String::new(),
+        };
         let backlink = format!(
-            "<a{BREAK}href=\"#fnref{number}\"{BREAK}class=\"footnote-back\"{BREAK}role=\"doc-backlink\">\u{21a9}\u{fe0e}</a>"
+            "<a{BREAK}href=\"{prefix}fnref{number}\"{BREAK}class=\"footnote-back\"{backlink_role}>\u{21a9}\u{fe0e}</a>"
         );
         let body = self.note_body(blocks, &backlink);
         self.footnotes
             .push(format!("<li{BREAK}id=\"fn{number}\">{body}</li>"));
+        let ref_role = match self.flavor {
+            Flavor::Html5 | Flavor::Slides => format!("{BREAK}role=\"doc-noteref\""),
+            Flavor::Html4 => String::new(),
+        };
         let _ = write!(
             out,
-            "<a{BREAK}href=\"#fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\"{BREAK}role=\"doc-noteref\"><sup>{number}</sup></a>"
+            "<a{BREAK}href=\"{prefix}fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\"{ref_role}><sup>{number}</sup></a>"
         );
     }
 
@@ -552,38 +784,57 @@ impl State {
         if self.footnotes.is_empty() {
             return;
         }
-        let _ = write!(
-            out,
-            "\n<section{BREAK}id=\"footnotes\"{BREAK}class=\"footnotes footnotes-end-of-document\"{BREAK}role=\"doc-endnotes\">\n<hr />\n<ol>\n"
-        );
+        match self.flavor {
+            Flavor::Html5 | Flavor::Slides => {
+                let _ = write!(
+                    out,
+                    "\n<section{BREAK}id=\"footnotes\"{BREAK}class=\"footnotes footnotes-end-of-document\"{BREAK}role=\"doc-endnotes\">\n<hr />\n<ol>\n"
+                );
+            }
+            Flavor::Html4 => {
+                let _ = write!(
+                    out,
+                    "\n<div{BREAK}class=\"footnotes footnotes-end-of-document\">\n<hr />\n<ol>\n"
+                );
+            }
+        }
         for (index, note) in self.footnotes.iter().enumerate() {
             if index > 0 {
                 out.push('\n');
             }
             out.push_str(note);
         }
-        out.push_str("\n</ol>\n</section>");
+        let close = match self.flavor {
+            Flavor::Html5 | Flavor::Slides => "\n</ol>\n</section>",
+            Flavor::Html4 => "\n</ol>\n</div>",
+        };
+        out.push_str(close);
     }
 }
 
-fn image(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
+fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> String {
     let alt = to_plain_text(inlines);
     let alt_attr = if alt.is_empty() {
         String::new()
     } else {
         format!("{BREAK}alt=\"{}\"", escape_attr(&alt))
     };
+    let source = match flavor {
+        Flavor::Slides => "data-src",
+        Flavor::Html5 | Flavor::Html4 => "src",
+    };
     format!(
-        "<img{BREAK}src=\"{}\"{}{}{alt_attr}{BREAK}/>",
+        "<img{BREAK}{source}=\"{}\"{}{}{alt_attr}{BREAK}/>",
         escape_attr(&target.url),
         title_attr(&target.title),
-        render_attr(attr, AttrOrder::Standard),
+        render_attr(attr, AttrOrder::Standard, flavor),
     )
 }
 
-/// Whether a figure was synthesized from a lone captioned image: its body is a single image whose
-/// alt text is the caption verbatim. Such a caption is marked `aria-hidden="true"`
-/// because a screen reader already announces the duplicated alt text.
+/// Whether a figure's body is a single captioned image whose alt text reads the same as its
+/// caption. Such a caption is marked `aria-hidden="true"` so a screen reader does not announce the
+/// duplicated text twice. The comparison is on plain text, so markup that leaves the spoken words
+/// unchanged (emphasis, say) still counts as a match.
 fn is_implicit_figure(caption: &Caption, blocks: &[Block]) -> bool {
     let [Block::Plain(plain)] = blocks else {
         return false;
@@ -591,7 +842,10 @@ fn is_implicit_figure(caption: &Caption, blocks: &[Block]) -> bool {
     let [Inline::Image(_, alt, _)] = plain.as_slice() else {
         return false;
     };
-    matches!(caption.long.as_slice(), [Block::Plain(cap)] if cap == alt)
+    let [Block::Para(cap) | Block::Plain(cap)] = caption.long.as_slice() else {
+        return false;
+    };
+    carta_ast::to_plain_text(cap) == carta_ast::to_plain_text(alt)
 }
 
 /// A list item is a task-list entry when its first block opens with a ballot-box character followed
@@ -616,16 +870,19 @@ fn has_explicit_widths(specs: &[ColSpec]) -> bool {
         .any(|spec| matches!(spec.width, ColWidth::ColWidth(_)))
 }
 
-fn colgroup(specs: &[ColSpec]) -> String {
+fn colgroup(specs: &[ColSpec], flavor: Flavor) -> String {
     if !has_explicit_widths(specs) {
         return String::new();
     }
     let cols: Vec<String> = specs
         .iter()
         .map(|spec| match spec.width {
-            ColWidth::ColWidth(width) => {
-                format!("<col style=\"width: {}%\" />", width_percent(width))
-            }
+            ColWidth::ColWidth(width) => match flavor {
+                Flavor::Html5 | Flavor::Slides => {
+                    format!("<col style=\"width: {}%\" />", width_percent(width))
+                }
+                Flavor::Html4 => format!("<col width=\"{}%\" />", width_percent(width)),
+            },
             ColWidth::ColWidthDefault => "<col />".to_owned(),
         })
         .collect();
@@ -688,6 +945,30 @@ fn ordered_list_type(style: &ListNumberStyle) -> Option<&'static str> {
     }
 }
 
+/// The CSS `list-style-type` name for an ordered list's numbering, or `None` for the default style
+/// (which carries no explicit list-style declaration).
+fn list_style_type(style: &ListNumberStyle) -> Option<&'static str> {
+    match style {
+        ListNumberStyle::DefaultStyle => None,
+        ListNumberStyle::Decimal | ListNumberStyle::Example => Some("decimal"),
+        ListNumberStyle::LowerAlpha => Some("lower-alpha"),
+        ListNumberStyle::UpperAlpha => Some("upper-alpha"),
+        ListNumberStyle::LowerRoman => Some("lower-roman"),
+        ListNumberStyle::UpperRoman => Some("upper-roman"),
+    }
+}
+
+/// The `align="…"` attribute value for a cell's effective alignment, or `None` for the default
+/// (which carries no alignment attribute).
+fn alignment_word(align: &Alignment) -> Option<&'static str> {
+    match align {
+        Alignment::AlignLeft => Some("left"),
+        Alignment::AlignRight => Some("right"),
+        Alignment::AlignCenter => Some("center"),
+        Alignment::AlignDefault => None,
+    }
+}
+
 fn alignment_style(align: &Alignment) -> Option<&'static str> {
     match align {
         Alignment::AlignLeft => Some("text-align: left;"),
@@ -714,15 +995,53 @@ fn raw_passthrough(format: &str, text: &str) -> String {
 }
 
 /// Renders an [`Attr`] to its HTML attribute string (with a leading space when non-empty). The
-/// field order depends on [`AttrOrder`].
-fn render_attr(attr: &Attr, order: AttrOrder) -> String {
+/// field order depends on [`AttrOrder`]; the spelling of non-standard attribute keys depends on the
+/// [`Flavor`].
+fn render_attr(attr: &Attr, order: AttrOrder, flavor: Flavor) -> String {
     let id = render_id(&attr.id);
     let class = render_class(&attr.classes);
-    let keyvals = render_keyvals(&attr.attributes);
+    let keyvals = render_keyvals(&attr.attributes, flavor);
     match order {
         AttrOrder::Standard => format!("{id}{class}{keyvals}"),
         AttrOrder::Header => format!("{class}{keyvals}{id}"),
     }
+}
+
+/// The HTML4-valid universal attributes for a heading element. HTML4 admits only the core, i18n,
+/// and presentational attributes plus event handlers on `<hN>`; any other key/value pair is
+/// dropped rather than carried through under a `data-` prefix.
+fn heading_attr_html4(attr: &Attr) -> Attr {
+    let attributes = attr
+        .attributes
+        .iter()
+        .filter(|(key, _)| is_html4_universal_attribute(key))
+        .cloned()
+        .collect();
+    Attr {
+        id: attr.id.clone(),
+        classes: attr.classes.clone(),
+        attributes,
+    }
+}
+
+/// Whether a key is admissible on any HTML4 element: the core attributes (`style`, `title`, `class`,
+/// `id` are handled separately), the i18n attributes, the presentational `align`, and the intrinsic
+/// event handlers (`on…`).
+fn is_html4_universal_attribute(key: &str) -> bool {
+    matches!(key, "style" | "title" | "lang" | "dir" | "align") || key.starts_with("on")
+}
+
+/// Render a table cell's attributes for the HTML4 dialect: id, class, an explicit `align="…"`
+/// attribute for the effective alignment, then the cell's own key/value pairs verbatim.
+fn cell_attr_html4(attr: &Attr, align: &Alignment) -> String {
+    let id = render_id(&attr.id);
+    let class = render_class(&attr.classes);
+    let align_attr = match alignment_word(align) {
+        Some(word) => format!("{BREAK}align=\"{word}\""),
+        None => String::new(),
+    };
+    let keyvals = render_keyvals(&attr.attributes, Flavor::Html4);
+    format!("{id}{class}{align_attr}{keyvals}")
 }
 
 /// Render a table cell's attributes, folding the column's alignment into the `style` declaration.
@@ -733,7 +1052,10 @@ fn cell_attr(attr: &Attr, align_style: Option<&str>) -> String {
     let id = render_id(&attr.id);
     let class = render_class(&attr.classes);
     let Some(align_style) = align_style else {
-        return format!("{id}{class}{}", render_keyvals(&attr.attributes));
+        return format!(
+            "{id}{class}{}",
+            render_keyvals(&attr.attributes, Flavor::Html5)
+        );
     };
     let mut keyvals = String::new();
     let mut merged = false;
@@ -789,16 +1111,17 @@ fn render_class(classes: &[Text]) -> String {
     }
 }
 
-fn render_keyvals(attributes: &[(Text, Text)]) -> String {
+/// Render an attribute set's key/value pairs. In the html5 dialect a non-standard key is carried
+/// through under a `data-` prefix; in html4 it is emitted by its bare name.
+fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
     let mut out = String::new();
     for (key, value) in attributes {
         if key.is_empty() {
             continue;
         }
-        let name = if is_known_attribute(key) {
-            key.clone()
-        } else {
-            format!("data-{key}")
+        let name = match flavor {
+            Flavor::Html5 | Flavor::Slides if !is_known_attribute(key) => format!("data-{key}"),
+            _ => key.clone(),
         };
         let _ = write!(out, "{BREAK}{name}=\"{}\"", escape_attr(value));
     }
