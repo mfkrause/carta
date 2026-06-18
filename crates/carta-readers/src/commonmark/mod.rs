@@ -10,6 +10,7 @@ mod autolink;
 mod block;
 mod cursor;
 mod html_block;
+mod identifiers;
 mod inline;
 mod scan;
 mod table;
@@ -474,5 +475,47 @@ mod tests {
             blocks("![a gull](gull.png)\n").as_slice(),
             [Block::Para(_)]
         ));
+    }
+
+    fn header_ids(blocks: &[Block]) -> Vec<String> {
+        blocks
+            .iter()
+            .filter_map(|b| match b {
+                Block::Header(_, attr, _) => Some(attr.id.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn gfm_auto_identifiers_slug_headers_and_count_duplicates() {
+        let result = blocks_with(
+            "# Foo & Bar\n\n# 1.2 Section\n\n# Foo & Bar\n",
+            Extension::GfmAutoIdentifiers,
+        );
+        // Punctuation drops without collapsing the gaps, dots vanish, leading digits stay, and a
+        // repeated slug is suffixed by its occurrence count.
+        assert_eq!(header_ids(&result), ["foo--bar", "12-section", "foo--bar-1"]);
+    }
+
+    #[test]
+    fn auto_identifiers_strip_leading_runs_and_increment_until_unique() {
+        let result = blocks_with("# 1. Intro\n\n# Intro\n\n# Intro\n", Extension::AutoIdentifiers);
+        // The leading non-letter run is stripped, then each repeat increments until the whole
+        // identifier is unused.
+        assert_eq!(header_ids(&result), ["intro", "intro-1", "intro-2"]);
+    }
+
+    #[test]
+    fn auto_identifiers_fall_back_to_section_for_empty_slugs() {
+        let result = blocks_with("# !!!\n\n# ???\n", Extension::AutoIdentifiers);
+        // Both headings reduce to nothing, so the fallback `section` applies and the second is
+        // disambiguated.
+        assert_eq!(header_ids(&result), ["section", "section-1"]);
+    }
+
+    #[test]
+    fn auto_identifiers_off_leaves_headers_unidentified() {
+        assert_eq!(header_ids(&blocks("# Hello World\n")), [""]);
     }
 }
