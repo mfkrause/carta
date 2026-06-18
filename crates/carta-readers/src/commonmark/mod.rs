@@ -67,10 +67,14 @@ pub(crate) struct LinkDef {
 /// Link reference definitions, keyed by their normalized label.
 pub(crate) type RefMap = BTreeMap<String, LinkDef>;
 
+/// Footnote definitions, keyed by their normalized label; each value is the still-raw block content
+/// gathered for that footnote, resolved into a `Note` at every matching reference.
+pub(crate) type FootnoteDefs = BTreeMap<String, Vec<IrBlock>>;
+
 fn parse(input: &str, extensions: Extensions) -> Document {
     let normalized = normalize(input);
-    let (ir, refs) = block::parse(&normalized, extensions);
-    let blocks = inline::resolve_blocks(&ir, &refs, extensions);
+    let (ir, refs, footnotes) = block::parse(&normalized, extensions);
+    let blocks = inline::resolve_document(&ir, &refs, &footnotes, extensions);
     Document {
         blocks,
         ..Document::default()
@@ -130,14 +134,127 @@ pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
 #[cfg(test)]
 mod tests {
     use super::CommonmarkReader;
-    use carta_ast::Block;
-    use carta_core::{Reader, ReaderOptions};
+    use carta_ast::{Block, Inline};
+    use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
         CommonmarkReader
             .read(input, &ReaderOptions::default())
             .expect("reader should not fail")
             .blocks
+    }
+
+    fn blocks_with(input: &str, ext: Extension) -> Vec<Block> {
+        let mut extensions = Extensions::empty();
+        extensions.insert(ext);
+        let mut options = ReaderOptions::default();
+        options.extensions = extensions;
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+            .blocks
+    }
+
+    /// The inlines of a single-paragraph document, for footnote assertions.
+    fn para_inlines(input: &str, ext: Extension) -> Vec<Inline> {
+        match blocks_with(input, ext).as_slice() {
+            [Block::Para(inlines)] => inlines.clone(),
+            other => panic!("expected a single paragraph, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn footnote_reference_resolves_to_a_note_and_lifts_the_definition() {
+        // The definition leaves the body, so only the referencing paragraph remains, and its
+        // reference becomes a note carrying the definition's blocks.
+        let inlines = para_inlines("text[^a]\n\n[^a]: body\n", Extension::Footnotes);
+        let note = inlines
+            .iter()
+            .find_map(|inline| match inline {
+                Inline::Note(blocks) => Some(blocks.clone()),
+                _ => None,
+            })
+            .expect("a note should be present");
+        assert!(matches!(note.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn undefined_footnote_reference_stays_literal() {
+        // With no matching definition the brackets are ordinary text and no note is produced.
+        let inlines = para_inlines("text[^missing]\n", Extension::Footnotes);
+        assert!(inlines.iter().all(|i| !matches!(i, Inline::Note(_))));
+        assert!(
+            inlines
+                .iter()
+                .any(|i| matches!(i, Inline::Str(s) if s.contains("[^missing]")))
+        );
+    }
+
+    #[test]
+    fn footnote_extension_off_produces_no_note() {
+        // Without the toggle `[^a]: body` is an ordinary link reference definition, so `[^a]`
+        // resolves to a link and no note is created.
+        let result = blocks("text[^a]\n\n[^a]: body\n");
+        let [Block::Para(inlines)] = result.as_slice() else {
+            panic!("expected a single paragraph, got {result:?}");
+        };
+        assert!(inlines.iter().any(|i| matches!(i, Inline::Link(..))));
+        assert!(inlines.iter().all(|i| !matches!(i, Inline::Note(_))));
+    }
+
+    #[test]
+    fn footnote_definition_spans_indented_continuation_blocks() {
+        let inlines = para_inlines(
+            "ref[^a]\n\n[^a]: first\n\n    second\n",
+            Extension::Footnotes,
+        );
+        let note = inlines
+            .iter()
+            .find_map(|inline| match inline {
+                Inline::Note(blocks) => Some(blocks.clone()),
+                _ => None,
+            })
+            .expect("a note should be present");
+        assert!(matches!(note.as_slice(), [Block::Para(_), Block::Para(_)]));
+    }
+
+    #[test]
+    fn nested_footnote_reference_inside_a_definition_does_not_nest() {
+        // A reference within a definition's own body collapses to an empty string rather than
+        // embedding a further note.
+        let inlines = para_inlines(
+            "ref[^a]\n\n[^a]: see [^b]\n\n[^b]: inner\n",
+            Extension::Footnotes,
+        );
+        let note = inlines
+            .iter()
+            .find_map(|inline| match inline {
+                Inline::Note(blocks) => Some(blocks.clone()),
+                _ => None,
+            })
+            .expect("a note should be present");
+        let Some(Block::Para(body)) = note.first() else {
+            panic!("note should hold a paragraph");
+        };
+        assert!(body.iter().all(|i| !matches!(i, Inline::Note(_))));
+    }
+
+    #[test]
+    fn footnote_labels_fold_case_and_whitespace() {
+        let inlines = para_inlines("ref[^A B]\n\n[^a   b]: body\n", Extension::Footnotes);
+        assert!(inlines.iter().any(|i| matches!(i, Inline::Note(_))));
+    }
+
+    #[test]
+    fn defined_footnote_reference_wins_over_a_following_inline_target() {
+        // A defined reference consumes nothing past `]`, so the `(url)` stays literal text.
+        let inlines = para_inlines("[^a](url)\n\n[^a]: body\n", Extension::Footnotes);
+        assert!(inlines.iter().any(|i| matches!(i, Inline::Note(_))));
+        assert!(
+            inlines
+                .iter()
+                .any(|i| matches!(i, Inline::Str(s) if s.contains("(url)")))
+        );
     }
 
     #[test]

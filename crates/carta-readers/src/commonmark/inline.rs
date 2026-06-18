@@ -5,6 +5,8 @@
 //! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Inline, MathType, QuoteType, Row,
     Table, TableBody, TableFoot, TableHead, Target,
@@ -16,28 +18,77 @@ use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
     scan_html_tag, scan_inline_target,
 };
-use super::{IrBlock, LinkDef, RefMap, para, plain};
+use super::{FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
 const TASK_UNCHECKED: &str = "\u{2610}";
 /// The checked checkbox emitted for a checked task-list item (`- [x]`).
 const TASK_CHECKED: &str = "\u{2612}";
 
-pub(crate) fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, ext: Extensions) -> Vec<Block> {
+/// Footnote resolution context threaded through the inline phase.
+///
+/// A reference `[^label]` resolves only when `label` is in `defined`. At the top level it becomes a
+/// `Note` carrying the matching content from `by_id`; inside a definition's own body it collapses to
+/// an empty string rather than nesting another note.
+#[derive(Clone, Copy)]
+struct Notes<'a> {
+    defined: &'a BTreeSet<String>,
+    by_id: &'a BTreeMap<String, Vec<Block>>,
+    in_definition: bool,
+}
+
+/// Resolve the whole document: first each footnote definition's body (where nested references
+/// collapse to empty), then the body itself (where references become notes).
+pub(crate) fn resolve_document(
+    ir: &[IrBlock],
+    refs: &RefMap,
+    footnotes: &FootnoteDefs,
+    ext: Extensions,
+) -> Vec<Block> {
+    let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
+    let empty = BTreeMap::new();
+    let in_def = Notes {
+        defined: &defined,
+        by_id: &empty,
+        in_definition: true,
+    };
+    let by_id: BTreeMap<String, Vec<Block>> = footnotes
+        .iter()
+        .map(|(key, body)| (key.clone(), resolve_blocks(body, refs, in_def, ext)))
+        .collect();
+    let top = Notes {
+        defined: &defined,
+        by_id: &by_id,
+        in_definition: false,
+    };
+    resolve_blocks(ir, refs, top, ext)
+}
+
+fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, notes: Notes, ext: Extensions) -> Vec<Block> {
     let mut out = Vec::with_capacity(ir.len());
     for block in ir {
-        resolve_block(block, refs, ext, &mut out);
+        resolve_block(block, refs, notes, ext, &mut out);
     }
     out
 }
 
-fn resolve_block(block: &IrBlock, refs: &RefMap, ext: Extensions, out: &mut Vec<Block>) {
+fn resolve_block(
+    block: &IrBlock,
+    refs: &RefMap,
+    notes: Notes,
+    ext: Extensions,
+    out: &mut Vec<Block>,
+) {
     match block {
-        IrBlock::Para(text) => out.push(para(parse_inlines(text, refs, ext))),
-        IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, ext))),
+        IrBlock::Para(text) => out.push(para(parse_inlines(text, refs, notes, ext))),
+        IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, notes, ext))),
         IrBlock::Heading(level, text) => {
             let (content, attr) = split_header_attr(text, ext);
-            out.push(Block::Header(*level, attr, parse_inlines(content, refs, ext)));
+            out.push(Block::Header(
+                *level,
+                attr,
+                parse_inlines(content, refs, notes, ext),
+            ));
         }
         IrBlock::CodeBlock(attr, text) => out.push(Block::CodeBlock(attr.clone(), text.clone())),
         IrBlock::RawHtml(text) => {
@@ -48,18 +99,21 @@ fn resolve_block(block: &IrBlock, refs: &RefMap, ext: Extensions, out: &mut Vec<
         }
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
         IrBlock::BlockQuote(children) => {
-            out.push(Block::BlockQuote(resolve_blocks(children, refs, ext)));
+            out.push(Block::BlockQuote(resolve_blocks(children, refs, notes, ext)));
         }
-        IrBlock::BulletList(items) => resolve_bullet_list(items, refs, ext, out),
+        IrBlock::BulletList(items) => resolve_bullet_list(items, refs, notes, ext, out),
         IrBlock::OrderedList(attrs, items) => out.push(Block::OrderedList(
             attrs.clone(),
-            items.iter().map(|i| resolve_blocks(i, refs, ext)).collect(),
+            items
+                .iter()
+                .map(|i| resolve_blocks(i, refs, notes, ext))
+                .collect(),
         )),
         IrBlock::Table {
             alignments,
             header,
             rows,
-        } => out.push(resolve_table(alignments, header, rows, refs, ext)),
+        } => out.push(resolve_table(alignments, header, rows, refs, notes, ext)),
     }
 }
 
@@ -72,6 +126,7 @@ fn resolve_table(
     header: &[String],
     rows: &[Vec<String>],
     refs: &RefMap,
+    notes: Notes,
     ext: Extensions,
 ) -> Block {
     let col_specs = alignments
@@ -83,7 +138,10 @@ fn resolve_table(
         .collect();
     let make_row = |cells: &[String]| Row {
         attr: Attr::default(),
-        cells: cells.iter().map(|text| make_cell(text, refs, ext)).collect(),
+        cells: cells
+            .iter()
+            .map(|text| make_cell(text, refs, notes, ext))
+            .collect(),
     };
     Block::Table(Box::new(Table {
         attr: Attr::default(),
@@ -105,11 +163,11 @@ fn resolve_table(
 
 /// Build one table cell. A non-empty cell's text parses into inlines wrapped in a `Plain`; an empty
 /// or whitespace-only cell carries an empty block list.
-fn make_cell(text: &str, refs: &RefMap, ext: Extensions) -> Cell {
+fn make_cell(text: &str, refs: &RefMap, notes: Notes, ext: Extensions) -> Cell {
     let content = if text.is_empty() {
         Vec::new()
     } else {
-        vec![Block::Plain(parse_inlines(text, refs, ext))]
+        vec![Block::Plain(parse_inlines(text, refs, notes, ext))]
     };
     Cell {
         attr: Attr::default(),
@@ -129,6 +187,7 @@ fn make_cell(text: &str, refs: &RefMap, ext: Extensions) -> Cell {
 fn resolve_bullet_list(
     items: &[Vec<IrBlock>],
     refs: &RefMap,
+    notes: Notes,
     ext: Extensions,
     out: &mut Vec<Block>,
 ) {
@@ -147,7 +206,7 @@ fn resolve_bullet_list(
             out.push(Block::BulletList(std::mem::take(&mut run)));
         }
         run_is_task = Some(is_task);
-        run.push(resolve_item(item, marker.as_ref(), refs, ext));
+        run.push(resolve_item(item, marker.as_ref(), refs, notes, ext));
     }
     if !run.is_empty() {
         out.push(Block::BulletList(run));
@@ -160,15 +219,16 @@ fn resolve_item(
     item: &[IrBlock],
     marker: Option<&IrBlock>,
     refs: &RefMap,
+    notes: Notes,
     ext: Extensions,
 ) -> Vec<Block> {
     let mut out = Vec::new();
     let mut blocks = item.iter();
     if let Some(first) = blocks.next() {
-        resolve_block(marker.unwrap_or(first), refs, ext, &mut out);
+        resolve_block(marker.unwrap_or(first), refs, notes, ext, &mut out);
     }
     for block in blocks {
-        resolve_block(block, refs, ext, &mut out);
+        resolve_block(block, refs, notes, ext, &mut out);
     }
     out
 }
@@ -271,13 +331,17 @@ enum Explicit {
     None,
 }
 
-fn parse_inlines(text: &str, refs: &RefMap, ext: Extensions) -> Vec<Inline> {
+// `notes` (the footnote context) and `nodes` (the in-progress inline list) are distinct concepts
+// that unavoidably read alike.
+#[allow(clippy::similar_names)]
+fn parse_inlines(text: &str, refs: &RefMap, notes: Notes, ext: Extensions) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut parser = InlineParser {
         chars: &chars,
         pos: 0,
         nodes: Vec::new(),
         refs,
+        notes,
         ext,
         bracket_stack: Vec::new(),
     };
@@ -296,6 +360,7 @@ struct InlineParser<'a> {
     pos: usize,
     nodes: Vec<Node>,
     refs: &'a RefMap,
+    notes: Notes<'a>,
     ext: Extensions,
     /// Indices into `nodes` for each open `[` or `![` delimiter, in parse order. O(1) lookup of
     /// the most recent bracket opener instead of a backward scan through all nodes.
@@ -618,6 +683,15 @@ impl InlineParser<'_> {
             _ => (false, false),
         };
 
+        // A defined footnote reference `[^label]` wins over every other use of the brackets: it
+        // consumes nothing past the `]` and ignores any following inline target or reference.
+        if is_active
+            && self.ext.contains(Extension::Footnotes)
+            && self.try_footnote(opener_index, is_image)
+        {
+            return;
+        }
+
         // An active opener may form a link or image from an explicit inline `(...)` target or an
         // explicit `[label]`/`[]` reference. (An inactive `[` cannot — a link may not contain
         // another link, spec §6.3 rule 6 — but it may still open a bracketed span.)
@@ -785,6 +859,38 @@ impl InlineParser<'_> {
             .get(start..self.pos.saturating_sub(1))
             .map(|s| s.iter().collect())
             .unwrap_or_default()
+    }
+
+    /// If the bracket opener encloses a defined footnote reference (`[^label]`), emit the note and
+    /// return `true`. The opener's raw label must begin with `^` and name a known footnote; the
+    /// brackets and their content are then replaced wholesale, and an image opener's `!` survives as
+    /// literal text. Inside a footnote definition's own body a reference collapses to an empty string
+    /// rather than nesting a note. Returns `false` (leaving the brackets for other resolution) when
+    /// the label has no `^` prefix, holds a bracket, or matches no definition.
+    fn try_footnote(&mut self, opener_index: usize, is_image: bool) -> bool {
+        let raw = self.raw_label(opener_index);
+        let Some(label) = raw.strip_prefix('^') else {
+            return false;
+        };
+        if label.is_empty() || label.contains('[') || label.contains(']') {
+            return false;
+        }
+        let key = normalize_label(label);
+        if !self.notes.defined.contains(&key) {
+            return false;
+        }
+        self.nodes.truncate(opener_index);
+        self.bracket_stack.retain(|&ni| ni < opener_index);
+        if is_image {
+            self.push_text('!');
+        }
+        let note = if self.notes.in_definition {
+            Inline::Str(String::new())
+        } else {
+            Inline::Note(self.notes.by_id.get(&key).cloned().unwrap_or_default())
+        };
+        self.nodes.push(Node::Inline(note));
+        true
     }
 
     fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target, attr: Attr) {
@@ -1538,12 +1644,24 @@ mod tests {
 
 #[cfg(test)]
 mod inline_tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
-    use carta_ast::{Attr, Inline, Target};
+    use carta_ast::{Attr, Block, Inline, Target};
 
-    use super::{LinkDef, RefMap, parse_inlines};
+    use super::{LinkDef, Notes, RefMap, parse_inlines};
     use carta_core::{Extension, Extensions};
+
+    static NO_DEFINED: BTreeSet<String> = BTreeSet::new();
+    static NO_BY_ID: BTreeMap<String, Vec<Block>> = BTreeMap::new();
+
+    /// A footnote context with no definitions, for tests that exercise non-footnote inline syntax.
+    fn no_notes() -> Notes<'static> {
+        Notes {
+            defined: &NO_DEFINED,
+            by_id: &NO_BY_ID,
+            in_definition: false,
+        }
+    }
 
     fn no_ext() -> Extensions {
         Extensions::empty()
@@ -1572,11 +1690,11 @@ mod inline_tests {
     }
 
     fn p(text: &str) -> Vec<Inline> {
-        parse_inlines(text, &empty_refs(), no_ext())
+        parse_inlines(text, &empty_refs(), no_notes(), no_ext())
     }
 
     fn pe(text: &str, ext: Extensions) -> Vec<Inline> {
-        parse_inlines(text, &empty_refs(), ext)
+        parse_inlines(text, &empty_refs(), no_notes(), ext)
     }
 
     fn str(s: &str) -> Inline {
@@ -1689,7 +1807,7 @@ mod inline_tests {
         assert_eq!(p("[a][r]"), vec![str("[a][r]")]);
         // With ref defined: resolves.
         let refs = ref_map(&[("r", "http://r")]);
-        let result = parse_inlines("[a][r]", &refs, no_ext());
+        let result = parse_inlines("[a][r]", &refs, no_notes(), no_ext());
         assert_eq!(result, vec![link(vec![str("a")], "http://r")]);
     }
 
@@ -1902,7 +2020,7 @@ mod inline_tests {
         let refs = ref_map(&[("text", "http://r")]);
         let ext = exts(&[Extension::BracketedSpans]);
         assert_eq!(
-            parse_inlines("[text]{.c}", &refs, ext),
+            parse_inlines("[text]{.c}", &refs, no_notes(), ext),
             vec![span(attr("", &["c"], &[]), vec![str("text")])]
         );
     }
