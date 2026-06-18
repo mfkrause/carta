@@ -262,7 +262,11 @@ impl Parser {
                 if let Some(opened) = self.try_open(container, &mut cursor) {
                     started_new = true;
                     container = opened;
-                    if self.is_container(container) {
+                    // Descend into the new container to open the next block on this line — but only
+                    // if real content remains. A container marker trailed by whitespace alone (e.g.
+                    // a bare `-` with spaces after) leaves an empty container: the leftover spaces
+                    // are not a non-blank line and must not open an indented code block.
+                    if self.is_container(container) && !cursor.is_blank() {
                         continue;
                     }
                 }
