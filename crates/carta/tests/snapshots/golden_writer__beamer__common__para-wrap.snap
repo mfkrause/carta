@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+This is a deliberately long paragraph with enough words that the writer
+must wrap it across the fill column boundary at least once or twice.
+\end{frame}

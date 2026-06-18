@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<pre id="snippet"><code>plain code</code></pre>
+</section>

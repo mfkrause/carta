@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+water H\textsubscript{2}O and sub\textsubscript{ab} here
+\end{frame}

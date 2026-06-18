@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<colgroup>
+<col width="20%" />
+<col width="20%" />
+<col width="30%" />
+<col width="30%" />
+</colgroup>
+<thead>
+<tr>
+<th align="left">l</th>
+<th align="right">r</th>
+<th align="center">c</th>
+<th>d</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">1</td>
+<td align="right">2</td>
+<td align="center">3</td>
+<td>4</td>
+</tr>
+</tbody>
+</table>

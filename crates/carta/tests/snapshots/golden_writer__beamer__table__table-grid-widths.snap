@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.0556}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.1389}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+a
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+b
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+1 & 2 \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{frame}

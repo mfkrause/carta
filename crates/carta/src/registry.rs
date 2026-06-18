@@ -61,6 +61,9 @@ format_dispatch! {
     "read-json" => "json" => carta_readers::JsonReader;
     "read-native" => "native" => carta_readers::NativeReader;
     "read-html" => "html" => carta_readers::HtmlReader;
+    "read-csv" => "csv" => carta_readers::CsvReader;
+    "read-tsv" => "tsv" => carta_readers::TsvReader;
+    "read-opml" => "opml" => carta_readers::OpmlReader;
 }
 
 format_dispatch! {
@@ -68,11 +71,14 @@ format_dispatch! {
     resolve: writer_for;
     supported: supported_output_formats;
     "write-html" => "html" | "html5" => carta_writers::HtmlWriter;
+    "write-html4" => "html4" => carta_writers::Html4Writer;
     "write-json" => "json" => carta_writers::JsonWriter;
     "write-plain" => "plain" => carta_writers::PlainWriter;
     "write-native" => "native" => carta_writers::NativeWriter;
     "write-latex" => "latex" => carta_writers::LatexWriter;
     "write-commonmark" => "commonmark" => carta_writers::CommonmarkWriter;
+    "write-markdown" => "markdown" => carta_writers::MarkdownWriter;
+    "write-gfm" => "gfm" => carta_writers::GfmWriter;
     "write-rst" => "rst" => carta_writers::RstWriter;
     "write-mediawiki" => "mediawiki" => carta_writers::MediawikiWriter;
     "write-typst" => "typst" => carta_writers::TypstWriter;
@@ -80,4 +86,7 @@ format_dispatch! {
     "write-jira" => "jira" => carta_writers::JiraWriter;
     "write-asciidoc" => "asciidoc" => carta_writers::AsciidocWriter;
     "write-man" => "man" => carta_writers::ManWriter;
+    "write-opml" => "opml" => carta_writers::OpmlWriter;
+    "write-beamer" => "beamer" => carta_writers::BeamerWriter;
+    "write-revealjs" => "revealjs" => carta_writers::RevealjsWriter;
 }

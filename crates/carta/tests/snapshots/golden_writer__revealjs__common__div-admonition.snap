@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<div class="note">
+<p>be careful here</p>
+</div>
+</section>

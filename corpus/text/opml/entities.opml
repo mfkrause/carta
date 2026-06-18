@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Entities and references</title>
+  </head>
+  <body>
+    <outline text="Tom &amp; Jerry and friends" _note="Plain note text."/>
+    <outline text="Numeric &#65; &#x42; here"/>
+  </body>
+</opml>

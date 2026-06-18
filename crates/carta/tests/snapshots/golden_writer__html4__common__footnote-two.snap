@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p>x<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> y<a
+href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a></p>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>first<a href="#fnref1"
+class="footnote-back">↩︎</a></p></li>
+<li id="fn2"><p>second<a href="#fnref2"
+class="footnote-back">↩︎</a></p></li>
+</ol>
+</div>

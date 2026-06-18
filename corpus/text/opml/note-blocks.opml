@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Notes</title>
+    <ownerName>Author Name</ownerName>
+    <dateModified>2020-01-02</dateModified>
+  </head>
+  <body>
+    <outline text="Heading with note" _note="First paragraph with *emphasis* and **strong**.&#10;&#10;Second paragraph after a blank line."/>
+  </body>
+</opml>

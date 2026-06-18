@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ol style="list-style-type: lower-roman">
+<li>one</li>
+<li>two</li>
+</ol>

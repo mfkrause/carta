@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>a <span id="s" class="c" data-k="v">styled</span> word</p>
+</section>

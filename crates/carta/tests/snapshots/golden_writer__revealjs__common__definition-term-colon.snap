@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<dl>
+<dt>term: with colon</dt>
+<dd>
+definition
+</dd>
+</dl>
+</section>

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="One">
+  <outline text="Two">
+    <outline text="Six">
+    </outline>
+  </outline>
+</outline>

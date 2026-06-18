@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{longtable}[]{@{}l@{}}
+\caption{First caption paragraph\\
+Second caption paragraph}\tabularnewline
+\toprule\noalign{}
+h \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+h \\
+\midrule\noalign{}
+\endhead
+v \\
+\bottomrule\noalign{}
+\end{longtable}
+\end{frame}

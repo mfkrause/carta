@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+wait\ldots{} an en--dash and an em---dash
+\end{frame}

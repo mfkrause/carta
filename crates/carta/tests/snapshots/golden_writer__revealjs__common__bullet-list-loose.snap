@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<ul>
+<li><p>a</p></li>
+<li><p>b</p></li>
+<li><p>c</p></li>
+</ul>
+</section>

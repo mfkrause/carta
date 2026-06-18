@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p>Padding padding padding padding <a href="http://example.com/path">a
+multi word link label here</a> and trailing words to push wrapping.</p>

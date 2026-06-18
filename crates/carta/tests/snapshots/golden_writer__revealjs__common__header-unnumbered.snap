@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="hidden" class="title-slide slide level1 unnumbered">
+<h1 class="unnumbered">Hidden</h1>
+
+</section>

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ol style="list-style-type: decimal">
+<li><p>outer</p>
+<ol style="list-style-type: decimal">
+<li>inner one</li>
+<li>inner two</li>
+</ol></li>
+</ol>

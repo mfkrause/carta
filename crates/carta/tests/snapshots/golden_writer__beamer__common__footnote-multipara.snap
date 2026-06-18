@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+ref\footnote<\value{beamerpauses}->[frame]{first paragraph
+
+  second paragraph}
+\end{frame}

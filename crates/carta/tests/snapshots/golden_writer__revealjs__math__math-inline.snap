@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p>an equation <span class="math inline">\(a^2 + b^2 = c^2\)</span>
+inline</p>
+</section>
