@@ -1,8 +1,9 @@
 //! Format-name dispatch. Every format is declared once inside a [`format_dispatch!`] block; the
-//! macro expands that single declaration into all three views that must agree — the resolver
-//! (name/alias → boxed trait object), the `supported_*` enumerator, and the recognized-name set
-//! that separates "disabled" from "unknown". Because the views share one source, they cannot drift
-//! as formats are added.
+//! macro expands that single declaration into the views that must agree — the resolver (name/alias →
+//! boxed trait object), the `supported_*` enumerator (canonical names), the `*_format_names`
+//! enumerator (canonical names plus aliases, for introspection), and a `*_recognizes` predicate over
+//! the full name set that separates "disabled" from "unknown". Because the views share one source,
+//! they cannot drift as formats are added.
 //!
 //! Each constructor is `#[cfg]`-gated on its per-direction feature, so only formats compiled into
 //! the build resolve. A recognized name whose feature is off yields [`Error::FormatNotEnabled`]; an
@@ -10,21 +11,15 @@
 
 use carta_core::{Error, Reader, Result, Writer};
 
-fn resolution_error(name: &str, known: &[&str]) -> Error {
-    if known.contains(&name) {
-        Error::FormatNotEnabled(name.to_owned())
-    } else {
-        Error::UnsupportedFormat(name.to_owned())
-    }
-}
-
-/// Expands one per-direction format table into its resolver and enumerator. Each entry reads
+/// Expands one per-direction format table into its resolver and enumerators. Each entry reads
 /// `<feature> => <canonical> [| <alias>]* => <constructor>;`.
 macro_rules! format_dispatch {
     (
         trait: $trait:ident;
         resolve: $resolve:ident;
+        recognizes: $recognizes:ident;
         supported: $supported:ident;
+        names: $names:ident;
         $( $feature:literal => $canonical:literal $(| $alias:literal)* => $constructor:expr ; )+
     ) => {
         #[doc = concat!("Resolves a format name to its boxed [`", stringify!($trait), "`].")]
@@ -32,14 +27,21 @@ macro_rules! format_dispatch {
         #[doc = "[`Error::FormatNotEnabled`] if the format is recognized but its feature is off;"]
         #[doc = "[`Error::UnsupportedFormat`] if the name is unknown."]
         pub fn $resolve(name: &str) -> Result<Box<dyn $trait>> {
-            const KNOWN: &[&str] = &[ $( $canonical $(, $alias)* ),+ ];
             match name {
                 $(
                     #[cfg(feature = $feature)]
                     $canonical $(| $alias)* => Ok(Box::new($constructor)),
                 )+
-                other => Err(resolution_error(other, KNOWN)),
+                other if $recognizes(other) => Err(Error::FormatNotEnabled(other.to_owned())),
+                other => Err(Error::UnsupportedFormat(other.to_owned())),
             }
+        }
+
+        #[doc = concat!("Whether `name` is a recognized ", stringify!($trait), " format — true regardless of whether its feature is compiled in.")]
+        #[must_use]
+        pub(crate) fn $recognizes(name: &str) -> bool {
+            const KNOWN: &[&str] = &[ $( $canonical $(, $alias)* ),+ ];
+            KNOWN.contains(&name)
         }
 
         #[doc = concat!("The canonical names of every compiled-in ", stringify!($trait), " format, in declaration order.")]
@@ -50,13 +52,28 @@ macro_rules! format_dispatch {
                 .flatten()
                 .collect()
         }
+
+        #[doc = concat!("Every accepted ", stringify!($trait), " format name in this build — canonical names and their aliases — sorted.")]
+        #[must_use]
+        pub fn $names() -> Vec<&'static str> {
+            let mut names: Vec<&'static str> = Vec::new();
+            $(
+                if cfg!(feature = $feature) {
+                    names.extend_from_slice(&[ $canonical $(, $alias)* ]);
+                }
+            )+
+            names.sort_unstable();
+            names
+        }
     };
 }
 
 format_dispatch! {
     trait: Reader;
     resolve: reader_for;
+    recognizes: reader_recognizes;
     supported: supported_input_formats;
+    names: input_format_names;
     "read-commonmark" => "commonmark" | "commonmark_x" | "markdown" | "gfm" => carta_readers::CommonmarkReader;
     "read-json" => "json" => carta_readers::JsonReader;
     "read-native" => "native" => carta_readers::NativeReader;
@@ -69,7 +86,9 @@ format_dispatch! {
 format_dispatch! {
     trait: Writer;
     resolve: writer_for;
+    recognizes: writer_recognizes;
     supported: supported_output_formats;
+    names: output_format_names;
     "write-html" => "html" | "html5" => carta_writers::HtmlWriter;
     "write-html4" => "html4" => carta_writers::Html4Writer;
     "write-json" => "json" => carta_writers::JsonWriter;
