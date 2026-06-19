@@ -595,8 +595,19 @@ impl Parser {
             }
             Some(Kind::TextTable) => {
                 if blank {
-                    self.finalize_text_table(leaf);
-                    return false;
+                    let text = self.node_text(leaf);
+                    let first = text.split('\n').next().unwrap_or("");
+                    // A header-led table (its first line is text, not a ruling) ends at the blank.
+                    // A dash-led table ends only once its closing ruling has been read; until then a
+                    // blank separates the multi-line rows of the body and is kept.
+                    let settle = !texttable::is_dash_line(first)
+                        || texttable::is_dash_line(last_nonempty_line(&text));
+                    if settle {
+                        self.finalize_text_table(leaf);
+                        return false;
+                    }
+                    self.append_text(leaf, "\n");
+                    return true;
                 }
                 self.append_text(leaf, &cursor.rest_with_newline());
                 true
@@ -1899,6 +1910,15 @@ fn split_table_lines(text: &str) -> Vec<&str> {
 
 fn owned_lines(lines: &[&str]) -> Vec<String> {
     lines.iter().map(|line| (*line).to_owned()).collect()
+}
+
+/// The last non-blank physical line of an accumulated leaf's text, scanning back from the end so the
+/// cost is the length of that line rather than the whole accumulation.
+fn last_nonempty_line(text: &str) -> &str {
+    text.trim_end_matches('\n')
+        .rsplit('\n')
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("")
 }
 
 /// Whether a dash-only line is a thematic break: three or more dashes, with spaces allowed between
