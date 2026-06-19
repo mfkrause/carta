@@ -1109,10 +1109,15 @@ impl Parser {
         if !matches!(term_node.kind, Kind::Paragraph) || term_node.text.trim().is_empty() {
             return None;
         }
-        // A paragraph that is itself a grid table is not a definition term; a following `:` line is
-        // its caption, not a definition marker.
+        // A paragraph that is itself a grid or pipe table is not a definition term; a following `:`
+        // line is its caption, not a definition marker.
         if self.extensions.contains(Extension::GridTables)
             && grid::parse(term_node.text.trim()).is_some()
+        {
+            return None;
+        }
+        if self.extensions.contains(Extension::PipeTables)
+            && table::try_parse(term_node.text.trim()).is_some()
         {
             return None;
         }
@@ -1360,11 +1365,11 @@ impl Parser {
         }
         let mut footnotes = self.collect_footnotes();
         for blocks in footnotes.values_mut() {
-            attach_grid_captions(blocks, self.extensions);
+            attach_table_captions(blocks, self.extensions);
         }
         let examples = self.number_examples();
         let mut blocks = self.build_children(0);
-        attach_grid_captions(&mut blocks, self.extensions);
+        attach_table_captions(&mut blocks, self.extensions);
         (blocks, self.refs, footnotes, examples)
     }
 
@@ -1487,6 +1492,7 @@ impl Parser {
                         alignments,
                         header,
                         rows,
+                        caption: None,
                     }
                 } else {
                     IrBlock::Para(trimmed.to_owned())
@@ -1638,25 +1644,26 @@ pub(crate) fn demote_loose_paragraphs(blocks: &mut [IrBlock]) {
     }
 }
 
-/// Attach grid-table captions: a paragraph led by `Table:` (case-insensitive) or `:` becomes the
-/// caption of the grid table immediately before it, or, failing that, immediately after it. The
-/// caption attaches to the nearer uncaptioned table and is removed from the block list; with no such
-/// table it stays an ordinary paragraph. The pass recurses into nested block containers first.
-fn attach_grid_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
+/// Attach table captions: a paragraph led by `Table:`, `table:`, or `:` becomes the caption of the
+/// table — pipe, dash-ruled, or grid — immediately before it, or, failing that, immediately after
+/// it. The caption attaches to the nearer uncaptioned table and is removed from the block list; with
+/// no such table it stays an ordinary paragraph. Working in document order, a caption above a table
+/// is reached first, so it wins over one below. The pass recurses into nested block containers first.
+fn attach_table_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
     for block in blocks.iter_mut() {
         match block {
             IrBlock::Div(_, children) | IrBlock::BlockQuote(children) => {
-                attach_grid_captions(children, ext);
+                attach_table_captions(children, ext);
             }
             IrBlock::BulletList(items) | IrBlock::OrderedList(_, items) => {
                 for item in items {
-                    attach_grid_captions(item, ext);
+                    attach_table_captions(item, ext);
                 }
             }
             IrBlock::DefinitionList(items) => {
                 for item in items {
                     for definition in &mut item.definitions {
-                        attach_grid_captions(definition, ext);
+                        attach_table_captions(definition, ext);
                     }
                 }
             }
@@ -1672,8 +1679,8 @@ fn attach_grid_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
             i += 1;
             continue;
         };
-        let attached = (i >= 1 && set_grid_caption(blocks, i - 1, &caption))
-            || (i + 1 < blocks.len() && set_grid_caption(blocks, i + 1, &caption));
+        let attached = (i >= 1 && set_table_caption(blocks, i - 1, &caption))
+            || (i + 1 < blocks.len() && set_table_caption(blocks, i + 1, &caption));
         if attached {
             blocks.remove(i);
         } else {
@@ -1682,8 +1689,8 @@ fn attach_grid_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
     }
 }
 
-/// The caption text of a paragraph block led by a `Table:`/`:` marker, with the marker stripped;
-/// `None` for any other block.
+/// The caption text of a paragraph block led by a `Table:`/`table:`/`:` marker, with the marker
+/// stripped; `None` for any other block.
 fn caption_text(block: Option<&IrBlock>) -> Option<String> {
     let IrBlock::Para(text) = block? else {
         return None;
@@ -1699,22 +1706,29 @@ fn caption_text(block: Option<&IrBlock>) -> Option<String> {
     })
 }
 
-/// Strip a leading `Table:` (case-insensitive) or `:` caption marker and the spaces after it,
-/// returning the remaining first-line text; `None` when no marker is present.
+/// Strip a leading `Table:`, `table:`, or `:` caption marker and the spaces after it, returning the
+/// remaining first-line text; `None` when no marker is present. Only the marker's first letter may
+/// vary in case, so `TABLE:` is not a marker.
 fn strip_caption_marker(first: &str) -> Option<&str> {
-    if first.get(..6).is_some_and(|p| p.eq_ignore_ascii_case("Table:")) {
-        return Some(first.get(6..).unwrap_or("").trim_start());
+    for marker in ["Table:", "table:"] {
+        if let Some(rest) = first.strip_prefix(marker) {
+            return Some(rest.trim_start());
+        }
     }
     first.strip_prefix(':').map(str::trim_start)
 }
 
-/// Set `text` as the caption of the grid table at `index`, if that block is a grid table that has no
-/// caption yet. Returns whether the caption was attached.
-fn set_grid_caption(blocks: &mut [IrBlock], index: usize, text: &str) -> bool {
-    if let Some(IrBlock::GridTable(table)) = blocks.get_mut(index)
-        && table.caption.is_none()
-    {
-        table.caption = Some(text.to_owned());
+/// Set `text` as the caption of the table at `index`, if that block is a pipe, dash-ruled, or grid
+/// table that has no caption yet. Returns whether the caption was attached.
+fn set_table_caption(blocks: &mut [IrBlock], index: usize, text: &str) -> bool {
+    let slot = match blocks.get_mut(index) {
+        Some(IrBlock::Table { caption, .. }) => caption,
+        Some(IrBlock::TextTable(table)) => &mut table.caption,
+        Some(IrBlock::GridTable(table)) => &mut table.caption,
+        _ => return false,
+    };
+    if slot.is_none() {
+        *slot = Some(text.to_owned());
         return true;
     }
     false
@@ -2000,5 +2014,43 @@ fn strip_atx_closing(content: &str) -> String {
         without_hashes.trim_end_matches([' ', '\t']).to_owned()
     } else {
         trimmed.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_caption_marker;
+
+    #[test]
+    fn recognizes_the_three_caption_markers() {
+        assert_eq!(strip_caption_marker("Table: A caption"), Some("A caption"));
+        assert_eq!(strip_caption_marker("table: A caption"), Some("A caption"));
+        assert_eq!(strip_caption_marker(": A caption"), Some("A caption"));
+    }
+
+    #[test]
+    fn drops_the_spaces_after_the_marker() {
+        assert_eq!(strip_caption_marker("Table:caption"), Some("caption"));
+        assert_eq!(strip_caption_marker("Table:    caption"), Some("caption"));
+        assert_eq!(strip_caption_marker(":caption"), Some("caption"));
+    }
+
+    #[test]
+    fn only_the_first_letter_may_vary_in_case() {
+        assert_eq!(strip_caption_marker("TABLE: x"), None);
+        assert_eq!(strip_caption_marker("TAble: x"), None);
+        assert_eq!(strip_caption_marker("tABLE: x"), None);
+    }
+
+    #[test]
+    fn a_space_before_the_colon_is_not_a_marker() {
+        assert_eq!(strip_caption_marker("Table : x"), None);
+        assert_eq!(strip_caption_marker("table : x"), None);
+    }
+
+    #[test]
+    fn a_line_without_a_marker_is_rejected() {
+        assert_eq!(strip_caption_marker("Just a paragraph"), None);
+        assert_eq!(strip_caption_marker("Tablexyz"), None);
     }
 }

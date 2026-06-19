@@ -74,11 +74,13 @@ pub(crate) enum IrBlock {
     BulletList(Vec<Vec<IrBlock>>),
     OrderedList(ListAttributes, Vec<Vec<IrBlock>>),
     /// A pipe table: per-column alignments, the header row's cell texts, and the body rows' cell
-    /// texts. Each cell's text is parsed into inlines in the inline phase.
+    /// texts. Each cell's text is parsed into inlines in the inline phase. Any caption is attached
+    /// after the block phase.
     Table {
         alignments: Vec<Alignment>,
         header: Vec<String>,
         rows: Vec<Vec<String>>,
+        caption: Option<String>,
     },
     /// A grid table: column specs plus header and body rows of still-raw cell text, each cell parsed
     /// as block content in the inline phase. Any caption is attached after the block phase.
@@ -1335,5 +1337,90 @@ mod tests {
             .read("---\nx: [\n---\n\nBody.\n", &options)
             .expect_err("malformed metadata should fail");
         assert!(matches!(error, carta_core::Error::InvalidMetadata(_)));
+    }
+
+    /// The inline caption of the first block, or `None` when that block is not a table or carries no
+    /// caption.
+    fn caption_inlines(blocks: &[Block]) -> Option<&[Inline]> {
+        let Block::Table(table) = blocks.first()? else {
+            return None;
+        };
+        match table.caption.long.as_slice() {
+            [Block::Plain(inlines)] => Some(inlines),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn a_pipe_table_takes_a_below_caption() {
+        let doc = document(
+            "| a | b |\n|---|---|\n| 1 | 2 |\n\nTable: A caption.\n",
+            &[Extension::PipeTables, Extension::TableCaptions],
+        );
+        assert!(matches!(doc.blocks.as_slice(), [Block::Table(_)]));
+        let inlines = caption_inlines(&doc.blocks).expect("captioned table");
+        assert_eq!(inlines.first(), Some(&Inline::Str("A".to_owned())));
+    }
+
+    #[test]
+    fn a_simple_table_takes_an_above_caption() {
+        let doc = document(
+            "table: Above it.\n\nName   Age\n----   ---\nAnn    9\n",
+            &[Extension::SimpleTables, Extension::TableCaptions],
+        );
+        assert!(matches!(doc.blocks.as_slice(), [Block::Table(_)]));
+        assert!(caption_inlines(&doc.blocks).is_some());
+    }
+
+    #[test]
+    fn a_multiline_caption_folds_across_lines() {
+        let doc = document(
+            "| a | b |\n|---|---|\n| 1 | 2 |\n\nTable: First line\nsecond line.\n",
+            &[Extension::PipeTables, Extension::TableCaptions],
+        );
+        let inlines = caption_inlines(&doc.blocks).expect("captioned table");
+        assert!(inlines.contains(&Inline::SoftBreak));
+    }
+
+    #[test]
+    fn a_bare_colon_below_a_pipe_table_is_a_caption_not_a_definition() {
+        // The `:` marker also opens a definition list; below a pipe table it is the table's caption,
+        // so the table must survive rather than collapsing into a definition term.
+        let doc = document(
+            "| a | b |\n|---|---|\n| 1 | 2 |\n\n: A bare-colon caption.\n",
+            &[
+                Extension::PipeTables,
+                Extension::TableCaptions,
+                Extension::DefinitionLists,
+            ],
+        );
+        assert!(matches!(doc.blocks.as_slice(), [Block::Table(_)]));
+        assert!(caption_inlines(&doc.blocks).is_some());
+    }
+
+    #[test]
+    fn an_uppercase_table_marker_is_not_a_caption() {
+        let doc = document(
+            "| a | b |\n|---|---|\n| 1 | 2 |\n\nTABLE: not a caption\n",
+            &[Extension::PipeTables, Extension::TableCaptions],
+        );
+        assert!(matches!(
+            doc.blocks.as_slice(),
+            [Block::Table(_), Block::Para(_)]
+        ));
+        assert!(caption_inlines(&doc.blocks).is_none());
+    }
+
+    #[test]
+    fn an_ordinary_definition_list_is_unaffected_by_caption_handling() {
+        let doc = document(
+            "Term\n\n: Its definition.\n",
+            &[
+                Extension::PipeTables,
+                Extension::TableCaptions,
+                Extension::DefinitionLists,
+            ],
+        );
+        assert!(matches!(doc.blocks.as_slice(), [Block::DefinitionList(_)]));
     }
 }
