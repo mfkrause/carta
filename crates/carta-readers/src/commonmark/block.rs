@@ -183,6 +183,22 @@ impl Node {
     }
 }
 
+/// How an open paragraph absorbs the block openers on the next line (see [`Parser::greedy_gates`]).
+// Four independent fold decisions, each governing a distinct opener — they are flags by nature.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Copy, Default)]
+struct GreedyGates {
+    /// The foldable openers — block quote, heading, thematic break, fenced div, footnote definition
+    /// — continue the paragraph as a lazy line rather than interrupting it.
+    foldable: bool,
+    /// A list marker that would *start* a fresh list folds; one continuing an open list still opens.
+    list_start: bool,
+    /// The block-quote fold, gated further on `blank_before_blockquote`.
+    blockquote: bool,
+    /// The heading fold, gated further on `blank_before_header`.
+    heading: bool,
+}
+
 struct Parser {
     nodes: Vec<Node>,
     refs: RefMap,
@@ -964,10 +980,7 @@ impl Parser {
             return false;
         };
         let before = trimmed.get(..found.start).unwrap_or("");
-        let close_tag = trimmed
-            .get(found.start..found.end)
-            .unwrap_or("")
-            .to_owned();
+        let close_tag = trimmed.get(found.start..found.end).unwrap_or("").to_owned();
         let after = trimmed.get(found.end..).unwrap_or("").to_owned();
         let trails = !before.trim().is_empty();
         if trails {
@@ -980,10 +993,7 @@ impl Parser {
         let tighten = if info.as_div {
             trails
         } else {
-            matches!(
-                self.kind(self.deepest_open(element)),
-                Some(Kind::Paragraph)
-            )
+            matches!(self.kind(self.deepest_open(element)), Some(Kind::Paragraph))
         };
         // The deepest open block under the element is the close boundary's chain tip.
         let tip = self.deepest_open(container);
@@ -1211,19 +1221,19 @@ impl Parser {
         }
     }
 
-    /// How a greedy paragraph (the markdown dialect) absorbs a following block opener. The first
-    /// flag covers the foldable openers — a block quote, heading, thematic break, fenced div, or
-    /// footnote definition continues an open paragraph as a lazy line rather than interrupting it,
-    /// even across a container the line did not match (`> a` then `# b`); only a blank line, a fenced
-    /// code block, or an HTML block ends it. The block-quote and heading folds are gated further on
-    /// the `blank_before_blockquote` and `blank_before_header` toggles, so dropping a toggle lets
-    /// that opener interrupt again. The second covers a list marker, which is structural: it
-    /// still opens a sibling item in an open list or a sublist inside an item, and folds only where
-    /// it would otherwise *start* a fresh list — when the paragraph is the container's own last child
-    /// and the container is not itself a list item or other indented item body.
-    fn greedy_gates(&self, container: usize, in_paragraph: bool) -> (bool, bool) {
+    /// How a greedy paragraph (the markdown dialect) absorbs a following block opener. The foldable
+    /// openers — a block quote, heading, thematic break, fenced div, or footnote definition —
+    /// continue an open paragraph as a lazy line rather than interrupting it, even across a container
+    /// the line did not match (`> a` then `# b`); only a blank line, a fenced code block, or an HTML
+    /// block ends it. The block-quote and heading folds are gated further on the
+    /// `blank_before_blockquote` and `blank_before_header` toggles, so dropping a toggle lets that
+    /// opener interrupt again. A list marker is structural: it still opens a sibling item in an open
+    /// list or a sublist inside an item, and folds only where it would otherwise *start* a fresh list
+    /// — when the paragraph is the container's own last child and the container is not itself a list
+    /// item or other indented item body.
+    fn greedy_gates(&self, container: usize, in_paragraph: bool) -> GreedyGates {
         if !self.greedy_paragraphs {
-            return (false, false);
+            return GreedyGates::default();
         }
         let fresh_list_into_paragraph = !matches!(
             self.kind(container),
@@ -1233,19 +1243,21 @@ impl Parser {
                 .and_then(|child| self.kind(child)),
             Some(Kind::Paragraph)
         );
-        (in_paragraph, fresh_list_into_paragraph)
+        GreedyGates {
+            foldable: in_paragraph,
+            list_start: fresh_list_into_paragraph,
+            blockquote: in_paragraph && self.extensions.contains(Extension::BlankBeforeBlockquote),
+            heading: in_paragraph && self.extensions.contains(Extension::BlankBeforeHeader),
+        }
     }
 
     /// Try to open a new block at the current cursor position inside `container`.
+    // A flat dispatch over the block openers, tried in precedence order; it reads best as one sequence.
+    #[allow(clippy::too_many_lines)]
     fn try_open(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
         let indent = cursor.indent();
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
-        let (greedy, greedy_list_start) = self.greedy_gates(container, in_paragraph);
-        // A heading or block quote folds into a greedy paragraph only when its dialect toggle is on;
-        // without that toggle the opener interrupts the paragraph as usual. The remaining foldable
-        // openers (footnote, fenced div, thematic break) follow the plain greedy flag.
-        let greedy_heading = greedy && self.extensions.contains(Extension::BlankBeforeHeader);
-        let greedy_blockquote = greedy && self.extensions.contains(Extension::BlankBeforeBlockquote);
+        let gates = self.greedy_gates(container, in_paragraph);
 
         if indent >= TAB_STOP && !in_paragraph {
             cursor.advance_columns(TAB_STOP);
@@ -1260,7 +1272,7 @@ impl Parser {
             if let Some(block) = self.open_raw_tex(container, cursor) {
                 return Some(block);
             }
-            if !greedy_blockquote && cursor.peek() == Some(b'>') {
+            if !gates.blockquote && cursor.peek() == Some(b'>') {
                 cursor.advance_one();
                 cursor.consume_optional_space();
                 let parent = self.place(container, &Kind::BlockQuote);
@@ -1269,7 +1281,7 @@ impl Parser {
             // A footnote definition opens here; its content is then gathered by the enclosing
             // container loop, the same as a block quote's. Like the other openers it folds into a
             // greedy paragraph rather than interrupting it.
-            if !greedy
+            if !gates.foldable
                 && self.extensions.contains(Extension::Footnotes)
                 && let Some(label) = cursor.footnote_def_marker()
             {
@@ -1279,7 +1291,7 @@ impl Parser {
             }
             // A fenced div opens on a colon-run line carrying a valid attribute spec; it may
             // interrupt a paragraph. The whole fence line is consumed, so the div opens empty.
-            if !greedy && self.extensions.contains(Extension::FencedDivs) {
+            if !gates.foldable && self.extensions.contains(Extension::FencedDivs) {
                 let opener = div_open_fence(cursor.remaining());
                 if let Some((count, attr)) = opener {
                     let width = cursor.remaining().chars().count();
@@ -1293,7 +1305,9 @@ impl Parser {
                     return Some(self.append_child(parent, Node::new(kind)));
                 }
             }
-            if !greedy_heading && let Some(level) = cursor.atx_heading() {
+            if !gates.heading
+                && let Some(level) = cursor.atx_heading()
+            {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
                 self.append_text(index, &strip_atx_closing(&cursor.rest()));
@@ -1341,7 +1355,7 @@ impl Parser {
                 self.append_text(index, "\n");
                 return Some(index);
             }
-            if !greedy && cursor.thematic_break() {
+            if !gates.foldable && cursor.thematic_break() {
                 let parent = self.place(container, &Kind::ThematicBreak);
                 let index = self.append_child(parent, Node::new(Kind::ThematicBreak));
                 self.close(index);
@@ -1357,7 +1371,9 @@ impl Parser {
             {
                 return Some(body);
             }
-            if !greedy_list_start && let Some(list) = self.list_marker(container, indent, cursor) {
+            if !gates.list_start
+                && let Some(list) = self.list_marker(container, indent, cursor)
+            {
                 return Some(list);
             }
         }
@@ -2284,9 +2300,7 @@ fn raw_tex_scan(line: &str, name: &str, mut depth: usize) -> (usize, Option<usiz
         if raw_tex_env_name(rest, b"end").as_deref() == Some(name) {
             depth = depth.saturating_sub(1);
             // Advance past this `\end{...}` so the close offset lands just after its brace.
-            let end_off = rest
-                .find('}')
-                .map_or(line.len(), |brace| i + brace + 1);
+            let end_off = rest.find('}').map_or(line.len(), |brace| i + brace + 1);
             if depth == 0 {
                 return (0, Some(end_off));
             }
@@ -2445,11 +2459,41 @@ struct AlertType {
 }
 
 const ALERT_TYPES: &[(&str, AlertType)] = &[
-    ("note", AlertType { class: "note", title: "Note" }),
-    ("tip", AlertType { class: "tip", title: "Tip" }),
-    ("important", AlertType { class: "important", title: "Important" }),
-    ("warning", AlertType { class: "warning", title: "Warning" }),
-    ("caution", AlertType { class: "caution", title: "Caution" }),
+    (
+        "note",
+        AlertType {
+            class: "note",
+            title: "Note",
+        },
+    ),
+    (
+        "tip",
+        AlertType {
+            class: "tip",
+            title: "Tip",
+        },
+    ),
+    (
+        "important",
+        AlertType {
+            class: "important",
+            title: "Important",
+        },
+    ),
+    (
+        "warning",
+        AlertType {
+            class: "warning",
+            title: "Warning",
+        },
+    ),
+    (
+        "caution",
+        AlertType {
+            class: "caution",
+            title: "Caution",
+        },
+    ),
 ];
 
 /// If `line` is exactly an alert marker `[!TYPE]` followed by only trailing whitespace — with no
@@ -2994,10 +3038,22 @@ mod tests {
 
     #[test]
     fn reads_the_begin_environment_name() {
-        assert_eq!(raw_tex_env_name("\\begin{center}", b"begin").as_deref(), Some("center"));
-        assert_eq!(raw_tex_env_name("\\begin {center}", b"begin").as_deref(), Some("center"));
-        assert_eq!(raw_tex_env_name("\\end{a}rest", b"end").as_deref(), Some("a"));
-        assert_eq!(raw_tex_env_name("\\begin{ a }", b"begin").as_deref(), Some(" a "));
+        assert_eq!(
+            raw_tex_env_name("\\begin{center}", b"begin").as_deref(),
+            Some("center")
+        );
+        assert_eq!(
+            raw_tex_env_name("\\begin {center}", b"begin").as_deref(),
+            Some("center")
+        );
+        assert_eq!(
+            raw_tex_env_name("\\end{a}rest", b"end").as_deref(),
+            Some("a")
+        );
+        assert_eq!(
+            raw_tex_env_name("\\begin{ a }", b"begin").as_deref(),
+            Some(" a ")
+        );
         assert_eq!(raw_tex_env_name("\\begin{}", b"begin").as_deref(), Some(""));
         // A bare word, a missing brace, or the wrong keyword is not a match.
         assert_eq!(raw_tex_env_name("\\beginabc", b"begin"), None);
@@ -3077,7 +3133,12 @@ mod tests {
 
     #[test]
     fn the_extension_off_leaves_the_syntax_literal() {
-        let out = parse("\\begin{center}\nx\n\\end{center}\n", presets::COMMONMARK, false).0;
+        let out = parse(
+            "\\begin{center}\nx\n\\end{center}\n",
+            presets::COMMONMARK,
+            false,
+        )
+        .0;
         assert_eq!(out.len(), 1);
         assert!(matches!(out.first(), Some(IrBlock::Para(_))));
     }
@@ -3092,9 +3153,18 @@ mod tests {
     fn alert_marker_recognizes_every_kind_case_insensitively() {
         assert_eq!(alert_marker_type("[!NOTE]").map(|t| t.class), Some("note"));
         assert_eq!(alert_marker_type("[!tip]").map(|t| t.class), Some("tip"));
-        assert_eq!(alert_marker_type("[!Important]").map(|t| t.class), Some("important"));
-        assert_eq!(alert_marker_type("[!wArNiNg]").map(|t| t.class), Some("warning"));
-        assert_eq!(alert_marker_type("[!CAUTION]").map(|t| t.title), Some("Caution"));
+        assert_eq!(
+            alert_marker_type("[!Important]").map(|t| t.class),
+            Some("important")
+        );
+        assert_eq!(
+            alert_marker_type("[!wArNiNg]").map(|t| t.class),
+            Some("warning")
+        );
+        assert_eq!(
+            alert_marker_type("[!CAUTION]").map(|t| t.title),
+            Some("Caution")
+        );
     }
 
     #[test]
@@ -3197,7 +3267,10 @@ mod tests {
         assert_eq!(body, "Cap {#x}");
         assert_eq!(attr.expect("attr parsed").id, "y");
         // A block followed by more text is not trailing and stays untouched.
-        assert_eq!(split_trailing_attr("Cap {#x} more"), ("Cap {#x} more", None));
+        assert_eq!(
+            split_trailing_attr("Cap {#x} more"),
+            ("Cap {#x} more", None)
+        );
     }
 
     #[test]
@@ -3211,8 +3284,7 @@ mod tests {
 
     #[test]
     fn caption_attributes_attach_to_the_table() {
-        let (attr, caption) =
-            table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: My cap {#t .w}\n");
+        let (attr, caption) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: My cap {#t .w}\n");
         assert_eq!(attr.id, "t");
         assert_eq!(attr.classes, ["w"]);
         assert_eq!(caption.as_deref(), Some("My cap"));
@@ -3226,8 +3298,7 @@ mod tests {
 
     #[test]
     fn caption_without_a_block_leaves_attr_empty() {
-        let (attr, caption) =
-            table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: just a caption\n");
+        let (attr, caption) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: just a caption\n");
         assert!(attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty());
         assert_eq!(caption.as_deref(), Some("just a caption"));
     }
@@ -3237,7 +3308,12 @@ mod tests {
         // With table attributes disabled, the trailing block on a caption is kept verbatim as
         // caption text rather than split off onto the table's attributes.
         let mut table = blocks("| a |\n|---|\n| 1 |\n");
-        assert!(super::set_table_caption(&mut table, 0, "c {#t}", presets::COMMONMARK));
+        assert!(super::set_table_caption(
+            &mut table,
+            0,
+            "c {#t}",
+            presets::COMMONMARK
+        ));
         let (attr, caption) = match table.into_iter().next() {
             Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
             Some(IrBlock::TextTable(t)) => (t.attr, t.caption),
@@ -3292,7 +3368,8 @@ mod html_element_tests {
 
     #[test]
     fn nested_divs_balance_into_a_tree() {
-        let out = md("<div class=\"outer\">\n\n<div class=\"inner\">\n\ntext\n\n</div>\n\n</div>\n");
+        let out =
+            md("<div class=\"outer\">\n\n<div class=\"inner\">\n\ntext\n\n</div>\n\n</div>\n");
         let [IrBlock::Div(outer, outer_children)] = out.as_slice() else {
             panic!("expected one outer div, got {out:?}");
         };
@@ -3353,7 +3430,11 @@ mod html_element_tests {
     #[test]
     fn non_div_block_tag_keeps_raw_tags_around_parsed_content() {
         let out = md("<section class=\"n\">\n\n*hi*\n\n</section>\n");
-        let [IrBlock::RawHtml(open), IrBlock::Para(_), IrBlock::RawHtml(close)] = out.as_slice()
+        let [
+            IrBlock::RawHtml(open),
+            IrBlock::Para(_),
+            IrBlock::RawHtml(close),
+        ] = out.as_slice()
         else {
             panic!("expected raw-open, para, raw-close; got {out:?}");
         };
@@ -3383,7 +3464,11 @@ mod html_element_tests {
             "<div class=\"n\">\n*hi*\n</div>\n",
             &[Extension::MarkdownInHtmlBlocks],
         );
-        let [IrBlock::RawHtml(open), IrBlock::Plain(_), IrBlock::RawHtml(close)] = out.as_slice()
+        let [
+            IrBlock::RawHtml(open),
+            IrBlock::Plain(_),
+            IrBlock::RawHtml(close),
+        ] = out.as_slice()
         else {
             panic!("expected raw div fallback, got {out:?}");
         };
@@ -3396,7 +3481,11 @@ mod html_element_tests {
         // With neither extension, a `<div>` is an ordinary raw HTML block ended by a blank line, so
         // its inner text is not parsed as a div or wrapped in tightened content.
         let out = with("<div>\n\nfoo\n\n</div>\n", &[]);
-        let [IrBlock::RawHtml(open), IrBlock::Para(text), IrBlock::RawHtml(_)] = out.as_slice()
+        let [
+            IrBlock::RawHtml(open),
+            IrBlock::Para(text),
+            IrBlock::RawHtml(_),
+        ] = out.as_slice()
         else {
             panic!("expected the raw HTML-block reading, got {out:?}");
         };
@@ -3440,7 +3529,10 @@ mod html_element_tests {
         assert_eq!(tag.tag, "div");
         assert_eq!(tag.attr.id, "x");
         assert_eq!(tag.attr.classes, vec!["a".to_owned(), "b".to_owned()]);
-        assert_eq!(tag.attr.attributes, vec![("data-k".to_owned(), "v".to_owned())]);
+        assert_eq!(
+            tag.attr.attributes,
+            vec![("data-k".to_owned(), "v".to_owned())]
+        );
         // The extent stops just past the `>`, leaving any same-line remainder.
         assert_eq!(tag.len, "<div id=\"x\" class=\"a b\" data-k=v>".len());
     }
@@ -3463,7 +3555,10 @@ mod html_element_tests {
     fn parse_open_tag_records_a_valueless_attribute_as_an_empty_value() {
         let tag = html_element::parse_open_tag("<div hidden class=\"a\">").expect("a div");
         assert_eq!(tag.attr.classes, vec!["a".to_owned()]);
-        assert_eq!(tag.attr.attributes, vec![("hidden".to_owned(), String::new())]);
+        assert_eq!(
+            tag.attr.attributes,
+            vec![("hidden".to_owned(), String::new())]
+        );
     }
 
     #[test]
