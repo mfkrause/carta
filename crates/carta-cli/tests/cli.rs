@@ -153,3 +153,79 @@ fn invalid_json_input_fails() {
         result.stderr
     );
 }
+
+fn lines(stdout: &str) -> Vec<&str> {
+    stdout.lines().collect()
+}
+
+#[test]
+fn list_input_formats_needs_no_conversion_flags() {
+    let result = run(&["--list-input-formats"], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    let formats = lines(&result.stdout);
+    // Canonical names and their aliases are both listed, sorted.
+    for expected in [
+        "commonmark",
+        "commonmark_x",
+        "gfm",
+        "json",
+        "markdown",
+        "native",
+    ] {
+        assert!(
+            formats.contains(&expected),
+            "missing {expected}: {formats:?}"
+        );
+    }
+    let mut sorted = formats.clone();
+    sorted.sort_unstable();
+    assert_eq!(formats, sorted, "output is not sorted");
+}
+
+#[test]
+fn list_output_formats_includes_aliases() {
+    let result = run(&["--list-output-formats"], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    let formats = lines(&result.stdout);
+    for expected in ["html", "html4", "html5", "latex", "beamer", "json"] {
+        assert!(
+            formats.contains(&expected),
+            "missing {expected}: {formats:?}"
+        );
+    }
+}
+
+#[test]
+fn list_extensions_defaults_to_markdown_dialect() {
+    let result = run(&["--list-extensions"], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    let extensions = lines(&result.stdout);
+    assert!(extensions.contains(&"+smart"), "{extensions:?}");
+    assert!(extensions.contains(&"+pipe_tables"), "{extensions:?}");
+    assert!(
+        extensions.contains(&"-gfm_auto_identifiers"),
+        "{extensions:?}"
+    );
+}
+
+#[test]
+fn list_extensions_reflects_the_requested_format() {
+    let result = run(&["--list-extensions=commonmark"], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    let extensions = lines(&result.stdout);
+    // Strict CommonMark enables only raw HTML.
+    assert!(extensions.contains(&"+raw_html"), "{extensions:?}");
+    assert!(extensions.contains(&"-smart"), "{extensions:?}");
+    assert!(extensions.contains(&"-pipe_tables"), "{extensions:?}");
+}
+
+#[test]
+fn list_extensions_rejects_an_unknown_format() {
+    let result = run(&["--list-extensions=bogus"], "");
+    assert!(!result.success);
+    assert!(
+        result.stderr.contains("unsupported format: bogus"),
+        "stderr: {}",
+        result.stderr
+    );
+}

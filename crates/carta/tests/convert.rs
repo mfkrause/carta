@@ -77,3 +77,71 @@ fn every_supported_format_resolves() {
         );
     }
 }
+
+#[test]
+fn format_names_are_sorted_and_every_name_resolves() {
+    let inputs = carta::input_format_names();
+    let mut sorted = inputs.clone();
+    sorted.sort_unstable();
+    assert_eq!(inputs, sorted, "input names are not sorted");
+    for name in &inputs {
+        assert!(
+            reader_for(name).is_ok(),
+            "input name {name} does not resolve"
+        );
+    }
+
+    let outputs = carta::output_format_names();
+    let mut sorted = outputs.clone();
+    sorted.sort_unstable();
+    assert_eq!(outputs, sorted, "output names are not sorted");
+    for name in &outputs {
+        assert!(
+            writer_for(name).is_ok(),
+            "output name {name} does not resolve"
+        );
+    }
+}
+
+#[cfg(feature = "read-commonmark")]
+#[test]
+fn format_names_include_aliases() {
+    let inputs = carta::input_format_names();
+    for alias in ["commonmark", "commonmark_x", "gfm", "markdown"] {
+        assert!(inputs.contains(&alias), "missing input alias {alias}");
+    }
+}
+
+#[test]
+fn format_extensions_default_is_the_markdown_dialect() {
+    let entries = carta::format_extensions(None).unwrap();
+    let enabled = |name: &str| {
+        entries
+            .iter()
+            .find(|(ext, _)| ext.name() == name)
+            .map(|(_, on)| *on)
+    };
+    assert_eq!(enabled("smart"), Some(true));
+    assert_eq!(enabled("gfm_auto_identifiers"), Some(false));
+
+    // Sorted by extension name.
+    let names: Vec<&str> = entries.iter().map(|(ext, _)| ext.name()).collect();
+    let mut sorted = names.clone();
+    sorted.sort_unstable();
+    assert_eq!(names, sorted);
+}
+
+#[test]
+fn format_extensions_honor_a_format_spec() {
+    let entries = carta::format_extensions(Some("commonmark+strikeout")).unwrap();
+    let enabled = |name: &str| entries.iter().any(|(ext, on)| ext.name() == name && *on);
+    assert!(enabled("raw_html"));
+    assert!(enabled("strikeout"));
+    assert!(!entries.iter().any(|(ext, on)| ext.name() == "smart" && *on));
+}
+
+#[test]
+fn format_extensions_reject_an_unknown_format() {
+    let error = carta::format_extensions(Some("bogus")).unwrap_err();
+    assert!(matches!(error, Error::UnsupportedFormat(name) if name == "bogus"));
+}

@@ -2,21 +2,18 @@
 
 **Reference machine:** Apple M1 Pro (10 cores), 16 GB RAM, macOS 26.5 (arm64)
 **carta:** commit `5e110f9`, release build (`cargo build --release`)
-**pandoc:** 3.10 (pinned oracle)
+**pandoc:** 3.10
 **Driver:** hyperfine 1.20.0, warmup 3, 12 runs
 
 ## Headline
 
 - **~10–30× faster** end-to-end across formats and sizes.
 - **~69× smaller** binary (2.6 MB vs 179.8 MB).
-- **~3–14× less peak memory** (thanks to no Haskell GC runtime).
+- **~3–14× less peak memory**.
 
 ## How to read this
 
-Both tools run with identical `-f/-t` flags; pandoc is configured so both tools produce equivalent output and do
-equivalent work. Times are wall-clock end-to-end (process start included). `speedup` = pandoc mean ÷
-carta mean. `MB/s` is carta throughput over the actual input size. RSS is peak resident memory from a
-single `/usr/bin/time` run.
+Both tools run with identical `-f/-t` flags; pandoc is configured so both tools produce equivalent output and do equivalent work. Times are wall-clock end-to-end (process start included). `speedup` = pandoc mean ÷ carta mean. `MB/s` is carta throughput over the actual input size. RSS is peak resident memory from a single `/usr/bin/time` run.
 
 ## reader — commonmark → json
 
