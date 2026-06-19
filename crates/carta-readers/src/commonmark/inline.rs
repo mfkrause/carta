@@ -763,6 +763,12 @@ impl InlineParser<'_> {
     }
 
     fn backslash(&mut self) {
+        // Backslash-delimited TeX math and raw TeX commands take precedence over a plain escape,
+        // each gated behind its own extension. `\\(`/`\\[` (double backslash) is tried before
+        // `\(`/`\[` (single backslash) so the longer opener wins.
+        if self.try_backslash_math() || self.try_raw_tex() {
+            return;
+        }
         self.pos += 1;
         match self.peek() {
             Some('\n') => {
@@ -778,6 +784,180 @@ impl InlineParser<'_> {
             }
             _ => self.push_text('\\'),
         }
+    }
+
+    /// Try the backslash math delimiters at the cursor (which sits on the leading `\`). `\(…\)` is
+    /// inline math and `\[…\]` is display math; the double-backslash forms `\\(…\\)` and `\\[…\\]`
+    /// use the same shapes with a doubled delimiter. Each form is gated behind its extension, and the
+    /// double-backslash form is preferred so its longer opener is not stolen by the single form.
+    /// Returns `true` (and advances past the closer) on a match, leaving a fallback escape otherwise.
+    fn try_backslash_math(&mut self) -> bool {
+        if self.ext.contains(Extension::TexMathDoubleBackslash)
+            && self.chars.get(self.pos) == Some(&'\\')
+            && self.chars.get(self.pos + 1) == Some(&'\\')
+            && self.scan_backslash_math(2)
+        {
+            return true;
+        }
+        if self.ext.contains(Extension::TexMathSingleBackslash)
+            && self.chars.get(self.pos) == Some(&'\\')
+            && self.scan_backslash_math(1)
+        {
+            return true;
+        }
+        false
+    }
+
+    /// Scan a backslash math span whose delimiters are `slashes` backslashes followed by `(` (inline)
+    /// or `[` (display). The cursor is on the first backslash; `slashes` counts the backslashes of the
+    /// opener. The content runs to the matching `slashes`-backslash + `)`/`]` closer, honoring
+    /// `\`-escapes inside, and must be non-empty before any trimming. Inline content is trimmed of
+    /// surrounding whitespace; display content is kept verbatim. On success the cursor moves past the
+    /// closer and a `Math` node is pushed.
+    fn scan_backslash_math(&mut self, slashes: usize) -> bool {
+        let open = self.pos + slashes;
+        let (close_bracket, math_type) = match self.chars.get(open).copied() {
+            Some('(') => (')', MathType::InlineMath),
+            Some('[') => (']', MathType::DisplayMath),
+            _ => return false,
+        };
+        let content_start = open + 1;
+        let mut i = content_start;
+        while self.chars.get(i).is_some() {
+            if self.is_backslash_math_closer(i, slashes, close_bracket) {
+                if i == content_start {
+                    return false; // empty content is not a math span
+                }
+                let raw: String = match self.chars.get(content_start..i) {
+                    Some(slice) => slice.iter().collect(),
+                    None => return false,
+                };
+                let content = match math_type {
+                    MathType::InlineMath => raw.trim().to_owned(),
+                    MathType::DisplayMath => raw,
+                };
+                self.pos = i + slashes + 1;
+                self.nodes
+                    .push(Node::Inline(Inline::Math(math_type, content)));
+                return true;
+            }
+            // The single-backslash form treats a `\` as escaping the next character, so an escaped
+            // delimiter inside the content does not close the span; the closer test above already
+            // ran, so a real `\)`/`\]` closer is never reached here. The double-backslash form has
+            // no such escaping: a longer backslash run simply leaves its leading backslashes in the
+            // content.
+            if slashes == 1 && self.chars.get(i) == Some(&'\\') && self.chars.get(i + 1).is_some() {
+                i += 2;
+                continue;
+            }
+            i += 1;
+        }
+        false
+    }
+
+    /// Whether a `slashes`-backslash run followed by `close` begins at index `i`.
+    fn is_backslash_math_closer(&self, i: usize, slashes: usize, close: char) -> bool {
+        (0..slashes).all(|k| self.chars.get(i + k) == Some(&'\\'))
+            && self.chars.get(i + slashes) == Some(&close)
+    }
+
+    /// Try a raw inline TeX command at the cursor (on the leading `\`), gated behind `raw_tex`. A
+    /// command is a backslash, an ASCII letter, and any following ASCII alphanumerics, optionally
+    /// followed by balanced `{…}` and `[…]` argument groups. A `{`-group that opens but cannot be
+    /// balance-closed reverts the whole command to literal text; an unclosable `[`-group simply ends
+    /// the group run, leaving the command captured so far. A command with no argument groups and an
+    /// all-letter name absorbs any run of trailing spaces and tabs (but not a newline). On a match the
+    /// verbatim source becomes a `RawInline (Format "tex")` and the cursor advances past it.
+    ///
+    /// Known limitations:
+    /// - Every group is consumed greedily, so a command takes all the `{…}`/`[…]` groups that
+    ///   directly follow it. Some commands accept only a fixed number of arguments and leave the
+    ///   rest as text; that per-command arity is not modeled here.
+    /// - A paragraph that is wholly a `\begin{env}…\end{env}` environment is recognized in the block
+    ///   phase; here every `\begin`/`\end` is treated as an ordinary inline command.
+    fn try_raw_tex(&mut self) -> bool {
+        if !self.ext.contains(Extension::RawTex) {
+            return false;
+        }
+        if self.chars.get(self.pos) != Some(&'\\') {
+            return false;
+        }
+        let mut i = self.pos + 1;
+        if !self.chars.get(i).is_some_and(char::is_ascii_alphabetic) {
+            return false;
+        }
+        i += 1;
+        let mut name_all_letters = true;
+        while let Some(&ch) = self.chars.get(i) {
+            if ch.is_ascii_alphabetic() {
+                i += 1;
+            } else if ch.is_ascii_digit() {
+                name_all_letters = false;
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        // Consume argument groups. A `{`-group must balance or the entire command reverts to text.
+        let mut had_group = false;
+        loop {
+            match self.chars.get(i).copied() {
+                Some('{') => match self.scan_balanced_group(i, '{', '}') {
+                    Some(end) => {
+                        i = end;
+                        had_group = true;
+                    }
+                    None => return false,
+                },
+                Some('[') => match self.scan_balanced_group(i, '[', ']') {
+                    Some(end) => {
+                        i = end;
+                        had_group = true;
+                    }
+                    None => break,
+                },
+                _ => break,
+            }
+        }
+
+        // A bare command whose name is all letters (no argument groups, no digits) absorbs a
+        // trailing run of spaces and tabs.
+        if !had_group && name_all_letters {
+            while matches!(self.chars.get(i).copied(), Some(' ' | '\t')) {
+                i += 1;
+            }
+        }
+
+        let source: String = match self.chars.get(self.pos..i) {
+            Some(slice) => slice.iter().collect(),
+            None => return false,
+        };
+        self.pos = i;
+        self.nodes.push(Node::Inline(Inline::RawInline(
+            carta_ast::Format("tex".to_owned()),
+            source,
+        )));
+        true
+    }
+
+    /// Scan a balanced group `open`…`close` starting at index `start` (which must hold `open`),
+    /// returning the index just past the matching `close`, or `None` if it never closes. Nested
+    /// same-kind delimiters are tracked by depth.
+    fn scan_balanced_group(&self, start: usize, open: char, close: char) -> Option<usize> {
+        let mut depth = 0usize;
+        let mut i = start;
+        while let Some(&ch) = self.chars.get(i) {
+            if ch == open {
+                depth += 1;
+            } else if ch == close {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i + 1);
+                }
+            }
+            i += 1;
+        }
+        None
     }
 
     fn code_span(&mut self) {
@@ -2591,5 +2771,121 @@ mod inline_tests {
             p("`<b>`{=html}"),
             vec![code("<b>"), str("{=html}")]
         );
+    }
+
+    // --- Inline raw TeX and backslash math ---
+
+    fn tex(source: &str) -> Inline {
+        Inline::RawInline(carta_ast::Format("tex".to_owned()), source.to_owned())
+    }
+
+    fn raw_tex() -> Extensions {
+        exts(&[Extension::RawTex])
+    }
+
+    fn single_math() -> Extensions {
+        exts(&[Extension::TexMathSingleBackslash])
+    }
+
+    fn double_math() -> Extensions {
+        exts(&[Extension::TexMathDoubleBackslash])
+    }
+
+    #[test]
+    fn raw_tex_commands_with_argument_groups() {
+        // Consecutive `{…}` groups are all captured.
+        assert_eq!(
+            pe(r"\textbf{b}\emph{c}", raw_tex()),
+            vec![tex(r"\textbf{b}"), tex(r"\emph{c}")]
+        );
+        // A leading optional `[…]` group precedes a `{…}` argument.
+        assert_eq!(pe(r"\sqrt[3]{8}", raw_tex()), vec![tex(r"\sqrt[3]{8}")]);
+        // Nested braces inside a group are balanced.
+        assert_eq!(pe(r"\foo{a{b}c}", raw_tex()), vec![tex(r"\foo{a{b}c}")]);
+    }
+
+    #[test]
+    fn raw_tex_bare_command_absorbs_trailing_blanks() {
+        // A command with no argument group swallows following spaces.
+        assert_eq!(
+            pe(r"\alpha y", raw_tex()),
+            vec![tex(r"\alpha "), str("y")]
+        );
+        // A command followed by an argument group does not absorb the trailing space.
+        assert_eq!(
+            pe(r"\foo{a} y", raw_tex()),
+            vec![tex(r"\foo{a}"), Inline::Space, str("y")]
+        );
+        // A command name carrying a digit does not absorb the trailing space.
+        assert_eq!(
+            pe(r"\foo1 y", raw_tex()),
+            vec![tex(r"\foo1"), Inline::Space, str("y")]
+        );
+        // The first character must be a letter, so a digit after the backslash is not a command.
+        assert_eq!(pe(r"\1foo", raw_tex()), vec![str(r"\1foo")]);
+    }
+
+    #[test]
+    fn raw_tex_unbalanced_brace_reverts_whole_command() {
+        // An unclosed `{`-group reverts the entire command to literal text.
+        assert_eq!(pe(r"\foo{a y", raw_tex()), vec![str(r"\foo{a"), Inline::Space, str("y")]);
+        // An unclosed `[`-group merely stops the group run; the command stands.
+        assert_eq!(
+            pe(r"\foo[a y", raw_tex()),
+            vec![tex(r"\foo"), str("[a"), Inline::Space, str("y")]
+        );
+    }
+
+    #[test]
+    fn raw_tex_off_leaves_escape_behavior() {
+        // Without the extension a command name is not raw TeX; `\t` is not punctuation so the
+        // backslash stays literal.
+        assert_eq!(p(r"\textbf{b}"), vec![str(r"\textbf{b}")]);
+        // A backslash escape of punctuation still works regardless of the extension.
+        assert_eq!(pe(r"\*", raw_tex()), vec![str("*")]);
+    }
+
+    #[test]
+    fn single_backslash_math() {
+        assert_eq!(
+            pe(r"\(x\) \[y\]", single_math()),
+            vec![math_inline("x"), Inline::Space, math_display("y")]
+        );
+        // Inline content is trimmed; display content is verbatim.
+        assert_eq!(pe(r"\( x \)", single_math()), vec![math_inline("x")]);
+        assert_eq!(pe(r"\[ x = y \]", single_math()), vec![math_display(" x = y ")]);
+    }
+
+    #[test]
+    fn single_backslash_math_empty_and_unclosed_fall_back() {
+        // Empty content is not a math span: `\(` and `\)` revert to escaped parentheses.
+        assert_eq!(pe(r"\(\)", single_math()), vec![str("()")]);
+        // No closer: the opener's backslash escapes the `(`.
+        assert_eq!(pe(r"\(x", single_math()), vec![str("(x")]);
+        // A span of only spaces is still a (trimmed-empty) span.
+        assert_eq!(pe(r"\( \)", single_math()), vec![math_inline("")]);
+    }
+
+    #[test]
+    fn single_backslash_math_escapes_inside_content() {
+        // An escaped delimiter inside the content does not close the span.
+        assert_eq!(
+            pe(r"\(a\\)b\)", single_math()),
+            vec![math_inline(r"a\\)b")]
+        );
+    }
+
+    #[test]
+    fn double_backslash_math() {
+        assert_eq!(
+            pe(r"\\(x\\) \\[y\\]", double_math()),
+            vec![math_inline("x"), Inline::Space, math_display("y")]
+        );
+    }
+
+    #[test]
+    fn backslash_math_off_leaves_escape_behavior() {
+        // Without the extension `\(` is a plain escaped parenthesis.
+        assert_eq!(p(r"\(x\)"), vec![str("(x)")]);
     }
 }
