@@ -1026,6 +1026,15 @@ impl InlineParser<'_> {
                 break;
             }
         }
+        // `\begin`/`\end` are raw TeX only as a complete, matched environment, never as bare
+        // commands: capture the whole `\begin{ENV}`…`\end{ENV}`, or leave the text literal.
+        let name = self.chars.get(self.pos + 1..i);
+        if name.is_some_and(|n| "begin".chars().eq(n.iter().copied())) {
+            return self.try_raw_tex_environment(i);
+        }
+        if name.is_some_and(|n| "end".chars().eq(n.iter().copied())) {
+            return false;
+        }
         // Consume argument groups. A `{`-group must balance or the entire command reverts to text.
         let mut had_group = false;
         loop {
@@ -1066,6 +1075,93 @@ impl InlineParser<'_> {
             source,
         )));
         true
+    }
+
+    /// Capture a complete `\begin{ENV}`…matching `\end{ENV}` as a single raw TeX inline. The
+    /// opener's `{ENV}` group names the environment; nested `\begin{ENV}`/`\end{ENV}` of that same
+    /// name deepen and lift the nesting, and the capture ends at the `\end{ENV}` that returns the
+    /// depth to zero. Without a `{ENV}` group or a matching close the `\begin` is not raw TeX and
+    /// the call reverts to literal text by returning `false`.
+    fn try_raw_tex_environment(&mut self, name_end: usize) -> bool {
+        if self.chars.get(name_end).copied() != Some('{') {
+            return false;
+        }
+        let Some(group_end) = self.scan_balanced_group(name_end, '{', '}') else {
+            return false;
+        };
+        let env: Vec<char> = match self.chars.get(name_end + 1..group_end - 1) {
+            Some(slice) => slice.to_vec(),
+            None => return false,
+        };
+        let Some(end) = self.scan_environment_close(group_end, &env) else {
+            return false;
+        };
+        let source: String = match self.chars.get(self.pos..end) {
+            Some(slice) => slice.iter().collect(),
+            None => return false,
+        };
+        self.pos = end;
+        self.nodes.push(Node::Inline(Inline::RawInline(
+            carta_ast::Format("tex".to_owned()),
+            source,
+        )));
+        true
+    }
+
+    /// From `from`, find the index just past the `\end{ENV}` that closes an open `\begin{ENV}`,
+    /// tracking nested same-name environments by depth. `None` when no matching close is found.
+    fn scan_environment_close(&self, from: usize, env: &[char]) -> Option<usize> {
+        let mut depth = 1usize;
+        let mut i = from;
+        while i < self.chars.len() {
+            if self.chars.get(i).copied() == Some('\\') {
+                if let Some(after) = self.match_environment_marker(i, "begin", env) {
+                    depth += 1;
+                    i = after;
+                    continue;
+                }
+                if let Some(after) = self.match_environment_marker(i, "end", env) {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(after);
+                    }
+                    i = after;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// If the characters at `at` spell `\KEYWORD{ENV}` (e.g. `\end{equation}`), return the index
+    /// just past the closing brace; otherwise `None`.
+    fn match_environment_marker(&self, at: usize, keyword: &str, env: &[char]) -> Option<usize> {
+        let mut i = at;
+        if self.chars.get(i).copied() != Some('\\') {
+            return None;
+        }
+        i += 1;
+        for kc in keyword.chars() {
+            if self.chars.get(i).copied() != Some(kc) {
+                return None;
+            }
+            i += 1;
+        }
+        if self.chars.get(i).copied() != Some('{') {
+            return None;
+        }
+        i += 1;
+        for &ec in env {
+            if self.chars.get(i).copied() != Some(ec) {
+                return None;
+            }
+            i += 1;
+        }
+        if self.chars.get(i).copied() != Some('}') {
+            return None;
+        }
+        Some(i + 1)
     }
 
     /// Scan a balanced group `open`…`close` starting at index `start` (which must hold `open`),
@@ -4085,6 +4181,81 @@ mod inline_tests {
         assert_eq!(p(r"\textbf{b}"), vec![str(r"\textbf{b}")]);
         // A backslash escape of punctuation still works regardless of the extension.
         assert_eq!(pe(r"\*", raw_tex()), vec![str("*")]);
+    }
+
+    #[test]
+    fn raw_tex_environment_captured_as_one_inline() {
+        // A complete `\begin{ENV}`…`\end{ENV}` is one raw inline spanning the whole environment,
+        // body and interior newlines included.
+        assert_eq!(
+            pe("\\begin{equation}\nx\n\\end{equation}", raw_tex()),
+            vec![tex("\\begin{equation}\nx\n\\end{equation}")]
+        );
+        // The environment may sit on a single line amid surrounding text.
+        assert_eq!(
+            pe(r"a \begin{eq} z \end{eq} b", raw_tex()),
+            vec![
+                str("a"),
+                Inline::Space,
+                tex(r"\begin{eq} z \end{eq}"),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+        // A trailing `*` is part of the environment name, so the close must carry it too.
+        assert_eq!(
+            pe(r"\begin{equation*} x \end{equation*}", raw_tex()),
+            vec![tex(r"\begin{equation*} x \end{equation*}")]
+        );
+    }
+
+    #[test]
+    fn raw_tex_environment_balances_nested_begins() {
+        // A nested environment of the same name deepens the nesting; the capture ends at the
+        // matching outer close, not the first inner one.
+        assert_eq!(
+            pe(r"\begin{eq}\begin{eq}a\end{eq}\end{eq}", raw_tex()),
+            vec![tex(r"\begin{eq}\begin{eq}a\end{eq}\end{eq}")]
+        );
+        // A nested environment of a different name is just part of the outer body.
+        assert_eq!(
+            pe(
+                r"\begin{align}\begin{matrix}a\end{matrix}\end{align}",
+                raw_tex()
+            ),
+            vec![tex(r"\begin{align}\begin{matrix}a\end{matrix}\end{align}")]
+        );
+    }
+
+    #[test]
+    fn raw_tex_unmatched_environment_reverts_to_text() {
+        // Without a matching close, `\begin{ENV}` is literal text, not a raw command.
+        assert_eq!(
+            pe("\\begin{equation}\nx", raw_tex()),
+            vec![str(r"\begin{equation}"), Inline::SoftBreak, str("x")]
+        );
+        // A bare `\begin` with no `{ENV}` group is not raw TeX: the backslash precedes a letter,
+        // so it stays literal and the word is plain text.
+        assert_eq!(
+            pe(r"\begin x", raw_tex()),
+            vec![str(r"\begin"), Inline::Space, str("x")]
+        );
+        // A standalone `\end{ENV}` is literal text.
+        assert_eq!(
+            pe(r"\end{equation}", raw_tex()),
+            vec![str(r"\end{equation}")]
+        );
+        // A mismatched close does not satisfy the opener; the whole span reverts to text.
+        assert_eq!(
+            pe(r"\begin{equation} x \end{align}", raw_tex()),
+            vec![
+                str(r"\begin{equation}"),
+                Inline::Space,
+                str("x"),
+                Inline::Space,
+                str(r"\end{align}"),
+            ]
+        );
     }
 
     #[test]

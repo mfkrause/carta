@@ -655,9 +655,14 @@ impl Parser {
     /// Unlike the foldable openers this one interrupts an open paragraph; a `\begin` that never finds
     /// its `\end` is settled back into a paragraph at end of input.
     ///
-    /// Known limitation: when the environment directly interrupts an open paragraph with no blank
-    /// line between, that preceding paragraph renders as `Para` rather than the tighter `Plain`. The
-    /// free-standing environment — the common form — is exact.
+    /// Known limitations, both niche and exact in the common free-standing form:
+    /// - When the environment directly interrupts an open paragraph with no blank line between, that
+    ///   preceding paragraph renders as `Para` rather than the tighter `Plain`.
+    /// - A math environment hands its body to the inline phase rather than being gathered verbatim
+    ///   here, so a non-math `\begin{…}` sitting at column 0 *inside* a math environment opens a
+    ///   fresh block environment there instead of staying part of the enclosing inline math span. A
+    ///   nested environment indented or sharing a line with surrounding math — the usual way it is
+    ///   written — stays within the span.
     fn open_raw_tex(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
         if !self.extensions.contains(Extension::RawTex) {
             return None;
