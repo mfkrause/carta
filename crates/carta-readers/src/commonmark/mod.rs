@@ -1333,14 +1333,39 @@ mod tests {
 
     #[test]
     fn a_greedy_paragraph_folds_a_following_block_quote_heading_and_break() {
-        // A block-quote, heading, or thematic-break line right under a paragraph continues it.
+        // A block-quote, heading, or thematic-break line right under a paragraph continues it. The
+        // block-quote and heading folds are gated on the `blank_before_*` toggles the markdown
+        // dialect carries; the thematic break folds on the plain greedy flag.
+        let toggles = &[
+            Extension::BlankBeforeBlockquote,
+            Extension::BlankBeforeHeader,
+        ];
         for line in ["> quote", "# heading", "***"] {
             let input = format!("text\n{line}\n");
             assert!(
-                matches!(greedy_blocks(&input, &[]).as_slice(), [Block::Para(_)]),
+                matches!(greedy_blocks(&input, toggles).as_slice(), [Block::Para(_)]),
                 "expected one paragraph for {input:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_heading_or_block_quote_interrupts_without_its_blank_before_toggle() {
+        // Without `blank_before_header` / `blank_before_blockquote`, the opener interrupts an open
+        // paragraph as in strict CommonMark, even where paragraphs are otherwise greedy.
+        assert!(matches!(
+            greedy_blocks("text\n# heading\n", &[]).as_slice(),
+            [Block::Para(_), Block::Header(_, _, _)]
+        ));
+        assert!(matches!(
+            greedy_blocks("text\n> quote\n", &[]).as_slice(),
+            [Block::Para(_), Block::BlockQuote(_)]
+        ));
+        // The thematic break is not toggle-gated, so it still folds into the greedy paragraph.
+        assert!(matches!(
+            greedy_blocks("text\n***\n", &[]).as_slice(),
+            [Block::Para(_)]
+        ));
     }
 
     #[test]

@@ -1215,7 +1215,9 @@ impl Parser {
     /// flag covers the foldable openers — a block quote, heading, thematic break, fenced div, or
     /// footnote definition continues an open paragraph as a lazy line rather than interrupting it,
     /// even across a container the line did not match (`> a` then `# b`); only a blank line, a fenced
-    /// code block, or an HTML block ends it. The second covers a list marker, which is structural: it
+    /// code block, or an HTML block ends it. The block-quote and heading folds are gated further on
+    /// the `blank_before_blockquote` and `blank_before_header` toggles, so dropping a toggle lets
+    /// that opener interrupt again. The second covers a list marker, which is structural: it
     /// still opens a sibling item in an open list or a sublist inside an item, and folds only where
     /// it would otherwise *start* a fresh list — when the paragraph is the container's own last child
     /// and the container is not itself a list item or other indented item body.
@@ -1239,6 +1241,11 @@ impl Parser {
         let indent = cursor.indent();
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
         let (greedy, greedy_list_start) = self.greedy_gates(container, in_paragraph);
+        // A heading or block quote folds into a greedy paragraph only when its dialect toggle is on;
+        // without that toggle the opener interrupts the paragraph as usual. The remaining foldable
+        // openers (footnote, fenced div, thematic break) follow the plain greedy flag.
+        let greedy_heading = greedy && self.extensions.contains(Extension::BlankBeforeHeader);
+        let greedy_blockquote = greedy && self.extensions.contains(Extension::BlankBeforeBlockquote);
 
         if indent >= TAB_STOP && !in_paragraph {
             cursor.advance_columns(TAB_STOP);
@@ -1253,7 +1260,7 @@ impl Parser {
             if let Some(block) = self.open_raw_tex(container, cursor) {
                 return Some(block);
             }
-            if !greedy && cursor.peek() == Some(b'>') {
+            if !greedy_blockquote && cursor.peek() == Some(b'>') {
                 cursor.advance_one();
                 cursor.consume_optional_space();
                 let parent = self.place(container, &Kind::BlockQuote);
@@ -1286,7 +1293,7 @@ impl Parser {
                     return Some(self.append_child(parent, Node::new(kind)));
                 }
             }
-            if !greedy && let Some(level) = cursor.atx_heading() {
+            if !greedy_heading && let Some(level) = cursor.atx_heading() {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
                 self.append_text(index, &strip_atx_closing(&cursor.rest()));
