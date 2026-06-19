@@ -1986,10 +1986,7 @@ fn last_nonempty_line(text: &str) -> &str {
 /// Whether a dash-only line is a thematic break: three or more dashes, with spaces allowed between
 /// them. Used to settle a dash-ruled table candidate that turned out not to be a table.
 fn is_thematic_dash_line(line: &str) -> bool {
-    let trimmed = line.trim();
-    !trimmed.is_empty()
-        && trimmed.bytes().all(|byte| matches!(byte, b'-' | b' '))
-        && trimmed.bytes().filter(|byte| *byte == b'-').count() >= 3
+    texttable::is_dash_line(line) && line.bytes().filter(|byte| *byte == b'-').count() >= 3
 }
 
 /// Whether a line block's current (final) entry is empty: its last line is a `|` marker carrying no
