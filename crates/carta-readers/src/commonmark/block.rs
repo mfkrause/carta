@@ -1702,11 +1702,78 @@ impl Parser {
                     IrBlock::RawBlock(Format("tex".to_owned()), node.text.clone())
                 }
             }
-            Kind::BlockQuote => IrBlock::BlockQuote(self.build_children(index)),
+            Kind::BlockQuote => {
+                if self.extensions.contains(Extension::Alerts)
+                    && let Some(alert) = self.build_alert(index)
+                {
+                    alert
+                } else {
+                    IrBlock::BlockQuote(self.build_children(index))
+                }
+            }
             Kind::FencedDiv(info) => IrBlock::Div(info.attr.clone(), self.build_children(index)),
             Kind::List(info) => self.build_list(index, info),
         };
         Some(block)
+    }
+
+    /// A blockquote whose first content line is exactly an alert marker `[!TYPE]` (with `TYPE` one of
+    /// the recognized kinds, case-insensitive, and nothing but trailing whitespace after the `]`)
+    /// becomes a `Div` classed by the lowercased type. Its first child is a titled `Div` holding the
+    /// type's display name; the marker line is stripped from the quote's first paragraph, and the
+    /// rest of the quote's content follows. Returns `None` when the first line is not a clean marker,
+    /// leaving the blockquote as an ordinary `BlockQuote`.
+    fn build_alert(&self, index: usize) -> Option<IrBlock> {
+        let node = self.nodes.get(index)?;
+        let &first = node.children.first()?;
+        let first_node = self.nodes.get(first)?;
+        if !matches!(first_node.kind, Kind::Paragraph) {
+            return None;
+        }
+        // The marker must occupy the paragraph's first line, with no leading whitespace and only
+        // trailing whitespace after the closing bracket; inspecting the raw (untrimmed) text keeps
+        // a leading space — which disables the marker — visible.
+        let (marker_line, rest_of_para) = match first_node.text.split_once('\n') {
+            Some((line, rest)) => (line, Some(rest)),
+            None => (first_node.text.as_str(), None),
+        };
+        // Known limitation: a marker indented two or more columns inside the quote (e.g. `>  [!NOTE]`)
+        // is not an alert, but the block phase has already folded that insignificant paragraph indent
+        // away by this point, so the marker still reads as clean here. Markers at zero or one column
+        // — the conventional spelling — are classified correctly.
+        let alert_type = alert_marker_type(marker_line)?;
+
+        let title = IrBlock::Div(
+            Attr {
+                id: String::new(),
+                classes: vec!["title".to_owned()],
+                attributes: Vec::new(),
+            },
+            vec![IrBlock::Para(alert_type.title.to_owned())],
+        );
+
+        let mut content = vec![title];
+        // Anything left on the marker's own paragraph after dropping its first line stays a paragraph.
+        if let Some(rest) = rest_of_para {
+            let trimmed = rest.trim();
+            if !trimmed.is_empty() {
+                content.push(IrBlock::Para(trimmed.to_owned()));
+            }
+        }
+        for &child in node.children.iter().skip(1) {
+            if let Some(block) = self.build_block(child) {
+                content.push(block);
+            }
+        }
+
+        Some(IrBlock::Div(
+            Attr {
+                id: String::new(),
+                classes: vec![alert_type.class.to_owned()],
+                attributes: Vec::new(),
+            },
+            content,
+        ))
     }
 
     /// Build a definition list from its item and definition containers. Each item contributes its
@@ -2124,6 +2191,37 @@ fn div_open_fence(line: &str) -> Option<(usize, Attr)> {
     Some((count, attr))
 }
 
+/// The recognized alert kinds: the marker spelling (matched case-insensitively), the lowercased
+/// class applied to the wrapping div, and the display title.
+struct AlertType {
+    class: &'static str,
+    title: &'static str,
+}
+
+const ALERT_TYPES: &[(&str, AlertType)] = &[
+    ("note", AlertType { class: "note", title: "Note" }),
+    ("tip", AlertType { class: "tip", title: "Tip" }),
+    ("important", AlertType { class: "important", title: "Important" }),
+    ("warning", AlertType { class: "warning", title: "Warning" }),
+    ("caution", AlertType { class: "caution", title: "Caution" }),
+];
+
+/// If `line` is exactly an alert marker `[!TYPE]` followed by only trailing whitespace — with no
+/// leading whitespace and a recognized `TYPE` matched case-insensitively — return its kind.
+fn alert_marker_type(line: &str) -> Option<&'static AlertType> {
+    let inner = line.strip_prefix("[!")?;
+    let close = inner.find(']')?;
+    let name = inner.get(..close)?;
+    // Only whitespace may follow the closing bracket.
+    if !inner.get(close + 1..)?.chars().all(char::is_whitespace) {
+        return None;
+    }
+    ALERT_TYPES
+        .iter()
+        .find(|(spelling, _)| name.eq_ignore_ascii_case(spelling))
+        .map(|(_, ty)| ty)
+}
+
 /// Parse a fenced-div opener's attribute spec (the text after the colons, already trimmed). It is
 /// either a single brace block of valid attributes or a single bare word taken verbatim as the sole
 /// class; anything else (empty, multiple words, junk after a brace) is not a valid opener.
@@ -2469,5 +2567,92 @@ mod tests {
         let out = parse("\\begin{center}\nx\n\\end{center}\n", presets::COMMONMARK, false).0;
         assert_eq!(out.len(), 1);
         assert!(matches!(out.first(), Some(IrBlock::Para(_))));
+    }
+
+    use super::alert_marker_type;
+
+    fn gfm_blocks(input: &str) -> Vec<IrBlock> {
+        parse(input, presets::GFM, false).0
+    }
+
+    #[test]
+    fn alert_marker_recognizes_every_kind_case_insensitively() {
+        assert_eq!(alert_marker_type("[!NOTE]").map(|t| t.class), Some("note"));
+        assert_eq!(alert_marker_type("[!tip]").map(|t| t.class), Some("tip"));
+        assert_eq!(alert_marker_type("[!Important]").map(|t| t.class), Some("important"));
+        assert_eq!(alert_marker_type("[!wArNiNg]").map(|t| t.class), Some("warning"));
+        assert_eq!(alert_marker_type("[!CAUTION]").map(|t| t.title), Some("Caution"));
+    }
+
+    #[test]
+    fn alert_marker_allows_only_trailing_whitespace() {
+        assert!(alert_marker_type("[!NOTE]").is_some());
+        assert!(alert_marker_type("[!NOTE]   ").is_some());
+        assert!(alert_marker_type("[!NOTE]\t").is_some());
+        // Anything other than whitespace after the bracket disqualifies the marker.
+        assert!(alert_marker_type("[!NOTE] hi").is_none());
+        assert!(alert_marker_type("[!NOTE]x").is_none());
+    }
+
+    #[test]
+    fn alert_marker_rejects_unknown_or_malformed_markers() {
+        assert!(alert_marker_type("[!FOO]").is_none());
+        assert!(alert_marker_type("[!]").is_none());
+        assert!(alert_marker_type("[NOTE]").is_none());
+        assert!(alert_marker_type(" [!NOTE]").is_none());
+        assert!(alert_marker_type("[!NOTE").is_none());
+    }
+
+    #[test]
+    fn an_alert_blockquote_becomes_a_titled_div() {
+        let out = gfm_blocks("> [!NOTE]\n> This is a note.\n");
+        let Some(IrBlock::Div(attr, content)) = out.first() else {
+            panic!("expected a div, got {out:?}");
+        };
+        assert_eq!(attr.classes, vec!["note".to_owned()]);
+        let Some(IrBlock::Div(title_attr, title)) = content.first() else {
+            panic!("expected a title div");
+        };
+        assert_eq!(title_attr.classes, vec!["title".to_owned()]);
+        assert!(matches!(title.as_slice(), [IrBlock::Para(t)] if t == "Note"));
+        assert!(matches!(content.get(1), Some(IrBlock::Para(t)) if t == "This is a note."));
+    }
+
+    #[test]
+    fn a_marker_only_alert_carries_just_its_title() {
+        let out = gfm_blocks("> [!TIP]\n");
+        let Some(IrBlock::Div(attr, content)) = out.first() else {
+            panic!("expected a div");
+        };
+        assert_eq!(attr.classes, vec!["tip".to_owned()]);
+        assert_eq!(content.len(), 1);
+        assert!(matches!(content.first(), Some(IrBlock::Div(..))));
+    }
+
+    #[test]
+    fn an_alert_preserves_richer_body_content() {
+        let out = gfm_blocks("> [!WARNING]\n> # Heading\n");
+        let Some(IrBlock::Div(_, content)) = out.first() else {
+            panic!("expected a div");
+        };
+        assert!(matches!(content.get(1), Some(IrBlock::Heading(1, _))));
+    }
+
+    #[test]
+    fn an_unknown_marker_leaves_the_blockquote_intact() {
+        let out = gfm_blocks("> [!FOO]\n> x\n");
+        assert!(matches!(out.first(), Some(IrBlock::BlockQuote(_))));
+    }
+
+    #[test]
+    fn trailing_text_on_the_marker_line_leaves_the_blockquote_intact() {
+        let out = gfm_blocks("> [!NOTE] hello\n> x\n");
+        assert!(matches!(out.first(), Some(IrBlock::BlockQuote(_))));
+    }
+
+    #[test]
+    fn alerts_off_leaves_the_marker_literal() {
+        let out = parse("> [!NOTE]\n> x\n", presets::COMMONMARK, true).0;
+        assert!(matches!(out.first(), Some(IrBlock::BlockQuote(_))));
     }
 }
