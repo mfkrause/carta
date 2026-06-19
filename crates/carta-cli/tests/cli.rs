@@ -164,8 +164,18 @@ fn list_input_formats_needs_no_conversion_flags() {
     assert!(result.success, "stderr: {}", result.stderr);
     let formats = lines(&result.stdout);
     // Canonical names and their aliases are both listed, sorted.
-    for expected in ["commonmark", "commonmark_x", "gfm", "json", "markdown", "native"] {
-        assert!(formats.contains(&expected), "missing {expected}: {formats:?}");
+    for expected in [
+        "commonmark",
+        "commonmark_x",
+        "gfm",
+        "json",
+        "markdown",
+        "native",
+    ] {
+        assert!(
+            formats.contains(&expected),
+            "missing {expected}: {formats:?}"
+        );
     }
     let mut sorted = formats.clone();
     sorted.sort_unstable();
@@ -178,7 +188,10 @@ fn list_output_formats_includes_aliases() {
     assert!(result.success, "stderr: {}", result.stderr);
     let formats = lines(&result.stdout);
     for expected in ["html", "html4", "html5", "latex", "beamer", "json"] {
-        assert!(formats.contains(&expected), "missing {expected}: {formats:?}");
+        assert!(
+            formats.contains(&expected),
+            "missing {expected}: {formats:?}"
+        );
     }
 }
 
@@ -189,7 +202,10 @@ fn list_extensions_defaults_to_markdown_dialect() {
     let extensions = lines(&result.stdout);
     assert!(extensions.contains(&"+smart"), "{extensions:?}");
     assert!(extensions.contains(&"+pipe_tables"), "{extensions:?}");
-    assert!(extensions.contains(&"-gfm_auto_identifiers"), "{extensions:?}");
+    assert!(
+        extensions.contains(&"-gfm_auto_identifiers"),
+        "{extensions:?}"
+    );
 }
 
 #[test]
