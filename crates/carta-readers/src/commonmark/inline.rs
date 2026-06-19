@@ -315,10 +315,7 @@ fn resolve_table(
             .collect(),
     };
     let caption = match caption {
-        Some(text) => Caption {
-            short: None,
-            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
-        },
+        Some(text) => make_caption(text, refs, notes, ext),
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
@@ -337,6 +334,20 @@ fn resolve_table(
         }],
         foot: TableFoot::default(),
     }))
+}
+
+/// Build a table caption from its text. Caption text that parses to nothing (an attribute-only or
+/// bare caption line) yields an empty block list, not a `Plain` wrapping an empty inline list.
+fn make_caption(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Caption {
+    let inlines = parse_inlines(text, refs, notes, ext);
+    Caption {
+        short: None,
+        long: if inlines.is_empty() {
+            Vec::new()
+        } else {
+            vec![Block::Plain(inlines)]
+        },
+    }
 }
 
 /// Build one table cell. A non-empty cell's text parses into inlines wrapped in a `Plain`; an empty
@@ -382,10 +393,7 @@ fn resolve_grid_table(
             .collect(),
     };
     let caption = match &table.caption {
-        Some(text) => Caption {
-            short: None,
-            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
-        },
+        Some(text) => make_caption(text, refs, notes, ext),
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
@@ -444,10 +452,7 @@ fn resolve_text_table(
         vec![make_row(&table.head)]
     };
     let caption = match &table.caption {
-        Some(text) => Caption {
-            short: None,
-            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
-        },
+        Some(text) => make_caption(text, refs, notes, ext),
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
