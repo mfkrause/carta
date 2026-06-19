@@ -17,7 +17,10 @@ mod format_spec;
 mod registry;
 
 pub use format_spec::parse_format_spec;
-pub use registry::{reader_for, supported_input_formats, supported_output_formats, writer_for};
+pub use registry::{
+    input_format_names, output_format_names, reader_for, supported_input_formats,
+    supported_output_formats, writer_for,
+};
 
 /// Converts `input` from format `from` to format `to`.
 ///
@@ -53,4 +56,26 @@ pub fn convert(
 
     let document = reader.read(input, &reader_options)?;
     writer.write(&document, &writer_options)
+}
+
+/// Lists every extension carta models, each paired with whether `format` enables it by default.
+///
+/// `format` is a format specifier (`"gfm"`, `"commonmark+strikeout"`, …); `None` reports the
+/// default Markdown dialect's set. Entries are sorted by extension name.
+///
+/// # Errors
+/// [`Error::UnsupportedFormat`] if the base name is recognized by neither a reader nor a writer, or
+/// [`Error::UnknownExtension`] if a `+`/`-` toggle names an extension this build does not recognize.
+pub fn format_extensions(format: Option<&str>) -> Result<Vec<(Extension, bool)>> {
+    let (base, extensions) = parse_format_spec(format.unwrap_or("markdown"))?;
+    if !registry::reader_recognizes(&base) && !registry::writer_recognizes(&base) {
+        return Err(Error::UnsupportedFormat(base));
+    }
+
+    let mut entries: Vec<(Extension, bool)> = Extension::ALL
+        .iter()
+        .map(|&extension| (extension, extensions.contains(extension)))
+        .collect();
+    entries.sort_by_key(|(extension, _)| extension.name());
+    Ok(entries)
 }
