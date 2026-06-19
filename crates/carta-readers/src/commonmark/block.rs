@@ -1893,15 +1893,7 @@ impl Parser {
                     IrBlock::CodeBlock(fence_attr(&fence.info, self.extensions), text)
                 }
             }
-            Kind::HtmlBlock(kind) => {
-                let mut text = node.text.clone();
-                // Kinds 1–5 close only on an explicit end tag; reaching end-of-input with the block
-                // still open leaves it unterminated, which surfaces as a trailing blank line in the output.
-                if node.open && matches!(kind, 1..=5) {
-                    text.push('\n');
-                }
-                IrBlock::RawHtml(text)
-            }
+            Kind::HtmlBlock(kind) => IrBlock::RawHtml(self.finalize_html_block(node, *kind)),
             Kind::RawTex { .. } => {
                 // A closed environment is verbatim raw TeX. One left open at end of input never
                 // found its `\end`, so its lines are ordinary text: they fall back to a paragraph.
@@ -1940,6 +1932,21 @@ impl Parser {
             Kind::List(info) => self.build_list(index, info),
         };
         Some(block)
+    }
+
+    /// Finalize a raw HTML block's text. The markdown dialect drops a block's final newline; the
+    /// strict dialect instead pads an unterminated kind 1–5 block, which closes only on an explicit
+    /// end tag, so reaching end-of-input with it still open surfaces as a trailing blank line.
+    fn finalize_html_block(&self, node: &Node, kind: u8) -> String {
+        let mut text = node.text.clone();
+        if self.greedy_paragraphs {
+            if text.ends_with('\n') {
+                text.pop();
+            }
+        } else if node.open && matches!(kind, 1..=5) {
+            text.push('\n');
+        }
+        text
     }
 
     /// A blockquote whose first content line is exactly an alert marker `[!TYPE]` (with `TYPE` one of
@@ -3430,6 +3437,24 @@ mod html_element_tests {
             out.as_slice(),
             [IrBlock::Div(..), IrBlock::Para(_)]
         ));
+    }
+
+    #[test]
+    fn raw_html_block_trailing_newline_depends_on_dialect() {
+        // A raw HTML block (here a verbatim `<pre>`) keeps its final newline in the strict dialect
+        // and drops it in the markdown dialect.
+        let input = "<pre>\nhi\n</pre>\n";
+        let strict = parse(input, presets::COMMONMARK, false).0;
+        let [IrBlock::RawHtml(text)] = strict.as_slice() else {
+            panic!("expected one raw HTML block, got {strict:?}");
+        };
+        assert_eq!(text, "<pre>\nhi\n</pre>\n");
+
+        let markdown = parse(input, presets::COMMONMARK, true).0;
+        let [IrBlock::RawHtml(text)] = markdown.as_slice() else {
+            panic!("expected one raw HTML block, got {markdown:?}");
+        };
+        assert_eq!(text, "<pre>\nhi\n</pre>");
     }
 
     #[test]
