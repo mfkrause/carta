@@ -14,11 +14,11 @@ use carta_ast::{
 use carta_core::{Extension, Extensions};
 
 use super::attr;
+use super::identifiers::HeaderNumbering;
 use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
     scan_html_tag, scan_inline_target,
 };
-use super::identifiers::HeaderNumbering;
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
@@ -89,7 +89,12 @@ pub(crate) fn resolve_document(
 /// numbered with the same algorithm that later assigns their `attr` ids, so the two agree. An
 /// already-defined label is left untouched, so an explicit definition outranks a heading and, among
 /// headings, the first with a given label wins — while every heading still advances the numbering.
-fn register_header_references(ir: &[IrBlock], refs: &mut RefMap, notes: RefContext, ext: Extensions) {
+fn register_header_references(
+    ir: &[IrBlock],
+    refs: &mut RefMap,
+    notes: RefContext,
+    ext: Extensions,
+) {
     let mut numbering = HeaderNumbering::new(ext);
     gather_headers(ir, refs, notes, ext, &mut numbering);
 }
@@ -170,10 +175,15 @@ fn resolve_block(
         }
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
         IrBlock::Div(attr, children) => {
-            out.push(Block::Div(attr.clone(), resolve_blocks(children, refs, notes, ext)));
+            out.push(Block::Div(
+                attr.clone(),
+                resolve_blocks(children, refs, notes, ext),
+            ));
         }
         IrBlock::BlockQuote(children) => {
-            out.push(Block::BlockQuote(resolve_blocks(children, refs, notes, ext)));
+            out.push(Block::BlockQuote(resolve_blocks(
+                children, refs, notes, ext,
+            )));
         }
         IrBlock::LineBlock(lines) => out.push(Block::LineBlock(
             lines
@@ -341,7 +351,11 @@ fn resolve_grid_table(
         .collect();
     let make_row = |row: &super::grid::Row| Row {
         attr: Attr::default(),
-        cells: row.cells.iter().map(|cell| make_grid_cell(cell, ext)).collect(),
+        cells: row
+            .cells
+            .iter()
+            .map(|cell| make_grid_cell(cell, ext))
+            .collect(),
     };
     let caption = match &table.caption {
         Some(text) => Caption {
@@ -540,13 +554,19 @@ fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
         }
         // The block must be set off from the heading text by whitespace, else it belongs to the
         // preceding word rather than the heading.
-        let preceded_by_space = start == 0 || chars.get(start - 1).copied().is_some_and(is_unicode_whitespace);
+        let preceded_by_space = start == 0
+            || chars
+                .get(start - 1)
+                .copied()
+                .is_some_and(is_unicode_whitespace);
         if preceded_by_space
             && let Some((attr, end)) = attr::parse_attributes_chars(&chars, start)
             && end == chars.len()
             && attr::is_non_empty(&attr)
         {
-            let byte_start: usize = chars.get(..start).map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
+            let byte_start: usize = chars
+                .get(..start)
+                .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
             let content = text.get(..byte_start).unwrap_or(text).trim_end();
             return (content, attr);
         }
@@ -834,7 +854,11 @@ impl InlineParser<'_> {
                 continue;
             }
             if ch == '$' {
-                let prev_space = self.chars.get(i - 1).copied().is_none_or(is_unicode_whitespace);
+                let prev_space = self
+                    .chars
+                    .get(i - 1)
+                    .copied()
+                    .is_none_or(is_unicode_whitespace);
                 let next_digit = self.chars.get(i + 1).is_some_and(char::is_ascii_digit);
                 if prev_space || next_digit {
                     return None;
@@ -1087,7 +1111,8 @@ impl InlineParser<'_> {
     /// Consume an attribute block following a link or image when the relevant extension is on,
     /// advancing the cursor; otherwise the default attribute.
     fn take_link_attr(&mut self) -> Attr {
-        if (self.ext.contains(Extension::LinkAttributes) || self.ext.contains(Extension::Attributes))
+        if (self.ext.contains(Extension::LinkAttributes)
+            || self.ext.contains(Extension::Attributes))
             && let Some((parsed, next)) = self.scan_attr_block()
         {
             self.pos = next;
@@ -1803,8 +1828,9 @@ fn normalize_code(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, flanking, fold_dash_run, fold_ellipsis_run,
-        match_use_count, quote_flanking, split_header_attr, task_marker_replacement,
+        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, flanking, fold_dash_run,
+        fold_ellipsis_run, match_use_count, quote_flanking, split_header_attr,
+        task_marker_replacement,
     };
     use carta_core::{Extension, Extensions};
 
@@ -1896,10 +1922,7 @@ mod tests {
         // the original run length with no hyphens left over.
         for len in 2..=40 {
             let folded = fold_dash_run(len);
-            let width: usize = folded
-                .chars()
-                .map(|c| if c == em { 3 } else { 2 })
-                .sum();
+            let width: usize = folded.chars().map(|c| if c == em { 3 } else { 2 }).sum();
             assert_eq!(width, len, "len={len} folded={folded}");
         }
     }
@@ -2266,7 +2289,13 @@ mod inline_tests {
         // An opener must be followed by a non-space; a closer may not follow a digit or trail a space.
         assert_eq!(
             pe("$5 and $10", math()),
-            vec![str("$5"), Inline::Space, str("and"), Inline::Space, str("$10")]
+            vec![
+                str("$5"),
+                Inline::Space,
+                str("and"),
+                Inline::Space,
+                str("$10")
+            ]
         );
         assert_eq!(pe("$a$5", math()), vec![str("$a$5")]);
         assert_eq!(pe("$ a$", math()), vec![str("$"), Inline::Space, str("a$")]);
@@ -2332,7 +2361,10 @@ mod inline_tests {
     fn consecutive_attribute_blocks_merge_first_id_wins() {
         // Adjacent blocks accumulate classes and key/value pairs; the first identifier is kept.
         assert_eq!(
-            pe("[x]{#one .a}{#two .b k=v}", exts(&[Extension::BracketedSpans])),
+            pe(
+                "[x]{#one .a}{#two .b k=v}",
+                exts(&[Extension::BracketedSpans])
+            ),
             vec![span(
                 attr("one", &["a", "b"], &[("k", "v")]),
                 vec![str("x")]
@@ -2359,7 +2391,11 @@ mod inline_tests {
         // A space before the block leaves it unattached (no wrapper artifact is produced).
         assert_eq!(
             pe("`code` x", attrs()),
-            vec![Inline::Code(Attr::default(), "code".to_owned()), Inline::Space, str("x")]
+            vec![
+                Inline::Code(Attr::default(), "code".to_owned()),
+                Inline::Space,
+                str("x")
+            ]
         );
     }
 
@@ -2368,13 +2404,19 @@ mod inline_tests {
         let link_with_attr = Inline::Link(
             attr("home", &["external"], &[]),
             vec![str("t")],
-            Target { url: "u".to_owned(), title: String::new() },
+            Target {
+                url: "u".to_owned(),
+                title: String::new(),
+            },
         );
         assert_eq!(pe("[t](u){.external #home}", attrs()), vec![link_with_attr]);
         let image_with_attr = Inline::Image(
             attr("", &[], &[("width", "200")]),
             vec![str("a")],
-            Target { url: "i".to_owned(), title: String::new() },
+            Target {
+                url: "i".to_owned(),
+                title: String::new(),
+            },
         );
         assert_eq!(pe("![a](i){width=200}", attrs()), vec![image_with_attr]);
     }
@@ -2382,10 +2424,7 @@ mod inline_tests {
     #[test]
     fn attributes_require_the_extension() {
         // Without any attribute extension the block stays literal text.
-        assert_eq!(
-            p("[text]{.cls}"),
-            vec![str("[text]{.cls}")]
-        );
+        assert_eq!(p("[text]{.cls}"), vec![str("[text]{.cls}")]);
     }
 
     #[test]
@@ -2408,4 +2447,3 @@ mod inline_tests {
         );
     }
 }
-

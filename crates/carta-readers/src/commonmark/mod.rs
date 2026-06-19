@@ -404,16 +404,15 @@ mod tests {
         };
         assert_eq!(attr.id, "a");
         assert_eq!(attr.classes, ["b", "c"]);
-        assert_eq!(
-            attr.attributes,
-            [("k".to_owned(), "v".to_owned())]
-        );
+        assert_eq!(attr.attributes, [("k".to_owned(), "v".to_owned())]);
     }
 
     #[test]
     fn fenced_divs_nest_with_the_inner_closing_first() {
-        let result =
-            blocks_with("::: outer\n::: inner\nx\n:::\ny\n:::\n", Extension::FencedDivs);
+        let result = blocks_with(
+            "::: outer\n::: inner\nx\n:::\ny\n:::\n",
+            Extension::FencedDivs,
+        );
         let [Block::Div(outer, outer_children)] = result.as_slice() else {
             panic!("expected a single outer div, got {result:?}");
         };
@@ -428,8 +427,10 @@ mod tests {
     fn a_shorter_colon_run_does_not_close_a_longer_fence() {
         // The div opens with four colons, so a three-colon line inside it is ordinary text and the
         // div runs to the matching four-colon close.
-        let result =
-            blocks_with(":::: wide\n:::\nstill inside\n::::\n", Extension::FencedDivs);
+        let result = blocks_with(
+            ":::: wide\n:::\nstill inside\n::::\n",
+            Extension::FencedDivs,
+        );
         let [Block::Div(attr, children)] = result.as_slice() else {
             panic!("expected a single div, got {result:?}");
         };
@@ -446,8 +447,10 @@ mod tests {
 
     #[test]
     fn blank_after_a_div_in_a_list_item_makes_the_list_loose() {
-        let result =
-            blocks_with("- ::: note\n  inside\n  :::\n\n  after\n", Extension::FencedDivs);
+        let result = blocks_with(
+            "- ::: note\n  inside\n  :::\n\n  after\n",
+            Extension::FencedDivs,
+        );
         // The blank between the closed div and `after` is a gap inside the item, so the list is
         // loose and the trailing paragraph stays `Para` rather than being demoted to `Plain`.
         let [Block::BulletList(items)] = result.as_slice() else {
@@ -570,12 +573,18 @@ mod tests {
         );
         // Punctuation drops without collapsing the gaps, dots vanish, leading digits stay, and a
         // repeated slug is suffixed by its occurrence count.
-        assert_eq!(header_ids(&result), ["foo--bar", "12-section", "foo--bar-1"]);
+        assert_eq!(
+            header_ids(&result),
+            ["foo--bar", "12-section", "foo--bar-1"]
+        );
     }
 
     #[test]
     fn auto_identifiers_strip_leading_runs_and_increment_until_unique() {
-        let result = blocks_with("# 1. Intro\n\n# Intro\n\n# Intro\n", Extension::AutoIdentifiers);
+        let result = blocks_with(
+            "# 1. Intro\n\n# Intro\n\n# Intro\n",
+            Extension::AutoIdentifiers,
+        );
         // The leading non-letter run is stripped, then each repeat increments until the whole
         // identifier is unused.
         assert_eq!(header_ids(&result), ["intro", "intro-1", "intro-2"]);
@@ -594,8 +603,10 @@ mod tests {
         assert_eq!(header_ids(&blocks("# Hello World\n")), [""]);
     }
 
-    const HEADER_REFS: &[Extension] =
-        &[Extension::GfmAutoIdentifiers, Extension::ImplicitHeaderReferences];
+    const HEADER_REFS: &[Extension] = &[
+        Extension::GfmAutoIdentifiers,
+        Extension::ImplicitHeaderReferences,
+    ];
 
     /// The link and image targets reached from every paragraph, in order.
     fn reference_targets(blocks: &[Block]) -> Vec<String> {
@@ -641,8 +652,7 @@ mod tests {
 
     #[test]
     fn implicit_header_references_fold_case_and_collapse_whitespace() {
-        let result =
-            blocks_with_many("# Some Heading\n\n[SOME    HEADING]\n", HEADER_REFS);
+        let result = blocks_with_many("# Some Heading\n\n[SOME    HEADING]\n", HEADER_REFS);
         assert_eq!(reference_targets(&result), ["#some-heading"]);
     }
 
@@ -669,10 +679,7 @@ mod tests {
 
     #[test]
     fn a_repeated_heading_is_reachable_only_through_the_first() {
-        let result = blocks_with_many(
-            "# Twice\n\n# Twice\n\n[Twice]\n",
-            HEADER_REFS,
-        );
+        let result = blocks_with_many("# Twice\n\n# Twice\n\n[Twice]\n", HEADER_REFS);
         // The first heading keeps the bare identifier; the reference resolves to it, not the
         // disambiguated second occurrence.
         assert_eq!(reference_targets(&result), ["#twice"]);
@@ -687,7 +694,10 @@ mod tests {
 
     #[test]
     fn implicit_header_references_off_leaves_the_label_literal() {
-        let result = blocks_with("# Some Heading\n\n[Some Heading]\n", Extension::GfmAutoIdentifiers);
+        let result = blocks_with(
+            "# Some Heading\n\n[Some Heading]\n",
+            Extension::GfmAutoIdentifiers,
+        );
         assert!(reference_targets(&result).is_empty());
         let [_, Block::Para(inlines)] = result.as_slice() else {
             panic!("expected a heading then a paragraph, got {result:?}");
@@ -782,7 +792,10 @@ mod tests {
     #[test]
     fn a_blank_line_ends_a_line_block() {
         let blocks = blocks_with_many("| a\n\nplain\n", LINE_BLOCKS);
-        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_), Block::Para(_)]));
+        assert!(matches!(
+            blocks.as_slice(),
+            [Block::LineBlock(_), Block::Para(_)]
+        ));
     }
 
     #[test]
@@ -798,7 +811,10 @@ mod tests {
     fn a_continuation_under_an_empty_entry_ends_the_block() {
         // With no content to extend, a whitespace-led line closes the block and is reparsed.
         let blocks = blocks_with_many("| \n |\n", LINE_BLOCKS);
-        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_), Block::Para(_)]));
+        assert!(matches!(
+            blocks.as_slice(),
+            [Block::LineBlock(_), Block::Para(_)]
+        ));
         assert_eq!(line_block_entries(&blocks), [""]);
     }
 
@@ -812,7 +828,10 @@ mod tests {
     #[test]
     fn a_bar_line_with_no_delimiter_stays_a_line_block() {
         let blocks = blocks_with_many("| a | b |\nplain\n", LINE_BLOCKS_TABLES);
-        assert!(matches!(blocks.as_slice(), [Block::LineBlock(_), Block::Para(_)]));
+        assert!(matches!(
+            blocks.as_slice(),
+            [Block::LineBlock(_), Block::Para(_)]
+        ));
     }
 
     #[test]
@@ -849,8 +868,10 @@ mod tests {
 
     #[test]
     fn a_term_carries_several_definitions_under_colon_or_tilde_markers() {
-        let items =
-            definition_items(&blocks_with("water\n: clear\n~ vital\n", Extension::DefinitionLists));
+        let items = definition_items(&blocks_with(
+            "water\n: clear\n~ vital\n",
+            Extension::DefinitionLists,
+        ));
         let [(term, defs)] = items.as_slice() else {
             panic!("expected one item, got {items:?}");
         };
@@ -860,16 +881,20 @@ mod tests {
 
     #[test]
     fn consecutive_terms_join_one_list() {
-        let items =
-            definition_items(&blocks_with("a\n: x\n\nb\n: y\n", Extension::DefinitionLists));
+        let items = definition_items(&blocks_with(
+            "a\n: x\n\nb\n: y\n",
+            Extension::DefinitionLists,
+        ));
         let terms: Vec<&str> = items.iter().map(|(term, _)| term.as_str()).collect();
         assert_eq!(terms, ["a", "b"]);
     }
 
     #[test]
     fn a_blank_line_before_the_marker_makes_the_definition_loose() {
-        let items =
-            definition_items(&blocks_with("planet\n\n: orbits\n", Extension::DefinitionLists));
+        let items = definition_items(&blocks_with(
+            "planet\n\n: orbits\n",
+            Extension::DefinitionLists,
+        ));
         let [(_, defs)] = items.as_slice() else {
             panic!("expected one item, got {items:?}");
         };
@@ -903,13 +928,18 @@ mod tests {
         let [blocks] = defs.as_slice() else {
             panic!("expected one definition, got {defs:?}");
         };
-        assert!(matches!(blocks.as_slice(), [Block::Plain(_), Block::BulletList(_)]));
+        assert!(matches!(
+            blocks.as_slice(),
+            [Block::Plain(_), Block::BulletList(_)]
+        ));
     }
 
     #[test]
     fn lines_above_the_marker_fold_into_one_term() {
-        let items =
-            definition_items(&blocks_with("one\ntwo\n: both\n", Extension::DefinitionLists));
+        let items = definition_items(&blocks_with(
+            "one\ntwo\n: both\n",
+            Extension::DefinitionLists,
+        ));
         let [(term, _)] = items.as_slice() else {
             panic!("expected one item, got {items:?}");
         };
@@ -918,8 +948,10 @@ mod tests {
 
     #[test]
     fn an_unindented_line_lazily_continues_the_definition() {
-        let items =
-            definition_items(&blocks_with("apple\n: red\norange\n", Extension::DefinitionLists));
+        let items = definition_items(&blocks_with(
+            "apple\n: red\norange\n",
+            Extension::DefinitionLists,
+        ));
         let [(_, defs)] = items.as_slice() else {
             panic!("expected one item, got {items:?}");
         };
@@ -945,7 +977,10 @@ mod tests {
         assert_eq!(term, "T");
         assert!(matches!(defs.as_slice(), [one] if one.is_empty()));
         // The unindented line ends the list and stands as its own paragraph.
-        assert!(matches!(blocks.as_slice(), [Block::DefinitionList(_), Block::Para(_)]));
+        assert!(matches!(
+            blocks.as_slice(),
+            [Block::DefinitionList(_), Block::Para(_)]
+        ));
     }
 
     #[test]
@@ -978,7 +1013,12 @@ mod tests {
         ) {
             for block in blocks {
                 if let Block::OrderedList(attrs, items) = block {
-                    out.push((attrs.start, attrs.style.clone(), attrs.delim.clone(), items.len()));
+                    out.push((
+                        attrs.start,
+                        attrs.style.clone(),
+                        attrs.delim.clone(),
+                        items.len(),
+                    ));
                     for item in items {
                         collect(item, out);
                     }
@@ -1059,7 +1099,12 @@ mod tests {
     fn parenthesized_and_single_paren_delimiters_are_distinguished() {
         assert_eq!(
             ordered_lists("(a) one\n"),
-            [(1, ListNumberStyle::LowerAlpha, ListNumberDelim::TwoParens, 1)]
+            [(
+                1,
+                ListNumberStyle::LowerAlpha,
+                ListNumberDelim::TwoParens,
+                1
+            )]
         );
         assert_eq!(
             ordered_lists("a) one\n"),
@@ -1418,7 +1463,10 @@ mod tests {
             Some(MetaValue::MetaList(authors)) => assert_eq!(authors.len(), 2),
             other => panic!("expected two authors, got {other:?}"),
         }
-        assert!(matches!(doc.meta.get("date"), Some(MetaValue::MetaInlines(_))));
+        assert!(matches!(
+            doc.meta.get("date"),
+            Some(MetaValue::MetaInlines(_))
+        ));
         assert!(matches!(doc.blocks.as_slice(), [Block::Para(_)]));
     }
 

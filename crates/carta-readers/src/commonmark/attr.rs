@@ -199,8 +199,7 @@ mod tests {
         let (a, _) = super::parse_attributes_first_id("{#one #two}").expect("well-formed block");
         assert_eq!(a.id, "one");
         // Classes and pairs still accumulate; only the identifier precedence differs.
-        let (b, _) =
-            super::parse_attributes_first_id("{.a #x .b #y}").expect("well-formed block");
+        let (b, _) = super::parse_attributes_first_id("{.a #x .b #y}").expect("well-formed block");
         assert_eq!(b.id, "x");
         assert_eq!(b.classes, ["a", "b"]);
     }
@@ -214,7 +213,10 @@ mod tests {
 
     #[test]
     fn empty_value_after_equals() {
-        assert_eq!(attr("{key=}").0.attributes, [("key".to_owned(), String::new())]);
+        assert_eq!(
+            attr("{key=}").0.attributes,
+            [("key".to_owned(), String::new())]
+        );
     }
 
     #[test]

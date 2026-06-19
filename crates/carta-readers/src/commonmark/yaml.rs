@@ -242,7 +242,11 @@ fn parse_value(
         return parse_nested_or_null(reader, marker_indent, depth);
     }
     match after.as_bytes().first() {
-        Some(b'|' | b'>') => Ok(Yaml::Scalar(parse_block_scalar(reader, after, marker_indent))),
+        Some(b'|' | b'>') => Ok(Yaml::Scalar(parse_block_scalar(
+            reader,
+            after,
+            marker_indent,
+        ))),
         Some(b'[') => parse_flow(after, depth).map(|(value, _)| value),
         Some(b'{') => parse_flow(after, depth).map(|(value, _)| value),
         Some(b'\'' | b'"') => {
@@ -251,7 +255,11 @@ fn parse_value(
         }
         // A plain scalar cannot contain a `: ` mapping indicator; such a value is malformed.
         _ if key_colon(after).is_some() => Err(()),
-        _ => Ok(Yaml::Scalar(Scalar::Plain(parse_plain(reader, after, marker_indent)))),
+        _ => Ok(Yaml::Scalar(Scalar::Plain(parse_plain(
+            reader,
+            after,
+            marker_indent,
+        )))),
     }
 }
 
@@ -269,14 +277,26 @@ fn parse_nested_or_null(
     let body = slice_from(line, line_indent);
     // A block sequence may sit at the marker's own column; any other nested block must be deeper.
     if is_sequence_entry(body) && line_indent >= marker_indent {
-        return Ok(Yaml::Sequence(parse_sequence(reader, line_indent, depth + 1)?));
+        return Ok(Yaml::Sequence(parse_sequence(
+            reader,
+            line_indent,
+            depth + 1,
+        )?));
     }
     if line_indent > marker_indent {
         if is_sequence_entry(body) {
-            return Ok(Yaml::Sequence(parse_sequence(reader, line_indent, depth + 1)?));
+            return Ok(Yaml::Sequence(parse_sequence(
+                reader,
+                line_indent,
+                depth + 1,
+            )?));
         }
         if key_colon(body).is_some() {
-            return Ok(Yaml::Mapping(parse_mapping(reader, line_indent, depth + 1)?));
+            return Ok(Yaml::Mapping(parse_mapping(
+                reader,
+                line_indent,
+                depth + 1,
+            )?));
         }
     }
     Ok(Yaml::Scalar(Scalar::Plain(String::new())))
@@ -381,7 +401,11 @@ fn parse_block_scalar(reader: &mut Reader, header: &str, marker_indent: usize) -
         })
         .collect();
 
-    let body = if folded { fold(&lines) } else { lines.join("\n") };
+    let body = if folded {
+        fold(&lines)
+    } else {
+        lines.join("\n")
+    };
     let text = match chomp {
         Chomp::Strip => body,
         Chomp::Clip => {
@@ -393,7 +417,11 @@ fn parse_block_scalar(reader: &mut Reader, header: &str, marker_indent: usize) -
         }
         Chomp::Keep => {
             lines.extend(std::iter::repeat_n(String::new(), trailing_blanks));
-            let kept_body = if folded { fold(&lines) } else { lines.join("\n") };
+            let kept_body = if folded {
+                fold(&lines)
+            } else {
+                lines.join("\n")
+            };
             format!("{kept_body}\n")
         }
     };
@@ -443,7 +471,9 @@ fn parse_quoted(s: &str) -> Result<(String, usize), ()> {
                 b'"' => return Ok((out, i + 1)),
                 b'\\' => {
                     i += 1;
-                    let Some(&esc) = bytes.get(i) else { return Err(()) };
+                    let Some(&esc) = bytes.get(i) else {
+                        return Err(());
+                    };
                     push_escape(&mut out, esc);
                 }
                 _ => push_byte(s, &mut out, i, b),
@@ -613,9 +643,7 @@ pub(crate) fn canonicalize_number(text: &str) -> Option<String> {
 }
 
 fn is_decimal_int(text: &str) -> bool {
-    let digits = text
-        .strip_prefix(['+', '-'])
-        .unwrap_or(text);
+    let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
     !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
@@ -665,7 +693,9 @@ fn canonicalize_float(text: &str) -> Option<String> {
     if i == int_start {
         return None; // a leading digit is required
     }
-    let int_digits = slice_from(text, int_start).get(..i - int_start).unwrap_or("");
+    let int_digits = slice_from(text, int_start)
+        .get(..i - int_start)
+        .unwrap_or("");
 
     let mut frac_digits = "";
     let mut has_dot = false;
@@ -676,7 +706,9 @@ fn canonicalize_float(text: &str) -> Option<String> {
         while bytes.get(i).is_some_and(u8::is_ascii_digit) {
             i += 1;
         }
-        frac_digits = slice_from(text, frac_start).get(..i - frac_start).unwrap_or("");
+        frac_digits = slice_from(text, frac_start)
+            .get(..i - frac_start)
+            .unwrap_or("");
     }
 
     let mut exp: i64 = 0;
@@ -843,7 +875,10 @@ mod tests {
             map("a: 1\nb: two\n"),
             vec![
                 ("a".to_owned(), Yaml::Scalar(Scalar::Plain("1".to_owned()))),
-                ("b".to_owned(), Yaml::Scalar(Scalar::Plain("two".to_owned()))),
+                (
+                    "b".to_owned(),
+                    Yaml::Scalar(Scalar::Plain("two".to_owned()))
+                ),
             ]
         );
     }
@@ -917,8 +952,14 @@ mod tests {
         assert_eq!(
             entries,
             vec![
-                ("a".to_owned(), Yaml::Scalar(Scalar::Quoted("x\ty".to_owned()))),
-                ("b".to_owned(), Yaml::Scalar(Scalar::Quoted("it's".to_owned()))),
+                (
+                    "a".to_owned(),
+                    Yaml::Scalar(Scalar::Quoted("x\ty".to_owned()))
+                ),
+                (
+                    "b".to_owned(),
+                    Yaml::Scalar(Scalar::Quoted("it's".to_owned()))
+                ),
             ]
         );
     }
@@ -1010,13 +1051,19 @@ mod tests {
         assert_eq!(canonicalize_number("12.340").as_deref(), Some("12.34"));
         assert_eq!(canonicalize_number("100.00").as_deref(), Some("100"));
         assert_eq!(canonicalize_number("0.0").as_deref(), Some("0"));
-        assert_eq!(canonicalize_number("1e18").as_deref(), Some("1000000000000000000"));
+        assert_eq!(
+            canonicalize_number("1e18").as_deref(),
+            Some("1000000000000000000")
+        );
         assert_eq!(canonicalize_number("1e19").as_deref(), Some("1.0e19"));
         assert_eq!(canonicalize_number("6.022e23").as_deref(), Some("6.022e23"));
         assert_eq!(canonicalize_number("0.09").as_deref(), Some("9.0e-2"));
         assert_eq!(canonicalize_number("0.1").as_deref(), Some("0.1"));
         // A fractional value stays plain up to a leading digit at 10^6, then turns scientific.
-        assert_eq!(canonicalize_number("1234567.5").as_deref(), Some("1234567.5"));
+        assert_eq!(
+            canonicalize_number("1234567.5").as_deref(),
+            Some("1234567.5")
+        );
         assert_eq!(
             canonicalize_number("12345678.5").as_deref(),
             Some("1.23456785e7")
