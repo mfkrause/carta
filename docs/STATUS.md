@@ -183,8 +183,7 @@ No enum variant yet (notable, non-exhaustive): `citations`, `raw_tex`, `raw_attr
 
 ## Cross-cutting features
 
-Document-conversion features independent of any single format — none implemented yet. Options are
-`ReaderOptions { extensions, greedy_paragraphs }` and `WriterOptions { extensions }`.
+Document-conversion features independent of any single format.
 
 | Feature | Status | Notes |
 | --- | :---: | --- |
