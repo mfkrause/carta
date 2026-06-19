@@ -591,7 +591,11 @@ fn parse_enum_body(bytes: &[u8], start: usize) -> Option<(ListNumberStyle, i32, 
                 break;
             }
         }
-        return Some((ListNumberStyle::Decimal, i32::try_from(value).unwrap_or(1), len));
+        return Some((
+            ListNumberStyle::Decimal,
+            i32::try_from(value).unwrap_or(1),
+            len,
+        ));
     }
     if !first.is_ascii_alphabetic() {
         return None;

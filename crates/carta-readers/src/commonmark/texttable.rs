@@ -53,10 +53,7 @@ pub(crate) fn is_dash_line(line: &str) -> bool {
 /// at least two dashes. Requiring a pure ruling keeps grid-table borders (`+---+`) and other
 /// dash-bearing lines from opening one; a lone leading dash is a list marker, so it does not either.
 pub(crate) fn opens_dash_table(line: &str) -> bool {
-    is_dash_line(line)
-        && dash_runs(line)
-            .first()
-            .is_some_and(|&(_, len)| len >= 2)
+    is_dash_line(line) && dash_runs(line).first().is_some_and(|&(_, len)| len >= 2)
 }
 
 /// The maximal runs of `-` in `line`, each as `(start, length)` in character positions.
@@ -259,7 +256,10 @@ fn parse_multiline(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)
     } else {
         slice_group(&header_lines, &starts)
     };
-    let body = body_rows.iter().map(|row| slice_group(row, &starts)).collect();
+    let body = body_rows
+        .iter()
+        .map(|row| slice_group(row, &starts))
+        .collect();
     Some((
         TextTable {
             columns,
@@ -319,7 +319,8 @@ fn multiline_widths(runs: &[(usize, usize)]) -> Vec<f64> {
         let numerator = if let Some(&(next_start, _)) = runs.get(index + 1) {
             // An interior column spans from its run's start to the next run's start.
             next_start.saturating_sub(start)
-        } else if let Some(&(prev_start, _)) = index.checked_sub(1).and_then(|prev| runs.get(prev)) {
+        } else if let Some(&(prev_start, _)) = index.checked_sub(1).and_then(|prev| runs.get(prev))
+        {
             // The last column takes its run plus one, widened to the preceding column's span when
             // the two are within two characters.
             let natural = len + 1;
@@ -333,7 +334,8 @@ fn multiline_widths(runs: &[(usize, usize)]) -> Vec<f64> {
             // A lone column is its run plus one.
             len + 1
         };
-        #[allow(clippy::cast_precision_loss)] // column spans are small line offsets, far inside f64's range
+        #[allow(clippy::cast_precision_loss)]
+        // column spans are small line offsets, far inside f64's range
         let width = numerator as f64 / TOTAL;
         widths.push(width);
     }
@@ -429,11 +431,19 @@ mod tests {
     }
 
     fn head_cell(table: &TextTable, col: usize) -> &str {
-        table.head.get(col).map(String::as_str).expect("header cell present")
+        table
+            .head
+            .get(col)
+            .map(String::as_str)
+            .expect("header cell present")
     }
 
     fn align(table: &TextTable, col: usize) -> &Alignment {
-        table.columns.get(col).map(|column| &column.align).expect("column present")
+        table
+            .columns
+            .get(col)
+            .map(|column| &column.align)
+            .expect("column present")
     }
 
     #[test]
@@ -483,7 +493,11 @@ mod tests {
     #[test]
     fn headed_table_alignment_from_spacing() {
         // Run columns four wide: flush-left, centered, padded-right, and exactly filled.
-        let lines = ["ab    cd  ef ghij", "---- ---- ---- ----", "X    Y    Z    W"];
+        let lines = [
+            "ab    cd  ef ghij",
+            "---- ---- ---- ----",
+            "X    Y    Z    W",
+        ];
         let (table, _) = parse(&lines, SIMPLE).expect("table");
         assert!(matches!(align(&table, 0), Alignment::AlignLeft));
         assert!(matches!(align(&table, 1), Alignment::AlignCenter));
@@ -516,7 +530,12 @@ mod tests {
 
     #[test]
     fn headerless_alignment_from_first_row() {
-        let lines = ["-------- --------", "  r         l1", "x         y", "--------- -------"];
+        let lines = [
+            "-------- --------",
+            "  r         l1",
+            "x         y",
+            "--------- -------",
+        ];
         let (table, _) = parse(&lines, SIMPLE).expect("table");
         // Column zero's first-row text is padded on both sides; column one's reaches the right edge.
         assert!(matches!(align(&table, 0), Alignment::AlignCenter));
@@ -569,7 +588,14 @@ mod tests {
 
     #[test]
     fn multiline_headerless_reads_first_row_and_widths() {
-        let lines = ["----- -----", "  a       b", "  cont", "", "x         y", "----- -----"];
+        let lines = [
+            "----- -----",
+            "  a       b",
+            "  cont",
+            "",
+            "x         y",
+            "----- -----",
+        ];
         let (table, consumed) = parse(&lines, MULTILINE).expect("table");
         assert_eq!(consumed, lines.len());
         assert!(table.head.is_empty());

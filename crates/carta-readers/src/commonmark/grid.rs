@@ -267,7 +267,12 @@ fn build_row(content: &[&str], boundaries: &[usize]) -> Row {
 fn cell_text(lines: Vec<String>) -> Cell {
     let mut lines: Vec<String> = lines
         .into_iter()
-        .map(|line| line.strip_prefix(' ').unwrap_or(&line).trim_end().to_owned())
+        .map(|line| {
+            line.strip_prefix(' ')
+                .unwrap_or(&line)
+                .trim_end()
+                .to_owned()
+        })
         .collect();
     while lines.first().is_some_and(String::is_empty) {
         lines.remove(0);
@@ -303,7 +308,11 @@ mod tests {
     }
 
     fn col_width(table: &GridTable, col: usize) -> f64 {
-        table.columns.get(col).map(|c| c.width).expect("column present")
+        table
+            .columns
+            .get(col)
+            .map(|c| c.width)
+            .expect("column present")
     }
 
     #[test]
@@ -363,7 +372,10 @@ mod tests {
         assert!(matches!(col_align(&table, 0), Some(Alignment::AlignLeft)));
         assert!(matches!(col_align(&table, 1), Some(Alignment::AlignRight)));
         let centered = parse("+:-:+\n| a |\n+---+").unwrap();
-        assert!(matches!(col_align(&centered, 0), Some(Alignment::AlignCenter)));
+        assert!(matches!(
+            col_align(&centered, 0),
+            Some(Alignment::AlignCenter)
+        ));
     }
 
     #[test]
@@ -412,8 +424,7 @@ mod tests {
 
     #[test]
     fn a_second_divider_before_an_equals_close_makes_a_footer() {
-        let table =
-            parse("+---+\n| h |\n+===+\n| b |\n+===+\n| f |\n+===+").unwrap();
+        let table = parse("+---+\n| h |\n+===+\n| b |\n+===+\n| f |\n+===+").unwrap();
         assert_eq!(table.head.len(), 1);
         assert_eq!(table.body.len(), 1);
         assert_eq!(table.foot.len(), 1);
