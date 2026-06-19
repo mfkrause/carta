@@ -709,6 +709,7 @@ impl InlineParser<'_> {
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
                 '=' if self.ext.contains(Extension::Mark) => self.emphasis_run(b'='),
                 '@' if self.ext.contains(Extension::ExampleLists) => self.example_ref(),
+                ':' if self.ext.contains(Extension::Emoji) && self.try_emoji() => {}
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
                 '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
                 '.' if self.ext.contains(Extension::Smart) => self.smart_ellipsis(),
@@ -770,6 +771,44 @@ impl InlineParser<'_> {
         }
         self.pos += 1;
         self.push_text('@');
+    }
+
+    /// Resolve an emoji shortcode `:name:` at the cursor (which sits on the opening `:`). A name is
+    /// one or more ASCII letters, digits, `_`, `+`, or `-`, terminated by a closing `:`. When the
+    /// name is in the curated table, the whole `:name:` becomes a `Span` classed `emoji` carrying the
+    /// name in a `data-emoji` attribute and the unicode character as its text; the cursor advances
+    /// past the closing `:` and `true` is returned. An unrecognized name (or no closing `:`) leaves
+    /// the leading `:` untouched and returns `false`, so the run reparses as literal text.
+    fn try_emoji(&mut self) -> bool {
+        let name_start = self.pos + 1;
+        let mut index = name_start;
+        while matches!(
+            self.chars.get(index),
+            Some('0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '+' | '-')
+        ) {
+            index += 1;
+        }
+        if index == name_start || self.chars.get(index) != Some(&':') {
+            return false;
+        }
+        let name: String = match self.chars.get(name_start..index) {
+            Some(slice) => slice.iter().collect(),
+            None => return false,
+        };
+        let Some(codepoints) = emoji::lookup(&name) else {
+            return false;
+        };
+        let attr = Attr {
+            id: String::new(),
+            classes: vec!["emoji".to_owned()],
+            attributes: vec![("data-emoji".to_owned(), name)],
+        };
+        self.pos = index + 1;
+        self.nodes.push(Node::Inline(Inline::Span(
+            attr,
+            vec![Inline::Str(codepoints.to_owned())],
+        )));
+        true
     }
 
     fn backslash(&mut self) {
@@ -2484,17 +2523,359 @@ fn normalize_code(content: &str) -> String {
     }
 }
 
+/// A curated subset of common emoji shortcodes mapped to their unicode strings, sorted by name
+/// for binary search. The full set of named emoji is far larger; this table ships the names most
+/// likely to appear in prose — faces, hands (including `+1`/`-1`), hearts, and common symbols and
+/// objects. Some entries carry a trailing variation selector (`U+FE0F`) as part of their text.
+mod emoji {
+    /// `(shortname, unicode)` pairs, sorted ascending by `shortname` so [`lookup`] can binary-search.
+    const TABLE: &[(&str, &str)] = &[
+    ("+1", "\u{1f44d}"),
+    ("-1", "\u{1f44e}"),
+    ("100", "\u{1f4af}"),
+    ("8ball", "\u{1f3b1}"),
+    ("airplane", "\u{2708}\u{fe0f}"),
+    ("alarm_clock", "\u{23f0}"),
+    ("angry", "\u{1f620}"),
+    ("ant", "\u{1f41c}"),
+    ("apple", "\u{1f34e}"),
+    ("arrow_down", "\u{2b07}\u{fe0f}"),
+    ("arrow_left", "\u{2b05}\u{fe0f}"),
+    ("arrow_right", "\u{27a1}\u{fe0f}"),
+    ("arrow_up", "\u{2b06}\u{fe0f}"),
+    ("arrow_upper_right", "\u{2197}\u{fe0f}"),
+    ("astonished", "\u{1f632}"),
+    ("balloon", "\u{1f388}"),
+    ("banana", "\u{1f34c}"),
+    ("bangbang", "\u{203c}\u{fe0f}"),
+    ("baseball", "\u{26be}"),
+    ("basketball", "\u{1f3c0}"),
+    ("battery", "\u{1f50b}"),
+    ("bear", "\u{1f43b}"),
+    ("bee", "\u{1f41d}"),
+    ("beer", "\u{1f37a}"),
+    ("beers", "\u{1f37b}"),
+    ("bell", "\u{1f514}"),
+    ("bird", "\u{1f426}"),
+    ("black_circle", "\u{26ab}"),
+    ("black_heart", "\u{1f5a4}"),
+    ("blue_heart", "\u{1f499}"),
+    ("blush", "\u{1f60a}"),
+    ("bomb", "\u{1f4a3}"),
+    ("book", "\u{1f4d6}"),
+    ("books", "\u{1f4da}"),
+    ("boom", "\u{1f4a5}"),
+    ("broken_heart", "\u{1f494}"),
+    ("bug", "\u{1f41b}"),
+    ("bulb", "\u{1f4a1}"),
+    ("bus", "\u{1f68c}"),
+    ("bust_in_silhouette", "\u{1f464}"),
+    ("butterfly", "\u{1f98b}"),
+    ("calling", "\u{1f4f2}"),
+    ("camera", "\u{1f4f7}"),
+    ("car", "\u{1f697}"),
+    ("cat", "\u{1f431}"),
+    ("cherries", "\u{1f352}"),
+    ("chicken", "\u{1f414}"),
+    ("clap", "\u{1f44f}"),
+    ("cloud", "\u{2601}\u{fe0f}"),
+    ("cocktail", "\u{1f378}"),
+    ("coffee", "\u{2615}"),
+    ("collision", "\u{1f4a5}"),
+    ("computer", "\u{1f4bb}"),
+    ("confetti_ball", "\u{1f38a}"),
+    ("confused", "\u{1f615}"),
+    ("cow", "\u{1f42e}"),
+    ("crescent_moon", "\u{1f319}"),
+    ("crown", "\u{1f451}"),
+    ("cry", "\u{1f622}"),
+    ("cupid", "\u{1f498}"),
+    ("dart", "\u{1f3af}"),
+    ("dash", "\u{1f4a8}"),
+    ("desktop_computer", "\u{1f5a5}\u{fe0f}"),
+    ("disappointed", "\u{1f61e}"),
+    ("dizzy_face", "\u{1f635}"),
+    ("dog", "\u{1f436}"),
+    ("dollar", "\u{1f4b5}"),
+    ("droplet", "\u{1f4a7}"),
+    ("ear", "\u{1f442}"),
+    ("earth_americas", "\u{1f30e}"),
+    ("electric_plug", "\u{1f50c}"),
+    ("email", "\u{1f4e7}"),
+    ("envelope", "\u{2709}\u{fe0f}"),
+    ("exclamation", "\u{2757}"),
+    ("expressionless", "\u{1f611}"),
+    ("eye", "\u{1f441}\u{fe0f}"),
+    ("eyes", "\u{1f440}"),
+    ("fearful", "\u{1f628}"),
+    ("fire", "\u{1f525}"),
+    ("fist", "\u{270a}"),
+    ("flashlight", "\u{1f526}"),
+    ("flushed", "\u{1f633}"),
+    ("football", "\u{1f3c8}"),
+    ("footprints", "\u{1f463}"),
+    ("fox_face", "\u{1f98a}"),
+    ("fries", "\u{1f35f}"),
+    ("frog", "\u{1f438}"),
+    ("frowning", "\u{1f626}"),
+    ("full_moon", "\u{1f315}"),
+    ("gear", "\u{2699}\u{fe0f}"),
+    ("gem", "\u{1f48e}"),
+    ("gift", "\u{1f381}"),
+    ("globe_with_meridians", "\u{1f310}"),
+    ("golf", "\u{26f3}"),
+    ("grapes", "\u{1f347}"),
+    ("green_heart", "\u{1f49a}"),
+    ("grey_exclamation", "\u{2755}"),
+    ("grey_question", "\u{2754}"),
+    ("grimacing", "\u{1f62c}"),
+    ("grin", "\u{1f601}"),
+    ("grinning", "\u{1f600}"),
+    ("guitar", "\u{1f3b8}"),
+    ("gun", "\u{1f52b}"),
+    ("hamburger", "\u{1f354}"),
+    ("hammer", "\u{1f528}"),
+    ("hand", "\u{270b}"),
+    ("handshake", "\u{1f91d}"),
+    ("headphones", "\u{1f3a7}"),
+    ("heart", "\u{2764}\u{fe0f}"),
+    ("heart_eyes", "\u{1f60d}"),
+    ("heartbeat", "\u{1f493}"),
+    ("heartpulse", "\u{1f497}"),
+    ("heavy_check_mark", "\u{2714}\u{fe0f}"),
+    ("heavy_division_sign", "\u{2797}"),
+    ("heavy_minus_sign", "\u{2796}"),
+    ("heavy_multiplication_x", "\u{2716}\u{fe0f}"),
+    ("heavy_plus_sign", "\u{2795}"),
+    ("horse", "\u{1f434}"),
+    ("hourglass", "\u{231b}"),
+    ("interrobang", "\u{2049}\u{fe0f}"),
+    ("iphone", "\u{1f4f1}"),
+    ("joy", "\u{1f602}"),
+    ("key", "\u{1f511}"),
+    ("keyboard", "\u{2328}\u{fe0f}"),
+    ("kiss", "\u{1f48b}"),
+    ("kissing_heart", "\u{1f618}"),
+    ("knife", "\u{1f52a}"),
+    ("koala", "\u{1f428}"),
+    ("large_blue_circle", "\u{1f535}"),
+    ("laughing", "\u{1f606}"),
+    ("lemon", "\u{1f34b}"),
+    ("lips", "\u{1f444}"),
+    ("lock", "\u{1f512}"),
+    ("mag", "\u{1f50d}"),
+    ("mask", "\u{1f637}"),
+    ("memo", "\u{1f4dd}"),
+    ("metal", "\u{1f918}"),
+    ("microphone", "\u{1f3a4}"),
+    ("microscope", "\u{1f52c}"),
+    ("moneybag", "\u{1f4b0}"),
+    ("monkey_face", "\u{1f435}"),
+    ("moon", "\u{1f314}"),
+    ("mouse", "\u{1f42d}"),
+    ("movie_camera", "\u{1f3a5}"),
+    ("muscle", "\u{1f4aa}"),
+    ("musical_note", "\u{1f3b5}"),
+    ("nail_care", "\u{1f485}"),
+    ("negative_squared_cross_mark", "\u{274e}"),
+    ("neutral_face", "\u{1f610}"),
+    ("no_bell", "\u{1f515}"),
+    ("no_mouth", "\u{1f636}"),
+    ("nose", "\u{1f443}"),
+    ("notes", "\u{1f3b6}"),
+    ("ok_hand", "\u{1f44c}"),
+    ("open_hands", "\u{1f450}"),
+    ("open_mouth", "\u{1f62e}"),
+    ("panda_face", "\u{1f43c}"),
+    ("peach", "\u{1f351}"),
+    ("pencil2", "\u{270f}\u{fe0f}"),
+    ("penguin", "\u{1f427}"),
+    ("pensive", "\u{1f614}"),
+    ("phone", "\u{260e}\u{fe0f}"),
+    ("pig", "\u{1f437}"),
+    ("pill", "\u{1f48a}"),
+    ("pizza", "\u{1f355}"),
+    ("point_down", "\u{1f447}"),
+    ("point_left", "\u{1f448}"),
+    ("point_right", "\u{1f449}"),
+    ("point_up", "\u{261d}\u{fe0f}"),
+    ("pray", "\u{1f64f}"),
+    ("printer", "\u{1f5a8}\u{fe0f}"),
+    ("punch", "\u{1f44a}"),
+    ("purple_heart", "\u{1f49c}"),
+    ("question", "\u{2753}"),
+    ("rabbit", "\u{1f430}"),
+    ("rage", "\u{1f621}"),
+    ("raised_hand", "\u{270b}"),
+    ("raised_hands", "\u{1f64c}"),
+    ("recycle", "\u{267b}\u{fe0f}"),
+    ("red_circle", "\u{1f534}"),
+    ("relaxed", "\u{263a}\u{fe0f}"),
+    ("relieved", "\u{1f60c}"),
+    ("revolving_hearts", "\u{1f49e}"),
+    ("rocket", "\u{1f680}"),
+    ("rotating_light", "\u{1f6a8}"),
+    ("satellite", "\u{1f4e1}"),
+    ("scream", "\u{1f631}"),
+    ("shield", "\u{1f6e1}\u{fe0f}"),
+    ("sleeping", "\u{1f634}"),
+    ("sleepy", "\u{1f62a}"),
+    ("slightly_smiling_face", "\u{1f642}"),
+    ("smile", "\u{1f604}"),
+    ("smiley", "\u{1f603}"),
+    ("smirk", "\u{1f60f}"),
+    ("snail", "\u{1f40c}"),
+    ("snake", "\u{1f40d}"),
+    ("snowflake", "\u{2744}\u{fe0f}"),
+    ("snowman", "\u{26c4}"),
+    ("sob", "\u{1f62d}"),
+    ("soccer", "\u{26bd}"),
+    ("sparkles", "\u{2728}"),
+    ("sparkling_heart", "\u{1f496}"),
+    ("spider", "\u{1f577}\u{fe0f}"),
+    ("star", "\u{2b50}"),
+    ("star2", "\u{1f31f}"),
+    ("strawberry", "\u{1f353}"),
+    ("stuck_out_tongue", "\u{1f61b}"),
+    ("sun_with_face", "\u{1f31e}"),
+    ("sunglasses", "\u{1f60e}"),
+    ("sunny", "\u{2600}\u{fe0f}"),
+    ("sweat_drops", "\u{1f4a6}"),
+    ("sweat_smile", "\u{1f605}"),
+    ("syringe", "\u{1f489}"),
+    ("tada", "\u{1f389}"),
+    ("taxi", "\u{1f695}"),
+    ("tea", "\u{1f375}"),
+    ("telephone", "\u{260e}\u{fe0f}"),
+    ("telescope", "\u{1f52d}"),
+    ("tennis", "\u{1f3be}"),
+    ("thinking", "\u{1f914}"),
+    ("thumbsdown", "\u{1f44e}"),
+    ("thumbsup", "\u{1f44d}"),
+    ("tiger", "\u{1f42f}"),
+    ("tired_face", "\u{1f62b}"),
+    ("tongue", "\u{1f445}"),
+    ("train", "\u{1f68b}"),
+    ("triumph", "\u{1f624}"),
+    ("trophy", "\u{1f3c6}"),
+    ("trumpet", "\u{1f3ba}"),
+    ("turtle", "\u{1f422}"),
+    ("tv", "\u{1f4fa}"),
+    ("two_hearts", "\u{1f495}"),
+    ("umbrella", "\u{2614}"),
+    ("unamused", "\u{1f612}"),
+    ("unlock", "\u{1f513}"),
+    ("upside_down_face", "\u{1f643}"),
+    ("v", "\u{270c}\u{fe0f}"),
+    ("warning", "\u{26a0}\u{fe0f}"),
+    ("watch", "\u{231a}"),
+    ("watermelon", "\u{1f349}"),
+    ("wave", "\u{1f44b}"),
+    ("weary", "\u{1f629}"),
+    ("white_check_mark", "\u{2705}"),
+    ("white_circle", "\u{26aa}"),
+    ("wine_glass", "\u{1f377}"),
+    ("wink", "\u{1f609}"),
+    ("wolf", "\u{1f43a}"),
+    ("worried", "\u{1f61f}"),
+    ("wrench", "\u{1f527}"),
+    ("writing_hand", "\u{270d}\u{fe0f}"),
+    ("x", "\u{274c}"),
+    ("yellow_heart", "\u{1f49b}"),
+    ("yum", "\u{1f60b}"),
+    ("zap", "\u{26a1}"),
+    ("zzz", "\u{1f4a4}"),
+    ];
+
+    /// The unicode string for `name`, or `None` when the name is not in the curated table.
+    pub(super) fn lookup(name: &str) -> Option<&'static str> {
+        TABLE
+            .binary_search_by(|(key, _)| (*key).cmp(name))
+            .ok()
+            .and_then(|index| TABLE.get(index))
+            .map(|(_, value)| *value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, flanking, fold_dash_run,
-        fold_ellipsis_run, match_use_count, quote_flanking, split_header_attr,
+        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, emoji, flanking, fold_dash_run,
+        fold_ellipsis_run, match_use_count, parse_meta_inlines, quote_flanking, split_header_attr,
         task_marker_replacement,
     };
+    use carta_ast::{Attr, Inline};
     use carta_core::{Extension, Extensions};
 
     fn exts(list: &[Extension]) -> Extensions {
         Extensions::from_list(list)
+    }
+
+    fn emoji_span(name: &str, text: &str) -> Inline {
+        Inline::Span(
+            Attr {
+                id: String::new(),
+                classes: vec!["emoji".to_owned()],
+                attributes: vec![("data-emoji".to_owned(), name.to_owned())],
+            },
+            vec![Inline::Str(text.to_owned())],
+        )
+    }
+
+    #[test]
+    fn emoji_table_is_sorted_for_binary_search() {
+        let on = exts(&[Extension::Emoji]);
+        // Every entry resolves to its own value through the lookup path; a misordered table would
+        // make some entry unreachable by binary search.
+        assert_eq!(emoji::lookup("smile"), Some("\u{1f604}"));
+        assert_eq!(emoji::lookup("+1"), Some("\u{1f44d}"));
+        assert_eq!(emoji::lookup("-1"), Some("\u{1f44e}"));
+        // The multi-codepoint heart keeps its variation selector.
+        assert_eq!(emoji::lookup("heart"), Some("\u{2764}\u{fe0f}"));
+        assert_eq!(emoji::lookup("not_an_emoji_name"), None);
+        // Parsing round-trips through the table for a representative name.
+        assert_eq!(
+            parse_meta_inlines(":rocket:", on),
+            vec![emoji_span("rocket", "\u{1f680}")]
+        );
+    }
+
+    #[test]
+    fn emoji_resolves_known_shortcodes() {
+        let on = exts(&[Extension::Emoji]);
+        assert_eq!(
+            parse_meta_inlines(":smile:", on),
+            vec![emoji_span("smile", "\u{1f604}")]
+        );
+        // A shortcode whose name carries `+`/`-` still resolves.
+        assert_eq!(
+            parse_meta_inlines(":+1:", on),
+            vec![emoji_span("+1", "\u{1f44d}")]
+        );
+    }
+
+    #[test]
+    fn emoji_unknown_name_stays_literal() {
+        let on = exts(&[Extension::Emoji]);
+        // An unrecognized name leaves the colons and text verbatim.
+        assert_eq!(
+            parse_meta_inlines(":unknown_xyz:", on),
+            vec![Inline::Str(":unknown_xyz:".to_owned())]
+        );
+        // An empty `::` is not a shortcode.
+        assert_eq!(
+            parse_meta_inlines("::", on),
+            vec![Inline::Str("::".to_owned())]
+        );
+    }
+
+    #[test]
+    fn emoji_requires_extension() {
+        let off = Extensions::empty();
+        assert_eq!(
+            parse_meta_inlines(":smile:", off),
+            vec![Inline::Str(":smile:".to_owned())]
+        );
     }
 
     #[test]
