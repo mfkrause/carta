@@ -26,8 +26,9 @@ for fmt in $FORMATS; do
 done
 
 # Extension-toggle cases: each `corpus/text-ext/<spec>/*` directory is named for the full format
-# spec (e.g. `commonmark+strikeout`) it should be parsed with, for both carta and pandoc. All current
-# specs are commonmark-based, so they run alongside the commonmark group.
+# spec (e.g. `commonmark+strikeout`, `markdown+citations`) it should be parsed with, for both carta
+# and pandoc. The specs build on the markdown-family readers, which the commonmark group compiles, so
+# they run alongside it.
 if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
   conf_reset "reader-ext"
   for spec_dir in "$CORPUS"/text-ext/*; do
