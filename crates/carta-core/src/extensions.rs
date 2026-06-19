@@ -206,7 +206,7 @@ pub mod presets {
         Extension::RawHtml,
     ]);
 
-    /// `CommonMark` with the common pandoc extensions enabled.
+    /// `CommonMark` with a broad set of inline and block extensions enabled.
     pub const COMMONMARK_X: Extensions = Extensions::from_list(&[
         Extension::Smart,
         Extension::Strikeout,
@@ -230,7 +230,7 @@ pub mod presets {
         Extension::ImplicitHeaderReferences,
     ]);
 
-    /// The pandoc Markdown dialect: the broad default extension set.
+    /// The extended Markdown dialect: the broad default extension set.
     pub const MARKDOWN: Extensions = Extensions::from_list(&[
         Extension::Smart,
         Extension::Strikeout,
@@ -303,7 +303,7 @@ mod tests {
         assert!(presets::GFM.contains(Extension::Strikeout));
         assert!(presets::GFM.contains(Extension::TaskLists));
         assert!(presets::GFM.contains(Extension::PipeTables));
-        // GFM has no subscript/superscript; those belong to the broader pandoc dialects.
+        // GFM has no subscript/superscript; those belong to the broader Markdown dialects.
         assert!(!presets::GFM.contains(Extension::Subscript));
         assert!(!presets::GFM.contains(Extension::Superscript));
     }

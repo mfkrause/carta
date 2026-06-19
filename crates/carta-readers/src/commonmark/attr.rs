@@ -1,4 +1,4 @@
-//! Pandoc-style attribute blocks: `{#id .class key=value key="quoted value"}`.
+//! Attribute blocks: `{#id .class key=value key="quoted value"}`.
 //!
 //! Shared by the header, fenced-code, inline-code, link, and span attribute extensions. A token is an
 //! identifier (`#…`), a class (`.…`), or a `key=value` pair; any other bare word makes the whole block
