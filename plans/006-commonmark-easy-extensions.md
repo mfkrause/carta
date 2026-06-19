@@ -273,7 +273,7 @@ In `crates/carta-readers/src/commonmark/mod.rs`:
 - `parse(input, ext)`: thread `ext` into the inline phase and the task-list transform. Update the
   doc comment (drop the stale "deferred to the configurable markdown engine" line and the dangling
   `refactor-1-…` reference; state that the reader honors the extension set, listing the supported
-  ones, and point at this plan / `docs/PORTING.md`).
+  ones, and point at this plan).
 
 In `inline.rs`: add an `ext: Extensions` field to `InlineParser` and thread `ext` through
 `resolve_blocks → resolve_block → parse_inlines`. `process_emphasis` and the new format-run code

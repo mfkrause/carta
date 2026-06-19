@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fetch pandoc's TEST CORPUS (data only) into .oracle/tests/ (gitignored, local-only) for
-# differential testing — see docs/PORTING.md §5 and AGENTS.md "Testing against pandoc's own tests".
+# differential testing — see AGENTS.md "Testing against pandoc's own tests".
 #
 # Clean-room: this does a SPARSE checkout of only `test/`, at the git tag matching the pinned binary,
 # then DELETES every .hs file — so pandoc's implementation (src/, Haskell test harness) never lands

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install a pinned pandoc binary as a BLACK-BOX reference into .oracle/ (gitignored, local-only).
 #
-# pandoc is used only as an external oracle for differential testing (see docs/PORTING.md §5).
+# pandoc is used only as an external oracle for differential testing.
 # Per the clean-room rule in AGENTS.md we never read its source and never commit it.
 #
 # Usage:
@@ -99,7 +99,7 @@ install -m 0755 "$src_bin" "$bin_dir/pandoc"
 printf '%s\n' "$version" >"$version_file"
 
 # Record the JSON AST api-version. Our serialization must match this major.minor or pandoc
-# rejects our JSON (see docs/PORTING.md §4).
+# rejects our JSON.
 api_version="$(printf '' | "$bin_dir/pandoc" -f markdown -t json 2>/dev/null |
   sed -n 's/.*"pandoc-api-version":\(\[[0-9,]*\]\).*/\1/p' | head -1)"
 printf '%s\n' "${api_version:-unknown}" >"$ref_dir/API_VERSION"

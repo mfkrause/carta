@@ -1,6 +1,6 @@
 //! The carta abstract syntax tree: the document model and its JSON interchange format.
 //!
-//! This AST is the single contract between readers and writers (see `docs/PORTING.md` §3–4).
+//! This AST is the single contract between readers and writers.
 //! [`Document`] is the root; [`Block`] and [`Inline`] are the two load-bearing node families.
 //! JSON (de)serialization is provided by serde derives plus the manual array codecs in
 //! `serde_impls`, and the convenience entry points [`from_json`] and [`to_json_writer`].

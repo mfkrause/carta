@@ -7,7 +7,7 @@
 //! scalars; the conversion to metadata happens in [`super::frontmatter`].
 //!
 //! The grammar handled here is the one document front matter needs, not all of YAML; anchors,
-//! aliases, tags, and multi-document streams are out of scope (see `docs/PORTING.md`).
+//! aliases, tags, and multi-document streams are out of scope
 
 /// A parsed YAML value.
 #[derive(Debug, Clone, PartialEq)]
