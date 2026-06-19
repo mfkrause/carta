@@ -265,7 +265,7 @@ fn skip_html_whitespace(chars: &[char], mut index: usize) -> usize {
     index
 }
 
-fn matches_at(chars: &[char], index: usize, needle: &str) -> bool {
+pub(crate) fn matches_at(chars: &[char], index: usize, needle: &str) -> bool {
     needle
         .chars()
         .enumerate()
