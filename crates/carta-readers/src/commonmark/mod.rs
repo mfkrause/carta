@@ -39,7 +39,7 @@ impl Reader for CommonmarkReader {
         let normalized = normalize(input);
         let (meta, body) = frontmatter::extract(&normalized, ext)?;
         let source = body.as_deref().unwrap_or(&normalized);
-        let (ir, refs, footnotes, examples) = block::parse(source, ext);
+        let (ir, refs, footnotes, examples) = block::parse(source, ext, options.greedy_paragraphs);
         let blocks = inline::resolve_document(&ir, refs, &footnotes, &examples, ext);
         Ok(Document {
             meta,
@@ -127,7 +127,7 @@ pub(crate) type ExampleMap = BTreeMap<String, i32>;
 /// metadata block.
 pub(crate) fn parse_meta_blocks(text: &str, extensions: Extensions) -> Vec<Block> {
     let normalized = normalize(text);
-    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions);
+    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, false);
     inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
 }
 
@@ -139,7 +139,7 @@ pub(crate) fn parse_table_cell(text: &str, tight: bool, extensions: Extensions) 
         return Vec::new();
     }
     let normalized = normalize(text);
-    let (mut ir, refs, footnotes, examples) = block::parse(&normalized, extensions);
+    let (mut ir, refs, footnotes, examples) = block::parse(&normalized, extensions, false);
     if tight {
         block::demote_loose_paragraphs(&mut ir);
     }
@@ -1269,6 +1269,99 @@ mod tests {
         CommonmarkReader
             .read(input, &options)
             .expect("reader should not fail")
+    }
+
+    /// Parse with greedy paragraphs enabled (the markdown dialect) and the given extensions.
+    fn greedy_blocks(input: &str, exts: &[Extension]) -> Vec<Block> {
+        let mut options = ReaderOptions::default();
+        options.extensions = Extensions::from_list(exts);
+        options.greedy_paragraphs = true;
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+            .blocks
+    }
+
+    #[test]
+    fn a_greedy_paragraph_folds_a_following_block_quote_heading_and_break() {
+        // A block-quote, heading, or thematic-break line right under a paragraph continues it.
+        for line in ["> quote", "# heading", "***"] {
+            let input = format!("text\n{line}\n");
+            assert!(
+                matches!(greedy_blocks(&input, &[]).as_slice(), [Block::Para(_)]),
+                "expected one paragraph for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_greedy_paragraph_is_not_interrupted_by_a_list_marker() {
+        // At the top level a fresh list cannot interrupt a paragraph; the marker reads as text.
+        assert!(matches!(
+            greedy_blocks("text\n- item\n", &[]).as_slice(),
+            [Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn a_greedy_paragraph_folds_a_fenced_div_and_footnote_definition() {
+        assert!(matches!(
+            greedy_blocks("text\n::: note\nx\n:::\n", &[Extension::FencedDivs]).as_slice(),
+            [Block::Para(_)]
+        ));
+        assert!(matches!(
+            greedy_blocks("text\n[^1]: a note\n", &[Extension::Footnotes]).as_slice(),
+            [Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn a_fenced_code_block_still_ends_a_greedy_paragraph() {
+        assert!(matches!(
+            greedy_blocks("text\n```\ncode\n```\n", &[]).as_slice(),
+            [Block::Para(_), Block::CodeBlock(_, _)]
+        ));
+    }
+
+    #[test]
+    fn a_blank_line_lets_a_block_open_after_a_greedy_paragraph() {
+        assert!(matches!(
+            greedy_blocks("text\n\n# heading\n", &[]).as_slice(),
+            [Block::Para(_), Block::Header(_, _, _)]
+        ));
+        assert!(matches!(
+            greedy_blocks("text\n\n- item\n", &[]).as_slice(),
+            [Block::Para(_), Block::BulletList(_)]
+        ));
+    }
+
+    #[test]
+    fn sibling_list_items_are_not_folded_into_each_other() {
+        // Greediness suppresses only a fresh list interrupting a paragraph, never the markers that
+        // continue an open list.
+        let blocks = greedy_blocks("- a\n- b\n", &[]);
+        let [Block::BulletList(items)] = blocks.as_slice() else {
+            panic!("expected a bullet list");
+        };
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn a_sublist_opens_under_an_item_regardless_of_its_start_number() {
+        // An indented ordered marker opens a sublist even when it does not start at one.
+        let blocks = greedy_blocks("1. a\n   3. b\n", &[Extension::FancyLists]);
+        let [Block::OrderedList(_, items)] = blocks.as_slice() else {
+            panic!("expected an ordered list");
+        };
+        let [first] = items.as_slice() else {
+            panic!("expected one outer item");
+        };
+        assert!(
+            first
+                .iter()
+                .any(|block| matches!(block, Block::OrderedList(_, _))),
+            "the item should contain a nested ordered list"
+        );
     }
 
     #[test]
