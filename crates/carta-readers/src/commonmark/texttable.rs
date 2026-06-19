@@ -1,13 +1,16 @@
 //! Dash-ruled tables: blocks whose columns are fixed by runs of `-` rather than the `|`/`+` borders
-//! of a pipe or grid table. Two shapes share this module:
+//! of a pipe or grid table. Three shapes share this module:
 //!
-//! * a *headed* table — one header line above a dash ruling, then one row per line; and
-//! * a *headerless* table — a dash ruling, then one row per line, closed by a second ruling.
+//! * a single-line *headed* table — one header line above a dash ruling, then one row per line;
+//! * a single-line *headerless* table — a dash ruling, then one row per line, closed by a second
+//!   ruling; and
+//! * a *multi-line* table — a dash ruling, an optional header closed by a second ruling, then rows
+//!   separated by blank lines whose physical lines join into one cell each, closed by a final ruling.
 //!
-//! Both forms slice each line into cells at the dash runs' start columns, read per-column alignment
-//! from a reference line (the header, or the first row when headerless), and leave each cell's text
-//! raw for the inline phase. Column widths are unset here; the multi-line variant that derives
-//! fractional widths from the ruling is layered on separately.
+//! Every form slices each line into cells at the dash runs' start columns and reads per-column
+//! alignment from a reference line (the header, or the first row when headerless). The single-line
+//! forms leave their column widths unset; the multi-line form derives a fractional width for each
+//! column from the ruling. Each cell's text is left raw for the inline phase.
 
 use carta_ast::Alignment;
 use carta_core::{Extension, Extensions};
@@ -77,27 +80,22 @@ fn dash_runs(line: &str) -> Vec<(usize, usize)> {
 
 /// Parse the accumulated lines of a dash-table candidate, returning the table and how many of the
 /// lines it consumed (any trailing lines belong to the next block). Returns `None` when the lines do
-/// not form a complete, well-formed table, so the caller can fall back. A leading dash ruling takes
-/// the headerless shapes; any other first line takes the headed shape, with the ruling on the
-/// second line.
+/// not form a complete, well-formed table, so the caller can fall back. A leading dash ruling first
+/// tries the multi-line shape, then the single-line headerless shape; any other first line takes the
+/// single-line headed shape, with the ruling on the second line.
 pub(crate) fn parse(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
     let first = *lines.first()?;
     if is_dash_line(first) {
-        parse_headerless(lines, ext)
+        parse_multiline(lines, ext).or_else(|| parse_headerless(lines, ext))
     } else {
         parse_headed(lines, ext)
     }
 }
 
-/// Whether either dash-table extension is enabled.
-fn enabled(ext: Extensions) -> bool {
-    ext.contains(Extension::SimpleTables) || ext.contains(Extension::MultilineTables)
-}
-
 /// Parse a headed table: a header line, a dash ruling, then one single-line row each until a closing
 /// ruling (consumed) or the lines run out. Alignment comes from the header line; widths are unset.
 fn parse_headed(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
-    if !enabled(ext) {
+    if !ext.contains(Extension::SimpleTables) {
         return None;
     }
     let header = *lines.first()?;
@@ -142,7 +140,7 @@ fn parse_headed(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
 /// Parse a headerless table: a dash ruling, then one single-line row each, closed by a second ruling
 /// (required). Alignment comes from the first row; widths are unset.
 fn parse_headerless(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
-    if !enabled(ext) {
+    if !ext.contains(Extension::SimpleTables) {
         return None;
     }
     let top = *lines.first()?;
@@ -186,6 +184,93 @@ fn parse_headerless(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize
     ))
 }
 
+/// Parse a multi-line table: a dash ruling, then an optional header — the lines up to a second
+/// ruling that appears before any blank line — followed by rows separated by blank lines and closed
+/// by a final ruling. Within a row the physical lines join into one cell each; alignment comes from
+/// the header's first line, or the first row when there is no header; widths are fractions derived
+/// from the ruling. Returns `None` when the body is empty, so a two-ruling block with single-line
+/// rows falls back to the single-line headerless shape.
+fn parse_multiline(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
+    if !ext.contains(Extension::MultilineTables) {
+        return None;
+    }
+    let top = *lines.first()?;
+    if !is_dash_line(top) {
+        return None;
+    }
+    let runs = dash_runs(top);
+    if runs.is_empty() {
+        return None;
+    }
+    let starts: Vec<usize> = runs.iter().map(|&(start, _)| start).collect();
+
+    // A header is the run of lines after the top ruling up to a second ruling, but only when that
+    // ruling arrives before any blank line; a blank first means the table has no header.
+    let mut separator: Option<usize> = None;
+    let mut scan = 1;
+    while let Some(&line) = lines.get(scan) {
+        if is_dash_line(line) {
+            separator = Some(scan);
+            break;
+        }
+        if line.trim().is_empty() {
+            break;
+        }
+        scan += 1;
+    }
+    let (header_lines, body_start) = match separator {
+        Some(sep) if sep > 1 => (lines.get(1..sep)?.to_vec(), sep + 1),
+        _ => (Vec::new(), 1),
+    };
+
+    let mut body_rows: Vec<Vec<&str>> = Vec::new();
+    let mut current: Vec<&str> = Vec::new();
+    let mut closed = false;
+    let mut consumed = body_start;
+    for &line in lines.get(body_start..).unwrap_or(&[]) {
+        consumed += 1;
+        if is_dash_line(line) {
+            closed = true;
+            break;
+        }
+        if line.trim().is_empty() {
+            if !current.is_empty() {
+                body_rows.push(std::mem::take(&mut current));
+            }
+            continue;
+        }
+        current.push(line);
+    }
+    if !current.is_empty() {
+        body_rows.push(current);
+    }
+    if !closed || body_rows.is_empty() {
+        return None;
+    }
+
+    let reference = header_lines
+        .first()
+        .copied()
+        .or_else(|| body_rows.first().and_then(|row| row.first().copied()))
+        .unwrap_or("");
+    let columns = column_specs_multiline(&runs, reference);
+    let head = if header_lines.is_empty() {
+        Vec::new()
+    } else {
+        slice_group(&header_lines, &starts)
+    };
+    let body = body_rows.iter().map(|row| slice_group(row, &starts)).collect();
+    Some((
+        TextTable {
+            columns,
+            head,
+            body,
+            caption: None,
+        },
+        consumed,
+    ))
+}
+
 /// Build the column specs from the dash runs and a reference line that fixes each column's
 /// alignment. Single-line tables leave every width unset.
 fn column_specs(runs: &[(usize, usize)], reference: &str) -> Vec<Column> {
@@ -200,6 +285,75 @@ fn column_specs(runs: &[(usize, usize)], reference: &str) -> Vec<Column> {
                 align: column_alignment(&chars, start, len, next),
                 width: None,
             }
+        })
+        .collect()
+}
+
+/// Build the column specs for a multi-line table: the same per-column alignment as a single-line
+/// table, paired with a fractional width read from the dash runs.
+fn column_specs_multiline(runs: &[(usize, usize)], reference: &str) -> Vec<Column> {
+    let chars: Vec<char> = reference.chars().collect();
+    let widths = multiline_widths(runs);
+    runs.iter()
+        .enumerate()
+        .map(|(index, &(start, len))| {
+            let next = runs
+                .get(index + 1)
+                .map_or(usize::MAX, |&(next_start, _)| next_start);
+            Column {
+                align: column_alignment(&chars, start, len, next),
+                width: widths.get(index).copied(),
+            }
+        })
+        .collect()
+}
+
+/// Fractional column widths for a multi-line table: each column's character span over a fixed total
+/// of 72. A column reaches from its dash run's start to the next run's start; the final column takes
+/// its own run plus one, widened to the preceding column's span when the two are within two
+/// characters so a slightly shorter last run still lines up.
+fn multiline_widths(runs: &[(usize, usize)]) -> Vec<f64> {
+    const TOTAL: f64 = 72.0;
+    let mut widths = Vec::with_capacity(runs.len());
+    for (index, &(start, len)) in runs.iter().enumerate() {
+        let numerator = if let Some(&(next_start, _)) = runs.get(index + 1) {
+            // An interior column spans from its run's start to the next run's start.
+            next_start.saturating_sub(start)
+        } else if let Some(&(prev_start, _)) = index.checked_sub(1).and_then(|prev| runs.get(prev)) {
+            // The last column takes its run plus one, widened to the preceding column's span when
+            // the two are within two characters.
+            let natural = len + 1;
+            let prev_span = start.saturating_sub(prev_start);
+            if natural + 2 >= prev_span {
+                natural.max(prev_span)
+            } else {
+                natural
+            }
+        } else {
+            // A lone column is its run plus one.
+            len + 1
+        };
+        #[allow(clippy::cast_precision_loss)] // column spans are small line offsets, far inside f64's range
+        let width = numerator as f64 / TOTAL;
+        widths.push(width);
+    }
+    widths
+}
+
+/// Slice a group of physical lines (a header or a multi-line row) into per-column cells, joining each
+/// column's non-blank pieces across the lines with `\n` so the inline phase reads them as soft
+/// breaks.
+fn slice_group(lines: &[&str], starts: &[usize]) -> Vec<Cell> {
+    let sliced: Vec<Vec<Cell>> = lines.iter().map(|line| slice_row(line, starts)).collect();
+    (0..starts.len())
+        .map(|col| {
+            sliced
+                .iter()
+                .filter_map(|row| row.get(col))
+                .filter(|piece| !piece.is_empty())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n")
         })
         .collect()
 }
@@ -257,6 +411,13 @@ mod tests {
     use super::*;
 
     const SIMPLE: Extensions = Extensions::from_list(&[Extension::SimpleTables]);
+    const MULTILINE: Extensions = Extensions::from_list(&[Extension::MultilineTables]);
+    const BOTH: Extensions =
+        Extensions::from_list(&[Extension::SimpleTables, Extension::MultilineTables]);
+
+    fn width(table: &TextTable, col: usize) -> Option<f64> {
+        table.columns.get(col).and_then(|column| column.width)
+    }
 
     fn cell(table: &TextTable, row: usize, col: usize) -> &str {
         table
@@ -373,5 +534,90 @@ mod tests {
     fn disabled_extensions_parse_nothing() {
         let lines = ["--- ---", "1 2", "---"];
         assert!(parse(&lines, Extensions::empty()).is_none());
+    }
+
+    #[test]
+    fn multiline_headed_reads_header_rows_and_widths() {
+        let lines = [
+            "--------   --------   --------",
+            "Left         Center      Right",
+            "--------   --------   --------",
+            "a            b            c",
+            "",
+            "spread       over         two",
+            "             lines",
+            "--------   --------   --------",
+        ];
+        let (table, consumed) = parse(&lines, MULTILINE).expect("table");
+        assert_eq!(consumed, lines.len());
+        // The header line between the two rulings forms the header row.
+        assert_eq!(head_cell(&table, 0), "Left");
+        assert_eq!(head_cell(&table, 2), "Right");
+        // Alignment is read from the header line.
+        assert!(matches!(align(&table, 0), Alignment::AlignLeft));
+        assert!(matches!(align(&table, 1), Alignment::AlignRight));
+        assert!(matches!(align(&table, 2), Alignment::AlignRight));
+        // Two rows: one single-line, one whose middle column folds two physical lines.
+        assert_eq!(table.body.len(), 2);
+        assert_eq!(cell(&table, 0, 1), "b");
+        assert_eq!(cell(&table, 1, 1), "over\nlines");
+        assert_eq!(cell(&table, 1, 2), "two");
+        // The short last run widens to its predecessor's span, so every column shares one width.
+        assert_eq!(width(&table, 0), Some(11.0 / 72.0));
+        assert_eq!(width(&table, 2), Some(11.0 / 72.0));
+    }
+
+    #[test]
+    fn multiline_headerless_reads_first_row_and_widths() {
+        let lines = ["----- -----", "  a       b", "  cont", "", "x         y", "----- -----"];
+        let (table, consumed) = parse(&lines, MULTILINE).expect("table");
+        assert_eq!(consumed, lines.len());
+        assert!(table.head.is_empty());
+        // With no header, the first row fixes alignment; column zero is indented and short.
+        assert!(matches!(align(&table, 0), Alignment::AlignCenter));
+        assert_eq!(table.body.len(), 2);
+        assert_eq!(cell(&table, 0, 0), "a\ncont");
+        assert_eq!(cell(&table, 0, 1), "b");
+        assert_eq!(cell(&table, 1, 0), "x");
+        assert_eq!(width(&table, 0), Some(6.0 / 72.0));
+    }
+
+    #[test]
+    fn multiline_single_column_width_is_run_plus_one() {
+        let lines = ["------", "alpha", "", "beta", "------"];
+        let (table, consumed) = parse(&lines, MULTILINE).expect("table");
+        assert_eq!(consumed, lines.len());
+        assert_eq!(table.columns.len(), 1);
+        assert_eq!(table.body.len(), 2);
+        assert_eq!(width(&table, 0), Some(7.0 / 72.0));
+    }
+
+    #[test]
+    fn multiline_last_column_widens_to_its_predecessor() {
+        // The last run (five dashes, a natural width of six) is within two of the first column's
+        // span of seven, so it widens to match: both columns share a width of seven seventy-seconds.
+        let lines = ["------ -----", "x      y", "", "p      q", "------ -----"];
+        let (table, _) = parse(&lines, MULTILINE).expect("table");
+        assert_eq!(width(&table, 0), Some(7.0 / 72.0));
+        assert_eq!(width(&table, 1), Some(7.0 / 72.0));
+    }
+
+    #[test]
+    fn multiline_requires_its_extension() {
+        let lines = ["------", "alpha", "", "beta", "------"];
+        // With only simple tables enabled, the blank-separated body is not a table.
+        assert!(parse(&lines, SIMPLE).is_none());
+        assert!(parse(&lines, MULTILINE).is_some());
+    }
+
+    #[test]
+    fn two_rulings_single_line_rows_stay_simple() {
+        // A dash-led block with single-line rows and no blank is a single-line headerless table:
+        // multi-line parsing finds no body and the simple headerless shape claims it, widths unset.
+        let lines = ["----- -----", "a     b", "c     d", "-----------"];
+        let (table, _) = parse(&lines, BOTH).expect("table");
+        assert_eq!(table.body.len(), 2);
+        assert!(table.head.is_empty());
+        assert!(table.columns.iter().all(|column| column.width.is_none()));
     }
 }
