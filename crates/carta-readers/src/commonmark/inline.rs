@@ -5,11 +5,12 @@
 //! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
-    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Inline, MathType, QuoteType, Row,
-    Table, TableBody, TableFoot, TableHead, Target,
+    Alignment, Attr, Block, Caption, Cell as TableCell, Citation, CitationMode, ColSpec, ColWidth,
+    Inline, MathType, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target,
 };
 use carta_core::{Extension, Extensions};
 
@@ -38,6 +39,12 @@ struct RefContext<'a> {
     by_id: &'a BTreeMap<String, Vec<Block>>,
     in_definition: bool,
     examples: &'a ExampleMap,
+    /// A running count of the citation groups resolved so far. Every `Cite` inline is stamped with
+    /// the next value, and all the `Citation` entries inside one group share that number. The count
+    /// is threaded across the whole document so the value rises in reading order. A citation nested
+    /// in another's affixes advances the count as it is built, so the enclosing group ends up
+    /// stamped with the highest number it contains.
+    cite_count: &'a Cell<i32>,
 }
 
 /// Resolve the whole document: collect the headings reachable by implicit reference, then each
@@ -52,6 +59,11 @@ pub(crate) fn resolve_document(
 ) -> Vec<Block> {
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
     let empty = BTreeMap::new();
+    // Heading reference-gathering and footnote-body resolution each run a separate count so that
+    // pre-parsing them does not advance the body's citation numbering. The body carries its own
+    // count, raised in reading order across the whole document body.
+    let scratch_count = Cell::new(0);
+    let body_count = Cell::new(0);
     // Headings register their references up front so a reference resolves to a heading anywhere in
     // the document, including one that appears later or inside a footnote definition.
     if ext.contains(Extension::ImplicitHeaderReferences) {
@@ -60,6 +72,7 @@ pub(crate) fn resolve_document(
             by_id: &empty,
             in_definition: false,
             examples,
+            cite_count: &scratch_count,
         };
         register_header_references(ir, &mut refs, probe, ext);
     }
@@ -68,6 +81,7 @@ pub(crate) fn resolve_document(
         by_id: &empty,
         in_definition: true,
         examples,
+        cite_count: &scratch_count,
     };
     let by_id: BTreeMap<String, Vec<Block>> = footnotes
         .iter()
@@ -78,6 +92,7 @@ pub(crate) fn resolve_document(
         by_id: &by_id,
         in_definition: false,
         examples,
+        cite_count: &body_count,
     };
     let mut blocks = resolve_blocks(ir, &refs, top, ext);
     super::identifiers::assign_header_identifiers(&mut blocks, ext);
@@ -323,13 +338,13 @@ fn resolve_table(
 
 /// Build one table cell. A non-empty cell's text parses into inlines wrapped in a `Plain`; an empty
 /// or whitespace-only cell carries an empty block list.
-fn make_cell(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Cell {
+fn make_cell(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> TableCell {
     let content = if text.is_empty() {
         Vec::new()
     } else {
         vec![Block::Plain(parse_inlines(text, refs, notes, ext))]
     };
-    Cell {
+    TableCell {
         attr: Attr::default(),
         align: Alignment::AlignDefault,
         row_span: 1,
@@ -452,8 +467,8 @@ fn resolve_text_table(
 
 /// Build one grid-table cell, parsing its raw text into block content (tight cells demote their
 /// paragraphs to `Plain`).
-fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions) -> Cell {
-    Cell {
+fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions) -> TableCell {
+    TableCell {
         attr: Attr::default(),
         align: Alignment::AlignDefault,
         row_span: 1,
@@ -609,6 +624,11 @@ struct Delimiter {
     /// it — a link may not contain another link. On `]`, an inactive opener is popped and
     /// literalized without attempting any link-target parse (spec §6.3, rule 6).
     active: bool,
+    /// The citation count at the moment this bracket opened. If the bracket later resolves to a
+    /// single citation, any bare citations counted while scanning its interior are discarded along
+    /// with their nodes, so the count rewinds to this value first. Unused for non-bracket
+    /// delimiters.
+    cite_count_at_open: i32,
 }
 
 /// Outcome of resolving an explicit link target after a closing `]`.
@@ -658,11 +678,13 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions) -> Vec<Inline> {
     let by_id = BTreeMap::new();
     let examples = ExampleMap::new();
     let refs = RefMap::new();
+    let cite_count = Cell::new(0);
     let notes = RefContext {
         defined: &defined,
         by_id: &by_id,
         in_definition: false,
         examples: &examples,
+        cite_count: &cite_count,
     };
     parse_inlines(text, &refs, notes, ext)
 }
@@ -708,7 +730,11 @@ impl InlineParser<'_> {
                     && self.try_inline_note() => {}
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
                 '=' if self.ext.contains(Extension::Mark) => self.emphasis_run(b'='),
-                '@' if self.ext.contains(Extension::ExampleLists) => self.example_ref(),
+                '@' if self.ext.contains(Extension::ExampleLists)
+                    || self.ext.contains(Extension::Citations) =>
+                {
+                    self.at_sign();
+                }
                 ':' if self.ext.contains(Extension::Emoji) && self.try_emoji() => {}
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
                 '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
@@ -746,10 +772,24 @@ impl InlineParser<'_> {
         }
     }
 
-    /// Resolve an example-list reference `@label` at the cursor. A label assigned a number by an
-    /// example item becomes that number; an undefined or empty label leaves the `@` as literal text,
-    /// so the rest of the run reparses normally.
-    fn example_ref(&mut self) {
+    /// Resolve an `@` at the cursor. An example-list label assigned a number becomes that number; a
+    /// well-formed citation key becomes a bare author-in-text `Cite`; anything else leaves the `@`
+    /// as literal text, so the rest of the run reparses normally.
+    fn at_sign(&mut self) {
+        if self.ext.contains(Extension::ExampleLists) && self.try_example_ref() {
+            return;
+        }
+        if self.ext.contains(Extension::Citations) && self.try_bare_citation() {
+            return;
+        }
+        self.pos += 1;
+        self.push_text('@');
+    }
+
+    /// Try an example-list reference `@label` at the cursor. A label assigned a number by an example
+    /// item is replaced with that number and the cursor advances past it, returning `true`. An
+    /// undefined or empty label leaves the cursor in place and returns `false`.
+    fn try_example_ref(&mut self) -> bool {
         let mut len = 0;
         while matches!(
             self.at(1 + len),
@@ -757,20 +797,56 @@ impl InlineParser<'_> {
         ) {
             len += 1;
         }
-        if len > 0 {
-            let label: String = self
-                .chars
-                .get(self.pos + 1..self.pos + 1 + len)
-                .map(|run| run.iter().collect())
-                .unwrap_or_default();
-            if let Some(number) = self.notes.examples.get(&label) {
-                self.pos += 1 + len;
-                self.push_str(&number.to_string());
-                return;
-            }
+        if len == 0 {
+            return false;
         }
-        self.pos += 1;
-        self.push_text('@');
+        let label: String = self
+            .chars
+            .get(self.pos + 1..self.pos + 1 + len)
+            .map(|run| run.iter().collect())
+            .unwrap_or_default();
+        if let Some(number) = self.notes.examples.get(&label) {
+            self.pos += 1 + len;
+            self.push_str(&number.to_string());
+            return true;
+        }
+        false
+    }
+
+    /// Try a bare author-in-text citation `@key` at the cursor (which sits on the `@`). It forms a
+    /// citation only when the `@` is not glued to a preceding word character and a well-formed key
+    /// follows. On success the cursor advances past the key, the running citation count rises, and a
+    /// single-entry `Cite` is pushed whose fallback text is the literal `@key`. Returns `false`
+    /// (without advancing) otherwise, leaving the `@` for literal handling.
+    fn try_bare_citation(&mut self) -> bool {
+        if self.pos > 0 && matches!(self.chars.get(self.pos - 1), Some(c) if is_citation_word(*c)) {
+            return false;
+        }
+        let Some((id, next)) = scan_citation_id(self.chars, self.pos + 1) else {
+            return false;
+        };
+        let note_num = self.bump_cite_count();
+        self.pos = next;
+        let citation = Citation {
+            id: id.clone(),
+            prefix: Vec::new(),
+            suffix: Vec::new(),
+            mode: CitationMode::AuthorInText,
+            note_num,
+            hash: 0,
+        };
+        self.nodes.push(Node::Inline(Inline::Cite(
+            vec![citation],
+            vec![Inline::Str(format!("@{id}"))],
+        )));
+        true
+    }
+
+    /// Advance the document-wide citation count and return the new value.
+    fn bump_cite_count(&self) -> i32 {
+        let next = self.notes.cite_count.get().saturating_add(1);
+        self.notes.cite_count.set(next);
+        next
     }
 
     /// Resolve an emoji shortcode `:name:` at the cursor (which sits on the opening `:`). A name is
@@ -1201,6 +1277,7 @@ impl InlineParser<'_> {
             image: false,
             text_start: self.pos,
             active: false,
+            cite_count_at_open: 0,
         }));
     }
 
@@ -1244,6 +1321,7 @@ impl InlineParser<'_> {
             image,
             text_start: self.pos,
             active: true,
+            cite_count_at_open: self.notes.cite_count.get(),
         }));
     }
 
@@ -1309,10 +1387,98 @@ impl InlineParser<'_> {
             }
         }
 
+        // A bracket whose content is a well-formed citation list becomes a `Cite`. An image's `!`
+        // survives as literal text before it.
+        if self.ext.contains(Extension::Citations) && self.try_bracket_citation(opener_index, is_image)
+        {
+            return;
+        }
+
         // Otherwise the opener reverts to its literal `[` / `![`, and `]` stays literal.
         self.bracket_stack.pop();
         self.literalize_bracket(opener_index);
         self.push_text(']');
+    }
+
+    /// If the bracket opener encloses a well-formed citation list `[ ... @key ... ]`, emit a `Cite`
+    /// and return `true`. The content is split on top-level semicolons into entries; every entry
+    /// must hold one top-level `@key`, and no entry may be empty. Each entry's text before the key
+    /// is its prefix and the text after is its suffix (both parsed as inlines, so a nested bare
+    /// `@key` there becomes its own citation); a `-` glued to the front of the key suppresses the
+    /// author. The whole group shares one citation number, raised to cover any nested citation. The
+    /// fallback field is the raw bracket source parsed as ordinary inlines. Returns `false` (leaving
+    /// the brackets for literal handling) when the content is not a citation list.
+    fn try_bracket_citation(&mut self, opener_index: usize, is_image: bool) -> bool {
+        let raw = self.raw_label(opener_index);
+        let raw_chars: Vec<char> = raw.chars().collect();
+        let Some(segments) = split_citation_segments(&raw_chars) else {
+            return false;
+        };
+        // Scanning the interior may have counted bare citations that are about to be discarded with
+        // their nodes; rewind to the count this bracket opened with before numbering the group. (For
+        // the rare `![@key]`, the discarded interior count is not added back, so such a group's
+        // number is one lower than a longer document with the same citation order would otherwise
+        // give it.)
+        if let Some(Node::Delimiter(d)) = self.nodes.get(opener_index) {
+            self.notes.cite_count.set(d.cite_count_at_open);
+        }
+        // Reserve this group's number before parsing affixes, so nested citations are counted after
+        // it and the group ends up stamped with the highest number it contains.
+        self.bump_cite_count();
+        let mut citations = Vec::with_capacity(segments.len());
+        for segment in &segments {
+            let Some(entry) = self.parse_citation_entry(&raw_chars, segment.clone()) else {
+                return false;
+            };
+            citations.push(entry);
+        }
+        let group_num = self.notes.cite_count.get();
+        for citation in &mut citations {
+            citation.note_num = group_num;
+        }
+        let fallback = citation_fallback_inlines(&format!("[{raw}]"));
+        self.nodes.truncate(opener_index);
+        self.bracket_stack.retain(|&ni| ni < opener_index);
+        if is_image {
+            self.push_text('!');
+        }
+        self.nodes
+            .push(Node::Inline(Inline::Cite(citations, fallback)));
+        true
+    }
+
+    /// Parse one citation entry from `chars[range]`: locate the first top-level `@key`, taking the
+    /// text before it as the prefix and the text after as the suffix. A `-` directly before the key
+    /// (itself at the segment start or preceded by whitespace) suppresses the author. Returns `None`
+    /// when the segment holds no top-level key.
+    fn parse_citation_entry(
+        &self,
+        chars: &[char],
+        range: std::ops::Range<usize>,
+    ) -> Option<Citation> {
+        let key = find_citation_key(chars, range.clone())?;
+        let prefix_end = if key.suppress { key.dash } else { key.at };
+        let prefix_src: String = chars.get(range.start..prefix_end)?.iter().collect();
+        let suffix_src: String = chars.get(key.id_end..range.end)?.iter().collect();
+        let mode = if key.suppress {
+            CitationMode::SuppressAuthor
+        } else {
+            CitationMode::NormalCitation
+        };
+        // The prefix is trimmed of surrounding whitespace; the suffix keeps any leading space (so
+        // `@a x` separates the key from `x`) but drops trailing space.
+        //
+        // A suffix opening with a locator label such as `p.` or `vol.` carries a non-breaking space
+        // before its number (`p.\u{a0}5`). That join, gated on a fixed set of abbreviations, is not
+        // applied here: the suffix is tokenized as ordinary inlines, so `p. 5` stays three tokens.
+        Some(Citation {
+            id: key.id,
+            prefix: parse_inlines(prefix_src.trim(), self.refs, self.notes, self.ext),
+            suffix: parse_inlines(suffix_src.trim_end(), self.refs, self.notes, self.ext),
+            mode,
+            note_num: 0,
+            hash: 0,
+        })
     }
 
     /// Pop the opener, consume an optional trailing attribute block, and emit the link or image.
@@ -1575,6 +1741,219 @@ impl InlineParser<'_> {
         };
         self.nodes.push(Node::Inline(inline));
     }
+}
+
+/// A character that may appear directly before `@` and block a bare citation: an alphanumeric
+/// glues the `@` to a preceding word (`foo@bar`, an email-like run), so no citation forms there.
+fn is_citation_word(ch: char) -> bool {
+    ch.is_alphanumeric()
+}
+
+/// Tokenize raw citation source into the literal inlines that stand in for the citation: whitespace
+/// runs become `SoftBreak` (when they hold a newline) or `Space`, and every other run becomes a
+/// `Str`. No inline markup is interpreted, so the source reads back verbatim word by word.
+fn citation_fallback_inlines(raw: &str) -> Vec<Inline> {
+    let mut out = Vec::new();
+    let mut word = String::new();
+    let mut had_space = false;
+    let mut had_newline = false;
+    let flush_word = |out: &mut Vec<Inline>, word: &mut String| {
+        if !word.is_empty() {
+            out.push(Inline::Str(std::mem::take(word)));
+        }
+    };
+    for ch in raw.chars() {
+        if ch.is_whitespace() {
+            flush_word(&mut out, &mut word);
+            had_space = true;
+            had_newline |= ch == '\n';
+        } else {
+            if had_space {
+                out.push(if had_newline {
+                    Inline::SoftBreak
+                } else {
+                    Inline::Space
+                });
+                had_space = false;
+                had_newline = false;
+            }
+            word.push(ch);
+        }
+    }
+    flush_word(&mut out, &mut word);
+    if had_space {
+        out.push(if had_newline {
+            Inline::SoftBreak
+        } else {
+            Inline::Space
+        });
+    }
+    out
+}
+
+/// A character that always belongs to a citation key: an alphanumeric or `_`. A key begins with one
+/// of these.
+fn is_citation_key_start(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
+/// Scan a citation key beginning at `start` (the index just past `@`). A key opens with an
+/// alphanumeric or `_` and runs over further such characters; the internal punctuation `-`, `.`,
+/// `:`, and `/` extend it only when another key character follows, so a trailing `-key.` keeps the
+/// `key` but drops the `.`. Returns the key text and the index just past it, or `None` when no key
+/// begins at `start`.
+fn scan_citation_id(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let first = chars.get(start).copied()?;
+    if !is_citation_key_start(first) {
+        return None;
+    }
+    let mut end = start + 1;
+    while let Some(&ch) = chars.get(end) {
+        if is_citation_key_start(ch) {
+            end += 1;
+        } else if matches!(ch, '-' | '.' | ':' | '/')
+            && matches!(chars.get(end + 1), Some(&next) if is_citation_key_start(next))
+        {
+            end += 2;
+        } else {
+            break;
+        }
+    }
+    let id: String = chars.get(start..end)?.iter().collect();
+    Some((id, end))
+}
+
+/// Split a bracket's raw content into citation segments on top-level semicolons. A semicolon inside
+/// a nested `[...]` or a backtick code span does not split. Returns `None` when the content is not a
+/// citation list: it has no `@` at all, or any segment is empty (including a leading or trailing
+/// empty segment from a stray semicolon).
+fn split_citation_segments(chars: &[char]) -> Option<Vec<std::ops::Range<usize>>> {
+    if !chars.contains(&'@') {
+        return None;
+    }
+    let mut segments = Vec::new();
+    let mut start = 0;
+    let mut index = 0;
+    let mut depth = 0usize;
+    while index < chars.len() {
+        match chars.get(index) {
+            Some('\\') => index += 2,
+            Some('`') => {
+                let run = backtick_run_len(chars, index);
+                index = skip_code_span(chars, index, run);
+            }
+            Some('[') => {
+                depth += 1;
+                index += 1;
+            }
+            Some(']') => {
+                depth = depth.saturating_sub(1);
+                index += 1;
+            }
+            Some(';') if depth == 0 => {
+                segments.push(start..index);
+                start = index + 1;
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+    segments.push(start..chars.len());
+    // An empty segment (a stray `;`, or whitespace-only between separators) is not a citation list.
+    for segment in &segments {
+        if chars
+            .get(segment.clone())
+            .is_none_or(|s| s.iter().all(|c| c.is_whitespace()))
+        {
+            return None;
+        }
+    }
+    Some(segments)
+}
+
+/// The length of the backtick run starting at `index`.
+fn backtick_run_len(chars: &[char], index: usize) -> usize {
+    let mut len = 0;
+    while chars.get(index + len) == Some(&'`') {
+        len += 1;
+    }
+    len
+}
+
+/// Skip past a code span opened by `run` backticks at `index`, returning the index just past its
+/// closing run. With no matching closer the backticks are not a code span and only the opening run
+/// is skipped.
+fn skip_code_span(chars: &[char], index: usize, run: usize) -> usize {
+    let mut scan = index + run;
+    while scan < chars.len() {
+        if chars.get(scan) == Some(&'`') {
+            let closer = backtick_run_len(chars, scan);
+            if closer == run {
+                return scan + closer;
+            }
+            scan += closer;
+        } else {
+            scan += 1;
+        }
+    }
+    index + run
+}
+
+/// The located citation key of one segment: the index of `@`, the key text and the index past it,
+/// whether a `-` author-suppression marker precedes the `@`, and that marker's index.
+struct CitationKey {
+    at: usize,
+    dash: usize,
+    id: String,
+    id_end: usize,
+    suppress: bool,
+}
+
+/// Find the first top-level `@key` within `chars[range]`: an `@` not inside a nested `[...]` or a
+/// backtick code span, immediately followed by a key. A `-` directly before the `@`, itself at the
+/// segment start or preceded by whitespace, marks author suppression. Returns `None` when no such
+/// key is present.
+fn find_citation_key(chars: &[char], range: std::ops::Range<usize>) -> Option<CitationKey> {
+    let mut index = range.start;
+    let mut depth = 0usize;
+    while index < range.end {
+        match chars.get(index) {
+            Some('\\') => index += 2,
+            Some('`') => {
+                let run = backtick_run_len(chars, index);
+                index = skip_code_span(chars, index, run);
+            }
+            Some('[') => {
+                depth += 1;
+                index += 1;
+            }
+            Some(']') => {
+                depth = depth.saturating_sub(1);
+                index += 1;
+            }
+            Some('@') if depth == 0 => {
+                if let Some((id, id_end)) = scan_citation_id(chars, index + 1) {
+                    let dash_before = index > range.start && chars.get(index - 1) == Some(&'-');
+                    let dash_anchored = dash_before
+                        && (index - 1 == range.start
+                            || chars
+                                .get(index - 2)
+                                .is_some_and(|c| c.is_whitespace()));
+                    let suppress = dash_anchored;
+                    return Some(CitationKey {
+                        at: index,
+                        dash: if suppress { index - 1 } else { index },
+                        id,
+                        id_end,
+                        suppress,
+                    });
+                }
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 fn def_target(def: &LinkDef) -> Target {
@@ -3022,9 +3401,10 @@ mod tests {
 
 #[cfg(test)]
 mod inline_tests {
+    use std::cell::Cell;
     use std::collections::{BTreeMap, BTreeSet};
 
-    use carta_ast::{Attr, Block, Inline, Target};
+    use carta_ast::{Attr, Block, Citation, CitationMode, Inline, Target};
 
     use super::{ExampleMap, LinkDef, RefContext, RefMap, parse_inlines};
     use carta_core::{Extension, Extensions};
@@ -3034,13 +3414,14 @@ mod inline_tests {
     static NO_EXAMPLES: ExampleMap = BTreeMap::new();
 
     /// An empty reference context, for tests that exercise inline syntax without footnotes or example
-    /// references.
+    /// references. Each call leaks a fresh citation count so a test starts numbering from zero.
     fn no_notes() -> RefContext<'static> {
         RefContext {
             defined: &NO_DEFINED,
             by_id: &NO_BY_ID,
             in_definition: false,
             examples: &NO_EXAMPLES,
+            cite_count: Box::leak(Box::new(Cell::new(0))),
         }
     }
 
@@ -3995,5 +4376,258 @@ mod inline_tests {
         );
         // Two-on-four consumes two from each, leaving the surplus `==` literal.
         assert_eq!(pe("==x====", on), vec![mark(vec![str("x")]), str("==")]);
+    }
+
+    // --- Citations ---
+
+    fn cites() -> Extensions {
+        exts(&[Extension::Citations])
+    }
+
+    fn cite(citations: Vec<Citation>, fallback: Vec<Inline>) -> Inline {
+        Inline::Cite(citations, fallback)
+    }
+
+    fn citation(
+        id: &str,
+        prefix: Vec<Inline>,
+        suffix: Vec<Inline>,
+        mode: CitationMode,
+        note_num: i32,
+    ) -> Citation {
+        Citation {
+            id: id.to_owned(),
+            prefix,
+            suffix,
+            mode,
+            note_num,
+            hash: 0,
+        }
+    }
+
+    #[test]
+    fn bare_citation_is_author_in_text() {
+        assert_eq!(
+            pe("@doe2020", cites()),
+            vec![cite(
+                vec![citation("doe2020", vec![], vec![], CitationMode::AuthorInText, 1)],
+                vec![str("@doe2020")],
+            )]
+        );
+    }
+
+    #[test]
+    fn bare_citation_needs_a_non_word_before_the_at() {
+        // Glued to a preceding word, the `@` is literal — no citation, no email autolink here.
+        assert_eq!(pe("foo@bar", cites()), vec![str("foo@bar")]);
+        // A space before the `@` lets it open a citation.
+        assert_eq!(
+            pe("a @b", cites()),
+            vec![
+                str("a"),
+                Inline::Space,
+                cite(
+                    vec![citation("b", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@b")],
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn bracket_citation_carries_prefix_and_suffix() {
+        assert_eq!(
+            pe("[see @doe2020 and more]", cites()),
+            vec![cite(
+                vec![citation(
+                    "doe2020",
+                    vec![str("see")],
+                    vec![Inline::Space, str("and"), Inline::Space, str("more")],
+                    CitationMode::NormalCitation,
+                    1,
+                )],
+                vec![
+                    str("[see"),
+                    Inline::Space,
+                    str("@doe2020"),
+                    Inline::Space,
+                    str("and"),
+                    Inline::Space,
+                    str("more]"),
+                ],
+            )]
+        );
+    }
+
+    #[test]
+    fn dash_before_at_suppresses_author() {
+        assert_eq!(
+            pe("[-@k]", cites()),
+            vec![cite(
+                vec![citation("k", vec![], vec![], CitationMode::SuppressAuthor, 1)],
+                vec![str("[-@k]")],
+            )]
+        );
+        // A `-` glued to a preceding word is part of the prefix, not a suppression marker.
+        assert_eq!(
+            pe("[a-@b]", cites()),
+            vec![cite(
+                vec![citation("b", vec![str("a-")], vec![], CitationMode::NormalCitation, 1)],
+                vec![str("[a-@b]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn semicolon_separates_entries_sharing_one_number() {
+        assert_eq!(
+            pe("[@a; @b]", cites()),
+            vec![cite(
+                vec![
+                    citation("a", vec![], vec![], CitationMode::NormalCitation, 1),
+                    citation("b", vec![], vec![], CitationMode::NormalCitation, 1),
+                ],
+                vec![str("[@a;"), Inline::Space, str("@b]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn comma_nests_a_bare_citation_in_the_suffix() {
+        // `@b` after a comma is not a new entry; it becomes a bare citation inside `a`'s suffix, and
+        // the enclosing group takes the higher number.
+        assert_eq!(
+            pe("[@a, @b]", cites()),
+            vec![cite(
+                vec![citation(
+                    "a",
+                    vec![],
+                    vec![
+                        str(","),
+                        Inline::Space,
+                        cite(
+                            vec![citation("b", vec![], vec![], CitationMode::AuthorInText, 2)],
+                            vec![str("@b")],
+                        ),
+                    ],
+                    CitationMode::NormalCitation,
+                    2,
+                )],
+                vec![str("[@a,"), Inline::Space, str("@b]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn document_order_numbers_each_group() {
+        // Two separate groups in one block take consecutive numbers.
+        let out = pe("@a and [@b]", cites());
+        let nums: Vec<i32> = out
+            .iter()
+            .filter_map(|inline| match inline {
+                Inline::Cite(citations, _) => citations.first().map(|c| c.note_num),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(nums, vec![1, 2]);
+    }
+
+    #[test]
+    fn malformed_bracket_falls_back_to_inline_citations() {
+        // A trailing empty segment is not a citation list; the brackets stay literal and the bare
+        // `@a` inside becomes an author-in-text citation.
+        assert_eq!(
+            pe("[@a;]", cites()),
+            vec![
+                str("["),
+                cite(
+                    vec![citation("a", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@a")],
+                ),
+                str(";]"),
+            ]
+        );
+    }
+
+    #[test]
+    fn segment_without_a_key_is_not_a_citation_list() {
+        // The first segment holds no `@`, so the whole bracket is not a citation; only the bare `@b`
+        // citation survives.
+        assert_eq!(
+            pe("[no key; @b]", cites()),
+            vec![
+                str("[no"),
+                Inline::Space,
+                str("key;"),
+                Inline::Space,
+                cite(
+                    vec![citation("b", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@b")],
+                ),
+                str("]"),
+            ]
+        );
+    }
+
+    #[test]
+    fn key_charset_keeps_internal_punctuation() {
+        // Internal `_ : - . /` belong to a key only when more key characters follow.
+        assert_eq!(
+            pe("[@foo_bar:baz-qux.v/1]", cites()),
+            vec![cite(
+                vec![citation(
+                    "foo_bar:baz-qux.v/1",
+                    vec![],
+                    vec![],
+                    CitationMode::NormalCitation,
+                    1,
+                )],
+                vec![str("[@foo_bar:baz-qux.v/1]")],
+            )]
+        );
+        // A trailing `-` is not part of the key; it falls to the suffix.
+        assert_eq!(
+            pe("[@a-]", cites()),
+            vec![cite(
+                vec![citation("a", vec![], vec![str("-")], CitationMode::NormalCitation, 1)],
+                vec![str("[@a-]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn citations_off_leaves_the_syntax_literal() {
+        assert_eq!(
+            pe("See [@a] and @b.", no_ext()),
+            vec![
+                str("See"),
+                Inline::Space,
+                str("[@a]"),
+                Inline::Space,
+                str("and"),
+                Inline::Space,
+                str("@b."),
+            ]
+        );
+    }
+
+    #[test]
+    fn escaped_at_is_not_a_citation() {
+        assert_eq!(pe(r"[\@a]", cites()), vec![str("[@a]")]);
+    }
+
+    #[test]
+    fn citation_does_not_steal_a_link() {
+        // An explicit link target wins; the key inside becomes a bare citation in the link text.
+        assert_eq!(
+            pe("[@a](http://x.com)", cites()),
+            vec![link(
+                vec![cite(
+                    vec![citation("a", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@a")],
+                )],
+                "http://x.com",
+            )]
+        );
     }
 }
