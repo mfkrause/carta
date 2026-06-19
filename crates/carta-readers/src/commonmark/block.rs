@@ -460,7 +460,9 @@ impl Parser {
         else {
             return false;
         };
-        let text = self.node_text(leaf);
+        let Some(text) = self.node_text_ref(leaf) else {
+            return false;
+        };
         let first = text.split('\n').next().unwrap_or("");
         if !grid::is_top_border(first) || blank {
             return false;
@@ -471,7 +473,7 @@ impl Parser {
             self.append_text(leaf, "\n");
             return true;
         }
-        if grid::parse(&text).is_some() {
+        if grid::parse(text).is_some() {
             self.close(leaf);
         }
         false
@@ -497,12 +499,14 @@ impl Parser {
             return false;
         };
         let rest = cursor.rest();
-        let header = self.node_text(leaf);
+        let Some(header) = self.node_text_ref(leaf) else {
+            return false;
+        };
         // A line block becomes a table only on its very first line: a delimiter row directly under
         // the opening `|` line reinterprets it as a table header. Past the first line the block is
         // committed to being a line block.
         if matches!(self.kind(leaf), Some(Kind::LineBlock)) {
-            if !single_line(&header) || !table::opens_table(header.trim_end(), &rest) {
+            if !single_line(header) || !table::opens_table(header.trim_end(), &rest) {
                 return false;
             }
             if let Some(node) = self.nodes.get_mut(leaf) {
@@ -512,7 +516,7 @@ impl Parser {
             self.append_text(leaf, "\n");
             return true;
         }
-        match table::classify_continuation(&header, &rest) {
+        match table::classify_continuation(header, &rest) {
             table::Continuation::Absorb => {
                 self.append_text(leaf, &rest);
                 self.append_text(leaf, "\n");
@@ -548,7 +552,10 @@ impl Parser {
         };
         let remaining = cursor.remaining();
         let absorb = is_line_block_marker(remaining)
-            || (remaining.starts_with(' ') && !last_entry_is_empty(&self.node_text(block)));
+            || (remaining.starts_with(' ')
+                && self
+                    .node_text_ref(block)
+                    .is_some_and(|text| !last_entry_is_empty(text)));
         if absorb {
             self.append_text(block, &cursor.rest());
             self.append_text(block, "\n");
@@ -587,8 +594,10 @@ impl Parser {
                 if blank {
                     return false;
                 }
-                let header = self.node_text(leaf);
-                if !single_line(&header) || !texttable::is_dash_line(cursor.remaining()) {
+                let Some(header) = self.node_text_ref(leaf) else {
+                    return false;
+                };
+                if !single_line(header) || !texttable::is_dash_line(cursor.remaining()) {
                     return false;
                 }
                 // A dash-ruled table has no cell delimiters: its columns are positional, so every
@@ -608,13 +617,15 @@ impl Parser {
             }
             Some(Kind::TextTable) => {
                 if blank {
-                    let text = self.node_text(leaf);
+                    let Some(text) = self.node_text_ref(leaf) else {
+                        return false;
+                    };
                     let first = text.split('\n').next().unwrap_or("");
                     // A header-led table (its first line is text, not a ruling) ends at the blank.
                     // A dash-led table ends only once its closing ruling has been read; until then a
                     // blank separates the multi-line rows of the body and is kept.
                     let settle = !texttable::is_dash_line(first)
-                        || texttable::is_dash_line(last_nonempty_line(&text));
+                        || texttable::is_dash_line(last_nonempty_line(text));
                     if settle {
                         self.finalize_text_table(leaf);
                         return false;
@@ -1482,6 +1493,12 @@ impl Parser {
             .get(index)
             .map(|node| node.text.clone())
             .unwrap_or_default()
+    }
+
+    /// Borrow a node's accumulated text without copying. Continuation checks that only inspect the
+    /// buffer use this; callers that mutate the node afterward take the owned [`Self::node_text`].
+    fn node_text_ref(&self, index: usize) -> Option<&str> {
+        self.nodes.get(index).map(|node| node.text.as_str())
     }
 
     fn extract_refs(&mut self, text: &str) -> String {
