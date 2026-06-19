@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use carta_ast::MetaValue;
-use carta_core::{Error, Extension, Extensions, Result};
+use carta_core::{Error, Extension, ReaderOptions, Result};
 
 use super::inline::parse_meta_inlines;
 use super::parse_meta_blocks;
@@ -24,14 +24,14 @@ pub(crate) struct FrontMatter {
 
 /// Extract document metadata from a leading YAML or title block, if either applies. Returns the
 /// metadata and, when a block is consumed, the remaining body text. Malformed YAML is an error.
-pub(crate) fn extract(normalized: &str, ext: Extensions) -> Result<FrontMatter> {
-    if ext.contains(Extension::YamlMetadataBlock)
-        && let Some(front) = yaml_block(normalized, ext)?
+pub(crate) fn extract(normalized: &str, options: &ReaderOptions) -> Result<FrontMatter> {
+    if options.extensions.contains(Extension::YamlMetadataBlock)
+        && let Some(front) = yaml_block(normalized, options)?
     {
         return Ok(front);
     }
-    if ext.contains(Extension::PandocTitleBlock)
-        && let Some((meta, body)) = title_block(normalized, ext)
+    if options.extensions.contains(Extension::PandocTitleBlock)
+        && let Some((meta, body)) = title_block(normalized, options)
     {
         return Ok(FrontMatter {
             meta,
@@ -46,7 +46,7 @@ pub(crate) fn extract(normalized: &str, ext: Extensions) -> Result<FrontMatter> 
 
 /// Try to consume a leading YAML metadata block. `Ok(None)` means the input does not open one (fall
 /// through); `Ok(Some(..))` carries the metadata and body; `Err` marks malformed YAML.
-fn yaml_block(normalized: &str, ext: Extensions) -> Result<Option<FrontMatter>> {
+fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontMatter>> {
     let lines: Vec<&str> = normalized.split('\n').collect();
     if lines.first() != Some(&"---") {
         return Ok(None);
@@ -66,7 +66,7 @@ fn yaml_block(normalized: &str, ext: Extensions) -> Result<Option<FrontMatter>> 
         Ok(yaml::TopLevel::Mapping(entries)) => {
             let meta = entries
                 .into_iter()
-                .map(|(key, value)| (key, yaml_to_meta(value, ext)))
+                .map(|(key, value)| (key, yaml_to_meta(value, options)))
                 .collect();
             let body = lines.get(close + 1..).unwrap_or(&[]).join("\n");
             Ok(Some(FrontMatter {
@@ -83,33 +83,40 @@ fn yaml_block(normalized: &str, ext: Extensions) -> Result<Option<FrontMatter>> 
 }
 
 /// Convert a parsed YAML value into a metadata value, recursing through mappings and sequences.
-fn yaml_to_meta(value: Yaml, ext: Extensions) -> MetaValue {
+fn yaml_to_meta(value: Yaml, options: &ReaderOptions) -> MetaValue {
     match value {
         Yaml::Mapping(entries) => MetaValue::MetaMap(
             entries
                 .into_iter()
-                .map(|(key, value)| (key, yaml_to_meta(value, ext)))
+                .map(|(key, value)| (key, yaml_to_meta(value, options)))
                 .collect(),
         ),
-        Yaml::Sequence(items) => {
-            MetaValue::MetaList(items.into_iter().map(|v| yaml_to_meta(v, ext)).collect())
-        }
-        Yaml::Scalar(scalar) => scalar_to_meta(scalar, ext),
+        Yaml::Sequence(items) => MetaValue::MetaList(
+            items
+                .into_iter()
+                .map(|v| yaml_to_meta(v, options))
+                .collect(),
+        ),
+        Yaml::Scalar(scalar) => scalar_to_meta(scalar, options),
     }
 }
 
 /// Resolve a scalar to a metadata value. Plain scalars are typed (null, boolean, number, or inline
 /// text); quoted scalars are always inline text; block scalars are block- or inline-level depending
 /// on whether their text keeps a trailing newline.
-fn scalar_to_meta(scalar: Scalar, ext: Extensions) -> MetaValue {
+fn scalar_to_meta(scalar: Scalar, options: &ReaderOptions) -> MetaValue {
     match scalar {
-        Scalar::Plain(text) => plain_scalar_to_meta(&text, ext),
-        Scalar::Quoted(text) => MetaValue::MetaInlines(parse_meta_inlines(&text, ext)),
-        Scalar::Block(text) => text_to_meta(&text, ext),
+        Scalar::Plain(text) => plain_scalar_to_meta(&text, options),
+        Scalar::Quoted(text) => MetaValue::MetaInlines(parse_meta_inlines(
+            &text,
+            options.extensions,
+            options.greedy_paragraphs,
+        )),
+        Scalar::Block(text) => text_to_meta(&text, options),
     }
 }
 
-fn plain_scalar_to_meta(text: &str, ext: Extensions) -> MetaValue {
+fn plain_scalar_to_meta(text: &str, options: &ReaderOptions) -> MetaValue {
     if text.is_empty() || is_null(text) {
         return MetaValue::MetaString(String::new());
     }
@@ -117,18 +124,34 @@ fn plain_scalar_to_meta(text: &str, ext: Extensions) -> MetaValue {
         return MetaValue::MetaBool(value);
     }
     if let Some(canonical) = yaml::canonicalize_number(text) {
-        return MetaValue::MetaInlines(parse_meta_inlines(&canonical, ext));
+        return MetaValue::MetaInlines(parse_meta_inlines(
+            &canonical,
+            options.extensions,
+            options.greedy_paragraphs,
+        ));
     }
-    MetaValue::MetaInlines(parse_meta_inlines(text, ext))
+    MetaValue::MetaInlines(parse_meta_inlines(
+        text,
+        options.extensions,
+        options.greedy_paragraphs,
+    ))
 }
 
 /// Text whose trailing newline survived block-scalar chomping is parsed as block-level markdown;
 /// otherwise it is inline markdown.
-fn text_to_meta(text: &str, ext: Extensions) -> MetaValue {
+fn text_to_meta(text: &str, options: &ReaderOptions) -> MetaValue {
     if text.ends_with('\n') {
-        MetaValue::MetaBlocks(parse_meta_blocks(text, ext))
+        MetaValue::MetaBlocks(parse_meta_blocks(
+            text,
+            options.extensions,
+            options.greedy_paragraphs,
+        ))
     } else {
-        MetaValue::MetaInlines(parse_meta_inlines(text, ext))
+        MetaValue::MetaInlines(parse_meta_inlines(
+            text,
+            options.extensions,
+            options.greedy_paragraphs,
+        ))
     }
 }
 
@@ -151,7 +174,10 @@ fn as_bool(text: &str) -> Option<bool> {
 
 /// Try to consume a leading title block: up to three percent-introduced fields (title, author(s),
 /// date) at the top of the document. Returns the metadata and the remaining body.
-fn title_block(normalized: &str, ext: Extensions) -> Option<(BTreeMap<String, MetaValue>, String)> {
+fn title_block(
+    normalized: &str,
+    options: &ReaderOptions,
+) -> Option<(BTreeMap<String, MetaValue>, String)> {
     let lines: Vec<&str> = normalized.split('\n').collect();
     if !lines.first().is_some_and(|line| line.starts_with('%')) {
         return None;
@@ -173,7 +199,7 @@ fn title_block(normalized: &str, ext: Extensions) -> Option<(BTreeMap<String, Me
             field.push(cont.trim().to_owned());
             idx += 1;
         }
-        insert_field(&mut meta, label, &field, ext);
+        insert_field(&mut meta, label, &field, options);
     }
     let body = lines.get(idx..).unwrap_or(&[]).join("\n");
     Some((meta, body))
@@ -186,7 +212,7 @@ fn insert_field(
     meta: &mut BTreeMap<String, MetaValue>,
     label: &str,
     field: &[String],
-    ext: Extensions,
+    options: &ReaderOptions,
 ) {
     if label == "author" {
         let mut authors = Vec::new();
@@ -194,7 +220,8 @@ fn insert_field(
             for chunk in line.split(';') {
                 authors.push(MetaValue::MetaInlines(parse_meta_inlines(
                     chunk.trim(),
-                    ext,
+                    options.extensions,
+                    options.greedy_paragraphs,
                 )));
             }
         }
@@ -205,7 +232,11 @@ fn insert_field(
     if !text.trim().is_empty() {
         meta.insert(
             label.to_owned(),
-            MetaValue::MetaInlines(parse_meta_inlines(&text, ext)),
+            MetaValue::MetaInlines(parse_meta_inlines(
+                &text,
+                options.extensions,
+                options.greedy_paragraphs,
+            )),
         );
     }
 }

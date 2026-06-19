@@ -21,7 +21,7 @@ mod yaml;
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Alignment, Attr, Block, Document, Inline, ListAttributes};
+use carta_ast::{Alignment, Attr, Block, Document, Format, Inline, ListAttributes};
 use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 /// Parses `CommonMark` text into the document model.
@@ -37,10 +37,17 @@ impl Reader for CommonmarkReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let ext = options.extensions;
         let normalized = normalize(input);
-        let frontmatter::FrontMatter { meta, body } = frontmatter::extract(&normalized, ext)?;
+        let frontmatter::FrontMatter { meta, body } = frontmatter::extract(&normalized, options)?;
         let source = body.as_deref().unwrap_or(&normalized);
         let (ir, refs, footnotes, examples) = block::parse(source, ext, options.greedy_paragraphs);
-        let blocks = inline::resolve_document(&ir, refs, &footnotes, &examples, ext);
+        let blocks = inline::resolve_document(
+            &ir,
+            refs,
+            &footnotes,
+            &examples,
+            ext,
+            options.greedy_paragraphs,
+        );
         Ok(Document {
             meta,
             blocks,
@@ -59,6 +66,8 @@ pub(crate) enum IrBlock {
     Heading(i32, String),
     CodeBlock(Attr, String),
     RawHtml(String),
+    /// A raw block in a named passthrough format (e.g. a fenced ```` ```{=latex} ```` block).
+    RawBlock(Format, String),
     ThematicBreak,
     /// A fenced div: its attributes and the recursively-parsed block content.
     Div(Attr, Vec<IrBlock>),
@@ -81,6 +90,8 @@ pub(crate) enum IrBlock {
         header: Vec<String>,
         rows: Vec<Vec<String>>,
         caption: Option<String>,
+        /// Attributes attached via the caption line when `table_attributes` is enabled.
+        attr: Attr,
     },
     /// A grid table: column specs plus header and body rows of still-raw cell text, each cell parsed
     /// as block content in the inline phase. Any caption is attached after the block phase.
@@ -125,25 +136,49 @@ pub(crate) type ExampleMap = BTreeMap<String, i32>;
 /// Parse the text of a block-level metadata value into blocks, reusing the full block and inline
 /// pipeline. Front matter is not re-extracted, so a metadata value never recurses into another
 /// metadata block.
-pub(crate) fn parse_meta_blocks(text: &str, extensions: Extensions) -> Vec<Block> {
+pub(crate) fn parse_meta_blocks(
+    text: &str,
+    extensions: Extensions,
+    greedy_paragraphs: bool,
+) -> Vec<Block> {
     let normalized = normalize(text);
-    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, false);
-    inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
+    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, greedy_paragraphs);
+    inline::resolve_document(
+        &ir,
+        refs,
+        &footnotes,
+        &examples,
+        extensions,
+        greedy_paragraphs,
+    )
 }
 
 /// Parse the raw text of a table cell into block content, reusing the full block and inline
 /// pipeline. A tight cell — one with no internal blank line — demotes its top-level paragraphs to
 /// `Plain`; an empty cell carries no blocks.
-pub(crate) fn parse_table_cell(text: &str, tight: bool, extensions: Extensions) -> Vec<Block> {
+pub(crate) fn parse_table_cell(
+    text: &str,
+    tight: bool,
+    extensions: Extensions,
+    greedy_paragraphs: bool,
+) -> Vec<Block> {
     if text.is_empty() {
         return Vec::new();
     }
     let normalized = normalize(text);
-    let (mut ir, refs, footnotes, examples) = block::parse(&normalized, extensions, false);
+    let (mut ir, refs, footnotes, examples) =
+        block::parse(&normalized, extensions, greedy_paragraphs);
     if tight {
         block::demote_loose_paragraphs(&mut ir);
     }
-    inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
+    inline::resolve_document(
+        &ir,
+        refs,
+        &footnotes,
+        &examples,
+        extensions,
+        greedy_paragraphs,
+    )
 }
 
 /// Width of a tab stop in columns, used when expanding tabs during preprocessing.
@@ -199,7 +234,7 @@ pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
 #[cfg(test)]
 mod tests {
     use super::CommonmarkReader;
-    use carta_ast::{Block, Inline, ListNumberDelim, ListNumberStyle};
+    use carta_ast::{Block, Document, Inline, ListNumberDelim, ListNumberStyle};
     use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
@@ -254,6 +289,94 @@ mod tests {
             })
             .expect("a note should be present");
         assert!(matches!(note.as_slice(), [Block::Para(_)]));
+    }
+
+    /// Read in the markdown dialect (greedy paragraphs) with the given extensions enabled.
+    fn read_markdown(input: &str, exts: &[Extension]) -> Document {
+        let mut extensions = Extensions::empty();
+        for ext in exts {
+            extensions.insert(*ext);
+        }
+        let mut options = ReaderOptions::default();
+        options.extensions = extensions;
+        options.greedy_paragraphs = true;
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+    }
+
+    #[test]
+    fn grid_cell_inlines_honor_the_markdown_dialect() {
+        // A grid-table cell parses its content under the document's dialect: in the markdown dialect
+        // a superscript rejects an inner space, so `^a b^` stays literal rather than wrapping.
+        let input = "+-------+\n| ^a b^ |\n+-------+\n";
+        let doc = read_markdown(input, &[Extension::GridTables, Extension::Superscript]);
+        let table = match doc.blocks.as_slice() {
+            [Block::Table(table)] => table,
+            other => panic!("expected a single table, got {other:?}"),
+        };
+        let cell = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .expect("a single body cell");
+        let inlines = match cell.content.as_slice() {
+            [Block::Plain(inlines)] => inlines,
+            other => panic!("expected a plain cell, got {other:?}"),
+        };
+        assert!(
+            inlines.iter().all(|i| !matches!(i, Inline::Superscript(_))),
+            "grid cell should not build a superscript around an inner space: {inlines:?}"
+        );
+    }
+
+    #[test]
+    fn metadata_values_honor_the_markdown_dialect() {
+        use carta_ast::MetaValue;
+        // A YAML metadata value parses under the document's dialect too: the superscript with an
+        // inner space stays literal and the code span trims its padding to `x`.
+        let input = "---\ntitle: ^a b^ `  x  `\n---\n\nbody\n";
+        let doc = read_markdown(
+            input,
+            &[Extension::YamlMetadataBlock, Extension::Superscript],
+        );
+        let inlines = match doc.meta.get("title") {
+            Some(MetaValue::MetaInlines(inlines)) => inlines,
+            other => panic!("expected inline metadata, got {other:?}"),
+        };
+        assert!(
+            inlines.iter().all(|i| !matches!(i, Inline::Superscript(_))),
+            "metadata should not build a superscript around an inner space: {inlines:?}"
+        );
+        assert!(
+            inlines
+                .iter()
+                .any(|i| matches!(i, Inline::Code(_, code) if code == "x")),
+            "metadata code span should trim to `x`: {inlines:?}"
+        );
+    }
+
+    #[test]
+    fn attribute_only_table_caption_carries_no_blocks() {
+        // A caption line that is nothing but a trailing attribute block: the block is split off onto
+        // the table's own attributes, leaving the caption text empty. An empty caption parses to no
+        // blocks at all, never a `Plain` wrapping an empty inline list.
+        let input = "| a | b |\n|---|---|\n| 1 | 2 |\n\n: {#tid}\n";
+        let blocks = blocks_with_many(
+            input,
+            &[
+                Extension::PipeTables,
+                Extension::TableCaptions,
+                Extension::TableAttributes,
+            ],
+        );
+        let table = match blocks.as_slice() {
+            [Block::Table(table)] => table,
+            other => panic!("expected a single table, got {other:?}"),
+        };
+        assert!(table.caption.long.is_empty());
+        assert_eq!(table.attr.id, "tid");
     }
 
     #[test]
@@ -1329,14 +1452,39 @@ mod tests {
 
     #[test]
     fn a_greedy_paragraph_folds_a_following_block_quote_heading_and_break() {
-        // A block-quote, heading, or thematic-break line right under a paragraph continues it.
+        // A block-quote, heading, or thematic-break line right under a paragraph continues it. The
+        // block-quote and heading folds are gated on the `blank_before_*` toggles the markdown
+        // dialect carries; the thematic break folds on the plain greedy flag.
+        let toggles = &[
+            Extension::BlankBeforeBlockquote,
+            Extension::BlankBeforeHeader,
+        ];
         for line in ["> quote", "# heading", "***"] {
             let input = format!("text\n{line}\n");
             assert!(
-                matches!(greedy_blocks(&input, &[]).as_slice(), [Block::Para(_)]),
+                matches!(greedy_blocks(&input, toggles).as_slice(), [Block::Para(_)]),
                 "expected one paragraph for {input:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_heading_or_block_quote_interrupts_without_its_blank_before_toggle() {
+        // Without `blank_before_header` / `blank_before_blockquote`, the opener interrupts an open
+        // paragraph as in strict CommonMark, even where paragraphs are otherwise greedy.
+        assert!(matches!(
+            greedy_blocks("text\n# heading\n", &[]).as_slice(),
+            [Block::Para(_), Block::Header(_, _, _)]
+        ));
+        assert!(matches!(
+            greedy_blocks("text\n> quote\n", &[]).as_slice(),
+            [Block::Para(_), Block::BlockQuote(_)]
+        ));
+        // The thematic break is not toggle-gated, so it still folds into the greedy paragraph.
+        assert!(matches!(
+            greedy_blocks("text\n***\n", &[]).as_slice(),
+            [Block::Para(_)]
+        ));
     }
 
     #[test]

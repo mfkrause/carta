@@ -17,9 +17,15 @@ extend-exclude = [
   "corpus/text/",
 ]
 
+[default.extend-identifiers]
+# Unicode scalar for the trumpet emoji (🎺); the trailing hex digits read as a word.
+"1f3ba" = "1f3ba"
+
 [default.extend-words]
 # Document-format vocabulary that is not a typo
 fb2 = "fb2"
+# amsmath environment for a single multi-line equation; spelled without the second "i".
+multline = "multline"
 # LaTeX enumerate counter names emitted by the LaTeX writer (\alph, \Alph).
 alph = "alph"
 Alph = "Alph"

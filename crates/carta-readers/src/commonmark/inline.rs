@@ -5,15 +5,17 @@
 //! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
-    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Inline, MathType, QuoteType, Row,
-    Table, TableBody, TableFoot, TableHead, Target,
+    Alignment, Attr, Block, Caption, Cell as TableCell, Citation, CitationMode, ColSpec, ColWidth,
+    Inline, MathType, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target,
 };
 use carta_core::{Extension, Extensions};
 
 use super::attr;
+use super::block::is_format_name_char;
 use super::identifiers::HeaderNumbering;
 use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
@@ -37,7 +39,17 @@ struct RefContext<'a> {
     defined: &'a BTreeSet<String>,
     by_id: &'a BTreeMap<String, Vec<Block>>,
     in_definition: bool,
+    /// The markdown dialect, where a backslash-escaped space becomes a non-breaking space, a
+    /// superscript or subscript span may not hold an unescaped space, and a code span's content is
+    /// stripped of all surrounding whitespace. The strict dialect leaves each of these alone.
+    markdown: bool,
     examples: &'a ExampleMap,
+    /// A running count of the citation groups resolved so far. Every `Cite` inline is stamped with
+    /// the next value, and all the `Citation` entries inside one group share that number. The count
+    /// is threaded across the whole document so the value rises in reading order. A citation nested
+    /// in another's affixes advances the count as it is built, so the enclosing group ends up
+    /// stamped with the highest number it contains.
+    cite_count: &'a Cell<i32>,
 }
 
 /// Resolve the whole document: collect the headings reachable by implicit reference, then each
@@ -49,9 +61,15 @@ pub(crate) fn resolve_document(
     footnotes: &FootnoteDefs,
     examples: &ExampleMap,
     ext: Extensions,
+    markdown: bool,
 ) -> Vec<Block> {
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
     let empty = BTreeMap::new();
+    // Heading reference-gathering and footnote-body resolution each run a separate count so that
+    // pre-parsing them does not advance the body's citation numbering. The body carries its own
+    // count, raised in reading order across the whole document body.
+    let scratch_count = Cell::new(0);
+    let body_count = Cell::new(0);
     // Headings register their references up front so a reference resolves to a heading anywhere in
     // the document, including one that appears later or inside a footnote definition.
     if ext.contains(Extension::ImplicitHeaderReferences) {
@@ -59,7 +77,9 @@ pub(crate) fn resolve_document(
             defined: &defined,
             by_id: &empty,
             in_definition: false,
+            markdown,
             examples,
+            cite_count: &scratch_count,
         };
         register_header_references(ir, &mut refs, probe, ext);
     }
@@ -67,7 +87,9 @@ pub(crate) fn resolve_document(
         defined: &defined,
         by_id: &empty,
         in_definition: true,
+        markdown,
         examples,
+        cite_count: &scratch_count,
     };
     let by_id: BTreeMap<String, Vec<Block>> = footnotes
         .iter()
@@ -77,7 +99,9 @@ pub(crate) fn resolve_document(
         defined: &defined,
         by_id: &by_id,
         in_definition: false,
+        markdown,
         examples,
+        cite_count: &body_count,
     };
     let mut blocks = resolve_blocks(ir, &refs, top, ext);
     super::identifiers::assign_header_identifiers(&mut blocks, ext);
@@ -173,6 +197,9 @@ fn resolve_block(
                 text.clone(),
             ));
         }
+        IrBlock::RawBlock(format, text) => {
+            out.push(Block::RawBlock(format.clone(), text.clone()));
+        }
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
         IrBlock::Div(attr, children) => {
             out.push(Block::Div(
@@ -218,11 +245,13 @@ fn resolve_block(
             header,
             rows,
             caption,
+            attr,
         } => out.push(resolve_table(
             alignments,
             header,
             rows,
             caption.as_deref(),
+            attr,
             refs,
             notes,
             ext,
@@ -267,11 +296,15 @@ fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
 /// and the body rows in one `TableBody`. Every cell's trimmed text parses into inlines wrapped in a
 /// single `Plain`; an empty cell carries no blocks. A caption, when present, is inline markdown
 /// wrapped in a `Plain`; footers, widths, spans, and row-head columns are the empty defaults.
+// A pipe table carries its shape as loose fields rather than a struct (unlike grid/text tables), so
+// the builder threads them alongside the shared inline-resolution context.
+#[allow(clippy::too_many_arguments)]
 fn resolve_table(
     alignments: &[Alignment],
     header: &[String],
     rows: &[Vec<String>],
     caption: Option<&str>,
+    attr: &Attr,
     refs: &RefMap,
     notes: RefContext,
     ext: Extensions,
@@ -291,14 +324,11 @@ fn resolve_table(
             .collect(),
     };
     let caption = match caption {
-        Some(text) => Caption {
-            short: None,
-            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
-        },
+        Some(text) => make_caption(text, refs, notes, ext),
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
-        attr: Attr::default(),
+        attr: attr.clone(),
         caption,
         col_specs,
         head: TableHead {
@@ -315,15 +345,29 @@ fn resolve_table(
     }))
 }
 
+/// Build a table caption from its text. Caption text that parses to nothing (an attribute-only or
+/// bare caption line) yields an empty block list, not a `Plain` wrapping an empty inline list.
+fn make_caption(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Caption {
+    let inlines = parse_inlines(text, refs, notes, ext);
+    Caption {
+        short: None,
+        long: if inlines.is_empty() {
+            Vec::new()
+        } else {
+            vec![Block::Plain(inlines)]
+        },
+    }
+}
+
 /// Build one table cell. A non-empty cell's text parses into inlines wrapped in a `Plain`; an empty
 /// or whitespace-only cell carries an empty block list.
-fn make_cell(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Cell {
+fn make_cell(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> TableCell {
     let content = if text.is_empty() {
         Vec::new()
     } else {
         vec![Block::Plain(parse_inlines(text, refs, notes, ext))]
     };
-    Cell {
+    TableCell {
         attr: Attr::default(),
         align: Alignment::AlignDefault,
         row_span: 1,
@@ -354,18 +398,15 @@ fn resolve_grid_table(
         cells: row
             .cells
             .iter()
-            .map(|cell| make_grid_cell(cell, ext))
+            .map(|cell| make_grid_cell(cell, ext, notes.markdown))
             .collect(),
     };
     let caption = match &table.caption {
-        Some(text) => Caption {
-            short: None,
-            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
-        },
+        Some(text) => make_caption(text, refs, notes, ext),
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
-        attr: Attr::default(),
+        attr: table.attr.clone(),
         caption,
         col_specs,
         head: TableHead {
@@ -420,14 +461,11 @@ fn resolve_text_table(
         vec![make_row(&table.head)]
     };
     let caption = match &table.caption {
-        Some(text) => Caption {
-            short: None,
-            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
-        },
+        Some(text) => make_caption(text, refs, notes, ext),
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
-        attr: Attr::default(),
+        attr: table.attr.clone(),
         caption,
         col_specs,
         head: TableHead {
@@ -446,13 +484,13 @@ fn resolve_text_table(
 
 /// Build one grid-table cell, parsing its raw text into block content (tight cells demote their
 /// paragraphs to `Plain`).
-fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions) -> Cell {
-    Cell {
+fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions, markdown: bool) -> TableCell {
+    TableCell {
         attr: Attr::default(),
         align: Alignment::AlignDefault,
         row_span: 1,
         col_span: 1,
-        content: super::parse_table_cell(&cell.text, cell.tight, ext),
+        content: super::parse_table_cell(&cell.text, cell.tight, ext, markdown),
     }
 }
 
@@ -603,6 +641,11 @@ struct Delimiter {
     /// it — a link may not contain another link. On `]`, an inactive opener is popped and
     /// literalized without attempting any link-target parse (spec §6.3, rule 6).
     active: bool,
+    /// The citation count at the moment this bracket opened. If the bracket later resolves to a
+    /// single citation, any bare citations counted while scanning its interior are discarded along
+    /// with their nodes, so the count rewinds to this value first. Unused for non-bracket
+    /// delimiters.
+    cite_count_at_open: i32,
 }
 
 /// Outcome of resolving an explicit link target after a closing `]`.
@@ -617,6 +660,16 @@ enum Explicit {
 
 // `notes` (the footnote context) and `nodes` (the in-progress inline list) are distinct concepts
 // that unavoidably read alike.
+/// Run the gated highlight-mark pass and emphasis resolution over a node list, then collapse it into
+/// inlines — the shared finishing sequence for a parsed inline run, a span body, and a link label.
+fn resolve_inline_nodes(mut nodes: Vec<Node>, ext: Extensions, markdown: bool) -> Vec<Inline> {
+    if ext.contains(Extension::Mark) {
+        resolve_mark(&mut nodes, ext, markdown);
+    }
+    process_emphasis(&mut nodes, 0, ext, markdown);
+    collapse(nodes)
+}
+
 #[allow(clippy::similar_names)]
 fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
@@ -630,27 +683,32 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
         bracket_stack: Vec::new(),
     };
     parser.run();
-    let mut nodes = parser.nodes;
-    process_emphasis(&mut nodes, 0, ext);
-    let mut inlines = collapse(nodes);
+    let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
     if ext.contains(Extension::Autolink) {
         super::autolink::autolink_inlines(&mut inlines);
+    }
+    if ext.contains(Extension::NativeSpans) {
+        inlines = pair_native_spans(inlines);
     }
     inlines
 }
 
 /// Parse standalone text — a document metadata value — into inlines with no reference context, so
-/// footnote and example references in the text resolve to nothing.
-pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions) -> Vec<Inline> {
+/// footnote and example references in the text resolve to nothing. `markdown` selects the markdown
+/// dialect's inline rules, matching the dialect the document body is parsed under.
+pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) -> Vec<Inline> {
     let defined = BTreeSet::new();
     let by_id = BTreeMap::new();
     let examples = ExampleMap::new();
     let refs = RefMap::new();
+    let cite_count = Cell::new(0);
     let notes = RefContext {
         defined: &defined,
         by_id: &by_id,
         in_definition: false,
+        markdown,
         examples: &examples,
+        cite_count: &cite_count,
     };
     parse_inlines(text, &refs, notes, ext)
 }
@@ -691,8 +749,17 @@ impl InlineParser<'_> {
                 {
                     self.emphasis_run(b'~');
                 }
+                '^' if self.ext.contains(Extension::InlineNotes)
+                    && self.at(1) == Some('[')
+                    && self.try_inline_note() => {}
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
-                '@' if self.ext.contains(Extension::ExampleLists) => self.example_ref(),
+                '=' if self.ext.contains(Extension::Mark) => self.emphasis_run(b'='),
+                '@' if self.ext.contains(Extension::ExampleLists)
+                    || self.ext.contains(Extension::Citations) =>
+                {
+                    self.at_sign();
+                }
+                ':' if self.ext.contains(Extension::Emoji) && self.try_emoji() => {}
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
                 '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
                 '.' if self.ext.contains(Extension::Smart) => self.smart_ellipsis(),
@@ -729,10 +796,24 @@ impl InlineParser<'_> {
         }
     }
 
-    /// Resolve an example-list reference `@label` at the cursor. A label assigned a number by an
-    /// example item becomes that number; an undefined or empty label leaves the `@` as literal text,
-    /// so the rest of the run reparses normally.
-    fn example_ref(&mut self) {
+    /// Resolve an `@` at the cursor. An example-list label assigned a number becomes that number; a
+    /// well-formed citation key becomes a bare author-in-text `Cite`; anything else leaves the `@`
+    /// as literal text, so the rest of the run reparses normally.
+    fn at_sign(&mut self) {
+        if self.ext.contains(Extension::ExampleLists) && self.try_example_ref() {
+            return;
+        }
+        if self.ext.contains(Extension::Citations) && self.try_bare_citation() {
+            return;
+        }
+        self.pos += 1;
+        self.push_text('@');
+    }
+
+    /// Try an example-list reference `@label` at the cursor. A label assigned a number by an example
+    /// item is replaced with that number and the cursor advances past it, returning `true`. An
+    /// undefined or empty label leaves the cursor in place and returns `false`.
+    fn try_example_ref(&mut self) -> bool {
         let mut len = 0;
         while matches!(
             self.at(1 + len),
@@ -740,23 +821,103 @@ impl InlineParser<'_> {
         ) {
             len += 1;
         }
-        if len > 0 {
-            let label: String = self
-                .chars
-                .get(self.pos + 1..self.pos + 1 + len)
-                .map(|run| run.iter().collect())
-                .unwrap_or_default();
-            if let Some(number) = self.notes.examples.get(&label) {
-                self.pos += 1 + len;
-                self.push_str(&number.to_string());
-                return;
-            }
+        if len == 0 {
+            return false;
         }
-        self.pos += 1;
-        self.push_text('@');
+        let label: String = self
+            .chars
+            .get(self.pos + 1..self.pos + 1 + len)
+            .map(|run| run.iter().collect())
+            .unwrap_or_default();
+        if let Some(number) = self.notes.examples.get(&label) {
+            self.pos += 1 + len;
+            self.push_str(&number.to_string());
+            return true;
+        }
+        false
+    }
+
+    /// Try a bare author-in-text citation `@key` at the cursor (which sits on the `@`). It forms a
+    /// citation only when the `@` is not glued to a preceding word character and a well-formed key
+    /// follows. On success the cursor advances past the key, the running citation count rises, and a
+    /// single-entry `Cite` is pushed whose fallback text is the literal `@key`. Returns `false`
+    /// (without advancing) otherwise, leaving the `@` for literal handling.
+    fn try_bare_citation(&mut self) -> bool {
+        if self.pos > 0 && matches!(self.chars.get(self.pos - 1), Some(c) if is_citation_word(*c)) {
+            return false;
+        }
+        let Some((id, next)) = scan_citation_id(self.chars, self.pos + 1) else {
+            return false;
+        };
+        let note_num = self.bump_cite_count();
+        self.pos = next;
+        let citation = Citation {
+            id: id.clone(),
+            prefix: Vec::new(),
+            suffix: Vec::new(),
+            mode: CitationMode::AuthorInText,
+            note_num,
+            hash: 0,
+        };
+        self.nodes.push(Node::Inline(Inline::Cite(
+            vec![citation],
+            vec![Inline::Str(format!("@{id}"))],
+        )));
+        true
+    }
+
+    /// Advance the document-wide citation count and return the new value.
+    fn bump_cite_count(&self) -> i32 {
+        let next = self.notes.cite_count.get().saturating_add(1);
+        self.notes.cite_count.set(next);
+        next
+    }
+
+    /// Resolve an emoji shortcode `:name:` at the cursor (which sits on the opening `:`). A name is
+    /// one or more ASCII letters, digits, `_`, `+`, or `-`, terminated by a closing `:`. When the
+    /// name is in the curated table, the whole `:name:` becomes a `Span` classed `emoji` carrying the
+    /// name in a `data-emoji` attribute and the unicode character as its text; the cursor advances
+    /// past the closing `:` and `true` is returned. An unrecognized name (or no closing `:`) leaves
+    /// the leading `:` untouched and returns `false`, so the run reparses as literal text.
+    fn try_emoji(&mut self) -> bool {
+        let name_start = self.pos + 1;
+        let mut index = name_start;
+        while matches!(
+            self.chars.get(index),
+            Some('0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '+' | '-')
+        ) {
+            index += 1;
+        }
+        if index == name_start || self.chars.get(index) != Some(&':') {
+            return false;
+        }
+        let name: String = match self.chars.get(name_start..index) {
+            Some(slice) => slice.iter().collect(),
+            None => return false,
+        };
+        let Some(codepoints) = emoji::lookup(&name) else {
+            return false;
+        };
+        let attr = Attr {
+            id: String::new(),
+            classes: vec!["emoji".to_owned()],
+            attributes: vec![("data-emoji".to_owned(), name)],
+        };
+        self.pos = index + 1;
+        self.nodes.push(Node::Inline(Inline::Span(
+            attr,
+            vec![Inline::Str(codepoints.to_owned())],
+        )));
+        true
     }
 
     fn backslash(&mut self) {
+        // Backslash-delimited TeX math and raw TeX commands take precedence over a plain escape,
+        // each gated behind its own extension. `\\(`/`\\[` (double backslash) is tried before
+        // `\(`/`\[` (single backslash) so the longer opener wins.
+        if self.try_backslash_math() || self.try_raw_tex() {
+            return;
+        }
         self.pos += 1;
         match self.peek() {
             Some('\n') => {
@@ -766,6 +927,12 @@ impl InlineParser<'_> {
                 }
                 self.nodes.push(Node::LineBreak);
             }
+            // In the markdown dialect a backslash before a space is a non-breaking space, which binds
+            // into the surrounding text rather than splitting it on whitespace.
+            Some(' ') if self.notes.markdown => {
+                self.pos += 1;
+                self.push_text('\u{a0}');
+            }
             Some(ch) if is_ascii_punctuation(ch) => {
                 self.pos += 1;
                 self.push_text(ch);
@@ -774,21 +941,285 @@ impl InlineParser<'_> {
         }
     }
 
+    /// Try the backslash math delimiters at the cursor (which sits on the leading `\`). `\(…\)` is
+    /// inline math and `\[…\]` is display math; the double-backslash forms `\\(…\\)` and `\\[…\\]`
+    /// use the same shapes with a doubled delimiter. Each form is gated behind its extension, and the
+    /// double-backslash form is preferred so its longer opener is not stolen by the single form.
+    /// Returns `true` (and advances past the closer) on a match, leaving a fallback escape otherwise.
+    fn try_backslash_math(&mut self) -> bool {
+        if self.ext.contains(Extension::TexMathDoubleBackslash)
+            && self.chars.get(self.pos) == Some(&'\\')
+            && self.chars.get(self.pos + 1) == Some(&'\\')
+            && self.scan_backslash_math(2)
+        {
+            return true;
+        }
+        if self.ext.contains(Extension::TexMathSingleBackslash)
+            && self.chars.get(self.pos) == Some(&'\\')
+            && self.scan_backslash_math(1)
+        {
+            return true;
+        }
+        false
+    }
+
+    /// Scan a backslash math span whose delimiters are `slashes` backslashes followed by `(` (inline)
+    /// or `[` (display). The cursor is on the first backslash; `slashes` counts the backslashes of the
+    /// opener. The content runs to the matching `slashes`-backslash + `)`/`]` closer, honoring
+    /// `\`-escapes inside, and must be non-empty before any trimming. Inline content is trimmed of
+    /// surrounding whitespace; display content is kept verbatim. On success the cursor moves past the
+    /// closer and a `Math` node is pushed.
+    fn scan_backslash_math(&mut self, slashes: usize) -> bool {
+        let open = self.pos + slashes;
+        let (close_bracket, math_type) = match self.chars.get(open).copied() {
+            Some('(') => (')', MathType::InlineMath),
+            Some('[') => (']', MathType::DisplayMath),
+            _ => return false,
+        };
+        let content_start = open + 1;
+        let mut i = content_start;
+        while self.chars.get(i).is_some() {
+            if self.is_backslash_math_closer(i, slashes, close_bracket) {
+                if i == content_start {
+                    return false; // empty content is not a math span
+                }
+                let raw: String = match self.chars.get(content_start..i) {
+                    Some(slice) => slice.iter().collect(),
+                    None => return false,
+                };
+                let content = match math_type {
+                    MathType::InlineMath => raw.trim().to_owned(),
+                    MathType::DisplayMath => raw,
+                };
+                self.pos = i + slashes + 1;
+                self.nodes
+                    .push(Node::Inline(Inline::Math(math_type, content)));
+                return true;
+            }
+            // The single-backslash form treats a `\` as escaping the next character, so an escaped
+            // delimiter inside the content does not close the span; the closer test above already
+            // ran, so a real `\)`/`\]` closer is never reached here. The double-backslash form has
+            // no such escaping: a longer backslash run simply leaves its leading backslashes in the
+            // content.
+            if slashes == 1 && self.chars.get(i) == Some(&'\\') && self.chars.get(i + 1).is_some() {
+                i += 2;
+                continue;
+            }
+            i += 1;
+        }
+        false
+    }
+
+    /// Whether a `slashes`-backslash run followed by `close` begins at index `i`.
+    fn is_backslash_math_closer(&self, i: usize, slashes: usize, close: char) -> bool {
+        (0..slashes).all(|k| self.chars.get(i + k) == Some(&'\\'))
+            && self.chars.get(i + slashes) == Some(&close)
+    }
+
+    /// Try a raw inline TeX command at the cursor (on the leading `\`), gated behind `raw_tex`. A
+    /// command is a backslash, an ASCII letter, and any following ASCII alphanumerics, optionally
+    /// followed by balanced `{…}` and `[…]` argument groups. A `{`-group that opens but cannot be
+    /// balance-closed reverts the whole command to literal text; an unclosable `[`-group simply ends
+    /// the group run, leaving the command captured so far. A command with no argument groups and an
+    /// all-letter name absorbs any run of trailing spaces and tabs (but not a newline). On a match the
+    /// verbatim source becomes a `RawInline (Format "tex")` and the cursor advances past it.
+    ///
+    /// Known limitations:
+    /// - Every group is consumed greedily, so a command takes all the `{…}`/`[…]` groups that
+    ///   directly follow it. Some commands accept only a fixed number of arguments and leave the
+    ///   rest as text; that per-command arity is not modeled here.
+    /// - A paragraph that is wholly a `\begin{env}…\end{env}` environment is recognized in the block
+    ///   phase; here every `\begin`/`\end` is treated as an ordinary inline command.
+    fn try_raw_tex(&mut self) -> bool {
+        if !self.ext.contains(Extension::RawTex) {
+            return false;
+        }
+        if self.chars.get(self.pos) != Some(&'\\') {
+            return false;
+        }
+        let mut i = self.pos + 1;
+        if !self.chars.get(i).is_some_and(char::is_ascii_alphabetic) {
+            return false;
+        }
+        i += 1;
+        let mut name_all_letters = true;
+        while let Some(&ch) = self.chars.get(i) {
+            if ch.is_ascii_alphabetic() {
+                i += 1;
+            } else if ch.is_ascii_digit() {
+                name_all_letters = false;
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        // `\begin`/`\end` are raw TeX only as a complete, matched environment, never as bare
+        // commands: capture the whole `\begin{ENV}`…`\end{ENV}`, or leave the text literal.
+        let name = self.chars.get(self.pos + 1..i);
+        if name.is_some_and(|n| "begin".chars().eq(n.iter().copied())) {
+            return self.try_raw_tex_environment(i);
+        }
+        if name.is_some_and(|n| "end".chars().eq(n.iter().copied())) {
+            return false;
+        }
+        // Consume argument groups. A `{`-group must balance or the entire command reverts to text.
+        let mut had_group = false;
+        loop {
+            match self.chars.get(i).copied() {
+                Some('{') => match self.scan_balanced_group(i, '{', '}') {
+                    Some(end) => {
+                        i = end;
+                        had_group = true;
+                    }
+                    None => return false,
+                },
+                Some('[') => match self.scan_balanced_group(i, '[', ']') {
+                    Some(end) => {
+                        i = end;
+                        had_group = true;
+                    }
+                    None => break,
+                },
+                _ => break,
+            }
+        }
+
+        // A bare command whose name is all letters (no argument groups, no digits) absorbs a
+        // trailing run of spaces and tabs.
+        if !had_group && name_all_letters {
+            while matches!(self.chars.get(i).copied(), Some(' ' | '\t')) {
+                i += 1;
+            }
+        }
+
+        let source: String = match self.chars.get(self.pos..i) {
+            Some(slice) => slice.iter().collect(),
+            None => return false,
+        };
+        self.pos = i;
+        self.nodes.push(Node::Inline(Inline::RawInline(
+            carta_ast::Format("tex".to_owned()),
+            source,
+        )));
+        true
+    }
+
+    /// Capture a complete `\begin{ENV}`…matching `\end{ENV}` as a single raw TeX inline. The
+    /// opener's `{ENV}` group names the environment; nested `\begin{ENV}`/`\end{ENV}` of that same
+    /// name deepen and lift the nesting, and the capture ends at the `\end{ENV}` that returns the
+    /// depth to zero. Without a `{ENV}` group or a matching close the `\begin` is not raw TeX and
+    /// the call reverts to literal text by returning `false`.
+    fn try_raw_tex_environment(&mut self, name_end: usize) -> bool {
+        if self.chars.get(name_end).copied() != Some('{') {
+            return false;
+        }
+        let Some(group_end) = self.scan_balanced_group(name_end, '{', '}') else {
+            return false;
+        };
+        let env: Vec<char> = match self.chars.get(name_end + 1..group_end - 1) {
+            Some(slice) => slice.to_vec(),
+            None => return false,
+        };
+        let Some(end) = self.scan_environment_close(group_end, &env) else {
+            return false;
+        };
+        let source: String = match self.chars.get(self.pos..end) {
+            Some(slice) => slice.iter().collect(),
+            None => return false,
+        };
+        self.pos = end;
+        self.nodes.push(Node::Inline(Inline::RawInline(
+            carta_ast::Format("tex".to_owned()),
+            source,
+        )));
+        true
+    }
+
+    /// From `from`, find the index just past the `\end{ENV}` that closes an open `\begin{ENV}`,
+    /// tracking nested same-name environments by depth. `None` when no matching close is found.
+    fn scan_environment_close(&self, from: usize, env: &[char]) -> Option<usize> {
+        let mut depth = 1usize;
+        let mut i = from;
+        while i < self.chars.len() {
+            if self.chars.get(i).copied() == Some('\\') {
+                if let Some(after) = self.match_environment_marker(i, "begin", env) {
+                    depth += 1;
+                    i = after;
+                    continue;
+                }
+                if let Some(after) = self.match_environment_marker(i, "end", env) {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(after);
+                    }
+                    i = after;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// If the characters at `at` spell `\KEYWORD{ENV}` (e.g. `\end{equation}`), return the index
+    /// just past the closing brace; otherwise `None`.
+    fn match_environment_marker(&self, at: usize, keyword: &str, env: &[char]) -> Option<usize> {
+        let mut i = at;
+        if self.chars.get(i).copied() != Some('\\') {
+            return None;
+        }
+        i += 1;
+        for kc in keyword.chars() {
+            if self.chars.get(i).copied() != Some(kc) {
+                return None;
+            }
+            i += 1;
+        }
+        if self.chars.get(i).copied() != Some('{') {
+            return None;
+        }
+        i += 1;
+        for &ec in env {
+            if self.chars.get(i).copied() != Some(ec) {
+                return None;
+            }
+            i += 1;
+        }
+        if self.chars.get(i).copied() != Some('}') {
+            return None;
+        }
+        Some(i + 1)
+    }
+
+    /// Scan a balanced group `open`…`close` starting at index `start` (which must hold `open`),
+    /// returning the index just past the matching `close`, or `None` if it never closes. Nested
+    /// same-kind delimiters are tracked by depth.
+    fn scan_balanced_group(&self, start: usize, open: char, close: char) -> Option<usize> {
+        let mut depth = 0usize;
+        let mut i = start;
+        while let Some(&ch) = self.chars.get(i) {
+            if ch == open {
+                depth += 1;
+            } else if ch == close {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i + 1);
+                }
+            }
+            i += 1;
+        }
+        None
+    }
+
     fn code_span(&mut self) {
         let start = self.pos;
-        let mut open = 0;
-        while self.peek() == Some('`') {
-            self.pos += 1;
-            open += 1;
-        }
+        let open = backtick_run_len(self.chars, self.pos);
+        self.pos += open;
         // Find a closing run of exactly `open` backticks.
         let mut scan = self.pos;
         while scan < self.chars.len() {
             if self.chars.get(scan).copied() == Some('`') {
-                let mut close = 0;
-                while self.chars.get(scan + close).copied() == Some('`') {
-                    close += 1;
-                }
+                let close = backtick_run_len(self.chars, scan);
                 if close == open {
                     let content: String = self
                         .chars
@@ -796,9 +1227,19 @@ impl InlineParser<'_> {
                         .map(|s| s.iter().collect())
                         .unwrap_or_default();
                     self.pos = scan + close;
+                    if let Some((format, next)) = self.scan_raw_format() {
+                        self.pos = next;
+                        self.nodes.push(Node::Inline(Inline::RawInline(
+                            carta_ast::Format(format),
+                            normalize_code(&content, self.notes.markdown),
+                        )));
+                        return;
+                    }
                     let attr = self.take_code_attr();
-                    self.nodes
-                        .push(Node::Inline(Inline::Code(attr, normalize_code(&content))));
+                    self.nodes.push(Node::Inline(Inline::Code(
+                        attr,
+                        normalize_code(&content, self.notes.markdown),
+                    )));
                     return;
                 }
                 scan += close;
@@ -958,6 +1399,7 @@ impl InlineParser<'_> {
             image: false,
             text_start: self.pos,
             active: false,
+            cite_count_at_open: 0,
         }));
     }
 
@@ -1001,6 +1443,7 @@ impl InlineParser<'_> {
             image,
             text_start: self.pos,
             active: true,
+            cite_count_at_open: self.notes.cite_count.get(),
         }));
     }
 
@@ -1066,10 +1509,99 @@ impl InlineParser<'_> {
             }
         }
 
+        // A bracket whose content is a well-formed citation list becomes a `Cite`. An image's `!`
+        // survives as literal text before it.
+        if self.ext.contains(Extension::Citations)
+            && self.try_bracket_citation(opener_index, is_image)
+        {
+            return;
+        }
+
         // Otherwise the opener reverts to its literal `[` / `![`, and `]` stays literal.
         self.bracket_stack.pop();
         self.literalize_bracket(opener_index);
         self.push_text(']');
+    }
+
+    /// If the bracket opener encloses a well-formed citation list `[ ... @key ... ]`, emit a `Cite`
+    /// and return `true`. The content is split on top-level semicolons into entries; every entry
+    /// must hold one top-level `@key`, and no entry may be empty. Each entry's text before the key
+    /// is its prefix and the text after is its suffix (both parsed as inlines, so a nested bare
+    /// `@key` there becomes its own citation); a `-` glued to the front of the key suppresses the
+    /// author. The whole group shares one citation number, raised to cover any nested citation. The
+    /// fallback field is the raw bracket source parsed as ordinary inlines. Returns `false` (leaving
+    /// the brackets for literal handling) when the content is not a citation list.
+    fn try_bracket_citation(&mut self, opener_index: usize, is_image: bool) -> bool {
+        let raw = self.raw_label(opener_index);
+        let raw_chars: Vec<char> = raw.chars().collect();
+        let Some(segments) = split_citation_segments(&raw_chars) else {
+            return false;
+        };
+        // Scanning the interior may have counted bare citations that are about to be discarded with
+        // their nodes; rewind to the count this bracket opened with before numbering the group. (For
+        // the rare `![@key]`, the discarded interior count is not added back, so such a group's
+        // number is one lower than a longer document with the same citation order would otherwise
+        // give it.)
+        if let Some(Node::Delimiter(d)) = self.nodes.get(opener_index) {
+            self.notes.cite_count.set(d.cite_count_at_open);
+        }
+        // Reserve this group's number before parsing affixes, so nested citations are counted after
+        // it and the group ends up stamped with the highest number it contains.
+        self.bump_cite_count();
+        let mut citations = Vec::with_capacity(segments.len());
+        for segment in &segments {
+            let Some(entry) = self.parse_citation_entry(&raw_chars, segment.clone()) else {
+                return false;
+            };
+            citations.push(entry);
+        }
+        let group_num = self.notes.cite_count.get();
+        for citation in &mut citations {
+            citation.note_num = group_num;
+        }
+        let fallback = citation_fallback_inlines(&format!("[{raw}]"));
+        self.nodes.truncate(opener_index);
+        self.bracket_stack.retain(|&ni| ni < opener_index);
+        if is_image {
+            self.push_text('!');
+        }
+        self.nodes
+            .push(Node::Inline(Inline::Cite(citations, fallback)));
+        true
+    }
+
+    /// Parse one citation entry from `chars[range]`: locate the first top-level `@key`, taking the
+    /// text before it as the prefix and the text after as the suffix. A `-` directly before the key
+    /// (itself at the segment start or preceded by whitespace) suppresses the author. Returns `None`
+    /// when the segment holds no top-level key.
+    fn parse_citation_entry(
+        &self,
+        chars: &[char],
+        range: std::ops::Range<usize>,
+    ) -> Option<Citation> {
+        let key = find_citation_key(chars, range.clone())?;
+        let prefix_end = if key.suppress { key.dash } else { key.at };
+        let prefix_src: String = chars.get(range.start..prefix_end)?.iter().collect();
+        let suffix_src: String = chars.get(key.id_end..range.end)?.iter().collect();
+        let mode = if key.suppress {
+            CitationMode::SuppressAuthor
+        } else {
+            CitationMode::NormalCitation
+        };
+        // The prefix is trimmed of surrounding whitespace; the suffix keeps any leading space (so
+        // `@a x` separates the key from `x`) but drops trailing space.
+        //
+        // A suffix opening with a locator label such as `p.` or `vol.` carries a non-breaking space
+        // before its number (`p.\u{a0}5`). That join, gated on a fixed set of abbreviations, is not
+        // applied here: the suffix is tokenized as ordinary inlines, so `p. 5` stays three tokens.
+        Some(Citation {
+            id: key.id,
+            prefix: parse_inlines(prefix_src.trim(), self.refs, self.notes, self.ext),
+            suffix: parse_inlines(suffix_src.trim_end(), self.refs, self.notes, self.ext),
+            mode,
+            note_num: 0,
+            hash: 0,
+        })
     }
 
     /// Pop the opener, consume an optional trailing attribute block, and emit the link or image.
@@ -1093,6 +1625,55 @@ impl InlineParser<'_> {
             next = after;
         }
         attr::is_non_empty(&merged).then_some((merged, next))
+    }
+
+    /// Scan a raw-format marker `{=FORMAT}` at the cursor, returning the format name and the index
+    /// past the closing brace. The braces may hold surrounding whitespace (`{ =html }`), but no
+    /// space may sit between `=` and the format, and the format may carry nothing but the marker:
+    /// any further content (`{=html .foo}`) is not a raw marker. The format token is one or more
+    /// ASCII alphanumerics, `-`, or `_`. Active only when `raw_attribute` is enabled.
+    fn scan_raw_format(&self) -> Option<(String, usize)> {
+        if !self.ext.contains(Extension::RawAttribute) {
+            return None;
+        }
+        if self.chars.get(self.pos).copied() != Some('{') {
+            return None;
+        }
+        let mut index = self.pos + 1;
+        while let Some(&ch) = self.chars.get(index) {
+            if ch == ' ' || ch == '\t' {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if self.chars.get(index).copied() != Some('=') {
+            return None;
+        }
+        index += 1;
+        let format_start = index;
+        while let Some(&ch) = self.chars.get(index) {
+            if is_format_name_char(ch) {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if index == format_start {
+            return None;
+        }
+        let format: String = self.chars.get(format_start..index)?.iter().collect();
+        while let Some(&ch) = self.chars.get(index) {
+            if ch == ' ' || ch == '\t' {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if self.chars.get(index).copied() != Some('}') {
+            return None;
+        }
+        Some((format, index + 1))
     }
 
     /// Consume an attribute block following an inline code span when the relevant extension is on,
@@ -1123,11 +1704,10 @@ impl InlineParser<'_> {
 
     /// Build a span from a non-image bracket opener and its inner content.
     fn build_span(&mut self, opener_index: usize, attr: Attr) {
-        let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
+        let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         self.bracket_stack.retain(|&ni| ni < opener_index);
-        process_emphasis(&mut inner, 0, self.ext);
-        let content = collapse(inner);
+        let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         self.nodes.push(Node::Inline(Inline::Span(attr, content)));
     }
 
@@ -1226,14 +1806,55 @@ impl InlineParser<'_> {
         true
     }
 
+    /// Resolve an inline note `^[...]` at the cursor (which sits on the `^`, with `[` following).
+    /// The bracket content runs up to its balanced closing `]`, is parsed as inline markdown, and
+    /// becomes a single-paragraph `Note`. Returns `false` without advancing when the bracket has no
+    /// balanced closer, leaving the `^` for literal/superscript handling.
+    fn try_inline_note(&mut self) -> bool {
+        // self.pos is the caret; the `[` sits at self.pos + 1. Walk forward tracking bracket depth.
+        let mut depth = 0usize;
+        let mut index = self.pos + 1;
+        let mut end = None;
+        while let Some(&ch) = self.chars.get(index) {
+            match ch {
+                '\\' => index += 2,
+                '[' => {
+                    depth += 1;
+                    index += 1;
+                }
+                ']' => {
+                    depth -= 1;
+                    index += 1;
+                    if depth == 0 {
+                        end = Some(index);
+                        break;
+                    }
+                }
+                _ => index += 1,
+            }
+        }
+        let Some(end) = end else {
+            return false;
+        };
+        let inner: String = self
+            .chars
+            .get(self.pos + 2..end.saturating_sub(1))
+            .map(|run| run.iter().collect())
+            .unwrap_or_default();
+        let inlines = parse_inlines(&inner, self.refs, self.notes, self.ext);
+        self.pos = end;
+        self.nodes
+            .push(Node::Inline(Inline::Note(vec![para(inlines)])));
+        true
+    }
+
     fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target, attr: Attr) {
-        let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
+        let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         // Any bracket stack entries that pointed into the split-off range are now part of the
-        // inner node list passed to process_emphasis; they no longer belong to the outer parse.
+        // inner node list passed to emphasis resolution; they no longer belong to the outer parse.
         self.bracket_stack.retain(|&ni| ni < opener_index);
-        process_emphasis(&mut inner, 0, self.ext);
-        let content = collapse(inner);
+        let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         let inline = if is_image {
             Inline::Image(attr, content, target)
         } else {
@@ -1241,6 +1862,216 @@ impl InlineParser<'_> {
         };
         self.nodes.push(Node::Inline(inline));
     }
+}
+
+/// A character that may appear directly before `@` and block a bare citation: an alphanumeric
+/// glues the `@` to a preceding word (`foo@bar`, an email-like run), so no citation forms there.
+fn is_citation_word(ch: char) -> bool {
+    ch.is_alphanumeric()
+}
+
+/// Tokenize raw citation source into the literal inlines that stand in for the citation: whitespace
+/// runs become `SoftBreak` (when they hold a newline) or `Space`, and every other run becomes a
+/// `Str`. No inline markup is interpreted, so the source reads back verbatim word by word.
+fn citation_fallback_inlines(raw: &str) -> Vec<Inline> {
+    let mut out = Vec::new();
+    let mut word = String::new();
+    let mut had_space = false;
+    let mut had_newline = false;
+    let flush_word = |out: &mut Vec<Inline>, word: &mut String| {
+        if !word.is_empty() {
+            out.push(Inline::Str(std::mem::take(word)));
+        }
+    };
+    for ch in raw.chars() {
+        if ch.is_whitespace() {
+            flush_word(&mut out, &mut word);
+            had_space = true;
+            had_newline |= ch == '\n';
+        } else {
+            if had_space {
+                out.push(if had_newline {
+                    Inline::SoftBreak
+                } else {
+                    Inline::Space
+                });
+                had_space = false;
+                had_newline = false;
+            }
+            word.push(ch);
+        }
+    }
+    flush_word(&mut out, &mut word);
+    if had_space {
+        out.push(if had_newline {
+            Inline::SoftBreak
+        } else {
+            Inline::Space
+        });
+    }
+    out
+}
+
+/// A character that always belongs to a citation key: an alphanumeric or `_`. A key begins with one
+/// of these.
+fn is_citation_key_start(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
+/// Scan a citation key beginning at `start` (the index just past `@`). A key opens with an
+/// alphanumeric or `_` and runs over further such characters; the internal punctuation `-`, `.`,
+/// `:`, and `/` extend it only when another key character follows, so a trailing `-key.` keeps the
+/// `key` but drops the `.`. Returns the key text and the index just past it, or `None` when no key
+/// begins at `start`.
+fn scan_citation_id(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let first = chars.get(start).copied()?;
+    if !is_citation_key_start(first) {
+        return None;
+    }
+    let mut end = start + 1;
+    while let Some(&ch) = chars.get(end) {
+        if is_citation_key_start(ch) {
+            end += 1;
+        } else if matches!(ch, '-' | '.' | ':' | '/')
+            && matches!(chars.get(end + 1), Some(&next) if is_citation_key_start(next))
+        {
+            end += 2;
+        } else {
+            break;
+        }
+    }
+    let id: String = chars.get(start..end)?.iter().collect();
+    Some((id, end))
+}
+
+/// Advance past one escape, backtick code span, or bracket at `index`, updating bracket `depth` and
+/// returning the next index. Returns `None` when the character is none of those — the caller then
+/// inspects it for a top-level delimiter (`;` or `@`) and advances itself.
+fn step_citation_scan(chars: &[char], index: usize, depth: &mut usize) -> Option<usize> {
+    match chars.get(index) {
+        Some('\\') => Some(index + 2),
+        Some('`') => {
+            let run = backtick_run_len(chars, index);
+            Some(skip_code_span(chars, index, run))
+        }
+        Some('[') => {
+            *depth += 1;
+            Some(index + 1)
+        }
+        Some(']') => {
+            *depth = depth.saturating_sub(1);
+            Some(index + 1)
+        }
+        _ => None,
+    }
+}
+
+/// Split a bracket's raw content into citation segments on top-level semicolons. A semicolon inside
+/// a nested `[...]` or a backtick code span does not split. Returns `None` when the content is not a
+/// citation list: it has no `@` at all, or any segment is empty (including a leading or trailing
+/// empty segment from a stray semicolon).
+fn split_citation_segments(chars: &[char]) -> Option<Vec<std::ops::Range<usize>>> {
+    if !chars.contains(&'@') {
+        return None;
+    }
+    let mut segments = Vec::new();
+    let mut start = 0;
+    let mut index = 0;
+    let mut depth = 0usize;
+    while index < chars.len() {
+        if let Some(next) = step_citation_scan(chars, index, &mut depth) {
+            index = next;
+        } else if chars.get(index) == Some(&';') && depth == 0 {
+            segments.push(start..index);
+            start = index + 1;
+            index += 1;
+        } else {
+            index += 1;
+        }
+    }
+    segments.push(start..chars.len());
+    // An empty segment (a stray `;`, or whitespace-only between separators) is not a citation list.
+    for segment in &segments {
+        if chars
+            .get(segment.clone())
+            .is_none_or(|s| s.iter().all(|c| c.is_whitespace()))
+        {
+            return None;
+        }
+    }
+    Some(segments)
+}
+
+/// The length of the backtick run starting at `index`.
+fn backtick_run_len(chars: &[char], index: usize) -> usize {
+    let mut len = 0;
+    while chars.get(index + len) == Some(&'`') {
+        len += 1;
+    }
+    len
+}
+
+/// Skip past a code span opened by `run` backticks at `index`, returning the index just past its
+/// closing run. With no matching closer the backticks are not a code span and only the opening run
+/// is skipped.
+fn skip_code_span(chars: &[char], index: usize, run: usize) -> usize {
+    let mut scan = index + run;
+    while scan < chars.len() {
+        if chars.get(scan) == Some(&'`') {
+            let closer = backtick_run_len(chars, scan);
+            if closer == run {
+                return scan + closer;
+            }
+            scan += closer;
+        } else {
+            scan += 1;
+        }
+    }
+    index + run
+}
+
+/// The located citation key of one segment: the index of `@`, the key text and the index past it,
+/// whether a `-` author-suppression marker precedes the `@`, and that marker's index.
+struct CitationKey {
+    at: usize,
+    dash: usize,
+    id: String,
+    id_end: usize,
+    suppress: bool,
+}
+
+/// Find the first top-level `@key` within `chars[range]`: an `@` not inside a nested `[...]` or a
+/// backtick code span, immediately followed by a key. A `-` directly before the `@`, itself at the
+/// segment start or preceded by whitespace, marks author suppression. Returns `None` when no such
+/// key is present.
+fn find_citation_key(chars: &[char], range: std::ops::Range<usize>) -> Option<CitationKey> {
+    let mut index = range.start;
+    let mut depth = 0usize;
+    while index < range.end {
+        if let Some(next) = step_citation_scan(chars, index, &mut depth) {
+            index = next;
+            continue;
+        }
+        if depth == 0
+            && chars.get(index) == Some(&'@')
+            && let Some((id, id_end)) = scan_citation_id(chars, index + 1)
+        {
+            let dash_before = index > range.start && chars.get(index - 1) == Some(&'-');
+            let dash_anchored = dash_before
+                && (index - 1 == range.start
+                    || chars.get(index - 2).is_some_and(|c| c.is_whitespace()));
+            let suppress = dash_anchored;
+            return Some(CitationKey {
+                at: index,
+                dash: if suppress { index - 1 } else { index },
+                id,
+                id_end,
+                suppress,
+            });
+        }
+        index += 1;
+    }
+    None
 }
 
 fn def_target(def: &LinkDef) -> Target {
@@ -1273,7 +2104,7 @@ struct DelimEntry {
 // `opener_di` (delimiter-list index) and `opener_ni` (node index) are intentionally close names
 // for two distinct indices into two distinct arrays.
 #[allow(clippy::similar_names, clippy::too_many_lines)]
-fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions) {
+fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions, markdown: bool) {
     // Build the delimiter list: one entry per Node::Delimiter in [stack_bottom..] that is an
     // emphasis-class delimiter (not a bracket opener).
     let mut delims: Vec<DelimEntry> = nodes
@@ -1344,12 +2175,11 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
             }
             // Rule of 3 and match_use_count check — we need a temporary Delimiter value to
             // reuse `emphasis_match`, which borrows `nodes` by index.
-            let use_count = match_use_count(entry.count, closer_count, closer_ch, ext);
-            if use_count.is_none() {
+            let Some(use_count) = match_use_count(entry.count, closer_count, closer_ch, ext) else {
                 // `match_use_count` rejected this opener; keep scanning — do not advance
                 // `openers_bottom` for this slot just because one opener was rejected.
                 continue;
-            }
+            };
             // Re-derive the Delimiter from `nodes` for the rule-of-3 check.
             let ni = entry.node_index;
             let rule_ok = match nodes.get(ni) {
@@ -1357,6 +2187,15 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
                 _ => false,
             };
             if rule_ok {
+                // The markdown dialect forbids whitespace inside a superscript or subscript: if the
+                // span between this opener and the closer carries any, the pair does not match and
+                // the scan continues looking for a tighter opener.
+                if markdown
+                    && rejects_inner_space(closer_ch, use_count)
+                    && nodes.get(ni + 1..closer_ni).is_some_and(nodes_carry_break)
+                {
+                    continue;
+                }
                 found = Some(scan);
                 break;
             }
@@ -1524,9 +2363,92 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
     }
 }
 
+/// Resolve `==`-delimited highlight runs into `Span` inlines carrying the `mark` class.
+///
+/// A run is delimited by two `=` on each side. Scanning left to right, each `=` closer pairs with
+/// the nearest preceding `=` opener; the pair consumes exactly two `=` from each side and the inner
+/// nodes — with their own emphasis resolved — become the span's content. Any `=` left over on either
+/// side, or a lone `=`, stays literal text. Resolving here, ahead of the shared emphasis pass, keeps
+/// each run to a single span: leftover `=` do not re-pair into nested marks.
+fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: bool) {
+    let mut current = 0usize;
+    while current < nodes.len() {
+        let is_closer = matches!(
+            nodes.get(current),
+            Some(Node::Delimiter(d)) if d.ch == b'=' && d.can_close && d.count >= 2
+        );
+        if !is_closer {
+            current += 1;
+            continue;
+        }
+        // Find the nearest preceding `=` opener with at least two delimiters.
+        let mut opener = None;
+        for i in (0..current).rev() {
+            if matches!(
+                nodes.get(i),
+                Some(Node::Delimiter(d)) if d.ch == b'=' && d.can_open && d.count >= 2
+            ) {
+                opener = Some(i);
+                break;
+            }
+        }
+        let Some(opener_ni) = opener else {
+            current += 1;
+            continue;
+        };
+
+        let inner: Vec<Node> = nodes.drain(opener_ni + 1..current).collect();
+        let mut inner = inner;
+        process_emphasis(&mut inner, 0, ext, markdown);
+        let content = collapse(inner);
+        let span = Inline::Span(
+            Attr {
+                id: String::new(),
+                classes: vec!["mark".to_string()],
+                attributes: Vec::new(),
+            },
+            content,
+        );
+        // After the drain, the closer sits directly after the opener.
+        let closer_ni = opener_ni + 1;
+        nodes.insert(closer_ni, Node::Inline(span));
+        // The closer has shifted one further along by the insert.
+        let closer_ni = opener_ni + 2;
+
+        // Consume two `=` from each delimiter; convert any remainder to literal text, drop empties.
+        consume_mark_side(nodes, closer_ni);
+        consume_mark_side(nodes, opener_ni);
+
+        // Resume scanning from the opener position: nodes there are now resolved, so re-derive.
+        current = opener_ni;
+    }
+
+    // Any `=` delimiter that never formed a span reverts to literal text.
+    for i in 0..nodes.len() {
+        if matches!(nodes.get(i), Some(Node::Delimiter(d)) if d.ch == b'=') {
+            convert_delimiter_to_text(nodes, i);
+        }
+    }
+}
+
+/// Take two `=` off the delimiter node at `index`: a remainder of zero removes the node, otherwise
+/// it becomes literal text of the remaining `=`. Returns nothing; callers index high-to-low so the
+/// node positions they still hold stay valid (the opener is below the closer).
+fn consume_mark_side(nodes: &mut Vec<Node>, index: usize) {
+    let remainder = match nodes.get(index) {
+        Some(Node::Delimiter(d)) => d.count.saturating_sub(2),
+        _ => return,
+    };
+    if remainder == 0 {
+        nodes.remove(index);
+    } else if let Some(node) = nodes.get_mut(index) {
+        *node = Node::Text("=".repeat(remainder));
+    }
+}
+
 /// Whether `ch` names a delimiter run resolved by [`process_emphasis`].
 fn is_delimiter_char(ch: u8) -> bool {
-    matches!(ch, b'*' | b'_' | b'~' | b'^' | b'\'' | b'"')
+    matches!(ch, b'*' | b'_' | b'~' | b'^' | b'\'' | b'"' | b'=')
 }
 
 /// Whether `ch` is a smart-quote delimiter (`'` or `"`).
@@ -1584,6 +2506,47 @@ fn wrap_emphasis(ch: u8, use_count: usize, content: Vec<Inline>) -> Inline {
         (b'^', _) => Inline::Superscript(content),
         (_, 2) => Inline::Strong(content),
         (_, _) => Inline::Emph(content),
+    }
+}
+
+/// Whether a matched delimiter pair forms a superscript or a subscript — the spans the markdown
+/// dialect forbids from holding whitespace. A double tilde is a strikeout, which may, so only a
+/// single tilde counts.
+fn rejects_inner_space(ch: u8, use_count: usize) -> bool {
+    ch == b'^' || (ch == b'~' && use_count == 1)
+}
+
+/// Whether any node in the slice carries whitespace that, in the markdown dialect, ends a
+/// superscript or subscript: a space or tab in text, or a soft or hard line break. A non-breaking
+/// space — what an escaped space becomes — does not count, so an escaped space keeps the span open.
+fn nodes_carry_break(nodes: &[Node]) -> bool {
+    nodes.iter().any(|node| match node {
+        Node::Text(text) => text.chars().any(|c| c == ' ' || c == '\t'),
+        Node::SoftBreak | Node::LineBreak => true,
+        Node::Inline(inline) => inline_carries_break(inline),
+        Node::Delimiter(_) => false,
+    })
+}
+
+/// The [`nodes_carry_break`] test for an already-built inline, recursing through the inline
+/// containers a superscript or subscript may nest.
+fn inline_carries_break(inline: &Inline) -> bool {
+    match inline {
+        Inline::Space | Inline::SoftBreak | Inline::LineBreak => true,
+        Inline::Str(text) => text.chars().any(|c| c == ' ' || c == '\t'),
+        Inline::Emph(content)
+        | Inline::Underline(content)
+        | Inline::Strong(content)
+        | Inline::Strikeout(content)
+        | Inline::Superscript(content)
+        | Inline::Subscript(content)
+        | Inline::SmallCaps(content)
+        | Inline::Quoted(_, content)
+        | Inline::Cite(_, content)
+        | Inline::Link(_, content, _)
+        | Inline::Image(_, content, _)
+        | Inline::Span(_, content) => content.iter().any(inline_carries_break),
+        _ => false,
     }
 }
 
@@ -1658,6 +2621,302 @@ fn convert_delimiter_to_text(nodes: &mut [Node], index: usize) {
     {
         *node = Node::Text(delimiter_literal(d.ch, d.count));
     }
+}
+
+/// Pair literal `<span …>` / `</span>` raw-inline tags into [`Inline::Span`] nodes.
+///
+/// The inline phase first leaves both tags as raw inline HTML, so emphasis and links resolve around
+/// them exactly as they would around any other tag. This pass then walks the resolved tree and,
+/// at each nesting level independently, matches an opening tag with the nearest later closing tag,
+/// wrapping the inlines between them in a span whose attributes come from the opening tag. Matching
+/// stays within one level: a `<span>` that emphasis pulled inside an `Emph` only pairs with a
+/// `</span>` that landed inside that same `Emph`. The content between a matched pair is itself
+/// re-paired, so nested spans nest. Unmatched tags keep their raw-inline form.
+///
+/// Known limitation: when an emphasis run straddles exactly one of the two tags — the run opens
+/// before a `<span>` and its closing marker sits just before the matching `</span>` — the two tags
+/// can land at different levels and stay raw even though a span could have formed.
+fn pair_native_spans(inlines: Vec<Inline>) -> Vec<Inline> {
+    let mut input = inlines.into_iter().peekable();
+    pair_spans_level(&mut input, false)
+}
+
+/// Pair spans within one nesting level. Pulls from `input` until it is drained, or — when
+/// `stop_at_close` is set — until an unmatched closing `</span>` tag is reached, which is left
+/// unconsumed for the caller to handle. Container inlines have their own children re-paired.
+fn pair_spans_level(
+    input: &mut std::iter::Peekable<std::vec::IntoIter<Inline>>,
+    stop_at_close: bool,
+) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    while let Some(item) = input.peek() {
+        if let Inline::RawInline(format, text) = item
+            && format.0 == "html"
+        {
+            match classify_span_tag(text) {
+                SpanTag::Open(attr) => {
+                    let _ = input.next();
+                    let inner = pair_spans_level(input, true);
+                    if matches!(input.peek(), Some(Inline::RawInline(f, t))
+                        if f.0 == "html" && matches!(classify_span_tag(t), SpanTag::Close))
+                    {
+                        let _ = input.next();
+                        out.push(Inline::Span(attr, inner));
+                    } else {
+                        // No matching close at this level: the opener reverts to raw, and its
+                        // gathered inner content rejoins the stream.
+                        out.push(Inline::RawInline(
+                            carta_ast::Format("html".to_owned()),
+                            open_tag_raw(&attr),
+                        ));
+                        out.extend(inner);
+                    }
+                    continue;
+                }
+                SpanTag::Close if stop_at_close => break,
+                _ => {}
+            }
+        }
+        if let Some(next) = input.next() {
+            out.push(recurse_span_children(next));
+        }
+    }
+    out
+}
+
+/// Re-pair spans inside the child lists of a container inline.
+fn recurse_span_children(inline: Inline) -> Inline {
+    match inline {
+        Inline::Emph(c) => Inline::Emph(pair_native_spans(c)),
+        Inline::Underline(c) => Inline::Underline(pair_native_spans(c)),
+        Inline::Strong(c) => Inline::Strong(pair_native_spans(c)),
+        Inline::Strikeout(c) => Inline::Strikeout(pair_native_spans(c)),
+        Inline::Superscript(c) => Inline::Superscript(pair_native_spans(c)),
+        Inline::Subscript(c) => Inline::Subscript(pair_native_spans(c)),
+        Inline::SmallCaps(c) => Inline::SmallCaps(pair_native_spans(c)),
+        Inline::Quoted(q, c) => Inline::Quoted(q, pair_native_spans(c)),
+        Inline::Cite(cites, c) => Inline::Cite(cites, pair_native_spans(c)),
+        Inline::Link(a, c, t) => Inline::Link(a, pair_native_spans(c), t),
+        Inline::Image(a, c, t) => Inline::Image(a, pair_native_spans(c), t),
+        Inline::Span(a, c) => Inline::Span(a, pair_native_spans(c)),
+        other => other,
+    }
+}
+
+/// The role of an HTML tag with respect to span pairing.
+enum SpanTag {
+    /// A literal `<span …>` opener, with its attributes parsed.
+    Open(Attr),
+    /// A literal `</span>` closer.
+    Close,
+    /// Any other tag, which plays no part in span pairing.
+    Other,
+}
+
+/// Cheap pre-check before the char-by-char classification: does `raw` open with `<span` or `</span`
+/// (case-insensitive)? Lets the common non-span inline tag bail out without allocating.
+fn opens_span_tag(raw: &str) -> bool {
+    let Some(after_lt) = raw.strip_prefix('<') else {
+        return false;
+    };
+    let candidate = after_lt.strip_prefix('/').unwrap_or(after_lt);
+    candidate
+        .get(..4)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("span"))
+}
+
+/// Classify a raw HTML tag string, parsing attributes for an opening `<span …>`. A self-closing
+/// `<span/>` is `Other`: it has no content to wrap and stays raw.
+fn classify_span_tag(raw: &str) -> SpanTag {
+    if !opens_span_tag(raw) {
+        return SpanTag::Other;
+    }
+    let chars: Vec<char> = raw.chars().collect();
+    if chars.get(1).copied() == Some('/') {
+        // `</span>` with optional trailing whitespace before `>`.
+        let mut i = 2;
+        if !matches_name(&chars, &mut i, "span") {
+            return SpanTag::Other;
+        }
+        while matches!(chars.get(i).copied(), Some(' ' | '\t' | '\n')) {
+            i += 1;
+        }
+        if chars.get(i).copied() == Some('>') && i + 1 == chars.len() {
+            return SpanTag::Close;
+        }
+        return SpanTag::Other;
+    }
+    let mut i = 1;
+    if !matches_name(&chars, &mut i, "span") {
+        return SpanTag::Other;
+    }
+    // A name character right after `span` means a different tag (`<spanner>`).
+    if matches!(chars.get(i).copied(), Some(c) if c.is_ascii_alphanumeric() || c == '-') {
+        return SpanTag::Other;
+    }
+    match parse_span_attributes(&chars, i) {
+        Some(attr) => SpanTag::Open(attr),
+        None => SpanTag::Other,
+    }
+}
+
+/// Match the literal `name` case-insensitively at `*i`, advancing `*i` past it on success.
+fn matches_name(chars: &[char], i: &mut usize, name: &str) -> bool {
+    for (offset, expected) in name.chars().enumerate() {
+        match chars.get(*i + offset).copied() {
+            Some(c) if c.eq_ignore_ascii_case(&expected) => {}
+            _ => return false,
+        }
+    }
+    *i += name.len();
+    true
+}
+
+/// Parse the attributes of an opening `<span …>` tag whose name ends at `start`, expecting the tag
+/// to end with `>` (a trailing `/` makes it self-closing, which is rejected here). An `id` attribute
+/// becomes the identifier and a `class` attribute splits into classes; only the first of each is
+/// kept. Every other attribute becomes a key/value pair in source order; a valueless attribute
+/// carries an empty value. Entity and numeric character references in values are decoded.
+fn parse_span_attributes(chars: &[char], start: usize) -> Option<Attr> {
+    let mut attr = Attr::default();
+    let mut seen_class = false;
+    let mut i = start;
+    loop {
+        let ws_start = i;
+        while matches!(chars.get(i).copied(), Some(' ' | '\t' | '\n')) {
+            i += 1;
+        }
+        match chars.get(i).copied() {
+            Some('>') if i + 1 == chars.len() => return Some(attr),
+            // A self-closing tag has no content to wrap.
+            Some('/') => return None,
+            _ => {}
+        }
+        // An attribute must be preceded by whitespace.
+        if i == ws_start {
+            return None;
+        }
+        let name_start = i;
+        while matches!(
+            chars.get(i).copied(),
+            Some(c) if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | '.')
+        ) {
+            i += 1;
+        }
+        if i == name_start {
+            return None;
+        }
+        let name: String = chars.get(name_start..i)?.iter().collect();
+        let mut value = String::new();
+        // Optional `= value` with whitespace allowed around `=`.
+        let mut after = i;
+        while matches!(chars.get(after).copied(), Some(' ' | '\t' | '\n')) {
+            after += 1;
+        }
+        if chars.get(after).copied() == Some('=') {
+            after += 1;
+            while matches!(chars.get(after).copied(), Some(' ' | '\t' | '\n')) {
+                after += 1;
+            }
+            let (parsed, next) = read_attr_value(chars, after)?;
+            value = parsed;
+            i = next;
+        } else {
+            i = after;
+        }
+        match name.as_str() {
+            "id" => {
+                if attr.id.is_empty() {
+                    attr.id = value;
+                }
+            }
+            "class" => {
+                if !seen_class {
+                    seen_class = true;
+                    attr.classes = value.split_whitespace().map(str::to_owned).collect();
+                }
+            }
+            _ => attr.attributes.push((name, value)),
+        }
+    }
+}
+
+/// Read an HTML attribute value at `start`: a double- or single-quoted string, or an unquoted run.
+/// Returns the decoded value and the index just past it. Character references inside the value are
+/// decoded.
+fn read_attr_value(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let quote = chars.get(start).copied();
+    if matches!(quote, Some('"' | '\'')) {
+        let quote = quote?;
+        let mut i = start + 1;
+        let mut out = String::new();
+        loop {
+            match chars.get(i).copied() {
+                Some(c) if c == quote => return Some((out, i + 1)),
+                Some('&') => {
+                    if let Some((decoded, next)) = scan_entity(chars, i) {
+                        out.push_str(&decoded);
+                        i = next;
+                    } else {
+                        out.push('&');
+                        i += 1;
+                    }
+                }
+                Some(c) => {
+                    out.push(c);
+                    i += 1;
+                }
+                None => return None,
+            }
+        }
+    }
+    // Unquoted value: a run with no whitespace, quotes, `=`, `<`, `>`, or backtick.
+    let mut i = start;
+    let mut out = String::new();
+    while let Some(c) = chars.get(i).copied() {
+        if matches!(c, ' ' | '\t' | '\n' | '"' | '\'' | '=' | '<' | '>' | '`') {
+            break;
+        }
+        if c == '&'
+            && let Some((decoded, next)) = scan_entity(chars, i)
+        {
+            out.push_str(&decoded);
+            i = next;
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    if out.is_empty() {
+        return None;
+    }
+    Some((out, i))
+}
+
+/// Reconstruct the raw `<span …>` opener for an opener that found no matching close, so it falls
+/// back to literal raw inline HTML. The exact original spelling is not recovered; a normalized form
+/// carrying the same attributes is emitted.
+fn open_tag_raw(attr: &Attr) -> String {
+    let mut s = String::from("<span");
+    if !attr.id.is_empty() {
+        s.push_str(" id=\"");
+        s.push_str(&attr.id);
+        s.push('"');
+    }
+    if !attr.classes.is_empty() {
+        s.push_str(" class=\"");
+        s.push_str(&attr.classes.join(" "));
+        s.push('"');
+    }
+    for (k, v) in &attr.attributes {
+        s.push(' ');
+        s.push_str(k);
+        s.push_str("=\"");
+        s.push_str(v);
+        s.push('"');
+    }
+    s.push('>');
+    s
 }
 
 /// Collapse the node list into final inlines: leftover delimiters become text, adjacent text is
@@ -1805,11 +3064,16 @@ fn is_punctuation(ch: char) -> bool {
 
 /// Normalize the interior of a code span: line endings to spaces, and if it both begins and ends
 /// with a space (and is not all spaces), strip one space from each end.
-fn normalize_code(content: &str) -> String {
+fn normalize_code(content: &str, markdown: bool) -> String {
     let collapsed: String = content
         .chars()
         .map(|c| if c == '\n' { ' ' } else { c })
         .collect();
+    // The markdown dialect strips all surrounding whitespace; the strict dialect removes only a
+    // single leading and trailing space, and only when the content is not all spaces.
+    if markdown {
+        return collapsed.trim().to_owned();
+    }
     let bytes = collapsed.as_bytes();
     if collapsed.len() >= 2
         && bytes.first() == Some(&b' ')
@@ -1825,17 +3089,428 @@ fn normalize_code(content: &str) -> String {
     }
 }
 
+/// A curated subset of common emoji shortcodes mapped to their unicode strings, sorted by name
+/// for binary search. The full set of named emoji is far larger; this table ships the names most
+/// likely to appear in prose — faces, hands (including `+1`/`-1`), hearts, and common symbols and
+/// objects. Some entries carry a trailing variation selector (`U+FE0F`) as part of their text.
+mod emoji {
+    /// `(shortname, unicode)` pairs, sorted ascending by `shortname` so [`lookup`] can binary-search.
+    const TABLE: &[(&str, &str)] = &[
+        ("+1", "\u{1f44d}"),
+        ("-1", "\u{1f44e}"),
+        ("100", "\u{1f4af}"),
+        ("8ball", "\u{1f3b1}"),
+        ("airplane", "\u{2708}\u{fe0f}"),
+        ("alarm_clock", "\u{23f0}"),
+        ("angry", "\u{1f620}"),
+        ("ant", "\u{1f41c}"),
+        ("apple", "\u{1f34e}"),
+        ("arrow_down", "\u{2b07}\u{fe0f}"),
+        ("arrow_left", "\u{2b05}\u{fe0f}"),
+        ("arrow_right", "\u{27a1}\u{fe0f}"),
+        ("arrow_up", "\u{2b06}\u{fe0f}"),
+        ("arrow_upper_right", "\u{2197}\u{fe0f}"),
+        ("astonished", "\u{1f632}"),
+        ("balloon", "\u{1f388}"),
+        ("banana", "\u{1f34c}"),
+        ("bangbang", "\u{203c}\u{fe0f}"),
+        ("baseball", "\u{26be}"),
+        ("basketball", "\u{1f3c0}"),
+        ("battery", "\u{1f50b}"),
+        ("bear", "\u{1f43b}"),
+        ("bee", "\u{1f41d}"),
+        ("beer", "\u{1f37a}"),
+        ("beers", "\u{1f37b}"),
+        ("bell", "\u{1f514}"),
+        ("bird", "\u{1f426}"),
+        ("black_circle", "\u{26ab}"),
+        ("black_heart", "\u{1f5a4}"),
+        ("blue_heart", "\u{1f499}"),
+        ("blush", "\u{1f60a}"),
+        ("bomb", "\u{1f4a3}"),
+        ("book", "\u{1f4d6}"),
+        ("books", "\u{1f4da}"),
+        ("boom", "\u{1f4a5}"),
+        ("broken_heart", "\u{1f494}"),
+        ("bug", "\u{1f41b}"),
+        ("bulb", "\u{1f4a1}"),
+        ("bus", "\u{1f68c}"),
+        ("bust_in_silhouette", "\u{1f464}"),
+        ("butterfly", "\u{1f98b}"),
+        ("calling", "\u{1f4f2}"),
+        ("camera", "\u{1f4f7}"),
+        ("car", "\u{1f697}"),
+        ("cat", "\u{1f431}"),
+        ("cherries", "\u{1f352}"),
+        ("chicken", "\u{1f414}"),
+        ("clap", "\u{1f44f}"),
+        ("cloud", "\u{2601}\u{fe0f}"),
+        ("cocktail", "\u{1f378}"),
+        ("coffee", "\u{2615}"),
+        ("collision", "\u{1f4a5}"),
+        ("computer", "\u{1f4bb}"),
+        ("confetti_ball", "\u{1f38a}"),
+        ("confused", "\u{1f615}"),
+        ("cow", "\u{1f42e}"),
+        ("crescent_moon", "\u{1f319}"),
+        ("crown", "\u{1f451}"),
+        ("cry", "\u{1f622}"),
+        ("cupid", "\u{1f498}"),
+        ("dart", "\u{1f3af}"),
+        ("dash", "\u{1f4a8}"),
+        ("desktop_computer", "\u{1f5a5}\u{fe0f}"),
+        ("disappointed", "\u{1f61e}"),
+        ("dizzy_face", "\u{1f635}"),
+        ("dog", "\u{1f436}"),
+        ("dollar", "\u{1f4b5}"),
+        ("droplet", "\u{1f4a7}"),
+        ("ear", "\u{1f442}"),
+        ("earth_americas", "\u{1f30e}"),
+        ("electric_plug", "\u{1f50c}"),
+        ("email", "\u{1f4e7}"),
+        ("envelope", "\u{2709}\u{fe0f}"),
+        ("exclamation", "\u{2757}"),
+        ("expressionless", "\u{1f611}"),
+        ("eye", "\u{1f441}\u{fe0f}"),
+        ("eyes", "\u{1f440}"),
+        ("fearful", "\u{1f628}"),
+        ("fire", "\u{1f525}"),
+        ("fist", "\u{270a}"),
+        ("flashlight", "\u{1f526}"),
+        ("flushed", "\u{1f633}"),
+        ("football", "\u{1f3c8}"),
+        ("footprints", "\u{1f463}"),
+        ("fox_face", "\u{1f98a}"),
+        ("fries", "\u{1f35f}"),
+        ("frog", "\u{1f438}"),
+        ("frowning", "\u{1f626}"),
+        ("full_moon", "\u{1f315}"),
+        ("gear", "\u{2699}\u{fe0f}"),
+        ("gem", "\u{1f48e}"),
+        ("gift", "\u{1f381}"),
+        ("globe_with_meridians", "\u{1f310}"),
+        ("golf", "\u{26f3}"),
+        ("grapes", "\u{1f347}"),
+        ("green_heart", "\u{1f49a}"),
+        ("grey_exclamation", "\u{2755}"),
+        ("grey_question", "\u{2754}"),
+        ("grimacing", "\u{1f62c}"),
+        ("grin", "\u{1f601}"),
+        ("grinning", "\u{1f600}"),
+        ("guitar", "\u{1f3b8}"),
+        ("gun", "\u{1f52b}"),
+        ("hamburger", "\u{1f354}"),
+        ("hammer", "\u{1f528}"),
+        ("hand", "\u{270b}"),
+        ("handshake", "\u{1f91d}"),
+        ("headphones", "\u{1f3a7}"),
+        ("heart", "\u{2764}\u{fe0f}"),
+        ("heart_eyes", "\u{1f60d}"),
+        ("heartbeat", "\u{1f493}"),
+        ("heartpulse", "\u{1f497}"),
+        ("heavy_check_mark", "\u{2714}\u{fe0f}"),
+        ("heavy_division_sign", "\u{2797}"),
+        ("heavy_minus_sign", "\u{2796}"),
+        ("heavy_multiplication_x", "\u{2716}\u{fe0f}"),
+        ("heavy_plus_sign", "\u{2795}"),
+        ("horse", "\u{1f434}"),
+        ("hourglass", "\u{231b}"),
+        ("interrobang", "\u{2049}\u{fe0f}"),
+        ("iphone", "\u{1f4f1}"),
+        ("joy", "\u{1f602}"),
+        ("key", "\u{1f511}"),
+        ("keyboard", "\u{2328}\u{fe0f}"),
+        ("kiss", "\u{1f48b}"),
+        ("kissing_heart", "\u{1f618}"),
+        ("knife", "\u{1f52a}"),
+        ("koala", "\u{1f428}"),
+        ("large_blue_circle", "\u{1f535}"),
+        ("laughing", "\u{1f606}"),
+        ("lemon", "\u{1f34b}"),
+        ("lips", "\u{1f444}"),
+        ("lock", "\u{1f512}"),
+        ("mag", "\u{1f50d}"),
+        ("mask", "\u{1f637}"),
+        ("memo", "\u{1f4dd}"),
+        ("metal", "\u{1f918}"),
+        ("microphone", "\u{1f3a4}"),
+        ("microscope", "\u{1f52c}"),
+        ("moneybag", "\u{1f4b0}"),
+        ("monkey_face", "\u{1f435}"),
+        ("moon", "\u{1f314}"),
+        ("mouse", "\u{1f42d}"),
+        ("movie_camera", "\u{1f3a5}"),
+        ("muscle", "\u{1f4aa}"),
+        ("musical_note", "\u{1f3b5}"),
+        ("nail_care", "\u{1f485}"),
+        ("negative_squared_cross_mark", "\u{274e}"),
+        ("neutral_face", "\u{1f610}"),
+        ("no_bell", "\u{1f515}"),
+        ("no_mouth", "\u{1f636}"),
+        ("nose", "\u{1f443}"),
+        ("notes", "\u{1f3b6}"),
+        ("ok_hand", "\u{1f44c}"),
+        ("open_hands", "\u{1f450}"),
+        ("open_mouth", "\u{1f62e}"),
+        ("panda_face", "\u{1f43c}"),
+        ("peach", "\u{1f351}"),
+        ("pencil2", "\u{270f}\u{fe0f}"),
+        ("penguin", "\u{1f427}"),
+        ("pensive", "\u{1f614}"),
+        ("phone", "\u{260e}\u{fe0f}"),
+        ("pig", "\u{1f437}"),
+        ("pill", "\u{1f48a}"),
+        ("pizza", "\u{1f355}"),
+        ("point_down", "\u{1f447}"),
+        ("point_left", "\u{1f448}"),
+        ("point_right", "\u{1f449}"),
+        ("point_up", "\u{261d}\u{fe0f}"),
+        ("pray", "\u{1f64f}"),
+        ("printer", "\u{1f5a8}\u{fe0f}"),
+        ("punch", "\u{1f44a}"),
+        ("purple_heart", "\u{1f49c}"),
+        ("question", "\u{2753}"),
+        ("rabbit", "\u{1f430}"),
+        ("rage", "\u{1f621}"),
+        ("raised_hand", "\u{270b}"),
+        ("raised_hands", "\u{1f64c}"),
+        ("recycle", "\u{267b}\u{fe0f}"),
+        ("red_circle", "\u{1f534}"),
+        ("relaxed", "\u{263a}\u{fe0f}"),
+        ("relieved", "\u{1f60c}"),
+        ("revolving_hearts", "\u{1f49e}"),
+        ("rocket", "\u{1f680}"),
+        ("rotating_light", "\u{1f6a8}"),
+        ("satellite", "\u{1f4e1}"),
+        ("scream", "\u{1f631}"),
+        ("shield", "\u{1f6e1}\u{fe0f}"),
+        ("sleeping", "\u{1f634}"),
+        ("sleepy", "\u{1f62a}"),
+        ("slightly_smiling_face", "\u{1f642}"),
+        ("smile", "\u{1f604}"),
+        ("smiley", "\u{1f603}"),
+        ("smirk", "\u{1f60f}"),
+        ("snail", "\u{1f40c}"),
+        ("snake", "\u{1f40d}"),
+        ("snowflake", "\u{2744}\u{fe0f}"),
+        ("snowman", "\u{26c4}"),
+        ("sob", "\u{1f62d}"),
+        ("soccer", "\u{26bd}"),
+        ("sparkles", "\u{2728}"),
+        ("sparkling_heart", "\u{1f496}"),
+        ("spider", "\u{1f577}\u{fe0f}"),
+        ("star", "\u{2b50}"),
+        ("star2", "\u{1f31f}"),
+        ("strawberry", "\u{1f353}"),
+        ("stuck_out_tongue", "\u{1f61b}"),
+        ("sun_with_face", "\u{1f31e}"),
+        ("sunglasses", "\u{1f60e}"),
+        ("sunny", "\u{2600}\u{fe0f}"),
+        ("sweat_drops", "\u{1f4a6}"),
+        ("sweat_smile", "\u{1f605}"),
+        ("syringe", "\u{1f489}"),
+        ("tada", "\u{1f389}"),
+        ("taxi", "\u{1f695}"),
+        ("tea", "\u{1f375}"),
+        ("telephone", "\u{260e}\u{fe0f}"),
+        ("telescope", "\u{1f52d}"),
+        ("tennis", "\u{1f3be}"),
+        ("thinking", "\u{1f914}"),
+        ("thumbsdown", "\u{1f44e}"),
+        ("thumbsup", "\u{1f44d}"),
+        ("tiger", "\u{1f42f}"),
+        ("tired_face", "\u{1f62b}"),
+        ("tongue", "\u{1f445}"),
+        ("train", "\u{1f68b}"),
+        ("triumph", "\u{1f624}"),
+        ("trophy", "\u{1f3c6}"),
+        ("trumpet", "\u{1f3ba}"),
+        ("turtle", "\u{1f422}"),
+        ("tv", "\u{1f4fa}"),
+        ("two_hearts", "\u{1f495}"),
+        ("umbrella", "\u{2614}"),
+        ("unamused", "\u{1f612}"),
+        ("unlock", "\u{1f513}"),
+        ("upside_down_face", "\u{1f643}"),
+        ("v", "\u{270c}\u{fe0f}"),
+        ("warning", "\u{26a0}\u{fe0f}"),
+        ("watch", "\u{231a}"),
+        ("watermelon", "\u{1f349}"),
+        ("wave", "\u{1f44b}"),
+        ("weary", "\u{1f629}"),
+        ("white_check_mark", "\u{2705}"),
+        ("white_circle", "\u{26aa}"),
+        ("wine_glass", "\u{1f377}"),
+        ("wink", "\u{1f609}"),
+        ("wolf", "\u{1f43a}"),
+        ("worried", "\u{1f61f}"),
+        ("wrench", "\u{1f527}"),
+        ("writing_hand", "\u{270d}\u{fe0f}"),
+        ("x", "\u{274c}"),
+        ("yellow_heart", "\u{1f49b}"),
+        ("yum", "\u{1f60b}"),
+        ("zap", "\u{26a1}"),
+        ("zzz", "\u{1f4a4}"),
+    ];
+
+    /// The unicode string for `name`, or `None` when the name is not in the curated table.
+    pub(super) fn lookup(name: &str) -> Option<&'static str> {
+        TABLE
+            .binary_search_by(|(key, _)| (*key).cmp(name))
+            .ok()
+            .and_then(|index| TABLE.get(index))
+            .map(|(_, value)| *value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, flanking, fold_dash_run,
-        fold_ellipsis_run, match_use_count, quote_flanking, split_header_attr,
+        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, emoji, flanking, fold_dash_run,
+        fold_ellipsis_run, match_use_count, parse_meta_inlines, quote_flanking, split_header_attr,
         task_marker_replacement,
     };
+    use carta_ast::{Attr, Inline, Target};
     use carta_core::{Extension, Extensions};
 
     fn exts(list: &[Extension]) -> Extensions {
         Extensions::from_list(list)
+    }
+
+    fn emoji_span(name: &str, text: &str) -> Inline {
+        Inline::Span(
+            Attr {
+                id: String::new(),
+                classes: vec!["emoji".to_owned()],
+                attributes: vec![("data-emoji".to_owned(), name.to_owned())],
+            },
+            vec![Inline::Str(text.to_owned())],
+        )
+    }
+
+    #[test]
+    fn emoji_table_is_sorted_for_binary_search() {
+        let on = exts(&[Extension::Emoji]);
+        // Every entry resolves to its own value through the lookup path; a misordered table would
+        // make some entry unreachable by binary search.
+        assert_eq!(emoji::lookup("smile"), Some("\u{1f604}"));
+        assert_eq!(emoji::lookup("+1"), Some("\u{1f44d}"));
+        assert_eq!(emoji::lookup("-1"), Some("\u{1f44e}"));
+        // The multi-codepoint heart keeps its variation selector.
+        assert_eq!(emoji::lookup("heart"), Some("\u{2764}\u{fe0f}"));
+        assert_eq!(emoji::lookup("not_an_emoji_name"), None);
+        // Parsing round-trips through the table for a representative name.
+        assert_eq!(
+            parse_meta_inlines(":rocket:", on, false),
+            vec![emoji_span("rocket", "\u{1f680}")]
+        );
+    }
+
+    #[test]
+    fn emoji_resolves_known_shortcodes() {
+        let on = exts(&[Extension::Emoji]);
+        assert_eq!(
+            parse_meta_inlines(":smile:", on, false),
+            vec![emoji_span("smile", "\u{1f604}")]
+        );
+        // A shortcode whose name carries `+`/`-` still resolves.
+        assert_eq!(
+            parse_meta_inlines(":+1:", on, false),
+            vec![emoji_span("+1", "\u{1f44d}")]
+        );
+    }
+
+    #[test]
+    fn emoji_unknown_name_stays_literal() {
+        let on = exts(&[Extension::Emoji]);
+        // An unrecognized name leaves the colons and text verbatim.
+        assert_eq!(
+            parse_meta_inlines(":unknown_xyz:", on, false),
+            vec![Inline::Str(":unknown_xyz:".to_owned())]
+        );
+        // An empty `::` is not a shortcode.
+        assert_eq!(
+            parse_meta_inlines("::", on, false),
+            vec![Inline::Str("::".to_owned())]
+        );
+    }
+
+    #[test]
+    fn emoji_requires_extension() {
+        let off = Extensions::empty();
+        assert_eq!(
+            parse_meta_inlines(":smile:", off, false),
+            vec![Inline::Str(":smile:".to_owned())]
+        );
+    }
+
+    fn mark_span(content: Vec<Inline>) -> Inline {
+        Inline::Span(
+            Attr {
+                id: String::new(),
+                classes: vec!["mark".to_owned()],
+                attributes: Vec::new(),
+            },
+            content,
+        )
+    }
+
+    #[test]
+    fn mark_resolves_inside_link_label() {
+        let on = exts(&[Extension::Mark]);
+        // A `==…==` run in a link's label resolves to a mark span just as it would at top level.
+        assert_eq!(
+            parse_meta_inlines("[==hi==](u)", on, false),
+            vec![Inline::Link(
+                Attr::default(),
+                vec![mark_span(vec![Inline::Str("hi".to_owned())])],
+                Target {
+                    url: "u".to_owned(),
+                    title: String::new(),
+                },
+            )]
+        );
+    }
+
+    #[test]
+    fn mark_resolves_inside_bracketed_span_label() {
+        let on = exts(&[Extension::Mark, Extension::BracketedSpans]);
+        // A `==…==` run nested in a bracketed span's body resolves there too.
+        let span_attr = Attr {
+            id: String::new(),
+            classes: vec!["x".to_owned()],
+            attributes: Vec::new(),
+        };
+        assert_eq!(
+            parse_meta_inlines("[a ==b== c]{.x}", on, false),
+            vec![Inline::Span(
+                span_attr,
+                vec![
+                    Inline::Str("a".to_owned()),
+                    Inline::Space,
+                    mark_span(vec![Inline::Str("b".to_owned())]),
+                    Inline::Space,
+                    Inline::Str("c".to_owned()),
+                ],
+            )]
+        );
+    }
+
+    #[test]
+    fn mark_in_label_requires_extension() {
+        // Without the mark extension a `==…==` run in a link label stays literal text.
+        let off = Extensions::empty();
+        assert_eq!(
+            parse_meta_inlines("[==hi==](u)", off, false),
+            vec![Inline::Link(
+                Attr::default(),
+                vec![Inline::Str("==hi==".to_owned())],
+                Target {
+                    url: "u".to_owned(),
+                    title: String::new(),
+                },
+            )]
+        );
     }
 
     #[test]
@@ -1982,9 +3657,10 @@ mod tests {
 
 #[cfg(test)]
 mod inline_tests {
+    use std::cell::Cell;
     use std::collections::{BTreeMap, BTreeSet};
 
-    use carta_ast::{Attr, Block, Inline, Target};
+    use carta_ast::{Attr, Block, Citation, CitationMode, Inline, Target};
 
     use super::{ExampleMap, LinkDef, RefContext, RefMap, parse_inlines};
     use carta_core::{Extension, Extensions};
@@ -1994,13 +3670,15 @@ mod inline_tests {
     static NO_EXAMPLES: ExampleMap = BTreeMap::new();
 
     /// An empty reference context, for tests that exercise inline syntax without footnotes or example
-    /// references.
+    /// references. Each call leaks a fresh citation count so a test starts numbering from zero.
     fn no_notes() -> RefContext<'static> {
         RefContext {
             defined: &NO_DEFINED,
             by_id: &NO_BY_ID,
             in_definition: false,
+            markdown: false,
             examples: &NO_EXAMPLES,
+            cite_count: Box::leak(Box::new(Cell::new(0))),
         }
     }
 
@@ -2036,6 +3714,20 @@ mod inline_tests {
 
     fn pe(text: &str, ext: Extensions) -> Vec<Inline> {
         parse_inlines(text, &empty_refs(), no_notes(), ext)
+    }
+
+    /// A reference context in the markdown dialect, where escaped spaces bind as non-breaking
+    /// spaces, code spans trim their content, and superscripts and subscripts reject inner
+    /// whitespace.
+    fn md_notes() -> RefContext<'static> {
+        RefContext {
+            markdown: true,
+            ..no_notes()
+        }
+    }
+
+    fn pm(text: &str, ext: Extensions) -> Vec<Inline> {
+        parse_inlines(text, &empty_refs(), md_notes(), ext)
     }
 
     fn str(s: &str) -> Inline {
@@ -2219,6 +3911,135 @@ mod inline_tests {
         assert_eq!(
             pe("^a^", exts(&[Extension::Superscript])),
             vec![Inline::Superscript(vec![str("a")])]
+        );
+    }
+
+    // --- Markdown-dialect inline rules ---
+
+    #[test]
+    fn markdown_escaped_space_becomes_non_breaking() {
+        // In the markdown dialect `\ ` is a non-breaking space bound into the surrounding word; in
+        // the strict dialect a backslash before a space is a literal backslash and the space splits
+        // the run.
+        assert_eq!(pm("a\\ b", no_ext()), vec![str("a\u{a0}b")]);
+        assert_eq!(p("a\\ b"), vec![str("a\\"), Inline::Space, str("b")]);
+    }
+
+    #[test]
+    fn markdown_superscript_rejects_inner_space() {
+        // A raw space anywhere inside a superscript voids it; the delimiters stay literal.
+        let ext = exts(&[Extension::Superscript]);
+        assert_eq!(pm("^a b^", ext), vec![str("^a"), Inline::Space, str("b^")]);
+        // An escaped (non-breaking) space keeps the superscript intact.
+        assert_eq!(
+            pm("^a\\ b^", ext),
+            vec![Inline::Superscript(vec![str("a\u{a0}b")])]
+        );
+        // No inner whitespace: still a superscript.
+        assert_eq!(pm("^ab^", ext), vec![Inline::Superscript(vec![str("ab")])]);
+    }
+
+    #[test]
+    fn markdown_subscript_rejects_inner_space_but_strikeout_allows_it() {
+        // A single tilde is a subscript and rejects inner whitespace.
+        assert_eq!(
+            pm("~a b~", exts(&[Extension::Subscript])),
+            vec![str("~a"), Inline::Space, str("b~")]
+        );
+        // A double tilde is a strikeout, which may hold whitespace.
+        assert_eq!(
+            pm("~~a b~~", exts(&[Extension::Strikeout])),
+            vec![Inline::Strikeout(vec![str("a"), Inline::Space, str("b")])]
+        );
+    }
+
+    #[test]
+    fn markdown_superscript_rejects_space_in_nested_span() {
+        // Whitespace inside an already-built nested inline voids the superscript too.
+        let ext = exts(&[Extension::Superscript]);
+        assert_eq!(
+            pm("^*a b*^", ext),
+            vec![
+                str("^"),
+                Inline::Emph(vec![str("a"), Inline::Space, str("b")]),
+                str("^"),
+            ]
+        );
+    }
+
+    #[test]
+    fn markdown_code_span_trims_surrounding_space() {
+        // The markdown dialect trims a code span's content; the strict dialect strips at most a
+        // single leading and trailing space (and only when the content is not all spaces).
+        assert_eq!(pm("`  a  `", no_ext()), vec![code("a")]);
+        assert_eq!(p("` a `"), vec![code("a")]);
+        assert_eq!(p("`  a  `"), vec![code(" a ")]);
+    }
+
+    #[test]
+    fn inline_note_parses_bracket_content_as_paragraph() {
+        assert_eq!(
+            pe("x^[a *b*] y", exts(&[Extension::InlineNotes])),
+            vec![
+                str("x"),
+                Inline::Note(vec![Block::Para(vec![
+                    str("a"),
+                    Inline::Space,
+                    Inline::Emph(vec![str("b")]),
+                ])]),
+                Inline::Space,
+                str("y"),
+            ]
+        );
+    }
+
+    #[test]
+    fn inline_note_allows_nested_brackets() {
+        assert_eq!(
+            pe("^[outer [inner] end]", exts(&[Extension::InlineNotes])),
+            vec![Inline::Note(vec![Block::Para(vec![
+                str("outer"),
+                Inline::Space,
+                str("[inner]"),
+                Inline::Space,
+                str("end"),
+            ])])]
+        );
+    }
+
+    #[test]
+    fn empty_inline_note_is_an_empty_paragraph() {
+        assert_eq!(
+            pe("^[]", exts(&[Extension::InlineNotes])),
+            vec![Inline::Note(vec![Block::Para(vec![])])]
+        );
+    }
+
+    #[test]
+    fn unclosed_inline_note_stays_literal() {
+        assert_eq!(
+            pe("^[unclosed", exts(&[Extension::InlineNotes])),
+            vec![str("^[unclosed")]
+        );
+    }
+
+    #[test]
+    fn inline_note_syntax_is_literal_when_extension_off() {
+        assert_eq!(
+            pe("x^[a] y", Extensions::empty()),
+            vec![str("x^[a]"), Inline::Space, str("y")]
+        );
+    }
+
+    #[test]
+    fn inline_note_wins_over_superscript_for_bracket() {
+        // With both on, `^[` opens a note; a bare `^2^` would still be a superscript elsewhere.
+        assert_eq!(
+            pe(
+                "y^[n]",
+                exts(&[Extension::InlineNotes, Extension::Superscript])
+            ),
+            vec![str("y"), Inline::Note(vec![Block::Para(vec![str("n")])])]
         );
     }
 
@@ -2443,6 +4264,792 @@ mod inline_tests {
             vec![image(
                 vec![str("["), link(vec![str("foo")], "uri1"), str("](uri2)"),],
                 "uri3",
+            )]
+        );
+    }
+
+    // --- Inline raw attribute (`{=FORMAT}` on a code span) ---
+
+    fn raw(format: &str, text: &str) -> Inline {
+        Inline::RawInline(carta_ast::Format(format.to_owned()), text.to_owned())
+    }
+
+    fn code(text: &str) -> Inline {
+        Inline::Code(Attr::default(), text.to_owned())
+    }
+
+    #[test]
+    fn raw_attribute_turns_code_span_into_raw_inline() {
+        let ext = exts(&[Extension::RawAttribute]);
+        assert_eq!(pe("`<b>`{=html}", ext), vec![raw("html", "<b>")]);
+        assert_eq!(pe("`\\x`{=latex}", ext), vec![raw("latex", "\\x")]);
+    }
+
+    #[test]
+    fn raw_attribute_format_token_allows_word_chars_dash_underscore() {
+        let ext = exts(&[Extension::RawAttribute]);
+        assert_eq!(pe("`x`{=my-format}", ext), vec![raw("my-format", "x")]);
+        assert_eq!(pe("`x`{=my_fmt}", ext), vec![raw("my_fmt", "x")]);
+        assert_eq!(pe("`x`{=3d}", ext), vec![raw("3d", "x")]);
+    }
+
+    #[test]
+    fn raw_attribute_tolerates_whitespace_around_marker() {
+        let ext = exts(&[Extension::RawAttribute]);
+        assert_eq!(pe("`x`{ =html }", ext), vec![raw("html", "x")]);
+        assert_eq!(pe("`x`{=html }", ext), vec![raw("html", "x")]);
+        assert_eq!(pe("`x`{ =html}", ext), vec![raw("html", "x")]);
+    }
+
+    #[test]
+    fn raw_attribute_normalizes_code_content() {
+        let ext = exts(&[Extension::RawAttribute]);
+        // A single space padding each side is stripped, exactly as for a code span.
+        assert_eq!(pe("` x `{=html}", ext), vec![raw("html", "x")]);
+    }
+
+    #[test]
+    fn raw_attribute_requires_a_pure_format_marker() {
+        let ext = exts(&[Extension::RawAttribute]);
+        // A space between `=` and the format is not a marker.
+        assert_eq!(
+            pe("`x`{= html}", ext),
+            vec![code("x"), str("{="), Inline::Space, str("html}"),]
+        );
+        // An empty format is not a marker.
+        assert_eq!(pe("`x`{=}", ext), vec![code("x"), str("{=}")]);
+        // Anything beyond the format (a class, a dot) defeats the marker.
+        assert_eq!(pe("`x`{=a.b}", ext), vec![code("x"), str("{=a.b}")]);
+    }
+
+    #[test]
+    fn plain_attribute_block_on_code_span_is_not_raw() {
+        // `{.class}` keeps the code span and applies the attribute (inline code attributes on).
+        let ext = exts(&[Extension::RawAttribute, Extension::InlineCodeAttributes]);
+        assert_eq!(
+            pe("`x`{.c}", ext),
+            vec![Inline::Code(
+                Attr {
+                    classes: vec!["c".to_owned()],
+                    ..Attr::default()
+                },
+                "x".to_owned()
+            )]
+        );
+    }
+
+    #[test]
+    fn raw_attribute_off_leaves_marker_literal() {
+        assert_eq!(p("`<b>`{=html}"), vec![code("<b>"), str("{=html}")]);
+    }
+
+    // --- Inline raw TeX and backslash math ---
+
+    fn tex(source: &str) -> Inline {
+        Inline::RawInline(carta_ast::Format("tex".to_owned()), source.to_owned())
+    }
+
+    fn raw_tex() -> Extensions {
+        exts(&[Extension::RawTex])
+    }
+
+    fn single_math() -> Extensions {
+        exts(&[Extension::TexMathSingleBackslash])
+    }
+
+    fn double_math() -> Extensions {
+        exts(&[Extension::TexMathDoubleBackslash])
+    }
+
+    #[test]
+    fn raw_tex_commands_with_argument_groups() {
+        // Consecutive `{…}` groups are all captured.
+        assert_eq!(
+            pe(r"\textbf{b}\emph{c}", raw_tex()),
+            vec![tex(r"\textbf{b}"), tex(r"\emph{c}")]
+        );
+        // A leading optional `[…]` group precedes a `{…}` argument.
+        assert_eq!(pe(r"\sqrt[3]{8}", raw_tex()), vec![tex(r"\sqrt[3]{8}")]);
+        // Nested braces inside a group are balanced.
+        assert_eq!(pe(r"\foo{a{b}c}", raw_tex()), vec![tex(r"\foo{a{b}c}")]);
+    }
+
+    #[test]
+    fn raw_tex_bare_command_absorbs_trailing_blanks() {
+        // A command with no argument group swallows following spaces.
+        assert_eq!(pe(r"\alpha y", raw_tex()), vec![tex(r"\alpha "), str("y")]);
+        // A command followed by an argument group does not absorb the trailing space.
+        assert_eq!(
+            pe(r"\foo{a} y", raw_tex()),
+            vec![tex(r"\foo{a}"), Inline::Space, str("y")]
+        );
+        // A command name carrying a digit does not absorb the trailing space.
+        assert_eq!(
+            pe(r"\foo1 y", raw_tex()),
+            vec![tex(r"\foo1"), Inline::Space, str("y")]
+        );
+        // The first character must be a letter, so a digit after the backslash is not a command.
+        assert_eq!(pe(r"\1foo", raw_tex()), vec![str(r"\1foo")]);
+    }
+
+    #[test]
+    fn raw_tex_unbalanced_brace_reverts_whole_command() {
+        // An unclosed `{`-group reverts the entire command to literal text.
+        assert_eq!(
+            pe(r"\foo{a y", raw_tex()),
+            vec![str(r"\foo{a"), Inline::Space, str("y")]
+        );
+        // An unclosed `[`-group merely stops the group run; the command stands.
+        assert_eq!(
+            pe(r"\foo[a y", raw_tex()),
+            vec![tex(r"\foo"), str("[a"), Inline::Space, str("y")]
+        );
+    }
+
+    #[test]
+    fn raw_tex_off_leaves_escape_behavior() {
+        // Without the extension a command name is not raw TeX; `\t` is not punctuation so the
+        // backslash stays literal.
+        assert_eq!(p(r"\textbf{b}"), vec![str(r"\textbf{b}")]);
+        // A backslash escape of punctuation still works regardless of the extension.
+        assert_eq!(pe(r"\*", raw_tex()), vec![str("*")]);
+    }
+
+    #[test]
+    fn raw_tex_environment_captured_as_one_inline() {
+        // A complete `\begin{ENV}`…`\end{ENV}` is one raw inline spanning the whole environment,
+        // body and interior newlines included.
+        assert_eq!(
+            pe("\\begin{equation}\nx\n\\end{equation}", raw_tex()),
+            vec![tex("\\begin{equation}\nx\n\\end{equation}")]
+        );
+        // The environment may sit on a single line amid surrounding text.
+        assert_eq!(
+            pe(r"a \begin{eq} z \end{eq} b", raw_tex()),
+            vec![
+                str("a"),
+                Inline::Space,
+                tex(r"\begin{eq} z \end{eq}"),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+        // A trailing `*` is part of the environment name, so the close must carry it too.
+        assert_eq!(
+            pe(r"\begin{equation*} x \end{equation*}", raw_tex()),
+            vec![tex(r"\begin{equation*} x \end{equation*}")]
+        );
+    }
+
+    #[test]
+    fn raw_tex_environment_balances_nested_begins() {
+        // A nested environment of the same name deepens the nesting; the capture ends at the
+        // matching outer close, not the first inner one.
+        assert_eq!(
+            pe(r"\begin{eq}\begin{eq}a\end{eq}\end{eq}", raw_tex()),
+            vec![tex(r"\begin{eq}\begin{eq}a\end{eq}\end{eq}")]
+        );
+        // A nested environment of a different name is just part of the outer body.
+        assert_eq!(
+            pe(
+                r"\begin{align}\begin{matrix}a\end{matrix}\end{align}",
+                raw_tex()
+            ),
+            vec![tex(r"\begin{align}\begin{matrix}a\end{matrix}\end{align}")]
+        );
+    }
+
+    #[test]
+    fn raw_tex_unmatched_environment_reverts_to_text() {
+        // Without a matching close, `\begin{ENV}` is literal text, not a raw command.
+        assert_eq!(
+            pe("\\begin{equation}\nx", raw_tex()),
+            vec![str(r"\begin{equation}"), Inline::SoftBreak, str("x")]
+        );
+        // A bare `\begin` with no `{ENV}` group is not raw TeX: the backslash precedes a letter,
+        // so it stays literal and the word is plain text.
+        assert_eq!(
+            pe(r"\begin x", raw_tex()),
+            vec![str(r"\begin"), Inline::Space, str("x")]
+        );
+        // A standalone `\end{ENV}` is literal text.
+        assert_eq!(
+            pe(r"\end{equation}", raw_tex()),
+            vec![str(r"\end{equation}")]
+        );
+        // A mismatched close does not satisfy the opener; the whole span reverts to text.
+        assert_eq!(
+            pe(r"\begin{equation} x \end{align}", raw_tex()),
+            vec![
+                str(r"\begin{equation}"),
+                Inline::Space,
+                str("x"),
+                Inline::Space,
+                str(r"\end{align}"),
+            ]
+        );
+    }
+
+    #[test]
+    fn single_backslash_math() {
+        assert_eq!(
+            pe(r"\(x\) \[y\]", single_math()),
+            vec![math_inline("x"), Inline::Space, math_display("y")]
+        );
+        // Inline content is trimmed; display content is verbatim.
+        assert_eq!(pe(r"\( x \)", single_math()), vec![math_inline("x")]);
+        assert_eq!(
+            pe(r"\[ x = y \]", single_math()),
+            vec![math_display(" x = y ")]
+        );
+    }
+
+    #[test]
+    fn single_backslash_math_empty_and_unclosed_fall_back() {
+        // Empty content is not a math span: `\(` and `\)` revert to escaped parentheses.
+        assert_eq!(pe(r"\(\)", single_math()), vec![str("()")]);
+        // No closer: the opener's backslash escapes the `(`.
+        assert_eq!(pe(r"\(x", single_math()), vec![str("(x")]);
+        // A span of only spaces is still a (trimmed-empty) span.
+        assert_eq!(pe(r"\( \)", single_math()), vec![math_inline("")]);
+    }
+
+    #[test]
+    fn single_backslash_math_escapes_inside_content() {
+        // An escaped delimiter inside the content does not close the span.
+        assert_eq!(pe(r"\(a\\)b\)", single_math()), vec![math_inline(r"a\\)b")]);
+    }
+
+    #[test]
+    fn double_backslash_math() {
+        assert_eq!(
+            pe(r"\\(x\\) \\[y\\]", double_math()),
+            vec![math_inline("x"), Inline::Space, math_display("y")]
+        );
+    }
+
+    #[test]
+    fn backslash_math_off_leaves_escape_behavior() {
+        // Without the extension `\(` is a plain escaped parenthesis.
+        assert_eq!(p(r"\(x\)"), vec![str("(x)")]);
+    }
+
+    // --- Native spans (`<span …>` … `</span>`) ---
+
+    fn native() -> Extensions {
+        exts(&[Extension::NativeSpans])
+    }
+
+    #[test]
+    fn native_span_carries_id_class_and_pairs() {
+        assert_eq!(
+            pe(
+                r#"<span id="i" class="a b" data-x="y">hi *there*</span>"#,
+                native()
+            ),
+            vec![span(
+                attr("i", &["a", "b"], &[("data-x", "y")]),
+                vec![str("hi"), Inline::Space, Inline::Emph(vec![str("there")])]
+            )]
+        );
+    }
+
+    #[test]
+    fn native_span_without_attributes() {
+        assert_eq!(
+            pe("a <span>x</span> b", native()),
+            vec![
+                str("a"),
+                Inline::Space,
+                span(attr("", &[], &[]), vec![str("x")]),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn native_span_empty_content() {
+        assert_eq!(
+            pe("<span></span>", native()),
+            vec![span(attr("", &[], &[]), vec![])]
+        );
+    }
+
+    #[test]
+    fn native_span_nests_innermost_first() {
+        assert_eq!(
+            pe(
+                r#"<span class="o"><span class="i">x</span></span>"#,
+                native()
+            ),
+            vec![span(
+                attr("", &["o"], &[]),
+                vec![span(attr("", &["i"], &[]), vec![str("x")])]
+            )]
+        );
+    }
+
+    #[test]
+    fn native_span_tag_name_is_case_insensitive() {
+        assert_eq!(
+            pe(r#"<SPAN class="a">x</SPAN>"#, native()),
+            vec![span(attr("", &["a"], &[]), vec![str("x")])]
+        );
+    }
+
+    #[test]
+    fn native_span_keeps_non_span_tags_raw() {
+        // An unrelated tag inside a span stays raw inline HTML.
+        assert_eq!(
+            pe(r#"<span class="a">x <b>y</b></span>"#, native()),
+            vec![span(
+                attr("", &["a"], &[]),
+                vec![
+                    str("x"),
+                    Inline::Space,
+                    raw("html", "<b>"),
+                    str("y"),
+                    raw("html", "</b>"),
+                ]
+            )]
+        );
+    }
+
+    #[test]
+    fn native_span_attribute_values_and_booleans() {
+        // Single-quoted, unquoted, and valueless attributes; a duplicate id/class keeps the first.
+        assert_eq!(
+            pe("<span data-x='y z'>q</span>", native()),
+            vec![span(attr("", &[], &[("data-x", "y z")]), vec![str("q")])]
+        );
+        assert_eq!(
+            pe("<span flag>q</span>", native()),
+            vec![span(attr("", &[], &[("flag", "")]), vec![str("q")])]
+        );
+        assert_eq!(
+            pe(
+                r#"<span id="a" id="b" class="c" class="d">q</span>"#,
+                native()
+            ),
+            vec![span(attr("a", &["c"], &[]), vec![str("q")])]
+        );
+    }
+
+    #[test]
+    fn native_span_decodes_entities_in_attribute_values() {
+        assert_eq!(
+            pe(r#"<span title="a &amp; b">q</span>"#, native()),
+            vec![span(attr("", &[], &[("title", "a & b")]), vec![str("q")])]
+        );
+    }
+
+    #[test]
+    fn native_span_self_closing_stays_raw() {
+        // `<span/>` has no content to wrap.
+        assert_eq!(
+            pe("a <span/> b", native()),
+            vec![
+                str("a"),
+                Inline::Space,
+                raw("html", "<span/>"),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn native_span_unclosed_opener_reverts_to_raw() {
+        assert_eq!(
+            pe(r#"<span class="a">no close"#, native()),
+            vec![
+                raw("html", "<span class=\"a\">"),
+                str("no"),
+                Inline::Space,
+                str("close"),
+            ]
+        );
+    }
+
+    #[test]
+    fn native_span_pairs_inside_emphasis() {
+        assert_eq!(
+            pe("*x <span>y</span> z*", native()),
+            vec![Inline::Emph(vec![
+                str("x"),
+                Inline::Space,
+                span(attr("", &[], &[]), vec![str("y")]),
+                Inline::Space,
+                str("z"),
+            ])]
+        );
+    }
+
+    #[test]
+    fn native_span_off_leaves_tags_raw() {
+        assert_eq!(
+            p(r#"<span class="a">x</span>"#),
+            vec![
+                raw("html", "<span class=\"a\">"),
+                str("x"),
+                raw("html", "</span>"),
+            ]
+        );
+    }
+
+    // --- Mark (highlight) ---
+
+    fn mark(content: Vec<Inline>) -> Inline {
+        span(attr("", &["mark"], &[]), content)
+    }
+
+    #[test]
+    fn mark_wraps_a_double_equals_run() {
+        let on = exts(&[Extension::Mark]);
+        assert_eq!(
+            pe("a ==x== b", on),
+            vec![
+                str("a"),
+                Inline::Space,
+                mark(vec![str("x")]),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn mark_resolves_inner_emphasis() {
+        let on = exts(&[Extension::Mark]);
+        assert_eq!(
+            pe("==x *y*==", on),
+            vec![mark(vec![
+                str("x"),
+                Inline::Space,
+                Inline::Emph(vec![str("y")]),
+            ])]
+        );
+    }
+
+    #[test]
+    fn mark_off_leaves_double_equals_literal() {
+        // Without the extension the run is plain text.
+        assert_eq!(
+            pe("a ==x== b", no_ext()),
+            vec![
+                str("a"),
+                Inline::Space,
+                str("==x=="),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn mark_opener_needs_no_following_space() {
+        let on = exts(&[Extension::Mark]);
+        // A space just inside either delimiter blocks the run; both sides stay literal.
+        assert_eq!(pe("== x==", on), vec![str("=="), Inline::Space, str("x==")]);
+        assert_eq!(pe("==x ==", on), vec![str("==x"), Inline::Space, str("==")]);
+    }
+
+    #[test]
+    fn mark_lone_equals_stays_literal() {
+        let on = exts(&[Extension::Mark]);
+        assert_eq!(
+            pe("a = b", on),
+            vec![str("a"), Inline::Space, str("="), Inline::Space, str("b")]
+        );
+    }
+
+    #[test]
+    fn mark_run_pairs_once_and_leaves_excess_literal() {
+        let on = exts(&[Extension::Mark]);
+        // Four-on-four pairs only the innermost two from each side; the outer `==` stay literal and
+        // do not re-pair into a nested mark.
+        assert_eq!(
+            pe("====x====", on),
+            vec![str("=="), mark(vec![str("x")]), str("==")]
+        );
+        // Two-on-four consumes two from each, leaving the surplus `==` literal.
+        assert_eq!(pe("==x====", on), vec![mark(vec![str("x")]), str("==")]);
+    }
+
+    // --- Citations ---
+
+    fn cites() -> Extensions {
+        exts(&[Extension::Citations])
+    }
+
+    fn cite(citations: Vec<Citation>, fallback: Vec<Inline>) -> Inline {
+        Inline::Cite(citations, fallback)
+    }
+
+    fn citation(
+        id: &str,
+        prefix: Vec<Inline>,
+        suffix: Vec<Inline>,
+        mode: CitationMode,
+        note_num: i32,
+    ) -> Citation {
+        Citation {
+            id: id.to_owned(),
+            prefix,
+            suffix,
+            mode,
+            note_num,
+            hash: 0,
+        }
+    }
+
+    #[test]
+    fn bare_citation_is_author_in_text() {
+        assert_eq!(
+            pe("@doe2020", cites()),
+            vec![cite(
+                vec![citation(
+                    "doe2020",
+                    vec![],
+                    vec![],
+                    CitationMode::AuthorInText,
+                    1
+                )],
+                vec![str("@doe2020")],
+            )]
+        );
+    }
+
+    #[test]
+    fn bare_citation_needs_a_non_word_before_the_at() {
+        // Glued to a preceding word, the `@` is literal — no citation, no email autolink here.
+        assert_eq!(pe("foo@bar", cites()), vec![str("foo@bar")]);
+        // A space before the `@` lets it open a citation.
+        assert_eq!(
+            pe("a @b", cites()),
+            vec![
+                str("a"),
+                Inline::Space,
+                cite(
+                    vec![citation("b", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@b")],
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn bracket_citation_carries_prefix_and_suffix() {
+        assert_eq!(
+            pe("[see @doe2020 and more]", cites()),
+            vec![cite(
+                vec![citation(
+                    "doe2020",
+                    vec![str("see")],
+                    vec![Inline::Space, str("and"), Inline::Space, str("more")],
+                    CitationMode::NormalCitation,
+                    1,
+                )],
+                vec![
+                    str("[see"),
+                    Inline::Space,
+                    str("@doe2020"),
+                    Inline::Space,
+                    str("and"),
+                    Inline::Space,
+                    str("more]"),
+                ],
+            )]
+        );
+    }
+
+    #[test]
+    fn dash_before_at_suppresses_author() {
+        assert_eq!(
+            pe("[-@k]", cites()),
+            vec![cite(
+                vec![citation(
+                    "k",
+                    vec![],
+                    vec![],
+                    CitationMode::SuppressAuthor,
+                    1
+                )],
+                vec![str("[-@k]")],
+            )]
+        );
+        // A `-` glued to a preceding word is part of the prefix, not a suppression marker.
+        assert_eq!(
+            pe("[a-@b]", cites()),
+            vec![cite(
+                vec![citation(
+                    "b",
+                    vec![str("a-")],
+                    vec![],
+                    CitationMode::NormalCitation,
+                    1
+                )],
+                vec![str("[a-@b]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn semicolon_separates_entries_sharing_one_number() {
+        assert_eq!(
+            pe("[@a; @b]", cites()),
+            vec![cite(
+                vec![
+                    citation("a", vec![], vec![], CitationMode::NormalCitation, 1),
+                    citation("b", vec![], vec![], CitationMode::NormalCitation, 1),
+                ],
+                vec![str("[@a;"), Inline::Space, str("@b]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn comma_nests_a_bare_citation_in_the_suffix() {
+        // `@b` after a comma is not a new entry; it becomes a bare citation inside `a`'s suffix, and
+        // the enclosing group takes the higher number.
+        assert_eq!(
+            pe("[@a, @b]", cites()),
+            vec![cite(
+                vec![citation(
+                    "a",
+                    vec![],
+                    vec![
+                        str(","),
+                        Inline::Space,
+                        cite(
+                            vec![citation("b", vec![], vec![], CitationMode::AuthorInText, 2)],
+                            vec![str("@b")],
+                        ),
+                    ],
+                    CitationMode::NormalCitation,
+                    2,
+                )],
+                vec![str("[@a,"), Inline::Space, str("@b]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn document_order_numbers_each_group() {
+        // Two separate groups in one block take consecutive numbers.
+        let out = pe("@a and [@b]", cites());
+        let nums: Vec<i32> = out
+            .iter()
+            .filter_map(|inline| match inline {
+                Inline::Cite(citations, _) => citations.first().map(|c| c.note_num),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(nums, vec![1, 2]);
+    }
+
+    #[test]
+    fn malformed_bracket_falls_back_to_inline_citations() {
+        // A trailing empty segment is not a citation list; the brackets stay literal and the bare
+        // `@a` inside becomes an author-in-text citation.
+        assert_eq!(
+            pe("[@a;]", cites()),
+            vec![
+                str("["),
+                cite(
+                    vec![citation("a", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@a")],
+                ),
+                str(";]"),
+            ]
+        );
+    }
+
+    #[test]
+    fn segment_without_a_key_is_not_a_citation_list() {
+        // The first segment holds no `@`, so the whole bracket is not a citation; only the bare `@b`
+        // citation survives.
+        assert_eq!(
+            pe("[no key; @b]", cites()),
+            vec![
+                str("[no"),
+                Inline::Space,
+                str("key;"),
+                Inline::Space,
+                cite(
+                    vec![citation("b", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@b")],
+                ),
+                str("]"),
+            ]
+        );
+    }
+
+    #[test]
+    fn key_charset_keeps_internal_punctuation() {
+        // Internal `_ : - . /` belong to a key only when more key characters follow.
+        assert_eq!(
+            pe("[@foo_bar:baz-qux.v/1]", cites()),
+            vec![cite(
+                vec![citation(
+                    "foo_bar:baz-qux.v/1",
+                    vec![],
+                    vec![],
+                    CitationMode::NormalCitation,
+                    1,
+                )],
+                vec![str("[@foo_bar:baz-qux.v/1]")],
+            )]
+        );
+        // A trailing `-` is not part of the key; it falls to the suffix.
+        assert_eq!(
+            pe("[@a-]", cites()),
+            vec![cite(
+                vec![citation(
+                    "a",
+                    vec![],
+                    vec![str("-")],
+                    CitationMode::NormalCitation,
+                    1
+                )],
+                vec![str("[@a-]")],
+            )]
+        );
+    }
+
+    #[test]
+    fn citations_off_leaves_the_syntax_literal() {
+        assert_eq!(
+            pe("See [@a] and @b.", no_ext()),
+            vec![
+                str("See"),
+                Inline::Space,
+                str("[@a]"),
+                Inline::Space,
+                str("and"),
+                Inline::Space,
+                str("@b."),
+            ]
+        );
+    }
+
+    #[test]
+    fn escaped_at_is_not_a_citation() {
+        assert_eq!(pe(r"[\@a]", cites()), vec![str("[@a]")]);
+    }
+
+    #[test]
+    fn citation_does_not_steal_a_link() {
+        // An explicit link target wins; the key inside becomes a bare citation in the link text.
+        assert_eq!(
+            pe("[@a](http://x.com)", cites()),
+            vec![link(
+                vec![cite(
+                    vec![citation("a", vec![], vec![], CitationMode::AuthorInText, 1)],
+                    vec![str("@a")],
+                )],
+                "http://x.com",
             )]
         );
     }

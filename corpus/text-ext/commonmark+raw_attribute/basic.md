@@ -1,0 +1,1 @@
+`\cmd`{=latex} text.

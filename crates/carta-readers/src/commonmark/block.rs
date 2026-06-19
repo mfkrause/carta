@@ -3,7 +3,7 @@
 //! raw for the inline phase; link reference definitions are stripped from paragraph fronts and
 //! collected into the [`RefMap`].
 
-use carta_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
+use carta_ast::{Attr, Format, ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
@@ -75,6 +75,20 @@ enum Kind {
     IndentedCode,
     FencedCode(FenceInfo),
     HtmlBlock(u8),
+    /// A block-level HTML element whose inner content is parsed as markdown. A `<div>` (with
+    /// `native_divs` enabled) becomes an [`IrBlock::Div`] carrying the tag's attributes; any other
+    /// recognized block tag (with `markdown_in_html_blocks` enabled) keeps its open and close tags as
+    /// raw HTML with the parsed content between them. The element is a transparent container: nested
+    /// same-name elements nest as their own containers, so tag balancing falls out of the tree.
+    HtmlElement(HtmlElementInfo),
+    /// A raw TeX environment opened by `\begin{NAME}` at a line start. It accumulates lines verbatim
+    /// until a matching `\end{NAME}` brings the nesting `depth` back to zero, then becomes a
+    /// `RawBlock` for the `tex` format. `name` is the literal brace content of the opener, compared
+    /// exactly. Math environments (`equation`, `align`, …) are excluded — they stay inline.
+    RawTex {
+        name: String,
+        depth: usize,
+    },
     ThematicBreak,
     /// A dash-ruled table candidate, accumulating its physical lines (each `\n`-terminated). Its
     /// exact extent is settled when the block closes: the lines are parsed into a table, with any
@@ -99,6 +113,25 @@ struct ItemInfo {
     /// For an example-list item, its `@label` (or `None` for the anonymous `@`); `None` for every
     /// other item. The label resolves later `@label` references to this item's number.
     example_label: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct HtmlElementInfo {
+    /// The lowercased tag name (e.g. `div`, `section`), used to recognize the matching close tag.
+    tag: String,
+    /// Attributes parsed from the open tag; only meaningful when `as_div` holds.
+    attr: Attr,
+    /// The open tag's raw text, kept verbatim for the leading raw block when not rendered as a div.
+    raw_open: String,
+    /// The matching close tag's raw text, kept verbatim for the trailing raw block when not a div.
+    /// Empty until the element is closed (or it closed implicitly at end of input).
+    raw_close: String,
+    /// When set, the element renders as an [`IrBlock::Div`]; otherwise the open/close tags are kept
+    /// as raw HTML around the parsed content.
+    as_div: bool,
+    /// Whether the element's final content block tightens from `Para` to `Plain` (set when no blank
+    /// line separates that content from the close tag).
+    tighten_last: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -148,6 +181,22 @@ impl Node {
             last_line_blank: false,
         }
     }
+}
+
+/// How an open paragraph absorbs the block openers on the next line (see [`Parser::greedy_gates`]).
+// Four independent fold decisions, each governing a distinct opener — they are flags by nature.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Copy, Default)]
+struct GreedyGates {
+    /// The foldable openers — block quote, heading, thematic break, fenced div, footnote definition
+    /// — continue the paragraph as a lazy line rather than interrupting it.
+    foldable: bool,
+    /// A list marker that would *start* a fresh list folds; one continuing an open list still opens.
+    list_start: bool,
+    /// The block-quote fold, gated further on `blank_before_blockquote`.
+    blockquote: bool,
+    /// The heading fold, gated further on `blank_before_header`.
+    heading: bool,
 }
 
 struct Parser {
@@ -211,6 +260,7 @@ impl Parser {
                 | Kind::Item(_)
                 | Kind::FootnoteDef(_)
                 | Kind::FencedDiv(..)
+                | Kind::HtmlElement(_)
                 | Kind::Definition { .. },
             ) => !matches!(kind, Kind::Item(_)),
             Some(Kind::List(_)) => matches!(kind, Kind::Item(_)),
@@ -297,6 +347,19 @@ impl Parser {
 
         // A bare colon-run line can close an open fenced div, popping everything nested inside it.
         if self.close_fenced_div(container, &div_path) {
+            return;
+        }
+
+        // A matching close tag (`</tag>`) closes the innermost open HTML element and everything
+        // nested under it. Any content before the tag on its line is the element's final content;
+        // any content after is re-fed. The tag sits at the element's own level, so an inner block
+        // (a list, a block quote) left unmatched on this line does not prevent the close.
+        if self.close_html_element(container, &cursor) {
+            return;
+        }
+
+        // An open raw TeX environment swallows this line verbatim until its matching `\end`.
+        if self.continue_raw_tex(container, all_matched, &cursor) {
             return;
         }
 
@@ -566,6 +629,140 @@ impl Parser {
         }
     }
 
+    /// Feed a continuation line to an open raw TeX environment, returning `true` when the line was
+    /// absorbed. Reachable only when every container matched, so the verbatim text stays aligned.
+    fn continue_raw_tex(&mut self, container: usize, all_matched: bool, cursor: &Cursor) -> bool {
+        if !all_matched {
+            return false;
+        }
+        let Some(leaf) = self
+            .last_open_child(container)
+            .filter(|&c| matches!(self.kind(c), Some(Kind::RawTex { .. })))
+        else {
+            return false;
+        };
+        self.feed_raw_tex(leaf, cursor.remaining());
+        true
+    }
+
+    /// Open a raw TeX environment when the cursor sits on a `\begin{NAME}` at the line start. The
+    /// environment gathers lines verbatim through its matching `\end{NAME}` and renders as a
+    /// `RawBlock` for `tex`. Math environments stay inline, so they fall through to a paragraph here.
+    /// Unlike the foldable openers this one interrupts an open paragraph; a `\begin` that never finds
+    /// its `\end` is settled back into a paragraph at end of input.
+    ///
+    /// Known limitations, both niche and exact in the common free-standing form:
+    /// - When the environment directly interrupts an open paragraph with no blank line between, that
+    ///   preceding paragraph renders as `Para` rather than the tighter `Plain`.
+    /// - A math environment hands its body to the inline phase rather than being gathered verbatim
+    ///   here, so a non-math `\begin{…}` sitting at column 0 *inside* a math environment opens a
+    ///   fresh block environment there instead of staying part of the enclosing inline math span. A
+    ///   nested environment indented or sharing a line with surrounding math — the usual way it is
+    ///   written — stays within the span.
+    fn open_raw_tex(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
+        if !self.extensions.contains(Extension::RawTex) {
+            return None;
+        }
+        let name = raw_tex_env_name(cursor.remaining(), b"begin")?;
+        if is_math_environment(&name) {
+            return None;
+        }
+        let line = cursor.rest();
+        cursor.advance_chars(line.chars().count());
+        let kind = Kind::RawTex { name, depth: 0 };
+        let parent = self.place(container, &kind);
+        let index = self.append_child(parent, Node::new(kind));
+        self.feed_raw_tex(index, &line);
+        Some(index)
+    }
+
+    /// Append one source `line` to an open raw TeX environment and advance its nesting depth. Each
+    /// `\begin{NAME}` of the opener's own name deepens the nesting and each `\end{NAME}` lifts it;
+    /// when the depth returns to zero the environment closes at that `\end`, dropping the trailing
+    /// newline. Any content after the closing `\end` on the same line is re-fed as a fresh line.
+    fn feed_raw_tex(&mut self, index: usize, line: &str) {
+        let Some(Kind::RawTex { name, depth }) = self.kind(index).cloned() else {
+            return;
+        };
+        let (new_depth, close_at) = raw_tex_scan(line, &name, depth);
+        if let Some(end) = close_at {
+            // The matching `\end` ends the environment; the closing newline is dropped, and any
+            // content past the `\end` on this line is re-fed as a fresh line.
+            self.append_text(index, line.get(..end).unwrap_or(line));
+            self.set_raw_tex_depth(index, 0);
+            self.close(index);
+            let trailing = line.get(end..).unwrap_or("").to_owned();
+            if !trailing.is_empty() {
+                self.process_line(&trailing);
+            }
+            return;
+        }
+        self.append_text(index, line);
+        self.append_text(index, "\n");
+        self.set_raw_tex_depth(index, new_depth);
+    }
+
+    fn set_raw_tex_depth(&mut self, index: usize, value: usize) {
+        if let Some(node) = self.nodes.get_mut(index)
+            && let Kind::RawTex { depth, .. } = &mut node.kind
+        {
+            *depth = value;
+        }
+    }
+
+    /// Open a block-level HTML element when the cursor sits on a recognized open tag. A `<div>`
+    /// becomes an [`IrBlock::Div`] when `native_divs` is on; any other block tag (and a `<div>` when
+    /// only `markdown_in_html_blocks` is on) keeps its tags as raw HTML around the parsed content.
+    /// The whole open tag is consumed; any same-line remainder is re-fed so its content — including a
+    /// close tag on the same line — flows through the normal line handling.
+    ///
+    /// Known limitation: when the element directly interrupts an open paragraph with no blank line
+    /// between, that preceding paragraph stays `Para` rather than tightening to `Plain`. The
+    /// free-standing form — a blank line before the element — is exact. A self-closing tag
+    /// (`<div/>`) is read as an ordinary open and stays open until end of input.
+    fn open_html_element(
+        &mut self,
+        container: usize,
+        indent: usize,
+        cursor: &mut Cursor,
+    ) -> Option<usize> {
+        let native_divs = self.extensions.contains(Extension::NativeDivs);
+        let markdown_in_html = self.extensions.contains(Extension::MarkdownInHtmlBlocks);
+        if !native_divs && !markdown_in_html {
+            return None;
+        }
+        let remaining = cursor.remaining();
+        let open = html_element::parse_open_tag(remaining)?;
+        let is_div = open.tag == "div";
+        // A div renders as a native div only with `native_divs`; otherwise it (and every other block
+        // tag) needs `markdown_in_html_blocks` to have its content parsed. A block tag governed by
+        // neither extension falls through to the raw HTML-block reading.
+        let as_div = is_div && native_divs;
+        if !as_div && !markdown_in_html {
+            return None;
+        }
+        let raw_open = remaining.get(..open.len).unwrap_or(remaining).to_owned();
+        let trailing = remaining.get(open.len..).unwrap_or("").to_owned();
+        // Consume the whole remainder so the line is fully read here; any content after the open tag
+        // is handled by re-feeding `trailing` rather than by the cursor. The cursor advances one byte
+        // per step, so the byte length is the right amount even with multibyte characters present.
+        cursor.advance_chars(remaining.len());
+        let kind = Kind::HtmlElement(HtmlElementInfo {
+            tag: open.tag,
+            attr: open.attr,
+            raw_open: format!("{}{raw_open}", " ".repeat(indent)),
+            raw_close: String::new(),
+            as_div,
+            tighten_last: false,
+        });
+        let parent = self.place(container, &kind);
+        let index = self.append_child(parent, Node::new(kind));
+        if !trailing.trim().is_empty() {
+            self.process_line(&trailing);
+        }
+        Some(index)
+    }
+
     fn text_tables_enabled(&self) -> bool {
         self.extensions.contains(Extension::SimpleTables)
             || self.extensions.contains(Extension::MultilineTables)
@@ -768,6 +965,80 @@ impl Parser {
         true
     }
 
+    /// If this line carries the matching close tag of the innermost open HTML element, close that
+    /// element and return `true`. Content preceding the tag on its line is fed as the element's final
+    /// content (which is then tightened to `Plain`); content after the tag is re-fed as a fresh line.
+    fn close_html_element(&mut self, container: usize, cursor: &Cursor) -> bool {
+        if !self.extensions.contains(Extension::NativeDivs)
+            && !self.extensions.contains(Extension::MarkdownInHtmlBlocks)
+        {
+            return false;
+        }
+        let Some(element) = self.innermost_open_html_element() else {
+            return false;
+        };
+        let line = cursor.remaining();
+        let trimmed = line.trim_start_matches(' ');
+        let leading = line.len() - trimmed.len();
+        if leading > 3 {
+            return false;
+        }
+        let (found, as_div) = match self.kind(element) {
+            Some(Kind::HtmlElement(info)) => {
+                let Some(found) = html_element::find_close_tag(trimmed, &info.tag) else {
+                    return false;
+                };
+                (found, info.as_div)
+            }
+            _ => return false,
+        };
+        let before = trimmed.get(..found.start).unwrap_or("");
+        let close_tag = trimmed.get(found.start..found.end).unwrap_or("").to_owned();
+        let after = trimmed.get(found.end..).unwrap_or("").to_owned();
+        let trails = !before.trim().is_empty();
+        if trails {
+            self.process_line(before);
+        }
+        // Whether the element's final content block tightens from `Para` to `Plain`. A native div
+        // tightens only when the close tag physically trails content on its own line. A raw element
+        // tightens whenever no blank line separates its last content from the close tag — which holds
+        // exactly when a paragraph is still open at the close (a blank line would have closed it).
+        let tighten = if as_div {
+            trails
+        } else {
+            matches!(self.kind(self.deepest_open(element)), Some(Kind::Paragraph))
+        };
+        // The deepest open block under the element is the close boundary's chain tip.
+        let tip = self.deepest_open(container);
+        self.close_chain(tip, element);
+        if let Some(node) = self.nodes.get_mut(element)
+            && let Kind::HtmlElement(info) = &mut node.kind
+        {
+            info.raw_close = close_tag;
+            info.tighten_last = tighten;
+            node.open = false;
+        }
+        if !after.trim().is_empty() {
+            self.process_line(&after);
+        }
+        true
+    }
+
+    /// The innermost open HTML element anywhere in the tree, or `None` when none is open.
+    fn innermost_open_html_element(&self) -> Option<usize> {
+        let mut node = self.deepest_open(0);
+        loop {
+            if matches!(self.kind(node), Some(Kind::HtmlElement(_))) {
+                return Some(node);
+            }
+            let parent = self.parent(node);
+            if parent == node {
+                return None;
+            }
+            node = parent;
+        }
+    }
+
     /// The innermost open fenced div anywhere in the tree, or `None` when none is open.
     fn innermost_open_div(&self) -> Option<usize> {
         let mut node = self.deepest_open(0);
@@ -813,6 +1084,7 @@ impl Parser {
                     | Kind::Item(_)
                     | Kind::FootnoteDef(_)
                     | Kind::FencedDiv(..)
+                    | Kind::HtmlElement(_)
                     | Kind::DefinitionList
                     | Kind::DefinitionItem { .. }
                     | Kind::Definition { .. }
@@ -836,6 +1108,9 @@ impl Parser {
             Some(Kind::List(_) | Kind::DefinitionList | Kind::DefinitionItem { .. }) => {
                 Continue::Matched
             }
+            // An HTML element is transparent: it consumes no marker and lets its inner lines flow to
+            // the openers below. Its matching close tag is detected separately in `process_line`.
+            Some(Kind::HtmlElement(_)) => Continue::Matched,
             // A definition body continues under its content indent, like a list item — except that
             // an as-yet-empty body survives a blank line, so a deferred indented paragraph still
             // joins it.
@@ -959,17 +1234,19 @@ impl Parser {
         }
     }
 
-    /// How a greedy paragraph (the markdown dialect) absorbs a following block opener. The first
-    /// flag covers the foldable openers — a block quote, heading, thematic break, fenced div, or
-    /// footnote definition continues an open paragraph as a lazy line rather than interrupting it,
-    /// even across a container the line did not match (`> a` then `# b`); only a blank line, a fenced
-    /// code block, or an HTML block ends it. The second covers a list marker, which is structural: it
-    /// still opens a sibling item in an open list or a sublist inside an item, and folds only where
-    /// it would otherwise *start* a fresh list — when the paragraph is the container's own last child
-    /// and the container is not itself a list item or other indented item body.
-    fn greedy_gates(&self, container: usize, in_paragraph: bool) -> (bool, bool) {
+    /// How a greedy paragraph (the markdown dialect) absorbs a following block opener. The foldable
+    /// openers — a block quote, heading, thematic break, fenced div, or footnote definition —
+    /// continue an open paragraph as a lazy line rather than interrupting it, even across a container
+    /// the line did not match (`> a` then `# b`); only a blank line, a fenced code block, or an HTML
+    /// block ends it. The block-quote and heading folds are gated further on the
+    /// `blank_before_blockquote` and `blank_before_header` toggles, so dropping a toggle lets that
+    /// opener interrupt again. A list marker is structural: it still opens a sibling item in an open
+    /// list or a sublist inside an item, and folds only where it would otherwise *start* a fresh list
+    /// — when the paragraph is the container's own last child and the container is not itself a list
+    /// item or other indented item body.
+    fn greedy_gates(&self, container: usize, in_paragraph: bool) -> GreedyGates {
         if !self.greedy_paragraphs {
-            return (false, false);
+            return GreedyGates::default();
         }
         let fresh_list_into_paragraph = !matches!(
             self.kind(container),
@@ -979,14 +1256,21 @@ impl Parser {
                 .and_then(|child| self.kind(child)),
             Some(Kind::Paragraph)
         );
-        (in_paragraph, fresh_list_into_paragraph)
+        GreedyGates {
+            foldable: in_paragraph,
+            list_start: fresh_list_into_paragraph,
+            blockquote: in_paragraph && self.extensions.contains(Extension::BlankBeforeBlockquote),
+            heading: in_paragraph && self.extensions.contains(Extension::BlankBeforeHeader),
+        }
     }
 
     /// Try to open a new block at the current cursor position inside `container`.
+    // A flat dispatch over the block openers, tried in precedence order; it reads best as one sequence.
+    #[allow(clippy::too_many_lines)]
     fn try_open(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
         let indent = cursor.indent();
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
-        let (greedy, greedy_list_start) = self.greedy_gates(container, in_paragraph);
+        let gates = self.greedy_gates(container, in_paragraph);
 
         if indent >= TAB_STOP && !in_paragraph {
             cursor.advance_columns(TAB_STOP);
@@ -998,7 +1282,10 @@ impl Parser {
 
         if indent < TAB_STOP {
             cursor.skip_indent();
-            if !greedy && cursor.peek() == Some(b'>') {
+            if let Some(block) = self.open_raw_tex(container, cursor) {
+                return Some(block);
+            }
+            if !gates.blockquote && cursor.peek() == Some(b'>') {
                 cursor.advance_one();
                 cursor.consume_optional_space();
                 let parent = self.place(container, &Kind::BlockQuote);
@@ -1007,7 +1294,7 @@ impl Parser {
             // A footnote definition opens here; its content is then gathered by the enclosing
             // container loop, the same as a block quote's. Like the other openers it folds into a
             // greedy paragraph rather than interrupting it.
-            if !greedy
+            if !gates.foldable
                 && self.extensions.contains(Extension::Footnotes)
                 && let Some(label) = cursor.footnote_def_marker()
             {
@@ -1017,7 +1304,7 @@ impl Parser {
             }
             // A fenced div opens on a colon-run line carrying a valid attribute spec; it may
             // interrupt a paragraph. The whole fence line is consumed, so the div opens empty.
-            if !greedy && self.extensions.contains(Extension::FencedDivs) {
+            if !gates.foldable && self.extensions.contains(Extension::FencedDivs) {
                 let opener = div_open_fence(cursor.remaining());
                 if let Some((count, attr)) = opener {
                     let width = cursor.remaining().chars().count();
@@ -1031,7 +1318,9 @@ impl Parser {
                     return Some(self.append_child(parent, Node::new(kind)));
                 }
             }
-            if !greedy && let Some(level) = cursor.atx_heading() {
+            if !gates.heading
+                && let Some(level) = cursor.atx_heading()
+            {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
                 self.append_text(index, &strip_atx_closing(&cursor.rest()));
@@ -1042,6 +1331,11 @@ impl Parser {
                 let kind = Kind::FencedCode(fence);
                 let parent = self.place(container, &kind);
                 return Some(self.append_child(parent, Node::new(kind)));
+            }
+            // A recognized block-level HTML element whose inner content is parsed as markdown takes
+            // precedence over the raw HTML-block reading, when the governing extension is on.
+            if let Some(block) = self.open_html_element(container, indent, cursor) {
+                return Some(block);
             }
             if let Some(kind) = html_block::classify(cursor.remaining(), !in_paragraph) {
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
@@ -1074,7 +1368,7 @@ impl Parser {
                 self.append_text(index, "\n");
                 return Some(index);
             }
-            if !greedy && cursor.thematic_break() {
+            if !gates.foldable && cursor.thematic_break() {
                 let parent = self.place(container, &Kind::ThematicBreak);
                 let index = self.append_child(parent, Node::new(Kind::ThematicBreak));
                 self.close(index);
@@ -1090,7 +1384,9 @@ impl Parser {
             {
                 return Some(body);
             }
-            if !greedy_list_start && let Some(list) = self.list_marker(container, indent, cursor) {
+            if !gates.list_start
+                && let Some(list) = self.list_marker(container, indent, cursor)
+            {
                 return Some(list);
             }
         }
@@ -1367,7 +1663,8 @@ impl Parser {
                     | Kind::TextTable
                     | Kind::IndentedCode
                     | Kind::FencedCode(_)
-                    | Kind::HtmlBlock(_),
+                    | Kind::HtmlBlock(_)
+                    | Kind::RawTex { .. },
                 ) => {}
                 _ => {
                     // An opener whose own line carries no content (a bare marker) leaves its
@@ -1516,6 +1813,23 @@ impl Parser {
         };
         let mut out = Vec::new();
         for &child in &node.children {
+            // A raw HTML element contributes three blocks — its open tag, its parsed content, and its
+            // close tag — flattened into this list rather than nested under a single block.
+            if let Some(Kind::HtmlElement(info)) = self.kind(child)
+                && !info.as_div
+            {
+                out.push(IrBlock::RawHtml(info.raw_open.clone()));
+                let mut content = self.build_children(child);
+                if info.tighten_last {
+                    tighten_last_block(&mut content);
+                }
+                out.append(&mut content);
+                // An element left open at end of input has no close tag; emit one only when present.
+                if !info.raw_close.is_empty() {
+                    out.push(IrBlock::RawHtml(info.raw_close.clone()));
+                }
+                continue;
+            }
             if let Some(block) = self.build_block(child) {
                 out.push(block);
             }
@@ -1551,6 +1865,7 @@ impl Parser {
                         header,
                         rows,
                         caption: None,
+                        attr: Attr::default(),
                     }
                 } else {
                     IrBlock::Para(trimmed.to_owned())
@@ -1569,7 +1884,6 @@ impl Parser {
                 IrBlock::CodeBlock(Attr::default(), strip_trailing_blank_lines(&node.text))
             }
             Kind::FencedCode(fence) => {
-                let attr = fence_attr(&fence.info, self.extensions);
                 // A closing fence drops the final newline; a block ended by end-of-input (still
                 // open) keeps it.
                 let text = if node.open {
@@ -1577,22 +1891,129 @@ impl Parser {
                 } else {
                     strip_one_trailing_newline(&node.text)
                 };
-                IrBlock::CodeBlock(attr, text)
-            }
-            Kind::HtmlBlock(kind) => {
-                let mut text = node.text.clone();
-                // Kinds 1–5 close only on an explicit end tag; reaching end-of-input with the block
-                // still open leaves it unterminated, which surfaces as a trailing blank line in the output.
-                if node.open && matches!(kind, 1..=5) {
-                    text.push('\n');
+                // An info string that is exactly `{=FORMAT}` marks the fence's contents as raw
+                // output for FORMAT, emitted verbatim rather than as a code block.
+                if self.extensions.contains(Extension::RawAttribute)
+                    && let Some(format) = raw_block_format(&fence.info)
+                {
+                    IrBlock::RawBlock(Format(format), text)
+                } else {
+                    IrBlock::CodeBlock(fence_attr(&fence.info, self.extensions), text)
                 }
-                IrBlock::RawHtml(text)
             }
-            Kind::BlockQuote => IrBlock::BlockQuote(self.build_children(index)),
+            Kind::HtmlBlock(kind) => IrBlock::RawHtml(self.finalize_html_block(node, *kind)),
+            Kind::RawTex { .. } => {
+                // A closed environment is verbatim raw TeX. One left open at end of input never
+                // found its `\end`, so its lines are ordinary text: they fall back to a paragraph.
+                if node.open {
+                    let trimmed = node.text.trim();
+                    if trimmed.is_empty() {
+                        return None;
+                    }
+                    IrBlock::Para(trimmed.to_owned())
+                } else {
+                    IrBlock::RawBlock(Format("tex".to_owned()), node.text.clone())
+                }
+            }
+            Kind::BlockQuote => {
+                if self.extensions.contains(Extension::Alerts)
+                    && let Some(alert) = self.build_alert(index)
+                {
+                    alert
+                } else {
+                    IrBlock::BlockQuote(self.build_children(index))
+                }
+            }
             Kind::FencedDiv(info) => IrBlock::Div(info.attr.clone(), self.build_children(index)),
+            Kind::HtmlElement(info) => {
+                // The raw form is emitted as three blocks (open tag, content, close tag), spliced
+                // into the parent by `build_children`; only the div form is a single block here.
+                if !info.as_div {
+                    return None;
+                }
+                let mut children = self.build_children(index);
+                if info.tighten_last {
+                    tighten_last_block(&mut children);
+                }
+                IrBlock::Div(info.attr.clone(), children)
+            }
             Kind::List(info) => self.build_list(index, info),
         };
         Some(block)
+    }
+
+    /// Finalize a raw HTML block's text. The markdown dialect drops a block's final newline; the
+    /// strict dialect instead pads an unterminated kind 1–5 block, which closes only on an explicit
+    /// end tag, so reaching end-of-input with it still open surfaces as a trailing blank line.
+    fn finalize_html_block(&self, node: &Node, kind: u8) -> String {
+        let mut text = node.text.clone();
+        if self.greedy_paragraphs {
+            if text.ends_with('\n') {
+                text.pop();
+            }
+        } else if node.open && matches!(kind, 1..=5) {
+            text.push('\n');
+        }
+        text
+    }
+
+    /// A blockquote whose first content line is exactly an alert marker `[!TYPE]` (with `TYPE` one of
+    /// the recognized kinds, case-insensitive, and nothing but trailing whitespace after the `]`)
+    /// becomes a `Div` classed by the lowercased type. Its first child is a titled `Div` holding the
+    /// type's display name; the marker line is stripped from the quote's first paragraph, and the
+    /// rest of the quote's content follows. Returns `None` when the first line is not a clean marker,
+    /// leaving the blockquote as an ordinary `BlockQuote`.
+    fn build_alert(&self, index: usize) -> Option<IrBlock> {
+        let node = self.nodes.get(index)?;
+        let &first = node.children.first()?;
+        let first_node = self.nodes.get(first)?;
+        if !matches!(first_node.kind, Kind::Paragraph) {
+            return None;
+        }
+        // The marker must occupy the paragraph's first line, with no leading whitespace and only
+        // trailing whitespace after the closing bracket; inspecting the raw (untrimmed) text keeps
+        // a leading space — which disables the marker — visible.
+        let (marker_line, rest_of_para) = match first_node.text.split_once('\n') {
+            Some((line, rest)) => (line, Some(rest)),
+            None => (first_node.text.as_str(), None),
+        };
+        // Known limitation: a marker indented two or more columns inside the quote (e.g. `>  [!NOTE]`)
+        // is not an alert, but the block phase has already folded that insignificant paragraph indent
+        // away by this point, so the marker still reads as clean here. Markers at zero or one column
+        // — the conventional spelling — are classified correctly.
+        let alert_type = alert_marker_type(marker_line)?;
+
+        let title = IrBlock::Div(
+            Attr {
+                id: String::new(),
+                classes: vec!["title".to_owned()],
+                attributes: Vec::new(),
+            },
+            vec![IrBlock::Para(alert_type.title.to_owned())],
+        );
+
+        let mut content = vec![title];
+        // Anything left on the marker's own paragraph after dropping its first line stays a paragraph.
+        if let Some(rest) = rest_of_para {
+            let trimmed = rest.trim();
+            if !trimmed.is_empty() {
+                content.push(IrBlock::Para(trimmed.to_owned()));
+            }
+        }
+        for &child in node.children.iter().skip(1) {
+            if let Some(block) = self.build_block(child) {
+                content.push(block);
+            }
+        }
+
+        Some(IrBlock::Div(
+            Attr {
+                id: String::new(),
+                classes: vec![alert_type.class.to_owned()],
+                attributes: Vec::new(),
+            },
+            content,
+        ))
     }
 
     /// Build a definition list from its item and definition containers. Each item contributes its
@@ -1693,6 +2114,16 @@ impl Parser {
     }
 }
 
+/// Tighten an HTML element's final content block from `Para` to `Plain` when no blank line
+/// separated it from the close tag.
+fn tighten_last_block(blocks: &mut [IrBlock]) {
+    if let Some(block) = blocks.last_mut()
+        && let IrBlock::Para(text) = block
+    {
+        *block = IrBlock::Plain(std::mem::take(text));
+    }
+}
+
 /// In a tight list, item paragraphs render as `Plain` rather than `Para`.
 pub(crate) fn demote_loose_paragraphs(blocks: &mut [IrBlock]) {
     for block in blocks {
@@ -1737,8 +2168,8 @@ fn attach_table_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
             i += 1;
             continue;
         };
-        let attached = (i >= 1 && set_table_caption(blocks, i - 1, &caption))
-            || (i + 1 < blocks.len() && set_table_caption(blocks, i + 1, &caption));
+        let attached = (i >= 1 && set_table_caption(blocks, i - 1, &caption, ext))
+            || (i + 1 < blocks.len() && set_table_caption(blocks, i + 1, &caption, ext));
         if attached {
             blocks.remove(i);
         } else {
@@ -1777,25 +2208,128 @@ fn strip_caption_marker(first: &str) -> Option<&str> {
 }
 
 /// Set `text` as the caption of the table at `index`, if that block is a pipe, dash-ruled, or grid
-/// table that has no caption yet. Returns whether the caption was attached.
-fn set_table_caption(blocks: &mut [IrBlock], index: usize, text: &str) -> bool {
-    let slot = match blocks.get_mut(index) {
-        Some(IrBlock::Table { caption, .. }) => caption,
-        Some(IrBlock::TextTable(table)) => &mut table.caption,
-        Some(IrBlock::GridTable(table)) => &mut table.caption,
+/// table that has no caption yet. Returns whether the caption was attached. With
+/// [`Extension::TableAttributes`] enabled, a trailing `{…}` attribute block on the caption is split
+/// off and applied to the table's outer attributes; the remaining text becomes the caption.
+fn set_table_caption(blocks: &mut [IrBlock], index: usize, text: &str, ext: Extensions) -> bool {
+    let (caption_slot, attr_slot) = match blocks.get_mut(index) {
+        Some(IrBlock::Table { caption, attr, .. }) => (caption, attr),
+        Some(IrBlock::TextTable(table)) => (&mut table.caption, &mut table.attr),
+        Some(IrBlock::GridTable(table)) => (&mut table.caption, &mut table.attr),
         _ => return false,
     };
-    if slot.is_none() {
-        *slot = Some(text.to_owned());
-        return true;
+    if caption_slot.is_some() {
+        return false;
     }
-    false
+    let (body, parsed) = if ext.contains(Extension::TableAttributes) {
+        split_trailing_attr(text)
+    } else {
+        (text, None)
+    };
+    *caption_slot = Some(body.to_owned());
+    if let Some(parsed) = parsed {
+        *attr_slot = parsed;
+    }
+    true
+}
+
+/// Split a trailing `{…}` attribute block off the end of a caption. Returns the caption text with the
+/// block and any whitespace before it removed, alongside the parsed attributes. When the text has no
+/// well-formed trailing attribute block, the text is returned unchanged with `None`.
+fn split_trailing_attr(text: &str) -> (&str, Option<Attr>) {
+    let trimmed = text.trim_end();
+    if !trimmed.ends_with('}') {
+        return (text, None);
+    }
+    // The trailing block opens at some `{`; find the one whose attribute parse consumes exactly to
+    // the end. Earlier `{` characters stay part of the caption text.
+    for (open, _) in trimmed.char_indices().filter(|&(_, ch)| ch == '{') {
+        if let Some(rest) = trimmed.get(open..)
+            && let Some((attr, consumed)) = attr::parse_attributes(rest)
+            && consumed == rest.len()
+        {
+            let body = trimmed.get(..open).map_or("", str::trim_end);
+            return (body, Some(attr));
+        }
+    }
+    (text, None)
 }
 
 enum Continue {
     Matched,
     MatchedLeaf,
     NotMatched,
+}
+
+/// Math environments are rendered inline rather than as block-level raw TeX, so a `\begin` opening
+/// one is not a block environment. The base name is matched exactly; a single trailing `*` (the
+/// unnumbered variant) counts as the same environment.
+fn is_math_environment(name: &str) -> bool {
+    const MATH_ENVS: &[&str] = &[
+        "equation",
+        "align",
+        "gather",
+        "multline",
+        "eqnarray",
+        "flalign",
+        "alignat",
+        "displaymath",
+        "math",
+        "dmath",
+    ];
+    let base = name.strip_suffix('*').unwrap_or(name);
+    MATH_ENVS.contains(&base)
+}
+
+/// If `s` begins with `\<keyword>` (optionally followed by spaces) then a braced `{name}`, return
+/// the literal brace content. The leading backslash must not itself be escaped — callers pass the
+/// raw slice from a line start, where this holds. The brace content runs to the first `}` and may be
+/// empty; it is compared exactly elsewhere, so inner spaces are significant.
+fn raw_tex_env_name(s: &str, keyword: &[u8]) -> Option<String> {
+    let after_backslash = s.strip_prefix('\\')?;
+    let after_keyword = after_backslash.strip_prefix(std::str::from_utf8(keyword).ok()?)?;
+    let after_spaces = after_keyword.trim_start_matches(' ');
+    let body = after_spaces.strip_prefix('{')?;
+    let close = body.find('}')?;
+    body.get(..close).map(str::to_owned)
+}
+
+/// Scan one source `line` of an open environment named `name`, starting at nesting `depth`. Returns
+/// the depth after the line and, when the environment's matching `\end{name}` is reached (depth back
+/// to zero), the byte offset just past that `\end{...}`. Backslash escapes are honored: a `\\`
+/// consumes both characters so an escaped command never counts toward the depth.
+fn raw_tex_scan(line: &str, name: &str, mut depth: usize) -> (usize, Option<usize>) {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes.get(i) != Some(&b'\\') {
+            i += 1;
+            continue;
+        }
+        // An escaped backslash consumes both bytes and starts no command.
+        if bytes.get(i + 1) == Some(&b'\\') {
+            i += 2;
+            continue;
+        }
+        let rest = line.get(i..).unwrap_or("");
+        if raw_tex_env_name(rest, b"begin").as_deref() == Some(name) {
+            depth += 1;
+            i += 1;
+            continue;
+        }
+        if raw_tex_env_name(rest, b"end").as_deref() == Some(name) {
+            depth = depth.saturating_sub(1);
+            // Advance past this `\end{...}` so the close offset lands just after its brace.
+            let end_off = rest.find('}').map_or(line.len(), |brace| i + brace + 1);
+            if depth == 0 {
+                return (0, Some(end_off));
+            }
+            i = end_off;
+            continue;
+        }
+        i += 1;
+    }
+    (depth, None)
 }
 
 /// The number for an example item, given its `@label` (or `None` for the anonymous `@`). A new or
@@ -1879,6 +2413,26 @@ fn continues_roman(marker: &ListMarkerParse) -> bool {
     ) || matches!(marker.start, 1 | 3 | 4 | 5 | 9 | 10 | 12 | 13 | 22 | 24)
 }
 
+/// If a fence's info string is exactly an attribute block holding only a raw-format marker — a `{`,
+/// optional whitespace, `=`, a format name, optional whitespace, then `}` — return that name. The
+/// fence's contents are then raw output for that format. A format name is one run of letters,
+/// digits, `-`, or `_`; anything else (extra attributes, a space inside the name, a stray symbol)
+/// is not a raw marker and the fence stays an ordinary code block.
+fn raw_block_format(info: &str) -> Option<String> {
+    let inner = info.trim().strip_prefix('{')?.strip_suffix('}')?;
+    // The `=` immediately precedes the name: `{= html}` (a gap after `=`) is not a raw marker,
+    // while surrounding whitespace (`{ =html }`) is allowed.
+    let name = inner.trim_start().strip_prefix('=')?.trim_end();
+    if name.is_empty() || !name.chars().all(is_format_name_char) {
+        return None;
+    }
+    Some(name.to_owned())
+}
+
+pub(super) fn is_format_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
+}
+
 fn fence_attr(info: &str, extensions: Extensions) -> Attr {
     let info = info.trim();
     if info.is_empty() {
@@ -1915,6 +2469,67 @@ fn div_open_fence(line: &str) -> Option<(usize, Attr)> {
     }
     let attr = div_open_attr(after_colons.trim())?;
     Some((count, attr))
+}
+
+/// The recognized alert kinds: the marker spelling (matched case-insensitively), the lowercased
+/// class applied to the wrapping div, and the display title.
+struct AlertType {
+    class: &'static str,
+    title: &'static str,
+}
+
+const ALERT_TYPES: &[(&str, AlertType)] = &[
+    (
+        "note",
+        AlertType {
+            class: "note",
+            title: "Note",
+        },
+    ),
+    (
+        "tip",
+        AlertType {
+            class: "tip",
+            title: "Tip",
+        },
+    ),
+    (
+        "important",
+        AlertType {
+            class: "important",
+            title: "Important",
+        },
+    ),
+    (
+        "warning",
+        AlertType {
+            class: "warning",
+            title: "Warning",
+        },
+    ),
+    (
+        "caution",
+        AlertType {
+            class: "caution",
+            title: "Caution",
+        },
+    ),
+];
+
+/// If `line` is exactly an alert marker `[!TYPE]` followed by only trailing whitespace — with no
+/// leading whitespace and a recognized `TYPE` matched case-insensitively — return its kind.
+fn alert_marker_type(line: &str) -> Option<&'static AlertType> {
+    let inner = line.strip_prefix("[!")?;
+    let close = inner.find(']')?;
+    let name = inner.get(..close)?;
+    // Only whitespace may follow the closing bracket.
+    if !inner.get(close + 1..)?.chars().all(char::is_whitespace) {
+        return None;
+    }
+    ALERT_TYPES
+        .iter()
+        .find(|(spelling, _)| name.eq_ignore_ascii_case(spelling))
+        .map(|(_, ty)| ty)
 }
 
 /// Parse a fenced-div opener's attribute spec (the text after the colons, already trimmed). It is
@@ -2083,6 +2698,273 @@ fn strip_atx_closing(content: &str) -> String {
     }
 }
 
+/// Recognition of block-level HTML elements whose inner content is parsed as markdown: scanning an
+/// open tag (name, attributes, extent) and locating its matching close tag. Pure functions over the
+/// raw line text.
+mod html_element {
+    use carta_ast::Attr;
+
+    /// A recognized open tag at the start of a line.
+    pub(super) struct OpenTag {
+        /// The lowercased tag name.
+        pub(super) tag: String,
+        /// Attributes parsed from the tag (`id`, `class`, and other key/values).
+        pub(super) attr: Attr,
+        /// Byte length of the whole tag, up to and including the closing `>`.
+        pub(super) len: usize,
+    }
+
+    /// A located close tag within a line.
+    pub(super) struct CloseTag {
+        /// Byte offset where `</` begins.
+        pub(super) start: usize,
+        /// Byte offset just past the closing `>`.
+        pub(super) end: usize,
+    }
+
+    /// Block-level tag names whose elements carry parsed markdown content. Inline tags (`em`, `span`,
+    /// `a`, …) and unrecognized names are left for the inline phase as raw HTML.
+    const BLOCK_TAGS: &[&str] = &[
+        "address",
+        "article",
+        "aside",
+        "base",
+        "basefont",
+        "blockquote",
+        "body",
+        "caption",
+        "center",
+        "col",
+        "colgroup",
+        "dd",
+        "details",
+        "dialog",
+        "dir",
+        "div",
+        "dl",
+        "dt",
+        "fieldset",
+        "figcaption",
+        "figure",
+        "footer",
+        "form",
+        "frame",
+        "frameset",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "header",
+        "hr",
+        "html",
+        "iframe",
+        "legend",
+        "li",
+        "link",
+        "main",
+        "menu",
+        "menuitem",
+        "nav",
+        "noframes",
+        "ol",
+        "optgroup",
+        "option",
+        "p",
+        "param",
+        "search",
+        "section",
+        "summary",
+        "table",
+        "tbody",
+        "td",
+        "tfoot",
+        "th",
+        "thead",
+        "title",
+        "tr",
+        "track",
+        "ul",
+    ];
+
+    fn is_block_tag(name: &str) -> bool {
+        BLOCK_TAGS.contains(&name)
+    }
+
+    /// If `s` begins with a recognized block-level HTML open tag, return its name, attributes, and
+    /// byte extent. A self-closing tag (`<div/>`) parses as an ordinary open tag here.
+    pub(super) fn parse_open_tag(s: &str) -> Option<OpenTag> {
+        let bytes = s.as_bytes();
+        if bytes.first() != Some(&b'<') {
+            return None;
+        }
+        let mut i = 1;
+        let name_start = i;
+        if !bytes.get(i).is_some_and(u8::is_ascii_alphabetic) {
+            return None;
+        }
+        i += 1;
+        while bytes
+            .get(i)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'-')
+        {
+            i += 1;
+        }
+        let name = s.get(name_start..i)?.to_ascii_lowercase();
+        if !is_block_tag(&name) {
+            return None;
+        }
+        let mut attr = Attr::default();
+        loop {
+            let after_ws = skip_ws(bytes, i);
+            // A `>` (optionally preceded by a self-closing `/`) ends the tag.
+            let close = if bytes.get(after_ws) == Some(&b'/') {
+                after_ws + 1
+            } else {
+                after_ws
+            };
+            if bytes.get(close) == Some(&b'>') {
+                return Some(OpenTag {
+                    tag: name,
+                    attr,
+                    len: close + 1,
+                });
+            }
+            // An attribute must be separated from the name (or a previous attribute) by whitespace.
+            if after_ws == i {
+                return None;
+            }
+            i = read_attribute(bytes, after_ws, &mut attr)?;
+        }
+    }
+
+    /// Read one `name[=value]` attribute starting at `start`, folding it into `attr`, and return the
+    /// index just past it. `id` sets the identifier, `class` adds whitespace-separated classes (the
+    /// first `class` wins), and any other name becomes a key/value pair in source order.
+    fn read_attribute(bytes: &[u8], start: usize, attr: &mut Attr) -> Option<usize> {
+        let mut i = start;
+        let name_start = i;
+        if !bytes
+            .get(i)
+            .is_some_and(|b| b.is_ascii_alphabetic() || matches!(b, b'_' | b':'))
+        {
+            return None;
+        }
+        i += 1;
+        while bytes
+            .get(i)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b':' | b'-'))
+        {
+            i += 1;
+        }
+        let name = ascii_lower(bytes.get(name_start..i)?);
+        let probe = skip_ws(bytes, i);
+        let mut value = String::new();
+        let mut end = i;
+        if bytes.get(probe) == Some(&b'=') {
+            let (val, next) = read_value(bytes, probe + 1)?;
+            value = val;
+            end = next;
+        }
+        match name.as_str() {
+            "id" => attr.id = value,
+            "class" => {
+                if attr.classes.is_empty() {
+                    attr.classes = value.split_whitespace().map(str::to_owned).collect();
+                }
+            }
+            _ => attr.attributes.push((name, value)),
+        }
+        Some(end)
+    }
+
+    /// Read an attribute value (quoted or bare) starting at `start`, returning it and the index just
+    /// past it. A started-but-unterminated value is malformed.
+    fn read_value(bytes: &[u8], start: usize) -> Option<(String, usize)> {
+        let i = skip_ws(bytes, start);
+        match bytes.get(i) {
+            Some(quote @ (b'"' | b'\'')) => {
+                let quote = *quote;
+                let value_start = i + 1;
+                let mut j = value_start;
+                while bytes.get(j).is_some_and(|b| *b != quote) {
+                    j += 1;
+                }
+                if bytes.get(j) != Some(&quote) {
+                    return None;
+                }
+                Some((bytes_to_string(bytes.get(value_start..j)?), j + 1))
+            }
+            Some(_) => {
+                let value_start = i;
+                let mut j = i;
+                while bytes.get(j).is_some_and(|b| {
+                    !matches!(b, b' ' | b'\t' | b'"' | b'\'' | b'=' | b'<' | b'>' | b'`')
+                }) {
+                    j += 1;
+                }
+                if j == value_start {
+                    return None;
+                }
+                Some((bytes_to_string(bytes.get(value_start..j)?), j))
+            }
+            None => None,
+        }
+    }
+
+    /// Locate the first matching close tag `</name>` (with optional trailing whitespace before `>`)
+    /// in `s`, returning its byte range. The name match is case-insensitive.
+    pub(super) fn find_close_tag(s: &str, tag: &str) -> Option<CloseTag> {
+        let bytes = s.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes.get(i) == Some(&b'<')
+                && bytes.get(i + 1) == Some(&b'/')
+                && let Some(end) = close_tag_at(bytes, i, tag)
+            {
+                return Some(CloseTag { start: i, end });
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// If a close tag for `tag` begins at `start`, return the index just past its `>`.
+    fn close_tag_at(bytes: &[u8], start: usize, tag: &str) -> Option<usize> {
+        let name_start = start + 2;
+        let mut i = name_start;
+        while bytes
+            .get(i)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'-')
+        {
+            i += 1;
+        }
+        let name = ascii_lower(bytes.get(name_start..i)?);
+        if name != tag {
+            return None;
+        }
+        i = skip_ws(bytes, i);
+        (bytes.get(i) == Some(&b'>')).then_some(i + 1)
+    }
+
+    fn skip_ws(bytes: &[u8], mut i: usize) -> usize {
+        while bytes.get(i).is_some_and(|b| matches!(b, b' ' | b'\t')) {
+            i += 1;
+        }
+        i
+    }
+
+    fn ascii_lower(bytes: &[u8]) -> String {
+        bytes_to_string(bytes).to_ascii_lowercase()
+    }
+
+    fn bytes_to_string(bytes: &[u8]) -> String {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::strip_caption_marker;
@@ -2118,5 +3000,613 @@ mod tests {
     fn a_line_without_a_marker_is_rejected() {
         assert_eq!(strip_caption_marker("Just a paragraph"), None);
         assert_eq!(strip_caption_marker("Tablexyz"), None);
+    }
+
+    use super::raw_block_format;
+
+    #[test]
+    fn plain_raw_format_marker_is_recognized() {
+        assert_eq!(raw_block_format("{=html}"), Some("html".to_owned()));
+        assert_eq!(raw_block_format("{=latex}"), Some("latex".to_owned()));
+        assert_eq!(raw_block_format("{=html-foo}"), Some("html-foo".to_owned()));
+        assert_eq!(raw_block_format("{=html_foo}"), Some("html_foo".to_owned()));
+        assert_eq!(raw_block_format("{=html5}"), Some("html5".to_owned()));
+    }
+
+    #[test]
+    fn whitespace_around_the_marker_is_tolerated() {
+        assert_eq!(raw_block_format("{ =html}"), Some("html".to_owned()));
+        assert_eq!(raw_block_format("{=html }"), Some("html".to_owned()));
+        assert_eq!(raw_block_format("  {=html}  "), Some("html".to_owned()));
+    }
+
+    #[test]
+    fn a_gap_after_the_equals_is_not_a_marker() {
+        assert_eq!(raw_block_format("{= html}"), None);
+    }
+
+    #[test]
+    fn extra_attributes_or_an_empty_format_are_not_markers() {
+        assert_eq!(raw_block_format("{=html .foo}"), None);
+        assert_eq!(raw_block_format("{=html foo}"), None);
+        assert_eq!(raw_block_format("{=}"), None);
+        assert_eq!(raw_block_format("{}"), None);
+    }
+
+    #[test]
+    fn a_symbol_in_the_format_name_is_not_a_marker() {
+        assert_eq!(raw_block_format("{=ht.ml}"), None);
+        assert_eq!(raw_block_format("{=ht/ml}"), None);
+        assert_eq!(raw_block_format("{=ht+ml}"), None);
+        assert_eq!(raw_block_format("{=ht:ml}"), None);
+    }
+
+    #[test]
+    fn an_ordinary_info_string_is_not_a_marker() {
+        assert_eq!(raw_block_format("html"), None);
+        assert_eq!(raw_block_format("=html"), None);
+        assert_eq!(raw_block_format("{.html}"), None);
+    }
+
+    use super::{IrBlock, is_math_environment, parse, raw_tex_env_name, raw_tex_scan};
+    use carta_ast::Format;
+    use carta_core::presets;
+
+    fn blocks(input: &str) -> Vec<IrBlock> {
+        parse(input, presets::MARKDOWN, true).0
+    }
+
+    #[test]
+    fn reads_the_begin_environment_name() {
+        assert_eq!(
+            raw_tex_env_name("\\begin{center}", b"begin").as_deref(),
+            Some("center")
+        );
+        assert_eq!(
+            raw_tex_env_name("\\begin {center}", b"begin").as_deref(),
+            Some("center")
+        );
+        assert_eq!(
+            raw_tex_env_name("\\end{a}rest", b"end").as_deref(),
+            Some("a")
+        );
+        assert_eq!(
+            raw_tex_env_name("\\begin{ a }", b"begin").as_deref(),
+            Some(" a ")
+        );
+        assert_eq!(raw_tex_env_name("\\begin{}", b"begin").as_deref(), Some(""));
+        // A bare word, a missing brace, or the wrong keyword is not a match.
+        assert_eq!(raw_tex_env_name("\\beginabc", b"begin"), None);
+        assert_eq!(raw_tex_env_name("\\begin center", b"begin"), None);
+        assert_eq!(raw_tex_env_name("begin{a}", b"begin"), None);
+    }
+
+    #[test]
+    fn math_environments_are_excluded() {
+        assert!(is_math_environment("equation"));
+        assert!(is_math_environment("align*"));
+        assert!(is_math_environment("math"));
+        assert!(is_math_environment("dmath"));
+        assert!(!is_math_environment("center"));
+        assert!(!is_math_environment("align**"));
+        assert!(!is_math_environment("xalignat"));
+        assert!(!is_math_environment("Equation"));
+    }
+
+    #[test]
+    fn scan_tracks_depth_and_finds_the_close() {
+        // The opener line alone opens at depth one and does not close.
+        assert_eq!(raw_tex_scan("\\begin{a}", "a", 0), (1, None));
+        // A matching end on a content line returns the offset past its brace.
+        let (depth, close) = raw_tex_scan("\\end{a}rest", "a", 1);
+        assert_eq!(depth, 0);
+        assert_eq!(close, Some("\\end{a}".len()));
+        // An unrelated end name is content, not a close.
+        assert_eq!(raw_tex_scan("\\end{c}", "a", 1), (1, None));
+        // Same-name nesting deepens and lifts the count.
+        assert_eq!(raw_tex_scan("\\begin{a}\\end{a}", "a", 1), (1, None));
+        // An escaped command does not count toward the depth.
+        assert_eq!(raw_tex_scan("\\\\end{a}", "a", 1), (1, None));
+    }
+
+    #[test]
+    fn a_full_environment_becomes_a_raw_tex_block() {
+        let out = blocks("\\begin{center}\nx\n\\end{center}\nafter\n");
+        assert!(matches!(
+            out.first(),
+            Some(IrBlock::RawBlock(Format(fmt), body))
+                if fmt == "tex" && body == "\\begin{center}\nx\n\\end{center}"
+        ));
+        assert!(matches!(out.get(1), Some(IrBlock::Para(p)) if p == "after"));
+    }
+
+    #[test]
+    fn a_single_line_environment_closes_on_its_own_line() {
+        let out = blocks("\\begin{center}x\\end{center}\ny\n");
+        assert!(matches!(
+            out.first(),
+            Some(IrBlock::RawBlock(Format(fmt), body))
+                if fmt == "tex" && body == "\\begin{center}x\\end{center}"
+        ));
+        assert!(matches!(out.get(1), Some(IrBlock::Para(p)) if p == "y"));
+    }
+
+    #[test]
+    fn an_unclosed_environment_falls_back_to_a_paragraph() {
+        let out = blocks("\\begin{center}\nx\ny\n");
+        assert_eq!(out.len(), 1);
+        assert!(matches!(out.first(), Some(IrBlock::Para(_))));
+    }
+
+    #[test]
+    fn a_math_environment_stays_out_of_a_raw_block() {
+        // An \begin opening a math environment is not a block-level raw TeX environment.
+        let out = blocks("\\begin{align}\nx\n\\end{align}\n");
+        assert!(!matches!(out.first(), Some(IrBlock::RawBlock(..))));
+    }
+
+    #[test]
+    fn an_indented_begin_is_a_code_block() {
+        let out = blocks("    \\begin{center}\n    x\n    \\end{center}\n");
+        assert!(matches!(out.first(), Some(IrBlock::CodeBlock(..))));
+    }
+
+    #[test]
+    fn the_extension_off_leaves_the_syntax_literal() {
+        let out = parse(
+            "\\begin{center}\nx\n\\end{center}\n",
+            presets::COMMONMARK,
+            false,
+        )
+        .0;
+        assert_eq!(out.len(), 1);
+        assert!(matches!(out.first(), Some(IrBlock::Para(_))));
+    }
+
+    use super::alert_marker_type;
+
+    fn gfm_blocks(input: &str) -> Vec<IrBlock> {
+        parse(input, presets::GFM, false).0
+    }
+
+    #[test]
+    fn alert_marker_recognizes_every_kind_case_insensitively() {
+        assert_eq!(alert_marker_type("[!NOTE]").map(|t| t.class), Some("note"));
+        assert_eq!(alert_marker_type("[!tip]").map(|t| t.class), Some("tip"));
+        assert_eq!(
+            alert_marker_type("[!Important]").map(|t| t.class),
+            Some("important")
+        );
+        assert_eq!(
+            alert_marker_type("[!wArNiNg]").map(|t| t.class),
+            Some("warning")
+        );
+        assert_eq!(
+            alert_marker_type("[!CAUTION]").map(|t| t.title),
+            Some("Caution")
+        );
+    }
+
+    #[test]
+    fn alert_marker_allows_only_trailing_whitespace() {
+        assert!(alert_marker_type("[!NOTE]").is_some());
+        assert!(alert_marker_type("[!NOTE]   ").is_some());
+        assert!(alert_marker_type("[!NOTE]\t").is_some());
+        // Anything other than whitespace after the bracket disqualifies the marker.
+        assert!(alert_marker_type("[!NOTE] hi").is_none());
+        assert!(alert_marker_type("[!NOTE]x").is_none());
+    }
+
+    #[test]
+    fn alert_marker_rejects_unknown_or_malformed_markers() {
+        assert!(alert_marker_type("[!FOO]").is_none());
+        assert!(alert_marker_type("[!]").is_none());
+        assert!(alert_marker_type("[NOTE]").is_none());
+        assert!(alert_marker_type(" [!NOTE]").is_none());
+        assert!(alert_marker_type("[!NOTE").is_none());
+    }
+
+    #[test]
+    fn an_alert_blockquote_becomes_a_titled_div() {
+        let out = gfm_blocks("> [!NOTE]\n> This is a note.\n");
+        let Some(IrBlock::Div(attr, content)) = out.first() else {
+            panic!("expected a div, got {out:?}");
+        };
+        assert_eq!(attr.classes, vec!["note".to_owned()]);
+        let Some(IrBlock::Div(title_attr, title)) = content.first() else {
+            panic!("expected a title div");
+        };
+        assert_eq!(title_attr.classes, vec!["title".to_owned()]);
+        assert!(matches!(title.as_slice(), [IrBlock::Para(t)] if t == "Note"));
+        assert!(matches!(content.get(1), Some(IrBlock::Para(t)) if t == "This is a note."));
+    }
+
+    #[test]
+    fn a_marker_only_alert_carries_just_its_title() {
+        let out = gfm_blocks("> [!TIP]\n");
+        let Some(IrBlock::Div(attr, content)) = out.first() else {
+            panic!("expected a div");
+        };
+        assert_eq!(attr.classes, vec!["tip".to_owned()]);
+        assert_eq!(content.len(), 1);
+        assert!(matches!(content.first(), Some(IrBlock::Div(..))));
+    }
+
+    #[test]
+    fn an_alert_preserves_richer_body_content() {
+        let out = gfm_blocks("> [!WARNING]\n> # Heading\n");
+        let Some(IrBlock::Div(_, content)) = out.first() else {
+            panic!("expected a div");
+        };
+        assert!(matches!(content.get(1), Some(IrBlock::Heading(1, _))));
+    }
+
+    #[test]
+    fn an_unknown_marker_leaves_the_blockquote_intact() {
+        let out = gfm_blocks("> [!FOO]\n> x\n");
+        assert!(matches!(out.first(), Some(IrBlock::BlockQuote(_))));
+    }
+
+    #[test]
+    fn trailing_text_on_the_marker_line_leaves_the_blockquote_intact() {
+        let out = gfm_blocks("> [!NOTE] hello\n> x\n");
+        assert!(matches!(out.first(), Some(IrBlock::BlockQuote(_))));
+    }
+
+    #[test]
+    fn alerts_off_leaves_the_marker_literal() {
+        let out = parse("> [!NOTE]\n> x\n", presets::COMMONMARK, true).0;
+        assert!(matches!(out.first(), Some(IrBlock::BlockQuote(_))));
+    }
+
+    use super::split_trailing_attr;
+
+    fn table_attr_and_caption(input: &str) -> (carta_ast::Attr, Option<String>) {
+        let out = blocks(input);
+        match out.into_iter().next() {
+            Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
+            Some(IrBlock::TextTable(table)) => (table.attr, table.caption),
+            Some(IrBlock::GridTable(table)) => (table.attr, table.caption),
+            other => panic!("expected a table, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn split_trailing_attr_strips_the_block() {
+        let (body, attr) = split_trailing_attr("My cap {#t .w}");
+        assert_eq!(body, "My cap");
+        let attr = attr.expect("attr parsed");
+        assert_eq!(attr.id, "t");
+        assert_eq!(attr.classes, ["w"]);
+    }
+
+    #[test]
+    fn split_trailing_attr_keeps_non_trailing_braces_literal() {
+        // Only the last block at the very end is an attribute block.
+        let (body, attr) = split_trailing_attr("Cap {#x} {#y}");
+        assert_eq!(body, "Cap {#x}");
+        assert_eq!(attr.expect("attr parsed").id, "y");
+        // A block followed by more text is not trailing and stays untouched.
+        assert_eq!(
+            split_trailing_attr("Cap {#x} more"),
+            ("Cap {#x} more", None)
+        );
+    }
+
+    #[test]
+    fn split_trailing_attr_rejects_malformed_blocks() {
+        assert_eq!(split_trailing_attr("Cap {#x").0, "Cap {#x");
+        assert!(split_trailing_attr("Cap {#x").1.is_none());
+        assert_eq!(split_trailing_attr("Cap {bad !!}").0, "Cap {bad !!}");
+        assert!(split_trailing_attr("Cap {bad !!}").1.is_none());
+        assert_eq!(split_trailing_attr("plain text").0, "plain text");
+    }
+
+    #[test]
+    fn caption_attributes_attach_to_the_table() {
+        let (attr, caption) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: My cap {#t .w}\n");
+        assert_eq!(attr.id, "t");
+        assert_eq!(attr.classes, ["w"]);
+        assert_eq!(caption.as_deref(), Some("My cap"));
+    }
+
+    #[test]
+    fn caption_keyvals_attach_to_the_table() {
+        let (attr, _) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: c {key=val}\n");
+        assert_eq!(attr.attributes, [("key".to_owned(), "val".to_owned())]);
+    }
+
+    #[test]
+    fn caption_without_a_block_leaves_attr_empty() {
+        let (attr, caption) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: just a caption\n");
+        assert!(attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty());
+        assert_eq!(caption.as_deref(), Some("just a caption"));
+    }
+
+    #[test]
+    fn caption_attributes_are_inert_without_the_extension() {
+        // With table attributes disabled, the trailing block on a caption is kept verbatim as
+        // caption text rather than split off onto the table's attributes.
+        let mut table = blocks("| a |\n|---|\n| 1 |\n");
+        assert!(super::set_table_caption(
+            &mut table,
+            0,
+            "c {#t}",
+            presets::COMMONMARK
+        ));
+        let (attr, caption) = match table.into_iter().next() {
+            Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
+            Some(IrBlock::TextTable(t)) => (t.attr, t.caption),
+            other => panic!("expected a table, got {other:?}"),
+        };
+        assert!(attr.id.is_empty());
+        assert_eq!(caption.as_deref(), Some("c {#t}"));
+    }
+}
+
+#[cfg(test)]
+mod html_element_tests {
+    use super::{IrBlock, html_element, parse};
+    use carta_core::{Extension, Extensions, presets};
+
+    fn md(input: &str) -> Vec<IrBlock> {
+        parse(input, presets::MARKDOWN, true).0
+    }
+
+    fn with(input: &str, exts: &[Extension]) -> Vec<IrBlock> {
+        parse(input, Extensions::from_list(exts), true).0
+    }
+
+    #[test]
+    fn div_becomes_a_div_with_parsed_attributes_and_content() {
+        let out = md("<div class=\"n\" id=\"d\">\n\n*hi* there\n\n</div>\n");
+        let [IrBlock::Div(attr, content)] = out.as_slice() else {
+            panic!("expected one div, got {out:?}");
+        };
+        assert_eq!(attr.id, "d");
+        assert_eq!(attr.classes, vec!["n".to_owned()]);
+        assert!(attr.attributes.is_empty());
+        assert!(matches!(content.as_slice(), [IrBlock::Para(_)]));
+    }
+
+    #[test]
+    fn div_attributes_split_class_keep_id_and_preserve_keyval_order() {
+        let out = md("<div data-z=\"1\" id=\"i\" data-a=\"2\" class=\"a b\">\n\nx\n\n</div>\n");
+        let [IrBlock::Div(attr, _)] = out.as_slice() else {
+            panic!("expected one div, got {out:?}");
+        };
+        assert_eq!(attr.id, "i");
+        assert_eq!(attr.classes, vec!["a".to_owned(), "b".to_owned()]);
+        assert_eq!(
+            attr.attributes,
+            vec![
+                ("data-z".to_owned(), "1".to_owned()),
+                ("data-a".to_owned(), "2".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn nested_divs_balance_into_a_tree() {
+        let out =
+            md("<div class=\"outer\">\n\n<div class=\"inner\">\n\ntext\n\n</div>\n\n</div>\n");
+        let [IrBlock::Div(outer, outer_children)] = out.as_slice() else {
+            panic!("expected one outer div, got {out:?}");
+        };
+        assert_eq!(outer.classes, vec!["outer".to_owned()]);
+        let [IrBlock::Div(inner, inner_children)] = outer_children.as_slice() else {
+            panic!("expected one inner div, got {outer_children:?}");
+        };
+        assert_eq!(inner.classes, vec!["inner".to_owned()]);
+        assert!(matches!(inner_children.as_slice(), [IrBlock::Para(_)]));
+    }
+
+    #[test]
+    fn div_final_block_tightens_only_when_the_close_tag_trails_content() {
+        // Close tag on its own line keeps the final block as `Para`, even without blank lines.
+        let para = md("<div>\nfoo\n</div>\n");
+        assert!(matches!(
+            para.as_slice(),
+            [IrBlock::Div(_, c)] if matches!(c.as_slice(), [IrBlock::Para(_)])
+        ));
+        // Close tag trailing content on the same line tightens the final block to `Plain`.
+        let plain = md("<div>\nfoo\nbar</div>\n");
+        assert!(matches!(
+            plain.as_slice(),
+            [IrBlock::Div(_, c)] if matches!(c.as_slice(), [IrBlock::Plain(_)])
+        ));
+        // An earlier block stays `Para`; only the trailing one tightens.
+        let mixed = md("<div>\n\nfoo\n\nbar</div>\n");
+        let [IrBlock::Div(_, content)] = mixed.as_slice() else {
+            panic!("expected one div, got {mixed:?}");
+        };
+        assert!(matches!(
+            content.as_slice(),
+            [IrBlock::Para(_), IrBlock::Plain(_)]
+        ));
+    }
+
+    #[test]
+    fn multibyte_attribute_values_do_not_leak_into_following_content() {
+        // The open tag is consumed by byte length, so a multibyte character in an attribute value
+        // leaves no stray bytes (e.g. the trailing `>`) to be re-read as a spurious block.
+        let out = md("<div class=\"café\">\n\nx\n\n</div>\n");
+        let [IrBlock::Div(attr, content)] = out.as_slice() else {
+            panic!("expected one div, got {out:?}");
+        };
+        assert_eq!(attr.classes, vec!["café".to_owned()]);
+        assert!(matches!(content.as_slice(), [IrBlock::Para(_)]));
+    }
+
+    #[test]
+    fn content_after_the_close_tag_is_a_following_block() {
+        let out = md("<div>\nfoo\n</div>more\n");
+        assert!(matches!(
+            out.as_slice(),
+            [IrBlock::Div(..), IrBlock::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn raw_html_block_trailing_newline_depends_on_dialect() {
+        // A raw HTML block (here a verbatim `<pre>`) keeps its final newline in the strict dialect
+        // and drops it in the markdown dialect.
+        let input = "<pre>\nhi\n</pre>\n";
+        let strict = parse(input, presets::COMMONMARK, false).0;
+        let [IrBlock::RawHtml(text)] = strict.as_slice() else {
+            panic!("expected one raw HTML block, got {strict:?}");
+        };
+        assert_eq!(text, "<pre>\nhi\n</pre>\n");
+
+        let markdown = parse(input, presets::COMMONMARK, true).0;
+        let [IrBlock::RawHtml(text)] = markdown.as_slice() else {
+            panic!("expected one raw HTML block, got {markdown:?}");
+        };
+        assert_eq!(text, "<pre>\nhi\n</pre>");
+    }
+
+    #[test]
+    fn non_div_block_tag_keeps_raw_tags_around_parsed_content() {
+        let out = md("<section class=\"n\">\n\n*hi*\n\n</section>\n");
+        let [
+            IrBlock::RawHtml(open),
+            IrBlock::Para(_),
+            IrBlock::RawHtml(close),
+        ] = out.as_slice()
+        else {
+            panic!("expected raw-open, para, raw-close; got {out:?}");
+        };
+        assert_eq!(open, "<section class=\"n\">");
+        assert_eq!(close, "</section>");
+    }
+
+    #[test]
+    fn raw_element_final_block_tightens_when_no_blank_precedes_the_close() {
+        // No blank line before the close tag: the final block is `Plain`.
+        let tight = md("<section>\nfoo\n</section>\n");
+        assert!(matches!(
+            tight.as_slice(),
+            [IrBlock::RawHtml(_), IrBlock::Plain(_), IrBlock::RawHtml(_)]
+        ));
+        // A blank line before the close tag keeps the final block `Para`.
+        let loose = md("<section>\nfoo\n\n</section>\n");
+        assert!(matches!(
+            loose.as_slice(),
+            [IrBlock::RawHtml(_), IrBlock::Para(_), IrBlock::RawHtml(_)]
+        ));
+    }
+
+    #[test]
+    fn native_divs_off_renders_a_div_as_a_raw_element() {
+        let out = with(
+            "<div class=\"n\">\n*hi*\n</div>\n",
+            &[Extension::MarkdownInHtmlBlocks],
+        );
+        let [
+            IrBlock::RawHtml(open),
+            IrBlock::Plain(_),
+            IrBlock::RawHtml(close),
+        ] = out.as_slice()
+        else {
+            panic!("expected raw div fallback, got {out:?}");
+        };
+        assert_eq!(open, "<div class=\"n\">");
+        assert_eq!(close, "</div>");
+    }
+
+    #[test]
+    fn both_extensions_off_leaves_the_html_block_reading_intact() {
+        // With neither extension, a `<div>` is an ordinary raw HTML block ended by a blank line, so
+        // its inner text is not parsed as a div or wrapped in tightened content.
+        let out = with("<div>\n\nfoo\n\n</div>\n", &[]);
+        let [
+            IrBlock::RawHtml(open),
+            IrBlock::Para(text),
+            IrBlock::RawHtml(_),
+        ] = out.as_slice()
+        else {
+            panic!("expected the raw HTML-block reading, got {out:?}");
+        };
+        assert!(open.starts_with("<div>"));
+        assert_eq!(text, "foo");
+    }
+
+    #[test]
+    fn inline_and_unknown_tags_are_not_block_elements() {
+        // `<em>`/`<span>` are inline and `<custom>` is unrecognized: none open a block element, so
+        // none produce a div.
+        for input in ["<em>\n\nx\n\n</em>\n", "<custom>\n\nx\n\n</custom>\n"] {
+            let out = md(input);
+            assert!(
+                !out.iter().any(|b| matches!(b, IrBlock::Div(..))),
+                "{input:?} should not produce a div, got {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unclosed_element_closes_at_end_of_input_without_a_close_tag() {
+        let out = md("<div>\n\nfoo\n");
+        let [IrBlock::Div(_, content)] = out.as_slice() else {
+            panic!("expected one div, got {out:?}");
+        };
+        assert!(matches!(content.as_slice(), [IrBlock::Para(_)]));
+        // A raw element left open emits no trailing close tag.
+        let raw = md("<section>\n\nfoo\n");
+        assert!(
+            !raw.iter()
+                .any(|b| matches!(b, IrBlock::RawHtml(t) if t.contains("</section>"))),
+            "an unclosed raw element should emit no close tag, got {raw:?}"
+        );
+    }
+
+    #[test]
+    fn parse_open_tag_reads_name_attributes_and_extent() {
+        let tag = html_element::parse_open_tag("<div id=\"x\" class=\"a b\" data-k=v>rest")
+            .expect("a div open tag");
+        assert_eq!(tag.tag, "div");
+        assert_eq!(tag.attr.id, "x");
+        assert_eq!(tag.attr.classes, vec!["a".to_owned(), "b".to_owned()]);
+        assert_eq!(
+            tag.attr.attributes,
+            vec![("data-k".to_owned(), "v".to_owned())]
+        );
+        // The extent stops just past the `>`, leaving any same-line remainder.
+        assert_eq!(tag.len, "<div id=\"x\" class=\"a b\" data-k=v>".len());
+    }
+
+    #[test]
+    fn parse_open_tag_rejects_non_block_and_malformed_tags() {
+        assert!(html_element::parse_open_tag("<em>").is_none());
+        assert!(html_element::parse_open_tag("<custom>").is_none());
+        assert!(html_element::parse_open_tag("not a tag").is_none());
+        assert!(html_element::parse_open_tag("<div class=\"oops>").is_none());
+    }
+
+    #[test]
+    fn parse_open_tag_keeps_only_the_first_class_attribute() {
+        let tag = html_element::parse_open_tag("<div class=\"a\" class=\"b\">").expect("a div");
+        assert_eq!(tag.attr.classes, vec!["a".to_owned()]);
+    }
+
+    #[test]
+    fn parse_open_tag_records_a_valueless_attribute_as_an_empty_value() {
+        let tag = html_element::parse_open_tag("<div hidden class=\"a\">").expect("a div");
+        assert_eq!(tag.attr.classes, vec!["a".to_owned()]);
+        assert_eq!(
+            tag.attr.attributes,
+            vec![("hidden".to_owned(), String::new())]
+        );
+    }
+
+    #[test]
+    fn find_close_tag_locates_the_matching_name_and_skips_unrelated_ones() {
+        let found = html_element::find_close_tag("foo</div>bar", "div").expect("a close tag");
+        assert_eq!(&"foo</div>bar"[found.start..found.end], "</div>");
+        // A different name is not the match.
+        assert!(html_element::find_close_tag("</span>", "div").is_none());
+        // Trailing whitespace before `>` is allowed; a bare name is not a close tag.
+        assert!(html_element::find_close_tag("</div >", "div").is_some());
+        assert!(html_element::find_close_tag("no tag here", "div").is_none());
     }
 }

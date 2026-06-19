@@ -44,11 +44,12 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 
 | surface | what it diffs | inputs |
 |---|---|---|
-| `reader` | `-f FMT -t json`, compared with `jq -S` | `corpus/text/<fmt>/*` + the 652 CommonMark spec examples (commonmark) |
+| `reader` | `-f FMT -t json`, compared with `jq -S` | `corpus/text/<fmt>/*`, the extension-toggle cases in `corpus/text-ext/<spec>/*`, + the 652 CommonMark spec examples (commonmark) |
 | `writer` | `-f json -t TARGET`, JSON structurally / others as text | `corpus/ast/<feature>/*` minus `corpus/exclusions.tsv` |
 | `e2e` | `-f FMT -t TARGET` full pipeline | `corpus/text/<fmt>/*` to every target; spec examples to HTML |
 | `roundtrip` | JSON codec identity: `pandoc -f native -t json` then `carta -f json -t json` | fetched `.native` corpus |
 | `commands` | declarative command tests, vs a live normalized oracle | `.oracle/tests/test/command/*.md` |
+| `extensions` | structural gate: every reader-honored extension has an oracle-parity case | `crates/carta-core` (the variant table), the reader source, and `corpus/text-ext/` |
 
 ### Comparison and normalization
 
@@ -75,6 +76,9 @@ Two deliberate scoping choices:
 Add inputs to the shared corpus, not here:
 
 - a reader construct → `corpus/text/<fmt>/<label>.<ext>`
+- an extension toggle → `corpus/text-ext/<spec>/<label>.<ext>`, where `<spec>` is the exact `-f`
+  string (e.g. `commonmark+mark`, `markdown-blank_before_header`). The `extensions` surface
+  **requires** one such directory for every extension the reader honors.
 - a writer node shape → `corpus/ast/<feature>/<label>.json` (a complete Document JSON)
 - a newly implemented writer feature → delete its `corpus/exclusions.tsv` line
 

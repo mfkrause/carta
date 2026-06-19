@@ -26,6 +26,8 @@ pub(crate) struct TextTable {
     /// Body rows, each a cell per column.
     pub body: Vec<Vec<Cell>>,
     pub caption: Option<String>,
+    /// Attributes attached via the caption line when `table_attributes` is enabled.
+    pub attr: carta_ast::Attr,
 }
 
 /// One column's alignment and width. `width` is `None` for an unsized column (the only kind a
@@ -129,6 +131,7 @@ fn parse_headed(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)> {
             head: slice_row(header, &starts),
             body,
             caption: None,
+            attr: carta_ast::Attr::default(),
         },
         consumed,
     ))
@@ -176,6 +179,7 @@ fn parse_headerless(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize
             head: Vec::new(),
             body,
             caption: None,
+            attr: carta_ast::Attr::default(),
         },
         consumed,
     ))
@@ -266,6 +270,7 @@ fn parse_multiline(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)
             head,
             body,
             caption: None,
+            attr: carta_ast::Attr::default(),
         },
         consumed,
     ))
