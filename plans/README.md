@@ -28,10 +28,9 @@ findings are recorded below so they aren't re-audited.
 | 004 | Allocation hygiene bundle (6 reader hot-path sites) | P2 | M | 001 (soft) | TODO |
 | 005 | Spike: byte-offset scanning + boxed `Inline` variants (report, not merge) | P2 | M | 001 (hard) | TODO |
 | 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | DONE |
+| 007 | Standalone output + template engine (folds in the metadata/variable context it requires) | P1 | L | — | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
-
-Plan 006 is manually authored (feature work, not from the performance improve run) and added later.
 
 ## Dependency notes
 
