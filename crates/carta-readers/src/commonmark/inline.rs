@@ -1689,6 +1689,9 @@ impl InlineParser<'_> {
         let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         self.bracket_stack.retain(|&ni| ni < opener_index);
+        if self.ext.contains(Extension::Mark) {
+            resolve_mark(&mut inner, self.ext);
+        }
         process_emphasis(&mut inner, 0, self.ext);
         let content = collapse(inner);
         self.nodes.push(Node::Inline(Inline::Span(attr, content)));
@@ -1837,6 +1840,9 @@ impl InlineParser<'_> {
         // Any bracket stack entries that pointed into the split-off range are now part of the
         // inner node list passed to process_emphasis; they no longer belong to the outer parse.
         self.bracket_stack.retain(|&ni| ni < opener_index);
+        if self.ext.contains(Extension::Mark) {
+            resolve_mark(&mut inner, self.ext);
+        }
         process_emphasis(&mut inner, 0, self.ext);
         let content = collapse(inner);
         let inline = if is_image {
@@ -3289,7 +3295,7 @@ mod tests {
         fold_ellipsis_run, match_use_count, parse_meta_inlines, quote_flanking, split_header_attr,
         task_marker_replacement,
     };
-    use carta_ast::{Attr, Inline};
+    use carta_ast::{Attr, Inline, Target};
     use carta_core::{Extension, Extensions};
 
     fn exts(list: &[Extension]) -> Extensions {
@@ -3360,6 +3366,75 @@ mod tests {
         assert_eq!(
             parse_meta_inlines(":smile:", off),
             vec![Inline::Str(":smile:".to_owned())]
+        );
+    }
+
+    fn mark_span(content: Vec<Inline>) -> Inline {
+        Inline::Span(
+            Attr {
+                id: String::new(),
+                classes: vec!["mark".to_owned()],
+                attributes: Vec::new(),
+            },
+            content,
+        )
+    }
+
+    #[test]
+    fn mark_resolves_inside_link_label() {
+        let on = exts(&[Extension::Mark]);
+        // A `==…==` run in a link's label resolves to a mark span just as it would at top level.
+        assert_eq!(
+            parse_meta_inlines("[==hi==](u)", on),
+            vec![Inline::Link(
+                Attr::default(),
+                vec![mark_span(vec![Inline::Str("hi".to_owned())])],
+                Target {
+                    url: "u".to_owned(),
+                    title: String::new(),
+                },
+            )]
+        );
+    }
+
+    #[test]
+    fn mark_resolves_inside_bracketed_span_label() {
+        let on = exts(&[Extension::Mark, Extension::BracketedSpans]);
+        // A `==…==` run nested in a bracketed span's body resolves there too.
+        let span_attr = Attr {
+            id: String::new(),
+            classes: vec!["x".to_owned()],
+            attributes: Vec::new(),
+        };
+        assert_eq!(
+            parse_meta_inlines("[a ==b== c]{.x}", on),
+            vec![Inline::Span(
+                span_attr,
+                vec![
+                    Inline::Str("a".to_owned()),
+                    Inline::Space,
+                    mark_span(vec![Inline::Str("b".to_owned())]),
+                    Inline::Space,
+                    Inline::Str("c".to_owned()),
+                ],
+            )]
+        );
+    }
+
+    #[test]
+    fn mark_in_label_requires_extension() {
+        // Without the mark extension a `==…==` run in a link label stays literal text.
+        let off = Extensions::empty();
+        assert_eq!(
+            parse_meta_inlines("[==hi==](u)", off),
+            vec![Inline::Link(
+                Attr::default(),
+                vec![Inline::Str("==hi==".to_owned())],
+                Target {
+                    url: "u".to_owned(),
+                    title: String::new(),
+                },
+            )]
         );
     }
 
