@@ -38,6 +38,10 @@ struct RefContext<'a> {
     defined: &'a BTreeSet<String>,
     by_id: &'a BTreeMap<String, Vec<Block>>,
     in_definition: bool,
+    /// The markdown dialect, where a backslash-escaped space becomes a non-breaking space, a
+    /// superscript or subscript span may not hold an unescaped space, and a code span's content is
+    /// stripped of all surrounding whitespace. The strict dialect leaves each of these alone.
+    markdown: bool,
     examples: &'a ExampleMap,
     /// A running count of the citation groups resolved so far. Every `Cite` inline is stamped with
     /// the next value, and all the `Citation` entries inside one group share that number. The count
@@ -56,6 +60,7 @@ pub(crate) fn resolve_document(
     footnotes: &FootnoteDefs,
     examples: &ExampleMap,
     ext: Extensions,
+    markdown: bool,
 ) -> Vec<Block> {
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
     let empty = BTreeMap::new();
@@ -71,6 +76,7 @@ pub(crate) fn resolve_document(
             defined: &defined,
             by_id: &empty,
             in_definition: false,
+            markdown,
             examples,
             cite_count: &scratch_count,
         };
@@ -80,6 +86,7 @@ pub(crate) fn resolve_document(
         defined: &defined,
         by_id: &empty,
         in_definition: true,
+        markdown,
         examples,
         cite_count: &scratch_count,
     };
@@ -91,6 +98,7 @@ pub(crate) fn resolve_document(
         defined: &defined,
         by_id: &by_id,
         in_definition: false,
+        markdown,
         examples,
         cite_count: &body_count,
     };
@@ -389,7 +397,7 @@ fn resolve_grid_table(
         cells: row
             .cells
             .iter()
-            .map(|cell| make_grid_cell(cell, ext))
+            .map(|cell| make_grid_cell(cell, ext, notes.markdown))
             .collect(),
     };
     let caption = match &table.caption {
@@ -475,13 +483,13 @@ fn resolve_text_table(
 
 /// Build one grid-table cell, parsing its raw text into block content (tight cells demote their
 /// paragraphs to `Plain`).
-fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions) -> TableCell {
+fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions, markdown: bool) -> TableCell {
     TableCell {
         attr: Attr::default(),
         align: Alignment::AlignDefault,
         row_span: 1,
         col_span: 1,
-        content: super::parse_table_cell(&cell.text, cell.tight, ext),
+        content: super::parse_table_cell(&cell.text, cell.tight, ext, markdown),
     }
 }
 
@@ -666,9 +674,9 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
     parser.run();
     let mut nodes = parser.nodes;
     if ext.contains(Extension::Mark) {
-        resolve_mark(&mut nodes, ext);
+        resolve_mark(&mut nodes, ext, notes.markdown);
     }
-    process_emphasis(&mut nodes, 0, ext);
+    process_emphasis(&mut nodes, 0, ext, notes.markdown);
     let mut inlines = collapse(nodes);
     if ext.contains(Extension::Autolink) {
         super::autolink::autolink_inlines(&mut inlines);
@@ -680,8 +688,9 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
 }
 
 /// Parse standalone text — a document metadata value — into inlines with no reference context, so
-/// footnote and example references in the text resolve to nothing.
-pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions) -> Vec<Inline> {
+/// footnote and example references in the text resolve to nothing. `markdown` selects the markdown
+/// dialect's inline rules, matching the dialect the document body is parsed under.
+pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) -> Vec<Inline> {
     let defined = BTreeSet::new();
     let by_id = BTreeMap::new();
     let examples = ExampleMap::new();
@@ -691,6 +700,7 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions) -> Vec<Inline> {
         defined: &defined,
         by_id: &by_id,
         in_definition: false,
+        markdown,
         examples: &examples,
         cite_count: &cite_count,
     };
@@ -910,6 +920,12 @@ impl InlineParser<'_> {
                     self.pos += 1;
                 }
                 self.nodes.push(Node::LineBreak);
+            }
+            // In the markdown dialect a backslash before a space is a non-breaking space, which binds
+            // into the surrounding text rather than splitting it on whitespace.
+            Some(' ') if self.notes.markdown => {
+                self.pos += 1;
+                self.push_text('\u{a0}');
             }
             Some(ch) if is_ascii_punctuation(ch) => {
                 self.pos += 1;
@@ -1215,13 +1231,15 @@ impl InlineParser<'_> {
                         self.pos = next;
                         self.nodes.push(Node::Inline(Inline::RawInline(
                             carta_ast::Format(format),
-                            normalize_code(&content),
+                            normalize_code(&content, self.notes.markdown),
                         )));
                         return;
                     }
                     let attr = self.take_code_attr();
-                    self.nodes
-                        .push(Node::Inline(Inline::Code(attr, normalize_code(&content))));
+                    self.nodes.push(Node::Inline(Inline::Code(
+                        attr,
+                        normalize_code(&content, self.notes.markdown),
+                    )));
                     return;
                 }
                 scan += close;
@@ -1690,9 +1708,9 @@ impl InlineParser<'_> {
         self.nodes.pop(); // remove the opener delimiter
         self.bracket_stack.retain(|&ni| ni < opener_index);
         if self.ext.contains(Extension::Mark) {
-            resolve_mark(&mut inner, self.ext);
+            resolve_mark(&mut inner, self.ext, self.notes.markdown);
         }
-        process_emphasis(&mut inner, 0, self.ext);
+        process_emphasis(&mut inner, 0, self.ext, self.notes.markdown);
         let content = collapse(inner);
         self.nodes.push(Node::Inline(Inline::Span(attr, content)));
     }
@@ -1841,9 +1859,9 @@ impl InlineParser<'_> {
         // inner node list passed to process_emphasis; they no longer belong to the outer parse.
         self.bracket_stack.retain(|&ni| ni < opener_index);
         if self.ext.contains(Extension::Mark) {
-            resolve_mark(&mut inner, self.ext);
+            resolve_mark(&mut inner, self.ext, self.notes.markdown);
         }
-        process_emphasis(&mut inner, 0, self.ext);
+        process_emphasis(&mut inner, 0, self.ext, self.notes.markdown);
         let content = collapse(inner);
         let inline = if is_image {
             Inline::Image(attr, content, target)
@@ -2095,7 +2113,7 @@ struct DelimEntry {
 // `opener_di` (delimiter-list index) and `opener_ni` (node index) are intentionally close names
 // for two distinct indices into two distinct arrays.
 #[allow(clippy::similar_names, clippy::too_many_lines)]
-fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions) {
+fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions, markdown: bool) {
     // Build the delimiter list: one entry per Node::Delimiter in [stack_bottom..] that is an
     // emphasis-class delimiter (not a bracket opener).
     let mut delims: Vec<DelimEntry> = nodes
@@ -2166,12 +2184,11 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
             }
             // Rule of 3 and match_use_count check — we need a temporary Delimiter value to
             // reuse `emphasis_match`, which borrows `nodes` by index.
-            let use_count = match_use_count(entry.count, closer_count, closer_ch, ext);
-            if use_count.is_none() {
+            let Some(use_count) = match_use_count(entry.count, closer_count, closer_ch, ext) else {
                 // `match_use_count` rejected this opener; keep scanning — do not advance
                 // `openers_bottom` for this slot just because one opener was rejected.
                 continue;
-            }
+            };
             // Re-derive the Delimiter from `nodes` for the rule-of-3 check.
             let ni = entry.node_index;
             let rule_ok = match nodes.get(ni) {
@@ -2179,6 +2196,15 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
                 _ => false,
             };
             if rule_ok {
+                // The markdown dialect forbids whitespace inside a superscript or subscript: if the
+                // span between this opener and the closer carries any, the pair does not match and
+                // the scan continues looking for a tighter opener.
+                if markdown
+                    && rejects_inner_space(closer_ch, use_count)
+                    && nodes.get(ni + 1..closer_ni).is_some_and(nodes_carry_break)
+                {
+                    continue;
+                }
                 found = Some(scan);
                 break;
             }
@@ -2353,7 +2379,7 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
 /// nodes — with their own emphasis resolved — become the span's content. Any `=` left over on either
 /// side, or a lone `=`, stays literal text. Resolving here, ahead of the shared emphasis pass, keeps
 /// each run to a single span: leftover `=` do not re-pair into nested marks.
-fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions) {
+fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: bool) {
     let mut current = 0usize;
     while current < nodes.len() {
         let is_closer = matches!(
@@ -2382,7 +2408,7 @@ fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions) {
 
         let inner: Vec<Node> = nodes.drain(opener_ni + 1..current).collect();
         let mut inner = inner;
-        process_emphasis(&mut inner, 0, ext);
+        process_emphasis(&mut inner, 0, ext, markdown);
         let content = collapse(inner);
         let span = Inline::Span(
             Attr {
@@ -2489,6 +2515,47 @@ fn wrap_emphasis(ch: u8, use_count: usize, content: Vec<Inline>) -> Inline {
         (b'^', _) => Inline::Superscript(content),
         (_, 2) => Inline::Strong(content),
         (_, _) => Inline::Emph(content),
+    }
+}
+
+/// Whether a matched delimiter pair forms a superscript or a subscript — the spans the markdown
+/// dialect forbids from holding whitespace. A double tilde is a strikeout, which may, so only a
+/// single tilde counts.
+fn rejects_inner_space(ch: u8, use_count: usize) -> bool {
+    ch == b'^' || (ch == b'~' && use_count == 1)
+}
+
+/// Whether any node in the slice carries whitespace that, in the markdown dialect, ends a
+/// superscript or subscript: a space or tab in text, or a soft or hard line break. A non-breaking
+/// space — what an escaped space becomes — does not count, so an escaped space keeps the span open.
+fn nodes_carry_break(nodes: &[Node]) -> bool {
+    nodes.iter().any(|node| match node {
+        Node::Text(text) => text.chars().any(|c| c == ' ' || c == '\t'),
+        Node::SoftBreak | Node::LineBreak => true,
+        Node::Inline(inline) => inline_carries_break(inline),
+        Node::Delimiter(_) => false,
+    })
+}
+
+/// The [`nodes_carry_break`] test for an already-built inline, recursing through the inline
+/// containers a superscript or subscript may nest.
+fn inline_carries_break(inline: &Inline) -> bool {
+    match inline {
+        Inline::Space | Inline::SoftBreak | Inline::LineBreak => true,
+        Inline::Str(text) => text.chars().any(|c| c == ' ' || c == '\t'),
+        Inline::Emph(content)
+        | Inline::Underline(content)
+        | Inline::Strong(content)
+        | Inline::Strikeout(content)
+        | Inline::Superscript(content)
+        | Inline::Subscript(content)
+        | Inline::SmallCaps(content)
+        | Inline::Quoted(_, content)
+        | Inline::Cite(_, content)
+        | Inline::Link(_, content, _)
+        | Inline::Image(_, content, _)
+        | Inline::Span(_, content) => content.iter().any(inline_carries_break),
+        _ => false,
     }
 }
 
@@ -2994,11 +3061,16 @@ fn is_punctuation(ch: char) -> bool {
 
 /// Normalize the interior of a code span: line endings to spaces, and if it both begins and ends
 /// with a space (and is not all spaces), strip one space from each end.
-fn normalize_code(content: &str) -> String {
+fn normalize_code(content: &str, markdown: bool) -> String {
     let collapsed: String = content
         .chars()
         .map(|c| if c == '\n' { ' ' } else { c })
         .collect();
+    // The markdown dialect strips all surrounding whitespace; the strict dialect removes only a
+    // single leading and trailing space, and only when the content is not all spaces.
+    if markdown {
+        return collapsed.trim().to_owned();
+    }
     let bytes = collapsed.as_bytes();
     if collapsed.len() >= 2
         && bytes.first() == Some(&b' ')
@@ -3326,7 +3398,7 @@ mod tests {
         assert_eq!(emoji::lookup("not_an_emoji_name"), None);
         // Parsing round-trips through the table for a representative name.
         assert_eq!(
-            parse_meta_inlines(":rocket:", on),
+            parse_meta_inlines(":rocket:", on, false),
             vec![emoji_span("rocket", "\u{1f680}")]
         );
     }
@@ -3335,12 +3407,12 @@ mod tests {
     fn emoji_resolves_known_shortcodes() {
         let on = exts(&[Extension::Emoji]);
         assert_eq!(
-            parse_meta_inlines(":smile:", on),
+            parse_meta_inlines(":smile:", on, false),
             vec![emoji_span("smile", "\u{1f604}")]
         );
         // A shortcode whose name carries `+`/`-` still resolves.
         assert_eq!(
-            parse_meta_inlines(":+1:", on),
+            parse_meta_inlines(":+1:", on, false),
             vec![emoji_span("+1", "\u{1f44d}")]
         );
     }
@@ -3350,12 +3422,12 @@ mod tests {
         let on = exts(&[Extension::Emoji]);
         // An unrecognized name leaves the colons and text verbatim.
         assert_eq!(
-            parse_meta_inlines(":unknown_xyz:", on),
+            parse_meta_inlines(":unknown_xyz:", on, false),
             vec![Inline::Str(":unknown_xyz:".to_owned())]
         );
         // An empty `::` is not a shortcode.
         assert_eq!(
-            parse_meta_inlines("::", on),
+            parse_meta_inlines("::", on, false),
             vec![Inline::Str("::".to_owned())]
         );
     }
@@ -3364,7 +3436,7 @@ mod tests {
     fn emoji_requires_extension() {
         let off = Extensions::empty();
         assert_eq!(
-            parse_meta_inlines(":smile:", off),
+            parse_meta_inlines(":smile:", off, false),
             vec![Inline::Str(":smile:".to_owned())]
         );
     }
@@ -3385,7 +3457,7 @@ mod tests {
         let on = exts(&[Extension::Mark]);
         // A `==…==` run in a link's label resolves to a mark span just as it would at top level.
         assert_eq!(
-            parse_meta_inlines("[==hi==](u)", on),
+            parse_meta_inlines("[==hi==](u)", on, false),
             vec![Inline::Link(
                 Attr::default(),
                 vec![mark_span(vec![Inline::Str("hi".to_owned())])],
@@ -3407,7 +3479,7 @@ mod tests {
             attributes: Vec::new(),
         };
         assert_eq!(
-            parse_meta_inlines("[a ==b== c]{.x}", on),
+            parse_meta_inlines("[a ==b== c]{.x}", on, false),
             vec![Inline::Span(
                 span_attr,
                 vec![
@@ -3426,7 +3498,7 @@ mod tests {
         // Without the mark extension a `==…==` run in a link label stays literal text.
         let off = Extensions::empty();
         assert_eq!(
-            parse_meta_inlines("[==hi==](u)", off),
+            parse_meta_inlines("[==hi==](u)", off, false),
             vec![Inline::Link(
                 Attr::default(),
                 vec![Inline::Str("==hi==".to_owned())],
@@ -3601,6 +3673,7 @@ mod inline_tests {
             defined: &NO_DEFINED,
             by_id: &NO_BY_ID,
             in_definition: false,
+            markdown: false,
             examples: &NO_EXAMPLES,
             cite_count: Box::leak(Box::new(Cell::new(0))),
         }
@@ -3638,6 +3711,20 @@ mod inline_tests {
 
     fn pe(text: &str, ext: Extensions) -> Vec<Inline> {
         parse_inlines(text, &empty_refs(), no_notes(), ext)
+    }
+
+    /// A reference context in the markdown dialect, where escaped spaces bind as non-breaking
+    /// spaces, code spans trim their content, and superscripts and subscripts reject inner
+    /// whitespace.
+    fn md_notes() -> RefContext<'static> {
+        RefContext {
+            markdown: true,
+            ..no_notes()
+        }
+    }
+
+    fn pm(text: &str, ext: Extensions) -> Vec<Inline> {
+        parse_inlines(text, &empty_refs(), md_notes(), ext)
     }
 
     fn str(s: &str) -> Inline {
@@ -3822,6 +3909,68 @@ mod inline_tests {
             pe("^a^", exts(&[Extension::Superscript])),
             vec![Inline::Superscript(vec![str("a")])]
         );
+    }
+
+    // --- Markdown-dialect inline rules ---
+
+    #[test]
+    fn markdown_escaped_space_becomes_non_breaking() {
+        // In the markdown dialect `\ ` is a non-breaking space bound into the surrounding word; in
+        // the strict dialect a backslash before a space is a literal backslash and the space splits
+        // the run.
+        assert_eq!(pm("a\\ b", no_ext()), vec![str("a\u{a0}b")]);
+        assert_eq!(p("a\\ b"), vec![str("a\\"), Inline::Space, str("b")]);
+    }
+
+    #[test]
+    fn markdown_superscript_rejects_inner_space() {
+        // A raw space anywhere inside a superscript voids it; the delimiters stay literal.
+        let ext = exts(&[Extension::Superscript]);
+        assert_eq!(pm("^a b^", ext), vec![str("^a"), Inline::Space, str("b^")]);
+        // An escaped (non-breaking) space keeps the superscript intact.
+        assert_eq!(
+            pm("^a\\ b^", ext),
+            vec![Inline::Superscript(vec![str("a\u{a0}b")])]
+        );
+        // No inner whitespace: still a superscript.
+        assert_eq!(pm("^ab^", ext), vec![Inline::Superscript(vec![str("ab")])]);
+    }
+
+    #[test]
+    fn markdown_subscript_rejects_inner_space_but_strikeout_allows_it() {
+        // A single tilde is a subscript and rejects inner whitespace.
+        assert_eq!(
+            pm("~a b~", exts(&[Extension::Subscript])),
+            vec![str("~a"), Inline::Space, str("b~")]
+        );
+        // A double tilde is a strikeout, which may hold whitespace.
+        assert_eq!(
+            pm("~~a b~~", exts(&[Extension::Strikeout])),
+            vec![Inline::Strikeout(vec![str("a"), Inline::Space, str("b")])]
+        );
+    }
+
+    #[test]
+    fn markdown_superscript_rejects_space_in_nested_span() {
+        // Whitespace inside an already-built nested inline voids the superscript too.
+        let ext = exts(&[Extension::Superscript]);
+        assert_eq!(
+            pm("^*a b*^", ext),
+            vec![
+                str("^"),
+                Inline::Emph(vec![str("a"), Inline::Space, str("b")]),
+                str("^"),
+            ]
+        );
+    }
+
+    #[test]
+    fn markdown_code_span_trims_surrounding_space() {
+        // The markdown dialect trims a code span's content; the strict dialect strips at most a
+        // single leading and trailing space (and only when the content is not all spaces).
+        assert_eq!(pm("`  a  `", no_ext()), vec![code("a")]);
+        assert_eq!(p("` a `"), vec![code("a")]);
+        assert_eq!(p("`  a  `"), vec![code(" a ")]);
     }
 
     #[test]

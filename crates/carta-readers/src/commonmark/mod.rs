@@ -37,10 +37,18 @@ impl Reader for CommonmarkReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let ext = options.extensions;
         let normalized = normalize(input);
-        let frontmatter::FrontMatter { meta, body } = frontmatter::extract(&normalized, ext)?;
+        let frontmatter::FrontMatter { meta, body } =
+            frontmatter::extract(&normalized, ext, options.greedy_paragraphs)?;
         let source = body.as_deref().unwrap_or(&normalized);
         let (ir, refs, footnotes, examples) = block::parse(source, ext, options.greedy_paragraphs);
-        let blocks = inline::resolve_document(&ir, refs, &footnotes, &examples, ext);
+        let blocks = inline::resolve_document(
+            &ir,
+            refs,
+            &footnotes,
+            &examples,
+            ext,
+            options.greedy_paragraphs,
+        );
         Ok(Document {
             meta,
             blocks,
@@ -129,25 +137,49 @@ pub(crate) type ExampleMap = BTreeMap<String, i32>;
 /// Parse the text of a block-level metadata value into blocks, reusing the full block and inline
 /// pipeline. Front matter is not re-extracted, so a metadata value never recurses into another
 /// metadata block.
-pub(crate) fn parse_meta_blocks(text: &str, extensions: Extensions) -> Vec<Block> {
+pub(crate) fn parse_meta_blocks(
+    text: &str,
+    extensions: Extensions,
+    greedy_paragraphs: bool,
+) -> Vec<Block> {
     let normalized = normalize(text);
-    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, false);
-    inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
+    let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, greedy_paragraphs);
+    inline::resolve_document(
+        &ir,
+        refs,
+        &footnotes,
+        &examples,
+        extensions,
+        greedy_paragraphs,
+    )
 }
 
 /// Parse the raw text of a table cell into block content, reusing the full block and inline
 /// pipeline. A tight cell — one with no internal blank line — demotes its top-level paragraphs to
 /// `Plain`; an empty cell carries no blocks.
-pub(crate) fn parse_table_cell(text: &str, tight: bool, extensions: Extensions) -> Vec<Block> {
+pub(crate) fn parse_table_cell(
+    text: &str,
+    tight: bool,
+    extensions: Extensions,
+    greedy_paragraphs: bool,
+) -> Vec<Block> {
     if text.is_empty() {
         return Vec::new();
     }
     let normalized = normalize(text);
-    let (mut ir, refs, footnotes, examples) = block::parse(&normalized, extensions, false);
+    let (mut ir, refs, footnotes, examples) =
+        block::parse(&normalized, extensions, greedy_paragraphs);
     if tight {
         block::demote_loose_paragraphs(&mut ir);
     }
-    inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
+    inline::resolve_document(
+        &ir,
+        refs,
+        &footnotes,
+        &examples,
+        extensions,
+        greedy_paragraphs,
+    )
 }
 
 /// Width of a tab stop in columns, used when expanding tabs during preprocessing.
@@ -203,7 +235,7 @@ pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
 #[cfg(test)]
 mod tests {
     use super::CommonmarkReader;
-    use carta_ast::{Block, Inline, ListNumberDelim, ListNumberStyle};
+    use carta_ast::{Block, Document, Inline, ListNumberDelim, ListNumberStyle};
     use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
@@ -258,6 +290,72 @@ mod tests {
             })
             .expect("a note should be present");
         assert!(matches!(note.as_slice(), [Block::Para(_)]));
+    }
+
+    /// Read in the markdown dialect (greedy paragraphs) with the given extensions enabled.
+    fn read_markdown(input: &str, exts: &[Extension]) -> Document {
+        let mut extensions = Extensions::empty();
+        for ext in exts {
+            extensions.insert(*ext);
+        }
+        let mut options = ReaderOptions::default();
+        options.extensions = extensions;
+        options.greedy_paragraphs = true;
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+    }
+
+    #[test]
+    fn grid_cell_inlines_honor_the_markdown_dialect() {
+        // A grid-table cell parses its content under the document's dialect: in the markdown dialect
+        // a superscript rejects an inner space, so `^a b^` stays literal rather than wrapping.
+        let input = "+-------+\n| ^a b^ |\n+-------+\n";
+        let doc = read_markdown(input, &[Extension::GridTables, Extension::Superscript]);
+        let table = match doc.blocks.as_slice() {
+            [Block::Table(table)] => table,
+            other => panic!("expected a single table, got {other:?}"),
+        };
+        let cell = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .expect("a single body cell");
+        let inlines = match cell.content.as_slice() {
+            [Block::Plain(inlines)] => inlines,
+            other => panic!("expected a plain cell, got {other:?}"),
+        };
+        assert!(
+            inlines.iter().all(|i| !matches!(i, Inline::Superscript(_))),
+            "grid cell should not build a superscript around an inner space: {inlines:?}"
+        );
+    }
+
+    #[test]
+    fn metadata_values_honor_the_markdown_dialect() {
+        use carta_ast::MetaValue;
+        // A YAML metadata value parses under the document's dialect too: the superscript with an
+        // inner space stays literal and the code span trims its padding to `x`.
+        let input = "---\ntitle: ^a b^ `  x  `\n---\n\nbody\n";
+        let doc = read_markdown(
+            input,
+            &[Extension::YamlMetadataBlock, Extension::Superscript],
+        );
+        let inlines = match doc.meta.get("title") {
+            Some(MetaValue::MetaInlines(inlines)) => inlines,
+            other => panic!("expected inline metadata, got {other:?}"),
+        };
+        assert!(
+            inlines.iter().all(|i| !matches!(i, Inline::Superscript(_))),
+            "metadata should not build a superscript around an inner space: {inlines:?}"
+        );
+        assert!(
+            inlines
+                .iter()
+                .any(|i| matches!(i, Inline::Code(_, code) if code == "x")),
+            "metadata code span should trim to `x`: {inlines:?}"
+        );
     }
 
     #[test]
