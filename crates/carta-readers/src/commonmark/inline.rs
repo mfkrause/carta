@@ -700,6 +700,9 @@ impl InlineParser<'_> {
                 {
                     self.emphasis_run(b'~');
                 }
+                '^' if self.ext.contains(Extension::InlineNotes)
+                    && self.at(1) == Some('[')
+                    && self.try_inline_note() => {}
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
                 '@' if self.ext.contains(Extension::ExampleLists) => self.example_ref(),
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
@@ -1469,6 +1472,48 @@ impl InlineParser<'_> {
             Inline::Note(self.notes.by_id.get(&key).cloned().unwrap_or_default())
         };
         self.nodes.push(Node::Inline(note));
+        true
+    }
+
+    /// Resolve an inline note `^[...]` at the cursor (which sits on the `^`, with `[` following).
+    /// The bracket content runs up to its balanced closing `]`, is parsed as inline markdown, and
+    /// becomes a single-paragraph `Note`. Returns `false` without advancing when the bracket has no
+    /// balanced closer, leaving the `^` for literal/superscript handling.
+    fn try_inline_note(&mut self) -> bool {
+        // self.pos is the caret; the `[` sits at self.pos + 1. Walk forward tracking bracket depth.
+        let mut depth = 0usize;
+        let mut index = self.pos + 1;
+        let mut end = None;
+        while let Some(&ch) = self.chars.get(index) {
+            match ch {
+                '\\' => index += 2,
+                '[' => {
+                    depth += 1;
+                    index += 1;
+                }
+                ']' => {
+                    depth -= 1;
+                    index += 1;
+                    if depth == 0 {
+                        end = Some(index);
+                        break;
+                    }
+                }
+                _ => index += 1,
+            }
+        }
+        let Some(end) = end else {
+            return false;
+        };
+        let inner: String = self
+            .chars
+            .get(self.pos + 2..end.saturating_sub(1))
+            .map(|run| run.iter().collect())
+            .unwrap_or_default();
+        let inlines = parse_inlines(&inner, self.refs, self.notes, self.ext);
+        self.pos = end;
+        self.nodes
+            .push(Node::Inline(Inline::Note(vec![para(inlines)])));
         true
     }
 
@@ -2746,6 +2791,70 @@ mod inline_tests {
         assert_eq!(
             pe("^a^", exts(&[Extension::Superscript])),
             vec![Inline::Superscript(vec![str("a")])]
+        );
+    }
+
+    #[test]
+    fn inline_note_parses_bracket_content_as_paragraph() {
+        assert_eq!(
+            pe("x^[a *b*] y", exts(&[Extension::InlineNotes])),
+            vec![
+                str("x"),
+                Inline::Note(vec![Block::Para(vec![
+                    str("a"),
+                    Inline::Space,
+                    Inline::Emph(vec![str("b")]),
+                ])]),
+                Inline::Space,
+                str("y"),
+            ]
+        );
+    }
+
+    #[test]
+    fn inline_note_allows_nested_brackets() {
+        assert_eq!(
+            pe("^[outer [inner] end]", exts(&[Extension::InlineNotes])),
+            vec![Inline::Note(vec![Block::Para(vec![
+                str("outer"),
+                Inline::Space,
+                str("[inner]"),
+                Inline::Space,
+                str("end"),
+            ])])]
+        );
+    }
+
+    #[test]
+    fn empty_inline_note_is_an_empty_paragraph() {
+        assert_eq!(
+            pe("^[]", exts(&[Extension::InlineNotes])),
+            vec![Inline::Note(vec![Block::Para(vec![])])]
+        );
+    }
+
+    #[test]
+    fn unclosed_inline_note_stays_literal() {
+        assert_eq!(
+            pe("^[unclosed", exts(&[Extension::InlineNotes])),
+            vec![str("^[unclosed")]
+        );
+    }
+
+    #[test]
+    fn inline_note_syntax_is_literal_when_extension_off() {
+        assert_eq!(
+            pe("x^[a] y", Extensions::empty()),
+            vec![str("x^[a]"), Inline::Space, str("y")]
+        );
+    }
+
+    #[test]
+    fn inline_note_wins_over_superscript_for_bracket() {
+        // With both on, `^[` opens a note; a bare `^2^` would still be a superscript elsewhere.
+        assert_eq!(
+            pe("y^[n]", exts(&[Extension::InlineNotes, Extension::Superscript])),
+            vec![str("y"), Inline::Note(vec![Block::Para(vec![str("n")])])]
         );
     }
 
