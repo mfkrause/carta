@@ -802,6 +802,14 @@ impl InlineParser<'_> {
                         .map(|s| s.iter().collect())
                         .unwrap_or_default();
                     self.pos = scan + close;
+                    if let Some((format, next)) = self.scan_raw_format() {
+                        self.pos = next;
+                        self.nodes.push(Node::Inline(Inline::RawInline(
+                            carta_ast::Format(format),
+                            normalize_code(&content),
+                        )));
+                        return;
+                    }
                     let attr = self.take_code_attr();
                     self.nodes
                         .push(Node::Inline(Inline::Code(attr, normalize_code(&content))));
@@ -1099,6 +1107,55 @@ impl InlineParser<'_> {
             next = after;
         }
         attr::is_non_empty(&merged).then_some((merged, next))
+    }
+
+    /// Scan a raw-format marker `{=FORMAT}` at the cursor, returning the format name and the index
+    /// past the closing brace. The braces may hold surrounding whitespace (`{ =html }`), but no
+    /// space may sit between `=` and the format, and the format may carry nothing but the marker:
+    /// any further content (`{=html .foo}`) is not a raw marker. The format token is one or more
+    /// ASCII alphanumerics, `-`, or `_`. Active only when `raw_attribute` is enabled.
+    fn scan_raw_format(&self) -> Option<(String, usize)> {
+        if !self.ext.contains(Extension::RawAttribute) {
+            return None;
+        }
+        if self.chars.get(self.pos).copied() != Some('{') {
+            return None;
+        }
+        let mut index = self.pos + 1;
+        while let Some(&ch) = self.chars.get(index) {
+            if ch == ' ' || ch == '\t' {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if self.chars.get(index).copied() != Some('=') {
+            return None;
+        }
+        index += 1;
+        let format_start = index;
+        while let Some(&ch) = self.chars.get(index) {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if index == format_start {
+            return None;
+        }
+        let format: String = self.chars.get(format_start..index)?.iter().collect();
+        while let Some(&ch) = self.chars.get(index) {
+            if ch == ' ' || ch == '\t' {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+        if self.chars.get(index).copied() != Some('}') {
+            return None;
+        }
+        Some((format, index + 1))
     }
 
     /// Consume an attribute block following an inline code span when the relevant extension is on,
@@ -2450,6 +2507,89 @@ mod inline_tests {
                 vec![str("["), link(vec![str("foo")], "uri1"), str("](uri2)"),],
                 "uri3",
             )]
+        );
+    }
+
+    // --- Inline raw attribute (`{=FORMAT}` on a code span) ---
+
+    fn raw(format: &str, text: &str) -> Inline {
+        Inline::RawInline(carta_ast::Format(format.to_owned()), text.to_owned())
+    }
+
+    fn code(text: &str) -> Inline {
+        Inline::Code(Attr::default(), text.to_owned())
+    }
+
+    #[test]
+    fn raw_attribute_turns_code_span_into_raw_inline() {
+        let ext = exts(&[Extension::RawAttribute]);
+        assert_eq!(pe("`<b>`{=html}", ext), vec![raw("html", "<b>")]);
+        assert_eq!(pe("`\\x`{=latex}", ext), vec![raw("latex", "\\x")]);
+    }
+
+    #[test]
+    fn raw_attribute_format_token_allows_word_chars_dash_underscore() {
+        let ext = exts(&[Extension::RawAttribute]);
+        assert_eq!(pe("`x`{=my-format}", ext), vec![raw("my-format", "x")]);
+        assert_eq!(pe("`x`{=my_fmt}", ext), vec![raw("my_fmt", "x")]);
+        assert_eq!(pe("`x`{=3d}", ext), vec![raw("3d", "x")]);
+    }
+
+    #[test]
+    fn raw_attribute_tolerates_whitespace_around_marker() {
+        let ext = exts(&[Extension::RawAttribute]);
+        assert_eq!(pe("`x`{ =html }", ext), vec![raw("html", "x")]);
+        assert_eq!(pe("`x`{=html }", ext), vec![raw("html", "x")]);
+        assert_eq!(pe("`x`{ =html}", ext), vec![raw("html", "x")]);
+    }
+
+    #[test]
+    fn raw_attribute_normalizes_code_content() {
+        let ext = exts(&[Extension::RawAttribute]);
+        // A single space padding each side is stripped, exactly as for a code span.
+        assert_eq!(pe("` x `{=html}", ext), vec![raw("html", "x")]);
+    }
+
+    #[test]
+    fn raw_attribute_requires_a_pure_format_marker() {
+        let ext = exts(&[Extension::RawAttribute]);
+        // A space between `=` and the format is not a marker.
+        assert_eq!(
+            pe("`x`{= html}", ext),
+            vec![
+                code("x"),
+                str("{="),
+                Inline::Space,
+                str("html}"),
+            ]
+        );
+        // An empty format is not a marker.
+        assert_eq!(pe("`x`{=}", ext), vec![code("x"), str("{=}")]);
+        // Anything beyond the format (a class, a dot) defeats the marker.
+        assert_eq!(pe("`x`{=a.b}", ext), vec![code("x"), str("{=a.b}")]);
+    }
+
+    #[test]
+    fn plain_attribute_block_on_code_span_is_not_raw() {
+        // `{.class}` keeps the code span and applies the attribute (inline code attributes on).
+        let ext = exts(&[Extension::RawAttribute, Extension::InlineCodeAttributes]);
+        assert_eq!(
+            pe("`x`{.c}", ext),
+            vec![Inline::Code(
+                Attr {
+                    classes: vec!["c".to_owned()],
+                    ..Attr::default()
+                },
+                "x".to_owned()
+            )]
+        );
+    }
+
+    #[test]
+    fn raw_attribute_off_leaves_marker_literal() {
+        assert_eq!(
+            p("`<b>`{=html}"),
+            vec![code("<b>"), str("{=html}")]
         );
     }
 }
