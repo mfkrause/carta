@@ -208,6 +208,7 @@ fn resolve_block(
             header,
             rows,
         } => out.push(resolve_table(alignments, header, rows, refs, notes, ext)),
+        IrBlock::GridTable(table) => out.push(resolve_grid_table(table, refs, notes, ext)),
     }
 }
 
@@ -300,6 +301,67 @@ fn make_cell(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> C
         row_span: 1,
         col_span: 1,
         content,
+    }
+}
+
+/// Build a grid table: column specs carry the per-column alignment and fractional width; the header
+/// rows form the `TableHead` and the body rows a single `TableBody`. Each cell's raw text parses as
+/// block content. A caption, when present, is inline markdown wrapped in a `Plain`.
+fn resolve_grid_table(
+    table: &super::grid::GridTable,
+    refs: &RefMap,
+    notes: RefContext,
+    ext: Extensions,
+) -> Block {
+    let col_specs = table
+        .columns
+        .iter()
+        .map(|column| ColSpec {
+            align: column.align.clone(),
+            width: ColWidth::ColWidth(column.width),
+        })
+        .collect();
+    let make_row = |row: &super::grid::Row| Row {
+        attr: Attr::default(),
+        cells: row.cells.iter().map(|cell| make_grid_cell(cell, ext)).collect(),
+    };
+    let caption = match &table.caption {
+        Some(text) => Caption {
+            short: None,
+            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
+        },
+        None => Caption::default(),
+    };
+    Block::Table(Box::new(Table {
+        attr: Attr::default(),
+        caption,
+        col_specs,
+        head: TableHead {
+            attr: Attr::default(),
+            rows: table.head.iter().map(make_row).collect(),
+        },
+        bodies: vec![TableBody {
+            attr: Attr::default(),
+            row_head_columns: 0,
+            head: Vec::new(),
+            body: table.body.iter().map(make_row).collect(),
+        }],
+        foot: TableFoot {
+            attr: Attr::default(),
+            rows: table.foot.iter().map(make_row).collect(),
+        },
+    }))
+}
+
+/// Build one grid-table cell, parsing its raw text into block content (tight cells demote their
+/// paragraphs to `Plain`).
+fn make_grid_cell(cell: &super::grid::Cell, ext: Extensions) -> Cell {
+    Cell {
+        attr: Attr::default(),
+        align: Alignment::AlignDefault,
+        row_span: 1,
+        col_span: 1,
+        content: super::parse_table_cell(&cell.text, cell.tight, ext),
     }
 }
 

@@ -10,6 +10,7 @@ mod autolink;
 mod block;
 mod cursor;
 mod frontmatter;
+mod grid;
 mod html_block;
 mod identifiers;
 mod inline;
@@ -78,6 +79,9 @@ pub(crate) enum IrBlock {
         header: Vec<String>,
         rows: Vec<Vec<String>>,
     },
+    /// A grid table: column specs plus header and body rows of still-raw cell text, each cell parsed
+    /// as block content in the inline phase. Any caption is attached after the block phase.
+    GridTable(Box<grid::GridTable>),
 }
 
 /// One entry of a definition list: a term plus its definitions. The term holds raw text awaiting
@@ -117,6 +121,21 @@ pub(crate) type ExampleMap = BTreeMap<String, i32>;
 pub(crate) fn parse_meta_blocks(text: &str, extensions: Extensions) -> Vec<Block> {
     let normalized = normalize(text);
     let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions);
+    inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
+}
+
+/// Parse the raw text of a table cell into block content, reusing the full block and inline
+/// pipeline. A tight cell — one with no internal blank line — demotes its top-level paragraphs to
+/// `Plain`; an empty cell carries no blocks.
+pub(crate) fn parse_table_cell(text: &str, tight: bool, extensions: Extensions) -> Vec<Block> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    let normalized = normalize(text);
+    let (mut ir, refs, footnotes, examples) = block::parse(&normalized, extensions);
+    if tight {
+        block::demote_loose_paragraphs(&mut ir);
+    }
     inline::resolve_document(&ir, refs, &footnotes, &examples, extensions)
 }
 
