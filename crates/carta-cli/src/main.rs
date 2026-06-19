@@ -13,7 +13,11 @@ use std::process::ExitCode;
 use carta::{ReaderOptions, Result, WriterOptions, convert};
 use clap::Parser;
 
-const LIST_FLAGS: [&str; 3] = ["list_input_formats", "list_output_formats", "list_extensions"];
+const LIST_FLAGS: [&str; 3] = [
+    "list_input_formats",
+    "list_output_formats",
+    "list_extensions",
+];
 
 #[derive(Parser, Debug)]
 #[command(name = "carta", version, about = "Document converter")]

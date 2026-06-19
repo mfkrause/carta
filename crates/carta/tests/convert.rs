@@ -85,7 +85,10 @@ fn format_names_are_sorted_and_every_name_resolves() {
     sorted.sort_unstable();
     assert_eq!(inputs, sorted, "input names are not sorted");
     for name in &inputs {
-        assert!(reader_for(name).is_ok(), "input name {name} does not resolve");
+        assert!(
+            reader_for(name).is_ok(),
+            "input name {name} does not resolve"
+        );
     }
 
     let outputs = carta::output_format_names();
