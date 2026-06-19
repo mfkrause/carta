@@ -51,8 +51,6 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 | `commands` | declarative command tests, vs a live normalized oracle | `.oracle/tests/test/command/*.md` |
 | `extensions` | structural gate: every reader-honored extension has an oracle-parity case | `crates/carta-core` (the variant table), the reader source, and `corpus/text-ext/` |
 
-The `extensions` surface needs no oracle, `jq`, or built binary — it is a pure structural check. It parses every extension the reader's source branches on, then fails if any lacks a `corpus/text-ext/<spec>/` directory exercising it against the oracle. A golden snapshot locks carta's own output; only a `text-ext/` case compares an extension to pandoc — so this gate is what stops an extension from being wired in but never oracle-verified.
-
 ### Comparison and normalization
 
 - **JSON targets** (`json`, and the reader/roundtrip surfaces) are canonicalized with `jq -S` before diffing, so object-key order is never a divergence.
