@@ -164,6 +164,12 @@ echo '# Hello' | carta -f commonmark -t html
 
 # inspect the document model
 carta -f commonmark -t json input.md
+
+# discover what this build supports
+carta --list-input-formats
+carta --list-output-formats
+carta --list-extensions          # extensions for the Markdown dialect
+carta --list-extensions=gfm      # extensions and defaults for a given format
 ```
 
 ### Library

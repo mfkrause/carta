@@ -200,4 +200,4 @@ Document-conversion features independent of any single format — none implement
 | Writer extension toggles | ❌ | each writer emits a fixed dialect |
 | Embed resources / extract media | ❌ | |
 | Multiple inputs / defaults files (`--defaults`) | ❌ | CLI takes one input |
-| CLI introspection (`--list-input-formats`, `--list-extensions`, …) | ❌ | only `-f`/`-t`/`-o` + input |
+| CLI introspection (`--list-input-formats`, `--list-extensions`, …) | ✅ | `--list-input-formats`, `--list-output-formats` (canonical names and aliases), `--list-extensions[=FORMAT]` (`+`/`-` per the format's default set; the Markdown dialect when no format is given) |
