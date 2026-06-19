@@ -12,6 +12,8 @@
 
 use carta_ast::{Attr, Inline, Target};
 
+use super::scan::matches_at;
+
 /// Rewrite every text `Str` in `inlines`, recursing through inline containers, so that bare URIs,
 /// `www.` hosts, and email addresses become links. Code, math, and raw inlines are left untouched.
 pub(crate) fn autolink_inlines(inlines: &mut Vec<Inline>) {
@@ -140,7 +142,7 @@ fn is_label_char(c: char) -> bool {
 }
 
 fn match_www(chars: &[char], i: usize) -> Option<Match> {
-    if alnum_before(chars, i) || !starts_with(chars, i, "www.") {
+    if alnum_before(chars, i) || !matches_at(chars, i, "www.") {
         return None;
     }
     let content_start = i + 4;
@@ -242,14 +244,8 @@ fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
 fn url_scheme_len(chars: &[char], i: usize) -> Option<usize> {
     ["https://", "http://", "ftp://"]
         .into_iter()
-        .find(|scheme| starts_with(chars, i, scheme))
+        .find(|scheme| matches_at(chars, i, scheme))
         .map(str::len)
-}
-
-fn starts_with(chars: &[char], i: usize, pat: &str) -> bool {
-    pat.chars()
-        .enumerate()
-        .all(|(offset, pc)| chars.get(i + offset) == Some(&pc))
 }
 
 fn alnum_before(chars: &[char], i: usize) -> bool {
