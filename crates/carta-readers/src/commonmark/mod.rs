@@ -261,6 +261,28 @@ mod tests {
     }
 
     #[test]
+    fn attribute_only_table_caption_carries_no_blocks() {
+        // A caption line that is nothing but a trailing attribute block: the block is split off onto
+        // the table's own attributes, leaving the caption text empty. An empty caption parses to no
+        // blocks at all, never a `Plain` wrapping an empty inline list.
+        let input = "| a | b |\n|---|---|\n| 1 | 2 |\n\n: {#tid}\n";
+        let blocks = blocks_with_many(
+            input,
+            &[
+                Extension::PipeTables,
+                Extension::TableCaptions,
+                Extension::TableAttributes,
+            ],
+        );
+        let table = match blocks.as_slice() {
+            [Block::Table(table)] => table,
+            other => panic!("expected a single table, got {other:?}"),
+        };
+        assert!(table.caption.long.is_empty());
+        assert_eq!(table.attr.id, "tid");
+    }
+
+    #[test]
     fn undefined_footnote_reference_stays_literal() {
         // With no matching definition the brackets are ordinary text and no note is produced.
         let inlines = para_inlines("text[^missing]\n", Extension::Footnotes);
