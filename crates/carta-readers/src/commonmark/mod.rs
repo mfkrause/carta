@@ -16,6 +16,7 @@ mod identifiers;
 mod inline;
 mod scan;
 mod table;
+mod texttable;
 mod yaml;
 
 use std::collections::BTreeMap;
@@ -82,6 +83,10 @@ pub(crate) enum IrBlock {
     /// A grid table: column specs plus header and body rows of still-raw cell text, each cell parsed
     /// as block content in the inline phase. Any caption is attached after the block phase.
     GridTable(Box<grid::GridTable>),
+    /// A dash-ruled table: column specs plus an optional header row and body rows of still-raw cell
+    /// text, each cell parsed as inline content in the inline phase. Any caption is attached after
+    /// the block phase.
+    TextTable(Box<texttable::TextTable>),
 }
 
 /// One entry of a definition list: a term plus its definitions. The term holds raw text awaiting
