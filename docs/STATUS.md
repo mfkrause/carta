@@ -98,8 +98,11 @@ unmodeled pandoc-markdown extensions are unavailable.
 ### `rst` — ✅
 All blocks and inlines; grid/simple/multiline tables, figure directives, `:math:` role.
 
-### `typst` — ✅
-All blocks and inlines.
+### `typst` — 🚧
+
+| Gap | Detail |
+| --- | --- |
+| `Inline::Math` | TeX emitted verbatim inside `$…$`; not translated to Typst's native math syntax |
 
 ### `mediawiki` — ✅
 All blocks and inlines; HTML fallback where wiki syntax falls short.
@@ -193,7 +196,7 @@ Document-conversion features independent of any single format — none implement
 | Syntax highlighting (`--highlight-style`) | ❌ | code emitted verbatim |
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in AST, not processed |
 | Filters (Lua / JSON) | ❌ | |
-| Math output methods (MathML, MathJax, KaTeX, webtex) | ❌ | math parsed; some writers stub output |
+| Math output methods (MathML, MathJax, KaTeX, webtex) | ❌ | TeX passed through verbatim where the target accepts it (html, latex, rst, asciidoc, mediawiki, dokuwiki); no TeX→native translation (Typst, plain, man, jira) and no MathML/MathJax/KaTeX/webtex emitters |
 | Writer extension toggles | ❌ | each writer emits a fixed dialect |
 | Embed resources / extract media | ❌ | |
 | Multiple inputs / defaults files (`--defaults`) | ❌ | CLI takes one input |
