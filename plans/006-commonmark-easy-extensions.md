@@ -19,7 +19,7 @@
 - **Depends on**: nothing. Note: plan 003 (linear delimiter stack) is still TODO and rewrites
   `process_emphasis`; this plan deliberately builds on the **current** quadratic resolver and leaves
   a maintenance note so 003 can absorb the new delimiter kinds.
-- **Category**: feature (manually authored; not from the perf-focused improve run that produced 001–005)
+- **Category**: feature
 - **Planned at**: commit `e730995`, 2026-06-10. Semantics in §3 were derived empirically from the
   pinned oracle (pandoc 3.10) via `pandoc -f commonmark+<ext> -t native`, which is the sanctioned
   clean-room source (observable CLI behavior). They are reproduced here so the executor does not need
