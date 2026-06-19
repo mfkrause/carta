@@ -9,7 +9,7 @@ use carta_core::{Extension, Extensions};
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
 use super::{
     ExampleMap, FootnoteDefs, IrBlock, IrDefItem, RefMap, TAB_STOP, attr, grid, html_block, scan,
-    table,
+    table, texttable,
 };
 
 /// Parse the normalized input into the block tree plus the collected link, footnote, and example
@@ -22,6 +22,7 @@ pub(crate) fn parse(
     for line in split_lines(input) {
         parser.process_line(line);
     }
+    parser.finalize_open_text_tables();
     parser.finish()
 }
 
@@ -69,6 +70,11 @@ enum Kind {
     FencedCode(FenceInfo),
     HtmlBlock(u8),
     ThematicBreak,
+    /// A dash-ruled table candidate, accumulating its physical lines (each `\n`-terminated). Its
+    /// exact extent is settled when the block closes: the lines are parsed into a table, with any
+    /// surplus rows after the table re-fed as following blocks, or — when they form no table — the
+    /// leaf is repurposed into the thematic break or paragraph the lines actually are.
+    TextTable,
 }
 
 #[derive(Debug, Clone)]
@@ -421,6 +427,7 @@ impl Parser {
         self.continue_grid_table(container, all_matched, blank, cursor)
             || self.continue_pipe_table(container, all_matched, blank, cursor)
             || self.continue_line_block(container, all_matched, cursor)
+            || self.continue_text_table(container, all_matched, blank, cursor)
     }
 
     /// Let an in-progress grid table claim its `+`/`|` continuation lines before the block openers
@@ -537,6 +544,124 @@ impl Parser {
             self.close(block);
             false
         }
+    }
+
+    fn text_tables_enabled(&self) -> bool {
+        self.extensions.contains(Extension::SimpleTables)
+            || self.extensions.contains(Extension::MultilineTables)
+    }
+
+    /// Let a dash-ruled table claim its lines before the block openers run. A single-line paragraph
+    /// directly above a dash ruling is the header of a new table: the paragraph is retyped and the
+    /// ruling folded onto it, so the rows below gather into one leaf. An already-open table leaf
+    /// absorbs each further line, and a blank line settles it (see [`Parser::finalize_text_table`]).
+    /// Returns `true` when the line was absorbed.
+    fn continue_text_table(
+        &mut self,
+        container: usize,
+        all_matched: bool,
+        blank: bool,
+        cursor: &Cursor,
+    ) -> bool {
+        if !self.text_tables_enabled() || !all_matched {
+            return false;
+        }
+        let Some(leaf) = self.last_open_child(container) else {
+            return false;
+        };
+        match self.kind(leaf) {
+            Some(Kind::Paragraph) => {
+                if blank {
+                    return false;
+                }
+                let header = self.node_text(leaf);
+                if !single_line(&header) || !texttable::is_dash_line(cursor.remaining()) {
+                    return false;
+                }
+                // A dash-ruled table has no cell delimiters: its columns are positional, so every
+                // line must share one left margin. The header reached here de-indented through the
+                // paragraph path, so it is re-indented to the ruling's margin before the ruling and
+                // the rows below (kept with their own leading whitespace) gather onto it.
+                let ruling = cursor.rest();
+                let indent = ruling.len() - ruling.trim_start_matches(' ').len();
+                let header = format!("{}{header}", " ".repeat(indent));
+                if let Some(node) = self.nodes.get_mut(leaf) {
+                    node.kind = Kind::TextTable;
+                    node.text = header;
+                }
+                self.append_text(leaf, &ruling);
+                self.append_text(leaf, "\n");
+                true
+            }
+            Some(Kind::TextTable) => {
+                if blank {
+                    self.finalize_text_table(leaf);
+                    return false;
+                }
+                self.append_text(leaf, &cursor.rest_with_newline());
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Settle an open dash-ruled table leaf. Its accumulated lines are parsed into a table: when they
+    /// all belong to it the leaf closes as the table; when only a prefix does, the leaf keeps that
+    /// prefix and the surplus lines are re-fed as following blocks; when they form no table the leaf
+    /// is repurposed into the thematic break or paragraph its first line is, with the rest re-fed.
+    fn finalize_text_table(&mut self, leaf: usize) {
+        let text = self.node_text(leaf);
+        let lines = split_table_lines(&text);
+        match texttable::parse(&lines, self.extensions) {
+            Some((_, consumed)) if consumed >= lines.len() => self.close(leaf),
+            Some((_, consumed)) => {
+                let kept = lines.get(..consumed).unwrap_or(&[]).join("\n");
+                let rest = owned_lines(lines.get(consumed..).unwrap_or(&[]));
+                if let Some(node) = self.nodes.get_mut(leaf) {
+                    node.text = if kept.is_empty() {
+                        kept
+                    } else {
+                        format!("{kept}\n")
+                    };
+                }
+                self.close(leaf);
+                for line in rest {
+                    self.process_line(&line);
+                }
+            }
+            None => {
+                let first = lines.first().copied().unwrap_or("");
+                let rest = owned_lines(lines.get(1..).unwrap_or(&[]));
+                if let Some(node) = self.nodes.get_mut(leaf) {
+                    if is_thematic_dash_line(first) {
+                        node.kind = Kind::ThematicBreak;
+                        node.text = String::new();
+                    } else {
+                        node.kind = Kind::Paragraph;
+                        node.text = format!("{first}\n");
+                    }
+                }
+                self.close(leaf);
+                for line in rest {
+                    self.process_line(&line);
+                }
+            }
+        }
+    }
+
+    /// Settle every dash-ruled table leaf still open at end of input. Re-feeding surplus lines may
+    /// open a fresh candidate, which the next pass settles; each pass strictly shrinks the work.
+    fn finalize_open_text_tables(&mut self) {
+        while let Some(leaf) = self.open_text_table_leaf() {
+            self.finalize_text_table(leaf);
+        }
+    }
+
+    fn open_text_table_leaf(&self) -> Option<usize> {
+        (0..self.nodes.len()).find(|&index| {
+            matches!(self.kind(index), Some(Kind::TextTable))
+                && self.nodes.get(index).is_some_and(|node| node.open)
+        })
     }
 
     /// Close `tip` and each ancestor up to (but not including) `until`.
@@ -869,6 +994,25 @@ impl Parser {
                 }
                 return Some(index);
             }
+            // A dash ruling at the start of a fresh block opens a header-less table candidate: its
+            // rows and closing ruling gather into the leaf, settled when the block closes. A
+            // paragraph directly above would instead make it a headed table (claimed before the
+            // openers run), so the candidate only opens where no paragraph is open. It preempts the
+            // thematic break a lone dash ruling would otherwise be — a candidate that yields no table
+            // settles back into that break.
+            if self.text_tables_enabled()
+                && !in_paragraph
+                && texttable::opens_dash_table(cursor.remaining())
+            {
+                let parent = self.place(container, &Kind::TextTable);
+                let index = self.append_child(parent, Node::new(Kind::TextTable));
+                // The ruling keeps its leading indentation: a dash-ruled table's columns are
+                // positional, so every line must share one left margin (here, the rows below).
+                let line = format!("{}{}", " ".repeat(indent), cursor.rest());
+                self.append_text(index, &line);
+                self.append_text(index, "\n");
+                return Some(index);
+            }
             if cursor.thematic_break() {
                 let parent = self.place(container, &Kind::ThematicBreak);
                 let index = self.append_child(parent, Node::new(Kind::ThematicBreak));
@@ -1152,6 +1296,7 @@ impl Parser {
                     Kind::Heading(_)
                     | Kind::ThematicBreak
                     | Kind::LineBlock
+                    | Kind::TextTable
                     | Kind::IndentedCode
                     | Kind::FencedCode(_)
                     | Kind::HtmlBlock(_),
@@ -1337,6 +1482,11 @@ impl Parser {
                 }
             }
             Kind::LineBlock => IrBlock::LineBlock(line_block_lines(&node.text)),
+            Kind::TextTable => {
+                let lines = split_table_lines(&node.text);
+                let (table, _) = texttable::parse(&lines, self.extensions)?;
+                IrBlock::TextTable(Box::new(table))
+            }
             Kind::DefinitionList => self.build_definition_list(index),
             Kind::Heading(level) => IrBlock::Heading(*level, node.text.trim().to_owned()),
             Kind::ThematicBreak => IrBlock::ThematicBreak,
@@ -1735,6 +1885,29 @@ fn is_line_block_marker(line: &str) -> bool {
 fn single_line(text: &str) -> bool {
     let body = text.strip_suffix('\n').unwrap_or(text);
     !body.is_empty() && !body.contains('\n')
+}
+
+/// Split an accumulated table leaf's text into its physical lines, dropping the trailing empty piece
+/// left by the final newline.
+fn split_table_lines(text: &str) -> Vec<&str> {
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    if lines.last() == Some(&"") {
+        lines.pop();
+    }
+    lines
+}
+
+fn owned_lines(lines: &[&str]) -> Vec<String> {
+    lines.iter().map(|line| (*line).to_owned()).collect()
+}
+
+/// Whether a dash-only line is a thematic break: three or more dashes, with spaces allowed between
+/// them. Used to settle a dash-ruled table candidate that turned out not to be a table.
+fn is_thematic_dash_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    !trimmed.is_empty()
+        && trimmed.bytes().all(|byte| matches!(byte, b'-' | b' '))
+        && trimmed.bytes().filter(|byte| *byte == b'-').count() >= 3
 }
 
 /// Whether a line block's current (final) entry is empty: its last line is a `|` marker carrying no
