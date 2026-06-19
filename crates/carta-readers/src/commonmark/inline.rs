@@ -173,6 +173,9 @@ fn resolve_block(
                 text.clone(),
             ));
         }
+        IrBlock::RawBlock(format, text) => {
+            out.push(Block::RawBlock(format.clone(), text.clone()));
+        }
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
         IrBlock::Div(attr, children) => {
             out.push(Block::Div(
@@ -218,11 +221,13 @@ fn resolve_block(
             header,
             rows,
             caption,
+            attr,
         } => out.push(resolve_table(
             alignments,
             header,
             rows,
             caption.as_deref(),
+            attr,
             refs,
             notes,
             ext,
@@ -272,6 +277,7 @@ fn resolve_table(
     header: &[String],
     rows: &[Vec<String>],
     caption: Option<&str>,
+    attr: &Attr,
     refs: &RefMap,
     notes: RefContext,
     ext: Extensions,
@@ -298,7 +304,7 @@ fn resolve_table(
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
-        attr: Attr::default(),
+        attr: attr.clone(),
         caption,
         col_specs,
         head: TableHead {
@@ -365,7 +371,7 @@ fn resolve_grid_table(
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
-        attr: Attr::default(),
+        attr: table.attr.clone(),
         caption,
         col_specs,
         head: TableHead {
@@ -427,7 +433,7 @@ fn resolve_text_table(
         None => Caption::default(),
     };
     Block::Table(Box::new(Table {
-        attr: Attr::default(),
+        attr: table.attr.clone(),
         caption,
         col_specs,
         head: TableHead {

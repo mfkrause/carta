@@ -21,7 +21,7 @@ mod yaml;
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Alignment, Attr, Block, Document, Inline, ListAttributes};
+use carta_ast::{Alignment, Attr, Block, Document, Format, Inline, ListAttributes};
 use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 /// Parses `CommonMark` text into the document model.
@@ -59,6 +59,8 @@ pub(crate) enum IrBlock {
     Heading(i32, String),
     CodeBlock(Attr, String),
     RawHtml(String),
+    /// A raw block in a named passthrough format (e.g. a fenced ```` ```{=latex} ```` block).
+    RawBlock(Format, String),
     ThematicBreak,
     /// A fenced div: its attributes and the recursively-parsed block content.
     Div(Attr, Vec<IrBlock>),
@@ -81,6 +83,8 @@ pub(crate) enum IrBlock {
         header: Vec<String>,
         rows: Vec<Vec<String>>,
         caption: Option<String>,
+        /// Attributes attached via the caption line when `table_attributes` is enabled.
+        attr: Attr,
     },
     /// A grid table: column specs plus header and body rows of still-raw cell text, each cell parsed
     /// as block content in the inline phase. Any caption is attached after the block phase.
