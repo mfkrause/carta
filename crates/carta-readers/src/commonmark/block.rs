@@ -1551,6 +1551,7 @@ impl Parser {
                         header,
                         rows,
                         caption: None,
+                        attr: Attr::default(),
                     }
                 } else {
                     IrBlock::Para(trimmed.to_owned())

@@ -4,7 +4,7 @@
 //! left for the inline phase to parse as block content; column widths and alignments come from the
 //! border lines.
 
-use carta_ast::Alignment;
+use carta_ast::{Alignment, Attr};
 
 /// A parsed grid table awaiting the inline phase: one [`Column`] per column plus the header, body,
 /// and footer rows of raw cell text. The caption text, stripped of its marker, is attached after
@@ -16,6 +16,8 @@ pub(crate) struct GridTable {
     pub body: Vec<Row>,
     pub foot: Vec<Row>,
     pub caption: Option<String>,
+    /// Attributes attached via the caption line when `table_attributes` is enabled.
+    pub attr: Attr,
 }
 
 /// One column's alignment and its width as a fraction of the text width.
@@ -159,6 +161,7 @@ pub(crate) fn parse(text: &str) -> Option<GridTable> {
         body,
         foot,
         caption: None,
+        attr: Attr::default(),
     })
 }
 
