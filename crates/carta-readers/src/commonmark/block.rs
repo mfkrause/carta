@@ -17,8 +17,9 @@ use super::{
 pub(crate) fn parse(
     input: &str,
     extensions: Extensions,
+    greedy_paragraphs: bool,
 ) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
-    let mut parser = Parser::new(extensions);
+    let mut parser = Parser::new(extensions, greedy_paragraphs);
     for line in split_lines(input) {
         parser.process_line(line);
     }
@@ -148,14 +149,18 @@ struct Parser {
     nodes: Vec<Node>,
     refs: RefMap,
     extensions: Extensions,
+    /// When set, most block openers do not interrupt an open paragraph (see
+    /// [`ReaderOptions::greedy_paragraphs`](carta_core::ReaderOptions::greedy_paragraphs)).
+    greedy_paragraphs: bool,
 }
 
 impl Parser {
-    fn new(extensions: Extensions) -> Self {
+    fn new(extensions: Extensions, greedy_paragraphs: bool) -> Self {
         Parser {
             nodes: vec![Node::new(Kind::Document)],
             refs: RefMap::new(),
             extensions,
+            greedy_paragraphs,
         }
     }
 
@@ -935,10 +940,33 @@ impl Parser {
         }
     }
 
+    /// How a greedy paragraph (the markdown dialect) absorbs a following block opener. The first
+    /// flag covers the foldable openers — a block quote, heading, thematic break, fenced div, or
+    /// footnote definition continues an open paragraph as a lazy line rather than interrupting it,
+    /// even across a container the line did not match (`> a` then `# b`); only a blank line, a fenced
+    /// code block, or an HTML block ends it. The second covers a list marker, which is structural: it
+    /// still opens a sibling item in an open list or a sublist inside an item, and folds only where
+    /// it would otherwise *start* a fresh list — when the paragraph is the container's own last child
+    /// and the container is not itself a list item or other indented item body.
+    fn greedy_gates(&self, container: usize, in_paragraph: bool) -> (bool, bool) {
+        if !self.greedy_paragraphs {
+            return (false, false);
+        }
+        let fresh_list_into_paragraph = !matches!(
+            self.kind(container),
+            Some(Kind::Item(_) | Kind::Definition { .. } | Kind::FootnoteDef(_))
+        ) && matches!(
+            self.last_open_child(container).and_then(|child| self.kind(child)),
+            Some(Kind::Paragraph)
+        );
+        (in_paragraph, fresh_list_into_paragraph)
+    }
+
     /// Try to open a new block at the current cursor position inside `container`.
     fn try_open(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
         let indent = cursor.indent();
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
+        let (greedy, greedy_list_start) = self.greedy_gates(container, in_paragraph);
 
         if indent >= TAB_STOP && !in_paragraph {
             cursor.advance_columns(TAB_STOP);
@@ -950,15 +978,17 @@ impl Parser {
 
         if indent < TAB_STOP {
             cursor.skip_indent();
-            if cursor.peek() == Some(b'>') {
+            if !greedy && cursor.peek() == Some(b'>') {
                 cursor.advance_one();
                 cursor.consume_optional_space();
                 let parent = self.place(container, &Kind::BlockQuote);
                 return Some(self.append_child(parent, Node::new(Kind::BlockQuote)));
             }
-            // A footnote definition opens here, interrupting any open paragraph; its content is then
-            // gathered by the enclosing container loop, the same as a block quote's.
-            if self.extensions.contains(Extension::Footnotes)
+            // A footnote definition opens here; its content is then gathered by the enclosing
+            // container loop, the same as a block quote's. Like the other openers it folds into a
+            // greedy paragraph rather than interrupting it.
+            if !greedy
+                && self.extensions.contains(Extension::Footnotes)
                 && let Some(label) = cursor.footnote_def_marker()
             {
                 let key = scan::normalize_label(&label);
@@ -967,7 +997,7 @@ impl Parser {
             }
             // A fenced div opens on a colon-run line carrying a valid attribute spec; it may
             // interrupt a paragraph. The whole fence line is consumed, so the div opens empty.
-            if self.extensions.contains(Extension::FencedDivs) {
+            if !greedy && self.extensions.contains(Extension::FencedDivs) {
                 let opener = div_open_fence(cursor.remaining());
                 if let Some((count, attr)) = opener {
                     let width = cursor.remaining().chars().count();
@@ -981,7 +1011,7 @@ impl Parser {
                     return Some(self.append_child(parent, Node::new(kind)));
                 }
             }
-            if let Some(level) = cursor.atx_heading() {
+            if !greedy && let Some(level) = cursor.atx_heading() {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
                 self.append_text(index, &strip_atx_closing(&cursor.rest()));
@@ -1024,7 +1054,7 @@ impl Parser {
                 self.append_text(index, "\n");
                 return Some(index);
             }
-            if cursor.thematic_break() {
+            if !greedy && cursor.thematic_break() {
                 let parent = self.place(container, &Kind::ThematicBreak);
                 let index = self.append_child(parent, Node::new(Kind::ThematicBreak));
                 self.close(index);
@@ -1040,7 +1070,7 @@ impl Parser {
             {
                 return Some(body);
             }
-            if let Some(list) = self.list_marker(container, indent, cursor) {
+            if !greedy_list_start && let Some(list) = self.list_marker(container, indent, cursor) {
                 return Some(list);
             }
         }
@@ -1210,9 +1240,11 @@ impl Parser {
             if parsed.blank_after {
                 return None;
             }
-            let decimal_one =
-                matches!(parsed.style, ListNumberStyle::Decimal) && parsed.start == 1;
-            if !parsed.bullet && !decimal_one {
+            // Where paragraphs are greedy, a fresh list never interrupts one (that is suppressed
+            // before the marker is read), so this branch is reached only for a marker indented into
+            // an item body — a sublist, which opens regardless of its start enumerator.
+            let decimal_one = matches!(parsed.style, ListNumberStyle::Decimal) && parsed.start == 1;
+            if !self.greedy_paragraphs && !parsed.bullet && !decimal_one {
                 return None;
             }
         }
