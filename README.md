@@ -51,7 +51,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | Format | Reader | Writer |
 | --- | :---: | :---: |
 | LaTeX (`latex`) | ❌ | ✅ |
-| Typst (`typst`) | ❌ | ✅ |
+| Typst (`typst`) | ❌ | 🚧 |
 | ConTeXt (`context`) | ➖ | ❌ |
 | Texinfo (`texinfo`) | ➖ | ❌ |
 | PDF (`pdf`) | ➖ | ❌ |
