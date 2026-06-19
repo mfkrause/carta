@@ -15,6 +15,7 @@ use carta_ast::{
 use carta_core::{Extension, Extensions};
 
 use super::attr;
+use super::block::is_format_name_char;
 use super::identifiers::HeaderNumbering;
 use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
@@ -659,6 +660,16 @@ enum Explicit {
 
 // `notes` (the footnote context) and `nodes` (the in-progress inline list) are distinct concepts
 // that unavoidably read alike.
+/// Run the gated highlight-mark pass and emphasis resolution over a node list, then collapse it into
+/// inlines — the shared finishing sequence for a parsed inline run, a span body, and a link label.
+fn resolve_inline_nodes(mut nodes: Vec<Node>, ext: Extensions, markdown: bool) -> Vec<Inline> {
+    if ext.contains(Extension::Mark) {
+        resolve_mark(&mut nodes, ext, markdown);
+    }
+    process_emphasis(&mut nodes, 0, ext, markdown);
+    collapse(nodes)
+}
+
 #[allow(clippy::similar_names)]
 fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
@@ -672,12 +683,7 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
         bracket_stack: Vec::new(),
     };
     parser.run();
-    let mut nodes = parser.nodes;
-    if ext.contains(Extension::Mark) {
-        resolve_mark(&mut nodes, ext, notes.markdown);
-    }
-    process_emphasis(&mut nodes, 0, ext, notes.markdown);
-    let mut inlines = collapse(nodes);
+    let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
     if ext.contains(Extension::Autolink) {
         super::autolink::autolink_inlines(&mut inlines);
     }
@@ -1207,19 +1213,13 @@ impl InlineParser<'_> {
 
     fn code_span(&mut self) {
         let start = self.pos;
-        let mut open = 0;
-        while self.peek() == Some('`') {
-            self.pos += 1;
-            open += 1;
-        }
+        let open = backtick_run_len(self.chars, self.pos);
+        self.pos += open;
         // Find a closing run of exactly `open` backticks.
         let mut scan = self.pos;
         while scan < self.chars.len() {
             if self.chars.get(scan).copied() == Some('`') {
-                let mut close = 0;
-                while self.chars.get(scan + close).copied() == Some('`') {
-                    close += 1;
-                }
+                let close = backtick_run_len(self.chars, scan);
                 if close == open {
                     let content: String = self
                         .chars
@@ -1653,7 +1653,7 @@ impl InlineParser<'_> {
         index += 1;
         let format_start = index;
         while let Some(&ch) = self.chars.get(index) {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+            if is_format_name_char(ch) {
                 index += 1;
             } else {
                 break;
@@ -1704,14 +1704,10 @@ impl InlineParser<'_> {
 
     /// Build a span from a non-image bracket opener and its inner content.
     fn build_span(&mut self, opener_index: usize, attr: Attr) {
-        let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
+        let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         self.bracket_stack.retain(|&ni| ni < opener_index);
-        if self.ext.contains(Extension::Mark) {
-            resolve_mark(&mut inner, self.ext, self.notes.markdown);
-        }
-        process_emphasis(&mut inner, 0, self.ext, self.notes.markdown);
-        let content = collapse(inner);
+        let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         self.nodes.push(Node::Inline(Inline::Span(attr, content)));
     }
 
@@ -1853,16 +1849,12 @@ impl InlineParser<'_> {
     }
 
     fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target, attr: Attr) {
-        let mut inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
+        let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         // Any bracket stack entries that pointed into the split-off range are now part of the
-        // inner node list passed to process_emphasis; they no longer belong to the outer parse.
+        // inner node list passed to emphasis resolution; they no longer belong to the outer parse.
         self.bracket_stack.retain(|&ni| ni < opener_index);
-        if self.ext.contains(Extension::Mark) {
-            resolve_mark(&mut inner, self.ext, self.notes.markdown);
-        }
-        process_emphasis(&mut inner, 0, self.ext, self.notes.markdown);
-        let content = collapse(inner);
+        let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         let inline = if is_image {
             Inline::Image(attr, content, target)
         } else {
@@ -1952,6 +1944,28 @@ fn scan_citation_id(chars: &[char], start: usize) -> Option<(String, usize)> {
     Some((id, end))
 }
 
+/// Advance past one escape, backtick code span, or bracket at `index`, updating bracket `depth` and
+/// returning the next index. Returns `None` when the character is none of those — the caller then
+/// inspects it for a top-level delimiter (`;` or `@`) and advances itself.
+fn step_citation_scan(chars: &[char], index: usize, depth: &mut usize) -> Option<usize> {
+    match chars.get(index) {
+        Some('\\') => Some(index + 2),
+        Some('`') => {
+            let run = backtick_run_len(chars, index);
+            Some(skip_code_span(chars, index, run))
+        }
+        Some('[') => {
+            *depth += 1;
+            Some(index + 1)
+        }
+        Some(']') => {
+            *depth = depth.saturating_sub(1);
+            Some(index + 1)
+        }
+        _ => None,
+    }
+}
+
 /// Split a bracket's raw content into citation segments on top-level semicolons. A semicolon inside
 /// a nested `[...]` or a backtick code span does not split. Returns `None` when the content is not a
 /// citation list: it has no `@` at all, or any segment is empty (including a leading or trailing
@@ -1965,26 +1979,14 @@ fn split_citation_segments(chars: &[char]) -> Option<Vec<std::ops::Range<usize>>
     let mut index = 0;
     let mut depth = 0usize;
     while index < chars.len() {
-        match chars.get(index) {
-            Some('\\') => index += 2,
-            Some('`') => {
-                let run = backtick_run_len(chars, index);
-                index = skip_code_span(chars, index, run);
-            }
-            Some('[') => {
-                depth += 1;
-                index += 1;
-            }
-            Some(']') => {
-                depth = depth.saturating_sub(1);
-                index += 1;
-            }
-            Some(';') if depth == 0 => {
-                segments.push(start..index);
-                start = index + 1;
-                index += 1;
-            }
-            _ => index += 1,
+        if let Some(next) = step_citation_scan(chars, index, &mut depth) {
+            index = next;
+        } else if chars.get(index) == Some(&';') && depth == 0 {
+            segments.push(start..index);
+            start = index + 1;
+            index += 1;
+        } else {
+            index += 1;
         }
     }
     segments.push(start..chars.len());
@@ -2046,39 +2048,28 @@ fn find_citation_key(chars: &[char], range: std::ops::Range<usize>) -> Option<Ci
     let mut index = range.start;
     let mut depth = 0usize;
     while index < range.end {
-        match chars.get(index) {
-            Some('\\') => index += 2,
-            Some('`') => {
-                let run = backtick_run_len(chars, index);
-                index = skip_code_span(chars, index, run);
-            }
-            Some('[') => {
-                depth += 1;
-                index += 1;
-            }
-            Some(']') => {
-                depth = depth.saturating_sub(1);
-                index += 1;
-            }
-            Some('@') if depth == 0 => {
-                if let Some((id, id_end)) = scan_citation_id(chars, index + 1) {
-                    let dash_before = index > range.start && chars.get(index - 1) == Some(&'-');
-                    let dash_anchored = dash_before
-                        && (index - 1 == range.start
-                            || chars.get(index - 2).is_some_and(|c| c.is_whitespace()));
-                    let suppress = dash_anchored;
-                    return Some(CitationKey {
-                        at: index,
-                        dash: if suppress { index - 1 } else { index },
-                        id,
-                        id_end,
-                        suppress,
-                    });
-                }
-                index += 1;
-            }
-            _ => index += 1,
+        if let Some(next) = step_citation_scan(chars, index, &mut depth) {
+            index = next;
+            continue;
         }
+        if depth == 0
+            && chars.get(index) == Some(&'@')
+            && let Some((id, id_end)) = scan_citation_id(chars, index + 1)
+        {
+            let dash_before = index > range.start && chars.get(index - 1) == Some(&'-');
+            let dash_anchored = dash_before
+                && (index - 1 == range.start
+                    || chars.get(index - 2).is_some_and(|c| c.is_whitespace()));
+            let suppress = dash_anchored;
+            return Some(CitationKey {
+                at: index,
+                dash: if suppress { index - 1 } else { index },
+                id,
+                id_end,
+                suppress,
+            });
+        }
+        index += 1;
     }
     None
 }
@@ -2722,13 +2713,25 @@ enum SpanTag {
     Other,
 }
 
+/// Cheap pre-check before the char-by-char classification: does `raw` open with `<span` or `</span`
+/// (case-insensitive)? Lets the common non-span inline tag bail out without allocating.
+fn opens_span_tag(raw: &str) -> bool {
+    let Some(after_lt) = raw.strip_prefix('<') else {
+        return false;
+    };
+    let candidate = after_lt.strip_prefix('/').unwrap_or(after_lt);
+    candidate
+        .get(..4)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("span"))
+}
+
 /// Classify a raw HTML tag string, parsing attributes for an opening `<span …>`. A self-closing
 /// `<span/>` is `Other`: it has no content to wrap and stays raw.
 fn classify_span_tag(raw: &str) -> SpanTag {
-    let chars: Vec<char> = raw.chars().collect();
-    if chars.first().copied() != Some('<') {
+    if !opens_span_tag(raw) {
         return SpanTag::Other;
     }
+    let chars: Vec<char> = raw.chars().collect();
     if chars.get(1).copied() == Some('/') {
         // `</span>` with optional trailing whitespace before `>`.
         let mut i = 2;
