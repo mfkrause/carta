@@ -184,7 +184,10 @@ fn insert_field(
         let mut authors = Vec::new();
         for line in field {
             for chunk in line.split(';') {
-                authors.push(MetaValue::MetaInlines(parse_meta_inlines(chunk.trim(), ext)));
+                authors.push(MetaValue::MetaInlines(parse_meta_inlines(
+                    chunk.trim(),
+                    ext,
+                )));
             }
         }
         meta.insert("author".to_owned(), MetaValue::MetaList(authors));

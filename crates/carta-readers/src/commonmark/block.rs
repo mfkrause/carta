@@ -62,10 +62,15 @@ enum Kind {
     /// One term of a definition list: its raw term text and whether the entry is tight (its
     /// definition paragraphs render as `Plain` rather than `Para`). A transparent container holding
     /// one [`Kind::Definition`] per `:`/`~` marker.
-    DefinitionItem { term: String, tight: bool },
+    DefinitionItem {
+        term: String,
+        tight: bool,
+    },
     /// One definition body of a definition list. Its content continues under a four-column indent
     /// like a list item; `indent` is the column its content begins at.
-    Definition { indent: usize },
+    Definition {
+        indent: usize,
+    },
     Heading(i32),
     IndentedCode,
     FencedCode(FenceInfo),
@@ -378,9 +383,7 @@ impl Parser {
             // (Once the div closes, a following blank trails it at the item's level and does count.)
             let internal_to_open_div = matches!(self.kind(target), Some(Kind::FencedDiv(..)))
                 && self.nodes.get(target).is_some_and(|node| node.open);
-            if !internal_to_open_div
-                && let Some(node) = self.nodes.get_mut(target)
-            {
+            if !internal_to_open_div && let Some(node) = self.nodes.get_mut(target) {
                 node.last_line_blank = true;
             }
         }
@@ -528,7 +531,12 @@ impl Parser {
     /// but only while that entry holds content: a continuation under an empty entry, a flush-left
     /// non-bar line, and a wholly empty line all end the block (the line is then reparsed). Returns
     /// `true` when the line was absorbed.
-    fn continue_line_block(&mut self, container: usize, all_matched: bool, cursor: &Cursor) -> bool {
+    fn continue_line_block(
+        &mut self,
+        container: usize,
+        all_matched: bool,
+        cursor: &Cursor,
+    ) -> bool {
         if !self.extensions.contains(Extension::LineBlocks) || !all_matched {
             return false;
         }
@@ -956,7 +964,8 @@ impl Parser {
             self.kind(container),
             Some(Kind::Item(_) | Kind::Definition { .. } | Kind::FootnoteDef(_))
         ) && matches!(
-            self.last_open_child(container).and_then(|child| self.kind(child)),
+            self.last_open_child(container)
+                .and_then(|child| self.kind(child)),
             Some(Kind::Paragraph)
         );
         (in_paragraph, fresh_list_into_paragraph)
@@ -1842,7 +1851,10 @@ fn continues_ordered(list_style: &ListNumberStyle, marker: &ListMarkerParse) -> 
 /// value (`a`=1, `e`=5, `j`=10).
 fn continues_roman(marker: &ListMarkerParse) -> bool {
     if !marker.single_letter {
-        return matches!(marker.style, ListNumberStyle::LowerRoman | ListNumberStyle::UpperRoman);
+        return matches!(
+            marker.style,
+            ListNumberStyle::LowerRoman | ListNumberStyle::UpperRoman
+        );
     }
     matches!(
         marker.style,
@@ -1861,7 +1873,9 @@ fn fence_attr(info: &str, extensions: Extensions) -> Attr {
         || extensions.contains(Extension::Attributes))
         && info.starts_with('{')
         && let Some((parsed, consumed)) = attr::parse_attributes(info)
-        && info.get(consumed..).is_some_and(|rest| rest.trim().is_empty())
+        && info
+            .get(consumed..)
+            .is_some_and(|rest| rest.trim().is_empty())
     {
         return parsed;
     }
@@ -1896,7 +1910,9 @@ fn div_open_attr(spec: &str) -> Option<Attr> {
     if spec.starts_with('{')
         && let Some((attr, consumed)) = attr::parse_attributes_first_id(spec)
         && attr::is_non_empty(&attr)
-        && spec.get(consumed..).is_some_and(|rest| rest.trim().is_empty())
+        && spec
+            .get(consumed..)
+            .is_some_and(|rest| rest.trim().is_empty())
     {
         return Some(attr);
     }
@@ -1980,7 +1996,11 @@ fn is_thematic_dash_line(line: &str) -> bool {
 /// content. A content-bearing line stays non-empty once written, so checking the final line alone is
 /// enough — an empty entry is only ever followed by another marker line, never folded into.
 fn last_entry_is_empty(text: &str) -> bool {
-    let last = text.trim_end_matches('\n').rsplit('\n').next().unwrap_or("");
+    let last = text
+        .trim_end_matches('\n')
+        .rsplit('\n')
+        .next()
+        .unwrap_or("");
     last.strip_prefix('|')
         .is_some_and(|rest| rest.trim_matches([' ', '\t']).is_empty())
 }

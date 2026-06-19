@@ -65,7 +65,10 @@ fn split_text(text: &str, out: &mut Vec<Inline>) {
                 out.push(Inline::Link(
                     Attr::default(),
                     vec![Inline::Str(label)],
-                    Target { url: m.href, title: String::new() },
+                    Target {
+                        url: m.href,
+                        title: String::new(),
+                    },
                 ));
             }
             emit_from = m.end;
@@ -100,7 +103,11 @@ fn match_url(chars: &[char], i: usize) -> Option<Match> {
         return None;
     }
     let href: String = chars.get(i..end)?.iter().collect();
-    Some(Match { start: i, end, href })
+    Some(Match {
+        start: i,
+        end,
+        href,
+    })
 }
 
 /// Whether `rest` opens with a usable domain. Starting at the first character, labels of
@@ -147,7 +154,11 @@ fn match_www(chars: &[char], i: usize) -> Option<Match> {
     }
     let label: String = chars.get(i..end)?.iter().collect();
     let href = format!("http://{label}");
-    Some(Match { start: i, end, href })
+    Some(Match {
+        start: i,
+        end,
+        href,
+    })
 }
 
 /// Match an email address centered on the `@` at `at`. The local part extends left over
@@ -216,7 +227,11 @@ fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
                 while j > min && chars.get(j - 1).is_some_and(|&c| is_entity_char(c)) {
                     j -= 1;
                 }
-                end = if j > min && chars.get(j - 1) == Some(&'&') { j - 1 } else { end - 1 };
+                end = if j > min && chars.get(j - 1) == Some(&'&') {
+                    j - 1
+                } else {
+                    end - 1
+                };
             }
             _ => break,
         }
@@ -330,21 +345,35 @@ mod tests {
     fn bare_url_www_and_email_become_links() {
         assert_eq!(
             links("see http://example.com/p?q=1 now"),
-            vec![("http://example.com/p?q=1".to_owned(), "http://example.com/p?q=1".to_owned())]
+            vec![(
+                "http://example.com/p?q=1".to_owned(),
+                "http://example.com/p?q=1".to_owned()
+            )]
         );
         assert_eq!(
             links("at www.example.com today"),
-            vec![("www.example.com".to_owned(), "http://www.example.com".to_owned())]
+            vec![(
+                "www.example.com".to_owned(),
+                "http://www.example.com".to_owned()
+            )]
         );
         assert_eq!(
             links("mail me@example.com please"),
-            vec![("me@example.com".to_owned(), "mailto:me@example.com".to_owned())]
+            vec![(
+                "me@example.com".to_owned(),
+                "mailto:me@example.com".to_owned()
+            )]
         );
     }
 
     #[test]
     fn trailing_sentence_punctuation_is_excluded() {
-        assert_eq!(links("read http://example.com.").first().map(|l| l.1.clone()), Some("http://example.com".to_owned()));
+        assert_eq!(
+            links("read http://example.com.")
+                .first()
+                .map(|l| l.1.clone()),
+            Some("http://example.com".to_owned())
+        );
     }
 
     #[test]
@@ -359,7 +388,10 @@ mod tests {
         let inner = Inline::Link(
             Attr::default(),
             vec![Inline::Str("http://example.com".to_owned())],
-            Target { url: "http://example.com".to_owned(), title: String::new() },
+            Target {
+                url: "http://example.com".to_owned(),
+                title: String::new(),
+            },
         );
         let mut inlines = vec![inner.clone()];
         autolink_inlines(&mut inlines);
