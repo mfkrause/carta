@@ -13,8 +13,6 @@
 //!   whitespace run to a single `-`; simple per-character lowercasing; strip the leading run up to
 //!   the first letter; an empty result becomes `section`. Repeats increment a numeric suffix until
 //!   the whole identifier is unused, and explicit identifiers are reserved against that set.
-//!
-//! See `docs/PORTING.md` for the derivation. Both read from the header's stringified inline text.
 
 use std::collections::{BTreeMap, BTreeSet};
 

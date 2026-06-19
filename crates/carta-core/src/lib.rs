@@ -2,7 +2,7 @@
 //!
 //! [`Reader`] turns input text into a [`Document`]; [`Writer`] turns a [`Document`] back into
 //! output text. Readers and writers depend only on the AST contract and this crate, so input and
-//! output formats stay independent (see `docs/PORTING.md` §3).
+//! output formats stay independent.
 
 use std::io;
 
