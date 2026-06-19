@@ -771,18 +771,18 @@ fn render_decimal(neg: bool, int_digits: &str, frac_digits: &str, exp: i64) -> S
     }
 
     let sign = if neg { "-" } else { "" };
-    let nd = len_i64(digits.len());
+    let digit_count = len_i64(digits.len());
     // With no fractional digits the value is a whole number: rendered plainly when it lands in the
     // signed 64-bit range, otherwise in scientific form. A fractional value is plain only at modest
     // magnitudes (leading digit between 10^-1 and 10^6); beyond that it too goes scientific.
-    let body = if point >= nd {
+    let body = if point >= digit_count {
         if fits_i64_integer(&digits, point, neg) {
-            fixed(&digits, point, nd)
+            fixed(&digits, point, digit_count)
         } else {
             scientific(&digits, point)
         }
     } else if (0..=7).contains(&point) {
-        fixed(&digits, point, nd)
+        fixed(&digits, point, digit_count)
     } else {
         scientific(&digits, point)
     };
@@ -819,13 +819,13 @@ fn digits_str(digits: &[u8]) -> String {
     String::from_utf8_lossy(digits).into_owned()
 }
 
-fn fixed(digits: &[u8], point: i64, nd: i64) -> String {
+fn fixed(digits: &[u8], point: i64, digit_count: i64) -> String {
     let text = digits_str(digits);
     if point <= 0 {
         let zeros = usize::try_from(point.unsigned_abs()).unwrap_or(usize::MAX);
         format!("0.{}{}", "0".repeat(zeros), text)
-    } else if point >= nd {
-        let zeros = usize::try_from(point.saturating_sub(nd)).unwrap_or(usize::MAX);
+    } else if point >= digit_count {
+        let zeros = usize::try_from(point.saturating_sub(digit_count)).unwrap_or(usize::MAX);
         format!("{}{}", text, "0".repeat(zeros))
     } else {
         let split = usize::try_from(point).unwrap_or(0);
