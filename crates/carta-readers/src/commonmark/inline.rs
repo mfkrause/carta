@@ -637,6 +637,9 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
     };
     parser.run();
     let mut nodes = parser.nodes;
+    if ext.contains(Extension::Mark) {
+        resolve_mark(&mut nodes, ext);
+    }
     process_emphasis(&mut nodes, 0, ext);
     let mut inlines = collapse(nodes);
     if ext.contains(Extension::Autolink) {
@@ -704,6 +707,7 @@ impl InlineParser<'_> {
                     && self.at(1) == Some('[')
                     && self.try_inline_note() => {}
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
+                '=' if self.ext.contains(Extension::Mark) => self.emphasis_run(b'='),
                 '@' if self.ext.contains(Extension::ExampleLists) => self.example_ref(),
                 '\'' | '"' if self.ext.contains(Extension::Smart) => self.emphasis_run(ch as u8),
                 '-' if self.ext.contains(Extension::Smart) => self.smart_dash(),
@@ -1815,9 +1819,92 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions)
     }
 }
 
+/// Resolve `==`-delimited highlight runs into `Span` inlines carrying the `mark` class.
+///
+/// A run is delimited by two `=` on each side. Scanning left to right, each `=` closer pairs with
+/// the nearest preceding `=` opener; the pair consumes exactly two `=` from each side and the inner
+/// nodes — with their own emphasis resolved — become the span's content. Any `=` left over on either
+/// side, or a lone `=`, stays literal text. Resolving here, ahead of the shared emphasis pass, keeps
+/// each run to a single span: leftover `=` do not re-pair into nested marks.
+fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions) {
+    let mut current = 0usize;
+    while current < nodes.len() {
+        let is_closer = matches!(
+            nodes.get(current),
+            Some(Node::Delimiter(d)) if d.ch == b'=' && d.can_close && d.count >= 2
+        );
+        if !is_closer {
+            current += 1;
+            continue;
+        }
+        // Find the nearest preceding `=` opener with at least two delimiters.
+        let mut opener = None;
+        for i in (0..current).rev() {
+            if matches!(
+                nodes.get(i),
+                Some(Node::Delimiter(d)) if d.ch == b'=' && d.can_open && d.count >= 2
+            ) {
+                opener = Some(i);
+                break;
+            }
+        }
+        let Some(opener_ni) = opener else {
+            current += 1;
+            continue;
+        };
+
+        let inner: Vec<Node> = nodes.drain(opener_ni + 1..current).collect();
+        let mut inner = inner;
+        process_emphasis(&mut inner, 0, ext);
+        let content = collapse(inner);
+        let span = Inline::Span(
+            Attr {
+                id: String::new(),
+                classes: vec!["mark".to_string()],
+                attributes: Vec::new(),
+            },
+            content,
+        );
+        // After the drain, the closer sits directly after the opener.
+        let closer_ni = opener_ni + 1;
+        nodes.insert(closer_ni, Node::Inline(span));
+        // The closer has shifted one further along by the insert.
+        let closer_ni = opener_ni + 2;
+
+        // Consume two `=` from each delimiter; convert any remainder to literal text, drop empties.
+        consume_mark_side(nodes, closer_ni);
+        consume_mark_side(nodes, opener_ni);
+
+        // Resume scanning from the opener position: nodes there are now resolved, so re-derive.
+        current = opener_ni;
+    }
+
+    // Any `=` delimiter that never formed a span reverts to literal text.
+    for i in 0..nodes.len() {
+        if matches!(nodes.get(i), Some(Node::Delimiter(d)) if d.ch == b'=') {
+            convert_delimiter_to_text(nodes, i);
+        }
+    }
+}
+
+/// Take two `=` off the delimiter node at `index`: a remainder of zero removes the node, otherwise
+/// it becomes literal text of the remaining `=`. Returns nothing; callers index high-to-low so the
+/// node positions they still hold stay valid (the opener is below the closer).
+fn consume_mark_side(nodes: &mut Vec<Node>, index: usize) {
+    let remainder = match nodes.get(index) {
+        Some(Node::Delimiter(d)) => d.count.saturating_sub(2),
+        _ => return,
+    };
+    if remainder == 0 {
+        nodes.remove(index);
+    } else if let Some(node) = nodes.get_mut(index) {
+        *node = Node::Text("=".repeat(remainder));
+    }
+}
+
 /// Whether `ch` names a delimiter run resolved by [`process_emphasis`].
 fn is_delimiter_char(ch: u8) -> bool {
-    matches!(ch, b'*' | b'_' | b'~' | b'^' | b'\'' | b'"')
+    matches!(ch, b'*' | b'_' | b'~' | b'^' | b'\'' | b'"' | b'=')
 }
 
 /// Whether `ch` is a smart-quote delimiter (`'` or `"`).
@@ -3442,5 +3529,90 @@ mod inline_tests {
                 raw("html", "</span>"),
             ]
         );
+    }
+
+    // --- Mark (highlight) ---
+
+    fn mark(content: Vec<Inline>) -> Inline {
+        span(attr("", &["mark"], &[]), content)
+    }
+
+    #[test]
+    fn mark_wraps_a_double_equals_run() {
+        let on = exts(&[Extension::Mark]);
+        assert_eq!(
+            pe("a ==x== b", on),
+            vec![
+                str("a"),
+                Inline::Space,
+                mark(vec![str("x")]),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn mark_resolves_inner_emphasis() {
+        let on = exts(&[Extension::Mark]);
+        assert_eq!(
+            pe("==x *y*==", on),
+            vec![mark(vec![
+                str("x"),
+                Inline::Space,
+                Inline::Emph(vec![str("y")]),
+            ])]
+        );
+    }
+
+    #[test]
+    fn mark_off_leaves_double_equals_literal() {
+        // Without the extension the run is plain text.
+        assert_eq!(
+            pe("a ==x== b", no_ext()),
+            vec![
+                str("a"),
+                Inline::Space,
+                str("==x=="),
+                Inline::Space,
+                str("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn mark_opener_needs_no_following_space() {
+        let on = exts(&[Extension::Mark]);
+        // A space just inside either delimiter blocks the run; both sides stay literal.
+        assert_eq!(
+            pe("== x==", on),
+            vec![str("=="), Inline::Space, str("x==")]
+        );
+        assert_eq!(
+            pe("==x ==", on),
+            vec![str("==x"), Inline::Space, str("==")]
+        );
+    }
+
+    #[test]
+    fn mark_lone_equals_stays_literal() {
+        let on = exts(&[Extension::Mark]);
+        assert_eq!(
+            pe("a = b", on),
+            vec![str("a"), Inline::Space, str("="), Inline::Space, str("b")]
+        );
+    }
+
+    #[test]
+    fn mark_run_pairs_once_and_leaves_excess_literal() {
+        let on = exts(&[Extension::Mark]);
+        // Four-on-four pairs only the innermost two from each side; the outer `==` stay literal and
+        // do not re-pair into a nested mark.
+        assert_eq!(
+            pe("====x====", on),
+            vec![str("=="), mark(vec![str("x")]), str("==")]
+        );
+        // Two-on-four consumes two from each, leaving the surplus `==` literal.
+        assert_eq!(pe("==x====", on), vec![mark(vec![str("x")]), str("==")]);
     }
 }
