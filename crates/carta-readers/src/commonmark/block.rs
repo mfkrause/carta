@@ -629,10 +629,6 @@ impl Parser {
         }
     }
 
-    /// Append one source `line` to an open raw TeX environment and advance its nesting depth. Each
-    /// `\begin{NAME}` of the opener's own name deepens the nesting and each `\end{NAME}` lifts it;
-    /// when the depth returns to zero the environment closes at that `\end`, dropping the trailing
-    /// newline. Any content after the closing `\end` on the same line is re-fed as a fresh line.
     /// Feed a continuation line to an open raw TeX environment, returning `true` when the line was
     /// absorbed. Reachable only when every container matched, so the verbatim text stays aligned.
     fn continue_raw_tex(&mut self, container: usize, all_matched: bool, cursor: &Cursor) -> bool {
@@ -645,7 +641,7 @@ impl Parser {
         else {
             return false;
         };
-        self.feed_raw_tex(leaf, &cursor.rest());
+        self.feed_raw_tex(leaf, cursor.remaining());
         true
     }
 
@@ -680,6 +676,10 @@ impl Parser {
         Some(index)
     }
 
+    /// Append one source `line` to an open raw TeX environment and advance its nesting depth. Each
+    /// `\begin{NAME}` of the opener's own name deepens the nesting and each `\end{NAME}` lifts it;
+    /// when the depth returns to zero the environment closes at that `\end`, dropping the trailing
+    /// newline. Any content after the closing `\end` on the same line is re-fed as a fresh line.
     fn feed_raw_tex(&mut self, index: usize, line: &str) {
         let Some(Kind::RawTex { name, depth }) = self.kind(index).cloned() else {
             return;
@@ -969,20 +969,28 @@ impl Parser {
     /// element and return `true`. Content preceding the tag on its line is fed as the element's final
     /// content (which is then tightened to `Plain`); content after the tag is re-fed as a fresh line.
     fn close_html_element(&mut self, container: usize, cursor: &Cursor) -> bool {
+        if !self.extensions.contains(Extension::NativeDivs)
+            && !self.extensions.contains(Extension::MarkdownInHtmlBlocks)
+        {
+            return false;
+        }
         let Some(element) = self.innermost_open_html_element() else {
             return false;
         };
-        let Some(Kind::HtmlElement(info)) = self.kind(element).cloned() else {
-            return false;
-        };
-        let line = cursor.rest();
+        let line = cursor.remaining();
         let trimmed = line.trim_start_matches(' ');
         let leading = line.len() - trimmed.len();
         if leading > 3 {
             return false;
         }
-        let Some(found) = html_element::find_close_tag(trimmed, &info.tag) else {
-            return false;
+        let (found, as_div) = match self.kind(element) {
+            Some(Kind::HtmlElement(info)) => {
+                let Some(found) = html_element::find_close_tag(trimmed, &info.tag) else {
+                    return false;
+                };
+                (found, info.as_div)
+            }
+            _ => return false,
         };
         let before = trimmed.get(..found.start).unwrap_or("");
         let close_tag = trimmed.get(found.start..found.end).unwrap_or("").to_owned();
@@ -995,7 +1003,7 @@ impl Parser {
         // tightens only when the close tag physically trails content on its own line. A raw element
         // tightens whenever no blank line separates its last content from the close tag — which holds
         // exactly when a paragraph is still open at the close (a blank line would have closed it).
-        let tighten = if info.as_div {
+        let tighten = if as_div {
             trails
         } else {
             matches!(self.kind(self.deepest_open(element)), Some(Kind::Paragraph))
@@ -2421,7 +2429,7 @@ fn raw_block_format(info: &str) -> Option<String> {
     Some(name.to_owned())
 }
 
-fn is_format_name_char(ch: char) -> bool {
+pub(super) fn is_format_name_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
 }
 
