@@ -204,9 +204,7 @@ No enum variant yet (notable, non-exhaustive): `latex_macros`, `intraword_unders
 
 ## Cross-cutting features
 
-Document-conversion features independent of any single format. Only CLI introspection is implemented
-so far; the rest are pending. Options are `ReaderOptions { extensions, greedy_paragraphs }` and
-`WriterOptions { extensions }`.
+Document-conversion features independent of any single format.
 
 | Feature | Status | Notes |
 | --- | :---: | --- |
