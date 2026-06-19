@@ -18,15 +18,18 @@ CommonMark plus the broad [extension](#extensions) preset.
 
 ### `gfm` — ✅
 CommonMark plus the GFM preset: `strikeout`, `pipe_tables`, `task_lists`, `autolink_bare_uris`,
-`footnotes`, `tex_math_dollars`, `gfm_auto_identifiers`, `raw_html`.
+`footnotes`, `tex_math_dollars`, `gfm_auto_identifiers`, `raw_html`, `emoji`, `alerts`.
 
 ### `markdown` — 🚧
-The broad Markdown preset on the CommonMark engine. Missing:
+The broad Markdown preset on the CommonMark engine. Most of the preset's extensions are honored (see
+[Extensions](#extensions)); the remaining gaps are narrow — the per-extension ones are listed under
+[known parity gaps](#known-parity-gaps).
 
 | Gap | Detail |
 | --- | --- |
-| Unmodeled extensions | `citations`, `raw_tex`, `latex_macros`, `inline_notes`, `native_divs`/`native_spans`, … — [not modeled](#not-modeled) |
-| `startnum` | inert — the preset enables it but no code reads it |
+| `latex_macros` | not modeled — `\newcommand` / `\def` definitions are neither collected nor expanded |
+| `startnum` | inert — the preset enables it but no code reads it (ordered-list starts are always captured) |
+| ATX headers past level 6 | this dialect reads `####### h` as a level-7 header; carta caps the level at 6, so the line falls back to a paragraph |
 
 ### `html` — 🚧
 
@@ -153,7 +156,9 @@ AST → native literals.
 
 ## Extensions
 
-Reader-side toggles the CommonMark engine recognizes — 32 of the 33 defined extensions are wired.
+Reader-side toggles the CommonMark engine recognizes. The enum defines 48 extensions; the reader
+honors 47 of them. `raw_html` is always on — the engine preserves raw HTML regardless of the toggle
+— the other 46 are branched on per toggle, and `startnum` is inert.
 
 **Supported:** `smart`, `strikeout`, `superscript`, `subscript`, `pipe_tables`, `footnotes`,
 `task_lists`, `autolink_bare_uris`, `tex_math_dollars`, `fenced_divs`, `bracketed_spans`,
@@ -161,22 +166,38 @@ Reader-side toggles the CommonMark engine recognizes — 32 of the 33 defined ex
 `inline_code_attributes`, `link_attributes`, `attributes`, `definition_lists`, `grid_tables`,
 `multiline_tables`, `simple_tables`, `table_captions`, `line_blocks`, `fancy_lists`,
 `example_lists`, `yaml_metadata_block`, `pandoc_title_block`, `auto_identifiers`,
-`gfm_auto_identifiers`, `implicit_header_references`, `implicit_figures`.
+`gfm_auto_identifiers`, `implicit_header_references`, `implicit_figures`, `raw_attribute`,
+`inline_notes`, `native_divs`, `native_spans`, `markdown_in_html_blocks`, `raw_tex`, `citations`,
+`table_attributes`, `blank_before_blockquote`, `blank_before_header`, `mark`, `emoji`, `alerts`,
+`tex_math_single_backslash`, `tex_math_double_backslash`.
 
 **Inert:** `startnum` — defined and in the Markdown preset, but no code branches on it (ordered-list
 start numbers are always captured).
 
+### Known parity gaps
+
+Constructs the supported extensions read, each with one narrow case that still diverges. Every entry
+is verified against the pinned oracle and tracked for a follow-up.
+
+| Extension(s) | Gap |
+| --- | --- |
+| `raw_tex`, `native_divs`, `markdown_in_html_blocks` | A raw-TeX environment or block-level HTML element that interrupts an open paragraph with no blank line leaves that paragraph as `Para` rather than tightening it to `Plain`. The free-standing form — a blank line before the construct — is exact. |
+| `markdown_in_html_blocks` | An HTML block left open at end of input — a `<!-- …` comment or a `<table>`/`<div>` with no close tag — is reparsed as ordinary paragraphs by the dialect; carta keeps the whole run as one raw block. |
+| `native_spans` | An emphasis run that opens before a `<span>` and whose closing marker sits just inside the matching `</span>` can leave both tags raw instead of forming a span. |
+| `raw_tex` | Inline `\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\begin{env}…\end{env}` is recognized only as a whole paragraph (block level); inline, each `\begin`/`\end` is an ordinary command. |
+| `citations` | An abbreviation-led citation suffix such as `p. 5` is a single string in the dialect (a non-breaking space follows the period); carta splits it into separate tokens. |
+| `attributes` | An attribute spec `{…}` containing a backslash escape is void in the dialect — it stays literal text — whereas carta accepts the backslash into the id, class, or value. |
+| `alerts` | An alert marker indented two or more columns inside its blockquote (e.g. `>  [!NOTE]`) is still read as an alert; the dialect treats only a marker at column 0 or 1 as one. |
+
 ### Not modeled
 
-No enum variant yet (notable, non-exhaustive): `citations`, `raw_tex`, `raw_attribute`,
-`latex_macros`, `tex_math_single_backslash`, `tex_math_double_backslash`, `inline_notes`,
-`native_divs`, `native_spans`, `table_attributes`, `intraword_underscores`,
-`markdown_in_html_blocks`, `backtick_code_blocks`, `emoji`, `mark`, `alerts`, `abbreviations`,
-`wikilinks_title_after_pipe`, `wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`,
-`mmd_header_identifiers`, `mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`,
-`old_dashes`, `east_asian_line_breaks`, `escaped_line_breaks`, `four_space_rule`,
-`lists_without_preceding_blankline`, `blank_before_blockquote`, `blank_before_header`,
-`space_in_atx_header`, `literate_haskell`, `rebase_relative_paths`, `gutenberg`.
+No enum variant yet (notable, non-exhaustive): `latex_macros`, `intraword_underscores`,
+`backtick_code_blocks`, `abbreviations`, `wikilinks_title_after_pipe`,
+`wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`, `mmd_header_identifiers`,
+`mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`, `old_dashes`,
+`east_asian_line_breaks`, `escaped_line_breaks`, `four_space_rule`,
+`lists_without_preceding_blankline`, `space_in_atx_header`, `literate_haskell`,
+`rebase_relative_paths`, `gutenberg`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)
 
 ---
