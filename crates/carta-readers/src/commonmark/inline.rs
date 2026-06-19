@@ -209,6 +209,7 @@ fn resolve_block(
             rows,
         } => out.push(resolve_table(alignments, header, rows, refs, notes, ext)),
         IrBlock::GridTable(table) => out.push(resolve_grid_table(table, refs, notes, ext)),
+        IrBlock::TextTable(table) => out.push(resolve_text_table(table, refs, notes, ext)),
     }
 }
 
@@ -350,6 +351,65 @@ fn resolve_grid_table(
             attr: Attr::default(),
             rows: table.foot.iter().map(make_row).collect(),
         },
+    }))
+}
+
+/// Build a dash-ruled table: column specs carry per-column alignment and, when the ruling fixed
+/// them, fractional widths; an optional header row forms the `TableHead` and the body rows a single
+/// `TableBody`. Each cell's raw text parses as inline content wrapped in a `Plain`, with embedded
+/// line breaks becoming soft breaks. A caption, when present, is inline markdown wrapped in a
+/// `Plain`.
+fn resolve_text_table(
+    table: &super::texttable::TextTable,
+    refs: &RefMap,
+    notes: RefContext,
+    ext: Extensions,
+) -> Block {
+    let col_specs = table
+        .columns
+        .iter()
+        .map(|column| ColSpec {
+            align: column.align.clone(),
+            width: match column.width {
+                Some(width) => ColWidth::ColWidth(width),
+                None => ColWidth::ColWidthDefault,
+            },
+        })
+        .collect();
+    let make_row = |cells: &[String]| Row {
+        attr: Attr::default(),
+        cells: cells
+            .iter()
+            .map(|text| make_cell(text, refs, notes, ext))
+            .collect(),
+    };
+    let head_rows = if table.head.is_empty() {
+        Vec::new()
+    } else {
+        vec![make_row(&table.head)]
+    };
+    let caption = match &table.caption {
+        Some(text) => Caption {
+            short: None,
+            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
+        },
+        None => Caption::default(),
+    };
+    Block::Table(Box::new(Table {
+        attr: Attr::default(),
+        caption,
+        col_specs,
+        head: TableHead {
+            attr: Attr::default(),
+            rows: head_rows,
+        },
+        bodies: vec![TableBody {
+            attr: Attr::default(),
+            row_head_columns: 0,
+            head: Vec::new(),
+            body: table.body.iter().map(|cells| make_row(cells)).collect(),
+        }],
+        foot: TableFoot::default(),
     }))
 }
 
