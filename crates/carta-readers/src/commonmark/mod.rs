@@ -37,7 +37,7 @@ impl Reader for CommonmarkReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
         let ext = options.extensions;
         let normalized = normalize(input);
-        let (meta, body) = frontmatter::extract(&normalized, ext)?;
+        let frontmatter::FrontMatter { meta, body } = frontmatter::extract(&normalized, ext)?;
         let source = body.as_deref().unwrap_or(&normalized);
         let (ir, refs, footnotes, examples) = block::parse(source, ext, options.greedy_paragraphs);
         let blocks = inline::resolve_document(&ir, refs, &footnotes, &examples, ext);
