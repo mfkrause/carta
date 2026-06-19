@@ -207,7 +207,16 @@ fn resolve_block(
             alignments,
             header,
             rows,
-        } => out.push(resolve_table(alignments, header, rows, refs, notes, ext)),
+            caption,
+        } => out.push(resolve_table(
+            alignments,
+            header,
+            rows,
+            caption.as_deref(),
+            refs,
+            notes,
+            ext,
+        )),
         IrBlock::GridTable(table) => out.push(resolve_grid_table(table, refs, notes, ext)),
         IrBlock::TextTable(table) => out.push(resolve_text_table(table, refs, notes, ext)),
     }
@@ -246,12 +255,13 @@ fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
 
 /// Build a pipe table: column specs from the alignments, the header in a single-row `TableHead`,
 /// and the body rows in one `TableBody`. Every cell's trimmed text parses into inlines wrapped in a
-/// single `Plain`; an empty cell carries no blocks. Captions, footers, widths, spans, and row-head
-/// columns are all the structurally empty defaults.
+/// single `Plain`; an empty cell carries no blocks. A caption, when present, is inline markdown
+/// wrapped in a `Plain`; footers, widths, spans, and row-head columns are the empty defaults.
 fn resolve_table(
     alignments: &[Alignment],
     header: &[String],
     rows: &[Vec<String>],
+    caption: Option<&str>,
     refs: &RefMap,
     notes: RefContext,
     ext: Extensions,
@@ -270,9 +280,16 @@ fn resolve_table(
             .map(|text| make_cell(text, refs, notes, ext))
             .collect(),
     };
+    let caption = match caption {
+        Some(text) => Caption {
+            short: None,
+            long: vec![Block::Plain(parse_inlines(text, refs, notes, ext))],
+        },
+        None => Caption::default(),
+    };
     Block::Table(Box::new(Table {
         attr: Attr::default(),
-        caption: Caption::default(),
+        caption,
         col_specs,
         head: TableHead {
             attr: Attr::default(),
