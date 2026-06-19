@@ -3,7 +3,7 @@
 A universal document converter written in Rust that reads a markup format and renders it back out in another. A performant and lightweight reimplementation of [pandoc](https://pandoc.org).
 
 > [!WARNING]
-> carta is **prototype under active development**. Only a small slice of pandoc's formats is implemented today, the API is unstable, and it is not yet ready for production use.
+> carta is a **prototype under active development**. Only a small slice of pandoc's formats is implemented today, the API is unstable, and it is not yet ready for production use.
 
 ## Goals
 
