@@ -45,6 +45,9 @@ pub fn convert(
 
     let mut reader_options = reader_options.clone();
     reader_options.extensions = from_ext.union(reader_options.extensions);
+    // The markdown dialect treats paragraphs as greedy: most block openers need a preceding blank
+    // line, so a bare following line continues the paragraph rather than starting a new block.
+    reader_options.greedy_paragraphs |= from_base == "markdown";
     let mut writer_options = writer_options.clone();
     writer_options.extensions = to_ext.union(writer_options.extensions);
 

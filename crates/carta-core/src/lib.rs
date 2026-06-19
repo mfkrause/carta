@@ -40,6 +40,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct ReaderOptions {
     /// Format extensions to enable. Strict-CommonMark readers ignore this (the empty preset).
     pub extensions: Extensions,
+    /// When set, an open paragraph is greedy: a following line that would otherwise open a block —
+    /// a blockquote, heading, list, thematic break, fenced div, or footnote definition — is folded
+    /// into the paragraph as a lazy continuation instead. Only a blank line, a fenced code block, or
+    /// an HTML block ends the paragraph. Unset, every such line interrupts the paragraph.
+    pub greedy_paragraphs: bool,
 }
 
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
