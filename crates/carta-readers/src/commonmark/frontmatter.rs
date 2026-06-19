@@ -15,33 +15,38 @@ use super::inline::parse_meta_inlines;
 use super::parse_meta_blocks;
 use super::yaml::{self, Scalar, Yaml};
 
+/// Document metadata together with the body that remains once any front matter is stripped. A `None`
+/// body means the input carried no front matter and should be parsed unchanged.
+pub(crate) struct FrontMatter {
+    pub(crate) meta: BTreeMap<String, MetaValue>,
+    pub(crate) body: Option<String>,
+}
+
 /// Extract document metadata from a leading YAML or title block, if either applies. Returns the
-/// metadata and, when a block is consumed, the remaining body text; a `None` body means the input
-/// carried no front matter and should be parsed unchanged. Malformed YAML is an error.
-pub(crate) fn extract(
-    normalized: &str,
-    ext: Extensions,
-) -> Result<(BTreeMap<String, MetaValue>, Option<String>)> {
+/// metadata and, when a block is consumed, the remaining body text. Malformed YAML is an error.
+pub(crate) fn extract(normalized: &str, ext: Extensions) -> Result<FrontMatter> {
     if ext.contains(Extension::YamlMetadataBlock)
-        && let Some(consumed) = yaml_block(normalized, ext)?
+        && let Some(front) = yaml_block(normalized, ext)?
     {
-        return Ok(consumed);
+        return Ok(front);
     }
     if ext.contains(Extension::PandocTitleBlock)
         && let Some((meta, body)) = title_block(normalized, ext)
     {
-        return Ok((meta, Some(body)));
+        return Ok(FrontMatter {
+            meta,
+            body: Some(body),
+        });
     }
-    Ok((BTreeMap::new(), None))
+    Ok(FrontMatter {
+        meta: BTreeMap::new(),
+        body: None,
+    })
 }
 
 /// Try to consume a leading YAML metadata block. `Ok(None)` means the input does not open one (fall
 /// through); `Ok(Some(..))` carries the metadata and body; `Err` marks malformed YAML.
-#[allow(clippy::type_complexity)]
-fn yaml_block(
-    normalized: &str,
-    ext: Extensions,
-) -> Result<Option<(BTreeMap<String, MetaValue>, Option<String>)>> {
+fn yaml_block(normalized: &str, ext: Extensions) -> Result<Option<FrontMatter>> {
     let lines: Vec<&str> = normalized.split('\n').collect();
     if lines.first() != Some(&"---") {
         return Ok(None);
@@ -64,7 +69,10 @@ fn yaml_block(
                 .map(|(key, value)| (key, yaml_to_meta(value, ext)))
                 .collect();
             let body = lines.get(close + 1..).unwrap_or(&[]).join("\n");
-            Ok(Some((meta, Some(body))))
+            Ok(Some(FrontMatter {
+                meta,
+                body: Some(body),
+            }))
         }
         // Valid YAML that is not a mapping does not become metadata; the fences fall through.
         Ok(yaml::TopLevel::NotMapping) => Ok(None),
