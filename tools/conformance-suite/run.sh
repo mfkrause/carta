@@ -2,7 +2,7 @@
 # Conformance-suite dispatcher.
 #
 # Usage:
-#   run.sh <surface> [arg]   run one surface (reader|writer|e2e|roundtrip|commands),
+#   run.sh <surface> [arg]   run one surface (reader|writer|e2e|roundtrip|commands|extensions),
 #                            optional arg narrows it (a format or target)
 #   run.sh all               run every surface
 #
@@ -13,7 +13,7 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SURFACES="reader writer e2e roundtrip commands"
+SURFACES="reader writer e2e roundtrip commands extensions"
 
 run_one() {
   local surface="$1"

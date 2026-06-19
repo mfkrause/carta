@@ -76,6 +76,33 @@ define_extensions! {
     ImplicitHeaderReferences => "implicit_header_references",
     // Bare images with a caption become figures.
     ImplicitFigures => "implicit_figures",
+    // Raw passthrough: `` `code`{=fmt} `` inline and ```` ```{=fmt} ```` fenced blocks.
+    RawAttribute => "raw_attribute",
+    // A `^[…]` inline note expands to a footnote in place.
+    InlineNotes => "inline_notes",
+    // Block-level `<div>`/inline `<span>` HTML become `Div`/`Span`, with markdown parsed inside.
+    NativeDivs => "native_divs",
+    NativeSpans => "native_spans",
+    // Markdown is parsed inside block-level HTML, which is otherwise split tag-by-tag.
+    MarkdownInHtmlBlocks => "markdown_in_html_blocks",
+    // Inline raw TeX (`\command{…}`, `\begin{env}…\end{env}`) passes through verbatim.
+    RawTex => "raw_tex",
+    // `[@key]` / `@key` citation references.
+    Citations => "citations",
+    // An attribute block on a table's caption line attaches to the table.
+    TableAttributes => "table_attributes",
+    // A blank line is required before a blockquote / header, so neither interrupts a paragraph.
+    BlankBeforeBlockquote => "blank_before_blockquote",
+    BlankBeforeHeader => "blank_before_header",
+    // `==text==` highlight spans.
+    Mark => "mark",
+    // `:name:` emoji shortcodes.
+    Emoji => "emoji",
+    // `> [!NOTE]`-style admonition blockquotes become classed divs.
+    Alerts => "alerts",
+    // Single- and double-backslash math delimiters: `\(…\)`/`\[…\]` and `\\(…\\)`/`\\[…\\]`.
+    TexMathSingleBackslash => "tex_math_single_backslash",
+    TexMathDoubleBackslash => "tex_math_double_backslash",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
@@ -204,6 +231,8 @@ pub mod presets {
         Extension::TexMathDollars,
         Extension::GfmAutoIdentifiers,
         Extension::RawHtml,
+        Extension::Emoji,
+        Extension::Alerts,
     ]);
 
     /// `CommonMark` with a broad set of inline and block extensions enabled.
@@ -261,6 +290,16 @@ pub mod presets {
         Extension::AutoIdentifiers,
         Extension::ImplicitHeaderReferences,
         Extension::ImplicitFigures,
+        Extension::RawAttribute,
+        Extension::InlineNotes,
+        Extension::NativeDivs,
+        Extension::NativeSpans,
+        Extension::MarkdownInHtmlBlocks,
+        Extension::RawTex,
+        Extension::Citations,
+        Extension::TableAttributes,
+        Extension::BlankBeforeBlockquote,
+        Extension::BlankBeforeHeader,
     ]);
 }
 
