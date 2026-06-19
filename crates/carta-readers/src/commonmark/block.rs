@@ -1918,8 +1918,8 @@ fn attach_table_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
             i += 1;
             continue;
         };
-        let attached = (i >= 1 && set_table_caption(blocks, i - 1, &caption))
-            || (i + 1 < blocks.len() && set_table_caption(blocks, i + 1, &caption));
+        let attached = (i >= 1 && set_table_caption(blocks, i - 1, &caption, ext))
+            || (i + 1 < blocks.len() && set_table_caption(blocks, i + 1, &caption, ext));
         if attached {
             blocks.remove(i);
         } else {
@@ -1958,19 +1958,51 @@ fn strip_caption_marker(first: &str) -> Option<&str> {
 }
 
 /// Set `text` as the caption of the table at `index`, if that block is a pipe, dash-ruled, or grid
-/// table that has no caption yet. Returns whether the caption was attached.
-fn set_table_caption(blocks: &mut [IrBlock], index: usize, text: &str) -> bool {
-    let slot = match blocks.get_mut(index) {
-        Some(IrBlock::Table { caption, .. }) => caption,
-        Some(IrBlock::TextTable(table)) => &mut table.caption,
-        Some(IrBlock::GridTable(table)) => &mut table.caption,
+/// table that has no caption yet. Returns whether the caption was attached. With
+/// [`Extension::TableAttributes`] enabled, a trailing `{…}` attribute block on the caption is split
+/// off and applied to the table's outer attributes; the remaining text becomes the caption.
+fn set_table_caption(blocks: &mut [IrBlock], index: usize, text: &str, ext: Extensions) -> bool {
+    let (caption_slot, attr_slot) = match blocks.get_mut(index) {
+        Some(IrBlock::Table { caption, attr, .. }) => (caption, attr),
+        Some(IrBlock::TextTable(table)) => (&mut table.caption, &mut table.attr),
+        Some(IrBlock::GridTable(table)) => (&mut table.caption, &mut table.attr),
         _ => return false,
     };
-    if slot.is_none() {
-        *slot = Some(text.to_owned());
-        return true;
+    if caption_slot.is_some() {
+        return false;
     }
-    false
+    let (body, parsed) = if ext.contains(Extension::TableAttributes) {
+        split_trailing_attr(text)
+    } else {
+        (text, None)
+    };
+    *caption_slot = Some(body.to_owned());
+    if let Some(parsed) = parsed {
+        *attr_slot = parsed;
+    }
+    true
+}
+
+/// Split a trailing `{…}` attribute block off the end of a caption. Returns the caption text with the
+/// block and any whitespace before it removed, alongside the parsed attributes. When the text has no
+/// well-formed trailing attribute block, the text is returned unchanged with `None`.
+fn split_trailing_attr(text: &str) -> (&str, Option<Attr>) {
+    let trimmed = text.trim_end();
+    if !trimmed.ends_with('}') {
+        return (text, None);
+    }
+    // The trailing block opens at some `{`; find the one whose attribute parse consumes exactly to
+    // the end. Earlier `{` characters stay part of the caption text.
+    for (open, _) in trimmed.char_indices().filter(|&(_, ch)| ch == '{') {
+        if let Some(rest) = trimmed.get(open..)
+            && let Some((attr, consumed)) = attr::parse_attributes(rest)
+            && consumed == rest.len()
+        {
+            let body = trimmed.get(..open).map_or("", str::trim_end);
+            return (body, Some(attr));
+        }
+    }
+    (text, None)
 }
 
 enum Continue {
@@ -2654,5 +2686,83 @@ mod tests {
     fn alerts_off_leaves_the_marker_literal() {
         let out = parse("> [!NOTE]\n> x\n", presets::COMMONMARK, true).0;
         assert!(matches!(out.first(), Some(IrBlock::BlockQuote(_))));
+    }
+
+    use super::split_trailing_attr;
+
+    fn table_attr_and_caption(input: &str) -> (carta_ast::Attr, Option<String>) {
+        let out = blocks(input);
+        match out.into_iter().next() {
+            Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
+            Some(IrBlock::TextTable(table)) => (table.attr, table.caption),
+            Some(IrBlock::GridTable(table)) => (table.attr, table.caption),
+            other => panic!("expected a table, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn split_trailing_attr_strips_the_block() {
+        let (body, attr) = split_trailing_attr("My cap {#t .w}");
+        assert_eq!(body, "My cap");
+        let attr = attr.expect("attr parsed");
+        assert_eq!(attr.id, "t");
+        assert_eq!(attr.classes, ["w"]);
+    }
+
+    #[test]
+    fn split_trailing_attr_keeps_non_trailing_braces_literal() {
+        // Only the last block at the very end is an attribute block.
+        let (body, attr) = split_trailing_attr("Cap {#x} {#y}");
+        assert_eq!(body, "Cap {#x}");
+        assert_eq!(attr.expect("attr parsed").id, "y");
+        // A block followed by more text is not trailing and stays untouched.
+        assert_eq!(split_trailing_attr("Cap {#x} more"), ("Cap {#x} more", None));
+    }
+
+    #[test]
+    fn split_trailing_attr_rejects_malformed_blocks() {
+        assert_eq!(split_trailing_attr("Cap {#x").0, "Cap {#x");
+        assert!(split_trailing_attr("Cap {#x").1.is_none());
+        assert_eq!(split_trailing_attr("Cap {bad !!}").0, "Cap {bad !!}");
+        assert!(split_trailing_attr("Cap {bad !!}").1.is_none());
+        assert_eq!(split_trailing_attr("plain text").0, "plain text");
+    }
+
+    #[test]
+    fn caption_attributes_attach_to_the_table() {
+        let (attr, caption) =
+            table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: My cap {#t .w}\n");
+        assert_eq!(attr.id, "t");
+        assert_eq!(attr.classes, ["w"]);
+        assert_eq!(caption.as_deref(), Some("My cap"));
+    }
+
+    #[test]
+    fn caption_keyvals_attach_to_the_table() {
+        let (attr, _) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: c {key=val}\n");
+        assert_eq!(attr.attributes, [("key".to_owned(), "val".to_owned())]);
+    }
+
+    #[test]
+    fn caption_without_a_block_leaves_attr_empty() {
+        let (attr, caption) =
+            table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: just a caption\n");
+        assert!(attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty());
+        assert_eq!(caption.as_deref(), Some("just a caption"));
+    }
+
+    #[test]
+    fn caption_attributes_are_inert_without_the_extension() {
+        // With table attributes disabled, the trailing block on a caption is kept verbatim as
+        // caption text rather than split off onto the table's attributes.
+        let mut table = blocks("| a |\n|---|\n| 1 |\n");
+        assert!(super::set_table_caption(&mut table, 0, "c {#t}", presets::COMMONMARK));
+        let (attr, caption) = match table.into_iter().next() {
+            Some(IrBlock::Table { attr, caption, .. }) => (attr, caption),
+            Some(IrBlock::TextTable(t)) => (t.attr, t.caption),
+            other => panic!("expected a table, got {other:?}"),
+        };
+        assert!(attr.id.is_empty());
+        assert_eq!(caption.as_deref(), Some("c {#t}"));
     }
 }
