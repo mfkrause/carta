@@ -75,6 +75,14 @@ enum Kind {
     IndentedCode,
     FencedCode(FenceInfo),
     HtmlBlock(u8),
+    /// A raw TeX environment opened by `\begin{NAME}` at a line start. It accumulates lines verbatim
+    /// until a matching `\end{NAME}` brings the nesting `depth` back to zero, then becomes a
+    /// `RawBlock` for the `tex` format. `name` is the literal brace content of the opener, compared
+    /// exactly. Math environments (`equation`, `align`, …) are excluded — they stay inline.
+    RawTex {
+        name: String,
+        depth: usize,
+    },
     ThematicBreak,
     /// A dash-ruled table candidate, accumulating its physical lines (each `\n`-terminated). Its
     /// exact extent is settled when the block closes: the lines are parsed into a table, with any
@@ -297,6 +305,11 @@ impl Parser {
 
         // A bare colon-run line can close an open fenced div, popping everything nested inside it.
         if self.close_fenced_div(container, &div_path) {
+            return;
+        }
+
+        // An open raw TeX environment swallows this line verbatim until its matching `\end`.
+        if self.continue_raw_tex(container, all_matched, &cursor) {
             return;
         }
 
@@ -563,6 +576,82 @@ impl Parser {
         } else {
             self.close(block);
             false
+        }
+    }
+
+    /// Append one source `line` to an open raw TeX environment and advance its nesting depth. Each
+    /// `\begin{NAME}` of the opener's own name deepens the nesting and each `\end{NAME}` lifts it;
+    /// when the depth returns to zero the environment closes at that `\end`, dropping the trailing
+    /// newline. Any content after the closing `\end` on the same line is re-fed as a fresh line.
+    /// Feed a continuation line to an open raw TeX environment, returning `true` when the line was
+    /// absorbed. Reachable only when every container matched, so the verbatim text stays aligned.
+    fn continue_raw_tex(&mut self, container: usize, all_matched: bool, cursor: &Cursor) -> bool {
+        if !all_matched {
+            return false;
+        }
+        let Some(leaf) = self
+            .last_open_child(container)
+            .filter(|&c| matches!(self.kind(c), Some(Kind::RawTex { .. })))
+        else {
+            return false;
+        };
+        self.feed_raw_tex(leaf, &cursor.rest());
+        true
+    }
+
+    /// Open a raw TeX environment when the cursor sits on a `\begin{NAME}` at the line start. The
+    /// environment gathers lines verbatim through its matching `\end{NAME}` and renders as a
+    /// `RawBlock` for `tex`. Math environments stay inline, so they fall through to a paragraph here.
+    /// Unlike the foldable openers this one interrupts an open paragraph; a `\begin` that never finds
+    /// its `\end` is settled back into a paragraph at end of input.
+    ///
+    /// Known limitation: when the environment directly interrupts an open paragraph with no blank
+    /// line between, that preceding paragraph renders as `Para` rather than the tighter `Plain`. The
+    /// free-standing environment — the common form — is exact.
+    fn open_raw_tex(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
+        if !self.extensions.contains(Extension::RawTex) {
+            return None;
+        }
+        let name = raw_tex_env_name(cursor.remaining(), b"begin")?;
+        if is_math_environment(&name) {
+            return None;
+        }
+        let line = cursor.rest();
+        cursor.advance_chars(line.chars().count());
+        let kind = Kind::RawTex { name, depth: 0 };
+        let parent = self.place(container, &kind);
+        let index = self.append_child(parent, Node::new(kind));
+        self.feed_raw_tex(index, &line);
+        Some(index)
+    }
+
+    fn feed_raw_tex(&mut self, index: usize, line: &str) {
+        let Some(Kind::RawTex { name, depth }) = self.kind(index).cloned() else {
+            return;
+        };
+        let (new_depth, close_at) = raw_tex_scan(line, &name, depth);
+        if let Some(end) = close_at {
+            // The matching `\end` ends the environment; the closing newline is dropped, and any
+            // content past the `\end` on this line is re-fed as a fresh line.
+            self.append_text(index, line.get(..end).unwrap_or(line));
+            self.set_raw_tex_depth(index, 0);
+            self.close(index);
+            let trailing = line.get(end..).unwrap_or("").to_owned();
+            if !trailing.is_empty() {
+                self.process_line(&trailing);
+            }
+            return;
+        }
+        self.append_text(index, line);
+        self.append_text(index, "\n");
+        self.set_raw_tex_depth(index, new_depth);
+    }
+
+    fn set_raw_tex_depth(&mut self, index: usize, value: usize) {
+        if let Some(node) = self.nodes.get_mut(index)
+            && let Kind::RawTex { depth, .. } = &mut node.kind
+        {
+            *depth = value;
         }
     }
 
@@ -998,6 +1087,9 @@ impl Parser {
 
         if indent < TAB_STOP {
             cursor.skip_indent();
+            if let Some(block) = self.open_raw_tex(container, cursor) {
+                return Some(block);
+            }
             if !greedy && cursor.peek() == Some(b'>') {
                 cursor.advance_one();
                 cursor.consume_optional_space();
@@ -1367,7 +1459,8 @@ impl Parser {
                     | Kind::TextTable
                     | Kind::IndentedCode
                     | Kind::FencedCode(_)
-                    | Kind::HtmlBlock(_),
+                    | Kind::HtmlBlock(_)
+                    | Kind::RawTex { .. },
                 ) => {}
                 _ => {
                     // An opener whose own line carries no content (a bare marker) leaves its
@@ -1596,6 +1689,19 @@ impl Parser {
                 }
                 IrBlock::RawHtml(text)
             }
+            Kind::RawTex { .. } => {
+                // A closed environment is verbatim raw TeX. One left open at end of input never
+                // found its `\end`, so its lines are ordinary text: they fall back to a paragraph.
+                if node.open {
+                    let trimmed = node.text.trim();
+                    if trimmed.is_empty() {
+                        return None;
+                    }
+                    IrBlock::Para(trimmed.to_owned())
+                } else {
+                    IrBlock::RawBlock(Format("tex".to_owned()), node.text.clone())
+                }
+            }
             Kind::BlockQuote => IrBlock::BlockQuote(self.build_children(index)),
             Kind::FencedDiv(info) => IrBlock::Div(info.attr.clone(), self.build_children(index)),
             Kind::List(info) => self.build_list(index, info),
@@ -1804,6 +1910,79 @@ enum Continue {
     Matched,
     MatchedLeaf,
     NotMatched,
+}
+
+/// Math environments are rendered inline rather than as block-level raw TeX, so a `\begin` opening
+/// one is not a block environment. The base name is matched exactly; a single trailing `*` (the
+/// unnumbered variant) counts as the same environment.
+fn is_math_environment(name: &str) -> bool {
+    const MATH_ENVS: &[&str] = &[
+        "equation",
+        "align",
+        "gather",
+        "multline",
+        "eqnarray",
+        "flalign",
+        "alignat",
+        "displaymath",
+        "math",
+        "dmath",
+    ];
+    let base = name.strip_suffix('*').unwrap_or(name);
+    MATH_ENVS.contains(&base)
+}
+
+/// If `s` begins with `\<keyword>` (optionally followed by spaces) then a braced `{name}`, return
+/// the literal brace content. The leading backslash must not itself be escaped — callers pass the
+/// raw slice from a line start, where this holds. The brace content runs to the first `}` and may be
+/// empty; it is compared exactly elsewhere, so inner spaces are significant.
+fn raw_tex_env_name(s: &str, keyword: &[u8]) -> Option<String> {
+    let after_backslash = s.strip_prefix('\\')?;
+    let after_keyword = after_backslash.strip_prefix(std::str::from_utf8(keyword).ok()?)?;
+    let after_spaces = after_keyword.trim_start_matches(' ');
+    let body = after_spaces.strip_prefix('{')?;
+    let close = body.find('}')?;
+    body.get(..close).map(str::to_owned)
+}
+
+/// Scan one source `line` of an open environment named `name`, starting at nesting `depth`. Returns
+/// the depth after the line and, when the environment's matching `\end{name}` is reached (depth back
+/// to zero), the byte offset just past that `\end{...}`. Backslash escapes are honored: a `\\`
+/// consumes both characters so an escaped command never counts toward the depth.
+fn raw_tex_scan(line: &str, name: &str, mut depth: usize) -> (usize, Option<usize>) {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes.get(i) != Some(&b'\\') {
+            i += 1;
+            continue;
+        }
+        // An escaped backslash consumes both bytes and starts no command.
+        if bytes.get(i + 1) == Some(&b'\\') {
+            i += 2;
+            continue;
+        }
+        let rest = line.get(i..).unwrap_or("");
+        if raw_tex_env_name(rest, b"begin").as_deref() == Some(name) {
+            depth += 1;
+            i += 1;
+            continue;
+        }
+        if raw_tex_env_name(rest, b"end").as_deref() == Some(name) {
+            depth = depth.saturating_sub(1);
+            // Advance past this `\end{...}` so the close offset lands just after its brace.
+            let end_off = rest
+                .find('}')
+                .map_or(line.len(), |brace| i + brace + 1);
+            if depth == 0 {
+                return (0, Some(end_off));
+            }
+            i = end_off;
+            continue;
+        }
+        i += 1;
+    }
+    (depth, None)
 }
 
 /// The number for an example item, given its `@label` (or `None` for the anonymous `@`). A new or
@@ -2192,5 +2371,103 @@ mod tests {
         assert_eq!(raw_block_format("html"), None);
         assert_eq!(raw_block_format("=html"), None);
         assert_eq!(raw_block_format("{.html}"), None);
+    }
+
+    use super::{IrBlock, is_math_environment, parse, raw_tex_env_name, raw_tex_scan};
+    use carta_ast::Format;
+    use carta_core::presets;
+
+    fn blocks(input: &str) -> Vec<IrBlock> {
+        parse(input, presets::MARKDOWN, true).0
+    }
+
+    #[test]
+    fn reads_the_begin_environment_name() {
+        assert_eq!(raw_tex_env_name("\\begin{center}", b"begin").as_deref(), Some("center"));
+        assert_eq!(raw_tex_env_name("\\begin {center}", b"begin").as_deref(), Some("center"));
+        assert_eq!(raw_tex_env_name("\\end{a}rest", b"end").as_deref(), Some("a"));
+        assert_eq!(raw_tex_env_name("\\begin{ a }", b"begin").as_deref(), Some(" a "));
+        assert_eq!(raw_tex_env_name("\\begin{}", b"begin").as_deref(), Some(""));
+        // A bare word, a missing brace, or the wrong keyword is not a match.
+        assert_eq!(raw_tex_env_name("\\beginabc", b"begin"), None);
+        assert_eq!(raw_tex_env_name("\\begin center", b"begin"), None);
+        assert_eq!(raw_tex_env_name("begin{a}", b"begin"), None);
+    }
+
+    #[test]
+    fn math_environments_are_excluded() {
+        assert!(is_math_environment("equation"));
+        assert!(is_math_environment("align*"));
+        assert!(is_math_environment("math"));
+        assert!(is_math_environment("dmath"));
+        assert!(!is_math_environment("center"));
+        assert!(!is_math_environment("align**"));
+        assert!(!is_math_environment("xalignat"));
+        assert!(!is_math_environment("Equation"));
+    }
+
+    #[test]
+    fn scan_tracks_depth_and_finds_the_close() {
+        // The opener line alone opens at depth one and does not close.
+        assert_eq!(raw_tex_scan("\\begin{a}", "a", 0), (1, None));
+        // A matching end on a content line returns the offset past its brace.
+        let (depth, close) = raw_tex_scan("\\end{a}rest", "a", 1);
+        assert_eq!(depth, 0);
+        assert_eq!(close, Some("\\end{a}".len()));
+        // An unrelated end name is content, not a close.
+        assert_eq!(raw_tex_scan("\\end{c}", "a", 1), (1, None));
+        // Same-name nesting deepens and lifts the count.
+        assert_eq!(raw_tex_scan("\\begin{a}\\end{a}", "a", 1), (1, None));
+        // An escaped command does not count toward the depth.
+        assert_eq!(raw_tex_scan("\\\\end{a}", "a", 1), (1, None));
+    }
+
+    #[test]
+    fn a_full_environment_becomes_a_raw_tex_block() {
+        let out = blocks("\\begin{center}\nx\n\\end{center}\nafter\n");
+        assert!(matches!(
+            out.first(),
+            Some(IrBlock::RawBlock(Format(fmt), body))
+                if fmt == "tex" && body == "\\begin{center}\nx\n\\end{center}"
+        ));
+        assert!(matches!(out.get(1), Some(IrBlock::Para(p)) if p == "after"));
+    }
+
+    #[test]
+    fn a_single_line_environment_closes_on_its_own_line() {
+        let out = blocks("\\begin{center}x\\end{center}\ny\n");
+        assert!(matches!(
+            out.first(),
+            Some(IrBlock::RawBlock(Format(fmt), body))
+                if fmt == "tex" && body == "\\begin{center}x\\end{center}"
+        ));
+        assert!(matches!(out.get(1), Some(IrBlock::Para(p)) if p == "y"));
+    }
+
+    #[test]
+    fn an_unclosed_environment_falls_back_to_a_paragraph() {
+        let out = blocks("\\begin{center}\nx\ny\n");
+        assert_eq!(out.len(), 1);
+        assert!(matches!(out.first(), Some(IrBlock::Para(_))));
+    }
+
+    #[test]
+    fn a_math_environment_stays_out_of_a_raw_block() {
+        // An \begin opening a math environment is not a block-level raw TeX environment.
+        let out = blocks("\\begin{align}\nx\n\\end{align}\n");
+        assert!(!matches!(out.first(), Some(IrBlock::RawBlock(..))));
+    }
+
+    #[test]
+    fn an_indented_begin_is_a_code_block() {
+        let out = blocks("    \\begin{center}\n    x\n    \\end{center}\n");
+        assert!(matches!(out.first(), Some(IrBlock::CodeBlock(..))));
+    }
+
+    #[test]
+    fn the_extension_off_leaves_the_syntax_literal() {
+        let out = parse("\\begin{center}\nx\n\\end{center}\n", presets::COMMONMARK, false).0;
+        assert_eq!(out.len(), 1);
+        assert!(matches!(out.first(), Some(IrBlock::Para(_))));
     }
 }
