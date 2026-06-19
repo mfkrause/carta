@@ -8,7 +8,8 @@ use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
 use super::{
-    ExampleMap, FootnoteDefs, IrBlock, IrDefItem, RefMap, TAB_STOP, attr, html_block, scan, table,
+    ExampleMap, FootnoteDefs, IrBlock, IrDefItem, RefMap, TAB_STOP, attr, grid, html_block, scan,
+    table,
 };
 
 /// Parse the normalized input into the block tree plus the collected link, footnote, and example
@@ -332,15 +333,10 @@ impl Parser {
             }
         }
 
-        // A pipe table that has begun in an open paragraph claims its rows here, before the block
-        // openers below could read a row's leading `-`, `>`, `#`, etc. as the start of a new block.
-        if self.continue_pipe_table(container, all_matched, blank, &cursor) {
-            return;
-        }
-
-        // An open line block claims its `|`-led and indented continuation lines here, before the
-        // openers below could read a line's leading content as the start of a new block.
-        if self.continue_line_block(container, all_matched, &cursor) {
+        // An open multi-line construct — a grid table, a pipe table, or a line block — claims this
+        // continuation line before the block openers below could read its leading `+`, `|`, `-`,
+        // `>`, `#`, etc. as the start of a new block.
+        if self.continue_open_construct(container, all_matched, blank, &cursor) {
             return;
         }
 
@@ -411,6 +407,59 @@ impl Parser {
         }
 
         self.add_line(container, started_new, blank, &mut cursor);
+    }
+
+    /// Try each open multi-line construct in turn, returning `true` as soon as one absorbs the line.
+    /// Grid runs first: its `+`-ruled border is unambiguous and a pipe table never opens with one.
+    fn continue_open_construct(
+        &mut self,
+        container: usize,
+        all_matched: bool,
+        blank: bool,
+        cursor: &Cursor,
+    ) -> bool {
+        self.continue_grid_table(container, all_matched, blank, cursor)
+            || self.continue_pipe_table(container, all_matched, blank, cursor)
+            || self.continue_line_block(container, all_matched, cursor)
+    }
+
+    /// Let an in-progress grid table claim its `+`/`|` continuation lines before the block openers
+    /// run. A paragraph whose first line is a grid top border is a candidate; each following grid
+    /// line is absorbed into it. A non-grid line ends the candidate: if the lines so far already
+    /// form a complete table the paragraph closes (and builds as a table) so the new line starts
+    /// fresh, otherwise the paragraph stays open to take the line as a lazy continuation. Returns
+    /// `true` when the line was absorbed.
+    fn continue_grid_table(
+        &mut self,
+        container: usize,
+        all_matched: bool,
+        blank: bool,
+        cursor: &Cursor,
+    ) -> bool {
+        if !self.extensions.contains(Extension::GridTables) || !all_matched {
+            return false;
+        }
+        let Some(leaf) = self
+            .last_open_child(container)
+            .filter(|&c| matches!(self.kind(c), Some(Kind::Paragraph)))
+        else {
+            return false;
+        };
+        let text = self.node_text(leaf);
+        let first = text.split('\n').next().unwrap_or("");
+        if !grid::is_top_border(first) || blank {
+            return false;
+        }
+        let line = cursor.rest();
+        if grid::is_grid_line(&line) {
+            self.append_text(leaf, line.trim_start_matches(' '));
+            self.append_text(leaf, "\n");
+            return true;
+        }
+        if grid::parse(&text).is_some() {
+            self.close(leaf);
+        }
+        false
     }
 
     /// Let an in-progress pipe table claim a continuation line before the block openers run,
@@ -905,6 +954,13 @@ impl Parser {
         if !matches!(term_node.kind, Kind::Paragraph) || term_node.text.trim().is_empty() {
             return None;
         }
+        // A paragraph that is itself a grid table is not a definition term; a following `:` line is
+        // its caption, not a definition marker.
+        if self.extensions.contains(Extension::GridTables)
+            && grid::parse(term_node.text.trim()).is_some()
+        {
+            return None;
+        }
         let term = term_node.text.trim().to_owned();
         let tight = !term_node.last_line_blank;
         let previous = self
@@ -1146,9 +1202,13 @@ impl Parser {
                 }
             }
         }
-        let footnotes = self.collect_footnotes();
+        let mut footnotes = self.collect_footnotes();
+        for blocks in footnotes.values_mut() {
+            attach_grid_captions(blocks, self.extensions);
+        }
         let examples = self.number_examples();
-        let blocks = self.build_children(0);
+        let mut blocks = self.build_children(0);
+        attach_grid_captions(&mut blocks, self.extensions);
         (blocks, self.refs, footnotes, examples)
     }
 
@@ -1260,7 +1320,11 @@ impl Parser {
                 if trimmed.is_empty() {
                     return None;
                 }
-                if self.extensions.contains(Extension::PipeTables)
+                if self.extensions.contains(Extension::GridTables)
+                    && let Some(table) = grid::parse(trimmed)
+                {
+                    IrBlock::GridTable(Box::new(table))
+                } else if self.extensions.contains(Extension::PipeTables)
                     && let Some((alignments, header, rows)) = table::try_parse(trimmed)
                 {
                     IrBlock::Table {
@@ -1405,12 +1469,94 @@ impl Parser {
 }
 
 /// In a tight list, item paragraphs render as `Plain` rather than `Para`.
-fn demote_loose_paragraphs(blocks: &mut [IrBlock]) {
+pub(crate) fn demote_loose_paragraphs(blocks: &mut [IrBlock]) {
     for block in blocks {
         if let IrBlock::Para(text) = block {
             *block = IrBlock::Plain(std::mem::take(text));
         }
     }
+}
+
+/// Attach grid-table captions: a paragraph led by `Table:` (case-insensitive) or `:` becomes the
+/// caption of the grid table immediately before it, or, failing that, immediately after it. The
+/// caption attaches to the nearer uncaptioned table and is removed from the block list; with no such
+/// table it stays an ordinary paragraph. The pass recurses into nested block containers first.
+fn attach_grid_captions(blocks: &mut Vec<IrBlock>, ext: Extensions) {
+    for block in blocks.iter_mut() {
+        match block {
+            IrBlock::Div(_, children) | IrBlock::BlockQuote(children) => {
+                attach_grid_captions(children, ext);
+            }
+            IrBlock::BulletList(items) | IrBlock::OrderedList(_, items) => {
+                for item in items {
+                    attach_grid_captions(item, ext);
+                }
+            }
+            IrBlock::DefinitionList(items) => {
+                for item in items {
+                    for definition in &mut item.definitions {
+                        attach_grid_captions(definition, ext);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if !ext.contains(Extension::TableCaptions) {
+        return;
+    }
+    let mut i = 0;
+    while i < blocks.len() {
+        let Some(caption) = caption_text(blocks.get(i)) else {
+            i += 1;
+            continue;
+        };
+        let attached = (i >= 1 && set_grid_caption(blocks, i - 1, &caption))
+            || (i + 1 < blocks.len() && set_grid_caption(blocks, i + 1, &caption));
+        if attached {
+            blocks.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// The caption text of a paragraph block led by a `Table:`/`:` marker, with the marker stripped;
+/// `None` for any other block.
+fn caption_text(block: Option<&IrBlock>) -> Option<String> {
+    let IrBlock::Para(text) = block? else {
+        return None;
+    };
+    let (first, rest) = match text.split_once('\n') {
+        Some((first, rest)) => (first, Some(rest)),
+        None => (text.as_str(), None),
+    };
+    let body = strip_caption_marker(first)?;
+    Some(match rest {
+        Some(rest) => format!("{body}\n{rest}"),
+        None => body.to_owned(),
+    })
+}
+
+/// Strip a leading `Table:` (case-insensitive) or `:` caption marker and the spaces after it,
+/// returning the remaining first-line text; `None` when no marker is present.
+fn strip_caption_marker(first: &str) -> Option<&str> {
+    if first.get(..6).is_some_and(|p| p.eq_ignore_ascii_case("Table:")) {
+        return Some(first.get(6..).unwrap_or("").trim_start());
+    }
+    first.strip_prefix(':').map(str::trim_start)
+}
+
+/// Set `text` as the caption of the grid table at `index`, if that block is a grid table that has no
+/// caption yet. Returns whether the caption was attached.
+fn set_grid_caption(blocks: &mut [IrBlock], index: usize, text: &str) -> bool {
+    if let Some(IrBlock::GridTable(table)) = blocks.get_mut(index)
+        && table.caption.is_none()
+    {
+        table.caption = Some(text.to_owned());
+        return true;
+    }
+    false
 }
 
 enum Continue {
