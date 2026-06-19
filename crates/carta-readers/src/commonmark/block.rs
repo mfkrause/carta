@@ -3,7 +3,7 @@
 //! raw for the inline phase; link reference definitions are stripped from paragraph fronts and
 //! collected into the [`RefMap`].
 
-use carta_ast::{Attr, ListAttributes, ListNumberDelim, ListNumberStyle};
+use carta_ast::{Attr, Format, ListAttributes, ListNumberDelim, ListNumberStyle};
 use carta_core::{Extension, Extensions};
 
 use super::cursor::{Cursor, FenceInfo, ListMarkerParse};
@@ -1570,7 +1570,6 @@ impl Parser {
                 IrBlock::CodeBlock(Attr::default(), strip_trailing_blank_lines(&node.text))
             }
             Kind::FencedCode(fence) => {
-                let attr = fence_attr(&fence.info, self.extensions);
                 // A closing fence drops the final newline; a block ended by end-of-input (still
                 // open) keeps it.
                 let text = if node.open {
@@ -1578,7 +1577,15 @@ impl Parser {
                 } else {
                     strip_one_trailing_newline(&node.text)
                 };
-                IrBlock::CodeBlock(attr, text)
+                // An info string that is exactly `{=FORMAT}` marks the fence's contents as raw
+                // output for FORMAT, emitted verbatim rather than as a code block.
+                if self.extensions.contains(Extension::RawAttribute)
+                    && let Some(format) = raw_block_format(&fence.info)
+                {
+                    IrBlock::RawBlock(Format(format), text)
+                } else {
+                    IrBlock::CodeBlock(fence_attr(&fence.info, self.extensions), text)
+                }
             }
             Kind::HtmlBlock(kind) => {
                 let mut text = node.text.clone();
@@ -1880,6 +1887,26 @@ fn continues_roman(marker: &ListMarkerParse) -> bool {
     ) || matches!(marker.start, 1 | 3 | 4 | 5 | 9 | 10 | 12 | 13 | 22 | 24)
 }
 
+/// If a fence's info string is exactly an attribute block holding only a raw-format marker — a `{`,
+/// optional whitespace, `=`, a format name, optional whitespace, then `}` — return that name. The
+/// fence's contents are then raw output for that format. A format name is one run of letters,
+/// digits, `-`, or `_`; anything else (extra attributes, a space inside the name, a stray symbol)
+/// is not a raw marker and the fence stays an ordinary code block.
+fn raw_block_format(info: &str) -> Option<String> {
+    let inner = info.trim().strip_prefix('{')?.strip_suffix('}')?;
+    // The `=` immediately precedes the name: `{= html}` (a gap after `=`) is not a raw marker,
+    // while surrounding whitespace (`{ =html }`) is allowed.
+    let name = inner.trim_start().strip_prefix('=')?.trim_end();
+    if name.is_empty() || !name.chars().all(is_format_name_char) {
+        return None;
+    }
+    Some(name.to_owned())
+}
+
+fn is_format_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
+}
+
 fn fence_attr(info: &str, extensions: Extensions) -> Attr {
     let info = info.trim();
     if info.is_empty() {
@@ -2119,5 +2146,51 @@ mod tests {
     fn a_line_without_a_marker_is_rejected() {
         assert_eq!(strip_caption_marker("Just a paragraph"), None);
         assert_eq!(strip_caption_marker("Tablexyz"), None);
+    }
+
+    use super::raw_block_format;
+
+    #[test]
+    fn plain_raw_format_marker_is_recognized() {
+        assert_eq!(raw_block_format("{=html}"), Some("html".to_owned()));
+        assert_eq!(raw_block_format("{=latex}"), Some("latex".to_owned()));
+        assert_eq!(raw_block_format("{=html-foo}"), Some("html-foo".to_owned()));
+        assert_eq!(raw_block_format("{=html_foo}"), Some("html_foo".to_owned()));
+        assert_eq!(raw_block_format("{=html5}"), Some("html5".to_owned()));
+    }
+
+    #[test]
+    fn whitespace_around_the_marker_is_tolerated() {
+        assert_eq!(raw_block_format("{ =html}"), Some("html".to_owned()));
+        assert_eq!(raw_block_format("{=html }"), Some("html".to_owned()));
+        assert_eq!(raw_block_format("  {=html}  "), Some("html".to_owned()));
+    }
+
+    #[test]
+    fn a_gap_after_the_equals_is_not_a_marker() {
+        assert_eq!(raw_block_format("{= html}"), None);
+    }
+
+    #[test]
+    fn extra_attributes_or_an_empty_format_are_not_markers() {
+        assert_eq!(raw_block_format("{=html .foo}"), None);
+        assert_eq!(raw_block_format("{=html foo}"), None);
+        assert_eq!(raw_block_format("{=}"), None);
+        assert_eq!(raw_block_format("{}"), None);
+    }
+
+    #[test]
+    fn a_symbol_in_the_format_name_is_not_a_marker() {
+        assert_eq!(raw_block_format("{=ht.ml}"), None);
+        assert_eq!(raw_block_format("{=ht/ml}"), None);
+        assert_eq!(raw_block_format("{=ht+ml}"), None);
+        assert_eq!(raw_block_format("{=ht:ml}"), None);
+    }
+
+    #[test]
+    fn an_ordinary_info_string_is_not_a_marker() {
+        assert_eq!(raw_block_format("html"), None);
+        assert_eq!(raw_block_format("=html"), None);
+        assert_eq!(raw_block_format("{.html}"), None);
     }
 }
