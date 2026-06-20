@@ -27,6 +27,17 @@ mod common;
 ))]
 mod grid;
 
+#[cfg(any(
+    feature = "commonmark",
+    feature = "markdown",
+    feature = "gfm",
+    feature = "plain",
+    feature = "man",
+    feature = "jira",
+    feature = "typst"
+))]
+mod math;
+
 #[cfg(feature = "slides")]
 mod slides;
 

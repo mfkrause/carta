@@ -9,8 +9,5 @@ commonmark	image-dimensions
 commonmark	math
 latex	task-list
 beamer	task-list
-plain	math
-typst	math
 jira	math
-man	math
 man	common/code-block-lang
