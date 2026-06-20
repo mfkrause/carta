@@ -64,6 +64,35 @@ pub struct ReaderOptions {
 pub struct WriterOptions {
     /// Format extensions to enable.
     pub extensions: Extensions,
+
+    /// Emit a complete document by wrapping the rendered body in the target format's template,
+    /// rather than a bare fragment.
+    #[cfg(feature = "template")]
+    pub standalone: bool,
+
+    /// Template source overriding the format's built-in default. Its presence implies standalone
+    /// output.
+    #[cfg(feature = "template")]
+    pub template: Option<String>,
+
+    /// Directory used to resolve template partials (`$name()$`).
+    #[cfg(feature = "template")]
+    pub template_dir: Option<std::path::PathBuf>,
+
+    /// Raw template variables, in order; a repeated key accumulates into a list. Inserted verbatim
+    /// (unescaped) at the highest precedence when building the template context.
+    #[cfg(feature = "template")]
+    pub variables: Vec<(String, String)>,
+
+    /// Metadata layered *above* the document's own (the `-M` layer): each key replaces the reader's
+    /// value for that key when the context is built.
+    #[cfg(feature = "template")]
+    pub metadata: std::collections::BTreeMap<String, carta_ast::MetaValue>,
+
+    /// Metadata layered *below* the document's own (the metadata-file layer): supplies defaults the
+    /// reader's values and `-M` override.
+    #[cfg(feature = "template")]
+    pub metadata_defaults: std::collections::BTreeMap<String, carta_ast::MetaValue>,
 }
 
 /// Parses input text in some source format into the document model.
