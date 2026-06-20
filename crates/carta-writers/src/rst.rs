@@ -48,6 +48,10 @@ impl Writer for RstWriter {
         Ok(sections.join("\n\n"))
     }
 
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.rst"))
+    }
+
     fn title_block(&self, document: &Document, _options: &WriterOptions) -> Result<Option<String>> {
         let mut parts = Vec::new();
         if let Some(line) = title_line(document.meta.get("title")) {

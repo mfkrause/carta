@@ -27,6 +27,10 @@ impl Writer for AsciidocWriter {
         let body = state.blocks(&document.blocks, FILL_COLUMN);
         Ok(body.trim_end_matches('\n').to_owned())
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.asciidoc"))
+    }
 }
 
 #[derive(Debug, Default)]
