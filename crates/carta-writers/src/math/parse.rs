@@ -1169,7 +1169,7 @@ fn parse_atom(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Atom> {
             Some(Atom::new(Body::ColonEq))
         }
         // A bare double quote, backtick, or dollar has no ordinary-symbol meaning in math mode, so an
-        // expression containing one is unparseable and the writer emits it verbatim. The backslash
+        // expression containing one is unparsable and the writer emits it verbatim. The backslash
         // forms (`\"`, `` \` ``, `\$`) tokenize as commands, and these characters inside a `\text{…}`
         // group are consumed by the text path, so none reaches here.
         Token::Char('"' | '`' | '$') => None,
@@ -2523,7 +2523,7 @@ fn parse_verbatim_group(
                     probe += 1;
                 }
             }
-            // A bare double quote or backtick is unparseable in math mode (here, `\operatorname`
+            // A bare double quote or backtick is unparsable in math mode (here, `\operatorname`
             // content), so the whole expression falls back to verbatim. In a text wrapper both are
             // ordinary literal characters.
             Token::Char('"' | '`') if math => return None,
@@ -2663,7 +2663,7 @@ fn apply_text_command(
             return Some(next - 1);
         }
         // A text-mode accent composes with its following base into a single Latin letter; an
-        // unparseable base leaves the whole wrapper verbatim.
+        // unparsable base leaves the whole wrapper verbatim.
         let (base, next) = accent_base(tokens, probe + 1)?;
         run.push_str(text_accent(name, base)?);
         Some(next - 1)

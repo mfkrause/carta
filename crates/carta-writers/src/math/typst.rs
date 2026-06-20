@@ -752,7 +752,7 @@ fn bare_matrix_str(display: bool, rows: &[Vec<Vec<Atom>>]) -> Option<String> {
 ///
 /// A bare paren/bracket/brace pair stretches under Typst's own matching, so it needs no wrapper —
 /// unless an interior `\middle` divider reuses that same bracket kind. The duplicate auto-pairing
-/// glyph would then mis-match, so the whole group is wrapped in an explicit `lr(..)` to pin the
+/// glyph would then mismatch, so the whole group is wrapped in an explicit `lr(..)` to pin the
 /// stretch to the written delimiters.
 /// Fuse a matched `\left … \right` pair around a single bare grid into one `mat`/`vec`, or `None`
 /// when no fusion applies. The pair must open and close with the same bracket from the fusing set

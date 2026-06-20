@@ -1314,7 +1314,7 @@ mod tests {
         assert_eq!(
             render(vec![para(vec![image])]),
             "<img src=\"pic.png\" alt=\"alt\" />",
-            "the unparseable dimension is dropped but the attributed image keeps its HTML form"
+            "the unparsable dimension is dropped but the attributed image keeps its HTML form"
         );
     }
 
