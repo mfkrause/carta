@@ -1,0 +1,39 @@
+$if(title)$
+#set document(title: [$title$]$if(author)$, author: ($for(author)$[$author$]$sep$, $endfor$)$endif$)
+$endif$
+#set page(numbering: "1", number-align: center)
+#set text(font: ("Linux Libertine",), lang: "$if(lang)$$lang$$else$en$endif$")
+#set par(justify: true)
+#set heading(numbering: none)
+
+$for(header-includes)$
+$header-includes$
+$endfor$
+$if(title)$
+#align(center)[#block[
+#text(weight: "bold", size: 1.75em)[$title$]
+$if(subtitle)$
+#parbreak()
+#text(size: 1.25em)[$subtitle$]
+$endif$
+]]
+$endif$
+$for(author)$
+#align(center)[$author$]
+$endfor$
+$if(date)$
+#align(center)[$date$]
+$endif$
+$if(abstract)$
+#block(inset: 2em)[
+*Abstract* #parbreak()
+$abstract$
+]
+$endif$
+$if(toc)$
+#outline(depth: $if(toc-depth)$$toc-depth$$else$3$endif$, indent: auto)
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
