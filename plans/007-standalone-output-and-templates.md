@@ -182,6 +182,19 @@ Falsy: absent; empty string `""`; empty list `[]`; `MetaBool(false)`. Everything
 **Nice-to-have** (implement if cheap, else record as a known gap): `left`/`right`/`center` with a width
 arg and optional borders.
 
+**Oracle-confirmed pipe edge semantics** (baked into the engine + unit tests):
+- `first`/`last`/`rest`/`allbutlast` operate on **lists only**; a string (or any non-list) passes
+  through unchanged. `first`/`last` on an empty list select the empty string.
+- `alpha` is **single-letter cyclic**, not spreadsheet-style: `n` → the lowercase letter at
+  `chr(96 + n mod 26)`, so `1`→`a` … `25`→`y`, and the cycle boundary `0`/`26`/`52`/… lands on
+  `` ` `` (the character just before `a`); `27`→`a`. Negative or non-integer values pass through as
+  their own text.
+- `roman`: `0`→`""` (empty); `1..=3999`→standard lowercase numeral; negative or non-integer values
+  pass through unchanged. **Known divergence (out of domain):** inputs `≥4000` are not standard Roman
+  numerals; the engine continues the greedy expansion (`4000`→`mmmm`) rather than reproducing the
+  pinned binary's overflow artifacts (`4000`→`cmmmmc`). No authored template uses `roman` with such
+  values, so the differential surface never exercises this.
+
 ### 3.4 Partials
 
 `$name()$` resolves to a file `name.<ext>` where `<ext>` is the **enclosing template's extension**,
@@ -538,16 +551,35 @@ using constructs/targets carta does not yet support, so coverage is honest.
   taxonomy in §4.7 should make this impossible) — stop and fix the feature graph.
 - Drift check (top of file) shows material change to an integration point.
 
-## 10. Open questions (resolve during execution; record answers in Executed)
+## 10. Open questions (RESOLVED during execution — see Executed for probe detail)
 
-1. `left`/`right`/`center` pipe argument syntax + width semantics — implement if cheap, else log as a
-   known gap (rare in real templates).
-2. Slide formats (`revealjs`, `beamer`) reference many variables — scope carta's default slide
-   templates to a faithful-but-minimal set; list any deferred slide variables.
-3. `--metadata-file` nested-map merge vs document meta: deep-merge or whole-key replace? And the merge
-   order among **multiple** `--metadata-file`s. Verify against the oracle.
-4. Bare `$abstract$`/`MetaBlocks` interpolation: confirm block metadata renders sensibly per target
-   (the `render_meta_blocks` wrap) and matches the oracle on the differential surface.
+1. **`left`/`right`/`center` pipes — RESOLVED: implement.** Syntax `$x/left WIDTH ["LBORDER" "RBORDER"]$`.
+   With a width and optional border strings they pad to the column: `left` pads on the right, `right`
+   pads on the left, `center` splits the pad. **Known gap to watch**: without border strings, the
+   block-layout pass strips the trailing pad (`[$s/left 20$]` → `[Hello World]`), so a bare
+   `left`/`center` with no borders is a no-op in practice; if any divergence surfaces there, log it as a
+   known gap rather than mutating templates.
+2. **Slide templates — RESOLVED: faithful-but-minimal.** Author minimal `revealjs`/`beamer` scaffolds
+   covering the common variable slots (`title`/`author`/`date`/`body`/`header-includes`); list any
+   deferred slide-only variables in Executed.
+3. **Nested-map merge — RESOLVED: WHOLE-KEY REPLACE, not deep-merge.** A higher-precedence source's
+   value for a top-level key entirely replaces the lower source's value for that key; nested maps are
+   **not** deep-merged. Among multiple `--metadata-file`s, **later overrides earlier** at key level
+   (union of distinct keys; shared keys take the later file's value). Oracle-confirmed: docmeta
+   `m:{a,keep}` over metadata-file `m:{a,add}` → `add` is gone (the whole `m` was replaced).
+4. **Bare `$abstract$`/`MetaBlocks` — RESOLVED: renders block-level through the target writer.** The
+   `render_meta_blocks` wrap is correct: html → `<p>…</p>` paragraphs; latex → paragraphs separated by a
+   blank line. Matches the oracle on the differential surface.
+
+Additional semantics confirmed during execution (all oracle-pinned):
+- `$elseif(y)$` chains work as documented.
+- `$for$` over a list-of-maps with `$it.field$`, and **nested** `$for$` rebinding `$it$` to the inner
+  loop, both work.
+- `pagetitle` = plain text of the title inlines (`Hi *there* and \`code\`` → `Hi there and code`); the
+  visible `$title$` renders the inlines (a soft break becomes a newline).
+- `$body$` carries **no** trailing newline (it is the writer's verbatim fragment output).
+- Comment `$-- …$` deletes to end of line; if the resulting physical line is wholly empty (column 0) the
+  newline collapses, otherwise the leading whitespace + newline are kept.
 
 _(Resolved during planning, no longer open: `--template` implies `-s` (yes); bare `-V key` ⇒ `true`;
 `Document: Default` (yes); `pairs`/map ordering is sorted; bare `MetaBool` renders `true`/`false`;

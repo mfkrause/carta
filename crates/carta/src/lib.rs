@@ -15,6 +15,8 @@ pub use carta_core::{
 
 mod format_spec;
 mod registry;
+#[cfg(feature = "standalone")]
+mod standalone;
 
 pub use format_spec::parse_format_spec;
 pub use registry::{
@@ -54,8 +56,26 @@ pub fn convert(
     let mut writer_options = writer_options.clone();
     writer_options.extensions = to_ext.union(writer_options.extensions);
 
+    #[cfg(feature = "standalone")]
+    let document = {
+        let mut document = reader.read(input, &reader_options)?;
+        standalone::merge_metadata(&mut document, &writer_options);
+        document
+    };
+    #[cfg(not(feature = "standalone"))]
     let document = reader.read(input, &reader_options)?;
-    writer.write(&document, &writer_options)
+
+    let body = writer.write(&document, &writer_options)?;
+
+    #[cfg(feature = "standalone")]
+    if (writer_options.standalone || writer_options.template.is_some())
+        && let Some(wrapped) =
+            standalone::render(writer.as_ref(), &document, &body, &writer_options, &to_base)?
+    {
+        return Ok(wrapped);
+    }
+
+    Ok(body)
 }
 
 /// Lists every extension carta models, each paired with whether `format` enables it by default.
