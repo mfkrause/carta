@@ -234,7 +234,7 @@ pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
 #[cfg(test)]
 mod tests {
     use super::CommonmarkReader;
-    use carta_ast::{Block, Document, Inline, ListNumberDelim, ListNumberStyle};
+    use carta_ast::{Attr, Block, Document, Inline, ListNumberDelim, ListNumberStyle, Target};
     use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
@@ -1711,5 +1711,169 @@ mod tests {
             ],
         );
         assert!(matches!(doc.blocks.as_slice(), [Block::DefinitionList(_)]));
+    }
+
+    /// The inlines of a single-paragraph markdown-dialect document, for inline assertions.
+    fn md_para(input: &str, exts: &[Extension]) -> Vec<Inline> {
+        match read_markdown(input, exts).blocks.as_slice() {
+            [Block::Para(inlines)] => inlines.clone(),
+            other => panic!("expected a single paragraph, got {other:?}"),
+        }
+    }
+
+    // --- Gap 1: triple-emphasis nests strong on the outside, emphasis on the inside ---
+
+    #[test]
+    fn markdown_nests_strong_outside_emph_for_a_triple_run() {
+        let inlines = md_para("***both***\n", &[]);
+        assert!(
+            matches!(
+                inlines.as_slice(),
+                [Inline::Strong(inner)]
+                    if matches!(inner.as_slice(), [Inline::Emph(text)]
+                        if matches!(text.as_slice(), [Inline::Str(s)] if s == "both"))
+            ),
+            "expected Strong[Emph[both]], got {inlines:?}"
+        );
+    }
+
+    #[test]
+    fn markdown_keeps_a_run_of_four_delimiters_literal() {
+        // Four `*` open no emphasis in the markdown dialect; the run stays text.
+        let inlines = md_para("****a****\n", &[]);
+        assert!(
+            matches!(inlines.as_slice(), [Inline::Str(s)] if s == "****a****"),
+            "expected literal text, got {inlines:?}"
+        );
+    }
+
+    #[test]
+    fn markdown_underscore_triple_run_also_nests_strong_outside() {
+        let inlines = md_para("___both___\n", &[]);
+        assert!(
+            matches!(
+                inlines.as_slice(),
+                [Inline::Strong(inner)] if matches!(inner.as_slice(), [Inline::Emph(_)])
+            ),
+            "expected Strong[Emph[..]], got {inlines:?}"
+        );
+    }
+
+    // --- Gap 2: explicit angle autolinks carry a uri/email class ---
+
+    fn single_link(inlines: &[Inline]) -> Option<(&Attr, &Target)> {
+        match inlines {
+            [Inline::Link(attr, _, target)] => Some((attr, target)),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn markdown_uri_autolink_carries_the_uri_class() {
+        let inlines = md_para("<http://example.com>\n", &[]);
+        let (attr, target) = single_link(&inlines).expect("a single link");
+        assert_eq!(attr.classes, vec!["uri".to_owned()]);
+        assert_eq!(target.url, "http://example.com");
+    }
+
+    #[test]
+    fn markdown_email_autolink_carries_the_email_class_and_mailto_url() {
+        let inlines = md_para("<a@b.com>\n", &[]);
+        let (attr, target) = single_link(&inlines).expect("a single link");
+        assert_eq!(attr.classes, vec!["email".to_owned()]);
+        assert_eq!(target.url, "mailto:a@b.com");
+    }
+
+    #[test]
+    fn markdown_scheme_autolink_carries_the_uri_class() {
+        for input in ["<ftp://x.y>\n", "<mailto:a@b.com>\n", "<tel:+123>\n"] {
+            let inlines = md_para(input, &[]);
+            let (attr, _) = single_link(&inlines).expect("a single link");
+            assert_eq!(attr.classes, vec!["uri".to_owned()], "for {input:?}");
+        }
+    }
+
+    #[test]
+    fn commonmark_angle_autolink_carries_no_class() {
+        // In the strict CommonMark dialect the autolink class list is empty.
+        let inlines = match blocks("<http://example.com>\n").as_slice() {
+            [Block::Para(inlines)] => inlines.clone(),
+            other => panic!("expected a paragraph, got {other:?}"),
+        };
+        let (attr, _) = single_link(&inlines).expect("a single link");
+        assert!(
+            attr.classes.is_empty(),
+            "expected empty classes, got {attr:?}"
+        );
+    }
+
+    // --- Gap 5: balanced parentheses inside an inline link destination ---
+
+    #[test]
+    fn markdown_link_destination_keeps_balanced_inner_parentheses() {
+        let inlines = md_para("[c](/u (d))\n", &[]);
+        let (_, target) = single_link(&inlines).expect("a single link");
+        // The space is percent-encoded and the inner `(d)` is part of the destination.
+        assert_eq!(target.url, "/u%20(d)");
+        assert_eq!(target.title, "");
+    }
+
+    #[test]
+    fn markdown_link_destination_separates_a_trailing_title() {
+        let inlines = md_para("[c](/u (d) \"t\")\n", &[]);
+        let (_, target) = single_link(&inlines).expect("a single link");
+        assert_eq!(target.url, "/u%20(d)");
+        assert_eq!(target.title, "t");
+    }
+
+    #[test]
+    fn markdown_link_destination_keeps_nested_balanced_parentheses() {
+        let inlines = md_para("[c](/u(a(b)c)d)\n", &[]);
+        let (_, target) = single_link(&inlines).expect("a single link");
+        assert_eq!(target.url, "/u(a(b)c)d");
+    }
+
+    // --- Gap 6: tilde delimiter runs resolve to subscript or strikeout ---
+
+    #[test]
+    fn markdown_single_tilde_pair_is_a_subscript() {
+        let inlines = md_para("z ~x~\n", &[Extension::Subscript, Extension::Strikeout]);
+        assert!(
+            inlines.iter().any(|i| matches!(i, Inline::Subscript(_))),
+            "expected a subscript, got {inlines:?}"
+        );
+    }
+
+    #[test]
+    fn markdown_double_tilde_pair_is_a_strikeout() {
+        let inlines = md_para("z ~~x~~\n", &[Extension::Subscript, Extension::Strikeout]);
+        assert!(
+            inlines.iter().any(|i| matches!(i, Inline::Strikeout(_))),
+            "expected a strikeout, got {inlines:?}"
+        );
+    }
+
+    #[test]
+    fn markdown_triple_tilde_run_collapses_to_a_single_subscript() {
+        // The whole odd run is consumed into one subscript; no strikeout nests inside it.
+        let inlines = md_para(
+            "z ~~~triple~~~\n",
+            &[Extension::Subscript, Extension::Strikeout],
+        );
+        let sub = inlines
+            .iter()
+            .find_map(|i| match i {
+                Inline::Subscript(content) => Some(content.clone()),
+                _ => None,
+            })
+            .expect("a subscript");
+        assert!(
+            matches!(sub.as_slice(), [Inline::Str(s)] if s == "triple"),
+            "expected Subscript[triple], got {sub:?}"
+        );
+        assert!(
+            !inlines.iter().any(|i| matches!(i, Inline::Strikeout(_))),
+            "a triple-tilde run should not form a strikeout: {inlines:?}"
+        );
     }
 }

@@ -19,7 +19,7 @@ use super::block::is_format_name_char;
 use super::identifiers::HeaderNumbering;
 use super::scan::{
     is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
-    scan_html_tag, scan_inline_target,
+    scan_html_tag, scan_inline_target, unescape_string,
 };
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 
@@ -1330,6 +1330,13 @@ impl InlineParser<'_> {
     fn left_angle(&mut self) {
         if let Some((inline, next)) = scan_autolink(self.chars, self.pos) {
             self.pos = next;
+            // The markdown dialect tags an explicit angle autolink with a `uri` or `email` class;
+            // the strict dialect leaves it unclassed.
+            let inline = if self.notes.markdown {
+                classify_angle_autolink(inline)
+            } else {
+                inline
+            };
             self.nodes.push(Node::Inline(inline));
             return;
         }
@@ -1742,10 +1749,17 @@ impl InlineParser<'_> {
     /// `[label]`/`[]` reference. Shortcut references (the bracket's own text) are handled separately
     /// so a bracketed span can take precedence over them.
     fn resolve_explicit(&self, opener_index: usize) -> Explicit {
-        if self.at(0) == Some('(')
-            && let Some((target, next)) = scan_inline_target(self.chars, self.pos)
-        {
-            return Explicit::Target(target, next);
+        if self.at(0) == Some('(') {
+            // The markdown dialect lets an unbracketed destination hold spaces and balanced
+            // parentheses; the strict dialect ends a destination at the first space.
+            let scanned = if self.notes.markdown {
+                scan_markdown_inline_target(self.chars, self.pos)
+            } else {
+                scan_inline_target(self.chars, self.pos)
+            };
+            if let Some((target, next)) = scanned {
+                return Explicit::Target(target, next);
+            }
         }
         // Explicit reference. Labels match on their raw source text (the closing `]` sits at `pos - 1`).
         if let Some((label, next)) = scan_following_label(self.chars, self.pos) {
@@ -2173,9 +2187,17 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
             if !entry.can_open || entry.ch != closer_ch {
                 continue;
             }
+            // The markdown dialect treats an emphasis run of four or more `*`/`_` as inert: it
+            // opens no emphasis and stays literal. Only runs of one to three open (one emphasis,
+            // one strong, or a strong wrapping an emphasis).
+            if markdown && markdown_opener_inert(closer_ch, entry.count) {
+                continue;
+            }
             // Rule of 3 and match_use_count check — we need a temporary Delimiter value to
             // reuse `emphasis_match`, which borrows `nodes` by index.
-            let Some(use_count) = match_use_count(entry.count, closer_count, closer_ch, ext) else {
+            let Some(use_count) =
+                match_use_count_md(entry.count, closer_count, closer_ch, ext, markdown)
+            else {
                 // `match_use_count` rejected this opener; keep scanning — do not advance
                 // `openers_bottom` for this slot just because one opener was rejected.
                 continue;
@@ -2193,6 +2215,13 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
                 if markdown
                     && rejects_inner_space(closer_ch, use_count)
                     && nodes.get(ni + 1..closer_ni).is_some_and(nodes_carry_break)
+                {
+                    continue;
+                }
+                // In markdown a single `*`/`_` and a doubled one never pair across an emphasis run:
+                // a lone delimiter cannot draw from a two-delimiter run (which is wholly a strong
+                // marker), and vice versa, so the run stays literal.
+                if markdown && markdown_emphasis_runs_mismatch(closer_ch, entry.count, closer_count)
                 {
                     continue;
                 }
@@ -2222,7 +2251,8 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
         let (opener_ni, opener_count) = (opener_entry.node_index, opener_entry.count);
 
         // Retrieve use_count (already validated above).
-        let use_count = match_use_count(opener_count, closer_count, closer_ch, ext).unwrap_or(1);
+        let use_count =
+            match_use_count_md(opener_count, closer_count, closer_ch, ext, markdown).unwrap_or(1);
 
         // Drain all nodes strictly between opener and closer into `content`, collapse, and wrap.
         let inner: Vec<Node> = nodes.drain(opener_ni + 1..closer_ni).collect();
@@ -2493,6 +2523,198 @@ fn match_use_count(
         }
         _ => None,
     }
+}
+
+/// Scan an inline link tail `(destination "title")` in the markdown dialect, where the unbracketed
+/// destination may hold spaces (percent-encoded to `%20`) and balanced parentheses. The destination
+/// runs until the parenthesis that balances the link's opener, save for a trailing quoted title
+/// separated by whitespace. Returns `None` when the parentheses are unbalanced or a quoted title is
+/// not immediately followed by the closing parenthesis. `pos` points at the opening `(`.
+fn scan_markdown_inline_target(chars: &[char], pos: usize) -> Option<(Target, usize)> {
+    let mut index = pos + 1;
+    skip_target_whitespace(chars, &mut index);
+    if chars.get(index).copied() == Some('<') {
+        // The angle-bracketed form has no special space handling; defer to the shared scanner,
+        // which already reads `<...>` destinations and an optional title.
+        return scan_inline_target(chars, pos);
+    }
+    let mut url = String::new();
+    let mut title = String::new();
+    let mut depth: usize = 0;
+    loop {
+        match chars.get(index).copied() {
+            None => return None,
+            Some(')') if depth == 0 => {
+                index += 1;
+                break;
+            }
+            Some(')') => {
+                depth -= 1;
+                url.push(')');
+                index += 1;
+            }
+            Some('(') => {
+                depth += 1;
+                url.push('(');
+                index += 1;
+            }
+            // An escaped space is always part of the destination — never a title separator — and
+            // encodes as `%20` like any other destination space.
+            Some('\\') if matches!(chars.get(index + 1).copied(), Some(' ' | '\t')) => {
+                url.push_str("%20");
+                index += 2;
+            }
+            Some('\\')
+                if chars
+                    .get(index + 1)
+                    .copied()
+                    .is_some_and(is_ascii_punctuation) =>
+            {
+                if let Some(&next) = chars.get(index + 1) {
+                    url.push('\\');
+                    url.push(next);
+                }
+                index += 2;
+            }
+            Some(ch) if ch == ' ' || ch == '\t' => {
+                let mut after = index;
+                skip_target_whitespace(chars, &mut after);
+                match chars.get(after).copied() {
+                    // Trailing whitespace before the closing parenthesis ends the destination.
+                    Some(')') if depth == 0 => {
+                        index = after;
+                    }
+                    // A quoted title separated by whitespace ends the destination. It must be the
+                    // last element before the closing parenthesis, else the whole tail fails.
+                    Some('"' | '\'') if depth == 0 => {
+                        let (parsed, mut close) = scan_target_title(chars, after)?;
+                        title = parsed;
+                        skip_target_whitespace(chars, &mut close);
+                        if chars.get(close).copied() != Some(')') {
+                            return None;
+                        }
+                        index = close + 1;
+                        break;
+                    }
+                    // More destination follows: the whitespace run joins it as a single `%20`.
+                    Some(_) => {
+                        url.push_str("%20");
+                        index = after;
+                    }
+                    None => return None,
+                }
+            }
+            Some(ch) => {
+                url.push(ch);
+                index += 1;
+            }
+        }
+    }
+    Some((
+        Target {
+            url: unescape_string(&url),
+            title: unescape_string(&title),
+        },
+        index,
+    ))
+}
+
+/// Advance `index` past a run of spaces and tabs.
+fn skip_target_whitespace(chars: &[char], index: &mut usize) {
+    while matches!(chars.get(*index).copied(), Some(' ' | '\t')) {
+        *index += 1;
+    }
+}
+
+/// Scan a quoted link title starting at `start` (a `"` or `'`), returning its raw content and the
+/// index just past the closing quote. A backslash escapes the following punctuation character.
+fn scan_target_title(chars: &[char], start: usize) -> Option<(String, usize)> {
+    let close = chars.get(start).copied()?;
+    if close != '"' && close != '\'' {
+        return None;
+    }
+    let mut index = start + 1;
+    let mut out = String::new();
+    while let Some(&ch) = chars.get(index) {
+        if ch == close {
+            return Some((out, index + 1));
+        }
+        if ch == '\\'
+            && chars
+                .get(index + 1)
+                .copied()
+                .is_some_and(is_ascii_punctuation)
+        {
+            if let Some(&next) = chars.get(index + 1) {
+                out.push('\\');
+                out.push(next);
+            }
+            index += 2;
+            continue;
+        }
+        out.push(ch);
+        index += 1;
+    }
+    None
+}
+
+/// Tag an explicit angle-bracket autolink with its kind. A link whose visible text differs from its
+/// destination is an email autolink (the destination gained a `mailto:` scheme), so it carries the
+/// `email` class; every other angle autolink is a URI autolink and carries `uri`. Bare URLs linked
+/// by the autolink post-pass keep an empty class list and never reach here.
+fn classify_angle_autolink(inline: Inline) -> Inline {
+    let Inline::Link(mut attr, text, target) = inline else {
+        return inline;
+    };
+    let is_email = matches!(text.first(), Some(Inline::Str(shown)) if *shown != target.url);
+    attr.classes
+        .push(if is_email { "email" } else { "uri" }.to_owned());
+    Inline::Link(attr, text, target)
+}
+
+/// Whether a `*`/`_` run is too long to open emphasis in the markdown dialect. A run there denotes
+/// at most a strong wrapping an emphasis (three delimiters); four or more open nothing and the run
+/// stays literal.
+fn markdown_opener_inert(ch: u8, count: usize) -> bool {
+    matches!(ch, b'*' | b'_') && count > 3
+}
+
+/// Whether a `*`/`_` opener and closer have run lengths that cannot pair in the markdown dialect.
+/// A run of one delimiter (an emphasis marker) and a run of two (a strong marker) never match each
+/// other: a lone delimiter cannot close against a strong marker, nor a strong marker against a lone
+/// one, so the pairing fails and both runs stay literal.
+fn markdown_emphasis_runs_mismatch(ch: u8, opener_count: usize, closer_count: usize) -> bool {
+    matches!(ch, b'*' | b'_')
+        && ((opener_count == 1 && closer_count == 2) || (opener_count == 2 && closer_count == 1))
+}
+
+/// How many delimiters a matched pair consumes, accounting for the markdown dialect's emphasis
+/// rule. For `*`/`_` in markdown, a pair whose opener and closer both still have three or more
+/// delimiters consumes a single one first, so the emphasis it forms nests inside the strong that
+/// the remaining pair forms — a triple run resolves to a strong wrapping an emphasis. Every other
+/// pairing defers to [`match_use_count`].
+fn match_use_count_md(
+    opener_count: usize,
+    closer_count: usize,
+    ch: u8,
+    ext: Extensions,
+    markdown: bool,
+) -> Option<usize> {
+    if markdown && matches!(ch, b'*' | b'_') && opener_count >= 3 && closer_count >= 3 {
+        return Some(1);
+    }
+    // A symmetric run of three or more tildes resolves to a single subscript when its length is
+    // odd: the whole run is consumed and the subscript does not nest a strikeout inside it.
+    if markdown
+        && ch == b'~'
+        && ext.contains(Extension::Subscript)
+        && opener_count == closer_count
+        && opener_count >= 3
+        && opener_count % 2 == 1
+    {
+        return Some(opener_count);
+    }
+    match_use_count(opener_count, closer_count, ch, ext)
 }
 
 /// Wrap `content` in the inline a matched delimiter pair denotes, given its character and the number
