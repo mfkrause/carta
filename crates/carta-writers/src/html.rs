@@ -25,6 +25,10 @@ impl Writer for HtmlWriter {
     fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
         Ok(render_fragment(&document.blocks))
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.html"))
+    }
 }
 
 /// Renders a document to an html4 fragment. The html4 dialect uses presentational attributes
@@ -38,6 +42,10 @@ pub struct Html4Writer;
 impl Writer for Html4Writer {
     fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
         Ok(render_with_flavor(&document.blocks, Flavor::Html4))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.html4"))
     }
 }
 

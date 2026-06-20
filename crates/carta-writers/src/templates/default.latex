@@ -1,0 +1,70 @@
+\documentclass[
+$if(fontsize)$
+  $fontsize$,
+$endif$
+$if(papersize)$
+  $papersize$paper,
+$endif$
+$for(classoption)$
+  $classoption$$sep$,
+$endfor$
+]{$if(documentclass)$$documentclass$$else$article$endif$}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
+\usepackage{graphicx}
+\usepackage{longtable,booktabs}
+\usepackage{upquote}
+\IfFileExists{microtype.sty}{\usepackage{microtype}}{}
+\usepackage{xcolor}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{hyperref}
+\hypersetup{
+  pdftitle={$pagetitle$},
+$if(author)$
+  pdfauthor={$for(author)$$author$$sep$, $endfor$},
+$endif$
+$if(lang)$
+  pdflang={$lang$},
+$endif$
+  hidelinks,
+  pdfcreator={carta}}
+\urlstyle{same}
+$for(header-includes)$
+$header-includes$
+$endfor$
+$if(title)$
+\title{$title$$if(subtitle)$\\
+\large $subtitle$$endif$}
+$endif$
+$if(author)$
+\author{$for(author)$$author$$sep$ \and $endfor$}
+$endif$
+\date{$date$}
+\begin{document}
+$for(include-before)$
+$include-before$
+$endfor$
+$if(title)$
+\maketitle
+$endif$
+$if(abstract)$
+\begin{abstract}
+$abstract$
+\end{abstract}
+$endif$
+$if(toc)$
+{
+\hypersetup{linkcolor=}
+\setcounter{tocdepth}{$if(toc-depth)$$toc-depth$$else$3$endif$}
+\tableofcontents
+}
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+\end{document}

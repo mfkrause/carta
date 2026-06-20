@@ -54,6 +54,18 @@ impl Writer for RevealjsWriter {
         };
         Ok(fill_slides(&assembled))
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.revealjs"))
+    }
+
+    fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
+        crate::html::HtmlWriter.render_meta_inlines(inlines, options)
+    }
+
+    fn render_meta_blocks(&self, blocks: &[Block], options: &WriterOptions) -> Result<String> {
+        crate::html::HtmlWriter.render_meta_blocks(blocks, options)
+    }
 }
 
 /// The sectioning-marker level of a slide, or `None` for a frame.

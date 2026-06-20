@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
+<head>
+<meta charset="utf-8" />
+<meta name="generator" content="carta" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+$for(author)$
+<meta name="author" content="$author$" />
+$endfor$
+$if(date)$
+<meta name="dcterms.date" content="$date$" />
+$endif$
+$if(keywords)$
+<meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
+$if(description)$
+<meta name="description" content="$description$" />
+$endif$
+<title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
+<style>
+html { color: #1a1a1a; background-color: #fdfdfd; }
+body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; hyphens: auto; overflow-wrap: break-word; }
+h1, h2, h3, h4 { line-height: 1.2; margin-top: 1.5em; }
+a { color: #1a1a1a; }
+a:visited { color: #1a1a1a; }
+img { max-width: 100%; }
+code { font-family: ui-monospace, "DejaVu Sans Mono", "Consolas", monospace; font-size: 0.95em; }
+pre { overflow: auto; padding: 1em; background-color: #f6f6f6; border-radius: 4px; }
+pre code { background: none; padding: 0; }
+blockquote { margin: 1em 0 1em 1.5em; padding-left: 1em; border-left: 3px solid #cccccc; color: #5a5a5a; }
+table { border-collapse: collapse; margin: 1em 0; }
+th, td { border-bottom: 1px solid #cccccc; padding: 0.4em 0.6em; text-align: left; }
+.title { text-align: center; font-size: 2em; }
+.subtitle { text-align: center; font-weight: normal; font-size: 1.25em; }
+.author, .date { text-align: center; }
+.abstract { margin: 2em 0; }
+.abstract-title { font-weight: bold; text-align: center; }
+</style>
+$for(css)$
+<link rel="stylesheet" href="$css$" />
+$endfor$
+$for(header-includes)$
+$header-includes$
+$endfor$
+</head>
+<body>
+$for(include-before)$
+$include-before$
+$endfor$
+$if(title)$
+<header id="title-block-header">
+<h1 class="title">$title$</h1>
+$if(subtitle)$
+<p class="subtitle">$subtitle$</p>
+$endif$
+$for(author)$
+<p class="author">$author$</p>
+$endfor$
+$if(date)$
+<p class="date">$date$</p>
+$endif$
+$if(abstract)$
+<div class="abstract">
+<div class="abstract-title">Abstract</div>
+$abstract$
+</div>
+$endif$
+</header>
+$endif$
+$if(toc)$
+<nav id="TOC" role="doc-toc">
+$if(toc-title)$
+<h2 id="toc-title">$toc-title$</h2>
+$endif$
+$toc$
+</nav>
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+</body>
+</html>
