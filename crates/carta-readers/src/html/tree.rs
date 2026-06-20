@@ -15,6 +15,17 @@ pub(super) struct Element {
     pub(super) name: String,
     pub(super) attrs: Vec<(String, String)>,
     pub(super) children: Vec<Node>,
+    /// True for an element that stands alone with no end tag — a content-less void element
+    /// (`<br>`, `<wbr>`, …) written without a self-closing slash. An explicit self-closing slash on
+    /// any element instead yields an open/close pair, so it does not set this flag.
+    pub(super) void: bool,
+    /// True once a matching end tag (or a self-closing/void form) has accounted for this element.
+    /// An element left open at end of input keeps this `false`, which lets a verbatim-preserving
+    /// consumer omit a close tag the source never wrote.
+    pub(super) closed: bool,
+    /// True for a placeholder standing in for a stray end tag with no matching open element. It
+    /// carries only a name; a verbatim-preserving consumer emits its close tag and nothing else.
+    pub(super) end_only: bool,
 }
 
 fn is_void(name: &str) -> bool {
@@ -42,6 +53,9 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
         name: String::new(),
         attrs: Vec::new(),
         children: Vec::new(),
+        void: false,
+        closed: false,
+        end_only: false,
     }];
 
     for token in tokens {
@@ -53,13 +67,17 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
                 self_closing,
             } => {
                 close_implied(&mut stack, &name);
-                let void = self_closing || is_void(&name);
+                let spec_void = is_void(&name);
+                let standalone = self_closing || spec_void;
                 let element = Element {
                     name,
                     attrs,
                     children: Vec::new(),
+                    void: spec_void && !self_closing,
+                    closed: standalone,
+                    end_only: false,
                 };
-                if void {
+                if standalone {
                     push_child(&mut stack, Node::Element(element));
                 } else {
                     stack.push(element);
@@ -69,7 +87,21 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
                 if is_void(&name) {
                     continue;
                 }
-                close_to(&mut stack, &name);
+                if stack.iter().any(|e| e.name == name) {
+                    close_to(&mut stack, &name);
+                } else {
+                    push_child(
+                        &mut stack,
+                        Node::Element(Element {
+                            name,
+                            attrs: Vec::new(),
+                            children: Vec::new(),
+                            void: false,
+                            closed: true,
+                            end_only: true,
+                        }),
+                    );
+                }
             }
         }
     }
@@ -187,6 +219,9 @@ fn close_to(stack: &mut Vec<Element>, name: &str) {
     }
     while let Some(open) = current_name(stack) {
         let matched = open == name;
+        if matched && let Some(top) = stack.last_mut() {
+            top.closed = true;
+        }
         fold_top(stack);
         if matched {
             return;

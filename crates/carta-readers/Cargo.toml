@@ -19,7 +19,7 @@ html = []
 native = []
 csv = []
 tsv = ["csv"]
-opml = ["commonmark"]
+opml = ["commonmark", "html"]
 
 [dependencies]
 carta-ast = { workspace = true }
