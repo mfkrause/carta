@@ -2009,7 +2009,7 @@ mod tests {
         let normalized = normalize_image_attr(&attr);
         assert_eq!(normalized.id, "x");
         assert_eq!(normalized.classes, vec!["c".to_owned()]);
-        // The unparseable width is dropped; the pixel height survives.
+        // The unparsable width is dropped; the pixel height survives.
         assert_eq!(
             normalized.attributes,
             vec![("height".to_owned(), "100".to_owned())]
