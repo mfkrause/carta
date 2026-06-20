@@ -72,6 +72,9 @@ fn build_context(
     if let Some(page_title) = pagetitle(document, writer, options)? {
         context.insert("pagetitle".to_owned(), Value::Str(page_title));
     }
+    if let Some(block) = writer.title_block(document, options)? {
+        context.insert("titleblock".to_owned(), Value::Str(block));
+    }
     overlay_variables(&mut context, &options.variables);
     Ok(Value::Map(context))
 }

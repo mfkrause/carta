@@ -7,8 +7,8 @@
 //! column of 72.
 
 use carta_ast::{
-    Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, Row, Table,
-    Target, slug, to_plain_text,
+    Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, MetaValue,
+    Row, Table, Target, slug, to_plain_text,
 };
 use carta_core::{Result, Writer, WriterOptions};
 
@@ -47,6 +47,32 @@ impl Writer for RstWriter {
         }
         Ok(sections.join("\n\n"))
     }
+
+    fn title_block(&self, document: &Document, _options: &WriterOptions) -> Result<Option<String>> {
+        let mut parts = Vec::new();
+        if let Some(line) = title_line(document.meta.get("title")) {
+            let bar = "=".repeat(display_width(&line));
+            parts.push(format!("{bar}\n{line}\n{bar}"));
+        }
+        if let Some(line) = title_line(document.meta.get("subtitle")) {
+            let bar = "-".repeat(display_width(&line));
+            parts.push(format!("{bar}\n{line}\n{bar}"));
+        }
+        Ok((!parts.is_empty()).then(|| parts.join("\n")))
+    }
+}
+
+/// Render a metadata value to a single reStructuredText title line, or `None` when it carries no
+/// text. The line feeds an over/underlined title, whose rule length matches its display width.
+fn title_line(value: Option<&MetaValue>) -> Option<String> {
+    let inlines = match value? {
+        MetaValue::MetaInlines(inlines) => inlines.clone(),
+        MetaValue::MetaString(text) => vec![Inline::Str(text.clone())],
+        _ => return None,
+    };
+    let mut state = State::default();
+    let line = flatten(state.tokens(&inlines)).trim().to_owned();
+    (!line.is_empty()).then_some(line)
 }
 
 /// Collects the deferred constructs accumulated during rendering: footnote definitions and image
