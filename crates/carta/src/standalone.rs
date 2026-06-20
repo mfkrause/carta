@@ -53,7 +53,15 @@ pub(crate) fn render(
     let dir = options.template_dir.clone();
     let ext = to_base.to_owned();
     let resolve = move |name: &str| resolve_partial(dir.as_deref(), &ext, name);
-    Ok(Some(template.render(&context, &resolve)))
+    let mut output = template.render(&context, &resolve);
+    // A standalone document carries at most one trailing newline beyond its last line: when the
+    // filled template ends in a blank line (its final line and the body both end in a newline),
+    // one of the two is dropped so no spurious blank trails the document. A single or absent
+    // trailing newline is left untouched.
+    if output.ends_with("\n\n") {
+        output.pop();
+    }
+    Ok(Some(output))
 }
 
 /// Assemble the template context: every metadata entry rendered through the target writer, the
