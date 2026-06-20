@@ -13,7 +13,9 @@ use carta_ast::{
 };
 use carta_core::{Result, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, RowSpanGrid, is_known_attribute, is_wide, quote_marks};
+use crate::common::{
+    FILL_COLUMN, RowSpanGrid, is_known_attribute, is_wide, normalize_image_attr, quote_marks,
+};
 
 /// Renders a document to an html5 fragment.
 #[derive(Debug, Default, Clone, Copy)]
@@ -827,7 +829,7 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> St
         "<img{BREAK}{source}=\"{}\"{}{}{alt_attr}{BREAK}/>",
         escape_attr(&target.url),
         title_attr(&target.title),
-        render_attr(attr, AttrOrder::Standard, flavor),
+        render_attr(&normalize_image_attr(attr), AttrOrder::Standard, flavor),
     )
 }
 
