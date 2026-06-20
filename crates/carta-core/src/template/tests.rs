@@ -281,14 +281,32 @@ fn standalone_control_directive_consumes_its_line() {
 
 #[test]
 fn non_standalone_control_keeps_line() {
-    // A directive sharing its line with other content does not strip the line.
+    // An opening directive sharing its line with content makes the whole construct inline: no
+    // directive of it strips its line, so the `$endif$`'s own newline survives as a blank line.
     assert_eq!(
         render("$if(a)$X\n$endif$\n", &map(&[("a", Value::Bool(true))])),
-        "X\n"
+        "X\n\n"
     );
     let ctx = map(&[("xs", list(&[s("a"), s("b"), s("c")]))]);
     let t = "$for(xs)$\n$if(it)$[$it$]$endif$\n$endfor$\n";
     assert_eq!(render(t, &ctx), "[a]\n[b]\n[c]\n");
+}
+
+#[test]
+fn block_ness_is_decided_by_the_opening_directive() {
+    let ctx = map(&[("xs", list(&[s("a"), s("b")]))]);
+    // Opening shares its line (inline construct): the lone `$endfor$` keeps its newline, so a blank
+    // line trails the loop even though the closing sits by itself.
+    assert_eq!(
+        render("$for(xs)$- $it$\n$endfor$\nZ\n", &ctx),
+        "- a\n- b\n\nZ\n"
+    );
+    // Opening ends its line (block construct): both the opening and the lone closing are stripped,
+    // leaving no blank — a leading literal before the opening is preserved.
+    assert_eq!(
+        render("P$for(xs)$\n- $it$\n$endfor$\nZ\n", &ctx),
+        "P- a\n- b\nZ\n"
+    );
 }
 
 #[test]
