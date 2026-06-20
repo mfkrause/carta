@@ -2985,7 +2985,7 @@ fn typst_unwraps_multiline_amsmath_environments_as_grids() {
 }
 
 // ----------------------------------------------------------------------------
-// A bare quote or backtick in math mode is unparseable (W9-9)
+// A bare quote or backtick in math mode is unparsable (W9-9)
 // ----------------------------------------------------------------------------
 
 #[test]
