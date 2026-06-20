@@ -5,7 +5,8 @@
 //! trailing newline; the caller appends one. This format has no public specification.
 
 use carta_ast::{
-    Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, Row, Table,
+    Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType, Row,
+    Table,
 };
 use carta_core::{Result, Writer, WriterOptions};
 
@@ -557,7 +558,7 @@ impl State {
             }
             Inline::Space | Inline::SoftBreak => out.push(Piece::Space),
             Inline::LineBreak => out.push(Piece::Hard),
-            Inline::Math(_, _) => todo!("plain writer: render math"),
+            Inline::Math(kind, tex) => self.math(kind, tex, out),
             Inline::RawInline(format, text) => {
                 if is_plain_format(format) {
                     out.push(Piece::Text(text.clone()));
@@ -572,6 +573,26 @@ impl State {
                 let marker = self.record_note(blocks);
                 out.push(Piece::Text(marker));
             }
+        }
+    }
+
+    /// Render math. A convertible expression lowers to the writer-agnostic inline tree (italic
+    /// variables, unicode sub/superscripts, symbols and Greek letters), which the inline renderer
+    /// above turns into plain text. An expression with no single-line form is emitted verbatim,
+    /// wrapped in the math delimiters of its kind (`$…$` for inline, `$$…$$` for display). Inline
+    /// source has its edge whitespace trimmed before wrapping (interior whitespace is kept); display
+    /// source is wrapped as written.
+    fn math(&mut self, kind: &MathType, tex: &str, out: &mut Vec<Piece>) {
+        if let Some(inlines) = crate::math::to_inlines(tex) {
+            for inline in &inlines {
+                self.inline(inline, out);
+            }
+        } else {
+            let (delimiter, body) = match kind {
+                MathType::InlineMath => ("$", tex.trim()),
+                MathType::DisplayMath => ("$$", tex),
+            };
+            out.push(Piece::Text(format!("{delimiter}{body}{delimiter}")));
         }
     }
 }
@@ -672,38 +693,50 @@ enum Script {
 /// a small set of symbols, with spaces preserved) emit the mapped characters; otherwise fall back to
 /// the parenthesized form (`^(…)`).
 fn to_superscript(text: &str) -> String {
-    let mapped: Option<String> = text
-        .chars()
-        .map(|ch| script_char(ch, Script::Super))
-        .collect();
-    mapped.unwrap_or_else(|| format!("^({text})"))
+    map_script(text, Script::Super).unwrap_or_else(|| format!("^({text})"))
 }
 
-/// Render subscript text: when the content carries any
-/// formatted inline (anything other than plain text or spaces) and is otherwise convertible, the
-/// characters are mapped to their *superscript* equivalents rather than subscript ones. A
-/// non-convertible run still falls back to the subscript parenthesized form.
+/// Render subscript text. The content is mapped to subscript glyphs when every character has one;
+/// when it does not (because a character is structurally non-textual, signalled by
+/// `force_superscript`, or simply lacks a subscript glyph) the whole run is mapped to *superscript*
+/// glyphs instead, if that succeeds. Only a run that maps under neither script falls back to the
+/// parenthesized form (`_(…)`).
 fn to_subscript(text: &str, force_superscript: bool) -> String {
-    let kind = if force_superscript {
-        Script::Super
-    } else {
-        Script::Sub
-    };
-    let mapped: Option<String> = text.chars().map(|ch| script_char(ch, kind)).collect();
-    mapped.unwrap_or_else(|| format!("_({text})"))
+    if !force_superscript && let Some(mapped) = map_script(text, Script::Sub) {
+        return mapped;
+    }
+    map_script(text, Script::Super).unwrap_or_else(|| format!("_({text})"))
+}
+
+/// Map an entire run to a single script, or `None` if any character lacks a glyph in that script.
+fn map_script(text: &str, kind: Script) -> Option<String> {
+    text.chars().map(|ch| script_char(ch, kind)).collect()
 }
 
 /// Whether a script's content holds an inline that is neither plain text nor a space. Such content
-/// triggers the subscript-to-superscript fallback in [`to_subscript`].
+/// has no subscript form, so it triggers the subscript-to-superscript fallback in [`to_subscript`].
 fn forces_superscript(inlines: &[Inline]) -> bool {
     inlines
         .iter()
         .any(|inline| !matches!(inline, Inline::Str(_) | Inline::Space))
 }
 
+/// Whether a character passes through the script mappers unchanged. Every space — the ASCII
+/// whitespace controls (`\t \n \v \f \r`), `' '`, and any Unicode space separator (category `Zs`,
+/// such as the fixed-width math spaces) — keeps a run convertible and renders as itself, while a
+/// line/paragraph separator, a zero-width mark, or any other format character does not.
+fn is_script_space(ch: char) -> bool {
+    matches!(ch, ' ' | '\t' | '\n' | '\u{000b}' | '\u{000c}' | '\r')
+        || matches!(
+            ch,
+            '\u{00a0}' | '\u{1680}' | '\u{2000}'
+                ..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}'
+        )
+}
+
 fn script_char(ch: char, kind: Script) -> Option<char> {
-    if ch == ' ' {
-        return Some(' ');
+    if is_script_space(ch) {
+        return Some(ch);
     }
     let mapped = match kind {
         Script::Super => match ch {
@@ -718,7 +751,7 @@ fn script_char(ch: char, kind: Script) -> Option<char> {
             '8' => '\u{2078}',
             '9' => '\u{2079}',
             '+' => '\u{207a}',
-            '-' => '\u{207b}',
+            '-' | '\u{2212}' => '\u{207b}',
             '=' => '\u{207c}',
             '(' => '\u{207d}',
             ')' => '\u{207e}',
@@ -744,4 +777,223 @@ fn script_char(ch: char, kind: Script) -> Option<char> {
         },
     };
     Some(mapped)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use carta_ast::Document;
+
+    fn render(blocks: Vec<Block>) -> String {
+        let document = Document {
+            blocks,
+            ..Document::default()
+        };
+        PlainWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap()
+    }
+
+    fn math_para(kind: MathType, tex: &str) -> Block {
+        Block::Para(vec![Inline::Math(kind, tex.to_owned())])
+    }
+
+    fn inline(tex: &str) -> String {
+        render(vec![math_para(MathType::InlineMath, tex)])
+    }
+
+    fn display(tex: &str) -> String {
+        render(vec![math_para(MathType::DisplayMath, tex)])
+    }
+
+    #[test]
+    fn variable_with_superscript_uses_unicode_exponent() {
+        assert_eq!(inline("a^2"), "a\u{b2}");
+    }
+
+    #[test]
+    fn polynomial_lays_out_with_operator_and_relation_spacing() {
+        // Binary operators take a four-per-em space (U+2005), the relation a three-per-em space
+        // (U+2004), and digit exponents map to unicode superscripts.
+        assert_eq!(
+            inline("a^2 + b^2 = c^2"),
+            "a\u{b2}\u{2005}+\u{2005}b\u{b2}\u{2004}=\u{2004}c\u{b2}"
+        );
+    }
+
+    #[test]
+    fn subscript_falls_back_to_parenthesized_form_for_letters() {
+        // A letter index has no unicode subscript glyph, so it renders parenthesized.
+        assert_eq!(inline("a_n"), "a_(n)");
+    }
+
+    #[test]
+    fn greek_letters_render_as_their_codepoints() {
+        assert_eq!(
+            inline("\\alpha + \\beta"),
+            "\u{3b1}\u{2005}+\u{2005}\u{3b2}"
+        );
+    }
+
+    #[test]
+    fn blackboard_bold_renders_as_letterlike_symbol() {
+        assert_eq!(inline("\\mathbb{R}"), "\u{211d}");
+    }
+
+    #[test]
+    fn accent_renders_as_combining_mark() {
+        assert_eq!(inline("\\bar{x}"), "x\u{304}");
+    }
+
+    #[test]
+    fn integral_uses_unicode_scripts_and_thin_space() {
+        // The integral sign carries its limits as unicode sub/superscripts and the thin space
+        // (`\,`) renders as U+2006.
+        assert_eq!(
+            display("\\int_0^1 x \\, dx"),
+            "\u{222b}\u{2080}\u{b9}x\u{2006}dx"
+        );
+    }
+
+    #[test]
+    fn inline_fallback_emits_verbatim_single_dollars() {
+        // A construct with no single-line form is wrapped verbatim in inline math delimiters,
+        // with no escaping of the dollar signs.
+        assert_eq!(inline("\\frac{1}{2}"), "$\\frac{1}{2}$");
+    }
+
+    #[test]
+    fn display_fallback_emits_verbatim_double_dollars() {
+        assert_eq!(display("\\sqrt{x}"), "$$\\sqrt{x}$$");
+    }
+
+    #[test]
+    fn inline_fallback_trims_edge_whitespace() {
+        // The verbatim inline fallback strips leading and trailing whitespace before wrapping in
+        // `$…$`; interior whitespace is preserved.
+        assert_eq!(inline("\\sqrt{x} "), "$\\sqrt{x}$");
+        assert_eq!(inline(" \\sqrt{x}"), "$\\sqrt{x}$");
+        assert_eq!(inline("  \\sqrt{x}  "), "$\\sqrt{x}$");
+        assert_eq!(inline("\\sqrt{x}   y"), "$\\sqrt{x}   y$");
+    }
+
+    #[test]
+    fn display_fallback_keeps_edge_whitespace() {
+        // Display fallback wraps the source as written; only inline math trims its edges.
+        assert_eq!(display("\\sqrt{x} "), "$$\\sqrt{x} $$");
+        assert_eq!(display(" \\sqrt{x}"), "$$ \\sqrt{x}$$");
+    }
+
+    #[test]
+    fn inline_fallback_of_lone_backslash() {
+        // A fallback body of a lone backslash wraps to `$\$` with no escaping. A `\ ` whose
+        // conversion bails to verbatim trims to this same body, so the trim composes with that bail.
+        assert_eq!(inline("\\"), "$\\$");
+    }
+
+    #[test]
+    fn math_flows_inside_surrounding_text() {
+        let blocks = vec![Block::Para(vec![
+            Inline::Str("value".to_owned()),
+            Inline::Space,
+            Inline::Math(MathType::InlineMath, "E = mc^2".to_owned()),
+        ])];
+        assert_eq!(render(blocks), "value E\u{2004}=\u{2004}mc\u{b2}");
+    }
+
+    /// Render a single subscript/superscript run from a plain string of inner text.
+    fn sub(text: &str) -> String {
+        render(vec![Block::Para(vec![Inline::Subscript(vec![
+            Inline::Str(text.to_owned()),
+        ])])])
+    }
+    fn sup(text: &str) -> String {
+        render(vec![Block::Para(vec![Inline::Superscript(vec![
+            Inline::Str(text.to_owned()),
+        ])])])
+    }
+
+    #[test]
+    fn ordinary_subscript_digits_use_subscript_glyphs() {
+        // A run that maps under the subscript script stays subscript and is never flipped.
+        assert_eq!(sub("12"), "\u{2081}\u{2082}");
+        assert_eq!(sub("-1"), "\u{208b}\u{2081}"); // ASCII hyphen-minus has a subscript glyph
+        assert_eq!(sub("+1"), "\u{208a}\u{2081}");
+        assert_eq!(sub("=1"), "\u{208c}\u{2081}"); // U+208C subscript equals
+        assert_eq!(sub("(1)"), "\u{208d}\u{2081}\u{208e}");
+    }
+
+    #[test]
+    fn math_minus_has_no_subscript_glyph_so_the_run_flips_to_superscript() {
+        // U+2212 is absent from the subscript script but present in the superscript script, so a
+        // subscript run containing it maps wholly to superscript glyphs.
+        assert_eq!(sub("\u{2212}1"), "\u{207b}\u{00b9}");
+        assert_eq!(sub("\u{2212}2"), "\u{207b}\u{00b2}");
+        assert_eq!(sub("\u{2212}"), "\u{207b}");
+        assert_eq!(sub("1\u{2212}2"), "\u{00b9}\u{207b}\u{00b2}");
+        // The superscript script maps U+2212 directly.
+        assert_eq!(sup("\u{2212}1"), "\u{207b}\u{00b9}");
+    }
+
+    #[test]
+    fn run_that_maps_under_neither_script_falls_back_to_parentheses() {
+        // A letter beside the math minus maps under neither script, so the whole run is parenthesized.
+        assert_eq!(sub("\u{2212}a"), "_(\u{2212}a)");
+        assert_eq!(sub("1\u{2212}a"), "_(1\u{2212}a)");
+    }
+
+    #[test]
+    fn math_spaces_pass_through_the_script_mappers_unchanged() {
+        // The fixed-width math spaces keep a run convertible and render as themselves, with the
+        // mappable characters around them subscripted.
+        assert_eq!(
+            sub("\u{2004}=\u{2004}1"),
+            "\u{2004}\u{208c}\u{2004}\u{2081}"
+        );
+        assert_eq!(sub("1\u{2005}2"), "\u{2081}\u{2005}\u{2082}");
+        assert_eq!(sub("1\u{2006}2"), "\u{2081}\u{2006}\u{2082}");
+        assert_eq!(sub("1\u{2009}2"), "\u{2081}\u{2009}\u{2082}");
+        assert_eq!(sub("1\u{00a0}2"), "\u{2081}\u{00a0}\u{2082}");
+        assert_eq!(
+            sup("\u{2004}=\u{2004}1"),
+            "\u{2004}\u{207c}\u{2004}\u{00b9}"
+        );
+    }
+
+    #[test]
+    fn non_space_separators_and_format_marks_do_not_pass_through() {
+        // A line/paragraph separator or zero-width mark is not a space, so it forces the fallback.
+        assert!(!is_script_space('\u{2028}')); // line separator (Zl)
+        assert!(!is_script_space('\u{2029}')); // paragraph separator (Zp)
+        assert!(!is_script_space('\u{200b}')); // zero-width space (Cf)
+        assert!(!is_script_space('\u{0085}')); // next line (Cc)
+        assert!(!is_script_space('\u{feff}')); // byte-order mark (Cf)
+        assert_eq!(sub("1\u{2028}2"), "_(1\u{2028}2)");
+        // Every ASCII whitespace control and Unicode space separator does pass through.
+        for ch in [
+            ' ', '\t', '\n', '\u{000b}', '\u{000c}', '\r', '\u{00a0}', '\u{1680}', '\u{2000}',
+            '\u{200a}', '\u{202f}', '\u{205f}', '\u{3000}',
+        ] {
+            assert!(
+                is_script_space(ch),
+                "expected {:#x} to be a script space",
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn formatted_subscript_content_flips_the_whole_run_to_superscript() {
+        // Content that is not plain text or a space has no subscript form, so a convertible run is
+        // rendered with superscript glyphs.
+        let flipped = render(vec![Block::Para(vec![Inline::Subscript(vec![
+            Inline::Emph(vec![Inline::Str("2".to_owned())]),
+        ])])]);
+        assert_eq!(flipped, "\u{00b2}");
+        // A formatted but otherwise unmappable run still falls back.
+        let fallback = render(vec![Block::Para(vec![Inline::Subscript(vec![
+            Inline::Emph(vec![Inline::Str("a".to_owned())]),
+        ])])]);
+        assert_eq!(fallback, "_(a)");
+    }
 }

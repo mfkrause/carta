@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+an equation \f[I]a\f[R]^2^ + \f[I]b\f[R]^2^ = \f[I]c\f[R]^2^ inline
