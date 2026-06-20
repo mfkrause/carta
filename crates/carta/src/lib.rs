@@ -78,6 +78,29 @@ pub fn convert(
     Ok(body)
 }
 
+/// Parses a metadata file into a metadata map, for use as `WriterOptions::metadata_defaults`.
+///
+/// Scalar values are parsed as inline Markdown (independent of the document's own input format), so a
+/// `title: *Hi*` yields emphasized inlines. `json` selects the JSON parser; otherwise the content is
+/// read as YAML (which also accepts single-line JSON).
+///
+/// # Errors
+/// [`Error::InvalidMetadata`] if the content does not parse as the selected format.
+#[cfg(feature = "metadata-file")]
+pub fn parse_metadata_file(
+    content: &str,
+    json: bool,
+) -> Result<std::collections::BTreeMap<String, ast::MetaValue>> {
+    let mut options = ReaderOptions::default();
+    options.extensions = presets::MARKDOWN;
+    options.greedy_paragraphs = true;
+    if json {
+        carta_readers::commonmark::parse_metadata_json(content, &options)
+    } else {
+        carta_readers::commonmark::parse_metadata_yaml(content, &options)
+    }
+}
+
 /// Lists every extension carta models, each paired with whether `format` enables it by default.
 ///
 /// `format` is a format specifier (`"gfm"`, `"commonmark+strikeout"`, …); `None` reports the
