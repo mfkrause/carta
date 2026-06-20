@@ -1,26 +1,34 @@
 //! `carta` — command-line interface.
 //!
 //! Parses `--from`/`--to` and pipes the input through the `carta` library's [`convert`], or — when
-//! a `--list-*` flag is given — reports what this build supports. Format selection, aliases, the
+//! a `--list-*`/`-D` flag is given — reports what this build supports. Format selection, aliases, the
 //! recognized-but-unsupported error, and the introspection data all live in the library; this binary
-//! only handles argument parsing and stdin/file I/O.
+//! only handles argument parsing, metadata/variable inputs, and stdin/file I/O.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use carta::{ReaderOptions, Result, WriterOptions, convert};
-use clap::Parser;
+use carta::ast::MetaValue;
+use carta::{Error, ReaderOptions, Result, WriterOptions, convert};
+use clap::{ArgAction, Parser};
 
-const LIST_FLAGS: [&str; 3] = [
+const LIST_FLAGS: [&str; 4] = [
     "list_input_formats",
     "list_output_formats",
     "list_extensions",
+    "print_default_template",
 ];
 
 #[derive(Parser, Debug)]
-#[command(name = "carta", version, about = "Document converter")]
+#[command(
+    name = "carta",
+    version,
+    about = "Document converter",
+    disable_version_flag = true
+)]
 struct Cli {
     /// Input format (e.g. `commonmark`, `json`).
     #[arg(short = 'f', long = "from", required_unless_present_any = LIST_FLAGS)]
@@ -31,6 +39,24 @@ struct Cli {
     /// Write output to this file instead of stdout.
     #[arg(short = 'o', long = "output")]
     output: Option<PathBuf>,
+    /// Produce a standalone document, wrapping the body in the format's template.
+    #[arg(short = 's', long = "standalone")]
+    standalone: bool,
+    /// Render with this template file instead of the format's built-in default; implies `-s`.
+    #[arg(long = "template", value_name = "FILE")]
+    template: Option<PathBuf>,
+    /// Set a template variable: `KEY=VAL`, or bare `KEY` for `true`. Repeatable; a repeated key
+    /// accumulates into a list.
+    #[arg(short = 'V', long = "variable", value_name = "KEY[=VAL]")]
+    variable: Vec<String>,
+    /// Set a metadata field: `KEY=VAL` (`true`/`false` become booleans), or bare `KEY` for `true`.
+    /// Repeatable.
+    #[arg(short = 'M', long = "metadata", value_name = "KEY[=VAL]")]
+    metadata: Vec<String>,
+    /// Read metadata from a YAML or JSON file. Repeatable; later files override earlier ones, and all
+    /// sit below the document's own metadata.
+    #[arg(long = "metadata-file", value_name = "FILE")]
+    metadata_file: Vec<PathBuf>,
     /// List the input formats this build supports and exit.
     #[arg(long = "list-input-formats")]
     list_input_formats: bool,
@@ -43,6 +69,12 @@ struct Cli {
     #[allow(clippy::option_option)]
     #[arg(long = "list-extensions", value_name = "FORMAT", num_args = 0..=1, require_equals = true)]
     list_extensions: Option<Option<String>>,
+    /// Print the built-in default template for FORMAT and exit.
+    #[arg(short = 'D', long = "print-default-template", value_name = "FORMAT")]
+    print_default_template: Option<String>,
+    /// Print version information and exit.
+    #[arg(long = "version", action = ArgAction::Version)]
+    version: Option<bool>,
     /// Read input from this file instead of stdin.
     input: Option<PathBuf>,
 }
@@ -67,6 +99,9 @@ fn run(cli: &Cli) -> Result<()> {
     if let Some(format) = &cli.list_extensions {
         return list_extensions(format.as_deref());
     }
+    if let Some(format) = &cli.print_default_template {
+        return print_default_template(format);
+    }
 
     match (cli.from.as_deref(), cli.to.as_deref()) {
         (Some(from), Some(to)) => convert_document(from, to, cli),
@@ -80,15 +115,85 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let input = read_input(cli.input.as_deref())?;
     let text = String::from_utf8(input)?;
 
-    let output = convert(
-        from,
-        to,
-        &text,
-        &ReaderOptions::default(),
-        &WriterOptions::default(),
-    )?;
+    let mut writer_options = WriterOptions::default();
+    writer_options.standalone = cli.standalone;
+    if let Some(path) = &cli.template {
+        writer_options.template = Some(fs::read_to_string(path)?);
+        writer_options.template_dir = Some(template_dir(path));
+    }
+    writer_options.variables = parse_variables(&cli.variable);
+    writer_options.metadata = parse_metadata(&cli.metadata);
+    writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
 
-    write_output(cli.output.as_deref(), &output)
+    // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
+    let verbatim = cli.standalone || cli.template.is_some();
+
+    let output = convert(from, to, &text, &ReaderOptions::default(), &writer_options)?;
+    write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+/// The directory a template's partials resolve against: the template file's own parent (the current
+/// directory when the path has no parent component).
+fn template_dir(path: &Path) -> PathBuf {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf()
+}
+
+/// Parse `-V` specifiers into raw key/value pairs, defaulting a bare `KEY` to `"true"`.
+fn parse_variables(specs: &[String]) -> Vec<(String, String)> {
+    specs
+        .iter()
+        .map(|spec| match spec.split_once('=') {
+            Some((key, value)) => (key.to_owned(), value.to_owned()),
+            None => (spec.clone(), "true".to_owned()),
+        })
+        .collect()
+}
+
+/// Parse `-M` specifiers into metadata values: `true`/`false` become booleans, a bare `KEY` becomes
+/// `true`, and anything else is a string. A repeated key takes the last value.
+fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
+    let mut map = BTreeMap::new();
+    for spec in specs {
+        let (key, value) = match spec.split_once('=') {
+            Some((key, "true")) => (key, MetaValue::MetaBool(true)),
+            Some((key, "false")) => (key, MetaValue::MetaBool(false)),
+            Some((key, value)) => (key, MetaValue::MetaString(value.to_owned())),
+            None => (spec.as_str(), MetaValue::MetaBool(true)),
+        };
+        map.insert(key.to_owned(), value);
+    }
+    map
+}
+
+/// Read and merge every `--metadata-file`, later files overriding earlier ones at the key level. A
+/// `.json` extension selects the JSON parser; everything else is read as YAML.
+fn read_metadata_files(paths: &[PathBuf]) -> Result<BTreeMap<String, MetaValue>> {
+    let mut defaults = BTreeMap::new();
+    for path in paths {
+        let content = fs::read_to_string(path)?;
+        let json = path.extension().and_then(|ext| ext.to_str()) == Some("json");
+        for (key, value) in carta::parse_metadata_file(&content, json)? {
+            defaults.insert(key, value);
+        }
+    }
+    Ok(defaults)
+}
+
+fn print_default_template(spec: &str) -> Result<()> {
+    let (base, _) = carta::parse_format_spec(spec)?;
+    let writer = carta::writer_for(&base)?;
+    match writer.default_template() {
+        Some(template) => {
+            io::stdout().lock().write_all(template.as_bytes())?;
+            Ok(())
+        }
+        None => Err(Error::Template(format!(
+            "format '{base}' has no default template"
+        ))),
+    }
 }
 
 fn print_lines(lines: &[&str]) -> Result<()> {
@@ -118,12 +223,81 @@ fn read_input(path: Option<&Path>) -> Result<Vec<u8>> {
     }
 }
 
-fn write_output(path: Option<&Path>, output: &str) -> Result<()> {
+fn write_output(path: Option<&Path>, output: &str, verbatim: bool) -> Result<()> {
     let mut writer: Box<dyn Write> = match path {
         Some(path) => Box::new(fs::File::create(path)?),
         None => Box::new(io::stdout().lock()),
     };
     writer.write_all(output.as_bytes())?;
-    writer.write_all(b"\n")?;
+    // A fragment gets exactly one trailing newline; a template's output is emitted byte-for-byte.
+    if !verbatim {
+        writer.write_all(b"\n")?;
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, parse_metadata, parse_variables, template_dir};
+    use carta::ast::MetaValue;
+    use clap::CommandFactory;
+    use std::path::{Path, PathBuf};
+
+    fn vars(args: &[&str]) -> Vec<(String, String)> {
+        parse_variables(&args.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>())
+    }
+
+    #[test]
+    fn bare_variable_defaults_to_true() {
+        assert_eq!(
+            vars(&["flag", "k=v", "eq=a=b"]),
+            vec![
+                ("flag".to_owned(), "true".to_owned()),
+                ("k".to_owned(), "v".to_owned()),
+                // Only the first `=` splits, so a value may itself contain `=`.
+                ("eq".to_owned(), "a=b".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn metadata_typing_distinguishes_booleans_from_strings() {
+        let map = parse_metadata(
+            &["a=true", "b=false", "c=text", "d", "e=True"]
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(map["a"], MetaValue::MetaBool(true));
+        assert_eq!(map["b"], MetaValue::MetaBool(false));
+        assert_eq!(map["c"], MetaValue::MetaString("text".to_owned()));
+        assert_eq!(map["d"], MetaValue::MetaBool(true));
+        // Only lowercase `true`/`false` are booleans; anything else stays a string.
+        assert_eq!(map["e"], MetaValue::MetaString("True".to_owned()));
+    }
+
+    #[test]
+    fn repeated_metadata_key_takes_the_last_value() {
+        let map = parse_metadata(&["k=first".to_owned(), "k=second".to_owned()]);
+        assert_eq!(map["k"], MetaValue::MetaString("second".to_owned()));
+    }
+
+    #[test]
+    fn template_dir_is_the_file_parent_or_current_dir() {
+        assert_eq!(template_dir(Path::new("bare.html")), PathBuf::from("."));
+        assert_eq!(
+            template_dir(Path::new("sub/dir/t.html")),
+            PathBuf::from("sub/dir")
+        );
+        assert_eq!(
+            template_dir(Path::new("/abs/t.html")),
+            PathBuf::from("/abs")
+        );
+    }
+
+    #[test]
+    fn cli_definition_is_valid() {
+        // Catches a clap configuration error (e.g. a duplicate short flag) at test time.
+        Cli::command().debug_assert();
+    }
 }
