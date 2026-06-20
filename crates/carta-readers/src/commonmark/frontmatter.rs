@@ -82,6 +82,82 @@ fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontM
     }
 }
 
+/// Parse a standalone YAML metadata file (no surrounding fences) into a metadata map, reusing the
+/// same scalar→[`MetaValue`] mapping as a leading metadata block. A non-mapping file contributes no
+/// metadata.
+///
+/// # Errors
+/// [`Error::InvalidMetadata`] if the content is not valid YAML.
+pub fn parse_metadata_yaml(
+    content: &str,
+    options: &ReaderOptions,
+) -> Result<BTreeMap<String, MetaValue>> {
+    match yaml::parse(content) {
+        Ok(yaml::TopLevel::Mapping(entries)) => Ok(entries
+            .into_iter()
+            .map(|(key, value)| (key, yaml_to_meta(value, options)))
+            .collect()),
+        Ok(yaml::TopLevel::NotMapping) => Ok(BTreeMap::new()),
+        Err(()) => Err(Error::InvalidMetadata(
+            "could not parse YAML metadata file".to_owned(),
+        )),
+    }
+}
+
+/// Parse a standalone JSON metadata file into a metadata map. String and number scalars are parsed as
+/// inline Markdown (matching the YAML path), booleans become [`MetaValue::MetaBool`], and arrays and
+/// objects recurse.
+///
+/// # Errors
+/// [`Error::InvalidMetadata`] if the content is not a valid JSON object.
+pub fn parse_metadata_json(
+    content: &str,
+    options: &ReaderOptions,
+) -> Result<BTreeMap<String, MetaValue>> {
+    let value: serde_json::Value = serde_json::from_str(content).map_err(|error| {
+        Error::InvalidMetadata(format!("could not parse JSON metadata file: {error}"))
+    })?;
+    match value {
+        serde_json::Value::Object(map) => Ok(map
+            .into_iter()
+            .map(|(key, value)| (key, json_to_meta(value, options)))
+            .collect()),
+        _ => Err(Error::InvalidMetadata(
+            "JSON metadata file must be an object".to_owned(),
+        )),
+    }
+}
+
+/// Convert a parsed JSON value into a metadata value, mirroring the YAML scalar typing: strings and
+/// numbers parse as inline Markdown, booleans stay boolean, and arrays/objects recurse.
+fn json_to_meta(value: serde_json::Value, options: &ReaderOptions) -> MetaValue {
+    match value {
+        serde_json::Value::Null => MetaValue::MetaString(String::new()),
+        serde_json::Value::Bool(b) => MetaValue::MetaBool(b),
+        serde_json::Value::Number(n) => MetaValue::MetaInlines(parse_meta_inlines(
+            &n.to_string(),
+            options.extensions,
+            options.greedy_paragraphs,
+        )),
+        serde_json::Value::String(s) => MetaValue::MetaInlines(parse_meta_inlines(
+            &s,
+            options.extensions,
+            options.greedy_paragraphs,
+        )),
+        serde_json::Value::Array(items) => MetaValue::MetaList(
+            items
+                .into_iter()
+                .map(|item| json_to_meta(item, options))
+                .collect(),
+        ),
+        serde_json::Value::Object(map) => MetaValue::MetaMap(
+            map.into_iter()
+                .map(|(key, item)| (key, json_to_meta(item, options)))
+                .collect(),
+        ),
+    }
+}
+
 /// Convert a parsed YAML value into a metadata value, recursing through mappings and sequences.
 fn yaml_to_meta(value: Yaml, options: &ReaderOptions) -> MetaValue {
     match value {
