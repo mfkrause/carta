@@ -26,6 +26,21 @@ impl Writer for OpmlWriter {
         }
         Ok(out.trim_end_matches('\n').to_owned())
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.opml"))
+    }
+
+    fn render_meta_inlines(&self, inlines: &[Inline], _options: &WriterOptions) -> Result<String> {
+        Ok(render_blocks(
+            &[Block::Plain(inlines.to_vec())],
+            MarkdownConfig::extended(),
+        ))
+    }
+
+    fn render_meta_blocks(&self, blocks: &[Block], _options: &WriterOptions) -> Result<String> {
+        Ok(render_blocks(blocks, MarkdownConfig::extended()))
+    }
 }
 
 /// One header and the document tree rooted at it: the blocks directly under the header (before any
