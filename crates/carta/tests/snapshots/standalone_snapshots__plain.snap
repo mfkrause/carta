@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+A Grand Report
+Ada Lovelace; Alan Turing
+2026-06-20
+
+Introduction
+
+The opening remarks, with emphasis and a link.
+
+    fn main() {}

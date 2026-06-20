@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>A *Grand* Report</title>
+    <dateModified>2026-06-20</dateModified>
+    <ownerName>Ada Lovelace; Alan Turing</ownerName>
+  </head>
+  <body>
+<outline text="Introduction" _note="The opening remarks, with *emphasis* and a [link](https://example.com).&#10;&#10;``` rust&#10;fn main() {}&#10;```">
+</outline>
+  </body>
+</opml>

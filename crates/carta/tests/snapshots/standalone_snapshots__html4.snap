@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="Content-Style-Type" content="text/css" />
+<meta name="generator" content="carta" />
+<meta name="author" content="Ada Lovelace" />
+<meta name="author" content="Alan Turing" />
+<meta name="date" content="2026-06-20" />
+<meta name="keywords" content="analysis, computing" />
+<title>A Grand Report</title>
+<style type="text/css">
+body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: sans-serif; color: #1a1a1a; }
+h1, h2, h3, h4 { line-height: 1.2; }
+pre { overflow: auto; padding: 1em; background-color: #f6f6f6; }
+blockquote { margin-left: 1.5em; padding-left: 1em; border-left: 3px solid #cccccc; }
+table { border-collapse: collapse; }
+.title { text-align: center; }
+.subtitle, .author, .date { text-align: center; font-weight: normal; }
+.abstract-title { font-weight: bold; text-align: center; }
+</style>
+</head>
+<body>
+<div id="header">
+<h1 class="title">A <em>Grand</em> Report</h1>
+<h1 class="subtitle">On Matters of Import</h1>
+<h2 class="author">Ada Lovelace</h2>
+<h2 class="author">Alan Turing</h2>
+<h3 class="date">2026-06-20</h3>
+<div class="abstract">
+<div class="abstract-title">Abstract</div>
+<p>A concise overview of the matters discussed herein.</p>
+</div>
+</div>
+<h1 id="introduction">Introduction</h1>
+<p>The opening remarks, with <em>emphasis</em> and a <a
+href="https://example.com">link</a>.</p>
+<pre class="rust"><code>fn main() {}</code></pre>
+</body>
+</html>

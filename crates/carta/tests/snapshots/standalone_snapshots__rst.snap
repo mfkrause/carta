@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+================
+A *Grand* Report
+================
+--------------------
+On Matters of Import
+--------------------
+
+:Author: Ada Lovelace
+:Author: Alan Turing
+:Date: 2026-06-20
+:Abstract:
+   A concise overview of the matters discussed herein.
+
+Introduction
+============
+
+The opening remarks, with *emphasis* and a
+`link <https://example.com>`__.
+
+.. code:: rust
+
+   fn main() {}

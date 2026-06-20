@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="generator" content="carta" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+<meta name="author" content="Ada Lovelace" />
+<meta name="author" content="Alan Turing" />
+<meta name="dcterms.date" content="2026-06-20" />
+<meta name="keywords" content="analysis, computing" />
+<title>A Grand Report</title>
+<style>
+html { color: #1a1a1a; background-color: #fdfdfd; }
+body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; hyphens: auto; overflow-wrap: break-word; }
+h1, h2, h3, h4 { line-height: 1.2; margin-top: 1.5em; }
+a { color: #1a1a1a; }
+a:visited { color: #1a1a1a; }
+img { max-width: 100%; }
+code { font-family: ui-monospace, "DejaVu Sans Mono", "Consolas", monospace; font-size: 0.95em; }
+pre { overflow: auto; padding: 1em; background-color: #f6f6f6; border-radius: 4px; }
+pre code { background: none; padding: 0; }
+blockquote { margin: 1em 0 1em 1.5em; padding-left: 1em; border-left: 3px solid #cccccc; color: #5a5a5a; }
+table { border-collapse: collapse; margin: 1em 0; }
+th, td { border-bottom: 1px solid #cccccc; padding: 0.4em 0.6em; text-align: left; }
+.title { text-align: center; font-size: 2em; }
+.subtitle { text-align: center; font-weight: normal; font-size: 1.25em; }
+.author, .date { text-align: center; }
+.abstract { margin: 2em 0; }
+.abstract-title { font-weight: bold; text-align: center; }
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">A <em>Grand</em> Report</h1>
+<p class="subtitle">On Matters of Import</p>
+<p class="author">Ada Lovelace</p>
+<p class="author">Alan Turing</p>
+<p class="date">2026-06-20</p>
+<div class="abstract">
+<div class="abstract-title">Abstract</div>
+<p>A concise overview of the matters discussed herein.</p>
+</div>
+</header>
+<h1 id="introduction">Introduction</h1>
+<p>The opening remarks, with <em>emphasis</em> and a <a
+href="https://example.com">link</a>.</p>
+<pre class="rust"><code>fn main() {}</code></pre>
+</body>
+</html>

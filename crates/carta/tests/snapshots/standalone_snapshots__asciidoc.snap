@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+= A _Grand_ Report
+Ada Lovelace; Alan Turing
+2026-06-20
+:keywords: analysis, computing
+:lang: en
+
+[abstract]
+== Abstract
+A concise overview of the matters discussed herein.
+
+== Introduction
+
+The opening remarks, with _emphasis_ and a https://example.com[link].
+
+[source,rust]
+----
+fn main() {}
+----
