@@ -1,9 +1,9 @@
 //! Parsing the `$`-delimited template language into a [`Template`] tree.
 //!
 //! Three passes: a lexer splits the source into literal text and directive tokens (handling `$$`
-//! escapes and `$-- …` comments inline); a whitespace pass removes lines that hold nothing but a
-//! single control directive; and a tree builder folds the flat token list into nested `$if$`/`$for$`
-//! nodes.
+//! escapes and `$-- …` comments inline); a whitespace pass strips the lines occupied by the
+//! directives of a block construct; and a tree builder folds the flat token list into nested
+//! `$if$`/`$for$` nodes.
 //!
 //! ## Comments
 //!
@@ -11,11 +11,17 @@
 //! zero, no preceding character on the line) the line's newline is swallowed with it; otherwise the
 //! preceding content and the newline survive.
 //!
-//! ## Standalone control directives
+//! ## Block control directives
 //!
-//! When `$if$`/`$elseif$`/`$else$`/`$endif$`/`$for$`/`$sep$`/`$endfor$` is the only non-whitespace on
-//! its line, that whole line — leading whitespace, the directive, and the trailing newline — is
-//! removed. A line carrying any other content keeps its whitespace and newline verbatim.
+//! Whether a `$if$…$endif$` or `$for$…$endfor$` construct is laid out as a block is decided by its
+//! opening directive: if `$if$`/`$for$` is the last non-whitespace on its line, the construct is a
+//! block. In a block construct, the opening's trailing newline is swallowed, and every other
+//! directive of that same construct (`$elseif$`/`$else$`/`$sep$` and the closing `$endif$`/
+//! `$endfor$`) that likewise ends its own line has its leading indentation and trailing newline
+//! removed. When the opening shares its line with other content the construct is inline: every one
+//! of its directives — even a closing one alone on its line — keeps its surrounding whitespace and
+//! newline verbatim, so an inline `$for$` whose `$endfor$` sits on its own line emits the blank
+//! line that follows it.
 
 use super::TemplateError;
 use super::node::{Align, Expr, Node, Pipe, Template};
@@ -58,21 +64,6 @@ enum Token {
     For(Expr),
     Sep,
     EndFor,
-}
-
-impl Token {
-    fn is_control(&self) -> bool {
-        matches!(
-            self,
-            Token::If(_)
-                | Token::ElseIf(_)
-                | Token::Else
-                | Token::EndIf
-                | Token::For(_)
-                | Token::Sep
-                | Token::EndFor
-        )
-    }
 }
 
 /// Horizontal whitespace for the standalone-line and comment rules (a newline is never "blank").
@@ -324,26 +315,51 @@ fn pipe_args(text: &str) -> Vec<String> {
     out
 }
 
-/// Remove lines that hold only a single control directive (and surrounding whitespace).
+/// Strip the lines occupied by the directives of every block construct.
+///
+/// A `$if$`/`$for$` whose opening ends its line opens a block: its trailing newline is swallowed,
+/// and each later directive of that construct (`$elseif$`/`$else$`/`$sep$`, the closing) that ends
+/// its own line is likewise dropped. The block flag rides a nesting stack, so each construct's
+/// interior directives consult the construct they belong to, not whichever directive came last.
+///
+/// All decisions are taken over the original token text in a first pass, then applied — so trimming
+/// one directive's line never perturbs the line analysis of its neighbours.
 fn trim_standalone(tokens: &mut [Token]) {
-    let standalone: Vec<bool> = tokens
+    // First pass over the original tokens: per directive, whether to drop its trailing newline and
+    // (separately) the indentation on its own line. The block flag rides a nesting stack.
+    let mut blocks: Vec<bool> = Vec::new();
+    let decisions: Vec<(bool, bool)> = tokens
         .iter()
         .enumerate()
         .map(|(i, token)| {
-            token.is_control() && backward_blank(tokens, i) && forward_blank(tokens, i)
+            let consume = match token {
+                Token::If(_) | Token::For(_) => {
+                    let block = forward_blank(tokens, i);
+                    blocks.push(block);
+                    block
+                }
+                Token::ElseIf(_) | Token::Else | Token::Sep => {
+                    blocks.last().copied().unwrap_or(false) && forward_blank(tokens, i)
+                }
+                Token::EndIf | Token::EndFor => {
+                    blocks.pop().unwrap_or(false) && forward_blank(tokens, i)
+                }
+                _ => false,
+            };
+            (consume, consume && backward_blank(tokens, i))
         })
         .collect();
-    for (i, &on) in standalone.iter().enumerate() {
-        if !on {
-            continue;
+    // Second pass applies the decisions; the analysis above used the untrimmed text, so trimming
+    // one directive's line never perturbs a neighbour's.
+    for (i, &(drop_newline, drop_indent)) in decisions.iter().enumerate() {
+        if drop_newline && let Some(Token::Text(t)) = tokens.get_mut(i + 1) {
+            trim_leading_line(t);
         }
-        if let Some(prev) = i.checked_sub(1)
+        if drop_indent
+            && let Some(prev) = i.checked_sub(1)
             && let Some(Token::Text(t)) = tokens.get_mut(prev)
         {
             trim_trailing_line(t);
-        }
-        if let Some(Token::Text(t)) = tokens.get_mut(i + 1) {
-            trim_leading_line(t);
         }
     }
 }
