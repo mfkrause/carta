@@ -43,6 +43,10 @@ impl Writer for ManWriter {
         }
         Ok(out.trim_end_matches('\n').to_owned())
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.man"))
+    }
 }
 
 /// Writer state threaded through the render: the accumulated footnote bodies, in reference order.
