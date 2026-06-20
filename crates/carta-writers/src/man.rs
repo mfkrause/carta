@@ -85,12 +85,14 @@ impl Font {
 /// One unit of laid-out inline content. Text fragments carry their rendered (escaped) form alongside
 /// the visible column width used for wrapping, so multi-byte escapes and font selectors do not distort
 /// the fill. A `Control` fragment is a run of whole request lines (a link or a forced break) that
-/// interrupts the filled flow.
+/// interrupts the filled flow. A `Display` fragment is one display equation's rendered content, which
+/// is set off in its own relative-indent group on its own line.
 #[derive(Debug, Clone)]
 enum Fragment {
     Text { rendered: String, width: usize },
     Space,
     Control(String),
+    Display(String),
 }
 
 impl State {
@@ -348,6 +350,12 @@ impl State {
                         out.push('\n');
                     }
                 }
+                Fragment::Display(content) => {
+                    if !out.ends_with('\n') {
+                        out.push('\n');
+                    }
+                    out.push_str(&display_group(&content));
+                }
             }
         }
         escape_line_start(out.trim_end_matches('\n'))
@@ -468,8 +476,30 @@ impl State {
         push_text(out, "]");
     }
 
-    fn math(&mut self, _out: &mut Vec<Fragment>, _font: Font, _kind: &MathType, _text: &str) {
-        todo!("man: render TeX math to roff");
+    /// Render a math expression. A convertible expression lowers to the writer-agnostic inline tree
+    /// (italic variables, sub/superscripts via `~`/`^`, unicode symbols and Greek letters), which the
+    /// inline machinery above renders with no math-specific code. An expression with no single-line
+    /// form is emitted verbatim, wrapped in the delimiters of its kind (`$…$` inline, `$$…$$` display)
+    /// and roff-escaped like ordinary text. A display equation is set off on its own indented line.
+    fn math(&mut self, out: &mut Vec<Fragment>, font: Font, kind: &MathType, text: &str) {
+        let content = match crate::math::to_inlines(text) {
+            Some(inlines) => self.fragments(&inlines, font),
+            None if text.trim().is_empty() => Vec::new(),
+            None => {
+                let delimiter = match kind {
+                    MathType::InlineMath => "$",
+                    MathType::DisplayMath => "$$",
+                };
+                vec![Fragment::Text {
+                    rendered: escape_text(&format!("{delimiter}{text}{delimiter}")),
+                    width: 0,
+                }]
+            }
+        };
+        match kind {
+            MathType::InlineMath => out.extend(content),
+            MathType::DisplayMath => out.push(Fragment::Display(flatten_fragments(&content))),
+        }
     }
 
     /// Record a footnote: reserve its slot before rendering so nested notes number after it, then fill
@@ -522,6 +552,31 @@ fn push_text(out: &mut Vec<Fragment>, rendered: &str) {
         rendered: rendered.to_owned(),
         width: display_width(rendered),
     });
+}
+
+/// Wrap a display equation's rendered content in a relative-indent group. Empty content collapses to
+/// a bare `.RS`/`.RE` pair with no inner line.
+fn display_group(content: &str) -> String {
+    if content.is_empty() {
+        ".RS\n.RE".to_owned()
+    } else {
+        format!(".RS\n{content}\n.RE")
+    }
+}
+
+/// Flatten a fragment run onto a single line: text renders as itself, a space as one blank, and a
+/// control run inlines its request lines. Display equation content is laid out on one line without
+/// fill, so this collapses the laid-out fragments back to source order.
+fn flatten_fragments(fragments: &[Fragment]) -> String {
+    let mut out = String::new();
+    for fragment in fragments {
+        match fragment {
+            Fragment::Text { rendered, .. } => out.push_str(rendered),
+            Fragment::Space => out.push(' '),
+            Fragment::Control(text) | Fragment::Display(text) => out.push_str(text),
+        }
+    }
+    out
 }
 
 /// The visible column width of an escaped roff string, counting each `\(xx` special and the soft
@@ -610,6 +665,7 @@ fn fill(fragments: &[Fragment], sentence_breaks: bool) -> String {
             Fragment::Text { rendered, width } => filler.push_word(rendered, *width),
             Fragment::Space => filler.space(sentence_breaks),
             Fragment::Control(text) => filler.control(text),
+            Fragment::Display(content) => filler.display(content),
         }
     }
     filler.finish()
@@ -668,6 +724,22 @@ impl<'a> Filler<'a> {
         self.pending_space = false;
         self.pending_break = false;
         self.after_continuation = text.ends_with("\\c");
+    }
+
+    /// Set off a display equation on its own line, indented one relative-indent level. The flow breaks
+    /// to a fresh line before the group and resumes on the closing `.RE` line, so any following text
+    /// continues after it on the same line.
+    fn display(&mut self, content: &str) {
+        self.flush_word();
+        if !self.out.is_empty() && !self.out.ends_with('\n') {
+            self.out.push('\n');
+        }
+        self.out.push_str(&display_group(content));
+        self.column = visible_width(".RE");
+        self.at_line_start = false;
+        self.pending_space = false;
+        self.pending_break = false;
+        self.after_continuation = false;
     }
 
     fn flush_word(&mut self) {
@@ -1135,6 +1207,138 @@ mod tests {
                 para(vec![s("y")]),
             ]),
             ".PP\ny"
+        );
+    }
+
+    fn inline_math(tex: &str) -> Inline {
+        Inline::Math(MathType::InlineMath, tex.to_owned())
+    }
+
+    fn display_math(tex: &str) -> Inline {
+        Inline::Math(MathType::DisplayMath, tex.to_owned())
+    }
+
+    #[test]
+    fn inline_math_lowers_to_font_and_scripts() {
+        // A variable renders in italics; a superscript uses `^..^`.
+        assert_eq!(
+            render(vec![para(vec![inline_math("a^2")])]),
+            ".PP\n\\f[I]a\\f[R]^2^"
+        );
+    }
+
+    #[test]
+    fn inline_math_stays_in_the_filled_flow() {
+        assert_eq!(
+            render(vec![para(vec![
+                s("an"),
+                Inline::Space,
+                s("equation"),
+                Inline::Space,
+                inline_math("a^2 + b^2 = c^2"),
+                Inline::Space,
+                s("inline"),
+            ])]),
+            ".PP\nan equation \\f[I]a\\f[R]^2^\u{2005}+\u{2005}\\f[I]b\\f[R]^2^\u{2004}=\u{2004}\\f[I]c\\f[R]^2^ inline"
+        );
+    }
+
+    #[test]
+    fn display_math_is_set_off_in_a_relative_indent_group() {
+        assert_eq!(
+            render(vec![para(vec![display_math("\\int_0^1 x \\, dx")])]),
+            ".PP\n.RS\n∫~0~^1^\\f[I]x\\f[R]\u{2006}\\f[I]d\\f[R]\\f[I]x\\f[R]\n.RE"
+        );
+    }
+
+    #[test]
+    fn display_math_resumes_following_text_on_the_close_line() {
+        assert_eq!(
+            render(vec![para(vec![
+                s("before"),
+                Inline::Space,
+                display_math("a^2"),
+                Inline::Space,
+                s("after"),
+            ])]),
+            ".PP\nbefore\n.RS\n\\f[I]a\\f[R]^2^\n.RE after"
+        );
+    }
+
+    #[test]
+    fn nonconvertible_inline_math_falls_back_to_escaped_source() {
+        // `\frac` has no single-line form, so the source is emitted between `$` delimiters with roff
+        // escaping applied (backslash, braces and `$` kept literal except the escaped backslash).
+        assert_eq!(
+            render(vec![para(vec![inline_math("\\frac{1}{2}")])]),
+            ".PP\n$\\(rsfrac{1}{2}$"
+        );
+    }
+
+    #[test]
+    fn nonconvertible_display_math_falls_back_inside_the_group() {
+        assert_eq!(
+            render(vec![para(vec![display_math("\\frac{1}{2}")])]),
+            ".PP\n.RS\n$$\\(rsfrac{1}{2}$$\n.RE"
+        );
+    }
+
+    #[test]
+    fn fallback_source_is_roff_escaped() {
+        // Characters with roff meaning in the kept source are escaped: `-` and `^` here.
+        assert_eq!(
+            render(vec![para(vec![inline_math("\\sqrt{a-b}")])]),
+            ".PP\n$\\(rssqrt{a\\-b}$"
+        );
+    }
+
+    #[test]
+    fn empty_inline_math_renders_nothing() {
+        assert_eq!(
+            render(vec![para(vec![
+                s("x"),
+                Inline::Space,
+                inline_math(""),
+                Inline::Space,
+                s("y")
+            ])]),
+            ".PP\nx  y"
+        );
+    }
+
+    #[test]
+    fn empty_display_math_keeps_an_empty_group() {
+        assert_eq!(
+            render(vec![para(vec![
+                s("x"),
+                Inline::Space,
+                display_math(""),
+                Inline::Space,
+                s("y"),
+            ])]),
+            ".PP\nx\n.RS\n.RE y"
+        );
+    }
+
+    #[test]
+    fn math_threads_the_surrounding_font() {
+        // A bold variable nested in math keeps the surrounding bold weight on its toggle.
+        assert_eq!(
+            render(vec![para(vec![Inline::Strong(vec![inline_math("a^2")])])]),
+            ".PP\n\\f[B]\\f[BI]a\\f[B]^2^\\f[R]"
+        );
+    }
+
+    #[test]
+    fn display_math_sets_off_inside_an_unwrapped_run() {
+        // In a heading (an unwrapped run) the group still takes its own lines.
+        assert_eq!(
+            render(vec![Block::Header(
+                1,
+                Attr::default(),
+                vec![s("T"), Inline::Space, display_math("a^2")],
+            )]),
+            ".SH T \n.RS\n\\f[I]a\\f[R]^2^\n.RE"
         );
     }
 }

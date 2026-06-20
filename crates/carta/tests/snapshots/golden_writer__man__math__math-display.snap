@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.RS
+∫~0~^1^\f[I]x\f[R] \f[I]d\f[R]\f[I]x\f[R]
+.RE

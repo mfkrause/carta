@@ -732,10 +732,24 @@ fn trim_decimals(text: &str) -> String {
     }
 }
 
+/// Render a math expression as Typst. The source is translated to Typst's native math markup when
+/// possible; an expression with no Typst equivalent is emitted verbatim, with its TeX delimiters
+/// reconstructed and the whole run escaped as ordinary markup text.
 fn math(kind: &MathType, text: &str) -> String {
+    let display = matches!(kind, MathType::DisplayMath);
+    let Some(math) = crate::math::to_typst_labeled(text, display) else {
+        let verbatim = match kind {
+            MathType::InlineMath => format!("${text}$"),
+            MathType::DisplayMath => format!("$${text}$$"),
+        };
+        return escape_text(&verbatim, false, true);
+    };
+    let crate::math::TypstMath { body, label } = math;
+    // An equation `\label` is set as a Typst reference label immediately after the closing `$`.
+    let label = label.as_deref().unwrap_or("");
     match kind {
-        MathType::InlineMath => format!("${text}$"),
-        MathType::DisplayMath => format!("$ {text} $"),
+        MathType::InlineMath => format!("${body}${label}"),
+        MathType::DisplayMath => format!("$ {body} ${label}"),
     }
 }
 
@@ -1083,14 +1097,49 @@ mod tests {
         );
     }
 
+    fn inline_math(text: &str) -> String {
+        render(vec![para(vec![Inline::Math(
+            MathType::InlineMath,
+            text.into(),
+        )])])
+    }
+
+    fn display_math(text: &str) -> String {
+        render(vec![para(vec![Inline::Math(
+            MathType::DisplayMath,
+            text.into(),
+        )])])
+    }
+
     #[test]
-    fn math_wrapping() {
+    fn inline_math_translates_to_native_markup() {
+        assert_eq!(inline_math("a^2 + b^2 = c^2"), "$a^2 + b^2 = c^2$");
+        assert_eq!(inline_math("\\alpha + \\beta"), "$alpha + beta$");
+        assert_eq!(inline_math("\\frac{1}{2}"), "$1 / 2$");
+        assert_eq!(inline_math("\\mathbb{R}"), "$bb(R)$");
+    }
+
+    #[test]
+    fn display_math_uses_spaced_delimiters() {
         assert_eq!(
-            render(vec![para(vec![Inline::Math(
-                MathType::InlineMath,
-                "x^2".into()
-            )])]),
-            "$x^2$"
+            display_math("\\int_0^1 x \\, dx"),
+            "$ integral_0^1 x thin d x $"
         );
+    }
+
+    #[test]
+    fn untranslatable_inline_math_falls_back_to_escaped_verbatim() {
+        // A command with no native form is kept as its source, the TeX delimiters reconstructed and
+        // the whole run escaped as ordinary markup text.
+        assert_eq!(inline_math("\\unknowncmd"), "\\$\\\\unknowncmd\\$");
+        assert_eq!(
+            inline_math("\\foo #h _u *s"),
+            "\\$\\\\foo \\#h \\_u \\*s\\$"
+        );
+    }
+
+    #[test]
+    fn untranslatable_display_math_uses_double_dollar_verbatim() {
+        assert_eq!(display_math("\\unknowncmd"), "\\$\\$\\\\unknowncmd\\$\\$");
     }
 }
