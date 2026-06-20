@@ -9,14 +9,14 @@
 
 use carta_ast::{
     Attr, Block, Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
-    Target, Text,
+    MathType, Target, Text,
 };
 use carta_core::{Result, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
-    is_known_scheme, is_loose, is_percent_escaped_uri, item_separator, offset_as_i32,
-    ordered_marker, quote_marks, render_html_attr,
+    is_known_scheme, is_loose, is_percent_escaped_uri, item_separator, normalize_image_attr,
+    offset_as_i32, ordered_marker, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -102,8 +102,7 @@ impl State {
                 format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
             }
             Block::LineBlock(lines) => self.line_block(lines),
-            Block::Figure(_, _, _) => todo!("commonmark writer: render figures as HTML fallback"),
-            Block::Table(_) => {
+            Block::Figure(..) | Block::Table(_) => {
                 collapse_html_block(&crate::html::render_fragment(std::slice::from_ref(block)))
             }
         }
@@ -255,7 +254,19 @@ impl State {
                 out.push(Piece::Text("\\".to_owned()));
                 out.push(Piece::Hard);
             }
-            Inline::Math(_, _) => todo!("commonmark writer: render math"),
+            Inline::Math(MathType::DisplayMath, tex) => {
+                // Display math is set off on its own line: a line break before and after sets it
+                // apart from the surrounding text. A break at the paragraph's start is dropped (the
+                // line is already fresh) and one at its end is trimmed, so the breaks are emitted
+                // unconditionally and the boundary cases self-correct. An adjacent space is absorbed
+                // by the break.
+                out.push(Piece::Hard);
+                self.math_content(&MathType::DisplayMath, tex, out);
+                out.push(Piece::Hard);
+            }
+            Inline::Math(kind @ MathType::InlineMath, tex) => {
+                self.math_content(kind, tex, out);
+            }
             Inline::RawInline(format, text) => {
                 if is_html_format(format) {
                     out.push(Piece::Text(text.clone()));
@@ -279,6 +290,30 @@ impl State {
         }
     }
 
+    /// Push the rendered pieces of a math node's content: the converted inline tree when the
+    /// expression linearizes, nothing when it is empty, otherwise the verbatim source wrapped in the
+    /// kind's `$`/`$$` delimiters and routed through the running-text path so its literal text is
+    /// escaped. Inline source has its edge whitespace trimmed before wrapping (interior whitespace
+    /// is kept); display source is wrapped as written.
+    fn math_content(&mut self, kind: &MathType, tex: &str, out: &mut Vec<Piece>) {
+        match crate::math::to_inlines(tex) {
+            Some(inlines) => {
+                for converted in &inlines {
+                    self.inline(converted, out, false);
+                }
+            }
+            None if tex.trim().is_empty() => {}
+            None => {
+                let (delim, body) = match kind {
+                    MathType::DisplayMath => ("$$", tex),
+                    MathType::InlineMath => ("$", tex.trim()),
+                };
+                let fallback = Inline::Str(format!("{delim}{body}{delim}"));
+                self.inline(&fallback, out, false);
+            }
+        }
+    }
+
     fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
         out.push(Piece::Text(marker.to_owned()));
         self.extend_pieces(inlines, out, false);
@@ -286,6 +321,9 @@ impl State {
     }
 
     fn wrap_tag(&mut self, tag: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if inlines.is_empty() {
+            return;
+        }
         out.push(Piece::Text(format!("<{tag}>")));
         self.extend_pieces(inlines, out, false);
         out.push(Piece::Text(format!("</{tag}>")));
@@ -321,9 +359,6 @@ impl State {
             out.push(Piece::Text(format!("]({})", destination(target))));
             return;
         }
-        if has_dimension(attr) {
-            todo!("commonmark writer: render image dimensions (width/height) as HTML fallback");
-        }
         let alt = alt_text(inlines);
         let alt_attr = if alt.is_empty() {
             String::new()
@@ -334,7 +369,7 @@ impl State {
             "<img src=\"{}\"{}{}{alt_attr} />",
             escape_attr(&target.url),
             title_attr(&target.title),
-            render_html_attr(attr),
+            render_html_attr(&normalize_image_attr(attr)),
         )));
     }
 }
@@ -471,14 +506,13 @@ fn backtick_fence_len(text: &str) -> usize {
 }
 
 /// An inline code span, delimited by a backtick run one longer than the longest run it contains
-/// (at least one). A space pads each side when the content holds a backtick or is space-flanked,
-/// so the delimiters and content stay distinct.
+/// (at least one). A single space pads each side exactly when the content holds a backtick, so the
+/// delimiters and the embedded backtick stay distinct; content that merely has leading or trailing
+/// spaces (or is entirely spaces) is wrapped without extra padding.
 fn code_span(text: &str) -> String {
     let max_run = longest_backtick_run(text);
     let fence = "`".repeat((max_run + 1).max(1));
-    let needs_padding = max_run > 0
-        || (text.starts_with(' ') && text.ends_with(' ') && text.chars().any(|ch| ch != ' '));
-    if needs_padding {
+    if max_run > 0 {
         format!("{fence} {text} {fence}")
     } else {
         format!("{fence}{text}{fence}")
@@ -542,12 +576,6 @@ fn is_autolink_class(attr: &Attr) -> bool {
     attr.id.is_empty()
         && attr.attributes.is_empty()
         && matches!(attr.classes.as_slice(), [class] if class == "uri" || class == "email")
-}
-
-fn has_dimension(attr: &Attr) -> bool {
-    attr.attributes
-        .iter()
-        .any(|(key, _)| matches!(key.as_str(), "width" | "height"))
 }
 
 /// The plain-text projection of an inline sequence, used for an image's `alt` attribute.
@@ -951,10 +979,22 @@ mod tests {
     }
 
     #[test]
-    fn code_span_pads_around_backticks() {
+    fn code_span_pads_only_when_backtick_bearing() {
+        // Backtick-free content is wrapped with no padding, whatever its spacing.
+        assert_eq!(code_span(""), "``");
         assert_eq!(code_span("plain"), "`plain`");
+        assert_eq!(code_span("   "), "`   `");
+        assert_eq!(code_span(" x "), "` x `");
+        assert_eq!(code_span(" and "), "` and `");
+        assert_eq!(code_span(" x"), "` x`");
+        assert_eq!(code_span("x "), "`x `");
+        // A backtick anywhere forces a single space of padding and a longer fence.
+        assert_eq!(code_span("`x"), "`` `x ``");
+        assert_eq!(code_span("x`"), "`` x` ``");
+        assert_eq!(code_span("`x`"), "`` `x` ``");
         assert_eq!(code_span("a`b"), "`` a`b ``");
-        assert_eq!(code_span(" x "), "`  x  `");
+        assert_eq!(code_span("a``b"), "``` a``b ```");
+        assert_eq!(code_span("`"), "`` ` ``");
         assert_eq!(longest_backtick_run("a``b`c"), 2);
     }
 
@@ -1053,5 +1093,313 @@ mod tests {
         );
         assert_eq!(title_attr(&String::new()), "");
         assert_eq!(title_attr(&"T".to_owned()), " title=\"T\"");
+    }
+
+    fn inline_math(tex: &str) -> Inline {
+        Inline::Math(MathType::InlineMath, tex.to_owned())
+    }
+
+    fn display_math(tex: &str) -> Inline {
+        Inline::Math(MathType::DisplayMath, tex.to_owned())
+    }
+
+    #[test]
+    fn convertible_math_uses_inline_markup() {
+        // Binary operators and relations carry their math spacing (`U+2005` around `+`,
+        // `U+2004` around `=`).
+        assert_eq!(
+            render(vec![para(vec![inline_math("a^2 + b^2 = c^2")])]),
+            "*a*<sup>2</sup>\u{2005}+\u{2005}*b*<sup>2</sup>\u{2004}=\u{2004}*c*<sup>2</sup>"
+        );
+    }
+
+    #[test]
+    fn display_math_shares_inline_conversion() {
+        // `\,` is a thin space (`U+2006`) in the converted tree.
+        assert_eq!(
+            render(vec![para(vec![display_math("\\int_0^1 x \\, dx")])]),
+            "\u{222b}<sub>0</sub><sup>1</sup>*x*\u{2006}*d**x*"
+        );
+    }
+
+    #[test]
+    fn unconvertible_inline_math_falls_back_to_single_dollars() {
+        // The fallback routes the literal through the running-text path, so a word-boundary `_`
+        // is escaped while the `$` delimiters stay literal.
+        assert_eq!(
+            render(vec![para(vec![inline_math("\\sum_{i=1}^n a_i")])]),
+            "$\\sum\\_{i=1}^n a_i$"
+        );
+    }
+
+    #[test]
+    fn unconvertible_display_math_falls_back_to_double_dollars() {
+        assert_eq!(
+            render(vec![para(vec![display_math("\\sqrt{x}")])]),
+            "$$\\sqrt{x}$$"
+        );
+    }
+
+    #[test]
+    fn inline_math_fallback_trims_edge_whitespace() {
+        // The verbatim inline fallback strips leading and trailing whitespace before wrapping in
+        // `$…$`; interior whitespace is preserved.
+        assert_eq!(
+            render(vec![para(vec![inline_math("\\sqrt{x} ")])]),
+            "$\\sqrt{x}$"
+        );
+        assert_eq!(
+            render(vec![para(vec![inline_math(" \\sqrt{x}")])]),
+            "$\\sqrt{x}$"
+        );
+        assert_eq!(
+            render(vec![para(vec![inline_math("  \\sqrt{x}  ")])]),
+            "$\\sqrt{x}$"
+        );
+        assert_eq!(
+            render(vec![para(vec![inline_math("\\sqrt{x}   y")])]),
+            "$\\sqrt{x}   y$"
+        );
+    }
+
+    #[test]
+    fn display_math_fallback_keeps_edge_whitespace() {
+        // Display fallback wraps the source as written; only inline math trims its edges.
+        assert_eq!(
+            render(vec![para(vec![display_math("\\sqrt{x} ")])]),
+            "$$\\sqrt{x} $$"
+        );
+        assert_eq!(
+            render(vec![para(vec![display_math(" \\sqrt{x}")])]),
+            "$$ \\sqrt{x}$$"
+        );
+    }
+
+    #[test]
+    fn inline_math_fallback_of_lone_backslash_escapes() {
+        // A fallback body of a lone backslash wraps to `$\$`, whose backslash the running-text path
+        // escapes to `$\\`. A `\ ` whose conversion bails to verbatim trims to this same lone-
+        // backslash body, so the trim composes with that bail to reach this end state.
+        assert_eq!(render(vec![para(vec![inline_math("\\")])]), "$\\\\");
+    }
+
+    #[test]
+    fn empty_math_emits_nothing() {
+        // Empty or whitespace-only math contributes no output; the flanking spaces collapse.
+        let out = render(vec![para(vec![
+            Inline::Str("a".into()),
+            Inline::Space,
+            inline_math("  "),
+            Inline::Space,
+            Inline::Str("b".into()),
+        ])]);
+        assert_eq!(out, "a b");
+        assert_eq!(render(vec![para(vec![display_math("")])]), "");
+    }
+
+    #[test]
+    fn figure_renders_as_html_fallback() {
+        let caption = carta_ast::Caption {
+            short: None,
+            long: vec![Block::Plain(str_inlines("a caption"))],
+        };
+        let image = Inline::Image(
+            Attr::default(),
+            str_inlines("a caption"),
+            Target {
+                url: "pic.png".into(),
+                title: "fig title".into(),
+            },
+        );
+        let figure = Block::Figure(Attr::default(), caption, vec![Block::Plain(vec![image])]);
+        assert_eq!(
+            render(vec![figure]),
+            "<figure>\n<img src=\"pic.png\" title=\"fig title\" alt=\"a caption\" />\n\
+             <figcaption aria-hidden=\"true\">a caption</figcaption>\n</figure>"
+        );
+    }
+
+    #[test]
+    fn dimensioned_image_falls_back_to_html_img() {
+        let image = Inline::Image(
+            Attr {
+                attributes: vec![("width".into(), "200".into())],
+                ..Attr::default()
+            },
+            str_inlines("alt"),
+            Target {
+                url: "pic.png".into(),
+                title: String::new(),
+            },
+        );
+        assert_eq!(
+            render(vec![para(vec![image])]),
+            "<img src=\"pic.png\" width=\"200\" alt=\"alt\" />"
+        );
+    }
+
+    #[test]
+    fn attrless_image_stays_markdown() {
+        let image = Inline::Image(
+            Attr::default(),
+            str_inlines("alt"),
+            Target {
+                url: "pic.png".into(),
+                title: String::new(),
+            },
+        );
+        assert_eq!(render(vec![para(vec![image])]), "![alt](pic.png)");
+    }
+
+    fn dimensioned_image(attributes: Vec<(String, String)>) -> Inline {
+        Inline::Image(
+            Attr {
+                attributes,
+                ..Attr::default()
+            },
+            str_inlines("alt"),
+            Target {
+                url: "pic.png".into(),
+                title: String::new(),
+            },
+        )
+    }
+
+    #[test]
+    fn pixel_dimensions_strip_px_and_render_as_attributes() {
+        let image = dimensioned_image(vec![("width".into(), "200px".into())]);
+        assert_eq!(
+            render(vec![para(vec![image])]),
+            "<img src=\"pic.png\" width=\"200\" alt=\"alt\" />"
+        );
+        let both = dimensioned_image(vec![
+            ("width".into(), "200".into()),
+            ("height".into(), "100".into()),
+        ]);
+        assert_eq!(
+            render(vec![para(vec![both])]),
+            "<img src=\"pic.png\" width=\"200\" height=\"100\" alt=\"alt\" />"
+        );
+    }
+
+    #[test]
+    fn percent_and_length_dimensions_become_style() {
+        let percent = dimensioned_image(vec![("width".into(), "50%".into())]);
+        assert_eq!(
+            render(vec![para(vec![percent])]),
+            "<img src=\"pic.png\" style=\"width:50.0%\" alt=\"alt\" />"
+        );
+        let length = dimensioned_image(vec![("width".into(), "5cm".into())]);
+        assert_eq!(
+            render(vec![para(vec![length])]),
+            "<img src=\"pic.png\" style=\"width:5cm\" alt=\"alt\" />"
+        );
+    }
+
+    #[test]
+    fn mixed_pixel_and_style_dimensions_separate_correctly() {
+        let image = dimensioned_image(vec![
+            ("width".into(), "200".into()),
+            ("height".into(), "50%".into()),
+        ]);
+        assert_eq!(
+            render(vec![para(vec![image])]),
+            "<img src=\"pic.png\" style=\"height:50.0%\" width=\"200\" alt=\"alt\" />"
+        );
+    }
+
+    #[test]
+    fn unrecognized_dimension_is_dropped() {
+        let image = dimensioned_image(vec![("width".into(), "4ex".into())]);
+        assert_eq!(
+            render(vec![para(vec![image])]),
+            "<img src=\"pic.png\" alt=\"alt\" />",
+            "the unparseable dimension is dropped but the attributed image keeps its HTML form"
+        );
+    }
+
+    // The relation `=` carries math spacing (`U+2004`) on each side in the converted inline tree.
+    const X_EQ_Y: &str = "*x*\u{2004}=\u{2004}*y*";
+
+    #[test]
+    fn display_math_is_set_off_on_its_own_line() {
+        let out = render(vec![para(vec![
+            Inline::Str("before".into()),
+            Inline::Space,
+            display_math("x=y"),
+            Inline::Space,
+            Inline::Str("after".into()),
+        ])]);
+        assert_eq!(out, format!("before\n{X_EQ_Y}\nafter"));
+    }
+
+    #[test]
+    fn display_math_breaks_at_paragraph_edges_collapse() {
+        // At the paragraph's start the leading break is dropped; at its end the trailing break is
+        // trimmed.
+        let at_start = render(vec![para(vec![
+            display_math("x=y"),
+            Inline::Space,
+            Inline::Str("after".into()),
+        ])]);
+        assert_eq!(at_start, format!("{X_EQ_Y}\nafter"));
+        let at_end = render(vec![para(vec![
+            Inline::Str("before".into()),
+            Inline::Space,
+            display_math("x=y"),
+        ])]);
+        assert_eq!(at_end, format!("before\n{X_EQ_Y}"));
+        let alone = render(vec![para(vec![display_math("x=y")])]);
+        assert_eq!(alone, X_EQ_Y);
+    }
+
+    #[test]
+    fn inline_math_stays_on_the_line() {
+        let out = render(vec![para(vec![
+            Inline::Str("before".into()),
+            Inline::Space,
+            inline_math("x=y"),
+            Inline::Space,
+            Inline::Str("after".into()),
+        ])]);
+        assert_eq!(out, format!("before {X_EQ_Y} after"));
+    }
+
+    #[test]
+    fn unconvertible_display_math_still_breaks_and_falls_back() {
+        let out = render(vec![para(vec![
+            Inline::Str("before".into()),
+            Inline::Space,
+            display_math("\\sqrt{x}"),
+            Inline::Space,
+            Inline::Str("after".into()),
+        ])]);
+        assert_eq!(out, "before\n$$\\sqrt{x}$$\nafter");
+    }
+
+    #[test]
+    fn empty_display_math_still_sets_off_a_break() {
+        let out = render(vec![para(vec![
+            Inline::Str("before".into()),
+            Inline::Space,
+            display_math("   "),
+            Inline::Space,
+            Inline::Str("after".into()),
+        ])]);
+        assert_eq!(out, "before\nafter");
+    }
+
+    #[test]
+    fn consecutive_display_math_each_take_a_line() {
+        let out = render(vec![para(vec![
+            Inline::Str("a".into()),
+            Inline::Space,
+            display_math("x=y"),
+            Inline::Space,
+            display_math("p=q"),
+            Inline::Space,
+            Inline::Str("b".into()),
+        ])]);
+        assert_eq!(out, format!("a\n{X_EQ_Y}\n*p*\u{2004}=\u{2004}*q*\nb"));
     }
 }
