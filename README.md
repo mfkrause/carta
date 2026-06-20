@@ -134,7 +134,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | --- | :---: | :---: |
 | Pandoc JSON (`json`) | ✅ | ✅ |
 | Native Pandoc AST (`native`) | ✅ | ✅ |
-| OPML (`opml`) | 🚧 | ✅ |
+| OPML (`opml`) | ✅ | ✅ |
 | CSV (`csv`) | ✅ | ➖ |
 | TSV (`tsv`) | ✅ | ➖ |
 | Plain text (`plain`) | ➖ | ✅ |
