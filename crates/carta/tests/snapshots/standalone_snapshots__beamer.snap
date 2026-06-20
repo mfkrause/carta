@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+\documentclass[
+]{beamer}
+\usepackage{amsmath,amssymb}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\hypersetup{
+  pdftitle={A Grand Report},
+  pdfcreator={carta}}
+\title{A \emph{Grand} Report}
+\subtitle{On Matters of Import}
+\author{Ada Lovelace \and Alan Turing}
+\date{2026-06-20}
+\begin{document}
+\frame{\titlepage}
+\begin{frame}[fragile]{Introduction}
+\protect\phantomsection\label{introduction}
+The opening remarks, with \emph{emphasis} and a
+\href{https://example.com}{link}.
+
+\begin{verbatim}
+fn main() {}
+\end{verbatim}
+\end{frame}
+\end{document}
