@@ -16,6 +16,18 @@ use super::table::{
 };
 use super::tree::{Element, Node, attr_value, collect_text, serialize_element, style_property};
 
+/// Build inline content from a node tree, with no surrounding block. Used to parse a string of HTML
+/// inline markup into inlines: leading and trailing whitespace is trimmed, matching how inline
+/// content sits inside a heading.
+#[cfg(feature = "opml")]
+pub(super) fn inlines_from_nodes(nodes: &[Node]) -> Vec<Inline> {
+    let converter = Converter {
+        preserve_unknown_tags: true,
+        ..Converter::default()
+    };
+    trim_inlines(converter.build_inlines(nodes))
+}
+
 pub(super) fn extract_meta(head: &Element) -> BTreeMap<String, MetaValue> {
     let mut meta = BTreeMap::new();
     for child in &head.children {
@@ -53,6 +65,11 @@ fn text_inlines(e: &Element) -> Vec<Inline> {
 pub(super) struct Converter {
     used_ids: BTreeSet<String>,
     in_list_item: std::cell::Cell<bool>,
+    /// When set, an inline tag with no structural mapping is kept verbatim as a raw HTML inline
+    /// (open tag, parsed inner content, close tag) instead of being unwrapped to its children. Used
+    /// when parsing a standalone inline fragment, where an unknown tag carries meaning the consumer
+    /// may want to round-trip.
+    preserve_unknown_tags: bool,
 }
 
 impl Converter {
@@ -479,8 +496,25 @@ impl Converter {
                 }
             }
             InlineKind::Transparent => {
-                for child in &e.children {
-                    self.append_inline(out, child);
+                if self.preserve_unknown_tags && block_kind(&e.name).is_none() {
+                    let format = Format("html".to_string());
+                    if e.end_only {
+                        out.push(Inline::RawInline(format, close_tag(&e.name)));
+                    } else {
+                        out.push(Inline::RawInline(format.clone(), open_tag(e)));
+                        if !e.void {
+                            for child in &e.children {
+                                self.append_inline(out, child);
+                            }
+                            if e.closed {
+                                out.push(Inline::RawInline(format, close_tag(&e.name)));
+                            }
+                        }
+                    }
+                } else {
+                    for child in &e.children {
+                        self.append_inline(out, child);
+                    }
                 }
             }
         }
@@ -623,6 +657,44 @@ fn hoist_edge_whitespace(
         None
     };
     (leading, inlines, trailing)
+}
+
+/// Serialize an element's start tag, e.g. `<cite id="1">`. Attribute names are emitted in source
+/// order; a value-less attribute is written bare, and special characters in values are escaped.
+fn open_tag(e: &Element) -> String {
+    let mut out = String::from("<");
+    out.push_str(&e.name);
+    for (key, value) in &e.attrs {
+        out.push(' ');
+        out.push_str(key);
+        if !value.is_empty() {
+            out.push_str("=\"");
+            push_escaped_attr_value(&mut out, value);
+            out.push('"');
+        }
+    }
+    out.push('>');
+    out
+}
+
+/// Serialize an element's end tag, e.g. `</cite>`.
+fn close_tag(name: &str) -> String {
+    let mut out = String::from("</");
+    out.push_str(name);
+    out.push('>');
+    out
+}
+
+fn push_escaped_attr_value(out: &mut String, value: &str) {
+    for ch in value.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            other => out.push(other),
+        }
+    }
 }
 
 fn image(e: &Element) -> Inline {
