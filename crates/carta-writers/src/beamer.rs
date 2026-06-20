@@ -30,6 +30,18 @@ impl Writer for BeamerWriter {
             .collect();
         Ok(units.join("\n\n"))
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.beamer"))
+    }
+
+    fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
+        crate::latex::LatexWriter.render_meta_inlines(inlines, options)
+    }
+
+    fn render_meta_blocks(&self, blocks: &[Block], options: &WriterOptions) -> Result<String> {
+        crate::latex::LatexWriter.render_meta_blocks(blocks, options)
+    }
 }
 
 /// The frame classes recognized as presentation options, in the order they are emitted within a

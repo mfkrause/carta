@@ -29,6 +29,10 @@ impl Writer for LatexWriter {
         let body = render_blocks(&document.blocks, FILL_COLUMN, 0, Dialect::Article);
         Ok(body.trim_end_matches('\n').to_owned())
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.latex"))
+    }
 }
 
 /// The LaTeX variant a block sequence is rendered for. The slide variant changes three constructs:

@@ -26,6 +26,10 @@ impl Writer for TypstWriter {
         let body = blocks(&document.blocks);
         Ok(body.trim_end_matches('\n').to_owned())
     }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.typst"))
+    }
 }
 
 /// A fragment of rendered inline content awaiting line filling. Text fragments are breakable on the
