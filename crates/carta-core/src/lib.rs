@@ -144,4 +144,16 @@ pub trait Writer {
     fn default_template(&self) -> Option<&'static str> {
         None
     }
+
+    /// A title presentation the template language cannot express from individual variables — an
+    /// underlined title for reStructuredText, say, whose rule length depends on the rendered title
+    /// width. Exposed to the template as the `titleblock` variable. `None` (the default) when the
+    /// format builds its title presentation from individual variables instead.
+    ///
+    /// # Errors
+    /// Propagates any error from rendering the metadata.
+    fn title_block(&self, document: &Document, options: &WriterOptions) -> Result<Option<String>> {
+        let _ = (document, options);
+        Ok(None)
+    }
 }
