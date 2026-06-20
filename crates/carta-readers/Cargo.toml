@@ -13,7 +13,7 @@ workspace = true
 
 [features]
 default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml"]
-commonmark = ["dep:unicode-general-category", "dep:caseless"]
+commonmark = ["dep:unicode-general-category", "dep:caseless", "dep:serde_json"]
 json = []
 html = []
 native = []
@@ -26,6 +26,8 @@ carta-ast = { workspace = true }
 carta-core = { workspace = true }
 unicode-general-category = { workspace = true, optional = true }
 caseless = { workspace = true, optional = true }
+# Parses JSON metadata files; YAML files go through the in-crate parser.
+serde_json = { workspace = true, optional = true }
 
 [build-dependencies]
 serde = { workspace = true }
