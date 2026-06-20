@@ -28,8 +28,6 @@ The broad Markdown preset on the CommonMark engine. Most of the preset's extensi
 | Gap | Detail |
 | --- | --- |
 | `latex_macros` | not modeled — `\newcommand` / `\def` definitions are neither collected nor expanded |
-| `startnum` | inert — the preset enables it but no code reads it (ordered-list starts are always captured) |
-| ATX headers past level 6 | this dialect reads `####### h` as a level-7 header; carta caps the level at 6, so the line falls back to a paragraph |
 
 ### `html` — 🚧
 
@@ -86,13 +84,10 @@ HTML slide deck; sections nested by header level.
 ### `gfm` — ✅
 GFM dialect; HTML fallback for non-GFM constructs (divs, citations, attributes).
 
-### `commonmark` — 🚧
-
-| Gap | Detail |
-| --- | --- |
-| `Block::Figure` | `todo!` |
-| `Inline::Math` | `todo!` |
-| Image dimensions | `todo!` — width/height HTML fallback |
+### `commonmark` — ✅
+All blocks and inlines. Figures (and tables) fall back to an HTML block; an image carrying a width or
+height falls back to an HTML `<img>`. Math is translated to a Unicode-text approximation, with the
+verbatim `$…$` / `$$…$$` source kept only for expressions that cannot be linearized.
 
 ### `markdown` — 🚧
 Renders every AST node, but emits a fixed dialect (extension output toggles not honored) and the
@@ -101,39 +96,32 @@ unmodeled pandoc-markdown extensions are unavailable.
 ### `rst` — ✅
 All blocks and inlines; grid/simple/multiline tables, figure directives, `:math:` role.
 
-### `typst` — 🚧
-
-| Gap | Detail |
-| --- | --- |
-| `Inline::Math` | TeX emitted verbatim inside `$…$`; not translated to Typst's native math syntax |
+### `typst` — ✅
+All blocks and inlines. Math is translated to Typst's native math syntax inside `$…$`, falling back to
+the verbatim TeX source only for expressions that cannot be translated.
 
 ### `mediawiki` — ✅
 All blocks and inlines; HTML fallback where wiki syntax falls short.
 
 ### `dokuwiki` — ✅
-All blocks and inlines. Math renders as a placeholder.
+All blocks and inlines. Math is emitted verbatim as `$…$` / `$$…$$`, the form this wiki passes through
+to its TeX plugin.
 
 ### `asciidoc` — ✅
 All blocks and inlines. Emits the `asciidoc` flavor only — `asciidoc_legacy` / `asciidoctor` not
 implemented.
 
-### `jira` — 🚧
+### `jira` — ✅
+All blocks and inlines. Math is translated to a Unicode-text approximation, keeping the verbatim TeX
+source only where an expression cannot be linearized.
 
-| Gap | Detail |
-| --- | --- |
-| `Inline::Math` | `todo!` — TeX → Jira markup |
+### `man` — ✅
+All blocks and inlines. Math is translated to a Unicode-text approximation rendered with roff escapes,
+keeping the verbatim TeX source only where an expression cannot be linearized.
 
-### `man` — 🚧
-
-| Gap | Detail |
-| --- | --- |
-| `Inline::Math` | `todo!` — TeX → roff |
-
-### `plain` — 🚧
-
-| Gap | Detail |
-| --- | --- |
-| `Inline::Math` | `todo!` |
+### `plain` — ✅
+All blocks and inlines. Math is translated to a Unicode-text approximation, keeping the verbatim TeX
+source only where an expression cannot be linearized.
 
 ### `opml` — ✅
 Header outline; body serialized to Markdown in `_note`. Lossy by the format's nature.
@@ -156,23 +144,20 @@ AST → native literals.
 
 ## Extensions
 
-Reader-side toggles the CommonMark engine recognizes. The enum defines 48 extensions; the reader
-honors 47 of them. `raw_html` is always on — the engine preserves raw HTML regardless of the toggle
-— the other 46 are branched on per toggle, and `startnum` is inert.
+Reader-side toggles the CommonMark engine recognizes. The enum defines 48 extensions, all of which the
+reader honors. `raw_html` is always on — the engine preserves raw HTML regardless of the toggle — and
+the other 47 are branched on per toggle.
 
 **Supported:** `smart`, `strikeout`, `superscript`, `subscript`, `pipe_tables`, `footnotes`,
 `task_lists`, `autolink_bare_uris`, `tex_math_dollars`, `fenced_divs`, `bracketed_spans`,
 `hard_line_breaks`, `raw_html`, `header_attributes`, `fenced_code_attributes`,
 `inline_code_attributes`, `link_attributes`, `attributes`, `definition_lists`, `grid_tables`,
 `multiline_tables`, `simple_tables`, `table_captions`, `line_blocks`, `fancy_lists`,
-`example_lists`, `yaml_metadata_block`, `pandoc_title_block`, `auto_identifiers`,
+`example_lists`, `startnum`, `yaml_metadata_block`, `pandoc_title_block`, `auto_identifiers`,
 `gfm_auto_identifiers`, `implicit_header_references`, `implicit_figures`, `raw_attribute`,
 `inline_notes`, `native_divs`, `native_spans`, `markdown_in_html_blocks`, `raw_tex`, `citations`,
 `table_attributes`, `blank_before_blockquote`, `blank_before_header`, `mark`, `emoji`, `alerts`,
 `tex_math_single_backslash`, `tex_math_double_backslash`.
-
-**Inert:** `startnum` — defined and in the Markdown preset, but no code branches on it (ordered-list
-start numbers are always captured).
 
 ### Known parity gaps
 
@@ -216,7 +201,7 @@ Document-conversion features independent of any single format.
 | Syntax highlighting (`--highlight-style`) | ❌ | code emitted verbatim |
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in AST, not processed |
 | Filters (Lua / JSON) | ❌ | |
-| Math output methods (MathML, MathJax, KaTeX, webtex) | ❌ | TeX passed through verbatim where the target accepts it (html, latex, rst, asciidoc, mediawiki, dokuwiki); no TeX→native translation (Typst, plain, man, jira) and no MathML/MathJax/KaTeX/webtex emitters |
+| Math output methods (MathML, MathJax, KaTeX, webtex) | ❌ | TeX is passed through verbatim where the target accepts raw TeX (html, latex, rst, asciidoc, mediawiki, dokuwiki) and otherwise translated to the target's native math — Typst's native syntax for `typst`, a Unicode-text approximation for `commonmark`/`plain`/`man`/`jira`; no MathML/MathJax/KaTeX/webtex emitters |
 | Writer extension toggles | ❌ | each writer emits a fixed dialect |
 | Embed resources / extract media | ❌ | |
 | Multiple inputs / defaults files (`--defaults`) | ❌ | CLI takes one input |
