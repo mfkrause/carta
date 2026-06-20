@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+
+∫{~}0{~}^1^_x_ {_}d{_}_x_

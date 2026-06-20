@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+an equation _a_^2^ + {_}b{_}^2^ = {_}c{_}^2^ inline
