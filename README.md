@@ -21,7 +21,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| CommonMark (`commonmark`) | ✅ | 🚧 |
+| CommonMark (`commonmark`) | ✅ | ✅ |
 | CommonMark-X (`commonmark_x`) | ✅ | ❌ |
 | GitHub-Flavored Markdown (`gfm`) | ✅ | ✅ |
 | Pandoc Markdown (`markdown`) | 🚧 | 🚧 |
@@ -51,7 +51,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | Format | Reader | Writer |
 | --- | :---: | :---: |
 | LaTeX (`latex`) | ❌ | ✅ |
-| Typst (`typst`) | ❌ | 🚧 |
+| Typst (`typst`) | ❌ | ✅ |
 | ConTeXt (`context`) | ➖ | ❌ |
 | Texinfo (`texinfo`) | ➖ | ❌ |
 | PDF (`pdf`) | ➖ | ❌ |
@@ -77,7 +77,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | --- | :---: | :---: |
 | MediaWiki (`mediawiki`) | ❌ | ✅ |
 | DokuWiki (`dokuwiki`) | ❌ | ✅ |
-| Jira (`jira`) | ❌ | 🚧 |
+| Jira (`jira`) | ❌ | ✅ |
 | Creole (`creole`) | ❌ | ➖ |
 | TikiWiki (`tikiwiki`) | ❌ | ➖ |
 | TWiki (`twiki`) | ❌ | ➖ |
@@ -89,7 +89,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| man (`man`) | ❌ | 🚧 |
+| man (`man`) | ❌ | ✅ |
 | mdoc (`mdoc`) | ❌ | ➖ |
 | ms (`ms`) | ➖ | ❌ |
 | vimdoc (`vimdoc`) | ➖ | ❌ |
@@ -137,7 +137,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | OPML (`opml`) | 🚧 | ✅ |
 | CSV (`csv`) | ✅ | ➖ |
 | TSV (`tsv`) | ✅ | ➖ |
-| Plain text (`plain`) | ➖ | 🚧 |
+| Plain text (`plain`) | ➖ | ✅ |
 | BBCode (`bbcode`, `bbcode_phpbb`, `bbcode_steam`, …) | ➖ | ❌ |
 | ANSI terminal (`ansi`) | ➖ | ❌ |
 
