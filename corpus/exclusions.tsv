@@ -4,9 +4,6 @@
 # in an otherwise-passing directory depends on a missing feature). Both the Rust golden-writer test
 # and the shell conformance suite read this file and skip the listed cases, reporting the skip
 # count. Delete a line when its writer path lands, and the corpus case activates automatically.
-commonmark	figure
-commonmark	image-dimensions
-commonmark	math
 latex	task-list
 beamer	task-list
 man	common/code-block-lang
