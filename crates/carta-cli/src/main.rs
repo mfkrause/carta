@@ -120,6 +120,12 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     if let Some(path) = &cli.template {
         writer_options.template = Some(fs::read_to_string(path)?);
         writer_options.template_dir = Some(template_dir(path));
+        writer_options.template_ext = Some(
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .unwrap_or("")
+                .to_owned(),
+        );
     }
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);

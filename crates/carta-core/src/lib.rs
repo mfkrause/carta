@@ -79,6 +79,13 @@ pub struct WriterOptions {
     #[cfg(feature = "template")]
     pub template_dir: Option<std::path::PathBuf>,
 
+    /// Extension a partial (`$name()$`) inherits from the including template: the `--template`
+    /// file's own extension, so the same partial name resolves to the same kind of file whatever
+    /// the output format. An empty string means the template file had no extension (the partial is
+    /// looked up bare). Absent for a built-in default, where the format name is used instead.
+    #[cfg(feature = "template")]
+    pub template_ext: Option<String>,
+
     /// Raw template variables, in order; a repeated key accumulates into a list. Inserted verbatim
     /// (unescaped) at the highest precedence when building the template context.
     #[cfg(feature = "template")]

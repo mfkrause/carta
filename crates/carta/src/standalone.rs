@@ -51,7 +51,12 @@ pub(crate) fn render(
     let context = build_context(document, writer, body, options)?;
 
     let dir = options.template_dir.clone();
-    let ext = to_base.to_owned();
+    // A partial inherits the including template's extension; a built-in default has no file, so the
+    // format name stands in (its own templates avoid partials, so this only guides user overrides).
+    let ext = options
+        .template_ext
+        .clone()
+        .unwrap_or_else(|| to_base.to_owned());
     let resolve = move |name: &str| resolve_partial(dir.as_deref(), &ext, name);
     let mut output = template.render(&context, &resolve);
     // A standalone document carries at most one trailing newline beyond its last line: when the
@@ -155,11 +160,12 @@ fn overlay_variables(context: &mut BTreeMap<String, Value>, variables: &[(String
     }
 }
 
-/// Resolve a partial `$name()$` to its source text by reading from `dir`. A name without an
-/// extension takes the enclosing format's extension; one with an extension is read verbatim.
+/// Resolve a partial `$name()$` to its source text by reading from `dir`. A name carrying its own
+/// extension is read verbatim; otherwise it takes the including template's extension `ext`, or is
+/// looked up bare when that extension is empty (the including template had none).
 fn resolve_partial(dir: Option<&Path>, ext: &str, name: &str) -> Option<String> {
     let dir = dir?;
-    let filename = if Path::new(name).extension().is_some() {
+    let filename = if ext.is_empty() || Path::new(name).extension().is_some() {
         name.to_owned()
     } else {
         format!("{name}.{ext}")
