@@ -23,6 +23,9 @@ pub(super) struct FenceInfo {
 /// A parsed list marker: its kind, the number style and delimiter, the start number for ordered
 /// lists, the marker's own width in columns, and whether only whitespace follows it (an empty item
 /// opener).
+// The flags are independent facts about one parsed marker (its kind, ambiguity, and trailing
+// whitespace); collapsing them into an enum would conflate dimensions a caller reads separately.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub(super) struct ListMarkerParse {
     pub(super) bullet: bool,
@@ -34,6 +37,8 @@ pub(super) struct ListMarkerParse {
     /// numeral or a number. A lone letter is ambiguous between alphabetic and roman readings, which
     /// governs whether it can continue a neighbouring list.
     pub(super) single_letter: bool,
+    /// Whether the enumerator is the `#` placeholder, which continues an ordered list of any style.
+    pub(super) hash: bool,
     pub(super) marker_width: usize,
     pub(super) blank_after: bool,
     /// For an example-list marker (`(@label)`, `@label.`, `@label)`), the label that lets a later
@@ -221,7 +226,11 @@ impl<'a> Cursor<'a> {
         out
     }
 
-    pub(super) fn atx_heading(&mut self) -> Option<i32> {
+    /// Parse an ATX heading opener, returning its level. `CommonMark` caps the level at six hashes;
+    /// when `allow_deep` is set (the Markdown dialect) a run of seven or more hashes is a valid
+    /// heading at that exact, uncapped level. The other rules — at least one hash, and a space or
+    /// end of line after the run — apply in both cases.
+    pub(super) fn atx_heading(&mut self, allow_deep: bool) -> Option<i32> {
         let start = self.offset;
         let start_col = self.column;
         let mut hashes = 0;
@@ -229,7 +238,7 @@ impl<'a> Cursor<'a> {
             self.advance_one();
             hashes += 1;
         }
-        if hashes == 0 || hashes > 6 {
+        if hashes == 0 || (hashes > 6 && !allow_deep) {
             self.offset = start;
             self.column = start_col;
             return None;
@@ -414,6 +423,7 @@ impl<'a> Cursor<'a> {
                     delim: ListNumberDelim::DefaultDelim,
                     start: 1,
                     single_letter: false,
+                    hash: false,
                     marker_width: 1,
                     blank_after,
                     example_label: None,
@@ -425,9 +435,38 @@ impl<'a> Cursor<'a> {
                 self.example_marker_paren()
             }
             b'a'..=b'z' | b'A'..=b'Z' if fancy => self.enumerator_at(self.offset),
+            b'#' if fancy => self.hash_marker_at(),
             b'(' if fancy => self.paren_enumerator_at(),
             _ => None,
         }
+    }
+
+    /// Parse a `#` ordered-list placeholder marker at the cursor (fancy lists only). The `#` stands
+    /// in for an auto-numbered enumerator; the list it opens has the default number style and starts
+    /// at one. A trailing `.` gives the default delimiter and a `)` the one-parenthesis delimiter
+    /// (the parenthesized `(#)` form is handled with the other parenthesized enumerators).
+    fn hash_marker_at(&self) -> Option<ListMarkerParse> {
+        let delim = match self.bytes.get(self.offset + 1) {
+            Some(b'.') => ListNumberDelim::DefaultDelim,
+            Some(b')') => ListNumberDelim::OneParen,
+            _ => return None,
+        };
+        let after = self.offset + 2;
+        if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
+            return None;
+        }
+        Some(ListMarkerParse {
+            bullet: false,
+            marker: b'#',
+            style: ListNumberStyle::DefaultStyle,
+            delim,
+            start: 1,
+            single_letter: false,
+            hash: true,
+            marker_width: 2,
+            blank_after: rest_is_blank(self.bytes, after),
+            example_label: None,
+        })
     }
 
     /// Parse an enumerator with a trailing `.` or `)` delimiter at `body`. Used for both decimal and
@@ -445,10 +484,12 @@ impl<'a> Cursor<'a> {
         if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
             return None;
         }
-        // An uppercase letter followed by a period needs two spaces of separation before content, so
-        // a sentence opener like "B. Franklin" is not mistaken for a list (the gap is unnecessary
-        // when the item is empty, since nothing follows to be confused).
+        // A single uppercase letter followed by a period needs two spaces of separation before
+        // content, so a sentence opener like "B. Franklin" is not mistaken for a list (the gap is
+        // unnecessary when the item is empty, since nothing follows to be confused). A multi-letter
+        // roman numeral like "II." is unambiguous and needs only one space.
         if delim == ListNumberDelim::Period
+            && len == 1
             && matches!(
                 style,
                 ListNumberStyle::UpperAlpha | ListNumberStyle::UpperRoman
@@ -466,6 +507,7 @@ impl<'a> Cursor<'a> {
             delim,
             start,
             single_letter,
+            hash: false,
             marker_width: len + 1,
             blank_after,
             example_label: None,
@@ -475,6 +517,11 @@ impl<'a> Cursor<'a> {
     /// Parse a parenthesized enumerator `(x)` at the cursor (fancy lists only).
     fn paren_enumerator_at(&self) -> Option<ListMarkerParse> {
         let body = self.offset + 1;
+        // The parenthesized `#` placeholder opens a default-style list with the two-parenthesis
+        // delimiter, just like `(1)` but auto-numbered.
+        if self.bytes.get(body) == Some(&b'#') {
+            return self.paren_hash_marker_at(body);
+        }
         let (style, start, len) = parse_enum_body(self.bytes, body)?;
         if self.bytes.get(body + len) != Some(&b')') {
             return None;
@@ -492,8 +539,33 @@ impl<'a> Cursor<'a> {
             delim: ListNumberDelim::TwoParens,
             start,
             single_letter,
+            hash: false,
             marker_width: len + 2,
             blank_after,
+            example_label: None,
+        })
+    }
+
+    /// Parse a parenthesized `#` placeholder marker `(#)` at the cursor, where `body` indexes the
+    /// `#`. It opens a default-style list with the two-parenthesis delimiter, starting at one.
+    fn paren_hash_marker_at(&self, body: usize) -> Option<ListMarkerParse> {
+        if self.bytes.get(body + 1) != Some(&b')') {
+            return None;
+        }
+        let after = body + 2;
+        if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
+            return None;
+        }
+        Some(ListMarkerParse {
+            bullet: false,
+            marker: b'(',
+            style: ListNumberStyle::DefaultStyle,
+            delim: ListNumberDelim::TwoParens,
+            start: 1,
+            single_letter: false,
+            hash: true,
+            marker_width: 3,
+            blank_after: rest_is_blank(self.bytes, after),
             example_label: None,
         })
     }
@@ -540,6 +612,7 @@ impl<'a> Cursor<'a> {
             delim,
             start: 1,
             single_letter: false,
+            hash: false,
             marker_width: after - self.offset,
             blank_after: rest_is_blank(self.bytes, after),
             example_label: (!label.is_empty()).then_some(label),
@@ -641,37 +714,69 @@ fn alpha_value(byte: u8) -> i32 {
     i32::from(byte.to_ascii_lowercase() - b'a') + 1
 }
 
-/// Value of a single roman digit, case-insensitive.
-fn roman_digit(byte: u8) -> Option<i32> {
-    Some(match byte.to_ascii_lowercase() {
-        b'i' => 1,
-        b'v' => 5,
-        b'x' => 10,
-        b'l' => 50,
-        b'c' => 100,
-        b'd' => 500,
-        b'm' => 1000,
-        _ => return None,
-    })
+/// Value of a roman numeral in well-formed place order, or `None` if the run is not a valid numeral.
+///
+/// The numeral is read place by place — thousands, hundreds, tens, ones — and the whole run must be
+/// consumed. Thousands repeat without bound; each lower place takes its subtractive pair (`CM`/`CD`,
+/// `XC`/`XL`, `IX`/`IV`), an optional half-digit (`D`/`L`/`V`), and up to four repeats of its unit
+/// digit. Ill-formed runs — a repeated half-digit (`VV`), an out-of-order digit (`IIX`), or an
+/// invalid subtraction (`IL`) — are rejected.
+fn roman_value(run: &[u8]) -> Option<i32> {
+    let lower: Vec<u8> = run.iter().map(u8::to_ascii_lowercase).collect();
+    let mut pos = 0usize;
+    let mut total: i32 = 0;
+
+    // Thousands: any number of `m`.
+    while lower.get(pos) == Some(&b'm') {
+        total += 1000;
+        pos += 1;
+    }
+    total += take_roman_place(&lower, &mut pos, b'c', b'd', b'm', 100);
+    total += take_roman_place(&lower, &mut pos, b'x', b'l', b'c', 10);
+    total += take_roman_place(&lower, &mut pos, b'i', b'v', b'x', 1);
+
+    if pos != lower.len() || total == 0 {
+        return None;
+    }
+    Some(total)
 }
 
-/// Value of a roman numeral, or `None` if any character is not a roman digit. Uses the subtractive
-/// rule (a smaller digit before a larger one subtracts), so `iv` → 4 and `xl` → 40.
-fn roman_value(run: &[u8]) -> Option<i32> {
-    let mut total = 0i32;
-    let mut prev = 0i32;
-    let mut idx = run.len();
-    while idx > 0 {
-        idx -= 1;
-        let value = roman_digit(*run.get(idx)?)?;
-        if value < prev {
-            total -= value;
-        } else {
-            total += value;
-            prev = value;
+/// Read one place of a roman numeral. `unit` is the place's digit (value `unit_value`), `half` is the
+/// digit worth five units, and `next` is the digit worth ten units (used by the subtractive forms).
+/// Consumes the subtractive pair (`unit`+`next` → nine, `unit`+`half` → four), then an optional half
+/// digit, then up to four unit digits, and returns the place's value. A digit that does not belong to
+/// this place is left for the next place; an ill-formed run is rejected by [`roman_value`], which
+/// requires every byte to be consumed.
+fn take_roman_place(
+    digits: &[u8],
+    pos: &mut usize,
+    unit: u8,
+    half: u8,
+    next: u8,
+    unit_value: i32,
+) -> i32 {
+    if digits.get(*pos) == Some(&unit) {
+        if digits.get(*pos + 1) == Some(&next) {
+            *pos += 2;
+            return unit_value * 9;
+        }
+        if digits.get(*pos + 1) == Some(&half) {
+            *pos += 2;
+            return unit_value * 4;
         }
     }
-    (total > 0).then_some(total)
+    let mut value = 0;
+    if digits.get(*pos) == Some(&half) {
+        value += unit_value * 5;
+        *pos += 1;
+    }
+    let mut repeats = 0;
+    while digits.get(*pos) == Some(&unit) && repeats < 4 {
+        value += unit_value;
+        *pos += 1;
+        repeats += 1;
+    }
+    value
 }
 
 /// Whether at least two columns of whitespace begin at `idx` — two spaces, or a single tab.
