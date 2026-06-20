@@ -2184,6 +2184,9 @@ fn is_text_accent_command(name: &str) -> bool {
 /// The text-mode accent command applied to a base character, resolving to the composed Latin letter.
 /// A base with no composed form for the accent returns the bare base character; an accent/base pair
 /// outside the recognized set returns `None`, leaving the wrapper to fall back to verbatim.
+// A flat accent-to-composed-letter lookup; the per-accent arms are one cohesive table with no
+// shared logic to factor out, so splitting them into helpers would only scatter it.
+#[allow(clippy::too_many_lines)]
 fn text_accent(name: &str, base: char) -> Option<&'static str> {
     if !is_text_accent_command(name) {
         return None;
@@ -2465,7 +2468,7 @@ fn accent_dotless_base(tokens: &[Token], from: usize) -> Option<(&'static str, u
 /// as their spacing codepoint). Returns `None` if the group contains a math-mode switch, an
 /// unrecognized control sequence, or a nested script/group, which we do not attempt to render.
 // The `$` arm must precede the general-character arm, so it cannot fold into the unhandled-token arm.
-#[allow(clippy::match_same_arms)]
+#[allow(clippy::match_same_arms, clippy::too_many_lines)]
 fn parse_verbatim_group(
     tokens: &[Token],
     pos: &mut usize,
