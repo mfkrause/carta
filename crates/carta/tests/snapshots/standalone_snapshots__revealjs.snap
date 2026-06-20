@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="generator" content="carta" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui" />
+<meta name="author" content="Ada Lovelace" />
+<meta name="author" content="Alan Turing" />
+<title>A Grand Report</title>
+<link rel="stylesheet" href="https://unpkg.com/reveal.js@^5/dist/reset.css" />
+<link rel="stylesheet" href="https://unpkg.com/reveal.js@^5/dist/reveal.css" />
+<link rel="stylesheet" href="https://unpkg.com/reveal.js@^5/dist/theme/black.css" id="theme" />
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="title-slide">
+<h1 class="title">A <em>Grand</em> Report</h1>
+<p class="subtitle">On Matters of Import</p>
+<p class="author">Ada Lovelace</p>
+<p class="author">Alan Turing</p>
+<p class="date">2026-06-20</p>
+</section>
+<section id="introduction" class="slide level1">
+<h1>Introduction</h1>
+<p>The opening remarks, with <em>emphasis</em> and a <a
+href="https://example.com">link</a>.</p>
+<pre class="rust"><code>fn main() {}</code></pre>
+</section>
+</div>
+</div>
+<script src="https://unpkg.com/reveal.js@^5/dist/reveal.js"></script>
+<script>
+  Reveal.initialize();
+</script>
+</body>
+</html>

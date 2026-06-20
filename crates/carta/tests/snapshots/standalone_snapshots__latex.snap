@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
+\usepackage{graphicx}
+\usepackage{longtable,booktabs}
+\usepackage{upquote}
+\IfFileExists{microtype.sty}{\usepackage{microtype}}{}
+\usepackage{xcolor}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{hyperref}
+\hypersetup{
+  pdftitle={A Grand Report},
+  pdfauthor={Ada Lovelace, Alan Turing},
+  pdflang={en},
+  hidelinks,
+  pdfcreator={carta}}
+\urlstyle{same}
+\title{A \emph{Grand} Report\\
+\large On Matters of Import}
+\author{Ada Lovelace \and Alan Turing}
+\date{2026-06-20}
+\begin{document}
+\maketitle
+\begin{abstract}
+A concise overview of the matters discussed herein.
+\end{abstract}
+\section{Introduction}\label{introduction}
+
+The opening remarks, with \emph{emphasis} and a
+\href{https://example.com}{link}.
+
+\begin{verbatim}
+fn main() {}
+\end{verbatim}
+\end{document}

@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+#set document(title: [A #emph[Grand] Report], author: ([Ada Lovelace], [Alan Turing]))
+#set page(numbering: "1", number-align: center)
+#set text(font: ("Linux Libertine",), lang: "en")
+#set par(justify: true)
+#set heading(numbering: none)
+
+#align(center)[#block[
+#text(weight: "bold", size: 1.75em)[A #emph[Grand] Report]
+#parbreak()
+#text(size: 1.25em)[On Matters of Import]
+]]
+#align(center)[Ada Lovelace]
+#align(center)[Alan Turing]
+#align(center)[2026-06-20]
+#block(inset: 2em)[
+*Abstract* #parbreak()
+A concise overview of the matters discussed herein.
+]
+= Introduction
+<introduction>
+The opening remarks, with #emph[emphasis] and a
+#link("https://example.com")[link].
+
+```rust
+fn main() {}
+```
