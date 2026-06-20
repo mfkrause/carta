@@ -6,9 +6,11 @@
 
 use std::io;
 
-use carta_ast::Document;
+use carta_ast::{Block, Document, Inline};
 
 pub mod extensions;
+#[cfg(feature = "template")]
+pub mod template;
 
 pub use extensions::{Extension, Extensions, presets};
 
@@ -29,6 +31,15 @@ pub enum Error {
     UnknownExtension(String),
     #[error("invalid document metadata: {0}")]
     InvalidMetadata(String),
+    #[error("template error: {0}")]
+    Template(String),
+}
+
+#[cfg(feature = "template")]
+impl From<template::TemplateError> for Error {
+    fn from(error: template::TemplateError) -> Self {
+        Error::Template(error.to_string())
+    }
 }
 
 /// A `Result` whose error is [`Error`].
@@ -65,4 +76,43 @@ pub trait Reader {
 /// The returned string carries no trailing newline; the CLI appends exactly one.
 pub trait Writer {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String>;
+
+    /// Render an inline sequence in this format, for interpolating inline metadata (a `title`, an
+    /// `author`) into a template variable. Wrapping the inlines in a [`Block::Plain`] yields them
+    /// with no paragraph chrome across formats; a writer whose `Plain` diverges overrides this.
+    ///
+    /// # Errors
+    /// Propagates any error from [`Writer::write`].
+    fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
+        let document = Document {
+            blocks: vec![Block::Plain(inlines.to_vec())],
+            ..Document::default()
+        };
+        Ok(self
+            .write(&document, options)?
+            .trim_end_matches('\n')
+            .to_string())
+    }
+
+    /// Render a block sequence in this format, for interpolating block metadata (an `abstract`
+    /// authored as Markdown blocks) into a template variable.
+    ///
+    /// # Errors
+    /// Propagates any error from [`Writer::write`].
+    fn render_meta_blocks(&self, blocks: &[Block], options: &WriterOptions) -> Result<String> {
+        let document = Document {
+            blocks: blocks.to_vec(),
+            ..Document::default()
+        };
+        Ok(self
+            .write(&document, options)?
+            .trim_end_matches('\n')
+            .to_string())
+    }
+
+    /// This format's own standalone template, or `None` when standalone output is identical to the
+    /// fragment (no wrapping document exists for the format).
+    fn default_template(&self) -> Option<&'static str> {
+        None
+    }
 }

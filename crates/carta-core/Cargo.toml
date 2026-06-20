@@ -11,6 +11,11 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# The standalone template engine (`carta_core::template`). Off by default; enabled by `carta`'s
+# `standalone` feature.
+template = []
+
 [dependencies]
 carta-ast = { workspace = true }
 serde_json = { workspace = true }

@@ -1,0 +1,284 @@
+//! Rendering a parsed [`Template`] against a [`Value`] context.
+//!
+//! ## Indentation
+//!
+//! When a variable, partial, or loop-item value spans multiple lines and the current output line so
+//! far is entirely ASCII spaces, those spaces become the indent prefixed to every continuation line
+//! of the value. A line prefix containing anything else (a tab, any non-space character) suppresses
+//! the indent. Literal template text is always emitted verbatim.
+
+use std::borrow::Cow;
+
+use super::Value;
+use super::node::{Expr, Node, Template};
+use super::pipe;
+
+/// Guards against unbounded partial recursion (a partial that includes itself).
+const MAX_DEPTH: usize = 64;
+
+/// A loop binding: the current element, and the bare name it is reachable under (besides `$it$`).
+struct Scope {
+    bind: Option<String>,
+    value: Value,
+}
+
+impl Template {
+    /// Render the template against `context`. `resolve_partial` maps a partial name to its source
+    /// text; pass a closure returning `None` for templates that use no partials.
+    #[must_use]
+    pub fn render(
+        &self,
+        context: &Value,
+        resolve_partial: &dyn Fn(&str) -> Option<String>,
+    ) -> String {
+        let mut out = String::new();
+        let mut scopes = Vec::new();
+        render_nodes(
+            &self.nodes,
+            context,
+            &mut scopes,
+            resolve_partial,
+            0,
+            &mut out,
+        );
+        out
+    }
+}
+
+fn render_nodes(
+    nodes: &[Node],
+    ctx: &Value,
+    scopes: &mut Vec<Scope>,
+    resolve: &dyn Fn(&str) -> Option<String>,
+    depth: usize,
+    out: &mut String,
+) {
+    for node in nodes {
+        render_node(node, ctx, scopes, resolve, depth, out);
+    }
+}
+
+fn render_node(
+    node: &Node,
+    ctx: &Value,
+    scopes: &mut Vec<Scope>,
+    resolve: &dyn Fn(&str) -> Option<String>,
+    depth: usize,
+    out: &mut String,
+) {
+    match node {
+        Node::Literal(text) => out.push_str(text),
+        Node::Var(expr) => {
+            if let Some(value) = eval(expr, ctx, scopes) {
+                emit_value(out, &pipe::stringify(&value));
+            }
+        }
+        Node::If {
+            branches,
+            otherwise,
+        } => {
+            for (cond, body) in branches {
+                if eval(cond, ctx, scopes).as_deref().is_some_and(truthy) {
+                    render_nodes(body, ctx, scopes, resolve, depth, out);
+                    return;
+                }
+            }
+            render_nodes(otherwise, ctx, scopes, resolve, depth, out);
+        }
+        Node::For {
+            expr,
+            bind,
+            body,
+            sep,
+        } => render_for(
+            expr,
+            bind.as_ref(),
+            body,
+            sep,
+            ctx,
+            scopes,
+            resolve,
+            depth,
+            out,
+        ),
+        Node::Partial {
+            name,
+            map_over,
+            sep,
+        } => render_partial(
+            name,
+            map_over.as_ref(),
+            sep.as_ref(),
+            ctx,
+            scopes,
+            resolve,
+            depth,
+            out,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_for(
+    expr: &Expr,
+    bind: Option<&String>,
+    body: &[Node],
+    sep: &[Node],
+    ctx: &Value,
+    scopes: &mut Vec<Scope>,
+    resolve: &dyn Fn(&str) -> Option<String>,
+    depth: usize,
+    out: &mut String,
+) {
+    let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
+        return;
+    };
+    for (i, item) in items.into_iter().enumerate() {
+        if i > 0 {
+            render_nodes(sep, ctx, scopes, resolve, depth, out);
+        }
+        scopes.push(Scope {
+            bind: bind.cloned(),
+            value: item,
+        });
+        render_nodes(body, ctx, scopes, resolve, depth, out);
+        scopes.pop();
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_partial(
+    name: &str,
+    map_over: Option<&Expr>,
+    sep: Option<&String>,
+    ctx: &Value,
+    scopes: &mut Vec<Scope>,
+    resolve: &dyn Fn(&str) -> Option<String>,
+    depth: usize,
+    out: &mut String,
+) {
+    if depth >= MAX_DEPTH {
+        return;
+    }
+    let Some(source) = resolve(name) else {
+        return;
+    };
+    let Ok(template) = Template::parse(&source) else {
+        return;
+    };
+    match map_over {
+        None => {
+            let mut buf = String::new();
+            render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf);
+            emit_value(out, &buf);
+        }
+        Some(expr) => {
+            let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
+                return;
+            };
+            let separator = sep.cloned().unwrap_or_default();
+            let mut pieces = Vec::new();
+            for item in items {
+                scopes.push(Scope {
+                    bind: None,
+                    value: item,
+                });
+                let mut buf = String::new();
+                render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf);
+                scopes.pop();
+                pieces.push(buf);
+            }
+            emit_value(out, &pieces.join(&separator));
+        }
+    }
+}
+
+/// A scalar or map iterates as a single element; a list iterates its elements.
+fn into_items(value: Cow<'_, Value>) -> Vec<Value> {
+    match value.into_owned() {
+        Value::List(items) => items,
+        other => vec![other],
+    }
+}
+
+/// Resolve an expression to a value, applying its pipes. `None` means the path is absent.
+fn eval<'a>(expr: &Expr, ctx: &'a Value, scopes: &'a [Scope]) -> Option<Cow<'a, Value>> {
+    let base = lookup(&expr.path, ctx, scopes)?;
+    if expr.pipes.is_empty() {
+        return Some(Cow::Borrowed(base));
+    }
+    let mut value = Cow::Borrowed(base);
+    for filter in &expr.pipes {
+        value = Cow::Owned(pipe::apply(value.as_ref(), filter));
+    }
+    Some(value)
+}
+
+/// Walk a dotted path. The head segment resolves against loop scopes (`it`, then bound names) before
+/// the root context; the rest descends through maps.
+fn lookup<'a>(path: &[String], ctx: &'a Value, scopes: &'a [Scope]) -> Option<&'a Value> {
+    let (head, rest) = path.split_first()?;
+    let base = if head == "it" {
+        &scopes.last()?.value
+    } else if let Some(scope) = scopes
+        .iter()
+        .rev()
+        .find(|s| s.bind.as_deref() == Some(head.as_str()))
+    {
+        &scope.value
+    } else if let Value::Map(map) = ctx {
+        map.get(head)?
+    } else {
+        return None;
+    };
+    let mut current = base;
+    for segment in rest {
+        match current {
+            Value::Map(map) => current = map.get(segment)?,
+            _ => return None,
+        }
+    }
+    Some(current)
+}
+
+fn truthy(value: &Value) -> bool {
+    match value {
+        Value::Str(s) => !s.is_empty(),
+        Value::List(items) => !items.is_empty(),
+        Value::Map(map) => !map.is_empty(),
+        Value::Bool(b) => *b,
+    }
+}
+
+/// Append a produced value, indenting continuation lines to match a space-only current-line prefix.
+fn emit_value(out: &mut String, text: &str) {
+    let indent = current_indent(out);
+    if indent == 0 || !text.contains('\n') {
+        out.push_str(text);
+        return;
+    }
+    let pad = " ".repeat(indent);
+    let mut lines = text.split('\n');
+    if let Some(first) = lines.next() {
+        out.push_str(first);
+    }
+    for line in lines {
+        out.push('\n');
+        out.push_str(&pad);
+        out.push_str(line);
+    }
+}
+
+/// The indentation to apply to continuation lines: the current line's width when it is all spaces,
+/// else zero.
+fn current_indent(out: &str) -> usize {
+    let line = match out.rfind('\n') {
+        Some(k) => out.get(k + 1..).unwrap_or(""),
+        None => out,
+    };
+    if !line.is_empty() && line.bytes().all(|b| b == b' ') {
+        line.len()
+    } else {
+        0
+    }
+}
