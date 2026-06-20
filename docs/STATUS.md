@@ -37,12 +37,9 @@ The broad Markdown preset on the CommonMark engine. Most of the preset's extensi
 | `<script>` / `<style>` | dropped (except math-bearing `<script>`) |
 | Inline round-trip | no `Note` / `Cite` reconstruction |
 
-### `opml` — 🚧
-Outline depth → header level; `_note` parsed as CommonMark; metadata (title, author, date).
-
-| Gap | Detail |
-| --- | --- |
-| `text` attribute | whitespace-tokenized only — inline markup dropped |
+### `opml` — ✅
+Outline depth → header level; the `text` attribute's inline HTML markup is parsed; `_note` parsed as
+CommonMark; metadata (title, author, date).
 
 ### `json` — ✅
 Pandoc-AST JSON ↔ AST.
