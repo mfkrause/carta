@@ -130,12 +130,26 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
+    writer_options.source_name = Some(source_name(cli.input.as_deref()));
 
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
     let verbatim = cli.standalone || cli.template.is_some();
 
     let output = convert(from, to, &text, &ReaderOptions::default(), &writer_options)?;
     write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+/// The title an HTML-family standalone document falls back to when no `title` metadata is present:
+/// the input file's stem (its name without the final extension), or `-` for standard input.
+fn source_name(input: Option<&Path>) -> String {
+    match input {
+        None => "-".to_owned(),
+        Some(path) => path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("-")
+            .to_owned(),
+    }
 }
 
 /// The directory a template's partials resolve against: the template file's own parent (the current
@@ -159,9 +173,9 @@ fn parse_variables(specs: &[String]) -> Vec<(String, String)> {
 }
 
 /// Parse `-M` specifiers into metadata values: `true`/`false` become booleans, a bare `KEY` becomes
-/// `true`, and anything else is a string. A repeated key takes the last value.
+/// `true`, and anything else is a string. A repeated key accumulates its values into a list in order.
 fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
-    let mut map = BTreeMap::new();
+    let mut map: BTreeMap<String, MetaValue> = BTreeMap::new();
     for spec in specs {
         let (key, value) = match spec.split_once('=') {
             Some((key, "true")) => (key, MetaValue::MetaBool(true)),
@@ -169,7 +183,15 @@ fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
             Some((key, value)) => (key, MetaValue::MetaString(value.to_owned())),
             None => (spec.as_str(), MetaValue::MetaBool(true)),
         };
-        map.insert(key.to_owned(), value);
+        let next = match map.remove(key) {
+            None => value,
+            Some(MetaValue::MetaList(mut items)) => {
+                items.push(value);
+                MetaValue::MetaList(items)
+            }
+            Some(first) => MetaValue::MetaList(vec![first, value]),
+        };
+        map.insert(key.to_owned(), next);
     }
     map
 }
@@ -244,6 +266,10 @@ fn write_output(path: Option<&Path>, output: &str, verbatim: bool) -> Result<()>
 
 #[cfg(test)]
 mod tests {
+    // Indexing a metadata map by a key the case has just inserted is the idiomatic assertion here; a
+    // missing key should fail the test loudly.
+    #![allow(clippy::indexing_slicing)]
+
     use super::{Cli, parse_metadata, parse_variables, template_dir};
     use carta::ast::MetaValue;
     use clap::CommandFactory;
@@ -283,9 +309,26 @@ mod tests {
     }
 
     #[test]
-    fn repeated_metadata_key_takes_the_last_value() {
-        let map = parse_metadata(&["k=first".to_owned(), "k=second".to_owned()]);
-        assert_eq!(map["k"], MetaValue::MetaString("second".to_owned()));
+    fn repeated_metadata_key_accumulates_into_a_list() {
+        // Two occurrences promote the key to a two-element list, in order.
+        let two = parse_metadata(&["k=first".to_owned(), "k=second".to_owned()]);
+        assert_eq!(
+            two["k"],
+            MetaValue::MetaList(vec![
+                MetaValue::MetaString("first".to_owned()),
+                MetaValue::MetaString("second".to_owned()),
+            ])
+        );
+        // Further occurrences append; a bare first occurrence keeps its boolean element.
+        let mixed = parse_metadata(&["k".to_owned(), "k=a".to_owned(), "k=b".to_owned()]);
+        assert_eq!(
+            mixed["k"],
+            MetaValue::MetaList(vec![
+                MetaValue::MetaBool(true),
+                MetaValue::MetaString("a".to_owned()),
+                MetaValue::MetaString("b".to_owned()),
+            ])
+        );
     }
 
     #[test]
