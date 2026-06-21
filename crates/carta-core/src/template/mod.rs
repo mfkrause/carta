@@ -39,6 +39,19 @@ impl Value {
     pub fn map(entries: impl IntoIterator<Item = (String, Value)>) -> Value {
         Value::Map(entries.into_iter().collect())
     }
+
+    /// Whether this value is true in a conditional. An empty string and a list with no truthy
+    /// element are false; a map is true by mere presence; a `Bool` follows its flag — the one value
+    /// that is non-empty yet still false when `false`.
+    #[must_use]
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Value::Str(s) => !s.is_empty(),
+            Value::List(items) => items.iter().any(Value::is_truthy),
+            Value::Map(_) => true,
+            Value::Bool(b) => *b,
+        }
+    }
 }
 
 /// A template that could not be processed: either a parse failure (an unterminated directive, an
