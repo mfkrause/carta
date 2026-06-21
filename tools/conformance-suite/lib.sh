@@ -61,6 +61,15 @@ compare_json() {
   return 1
 }
 
+# Compare two files byte-for-byte, with no trailing-newline tolerance. Used where the output is
+# emitted verbatim (a filled template) and every byte — trailing newlines included — must agree.
+# Renders the diff through `cat -A` so whitespace and line ends are visible.
+compare_bytes() {
+  cmp -s "$1" "$2" && return 0
+  diff <(cat -A "$1") <(cat -A "$2") | head -n 8
+  return 1
+}
+
 # Compare two text files modulo one trailing newline on each side. Brief diff + 1 on mismatch.
 compare_text() {
   local a b
