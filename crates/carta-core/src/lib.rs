@@ -216,6 +216,15 @@ pub trait Writer {
         MetaVarStyle::None
     }
 
+    /// Whether block-shaped metadata is flattened to its inline content when built into the template
+    /// context. A writer that places title, author, and date into single-line header fields — a man
+    /// page's `.TH` line cannot carry paragraph structure — sets this so a lone-paragraph value
+    /// contributes its inline text and any other block shape contributes nothing. The default `false`
+    /// renders block metadata as blocks.
+    fn flatten_block_metadata(&self) -> bool {
+        false
+    }
+
     /// A title presentation the template language cannot express from individual variables — an
     /// underlined title for reStructuredText, say, whose rule length depends on the rendered title
     /// width. Exposed to the template as the `titleblock` variable. `None` (the default) when the

@@ -8,7 +8,9 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use carta_ast::{Document, Inline, MetaValue, to_plain_inlines, to_plain_text};
+use carta_ast::{
+    Document, Inline, MetaValue, single_block_inlines, to_plain_inlines, to_plain_text,
+};
 use carta_core::template::{Template, Value};
 use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
@@ -90,13 +92,16 @@ fn build_context(
     let context_trailing = if line_oriented { "\n\n" } else { "" };
     let json_trailing = if line_oriented { "\n" } else { "" };
 
+    let flatten = writer.flatten_block_metadata();
     let mut context: BTreeMap<String, Value> = BTreeMap::new();
     let mut meta_json = serde_json::Map::new();
     for (key, value) in &document.meta {
-        context.insert(
-            key.clone(),
-            meta_to_value(value, writer, options, context_trailing)?,
-        );
+        let context_value = if flatten {
+            flatten_meta_value(value, writer, options)?
+        } else {
+            meta_to_value(value, writer, options, context_trailing)?
+        };
+        context.insert(key.clone(), context_value);
         meta_json.insert(
             key.clone(),
             value_to_json(&meta_to_value(value, writer, options, json_trailing)?),
@@ -184,6 +189,42 @@ fn meta_to_value(
                     key.clone(),
                     meta_to_value(item, writer, options, block_trailing)?,
                 );
+            }
+            Value::Map(entries)
+        }
+    })
+}
+
+/// Convert one metadata value to a template value with block-shaped content flattened to its inline
+/// text, for a writer that draws metadata into single-line header fields. A lone-paragraph block
+/// becomes its inline content; any other block shape becomes empty. Inline, string, list, and map
+/// values render exactly as [`meta_to_value`] does.
+fn flatten_meta_value(
+    value: &MetaValue,
+    writer: &dyn Writer,
+    options: &WriterOptions,
+) -> Result<Value> {
+    Ok(match value {
+        MetaValue::MetaBool(b) => Value::Bool(*b),
+        MetaValue::MetaString(text) => {
+            Value::Str(writer.render_meta_inlines(&[Inline::Str(text.clone())], options)?)
+        }
+        MetaValue::MetaInlines(inlines) => {
+            Value::Str(writer.render_meta_inlines(inlines, options)?)
+        }
+        MetaValue::MetaBlocks(blocks) => {
+            Value::Str(writer.render_meta_inlines(single_block_inlines(blocks), options)?)
+        }
+        MetaValue::MetaList(items) => Value::List(
+            items
+                .iter()
+                .map(|item| flatten_meta_value(item, writer, options))
+                .collect::<Result<_>>()?,
+        ),
+        MetaValue::MetaMap(map) => {
+            let mut entries = BTreeMap::new();
+            for (key, item) in map {
+                entries.insert(key.clone(), flatten_meta_value(item, writer, options)?);
             }
             Value::Map(entries)
         }
@@ -286,6 +327,7 @@ fn plain_meta(document: &Document, key: &str) -> String {
     match document.meta.get(key) {
         Some(MetaValue::MetaInlines(inlines)) => to_plain_text(inlines),
         Some(MetaValue::MetaString(text)) => text.clone(),
+        Some(MetaValue::MetaBlocks(blocks)) => to_plain_text(single_block_inlines(blocks)),
         _ => String::new(),
     }
 }
@@ -297,6 +339,7 @@ fn plain_meta_inlines(document: &Document, key: &str) -> Vec<Inline> {
     match document.meta.get(key) {
         Some(MetaValue::MetaInlines(inlines)) => to_plain_inlines(inlines),
         Some(MetaValue::MetaString(text)) if !text.is_empty() => vec![Inline::Str(text.clone())],
+        Some(MetaValue::MetaBlocks(blocks)) => to_plain_inlines(single_block_inlines(blocks)),
         _ => Vec::new(),
     }
 }
@@ -309,6 +352,10 @@ fn author_plain_inlines(document: &Document) -> Vec<Vec<Inline>> {
         match value {
             MetaValue::MetaInlines(inlines) => (to_plain_text(inlines), to_plain_inlines(inlines)),
             MetaValue::MetaString(text) => (text.clone(), vec![Inline::Str(text.clone())]),
+            MetaValue::MetaBlocks(blocks) => {
+                let inlines = single_block_inlines(blocks);
+                (to_plain_text(inlines), to_plain_inlines(inlines))
+            }
             _ => (String::new(), Vec::new()),
         }
     }

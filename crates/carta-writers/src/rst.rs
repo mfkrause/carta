@@ -8,7 +8,7 @@
 
 use carta_ast::{
     Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, MetaValue,
-    Row, Table, Target, slug, to_plain_text,
+    Row, Table, Target, single_block_inlines, slug, to_plain_text,
 };
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
@@ -79,6 +79,7 @@ fn title_line(value: Option<&MetaValue>) -> Option<String> {
     let inlines = match value? {
         MetaValue::MetaInlines(inlines) => inlines.clone(),
         MetaValue::MetaString(text) => vec![Inline::Str(text.clone())],
+        MetaValue::MetaBlocks(blocks) => single_block_inlines(blocks).to_vec(),
         _ => return None,
     };
     let mut state = State::default();

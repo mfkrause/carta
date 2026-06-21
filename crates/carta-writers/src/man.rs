@@ -50,6 +50,10 @@ impl Writer for ManWriter {
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.man"))
     }
+
+    fn flatten_block_metadata(&self) -> bool {
+        true
+    }
 }
 
 /// Writer state threaded through the render: the accumulated footnote bodies, in reference order,

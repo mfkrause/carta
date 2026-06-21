@@ -316,6 +316,18 @@ pub fn to_plain_inlines(inlines: &[Inline]) -> Vec<Inline> {
     out
 }
 
+/// The inline content of a block sequence used where inline text is required — a document title, a
+/// short header field. A lone paragraph or plain block contributes its inlines; any other shape —
+/// an empty sequence, several blocks, or a single block that is not a paragraph — has no inline form
+/// and yields an empty slice.
+#[must_use]
+pub fn single_block_inlines(blocks: &[Block]) -> &[Inline] {
+    match blocks {
+        [Block::Para(inlines) | Block::Plain(inlines)] => inlines,
+        _ => &[],
+    }
+}
+
 /// Derive a heading identifier from plain text: a non-breaking space is treated as an ordinary
 /// space, only alphanumerics, whitespace, and `_`, `-`, `.` are kept, the result is lowercased,
 /// whitespace runs collapse to single hyphens, and any leading non-letter characters are dropped.
@@ -418,5 +430,37 @@ mod tests {
                 Inline::Str("x".to_owned()),
             ]
         );
+    }
+
+    #[test]
+    fn single_block_inlines_takes_a_lone_paragraph_and_nothing_else() {
+        let para = vec![Block::Para(vec![
+            Inline::Str("Multi".to_owned()),
+            Inline::SoftBreak,
+            Inline::Str("line".to_owned()),
+        ])];
+        assert_eq!(
+            single_block_inlines(&para),
+            &[
+                Inline::Str("Multi".to_owned()),
+                Inline::SoftBreak,
+                Inline::Str("line".to_owned()),
+            ]
+        );
+
+        // A lone plain block is also unwrapped.
+        let plain = vec![Block::Plain(vec![Inline::Str("p".to_owned())])];
+        assert_eq!(single_block_inlines(&plain), &[Inline::Str("p".to_owned())]);
+
+        // No inline form: empty, several blocks, or a single non-paragraph block.
+        assert!(single_block_inlines(&[]).is_empty());
+        assert!(
+            single_block_inlines(&[
+                Block::Para(vec![Inline::Str("a".to_owned())]),
+                Block::Para(vec![Inline::Str("b".to_owned())]),
+            ])
+            .is_empty()
+        );
+        assert!(single_block_inlines(&[Block::HorizontalRule]).is_empty());
     }
 }
