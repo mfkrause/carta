@@ -618,3 +618,54 @@ pandoc emits templates verbatim with no added newline.)_
   `golden_writer` snapshot churn).
 - Deferred: `--columns` (configurable fill width — still fixed at 72); the char-level multi-line
   block-pipe wrap is a layout-engine artifact and stays a logged known gap, not reproduced.
+
+### Batch D — default-template content losses (2026-06-21)
+
+An adversarial sweep over the default templates and the identity (standalone) variables, with every
+finding independently re-checked against the oracle, surfaced five real writer-code losses. Three
+share one root cause — a block-scalar metadata value (a YAML literal block, e.g. `title: |`) parses
+to *block* content, but title/author/date are *inline* fields, and the flattening from block to
+inline never descended into `MetaBlocks`. The fix is a shared `single_block_inlines` helper: a lone
+`Para`/`Plain` contributes its inlines, any other shape (empty, several blocks, a non-paragraph
+block) yields nothing.
+
+- **Fix A — identity variables drop a block-scalar title.** `pagetitle`/`title-meta`/`author-meta`
+  flattened only inline metadata, so a block-scalar title fell back to the filename (html `<title>`)
+  or was omitted (latex `\pdftitle`). Routed the standalone identity vars through
+  `single_block_inlines`. Oracle-verified: single-paragraph title → `Multi-line Title Block`;
+  two-paragraph title → empty inline form.
+- **Fix B — man `.TH` leaked paragraph macros.** A man-page header field cannot carry paragraph
+  structure. Added a `flatten_block_metadata` writer hook (off by default, on for man) so the man
+  context flattens block metadata to inline roff while `meta_json` stays faithful. Oracle-verified:
+  `.TH "Multi\-line Title Block"` (single para), `.TH "" "" "" ""` (two para).
+- **Fix C — rst dropped the whole title block.** `title_line` ignored `MetaBlocks`, and because
+  `default.rst` nests `:Author:`/`:Date:` inside `$if(titleblock)$`, losing the title lost the entire
+  block. Added the `MetaBlocks` arm via `single_block_inlines`. Oracle-verified: the over/underlined
+  title block returns, sized to display width.
+- **Fix D — typst rendered `[true]` for a structured author.** A structured author (a map of
+  `name`/`affiliation`/…) interpolated directly renders as the literal `true` (a non-empty
+  `Value::Map`). Guarded the author in `default.typst` with `$if(author.name)$` so a map contributes
+  its `name` and a string author still renders as itself. Now emits `author: ([Grace Hopper])` and
+  `#align(center)[Grace Hopper]`. (The oracle's elaborate `conf()`-based author template is a
+  separate, intentional divergence — see below — but the value no longer collapses to a boolean.)
+- **Fix E — markdown emitted ambiguous YAML scalars.** A single-line metadata scalar was written
+  bare even when it would reparse as something else. Derived the quoting predicate empirically and
+  validated 43 cases plus interior-quote/backslash cases against the oracle: quote when empty,
+  surrounded by spaces, containing `:` (any colon, even non-mapping like `http://…`) or a ` #`
+  comment opener, leading with a YAML indicator char, or equal (case-insensitively) to a
+  boolean/null keyword; leave numbers, `None`, interior punctuation, and plain words bare.
+
+- Commits:
+  - `feat(standalone): flatten lone-paragraph metadata into inline contexts` (Fix A/B/C + the
+    `single_block_inlines` helper and `flatten_block_metadata` hook)
+  - `fix(typst): render structured author names in the default template` (Fix D)
+  - `fix(markdown): quote YAML metadata scalars that would reparse wrongly` (Fix E)
+  - `test(standalone): cover block-scalar metadata and structured authors`
+- Offline coverage: a `single_block_inlines` unit test in `carta-ast`; two YAML-quoting unit tests in
+  the markdown writer; six standalone integration tests (`crates/carta/tests/standalone.rs`) covering
+  web pagetitle, PDF title-meta (single + multi-paragraph), the man header field, the rst title
+  block, and the typst structured-author default template. Workspace suite: 1294 pass, 0 fail.
+- Intentional / deferred divergences (chrome, not content; logged, not reproduced): the typst
+  `conf()` author idiom; latex hyperxmp `\xmpquote` and `\texorpdfstring` wrapping; the exact plain
+  title-block blank-line count; the generator comment and other default-template CSS/preamble chrome;
+  the beamer toc stray `}` chrome.
