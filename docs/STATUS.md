@@ -190,15 +190,15 @@ Document-conversion features independent of any single format.
 
 | Feature | Status | Notes |
 | --- | :---: | --- |
-| Standalone output + templates (`-s`) | ❌ | writers emit fragments only |
-| Table of contents (`--toc`) | ❌ | |
+| Standalone output + templates (`-s`, `--template`) | ✅ | a built-in template engine (conditionals, loops, partials, pipes) drives a default template per writer; title/author/date and the format's identity variables are populated from metadata. User templates via `--template`. Each writer's scaffold (CSS, preamble) is authored independently and not byte-identical across tools |
+| Table of contents (`--toc`) | ❌ | default templates carry an inert `$toc$` slot; TOC generation itself not yet implemented |
 | Text wrapping (`--wrap`, `--columns`) | 🚧 | `--wrap=auto\|none\|preserve` honored by every writer that lays out lines; `--columns` (configurable fill width) not yet — width fixed at 72 |
-| Section numbering (`--number-sections`) | ❌ | |
-| Metadata / variables (`-M`, `-V`, `--metadata-file`) | ❌ | |
+| Section numbering (`--number-sections`) | ❌ | template body-numbering slot exists but is inert; the header transform itself not yet implemented |
+| Metadata / variables (`-M`, `-V`, `--metadata-file`) | ✅ | `-M`/`--metadata-file` set document metadata, `-V` sets template variables; effective precedence is `-V` over `-M` over the document's front matter over `--metadata-file` defaults |
 | Syntax highlighting (`--highlight-style`) | ❌ | code emitted verbatim |
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in AST, not processed |
 | Filters (Lua / JSON) | ❌ | |
-| Math output methods (MathML, MathJax, KaTeX, webtex) | ❌ | TeX is passed through verbatim where the target accepts raw TeX (html, latex, rst, asciidoc, mediawiki, dokuwiki) and otherwise translated to the target's native math — Typst's native syntax for `typst`, a Unicode-text approximation for `commonmark`/`plain`/`man`/`jira`; no MathML/MathJax/KaTeX/webtex emitters |
+| Math output methods (MathML, MathJax, KaTeX, webtex) | ❌ | TeX is passed through verbatim where the target accepts raw TeX (html, latex, rst, asciidoc, mediawiki, dokuwiki) and otherwise translated to the target's native math — Typst's native syntax for `typst`, a Unicode-text approximation for `commonmark`/`plain`/`man`/`jira`; no MathML/MathJax/KaTeX/webtex emitters. The standalone HTML template carries an inert math-method slot for when those emitters land |
 | Writer extension toggles | ❌ | each writer emits a fixed dialect |
 | Embed resources / extract media | ❌ | |
 | Multiple inputs / defaults files (`--defaults`) | ❌ | CLI takes one input |
