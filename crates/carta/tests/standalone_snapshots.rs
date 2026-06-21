@@ -8,12 +8,14 @@
 
 use carta::{ReaderOptions, WriterOptions, convert};
 
-/// A document touching every title-block slot a default template can interpolate: an inline title
-/// with markup, a subtitle, an author list, a date, a block-level abstract, keywords, and a body
-/// with a heading, prose, and a code block (which marks a slide fragile in the slide formats).
+/// A document touching every title-block and metadata slot a default template can interpolate: an
+/// inline title carrying both markup and a quotation (so the plain-text identity variables keep the
+/// quote glyphs), a subtitle, an author list, a date, a block-level abstract, keywords, an
+/// institute, a thanks note, a description, a language and writing direction, a font size, and a
+/// body with a heading, prose, and a code block (which marks a slide fragile in the slide formats).
 const INPUT: &str = "\
 ---
-title: A *Grand* Report
+title: A *Grand* \"Report\"
 subtitle: On Matters of Import
 author:
   - Ada Lovelace
@@ -25,7 +27,12 @@ abstract: |
 keywords:
   - analysis
   - computing
+institute: The Analytical Society
+thanks: With thanks to the reviewers.
+description: A short standalone document.
 lang: en
+dir: ltr
+fontsize: 12pt
 ---
 
 # Introduction

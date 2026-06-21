@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use carta_ast::{Document, Inline, MetaValue, to_plain_text};
+use carta_ast::{Document, Inline, MetaValue, to_plain_inlines, to_plain_text};
 use carta_core::template::{Template, Value};
 use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
@@ -119,7 +119,31 @@ fn build_context(
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
     overlay_variables(&mut context, &options.variables);
+    if writer.meta_var_style() == MetaVarStyle::Pdf {
+        enable_colorlinks(&mut context);
+    }
     Ok(Value::Map(context))
+}
+
+/// Turn on `colorlinks` whenever a specific link, file, citation, URL, or table-of-contents color is
+/// set: requesting a color implies colored links. A `colorlinks` already supplied by the document or
+/// an overlay is left as is.
+fn enable_colorlinks(context: &mut BTreeMap<String, Value>) {
+    if context.get("colorlinks").is_some_and(Value::is_truthy) {
+        return;
+    }
+    let any_color = [
+        "linkcolor",
+        "filecolor",
+        "citecolor",
+        "urlcolor",
+        "toccolor",
+    ]
+    .iter()
+    .any(|key| context.get(*key).is_some_and(Value::is_truthy));
+    if any_color {
+        context.insert("colorlinks".to_owned(), Value::Bool(true));
+    }
 }
 
 /// Convert one metadata value to a template value, rendering inline and block content through the
@@ -182,8 +206,9 @@ fn value_to_json(value: &Value) -> serde_json::Value {
 }
 
 /// Insert the plain-text identity variables the writer's standalone template draws on — the title,
-/// authors, and date rendered as markup-free, target-escaped text (a document `<title>` or a PDF
-/// property cannot carry markup). A web document exposes `pagetitle` (the title, falling back to the
+/// authors, and date stripped of markup but with quotation preserved, then rendered through the
+/// target writer (a document `<title>` or a PDF property carries no styling, but its quote glyphs
+/// still belong to the format). A web document exposes `pagetitle` (the title, falling back to the
 /// source name), `date-meta`, and `author-meta` as a list; a PDF document exposes `title-meta` and
 /// `author-meta` joined into one string with `; `. A format that exposes none leaves the context
 /// untouched. Each variable is omitted when its underlying metadata is absent.
@@ -197,9 +222,13 @@ fn insert_identity_vars(
     if style == MetaVarStyle::None {
         return Ok(());
     }
-    let title = plain_meta(document, "title");
-    let authors = author_plains(document);
-    let date = plain_meta(document, "date");
+    // The plain-text forms decide presence (whether a key contributes any text at all); the inline
+    // forms carry the quotation that survives into the rendered variable.
+    let title_text = plain_meta(document, "title");
+    let title = plain_meta_inlines(document, "title");
+    let authors = author_plain_inlines(document);
+    let date_text = plain_meta(document, "date");
+    let date = plain_meta_inlines(document, "date");
 
     match style {
         MetaVarStyle::None => {}
@@ -207,26 +236,30 @@ fn insert_identity_vars(
             // `pagetitle` is the title, falling back to the source name; present whenever either
             // exists. `date-meta` is present only when the document carries a date. `author-meta` is
             // a list with one entry per author, always defined (empty when there are none).
-            let page = if title.is_empty() {
-                options.source_name.clone().filter(|name| !name.is_empty())
+            let page = if title_text.is_empty() {
+                options
+                    .source_name
+                    .clone()
+                    .filter(|name| !name.is_empty())
+                    .map(|name| vec![Inline::Str(name)])
             } else {
                 Some(title)
             };
             if let Some(page) = page {
                 context.insert(
                     "pagetitle".to_owned(),
-                    Value::Str(render_plain(writer, options, &page)?),
+                    Value::Str(writer.render_meta_inlines(&page, options)?),
                 );
             }
-            if !date.is_empty() {
+            if !date_text.is_empty() {
                 context.insert(
                     "date-meta".to_owned(),
-                    Value::Str(render_plain(writer, options, &date)?),
+                    Value::Str(writer.render_meta_inlines(&date, options)?),
                 );
             }
             let mut list = Vec::with_capacity(authors.len());
             for author in &authors {
-                list.push(Value::Str(render_plain(writer, options, author)?));
+                list.push(Value::Str(writer.render_meta_inlines(author, options)?));
             }
             context.insert("author-meta".to_owned(), Value::List(list));
         }
@@ -235,11 +268,11 @@ fn insert_identity_vars(
             // so a template may reference them unconditionally.
             context.insert(
                 "title-meta".to_owned(),
-                Value::Str(render_plain(writer, options, &title)?),
+                Value::Str(writer.render_meta_inlines(&title, options)?),
             );
             let mut rendered = Vec::with_capacity(authors.len());
             for author in &authors {
-                rendered.push(render_plain(writer, options, author)?);
+                rendered.push(writer.render_meta_inlines(author, options)?);
             }
             context.insert("author-meta".to_owned(), Value::Str(rendered.join("; ")));
         }
@@ -247,14 +280,8 @@ fn insert_identity_vars(
     Ok(())
 }
 
-/// Render markup-free `text` through the target writer, so an identity variable carries the
-/// format's escaping for a plain string.
-fn render_plain(writer: &dyn Writer, options: &WriterOptions, text: &str) -> Result<String> {
-    writer.render_meta_inlines(&[Inline::Str(text.to_owned())], options)
-}
-
 /// The plain, markup-free text of a single-valued inline or string metadata entry; empty when the
-/// key is absent or holds a different shape.
+/// key is absent or holds a different shape. Used to decide whether the entry contributes any text.
 fn plain_meta(document: &Document, key: &str) -> String {
     match document.meta.get(key) {
         Some(MetaValue::MetaInlines(inlines)) => to_plain_text(inlines),
@@ -263,23 +290,38 @@ fn plain_meta(document: &Document, key: &str) -> String {
     }
 }
 
-/// The authors as plain, markup-free text, one entry each. The `author` metadata is a list of
-/// authors, a single author, or absent; each author is flattened to plain text and empty entries
-/// are dropped.
-fn author_plains(document: &Document) -> Vec<String> {
-    fn plain_one(value: &MetaValue) -> String {
+/// A single-valued metadata entry stripped to plain text but keeping quotation, as an inline
+/// sequence ready to render through the target writer; empty when the key is absent or holds a
+/// different shape.
+fn plain_meta_inlines(document: &Document, key: &str) -> Vec<Inline> {
+    match document.meta.get(key) {
+        Some(MetaValue::MetaInlines(inlines)) => to_plain_inlines(inlines),
+        Some(MetaValue::MetaString(text)) if !text.is_empty() => vec![Inline::Str(text.clone())],
+        _ => Vec::new(),
+    }
+}
+
+/// The authors as markup-stripped, quotation-preserving inline sequences, one entry each. The
+/// `author` metadata is a list of authors, a single author, or absent; each author is flattened and
+/// entries that carry no text are dropped.
+fn author_plain_inlines(document: &Document) -> Vec<Vec<Inline>> {
+    fn plain_one(value: &MetaValue) -> (String, Vec<Inline>) {
         match value {
-            MetaValue::MetaInlines(inlines) => to_plain_text(inlines),
-            MetaValue::MetaString(text) => text.clone(),
-            _ => String::new(),
+            MetaValue::MetaInlines(inlines) => (to_plain_text(inlines), to_plain_inlines(inlines)),
+            MetaValue::MetaString(text) => (text.clone(), vec![Inline::Str(text.clone())]),
+            _ => (String::new(), Vec::new()),
         }
     }
-    let names = match document.meta.get("author") {
+    let entries: Vec<(String, Vec<Inline>)> = match document.meta.get("author") {
         Some(MetaValue::MetaList(items)) => items.iter().map(plain_one).collect(),
         Some(value) => vec![plain_one(value)],
         None => Vec::new(),
     };
-    names.into_iter().filter(|name| !name.is_empty()).collect()
+    entries
+        .into_iter()
+        .filter(|(text, _)| !text.is_empty())
+        .map(|(_, inlines)| inlines)
+        .collect()
 }
 
 /// Overlay the raw `-V` variables at the highest precedence: each replaces any metadata-derived

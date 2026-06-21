@@ -3,7 +3,7 @@ source: crates/carta/tests/standalone_snapshots.rs
 expression: output
 ---
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">
 <head>
 <meta charset="utf-8" />
 <meta name="generator" content="carta" />
@@ -12,9 +12,10 @@ expression: output
 <meta name="author" content="Alan Turing" />
 <meta name="dcterms.date" content="2026-06-20" />
 <meta name="keywords" content="analysis, computing" />
-<title>A Grand Report</title>
+<meta name="description" content="A short standalone document." />
+<title>A Grand “Report”</title>
 <style>
-html { color: #1a1a1a; background-color: #fdfdfd; }
+html { color: #1a1a1a; background-color: #fdfdfd; font-size: 12pt; }
 body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; hyphens: auto; overflow-wrap: break-word; }
 h1, h2, h3, h4 { line-height: 1.2; margin-top: 1.5em; }
 a { color: #1a1a1a; }
@@ -35,7 +36,7 @@ th, td { border-bottom: 1px solid #cccccc; padding: 0.4em 0.6em; text-align: lef
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">A <em>Grand</em> Report</h1>
+<h1 class="title">A <em>Grand</em> “Report”</h1>
 <p class="subtitle">On Matters of Import</p>
 <p class="author">Ada Lovelace</p>
 <p class="author">Alan Turing</p>

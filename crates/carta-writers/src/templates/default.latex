@@ -10,7 +10,11 @@ $for(classoption)$
 $endfor$
 ]{$if(documentclass)$$documentclass$$else$article$endif$}
 \usepackage{amsmath,amssymb}
+$if(fontfamily)$
+\usepackage[$for(fontfamilyoptions)$$fontfamilyoptions$$sep$,$endfor$]{$fontfamily$}
+$else$
 \usepackage{lmodern}
+$endif$
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{textcomp}
@@ -19,6 +23,16 @@ $endfor$
 \usepackage{upquote}
 \IfFileExists{microtype.sty}{\usepackage{microtype}}{}
 \usepackage{xcolor}
+$if(geometry)$
+\usepackage[$for(geometry)$$geometry$$sep$,$endfor$]{geometry}
+$endif$
+$if(linestretch)$
+\usepackage{setspace}
+\setstretch{$linestretch$}
+$endif$
+$if(numbersections)$
+\setcounter{secnumdepth}{$if(secnumdepth)$$secnumdepth$$else$5$endif$}
+$endif$
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \usepackage{hyperref}
@@ -32,19 +46,31 @@ $endif$
 $if(lang)$
   pdflang={$lang$},
 $endif$
+$if(subject)$
+  pdfsubject={$subject$},
+$endif$
+$if(keywords)$
+  pdfkeywords={$for(keywords)$$keywords$$sep$, $endfor$},
+$endif$
+$if(colorlinks)$
+  colorlinks=true,
+  linkcolor={$if(linkcolor)$$linkcolor$$else$Maroon$endif$},
+  filecolor={$if(filecolor)$$filecolor$$else$Maroon$endif$},
+  citecolor={$if(citecolor)$$citecolor$$else$Blue$endif$},
+  urlcolor={$if(urlcolor)$$urlcolor$$else$Blue$endif$},
+$else$
   hidelinks,
+$endif$
   pdfcreator={carta}}
 \urlstyle{same}
 $for(header-includes)$
 $header-includes$
 $endfor$
 $if(title)$
-\title{$title$$if(subtitle)$\\
+\title{$title$$if(thanks)$\thanks{$thanks$}$endif$$if(subtitle)$\\
 \large $subtitle$$endif$}
 $endif$
-$if(author)$
 \author{$for(author)$$author$$sep$ \and $endfor$}
-$endif$
 \date{$date$}
 \begin{document}
 $for(include-before)$
@@ -59,11 +85,22 @@ $abstract$
 \end{abstract}
 $endif$
 $if(toc)$
+$if(toc-title)$
+\renewcommand*\contentsname{$toc-title$}
+$endif$
 {
-\hypersetup{linkcolor=}
+$if(toccolor)$
+\hypersetup{linkcolor=$toccolor$}
+$endif$
 \setcounter{tocdepth}{$if(toc-depth)$$toc-depth$$else$3$endif$}
 \tableofcontents
 }
+$endif$
+$if(lof)$
+\listoffigures
+$endif$
+$if(lot)$
+\listoftables
 $endif$
 $body$
 $for(include-after)$

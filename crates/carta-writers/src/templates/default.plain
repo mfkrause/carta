@@ -7,5 +7,14 @@ $if(date)$
 $date$
 $endif$
 
+$elseif(author)$
+$for(author)$$author$$sep$; $endfor$
+$if(date)$
+$date$
+$endif$
+
+$elseif(date)$
+$date$
+
 $endif$
 $body$

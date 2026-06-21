@@ -3,6 +3,7 @@ source: crates/carta/tests/standalone_snapshots.rs
 expression: output
 ---
 \documentclass[
+  12pt,
 ]{article}
 \usepackage{amsmath,amssymb}
 \usepackage{lmodern}
@@ -18,13 +19,14 @@ expression: output
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \usepackage{hyperref}
 \hypersetup{
-  pdftitle={A Grand Report},
+  pdftitle={A Grand ``Report''},
   pdfauthor={Ada Lovelace; Alan Turing},
   pdflang={en},
+  pdfkeywords={analysis, computing},
   hidelinks,
   pdfcreator={carta}}
 \urlstyle{same}
-\title{A \emph{Grand} Report\\
+\title{A \emph{Grand} ``Report''\thanks{With thanks to the reviewers.}\\
 \large On Matters of Import}
 \author{Ada Lovelace \and Alan Turing}
 \date{2026-06-20}

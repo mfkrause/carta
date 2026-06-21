@@ -18,7 +18,7 @@ $if(description)$
 $endif$
 <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
 <style>
-html { color: #1a1a1a; background-color: #fdfdfd; }
+html { color: #1a1a1a; background-color: #fdfdfd;$if(fontsize)$ font-size: $fontsize$;$endif$ }
 body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; hyphens: auto; overflow-wrap: break-word; }
 h1, h2, h3, h4 { line-height: 1.2; margin-top: 1.5em; }
 a { color: #1a1a1a; }

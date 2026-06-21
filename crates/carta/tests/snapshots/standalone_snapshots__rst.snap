@@ -2,9 +2,9 @@
 source: crates/carta/tests/standalone_snapshots.rs
 expression: output
 ---
-================
-A *Grand* Report
-================
+==================
+A *Grand* “Report”
+==================
 --------------------
 On Matters of Import
 --------------------
