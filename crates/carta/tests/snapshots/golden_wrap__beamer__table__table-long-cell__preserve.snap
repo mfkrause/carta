@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_wrap.rs
+expression: output
+---
+\begin{frame}
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+k & description \\
+\midrule\noalign{}
+\endhead
+a & this cell holds a deliberately long run of text that cannot fit inside one seventy-two column line and therefore forces a layout decision \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{frame}
