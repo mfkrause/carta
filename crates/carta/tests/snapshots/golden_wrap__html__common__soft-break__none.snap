@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_wrap.rs
+expression: output
+---
+<p>first line second line</p>

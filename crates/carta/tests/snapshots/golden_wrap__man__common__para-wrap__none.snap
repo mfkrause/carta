@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_wrap.rs
+expression: output
+---
+.PP
+This is a deliberately long paragraph with enough words that the writer must wrap it across the fill column boundary at least once or twice.
