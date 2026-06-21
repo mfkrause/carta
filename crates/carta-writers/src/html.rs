@@ -11,7 +11,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
     ListNumberStyle, MathType, Row, Table, TableBody, Target, Text, to_plain_text,
 };
-use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, RowSpanGrid, is_known_attribute, is_wide, normalize_image_attr, quote_marks,
@@ -22,8 +22,12 @@ use crate::common::{
 pub struct HtmlWriter;
 
 impl Writer for HtmlWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        Ok(render_fragment(&document.blocks))
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_with_flavor(
+            &document.blocks,
+            Flavor::Html5,
+            options.wrap,
+        ))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -44,8 +48,12 @@ impl Writer for HtmlWriter {
 pub struct Html4Writer;
 
 impl Writer for Html4Writer {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        Ok(render_with_flavor(&document.blocks, Flavor::Html4))
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_with_flavor(
+            &document.blocks,
+            Flavor::Html4,
+            options.wrap,
+        ))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -166,19 +174,19 @@ impl SlideRenderer {
 // Used by the slide writer; unreferenced when its feature is sliced out of the build.
 #[allow(dead_code)]
 #[must_use]
-pub(crate) fn fill_slides(assembled: &str) -> String {
-    restore(&reflow(assembled))
+pub(crate) fn fill_slides(assembled: &str, wrap: WrapMode) -> String {
+    restore(&reflow(assembled, wrap))
         .trim_end_matches('\n')
         .to_owned()
 }
 
 /// Render a block sequence to an html5 fragment, including the footnote section for any notes the
-/// blocks carry. The fragment carries no trailing newline.
-pub(crate) fn render_fragment(blocks: &[Block]) -> String {
-    render_with_flavor(blocks, Flavor::Html5)
+/// blocks carry, laid out under `wrap`. The fragment carries no trailing newline.
+pub(crate) fn render_fragment(blocks: &[Block], wrap: WrapMode) -> String {
+    render_with_flavor(blocks, Flavor::Html5, wrap)
 }
 
-fn render_with_flavor(blocks: &[Block], flavor: Flavor) -> String {
+fn render_with_flavor(blocks: &[Block], flavor: Flavor, wrap: WrapMode) -> String {
     let mut state = State {
         flavor,
         ..State::default()
@@ -186,7 +194,7 @@ fn render_with_flavor(blocks: &[Block], flavor: Flavor) -> String {
     let mut out = String::new();
     state.blocks(&mut out, blocks);
     state.push_footnote_section(&mut out);
-    let filled = restore(&reflow(&out));
+    let filled = restore(&reflow(&out, wrap));
     filled.trim_end_matches('\n').to_owned()
 }
 
@@ -198,7 +206,7 @@ pub(crate) fn render_inline_line(inlines: &[Inline]) -> String {
     let mut state = State::default();
     let mut out = String::new();
     state.inlines(&mut out, inlines);
-    out.replace(BREAK, " ")
+    out.replace([BREAK, SOFT], " ")
 }
 
 /// Sentinel marking a breakable inline space while the document is assembled as a flat string.
@@ -217,6 +225,16 @@ const ESCAPE: char = '\u{1}';
 /// Tag following an [`ESCAPE`] introducer that stands for one content `U+0000`. The pair is removed
 /// again by [`restore`]; any printable char distinct from [`ESCAPE`] would serve.
 const BREAK_TAG: char = '0';
+
+/// Sentinel marking a soft line break from the source, distinct from the breakable space [`BREAK`].
+/// [`reflow`] keeps it as a line break when the document preserves its own breaks and otherwise
+/// treats it exactly like [`BREAK`]. As with [`BREAK`], a literal `U+0002` from document content is
+/// protected by [`protect_char`] and decoded by [`restore`] so the channel stays unambiguous.
+const SOFT: char = '\u{2}';
+
+/// Tag following an [`ESCAPE`] introducer that stands for one content `U+0002`, the counterpart of
+/// [`BREAK_TAG`] for the [`SOFT`] sentinel.
+const SOFT_TAG: char = '2';
 
 /// Where an attribute set is being rendered, which selects the field order. Most elements emit
 /// `id`, then `class`, then key/value pairs; headers emit `class`, then key/value pairs, then `id`.
@@ -633,7 +651,8 @@ impl State {
                     escape_text(text)
                 );
             }
-            Inline::Space | Inline::SoftBreak => out.push(BREAK),
+            Inline::Space => out.push(BREAK),
+            Inline::SoftBreak => out.push(SOFT),
             Inline::LineBreak => out.push_str("<br />\n"),
             Inline::Math(kind, text) => {
                 let (class, open, close) = match kind {
@@ -661,7 +680,7 @@ impl State {
                             .collect();
                         let _ = write!(
                             out,
-                            "<span class=\"citation\" data-cites=\"{}\">",
+                            "<span class=\"citation\"{BREAK}data-cites=\"{}\">",
                             escape_attr(&ids.join(" "))
                         );
                     }
@@ -1146,12 +1165,16 @@ fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
     out
 }
 
-/// Replace each [`BREAK`] sentinel with a space or a line break so that inline content fills to
-/// [`FILL_COLUMN`] with a greedy fill. A break point becomes a newline
-/// when keeping the following chunk on the current line would exceed the fill column; the chunk is
-/// the run of literal text up to the next break point or hard newline. Hard newlines (block
-/// structure) reset the column. Consecutive break points collapse to one.
-fn reflow(input: &str) -> String {
+/// Resolve the break sentinels in an assembled fragment under the document's wrap mode.
+///
+/// Under [`WrapMode::Auto`] inline content fills to [`FILL_COLUMN`] with a greedy fill: a break point
+/// ([`BREAK`] or [`SOFT`]) becomes a newline when keeping the following chunk on the current line
+/// would exceed the fill column, where the chunk is the run of literal text up to the next break
+/// point or hard newline. Under [`WrapMode::None`] no break point ever becomes a newline — every one
+/// is a space. Under [`WrapMode::Preserve`] a [`SOFT`] (a soft break from the source) becomes a
+/// newline while a [`BREAK`] (a breakable space) stays a space, and lines are not reflowed. Hard
+/// newlines (block structure) always reset the column; consecutive break points collapse to one.
+fn reflow(input: &str, wrap: WrapMode) -> String {
     let mut out = String::with_capacity(input.len());
     let mut column = 0usize;
     let mut chars = input.chars();
@@ -1161,25 +1184,41 @@ fn reflow(input: &str) -> String {
                 out.push('\n');
                 column = 0;
             }
-            BREAK => {
-                while chars.clone().next() == Some(BREAK) {
-                    chars.next();
-                }
-                let mut chunk = 0usize;
-                for following in chars.clone() {
-                    if following == BREAK || following == '\n' {
-                        break;
+            BREAK | SOFT => match wrap {
+                // A run of break points is a single reflow decision: the line breaks only when the
+                // next chunk (the literal text up to the following break point or hard newline)
+                // would overflow the fill column.
+                WrapMode::Auto => {
+                    while let Some(BREAK | SOFT) = chars.clone().next() {
+                        chars.next();
                     }
-                    chunk += char_width(following);
+                    let mut chunk = 0usize;
+                    for following in chars.clone() {
+                        if following == BREAK || following == SOFT || following == '\n' {
+                            break;
+                        }
+                        chunk += char_width(following);
+                    }
+                    if column + 1 + chunk > FILL_COLUMN {
+                        out.push('\n');
+                        column = 0;
+                    } else {
+                        out.push(' ');
+                        column += 1;
+                    }
                 }
-                if column + 1 + chunk > FILL_COLUMN {
+                // Without reflow each break point stands on its own — a source soft break starts a
+                // fresh line under Preserve, and every other break point is a literal space — so
+                // adjacent ones are not merged.
+                WrapMode::Preserve if current == SOFT => {
                     out.push('\n');
                     column = 0;
-                } else {
+                }
+                WrapMode::None | WrapMode::Preserve => {
                     out.push(' ');
                     column += 1;
                 }
-            }
+            },
             other => {
                 out.push(other);
                 column += char_width(other);
@@ -1244,6 +1283,10 @@ fn protect_char(ch: char, out: &mut String) {
             out.push(ESCAPE);
             out.push(BREAK_TAG);
         }
+        SOFT => {
+            out.push(ESCAPE);
+            out.push(SOFT_TAG);
+        }
         other => out.push(other),
     }
 }
@@ -1271,6 +1314,7 @@ fn restore(text: &str) -> String {
         match chars.next() {
             Some(ESCAPE) | None => out.push(ESCAPE),
             Some(BREAK_TAG) => out.push(BREAK),
+            Some(SOFT_TAG) => out.push(SOFT),
             Some(other) => {
                 out.push(ESCAPE);
                 out.push(other);

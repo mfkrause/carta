@@ -23,7 +23,7 @@ use crate::slides::{FrameTitle, MAX_LEVEL, Slide, segment, slide_level};
 pub struct RevealjsWriter;
 
 impl Writer for RevealjsWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let level = slide_level(&document.blocks);
         let slides = segment(&document.blocks, level);
         let mut renderer = SlideRenderer::new();
@@ -52,7 +52,7 @@ impl Writer for RevealjsWriter {
             Some(section) => section,
             None => body,
         };
-        Ok(fill_slides(&assembled))
+        Ok(fill_slides(&assembled, options.wrap))
     }
 
     fn default_template(&self) -> Option<&'static str> {

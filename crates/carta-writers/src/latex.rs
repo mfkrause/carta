@@ -12,7 +12,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, Target, to_plain_text,
 };
-use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, attribute_value, display_width, fill, indent_block, list_is_tight, numeral,
@@ -25,8 +25,14 @@ use crate::grid;
 pub struct LatexWriter;
 
 impl Writer for LatexWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let body = render_blocks(&document.blocks, FILL_COLUMN, 0, Dialect::Article);
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let body = render_blocks(
+            &document.blocks,
+            FILL_COLUMN,
+            0,
+            Dialect::Article,
+            options.wrap,
+        );
         Ok(body.trim_end_matches('\n').to_owned())
     }
 
@@ -69,27 +75,37 @@ impl Dialect {
 }
 
 /// Render a block sequence in a given dialect, returning the body without a trailing newline. Slide
-/// writers render the content of each frame through this entry point.
-pub(crate) fn render_fragment(blocks: &[Block], dialect: Dialect) -> String {
-    render_blocks(blocks, FILL_COLUMN, 0, dialect)
+/// writers render the content of each frame through this entry point, laid out under `wrap`.
+pub(crate) fn render_fragment(blocks: &[Block], dialect: Dialect, wrap: WrapMode) -> String {
+    render_blocks(blocks, FILL_COLUMN, 0, dialect, wrap)
         .trim_end_matches('\n')
         .to_owned()
 }
 
 /// Render a header as a sectioning command, the form used for headers above a presentation's slide
 /// level. Identical to a top-level header in the article dialect.
-pub(crate) fn render_heading(level: i32, attr: &Attr, inlines: &[Inline]) -> String {
-    header(level, attr, inlines, FILL_COLUMN, Dialect::Article)
+pub(crate) fn render_heading(
+    level: i32,
+    attr: &Attr,
+    inlines: &[Inline],
+    wrap: WrapMode,
+) -> String {
+    header(level, attr, inlines, FILL_COLUMN, Dialect::Article, wrap)
 }
 
 /// Render a titled environment opening: a `prefix` literal (such as `\begin{frame}{`), the title
 /// inlines, and a closing `}`, all reflowed as one unit so the title wraps at the fill column with
 /// the prefix counted against the first line. The closing brace glues to the final word.
-pub(crate) fn render_titled_open(prefix: &str, inlines: &[Inline], dialect: Dialect) -> String {
+pub(crate) fn render_titled_open(
+    prefix: &str,
+    inlines: &[Inline],
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
     let mut pieces = vec![Piece::Text(prefix.to_owned())];
-    pieces.extend(inline_pieces(inlines, dialect));
+    pieces.extend(inline_pieces(inlines, dialect, wrap));
     pieces.push(Piece::Text("}".to_owned()));
-    fill(&pieces, FILL_COLUMN)
+    fill(&pieces, FILL_COLUMN, wrap)
 }
 
 /// The anchor markup for an element carrying an identifier, exposed for slide-level scaffolding.
@@ -107,19 +123,33 @@ enum EscapeMode {
 }
 
 /// Render a block sequence with a blank line between blocks, dropping those that produce no output.
-fn render_blocks(blocks: &[Block], width: usize, enum_depth: usize, dialect: Dialect) -> String {
+fn render_blocks(
+    blocks: &[Block],
+    width: usize,
+    enum_depth: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
     blocks
         .iter()
-        .map(|block| block_to_string(block, width, enum_depth, dialect))
+        .map(|block| block_to_string(block, width, enum_depth, dialect, wrap))
         .filter(|rendered| !rendered.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n")
 }
 
-fn block_to_string(block: &Block, width: usize, enum_depth: usize, dialect: Dialect) -> String {
+fn block_to_string(
+    block: &Block,
+    width: usize,
+    enum_depth: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
     match block {
-        Block::Plain(inlines) | Block::Para(inlines) => inlines_to_string(inlines, width, dialect),
-        Block::Header(level, attr, inlines) => header(*level, attr, inlines, width, dialect),
+        Block::Plain(inlines) | Block::Para(inlines) => {
+            inlines_to_string(inlines, width, dialect, wrap)
+        }
+        Block::Header(level, attr, inlines) => header(*level, attr, inlines, width, dialect, wrap),
         Block::CodeBlock(attr, text) => code_block(attr, text),
         Block::RawBlock(format, text) => {
             if is_latex_format(&format.0) {
@@ -128,34 +158,43 @@ fn block_to_string(block: &Block, width: usize, enum_depth: usize, dialect: Dial
                 String::new()
             }
         }
-        Block::BlockQuote(blocks) => block_quote(blocks, width, enum_depth, dialect),
-        Block::BulletList(items) => bullet_list(items, width, enum_depth, dialect),
-        Block::OrderedList(attrs, items) => ordered_list(attrs, items, width, enum_depth, dialect),
-        Block::DefinitionList(items) => definition_list(items, width, enum_depth, dialect),
+        Block::BlockQuote(blocks) => block_quote(blocks, width, enum_depth, dialect, wrap),
+        Block::BulletList(items) => bullet_list(items, width, enum_depth, dialect, wrap),
+        Block::OrderedList(attrs, items) => {
+            ordered_list(attrs, items, width, enum_depth, dialect, wrap)
+        }
+        Block::DefinitionList(items) => definition_list(items, width, enum_depth, dialect, wrap),
         Block::HorizontalRule => {
             "\\begin{center}\\rule{0.5\\linewidth}{0.5pt}\\end{center}".to_owned()
         }
-        Block::LineBlock(lines) => line_block(lines, width, dialect),
-        Block::Div(attr, blocks) => div(attr, blocks, width, enum_depth, dialect),
+        Block::LineBlock(lines) => line_block(lines, width, dialect, wrap),
+        Block::Div(attr, blocks) => div(attr, blocks, width, enum_depth, dialect, wrap),
         Block::Figure(attr, caption, blocks) => {
-            figure(attr, caption, blocks, width, enum_depth, dialect)
+            figure(attr, caption, blocks, width, enum_depth, dialect, wrap)
         }
-        Block::Table(table) => render_table(table, width, dialect),
+        Block::Table(table) => render_table(table, width, dialect, wrap),
     }
 }
 
-fn header(level: i32, attr: &Attr, inlines: &[Inline], width: usize, dialect: Dialect) -> String {
+fn header(
+    level: i32,
+    attr: &Attr,
+    inlines: &[Inline],
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
     let command = match level {
         1 => "section",
         2 => "subsection",
         3 => "subsubsection",
         4 => "paragraph",
         5 => "subparagraph",
-        _ => return inlines_to_string(inlines, width, dialect),
+        _ => return inlines_to_string(inlines, width, dialect, wrap),
     };
     let unnumbered = attr.classes.iter().any(|class| class == "unnumbered");
     let star = if unnumbered { "*" } else { "" };
-    let inner = inline_pieces(inlines, dialect);
+    let inner = inline_pieces(inlines, dialect, wrap);
 
     let mut content = vec![Piece::Text(format!("\\{command}{star}{{"))];
     if needs_texorpdfstring(inlines) {
@@ -170,7 +209,7 @@ fn header(level: i32, attr: &Attr, inlines: &[Inline], width: usize, dialect: Di
     if !attr.id.is_empty() {
         content.push(Piece::Text(format!("\\label{{{}}}", attr.id)));
     }
-    let heading = fill(&content, width);
+    let heading = fill(&content, width, wrap);
 
     if unnumbered {
         let mut toc = vec![Piece::Text(format!(
@@ -178,7 +217,7 @@ fn header(level: i32, attr: &Attr, inlines: &[Inline], width: usize, dialect: Di
         ))];
         toc.extend(inner);
         toc.push(Piece::Text("}".to_owned()));
-        format!("{heading}\n{}", fill(&toc, width))
+        format!("{heading}\n{}", fill(&toc, width, wrap))
     } else {
         heading
     }
@@ -188,19 +227,38 @@ fn header(level: i32, attr: &Attr, inlines: &[Inline], width: usize, dialect: Di
 /// recognized classes map to presentation constructs: a column layout (`columns` with `column`
 /// children), and incremental regions (`incremental` / `nonincremental`) that toggle whether the
 /// lists inside reveal their items one at a time.
-fn div(attr: &Attr, blocks: &[Block], width: usize, enum_depth: usize, dialect: Dialect) -> String {
+fn div(
+    attr: &Attr,
+    blocks: &[Block],
+    width: usize,
+    enum_depth: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
     if dialect.is_slide() {
         if has_class(attr, "columns") {
-            return columns(attr, blocks, width, enum_depth, dialect);
+            return columns(attr, blocks, width, enum_depth, dialect, wrap);
         }
         if has_class(attr, "incremental") {
-            return render_blocks(blocks, width, enum_depth, dialect.with_incremental(true));
+            return render_blocks(
+                blocks,
+                width,
+                enum_depth,
+                dialect.with_incremental(true),
+                wrap,
+            );
         }
         if has_class(attr, "nonincremental") {
-            return render_blocks(blocks, width, enum_depth, dialect.with_incremental(false));
+            return render_blocks(
+                blocks,
+                width,
+                enum_depth,
+                dialect.with_incremental(false),
+                wrap,
+            );
         }
     }
-    let body = render_blocks(blocks, width, enum_depth, dialect);
+    let body = render_blocks(blocks, width, enum_depth, dialect, wrap);
     if attr.id.is_empty() {
         body
     } else {
@@ -217,6 +275,7 @@ fn columns(
     width: usize,
     enum_depth: usize,
     dialect: Dialect,
+    wrap: WrapMode,
 ) -> String {
     let align = match attribute_value(attr, "align") {
         Some("bottom") => "b",
@@ -235,7 +294,7 @@ fn columns(
         .iter()
         .filter_map(|block| match block {
             Block::Div(column_attr, column_blocks) if has_class(column_attr, "column") => Some(
-                column(column_attr, column_blocks, width, enum_depth, dialect),
+                column(column_attr, column_blocks, width, enum_depth, dialect, wrap),
             ),
             _ => None,
         })
@@ -253,6 +312,7 @@ fn column(
     width: usize,
     enum_depth: usize,
     dialect: Dialect,
+    wrap: WrapMode,
 ) -> String {
     let fraction = attribute_value(attr, "width")
         .and_then(parse_percent)
@@ -265,7 +325,7 @@ fn column(
         "\\begin{{column}}{{{}\\linewidth}}",
         trim_number(fraction)
     ));
-    let body = render_blocks(blocks, width, enum_depth, dialect);
+    let body = render_blocks(blocks, width, enum_depth, dialect, wrap);
     if !body.is_empty() {
         lines.push(body);
     }
@@ -320,7 +380,13 @@ fn overlay(dialect: Dialect) -> &'static str {
 /// idiom for toggling that list's incremental overlay: the quote wrapper is dropped and the list
 /// renders with the surrounding incremental state flipped. Any other quote keeps its `quote`
 /// environment, with the incremental overlay suppressed inside it.
-fn block_quote(blocks: &[Block], width: usize, enum_depth: usize, dialect: Dialect) -> String {
+fn block_quote(
+    blocks: &[Block],
+    width: usize,
+    enum_depth: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
     if let (Dialect::Slide { incremental }, [list]) = (dialect, blocks)
         && matches!(
             list,
@@ -332,21 +398,34 @@ fn block_quote(blocks: &[Block], width: usize, enum_depth: usize, dialect: Diale
             width,
             enum_depth,
             dialect.with_incremental(!incremental),
+            wrap,
         );
     }
     format!(
         "\\begin{{quote}}\n{}\n\\end{{quote}}",
-        render_blocks(blocks, width, enum_depth, dialect.with_incremental(false))
+        render_blocks(
+            blocks,
+            width,
+            enum_depth,
+            dialect.with_incremental(false),
+            wrap
+        )
     )
 }
 
-fn bullet_list(items: &[Vec<Block>], width: usize, enum_depth: usize, dialect: Dialect) -> String {
+fn bullet_list(
+    items: &[Vec<Block>],
+    width: usize,
+    enum_depth: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
     let mut lines = vec![format!("\\begin{{itemize}}{}", overlay(dialect))];
     if list_is_tight(items) {
         lines.push("\\tightlist".to_owned());
     }
     for item in items {
-        lines.push(list_item(item, width, enum_depth, dialect));
+        lines.push(list_item(item, width, enum_depth, dialect, wrap));
     }
     lines.push("\\end{itemize}".to_owned());
     lines.join("\n")
@@ -358,6 +437,7 @@ fn ordered_list(
     width: usize,
     enum_depth: usize,
     dialect: Dialect,
+    wrap: WrapMode,
 ) -> String {
     let depth = enum_depth + 1;
     let counter = enum_counter(depth);
@@ -384,15 +464,21 @@ fn ordered_list(
         lines.push("\\tightlist".to_owned());
     }
     for item in items {
-        lines.push(list_item(item, width, depth, dialect));
+        lines.push(list_item(item, width, depth, dialect, wrap));
     }
     lines.push("\\end{enumerate}".to_owned());
     lines.join("\n")
 }
 
 /// Render one list item: its blocks indented two columns under an `\item` line.
-fn list_item(item: &[Block], width: usize, enum_depth: usize, dialect: Dialect) -> String {
-    let body = render_blocks(item, width.saturating_sub(2), enum_depth, dialect);
+fn list_item(
+    item: &[Block],
+    width: usize,
+    enum_depth: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> String {
+    let body = render_blocks(item, width.saturating_sub(2), enum_depth, dialect, wrap);
     let content = indent_block(&body, "  ", "  ");
     if content.is_empty() {
         "\\item".to_owned()
@@ -406,16 +492,17 @@ fn definition_list(
     width: usize,
     enum_depth: usize,
     dialect: Dialect,
+    wrap: WrapMode,
 ) -> String {
     let mut lines = vec![format!("\\begin{{description}}{}", overlay(dialect))];
     if is_tight_definitions(items) {
         lines.push("\\tightlist".to_owned());
     }
     for (term, definitions) in items {
-        let header = format!("\\item[{}]", inlines_to_string(term, width, dialect));
+        let header = format!("\\item[{}]", inlines_to_string(term, width, dialect, wrap));
         let bodies: Vec<String> = definitions
             .iter()
-            .map(|definition| render_blocks(definition, width, enum_depth, dialect))
+            .map(|definition| render_blocks(definition, width, enum_depth, dialect, wrap))
             .filter(|rendered| !rendered.is_empty())
             .collect();
         if bodies.is_empty() {
@@ -428,10 +515,10 @@ fn definition_list(
     lines.join("\n")
 }
 
-fn line_block(lines: &[Vec<Inline>], width: usize, dialect: Dialect) -> String {
+fn line_block(lines: &[Vec<Inline>], width: usize, dialect: Dialect, wrap: WrapMode) -> String {
     lines
         .iter()
-        .map(|line| inlines_to_string(line, width, dialect))
+        .map(|line| inlines_to_string(line, width, dialect, wrap))
         .collect::<Vec<_>>()
         .join("\\\\\n")
 }
@@ -443,11 +530,12 @@ fn figure(
     width: usize,
     enum_depth: usize,
     dialect: Dialect,
+    wrap: WrapMode,
 ) -> String {
     let mut parts = vec![
         "\\begin{figure}".to_owned(),
         "\\centering".to_owned(),
-        render_blocks(blocks, width, enum_depth, dialect),
+        render_blocks(blocks, width, enum_depth, dialect, wrap),
     ];
     let caption_inlines = caption_text(caption);
     if !caption_inlines.is_empty() || !attr.id.is_empty() {
@@ -458,7 +546,7 @@ fn figure(
         };
         parts.push(format!(
             "\\caption{{{}}}{label}",
-            inlines_to_string(&caption_inlines, width, dialect)
+            inlines_to_string(&caption_inlines, width, dialect, wrap)
         ));
     }
     parts.push("\\end{figure}".to_owned());
@@ -480,7 +568,7 @@ fn caption_text(caption: &Caption) -> Vec<Inline> {
 /// counter is not advanced; a captioned one carries the caption and repeats its head for page
 /// breaks. Spans become `\multicolumn`/`\multirow`; columns are letter classes unless explicit or
 /// block-level cells call for sized `p{…}` columns with minipage cells.
-fn render_table(table: &Table, width: usize, dialect: Dialect) -> String {
+fn render_table(table: &Table, width: usize, dialect: Dialect, wrap: WrapMode) -> String {
     let plan = ColumnPlan::new(table);
     let head_rows: Vec<&Row> = table.head.rows.iter().collect();
     let body_rows: Vec<&Row> = table
@@ -490,10 +578,10 @@ fn render_table(table: &Table, width: usize, dialect: Dialect) -> String {
         .collect();
     let foot_rows: Vec<&Row> = table.foot.rows.iter().collect();
 
-    let head_lines = render_section(&head_rows, &plan, true, width, dialect);
-    let body_lines = render_section(&body_rows, &plan, false, width, dialect);
-    let foot_lines = render_section(&foot_rows, &plan, false, width, dialect);
-    let caption = table_caption(&table.caption, &table.attr, width, dialect);
+    let head_lines = render_section(&head_rows, &plan, true, width, dialect, wrap);
+    let body_lines = render_section(&body_rows, &plan, false, width, dialect, wrap);
+    let foot_lines = render_section(&foot_rows, &plan, false, width, dialect, wrap);
+    let caption = table_caption(&table.caption, &table.attr, width, dialect, wrap);
 
     let mut parts = vec![format!("\\begin{{longtable}}[]{{{}}}", plan.colspec())];
     if let Some(caption) = &caption {
@@ -637,12 +725,13 @@ fn all_rows(table: &Table) -> impl Iterator<Item = &Row> {
 }
 
 /// Shared layout context for a table section's rows: the column plan, whether these are header
-/// rows, the reflow width, and the output dialect.
+/// rows, the reflow width, the output dialect, and the text-layout mode for cell prose.
 struct TableContext<'a> {
     plan: &'a ColumnPlan,
     head: bool,
     width: usize,
     dialect: Dialect,
+    wrap: WrapMode,
 }
 
 /// Render a section's rows to `longtable` lines, resolving spans against the section's own grid.
@@ -652,12 +741,14 @@ fn render_section(
     head: bool,
     width: usize,
     dialect: Dialect,
+    wrap: WrapMode,
 ) -> Vec<String> {
     let context = TableContext {
         plan,
         head,
         width,
         dialect,
+        wrap,
     };
     let placements = grid::place_columns(rows, plan.columns);
     rows.iter()
@@ -706,7 +797,7 @@ fn render_row(row: &Row, placements: &[(usize, usize)], context: &TableContext) 
         tokens.pop();
     }
     glue_suffix(&mut tokens, " \\\\");
-    layout_row(&tokens, context.width)
+    layout_row(&tokens, context.width, context.wrap)
 }
 
 /// Split a rendered field into layout tokens: inter-word spaces become breakable, newlines forced
@@ -736,8 +827,14 @@ fn push_field_tokens(tokens: &mut Vec<Token>, field: &str) {
 }
 
 /// Greedily lay tokens out at `width`: place words separated by single spaces, break a line before
-/// a word that would overflow, and honor forced breaks verbatim.
-fn layout_row(tokens: &[Token], width: usize) -> String {
+/// a word that would overflow, and honor forced breaks verbatim. Soft reflow applies only under
+/// [`WrapMode::Auto`]; otherwise the row stays on one logical line and only its forced breaks split
+/// it.
+fn layout_row(tokens: &[Token], width: usize, wrap: WrapMode) -> String {
+    let width = match wrap {
+        WrapMode::Auto => width,
+        WrapMode::None | WrapMode::Preserve => usize::MAX,
+    };
     let mut out = String::new();
     let mut column = 0usize;
     let mut line_start = true;
@@ -831,7 +928,7 @@ fn glue_suffix(tokens: &mut Vec<Token>, suffix: &str) {
 /// Render a cell's content, wrapping it in a `minipage` when the columns are explicitly sized and
 /// the cell is a header cell or carries block-level content.
 fn render_cell(cell: &Cell, start: usize, context: &TableContext) -> String {
-    let text = cell_content(cell, context.width, context.dialect);
+    let text = cell_content(cell, context.width, context.dialect, context.wrap);
     if context.plan.explicit && (context.head || !is_simple_cell(cell)) {
         minipage(
             context.head,
@@ -888,16 +985,16 @@ fn multicolumn_spec(cell: &Cell, start: usize, span: usize, plan: &ColumnPlan) -
 
 /// Render a cell's content to a string: simple cells flatten to one logical line, block-level cells
 /// render as stacked blocks.
-fn cell_content(cell: &Cell, width: usize, dialect: Dialect) -> String {
+fn cell_content(cell: &Cell, width: usize, dialect: Dialect, wrap: WrapMode) -> String {
     if is_simple_cell(cell) {
         match cell.content.first() {
             Some(Block::Plain(inlines) | Block::Para(inlines)) => {
-                flatten_pieces(&inline_pieces(inlines, dialect))
+                flatten_pieces(&inline_pieces(inlines, dialect, wrap))
             }
             _ => String::new(),
         }
     } else {
-        render_blocks(&cell.content, width, 0, dialect)
+        render_blocks(&cell.content, width, 0, dialect, wrap)
     }
 }
 
@@ -916,7 +1013,7 @@ fn flatten_pieces(pieces: &[Piece]) -> String {
     for piece in pieces {
         match piece {
             Piece::Text(text) => out.push_str(text),
-            Piece::Space => out.push(' '),
+            Piece::Space | Piece::Soft => out.push(' '),
             Piece::Hard => out.push('\n'),
         }
     }
@@ -965,14 +1062,25 @@ fn multirow_prefix(align: &Alignment) -> &'static str {
 /// Render a table caption to a `\caption[short]{long}…\tabularnewline` line, reflowed at `width`.
 /// Returns `None` for an empty caption. The closing brace, optional label, and `\tabularnewline`
 /// stay glued to the final word so they reflow as one unit.
-fn table_caption(caption: &Caption, attr: &Attr, width: usize, dialect: Dialect) -> Option<String> {
+fn table_caption(
+    caption: &Caption,
+    attr: &Attr,
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) -> Option<String> {
     if caption.long.is_empty() {
         return None;
     }
     let short = caption
         .short
         .as_ref()
-        .map(|inlines| format!("[{}]", flatten_pieces(&inline_pieces(inlines, dialect))))
+        .map(|inlines| {
+            format!(
+                "[{}]",
+                flatten_pieces(&inline_pieces(inlines, dialect, wrap))
+            )
+        })
         .unwrap_or_default();
     let mut pieces = vec![Piece::Text(format!("\\caption{short}{{"))];
     let mut first = true;
@@ -983,7 +1091,7 @@ fn table_caption(caption: &Caption, attr: &Attr, width: usize, dialect: Dialect)
                 pieces.push(Piece::Hard);
             }
             first = false;
-            pieces.extend(inline_pieces(inlines, dialect));
+            pieces.extend(inline_pieces(inlines, dialect, wrap));
         }
     }
     let mut close = String::from("}");
@@ -992,7 +1100,7 @@ fn table_caption(caption: &Caption, attr: &Attr, width: usize, dialect: Dialect)
     }
     close.push_str("\\tabularnewline");
     pieces.push(Piece::Text(close));
-    Some(fill(&pieces, width))
+    Some(fill(&pieces, width, wrap))
 }
 
 /// The leading `\def\labelenum…` an ordered list carries, or `None` when both numeral style and
@@ -1062,39 +1170,41 @@ fn needs_texorpdfstring(inlines: &[Inline]) -> bool {
         .any(|inline| !matches!(inline, Inline::Str(_) | Inline::Space | Inline::SoftBreak))
 }
 
-fn inlines_to_string(inlines: &[Inline], width: usize, dialect: Dialect) -> String {
-    fill(&inline_pieces(inlines, dialect), width)
+fn inlines_to_string(inlines: &[Inline], width: usize, dialect: Dialect, wrap: WrapMode) -> String {
+    fill(&inline_pieces(inlines, dialect, wrap), width, wrap)
 }
 
-fn inline_pieces(inlines: &[Inline], dialect: Dialect) -> Vec<Piece> {
+fn inline_pieces(inlines: &[Inline], dialect: Dialect, wrap: WrapMode) -> Vec<Piece> {
     let mut out = Vec::new();
     for inline in inlines {
-        push_inline(inline, &mut out, dialect);
+        push_inline(inline, &mut out, dialect, wrap);
     }
     out
 }
 
-fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect) {
+fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect, wrap: WrapMode) {
     match inline {
         Inline::Str(text) => out.push(Piece::Text(escape(text, EscapeMode::Text))),
-        Inline::Emph(inlines) => wrap_command("\\emph{", inlines, out, dialect),
-        Inline::Strong(inlines) => wrap_command("\\textbf{", inlines, out, dialect),
-        Inline::Underline(inlines) => wrap_command("\\ul{", inlines, out, dialect),
-        Inline::Strikeout(inlines) => wrap_command("\\st{", inlines, out, dialect),
-        Inline::Superscript(inlines) => wrap_command("\\textsuperscript{", inlines, out, dialect),
-        Inline::Subscript(inlines) => wrap_command("\\textsubscript{", inlines, out, dialect),
-        Inline::SmallCaps(inlines) => wrap_command("\\textsc{", inlines, out, dialect),
+        Inline::Emph(inlines) => wrap_command("\\emph{", inlines, out, dialect, wrap),
+        Inline::Strong(inlines) => wrap_command("\\textbf{", inlines, out, dialect, wrap),
+        Inline::Underline(inlines) => wrap_command("\\ul{", inlines, out, dialect, wrap),
+        Inline::Strikeout(inlines) => wrap_command("\\st{", inlines, out, dialect, wrap),
+        Inline::Superscript(inlines) => {
+            wrap_command("\\textsuperscript{", inlines, out, dialect, wrap);
+        }
+        Inline::Subscript(inlines) => wrap_command("\\textsubscript{", inlines, out, dialect, wrap),
+        Inline::SmallCaps(inlines) => wrap_command("\\textsc{", inlines, out, dialect, wrap),
         Inline::Quoted(kind, inlines) => {
             let (open, close) = quote_marks(kind);
             out.push(Piece::Text(open.to_owned()));
             for inline in inlines {
-                push_inline(inline, out, dialect);
+                push_inline(inline, out, dialect, wrap);
             }
             out.push(Piece::Text(close.to_owned()));
         }
         Inline::Cite(_, inlines) => {
             for inline in inlines {
-                push_inline(inline, out, dialect);
+                push_inline(inline, out, dialect, wrap);
             }
         }
         Inline::Code(_, text) => {
@@ -1103,7 +1213,8 @@ fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect) {
                 escape(text, EscapeMode::Code)
             )));
         }
-        Inline::Space | Inline::SoftBreak => out.push(Piece::Space),
+        Inline::Space => out.push(Piece::Space),
+        Inline::SoftBreak => out.push(Piece::Soft),
         Inline::LineBreak => {
             out.push(Piece::Text("\\\\".to_owned()));
             out.push(Piece::Hard);
@@ -1120,7 +1231,9 @@ fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect) {
                 out.push(Piece::Text(text.clone()));
             }
         }
-        Inline::Link(attr, inlines, target) => push_link(attr, inlines, target, out, dialect),
+        Inline::Link(attr, inlines, target) => {
+            push_link(attr, inlines, target, out, dialect, wrap);
+        }
         Inline::Image(attr, inlines, target) => out.push(Piece::Text(image(attr, inlines, target))),
         Inline::Span(attr, inlines) => {
             let mut open = if attr.id.is_empty() {
@@ -1131,18 +1244,24 @@ fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect) {
             open.push('{');
             out.push(Piece::Text(open));
             for inline in inlines {
-                push_inline(inline, out, dialect);
+                push_inline(inline, out, dialect, wrap);
             }
             out.push(Piece::Text("}".to_owned()));
         }
-        Inline::Note(blocks) => out.push(Piece::Text(note(blocks, dialect))),
+        Inline::Note(blocks) => out.push(Piece::Text(note(blocks, dialect, wrap))),
     }
 }
 
-fn wrap_command(open: &str, inlines: &[Inline], out: &mut Vec<Piece>, dialect: Dialect) {
+fn wrap_command(
+    open: &str,
+    inlines: &[Inline],
+    out: &mut Vec<Piece>,
+    dialect: Dialect,
+    wrap: WrapMode,
+) {
     out.push(Piece::Text(open.to_owned()));
     for inline in inlines {
-        push_inline(inline, out, dialect);
+        push_inline(inline, out, dialect, wrap);
     }
     out.push(Piece::Text("}".to_owned()));
 }
@@ -1153,6 +1272,7 @@ fn push_link(
     target: &Target,
     out: &mut Vec<Piece>,
     dialect: Dialect,
+    wrap: WrapMode,
 ) {
     if !attr.id.is_empty() {
         out.push(Piece::Text(phantom_label(&attr.id)));
@@ -1166,7 +1286,7 @@ fn push_link(
     }
     out.push(Piece::Text(format!("\\href{{{url}}}{{")));
     for inline in inlines {
-        push_inline(inline, out, dialect);
+        push_inline(inline, out, dialect, wrap);
     }
     out.push(Piece::Text("}".to_owned()));
 }
@@ -1256,14 +1376,14 @@ fn trim_number(value: f64) -> String {
 /// continuation paragraphs align with the first; a code block instead sits flush against the margin
 /// in a `Verbatim` environment, since verbatim content cannot be indented, and pushes the closing
 /// brace onto its own line.
-fn note(blocks: &[Block], dialect: Dialect) -> String {
+fn note(blocks: &[Block], dialect: Dialect, wrap: WrapMode) -> String {
     let width = FILL_COLUMN.saturating_sub(2);
     let mut parts: Vec<String> = Vec::new();
     let mut ends_with_code = false;
     for block in blocks {
         let (rendered, is_code) = match block {
             Block::CodeBlock(attr, text) => (code_block_env(attr, text, "Verbatim"), true),
-            _ => (block_to_string(block, width, 0, dialect), false),
+            _ => (block_to_string(block, width, 0, dialect, wrap), false),
         };
         if rendered.is_empty() {
             continue;

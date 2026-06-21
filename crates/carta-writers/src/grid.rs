@@ -3,6 +3,7 @@
 //! drawn as merged rectangles, and optional alignment colons.
 
 use carta_ast::{Alignment, ColSpec, ColWidth, Row};
+use carta_core::WrapMode;
 
 use crate::common::display_width;
 
@@ -448,13 +449,14 @@ pub(crate) fn grid_content_widths(
     minword: &[usize],
     colspans: &[(usize, usize)],
     columns: usize,
+    wrap: WrapMode,
 ) -> Vec<usize> {
     let explicit = specs.iter().any(|spec| match &spec.width {
         ColWidth::ColWidth(fraction) => *fraction > 0.0 && explicit_grid_width(*fraction) > 0,
         ColWidth::ColWidthDefault => false,
     });
     if !explicit {
-        return auto_grid_widths(natural, minword, columns);
+        return auto_grid_widths(natural, minword, columns, wrap);
     }
     let mut widths: Vec<usize> = (0..columns)
         .map(|index| match specs.get(index).map(|spec| &spec.width) {
@@ -505,7 +507,19 @@ fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize) -> usize {
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation
 )]
-fn auto_grid_widths(natural: &[usize], minword: &[usize], columns: usize) -> Vec<usize> {
+fn auto_grid_widths(
+    natural: &[usize],
+    minword: &[usize],
+    columns: usize,
+    wrap: WrapMode,
+) -> Vec<usize> {
+    // With no width wrapping, cells render on a single line, so each column grows to hold its
+    // widest cell rather than being squeezed into a shared budget.
+    if wrap == WrapMode::None {
+        return (0..columns)
+            .map(|index| natural.get(index).copied().unwrap_or(0))
+            .collect();
+    }
     let available = 71i64 - 3 * columns as i64;
     let mut budget = available.max(0) as usize;
     let mut assigned: Vec<Option<usize>> = vec![None; columns];

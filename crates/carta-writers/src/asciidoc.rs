@@ -10,7 +10,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Inline, ListAttributes,
     ListNumberStyle, MathType, QuoteType, Row, Table, TableBody, Target, slug, to_plain_text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, attribute_value, display_width, fill,
@@ -22,8 +22,11 @@ use crate::common::{
 pub struct AsciidocWriter;
 
 impl Writer for AsciidocWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let mut state = State {
+            wrap: options.wrap,
+            ..State::default()
+        };
         let body = state.blocks(&document.blocks, FILL_COLUMN);
         Ok(body.trim_end_matches('\n').to_owned())
     }
@@ -41,6 +44,7 @@ impl Writer for AsciidocWriter {
 struct State {
     bullet_depth: usize,
     ordered_depth: usize,
+    wrap: WrapMode,
 }
 
 impl State {
@@ -91,7 +95,7 @@ impl State {
             .iter()
             .any(|inline| matches!(inline, Inline::Math(MathType::DisplayMath, _)))
         {
-            return fill(&self.pieces(inlines), width);
+            return fill(&self.pieces(inlines), width, self.wrap);
         }
         let mut out = String::new();
         let mut text_run: Vec<Inline> = Vec::new();
@@ -125,14 +129,15 @@ impl State {
         if trimmed.is_empty() {
             return None;
         }
-        let rendered = fill(&self.pieces(trimmed), width);
+        let rendered = fill(&self.pieces(trimmed), width, self.wrap);
         (!rendered.is_empty()).then_some(rendered)
     }
 
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
         let depth = usize::try_from(level.max(0)).unwrap_or(0).saturating_add(1);
         let equals = "=".repeat(depth);
-        let text = fill(&self.pieces(inlines), FILL_COLUMN);
+        // A section title is a single line: it is never reflowed, whatever the wrap mode.
+        let text = self.inline_string(inlines);
         let heading = format!("{equals} {text}");
         if !attr.id.is_empty() && attr.id != slug(&to_plain_text(inlines)) {
             format!("[[{}]]\n{heading}", attr.id)
@@ -144,7 +149,7 @@ impl State {
     fn line_block(&mut self, lines: &[Vec<Inline>], width: usize) -> String {
         let body: Vec<String> = lines
             .iter()
-            .map(|line| fill(&self.pieces(line), width))
+            .map(|line| fill(&self.pieces(line), width, self.wrap))
             .collect();
         format!("[verse]\n--\n{}\n--", body.join("\n"))
     }
@@ -284,7 +289,7 @@ impl State {
     ) -> String {
         let mut entries = Vec::new();
         for (term, definitions) in items {
-            let term_text = fill(&self.pieces(term), width);
+            let term_text = fill(&self.pieces(term), width, self.wrap);
             let mut entry = format!("{term_text}::");
             let bodies: Vec<String> = definitions
                 .iter()
@@ -391,7 +396,7 @@ impl State {
     fn cell_inlines(&mut self, blocks: &[Block], width: usize, initial: usize) -> String {
         match blocks {
             [Block::Plain(inlines) | Block::Para(inlines)] => {
-                fill_offset(&self.pieces(inlines), width, initial)
+                fill_offset(&self.pieces(inlines), width, initial, self.wrap)
             }
             _ => String::new(),
         }
@@ -416,18 +421,32 @@ impl State {
     ) {
         let text = match inline {
             Inline::Str(text) => escape_text(text),
-            Inline::Emph(inlines) => self.bracketed(inlines, '_', before, after),
-            Inline::Strong(inlines) => self.bracketed(inlines, '*', before, after),
-            Inline::Strikeout(inlines) => {
-                format!("[line-through]#{}#", self.inline_string(inlines))
+            Inline::Emph(inlines) => {
+                self.bracketed(inlines, '_', before, after, out);
+                return;
             }
-            Inline::Underline(inlines) => format!("[.underline]#{}#", self.inline_string(inlines)),
-            Inline::SmallCaps(inlines) => format!("[smallcaps]#{}#", self.inline_string(inlines)),
+            Inline::Strong(inlines) => {
+                self.bracketed(inlines, '*', before, after, out);
+                return;
+            }
+            Inline::Strikeout(inlines) => {
+                self.wrapped(inlines, "[line-through]#", "#", out);
+                return;
+            }
+            Inline::Underline(inlines) => {
+                self.wrapped(inlines, "[.underline]#", "#", out);
+                return;
+            }
+            Inline::SmallCaps(inlines) => {
+                self.wrapped(inlines, "[smallcaps]#", "#", out);
+                return;
+            }
             Inline::Superscript(inlines) => format!("^{}^", self.inline_string(inlines)),
             Inline::Subscript(inlines) => format!("~{}~", self.inline_string(inlines)),
             Inline::Quoted(kind, inlines) => {
                 let (open, close) = quote_glyphs(kind);
-                format!("{open}{}{close}", self.inline_string(inlines))
+                self.wrapped(inlines, &open, &close, out);
+                return;
             }
             Inline::Cite(_, inlines) => {
                 for (index, child) in inlines.iter().enumerate() {
@@ -438,8 +457,12 @@ impl State {
                 return;
             }
             Inline::Code(_, text) => format!("`{}`", escape_text(text)),
-            Inline::Space | Inline::SoftBreak => {
+            Inline::Space => {
                 out.push(Piece::Space);
+                return;
+            }
+            Inline::SoftBreak => {
+                out.push(Piece::Soft);
                 return;
             }
             Inline::LineBreak => {
@@ -463,15 +486,44 @@ impl State {
                 let alt = self.inline_string(inlines);
                 format!("image:{}[{}]", target.url, image_args(attr, target, &alt))
             }
-            Inline::Span(attr, inlines) => self.span(attr, inlines),
+            Inline::Span(attr, inlines) => {
+                self.span(attr, inlines, out);
+                return;
+            }
             Inline::Note(blocks) => self.note(blocks),
         };
         out.push(Piece::Text(text));
     }
 
+    /// Render an inline sequence wrapped in `open`/`close` delimiters while keeping its internal
+    /// spaces as wrap points: the opening fuses to the first word and the closing to the last, so a
+    /// long run can break across lines with the markers staying attached to their boundary words.
+    fn wrapped(&mut self, inlines: &[Inline], open: &str, close: &str, out: &mut Vec<Piece>) {
+        let mut body = self.pieces(inlines);
+        match body
+            .iter()
+            .position(|piece| matches!(piece, Piece::Text(_)))
+        {
+            Some(first) => {
+                if let Some(Piece::Text(text)) = body.get_mut(first) {
+                    *text = format!("{open}{text}");
+                }
+                if let Some(Piece::Text(text)) = body
+                    .iter_mut()
+                    .rev()
+                    .find(|piece| matches!(piece, Piece::Text(_)))
+                {
+                    text.push_str(close);
+                }
+                out.append(&mut body);
+            }
+            None => out.push(Piece::Text(format!("{open}{close}"))),
+        }
+    }
+
     /// Render an inline sequence to a single string with no line filling: spaces stay literal.
     fn inline_string(&mut self, inlines: &[Inline]) -> String {
-        fill(&self.pieces(inlines), usize::MAX)
+        fill(&self.pieces(inlines), usize::MAX, WrapMode::Auto)
     }
 
     /// Render emphasis or strong with its single-character marker, choosing the unconstrained
@@ -482,14 +534,15 @@ impl State {
         marker: char,
         before: Option<&Inline>,
         after: Option<&Inline>,
-    ) -> String {
-        let body = self.inline_string(inlines);
+        out: &mut Vec<Piece>,
+    ) {
         let unconstrained = closes_left_boundary(before) || closes_right_boundary(after);
-        if unconstrained {
-            format!("{marker}{marker}{body}{marker}{marker}")
+        let delim = if unconstrained {
+            format!("{marker}{marker}")
         } else {
-            format!("{marker}{body}{marker}")
-        }
+            marker.to_string()
+        };
+        self.wrapped(inlines, &delim, &delim, out);
     }
 
     /// Emit a link, keeping the label's internal spaces as wrap points so a long label can break
@@ -533,11 +586,10 @@ impl State {
         }
     }
 
-    fn span(&mut self, attr: &Attr, inlines: &[Inline]) -> String {
-        let body = self.inline_string(inlines);
+    fn span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
         match span_role(attr) {
-            Some(role) => format!("[{role}]#{body}#"),
-            None => body,
+            Some(role) => self.wrapped(inlines, &format!("[{role}]#"), "#", out),
+            None => out.append(&mut self.pieces(inlines)),
         }
     }
 
@@ -562,7 +614,12 @@ fn render_caption(caption: &Caption, state: &mut State, width: usize) -> Option<
     for (index, block) in caption.long.iter().enumerate() {
         if let Block::Plain(inlines) | Block::Para(inlines) = block {
             let initial = usize::from(index == 0);
-            lines.push(fill_offset(&state.pieces(inlines), width, initial));
+            lines.push(fill_offset(
+                &state.pieces(inlines),
+                width,
+                initial,
+                state.wrap,
+            ));
         }
     }
     let body = lines.join(" +\n");

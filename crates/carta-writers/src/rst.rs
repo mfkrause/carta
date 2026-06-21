@@ -10,10 +10,10 @@ use carta_ast::{
     Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, MetaValue,
     Row, Table, Target, slug, to_plain_text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, block_inlines, body_rows, display_width, fill,
+    FILL_COLUMN, Piece, attribute_value, block_inlines, body_rows, display_width, fill, fill_cell,
     indent_block, is_known_scheme, is_uri_scheme, offset_as_i32, ordered_marker, quote_marks,
 };
 use crate::grid;
@@ -26,8 +26,11 @@ const RULE_WIDTH: usize = 14;
 pub struct RstWriter;
 
 impl Writer for RstWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let mut state = State {
+            wrap: options.wrap,
+            ..State::default()
+        };
         let body = state.blocks_to_string(&document.blocks, FILL_COLUMN, true);
         let mut sections = Vec::new();
         if !body.is_empty() {
@@ -91,10 +94,15 @@ struct State {
     footnotes: Vec<String>,
     substitutions: Vec<String>,
     fallback_count: usize,
+    wrap: WrapMode,
+    /// Set while laying out the content of a table cell, whose field reflows to its column width
+    /// even when the document is not auto-wrapped.
+    in_cell: bool,
 }
 
 /// An inline-rendering unit: an unbreakable text run carrying whether it is RST markup (so its
-/// boundaries may need a `\ ` separator), a breakable space, or a forced line break.
+/// boundaries may need a `\ ` separator), a breakable space, a soft line break from the source, or a
+/// forced line break.
 #[derive(Debug, Clone)]
 enum Token {
     Word {
@@ -106,6 +114,9 @@ enum Token {
     /// meets adjacent markup (a raw inline whose target format is not being emitted).
     Marker,
     Space,
+    /// A breakable space originating from a soft line break in the source, distinct from a plain
+    /// space so the fill engine can preserve the break when asked to.
+    Soft,
     Hard,
 }
 
@@ -147,9 +158,20 @@ impl State {
         out
     }
 
+    /// Fill inline content to `width` under the active wrap mode. Inside a table cell the field
+    /// reflows to its column width even when the document is not auto-wrapped.
+    fn lay(&mut self, inlines: &[Inline], width: usize) -> String {
+        let pieces = to_pieces(self.tokens(inlines));
+        if self.in_cell {
+            fill_cell(&pieces, width, self.wrap)
+        } else {
+            fill(&pieces, width, self.wrap)
+        }
+    }
+
     fn block(&mut self, block: &Block, width: usize, top: bool) -> String {
         match block {
-            Block::Plain(inlines) => fill(&to_pieces(self.tokens(inlines)), width),
+            Block::Plain(inlines) => self.lay(inlines, width),
             Block::Para(inlines) => self.para(inlines, width),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines, top),
             Block::CodeBlock(attr, text) => code_block(attr, text),
@@ -203,7 +225,7 @@ impl State {
         if has_display_math {
             return self.para_with_math(inlines, width);
         }
-        fill(&to_pieces(self.tokens(inlines)), width)
+        self.lay(inlines, width)
     }
 
     fn para_with_math(&mut self, inlines: &[Inline], width: usize) -> String {
@@ -214,7 +236,7 @@ impl State {
                 if let Some(segment) = inlines.get(start..index)
                     && !segment.is_empty()
                 {
-                    let text = fill(&to_pieces(self.tokens(segment)), width);
+                    let text = self.lay(segment, width);
                     if !text.is_empty() {
                         parts.push(text);
                     }
@@ -226,7 +248,7 @@ impl State {
         if let Some(segment) = inlines.get(start..)
             && !segment.is_empty()
         {
-            let text = fill(&to_pieces(self.tokens(segment)), width);
+            let text = self.lay(segment, width);
             if !text.is_empty() {
                 parts.push(text);
             }
@@ -237,7 +259,7 @@ impl State {
     /// Render one line-block line: its inlines filled to the body width, then prefixed with `| ` and
     /// continuation lines indented to match.
     fn render_line(&mut self, line: &[Inline], width: usize) -> String {
-        let body = fill(&to_pieces(self.tokens(line)), width.saturating_sub(2));
+        let body = self.lay(line, width.saturating_sub(2));
         indent_block(&body, "| ", "  ")
     }
 
@@ -412,7 +434,8 @@ impl State {
                 complex: false,
                 lead: text.chars().next().unwrap_or('\0'),
             }),
-            Inline::Space | Inline::SoftBreak => out.push(Token::Space),
+            Inline::Space => out.push(Token::Space),
+            Inline::SoftBreak => out.push(Token::Soft),
             Inline::LineBreak => out.push(Token::Hard),
             Inline::Emph(inlines) | Inline::Underline(inlines) => {
                 self.phrase(inlines, in_emphasis, "*", "*", PhraseKind::Emph, out);
@@ -421,14 +444,12 @@ impl State {
                 self.phrase(inlines, in_emphasis, "**", "**", PhraseKind::Strong, out);
             }
             Inline::Strikeout(inlines) => {
-                self.phrase(
-                    inlines,
-                    in_emphasis,
-                    "[STRIKEOUT:",
-                    "]",
-                    PhraseKind::Leaf,
-                    out,
-                );
+                let (open, close) = if in_emphasis {
+                    ("", "")
+                } else {
+                    ("[STRIKEOUT:", "]")
+                };
+                self.wrapped(inlines, open, close, true, true, out);
             }
             Inline::Superscript(inlines) => {
                 self.phrase(inlines, in_emphasis, ":sup:`", "`", PhraseKind::Leaf, out);
@@ -447,10 +468,14 @@ impl State {
             }
             Inline::Quoted(kind, inlines) => {
                 let (open, close) = quote_marks(kind);
-                out.push(word(
-                    format!("{open}{}{close}", self.flat_nested(inlines, in_emphasis)),
+                self.wrapped(
+                    inlines,
+                    &open.to_string(),
+                    &close.to_string(),
+                    in_emphasis,
                     false,
-                ));
+                    out,
+                );
             }
             Inline::Cite(_, inlines) | Inline::Span(_, inlines) => {
                 let inner = self.tokens_nested(inlines, in_emphasis);
@@ -572,30 +597,36 @@ impl State {
             }
             self.token(inline, true, out);
         }
-        let lines = split_at(split.middle, |inline| matches!(inline, Inline::LineBreak));
-        let final_line = lines.len().saturating_sub(1);
-        for (index, line) in lines.iter().enumerate() {
-            let mut text = String::new();
-            if index == 0 {
-                text.push_str(open);
-                text.push_str(split.lead_sep);
-            }
-            text.push_str(&self.flat_nested(line, true));
-            if index == final_line {
-                text.push_str(split.trail_sep);
-                text.push_str(close);
-            }
-            out.push(word(text, true));
-            if index != final_line {
-                out.push(Token::Hard);
-            }
-        }
+        // Render the run's core as breakable tokens so a long phrase can reflow and a source line
+        // break inside it survives: the opening marker fuses to the first word and the closing to the
+        // last, with the words between left separately breakable.
+        let opening = format!("{open}{}", split.lead_sep);
+        let closing = format!("{}{close}", split.trail_sep);
+        let body = self.tokens_nested(split.middle, true);
+        wrap_run(body, &opening, &closing, true, out);
         for inline in split.trail {
             if trail_break && matches!(inline, Inline::SoftBreak | Inline::LineBreak) {
                 continue;
             }
             self.token(inline, true, out);
         }
+    }
+
+    /// Wrap an inline run in fixed open/close delimiters, leaving the words between them separately
+    /// breakable so a long span can reflow and a source line break inside it survives. `complex`
+    /// marks the fused boundary words as markup (so neighbouring text is parted by a `\ ` separator);
+    /// smart-quote glyphs are plain text and pass `false`.
+    fn wrapped(
+        &mut self,
+        inlines: &[Inline],
+        open: &str,
+        close: &str,
+        in_emphasis: bool,
+        complex: bool,
+        out: &mut Vec<Token>,
+    ) {
+        let body = self.tokens_nested(inlines, in_emphasis);
+        wrap_run(body, open, close, complex, out);
     }
 
     fn link(&mut self, label: &[Inline], target: &Target, out: &mut Vec<Token>) {
@@ -958,8 +989,14 @@ impl State {
             .copied()
             .filter(|&(_, span)| span > 1)
             .collect();
-        let content =
-            grid::grid_content_widths(&table.col_specs, &natural, &minword, &colspans, columns);
+        let content = grid::grid_content_widths(
+            &table.col_specs,
+            &natural,
+            &minword,
+            &colspans,
+            columns,
+            self.wrap,
+        );
         let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
         let head_grid = self.grid_rows(&head, &head_layout, &content);
         let body_grid = self.grid_rows(&body, &body_layout, &content);
@@ -1040,7 +1077,10 @@ impl State {
 
     /// Render a cell's block content to lines at the given width.
     fn cell_lines(&mut self, content: &[Block], width: usize) -> Vec<String> {
+        let was_in_cell = self.in_cell;
+        self.in_cell = true;
         let text = self.blocks_to_string(content, width, false);
+        self.in_cell = was_in_cell;
         if text.is_empty() {
             Vec::new()
         } else {
@@ -1304,6 +1344,10 @@ fn to_pieces(tokens: Vec<Token>) -> Vec<Piece> {
                 out.push(Piece::Space);
                 pending = None;
             }
+            Token::Soft => {
+                out.push(Piece::Soft);
+                pending = None;
+            }
             Token::Hard => {
                 out.push(Piece::Hard);
                 pending = None;
@@ -1313,6 +1357,38 @@ fn to_pieces(tokens: Vec<Token>) -> Vec<Piece> {
     out
 }
 
+/// Emit `body` wrapped in `opening`/`closing` delimiters while keeping its internal spaces breakable:
+/// the opening fuses to the first word token and the closing to the last, so a long run reflows with
+/// the delimiters anchored to their boundary words. `complex` marks the boundary words as markup so
+/// the `\ ` null-separator rules apply around them. A body with no word token collapses to a single
+/// flattened word carrying both delimiters.
+fn wrap_run(body: Vec<Token>, opening: &str, closing: &str, complex: bool, out: &mut Vec<Token>) {
+    let first = body.iter().position(is_word_token);
+    let last = body.iter().rposition(is_word_token);
+    match (first, last) {
+        (Some(first), Some(last)) => {
+            for (index, token) in body.into_iter().enumerate() {
+                match token {
+                    Token::Word { text, .. } if index == first && index == last => {
+                        out.push(word(format!("{opening}{text}{closing}"), complex));
+                    }
+                    Token::Word { text, .. } if index == first => {
+                        out.push(word(format!("{opening}{text}"), complex));
+                    }
+                    Token::Word { text, .. } if index == last => {
+                        out.push(word(format!("{text}{closing}"), complex));
+                    }
+                    other => out.push(other),
+                }
+            }
+        }
+        _ => out.push(word(
+            format!("{opening}{}{closing}", flatten(body)),
+            complex,
+        )),
+    }
+}
+
 /// Flatten inline tokens to a single line: spaces and forced breaks become one space, with the same
 /// `\ ` separators [`to_pieces`] inserts between adjacent markup boundaries.
 fn flatten(tokens: Vec<Token>) -> String {
@@ -1320,7 +1396,7 @@ fn flatten(tokens: Vec<Token>) -> String {
     for piece in to_pieces(tokens) {
         match piece {
             Piece::Text(text) => out.push_str(&text),
-            Piece::Space | Piece::Hard => out.push(' '),
+            Piece::Space | Piece::Soft | Piece::Hard => out.push(' '),
         }
     }
     out
