@@ -11,7 +11,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
     ListNumberStyle, MathType, Row, Table, TableBody, Target, Text, to_plain_text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, RowSpanGrid, is_known_attribute, is_wide, normalize_image_attr, quote_marks,
@@ -28,6 +28,10 @@ impl Writer for HtmlWriter {
 
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.html"))
+    }
+
+    fn meta_var_style(&self) -> MetaVarStyle {
+        MetaVarStyle::Web
     }
 }
 
@@ -46,6 +50,10 @@ impl Writer for Html4Writer {
 
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.html4"))
+    }
+
+    fn meta_var_style(&self) -> MetaVarStyle {
+        MetaVarStyle::Web
     }
 }
 
