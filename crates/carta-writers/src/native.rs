@@ -3,15 +3,17 @@
 //! The output is the document's block sequence rendered as a parenthesized, comma-led data literal:
 //! constructor names applied to their arguments, with tuples, lists, and records laid out by a
 //! pretty-printer with a line width of 72 and a ribbon width of 60. Strings are escaped with
-//! backslash escapes, using symbolic names for control characters. Document metadata is not
-//! rendered; the output is the
-//! block list alone. The result carries no trailing newline; the caller appends one. This format
-//! has no public specification.
+//! backslash escapes, using symbolic names for control characters. A fragment renders the block
+//! list alone; a standalone document renders the whole value — `Pandoc <meta> <blocks>`, with the
+//! metadata as `Meta { unMeta = fromList [ … ] }`. The result carries no trailing newline; the
+//! caller appends one. This format has no public specification.
+
+use std::collections::BTreeMap;
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth, Document,
-    Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row,
-    Table, TableBody, Target,
+    Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue,
+    QuoteType, Row, Table, TableBody, Target, Text,
 };
 use carta_core::{Result, Writer, WriterOptions};
 
@@ -21,14 +23,71 @@ pub struct NativeWriter;
 
 impl Writer for NativeWriter {
     fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let tree = list(document.blocks.iter().map(block).collect());
-        let mut printer = Printer {
-            out: String::new(),
-            col: 0,
-            line_indent: 0,
-        };
-        printer.render(&tree);
-        Ok(printer.out)
+        Ok(render_doc(&list(
+            document.blocks.iter().map(block).collect(),
+        )))
+    }
+
+    fn standalone_document(
+        &self,
+        document: &Document,
+        _options: &WriterOptions,
+    ) -> Result<Option<String>> {
+        let mut out = render_doc(&document_doc(document));
+        out.push('\n');
+        Ok(Some(out))
+    }
+}
+
+/// Lay a document tree out to its textual form (no trailing newline).
+fn render_doc(tree: &Doc) -> String {
+    let mut printer = Printer {
+        out: String::new(),
+        col: 0,
+        line_indent: 0,
+    };
+    printer.render(tree);
+    printer.out
+}
+
+/// The whole document as one value: `Pandoc <meta> <blocks>`.
+fn document_doc(document: &Document) -> Doc {
+    let meta = cons(
+        "Meta",
+        vec![record(vec![field(
+            "unMeta",
+            from_list(meta_pairs(&document.meta)),
+        )])],
+    );
+    let body = list(document.blocks.iter().map(block).collect());
+    cons("Pandoc", vec![meta, body])
+}
+
+/// A `fromList [ … ]` application: the constructor name applied to its list of pairs.
+fn from_list(pairs: Vec<Doc>) -> Doc {
+    cons("fromList", vec![list(pairs)])
+}
+
+/// The `( "key" , value )` pairs of a metadata map, in key order.
+fn meta_pairs(map: &BTreeMap<Text, MetaValue>) -> Vec<Doc> {
+    map.iter()
+        .map(|(key, value)| tuple(vec![text_atom(key), meta_value(value)]))
+        .collect()
+}
+
+fn meta_value(value: &MetaValue) -> Doc {
+    match value {
+        MetaValue::MetaMap(map) => cons("MetaMap", vec![wrap(from_list(meta_pairs(map)))]),
+        MetaValue::MetaList(items) => cons(
+            "MetaList",
+            vec![list(items.iter().map(meta_value).collect())],
+        ),
+        MetaValue::MetaBool(flag) => {
+            cons("MetaBool", vec![atom(if *flag { "True" } else { "False" })])
+        }
+        MetaValue::MetaString(text) => cons("MetaString", vec![text_atom(text)]),
+        MetaValue::MetaInlines(items) => cons("MetaInlines", vec![inlines(items)]),
+        MetaValue::MetaBlocks(items) => cons("MetaBlocks", vec![blocks(items)]),
     }
 }
 
