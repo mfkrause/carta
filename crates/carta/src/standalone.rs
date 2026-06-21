@@ -92,19 +92,26 @@ fn build_context(
     let context_trailing = if line_oriented { "\n\n" } else { "" };
     let json_trailing = if line_oriented { "\n" } else { "" };
 
-    let flatten = writer.flatten_block_metadata();
+    let context_mode = if writer.flatten_block_metadata() {
+        BlockMode::Inline
+    } else {
+        BlockMode::Full {
+            trailing: context_trailing,
+        }
+    };
+    let json_mode = BlockMode::Full {
+        trailing: json_trailing,
+    };
     let mut context: BTreeMap<String, Value> = BTreeMap::new();
     let mut meta_json = serde_json::Map::new();
     for (key, value) in &document.meta {
-        let context_value = if flatten {
-            flatten_meta_value(value, writer, options)?
-        } else {
-            meta_to_value(value, writer, options, context_trailing)?
-        };
-        context.insert(key.clone(), context_value);
+        context.insert(
+            key.clone(),
+            meta_to_value(value, writer, options, context_mode)?,
+        );
         meta_json.insert(
             key.clone(),
-            value_to_json(&meta_to_value(value, writer, options, json_trailing)?),
+            value_to_json(&meta_to_value(value, writer, options, json_mode)?),
         );
     }
     context.insert(
@@ -151,15 +158,26 @@ fn enable_colorlinks(context: &mut BTreeMap<String, Value>) {
     }
 }
 
+/// How a metadata value's block-shaped content becomes a template value.
+#[derive(Clone, Copy)]
+enum BlockMode<'a> {
+    /// Render blocks as themselves, appending `trailing` so they sit in the surrounding layout the
+    /// way the format separates blocks.
+    Full { trailing: &'a str },
+    /// Flatten a lone-paragraph block to its inline content; any other block shape becomes empty.
+    /// Used for a writer that draws metadata into single-line header fields.
+    Inline,
+}
+
 /// Convert one metadata value to a template value, rendering inline and block content through the
-/// target writer so interpolation carries the right markup and escaping for the format. A rendered
-/// block sequence gains `block_trailing` so it sits in the surrounding layout the way the format
-/// separates blocks.
+/// target writer so interpolation carries the right markup and escaping for the format. `mode`
+/// decides how a block sequence is treated; inline, string, and boolean values render the same way
+/// regardless, and lists and maps recurse with the same `mode`.
 fn meta_to_value(
     value: &MetaValue,
     writer: &dyn Writer,
     options: &WriterOptions,
-    block_trailing: &str,
+    mode: BlockMode,
 ) -> Result<Value> {
     Ok(match value {
         MetaValue::MetaBool(b) => Value::Bool(*b),
@@ -169,62 +187,28 @@ fn meta_to_value(
         MetaValue::MetaInlines(inlines) => {
             Value::Str(writer.render_meta_inlines(inlines, options)?)
         }
-        MetaValue::MetaBlocks(blocks) => {
-            let mut rendered = writer.render_meta_blocks(blocks, options)?;
-            if !rendered.is_empty() {
-                rendered.push_str(block_trailing);
+        MetaValue::MetaBlocks(blocks) => match mode {
+            BlockMode::Full { trailing } => {
+                let mut rendered = writer.render_meta_blocks(blocks, options)?;
+                if !rendered.is_empty() {
+                    rendered.push_str(trailing);
+                }
+                Value::Str(rendered)
             }
-            Value::Str(rendered)
-        }
+            BlockMode::Inline => {
+                Value::Str(writer.render_meta_inlines(single_block_inlines(blocks), options)?)
+            }
+        },
         MetaValue::MetaList(items) => Value::List(
             items
                 .iter()
-                .map(|item| meta_to_value(item, writer, options, block_trailing))
+                .map(|item| meta_to_value(item, writer, options, mode))
                 .collect::<Result<_>>()?,
         ),
         MetaValue::MetaMap(map) => {
             let mut entries = BTreeMap::new();
             for (key, item) in map {
-                entries.insert(
-                    key.clone(),
-                    meta_to_value(item, writer, options, block_trailing)?,
-                );
-            }
-            Value::Map(entries)
-        }
-    })
-}
-
-/// Convert one metadata value to a template value with block-shaped content flattened to its inline
-/// text, for a writer that draws metadata into single-line header fields. A lone-paragraph block
-/// becomes its inline content; any other block shape becomes empty. Inline, string, list, and map
-/// values render exactly as [`meta_to_value`] does.
-fn flatten_meta_value(
-    value: &MetaValue,
-    writer: &dyn Writer,
-    options: &WriterOptions,
-) -> Result<Value> {
-    Ok(match value {
-        MetaValue::MetaBool(b) => Value::Bool(*b),
-        MetaValue::MetaString(text) => {
-            Value::Str(writer.render_meta_inlines(&[Inline::Str(text.clone())], options)?)
-        }
-        MetaValue::MetaInlines(inlines) => {
-            Value::Str(writer.render_meta_inlines(inlines, options)?)
-        }
-        MetaValue::MetaBlocks(blocks) => {
-            Value::Str(writer.render_meta_inlines(single_block_inlines(blocks), options)?)
-        }
-        MetaValue::MetaList(items) => Value::List(
-            items
-                .iter()
-                .map(|item| flatten_meta_value(item, writer, options))
-                .collect::<Result<_>>()?,
-        ),
-        MetaValue::MetaMap(map) => {
-            let mut entries = BTreeMap::new();
-            for (key, item) in map {
-                entries.insert(key.clone(), flatten_meta_value(item, writer, options)?);
+                entries.insert(key.clone(), meta_to_value(item, writer, options, mode)?);
             }
             Value::Map(entries)
         }
@@ -259,10 +243,6 @@ fn insert_identity_vars(
     writer: &dyn Writer,
     options: &WriterOptions,
 ) -> Result<()> {
-    let style = writer.meta_var_style();
-    if style == MetaVarStyle::None {
-        return Ok(());
-    }
     // The plain-text forms decide presence (whether a key contributes any text at all); the inline
     // forms carry the quotation that survives into the rendered variable.
     let title_text = plain_meta(document, "title");
@@ -271,7 +251,7 @@ fn insert_identity_vars(
     let date_text = plain_meta(document, "date");
     let date = plain_meta_inlines(document, "date");
 
-    match style {
+    match writer.meta_var_style() {
         MetaVarStyle::None => {}
         MetaVarStyle::Web => {
             // `pagetitle` is the title, falling back to the source name; present whenever either
