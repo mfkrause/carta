@@ -12,7 +12,7 @@
 
 ## Status
 
-- **Status**: TODO
+- **Status**: DONE (2026-06-21)
 - **Priority**: P1 (the single feature that turns fragment output into usable documents; gates several
   other cross-cutting rows)
 - **Effort**: L (engine + context model + per-writer integration + **13** default templates + a new
@@ -669,3 +669,26 @@ block) yields nothing.
   `conf()` author idiom; latex hyperxmp `\xmpquote` and `\texorpdfstring` wrapping; the exact plain
   title-block blank-line count; the generator comment and other default-template CSS/preamble chrome;
   the beamer toc stray `}` chrome.
+
+### Batch E — surfaces wired, feature matrix, docs (2026-06-21)
+
+Closes the plan. Wires the remaining conformance surface, confirms the feature matrix, and flips the
+two cross-cutting STATUS rows.
+
+- **Standalone surface wired** (Step 9 / §7.2): added `standalone` to the dispatcher's `SURFACES`.
+  The surface proves each format's default scaffold carries the same title-block content, metadata,
+  and body as the oracle — round-tripping the HTML family's body AST through carta's own HTML reader
+  and asserting macro/token presence elsewhere — without diffing independently-authored chrome. 13/13
+  targets pass.
+  - `ci(conformance): add the standalone-defaults surface`
+- **Feature matrix** (Step 10 / §7.3): both minimal builds compile —
+  `--no-default-features --features standalone,read-html,write-html` (no commonmark) and
+  `--no-default-features --features metadata-file,write-html` (commonmark pulled in transitively).
+- **Docs** (Step 11): flipped **Standalone output + templates** and **Metadata / variables** to ✅;
+  noted the wired-but-inert `$toc$`, section-numbering, and math-method slots on their rows.
+  - `docs: mark standalone output and metadata/variables complete`
+- **Full-suite verification**: `tools/conformance-suite/run.sh all` → **`TOTAL fail=0 err=0`** across
+  every surface (reader, writer, e2e, roundtrip, commands, extensions, templates, standalone) over the
+  full corpus, the vendored CommonMark spec, and the fetched pandoc corpus. The `templates` surface is
+  40/40 across 8 escaping-diverse targets; the touched writers (markdown, rst, man, typst, gfm) show
+  no regressions. Offline workspace suite: 1294 pass, 0 fail.
