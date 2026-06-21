@@ -133,9 +133,10 @@ fn build_context(
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
     overlay_variables(&mut context, &options.variables);
-    if writer.meta_var_style() == MetaVarStyle::Pdf {
-        enable_colorlinks(&mut context);
-    }
+    // A requested link, file, citation, URL, or table-of-contents color implies colored links — a
+    // property of the assembled context, not of any one writer — so it is applied uniformly. A
+    // template that exposes neither colors nor `colorlinks` is simply unaffected.
+    enable_colorlinks(&mut context);
     Ok(Value::Map(context))
 }
 
