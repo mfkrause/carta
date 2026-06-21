@@ -166,7 +166,10 @@ fn render_node(
             otherwise,
         } => {
             for (cond, body) in branches {
-                if eval(cond, ctx, scopes).as_deref().is_some_and(truthy) {
+                if eval(cond, ctx, scopes)
+                    .as_deref()
+                    .is_some_and(Value::is_truthy)
+                {
                     return render_nodes(body, ctx, scopes, resolve, depth, out);
                 }
             }
@@ -347,16 +350,4 @@ fn lookup<'a>(path: &[String], ctx: &'a Value, scopes: &'a [Scope]) -> Option<&'
         }
     }
     Some(current)
-}
-
-fn truthy(value: &Value) -> bool {
-    match value {
-        Value::Str(s) => !s.is_empty(),
-        // A list is truthy when it holds at least one truthy element: a list of empty strings, or a
-        // list whose only member is itself empty, is falsy.
-        Value::List(items) => items.iter().any(truthy),
-        // A map is present-and-therefore-true even when it carries no entries.
-        Value::Map(_) => true,
-        Value::Bool(b) => *b,
-    }
 }
