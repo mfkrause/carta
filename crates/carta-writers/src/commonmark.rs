@@ -11,7 +11,7 @@ use carta_ast::{
     Attr, Block, Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
     MathType, Target, Text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
@@ -24,8 +24,11 @@ use crate::common::{
 pub struct CommonmarkWriter;
 
 impl Writer for CommonmarkWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let mut state = State {
+            wrap: options.wrap,
+            ..State::default()
+        };
         let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
         Ok(append_notes(body, &state.footnotes))
     }
@@ -40,6 +43,7 @@ impl Writer for CommonmarkWriter {
 #[derive(Debug, Default)]
 struct State {
     footnotes: Vec<String>,
+    wrap: WrapMode,
 }
 
 impl State {
@@ -74,7 +78,7 @@ impl State {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
                 let pieces = self.pieces(inlines, true);
-                fill(&pieces, width)
+                fill(&pieces, width, self.wrap)
             }
             Block::Header(level, _, inlines) => {
                 let hashes = "#".repeat(usize::try_from((*level).max(1)).unwrap_or(1));
@@ -106,9 +110,9 @@ impl State {
                 format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
             }
             Block::LineBlock(lines) => self.line_block(lines),
-            Block::Figure(..) | Block::Table(_) => {
-                collapse_html_block(&crate::html::render_fragment(std::slice::from_ref(block)))
-            }
+            Block::Figure(..) | Block::Table(_) => collapse_html_block(
+                &crate::html::render_fragment(std::slice::from_ref(block), self.wrap),
+            ),
         }
     }
 
@@ -193,7 +197,7 @@ impl State {
         for piece in &pieces {
             match piece {
                 Piece::Text(text) => out.push_str(text),
-                Piece::Space | Piece::Hard => out.push(' '),
+                Piece::Space | Piece::Soft | Piece::Hard => out.push(' '),
             }
         }
         out
@@ -253,7 +257,8 @@ impl State {
             }
             Inline::Cite(_, inlines) => self.extend_pieces(inlines, out, false),
             Inline::Code(_, text) => out.push(Piece::Text(code_span(text))),
-            Inline::Space | Inline::SoftBreak => out.push(Piece::Space),
+            Inline::Space => out.push(Piece::Space),
+            Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
                 out.push(Piece::Text("\\".to_owned()));
                 out.push(Piece::Hard);
@@ -394,7 +399,7 @@ impl NotesHost for State {
         initial: usize,
     ) -> String {
         let pieces = self.pieces(inlines, true);
-        fill_offset(&pieces, width, initial)
+        fill_offset(&pieces, width, initial, self.wrap)
     }
 }
 

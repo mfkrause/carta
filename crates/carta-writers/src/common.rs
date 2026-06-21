@@ -10,6 +10,7 @@
 #[cfg(any(feature = "plain", feature = "markdown", feature = "gfm"))]
 use carta_ast::{Alignment, Cell, ColWidth, Row, Table};
 use carta_ast::{Attr, Block, Inline, ListNumberDelim, ListNumberStyle, QuoteType};
+use carta_core::WrapMode;
 
 /// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
@@ -22,12 +23,15 @@ pub(crate) fn quote_marks(kind: &QuoteType) -> (char, char) {
     }
 }
 
-/// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, or a
-/// forced line break.
+/// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, a
+/// soft line break from the source, or a forced line break.
 #[derive(Debug, Clone)]
 pub(crate) enum Piece {
     Text(String),
     Space,
+    /// A soft line break in the source. Under [`WrapMode::Preserve`] it stays a line break; under
+    /// [`WrapMode::Auto`] and [`WrapMode::None`] it is inter-word space like [`Piece::Space`].
+    Soft,
     Hard,
 }
 
@@ -35,15 +39,50 @@ pub(crate) enum Piece {
 /// keeping the next word on the current line would exceed the fill column. Consecutive text runs (no
 /// intervening space) stay together; runs of spaces collapse; leading and trailing spaces on a line
 /// are dropped.
-pub(crate) fn fill(pieces: &[Piece], width: usize) -> String {
-    fill_offset(pieces, width, 0)
+///
+/// The `wrap` mode governs line layout: [`WrapMode::Auto`] reflows to `width`; [`WrapMode::None`]
+/// never wraps (the whole paragraph is one line, soft breaks becoming spaces); [`WrapMode::Preserve`]
+/// does not reflow but keeps each soft break from the source as a line break.
+pub(crate) fn fill(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
+    fill_offset(pieces, width, 0, wrap)
 }
 
 /// Like [`fill`], but the first line is laid out as if `initial` columns were already consumed (the
 /// hanging-marker layout, where a leading marker shifts the first line's wrap point but leaves
 /// continuation lines at the margin).
-pub(crate) fn fill_offset(pieces: &[Piece], width: usize, initial: usize) -> String {
-    let width = width.max(1);
+pub(crate) fn fill_offset(
+    pieces: &[Piece],
+    width: usize,
+    initial: usize,
+    wrap: WrapMode,
+) -> String {
+    // Auto reflows to the fill column; the other modes never wrap on width, so a sentinel column
+    // wide enough that no real line reaches it stands in. Soft breaks are the only line splits then.
+    let width = match wrap {
+        WrapMode::Auto => width.max(1),
+        WrapMode::None | WrapMode::Preserve => usize::MAX,
+    };
+    fill_core(pieces, width, initial, matches!(wrap, WrapMode::Preserve))
+}
+
+/// Lay out a table cell's inline content to a fixed-width column field. Unlike [`fill`], the field
+/// reflows to `width` under both [`WrapMode::Auto`] and [`WrapMode::Preserve`] — a bordered cell is
+/// always bounded by its column — while [`WrapMode::None`] still renders the content on one line so
+/// the column can instead grow to hold it. Under [`WrapMode::Preserve`] each source soft break stays
+/// a forced line break, with the text between breaks reflowed to the field width.
+pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
+    let width = match wrap {
+        WrapMode::None => usize::MAX,
+        WrapMode::Auto | WrapMode::Preserve => width.max(1),
+    };
+    fill_core(pieces, width, 0, matches!(wrap, WrapMode::Preserve))
+}
+
+/// The shared line-filling engine behind [`fill_offset`] and [`fill_cell`]: lay `pieces` out into
+/// lines no wider than `width` (already resolved to a sentinel when the caller wants no width wrap),
+/// starting `initial` columns into the first line, breaking on each source soft break only when
+/// `preserve_softs` is set.
+fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: bool) -> String {
     let mut out = String::new();
     let mut column = initial;
     let mut at_line_start = initial == 0;
@@ -59,6 +98,41 @@ pub(crate) fn fill_offset(pieces: &[Piece], width: usize, initial: usize) -> Str
                 word_width += display_width(text);
             }
             Piece::Space => {
+                place_word(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space,
+                    &word,
+                    word_width,
+                    width,
+                );
+                word.clear();
+                word_width = 0;
+                pending_space = true;
+            }
+            // A soft break forces a line break only when preserving the source's own breaks;
+            // otherwise it is just inter-word space (and may become a reflow point under Auto).
+            Piece::Soft if preserve_softs => {
+                place_word(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space,
+                    &word,
+                    word_width,
+                    width,
+                );
+                word.clear();
+                word_width = 0;
+                if !at_line_start {
+                    out.push('\n');
+                    column = 0;
+                    at_line_start = true;
+                }
+                pending_space = false;
+            }
+            Piece::Soft => {
                 place_word(
                     &mut out,
                     &mut column,
@@ -1498,7 +1572,9 @@ pub(crate) fn filled_cells(row: &[Vec<Piece>], field: &[usize]) -> Vec<Vec<Strin
         .enumerate()
         .map(|(index, pieces)| {
             let width = field.get(index).copied().unwrap_or(0);
-            let text = fill(pieces, width);
+            // A cell always reflows to its computed column width: the width is a layout constraint of
+            // the table, not a paragraph wrap the document option can switch off.
+            let text = fill(pieces, width, WrapMode::Auto);
             if text.is_empty() {
                 vec![String::new()]
             } else {
@@ -1558,7 +1634,7 @@ pub(crate) fn measure_pieces(pieces: &[Piece]) -> (usize, usize) {
                 line += width;
                 word += width;
             }
-            Piece::Space => {
+            Piece::Space | Piece::Soft => {
                 line += 1;
                 minword = minword.max(word);
                 word = 0;
@@ -1737,8 +1813,8 @@ mod tests {
             Piece::Space,
             Piece::Text("world".into()),
         ];
-        assert_eq!(fill(&pieces, 72), "hello world");
-        assert_eq!(fill(&pieces, 8), "hello\nworld");
+        assert_eq!(fill(&pieces, 72, WrapMode::Auto), "hello world");
+        assert_eq!(fill(&pieces, 8, WrapMode::Auto), "hello\nworld");
     }
 
     #[test]
@@ -1752,7 +1828,7 @@ mod tests {
             Piece::Text("ef".into()),
             Piece::Space,
         ];
-        assert_eq!(fill(&pieces, 72), "abcd ef");
+        assert_eq!(fill(&pieces, 72, WrapMode::Auto), "abcd ef");
     }
 
     #[test]
@@ -1762,7 +1838,7 @@ mod tests {
             Piece::Hard,
             Piece::Text("b".into()),
         ];
-        assert_eq!(fill(&pieces, 72), "a\nb");
+        assert_eq!(fill(&pieces, 72, WrapMode::Auto), "a\nb");
     }
 
     #[test]
@@ -1772,8 +1848,46 @@ mod tests {
             Piece::Space,
             Piece::Text("bb".into()),
         ];
-        assert_eq!(fill_offset(&pieces, 6, 3), "aa\nbb");
-        assert_eq!(fill_offset(&pieces, 8, 3), "aa bb");
+        assert_eq!(fill_offset(&pieces, 6, 3, WrapMode::Auto), "aa\nbb");
+        assert_eq!(fill_offset(&pieces, 8, 3, WrapMode::Auto), "aa bb");
+    }
+
+    #[test]
+    fn fill_none_never_wraps_and_softens_breaks() {
+        let pieces = vec![
+            Piece::Text("hello".into()),
+            Piece::Soft,
+            Piece::Text("world".into()),
+            Piece::Space,
+            Piece::Text("again".into()),
+        ];
+        // No wrapping despite the tiny width, and the soft break is just a space.
+        assert_eq!(fill(&pieces, 4, WrapMode::None), "hello world again");
+    }
+
+    #[test]
+    fn fill_preserve_keeps_soft_breaks_but_does_not_reflow() {
+        let pieces = vec![
+            Piece::Text("hello".into()),
+            Piece::Soft,
+            Piece::Text("world".into()),
+            Piece::Space,
+            Piece::Text("again".into()),
+        ];
+        // The soft break stays a line break; the long second line is not reflowed.
+        assert_eq!(fill(&pieces, 4, WrapMode::Preserve), "hello\nworld again");
+    }
+
+    #[test]
+    fn fill_auto_treats_soft_break_as_a_reflow_point() {
+        let pieces = vec![
+            Piece::Text("hello".into()),
+            Piece::Soft,
+            Piece::Text("world".into()),
+        ];
+        // A soft break reflows exactly like a space under Auto.
+        assert_eq!(fill(&pieces, 72, WrapMode::Auto), "hello world");
+        assert_eq!(fill(&pieces, 8, WrapMode::Auto), "hello\nworld");
     }
 
     #[test]

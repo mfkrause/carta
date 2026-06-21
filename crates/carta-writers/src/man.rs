@@ -13,7 +13,7 @@ use carta_ast::{
     Alignment, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType,
     QuoteType, Row, Table, Target, to_plain_text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, GridSlot, RowSpanGrid, display_width, is_known_scheme, ordered_marker,
@@ -24,8 +24,11 @@ use crate::common::{
 pub struct ManWriter;
 
 impl Writer for ManWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let mut state = State {
+            wrap: options.wrap,
+            ..State::default()
+        };
         let body = state.blocks(&document.blocks);
         let mut out = body;
         if !state.notes.is_empty() {
@@ -49,10 +52,12 @@ impl Writer for ManWriter {
     }
 }
 
-/// Writer state threaded through the render: the accumulated footnote bodies, in reference order.
+/// Writer state threaded through the render: the accumulated footnote bodies, in reference order,
+/// and the paragraph layout mode that governs whether filled text wraps to the fill column.
 #[derive(Debug, Default)]
 struct State {
     notes: Vec<String>,
+    wrap: WrapMode,
 }
 
 /// The active font attributes, rendered to a `\f[..]` selector. Each emphasis inline pushes its
@@ -323,18 +328,19 @@ impl State {
         parts.join("\n.PD 0\n.P\n.PD\n")
     }
 
-    /// Render inline content as wrapped paragraph text at the fill column, breaking the line after a
-    /// sentence-ending word.
+    /// Render inline content as paragraph text, breaking the line after a sentence-ending word. Under
+    /// `WrapMode::Auto` the text is filled to the fill column; otherwise the paragraph stays one line.
     fn fill_inlines(&mut self, items: &[Inline]) -> String {
         let fragments = self.fragments(items, Font::default());
-        fill(&fragments, true)
+        fill(&fragments, true, self.wrap)
     }
 
-    /// Render inline content as wrapped text at the fill column without breaking after sentence ends;
-    /// used where the surrounding macro reflows the text itself, as in a caption.
+    /// Render inline content as paragraph text without breaking after sentence ends; used where the
+    /// surrounding macro reflows the text itself, as in a caption. Under `WrapMode::Auto` the text is
+    /// filled to the fill column; otherwise the paragraph stays one line.
     fn fill_flowed(&mut self, items: &[Inline]) -> String {
         let fragments = self.fragments(items, Font::default());
-        fill(&fragments, false)
+        fill(&fragments, false, self.wrap)
     }
 
     /// Render inline content as an unwrapped run (heading, list term, caption fragment). Text and
@@ -659,9 +665,18 @@ fn ends_sentence(visible: &str) -> bool {
 
 /// Greedily fill fragments to the fill column, measured on each word's rendered length. A `Control`
 /// fragment forces the flow onto its own lines; text resuming after it begins a fresh filled line.
-fn fill(fragments: &[Fragment], sentence_breaks: bool) -> String {
+/// Under `WrapMode::Auto` the effective fill column is the fill column; otherwise it is unbounded, so
+/// no width-based break is ever taken and each paragraph stays a single physical line (only an
+/// explicit hard break, carried as a `Control` fragment, still starts a new line).
+fn fill(fragments: &[Fragment], sentence_breaks: bool, wrap: WrapMode) -> String {
+    let fill_column = if wrap == WrapMode::Auto {
+        FILL_COLUMN
+    } else {
+        usize::MAX
+    };
     let mut filler = Filler {
         at_line_start: true,
+        fill_column,
         ..Filler::default()
     };
     for fragment in fragments {
@@ -676,12 +691,14 @@ fn fill(fragments: &[Fragment], sentence_breaks: bool) -> String {
 }
 
 /// Word-wrap state machine. Words accumulate into `word`; `space`/`control` decide where line breaks
-/// fall before the pending word is flushed to `out`.
+/// fall before the pending word is flushed to `out`. `fill_column` is the width a filled line may
+/// reach before a space breaks it; setting it to `usize::MAX` disables width-based breaking entirely.
 #[derive(Default)]
 #[allow(clippy::struct_excessive_bools)]
 struct Filler<'a> {
     out: String,
     column: usize,
+    fill_column: usize,
     at_line_start: bool,
     pending_space: bool,
     pending_break: bool,
@@ -780,7 +797,12 @@ impl<'a> Filler<'a> {
             self.at_line_start = false;
             true
         } else if self.pending_break
-            || (self.pending_space && self.column + 1 + self.word_width > FILL_COLUMN)
+            || (self.pending_space
+                && self
+                    .column
+                    .saturating_add(1)
+                    .saturating_add(self.word_width)
+                    > self.fill_column)
         {
             self.out.push('\n');
             self.column = 0;

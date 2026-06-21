@@ -1,8 +1,9 @@
 //! `MediaWiki` writer: renders the document model to `MediaWiki` markup.
 //!
-//! Inline content is not wrapped — a soft break renders as a single space and block structure is
-//! conveyed through `MediaWiki`'s line-oriented markup. Output carries no trailing newline; the caller
-//! appends one. This format has no public specification, so its rules are stated directly here.
+//! Inline content is not reflowed: a soft break renders as a single space, except under preserve
+//! wrapping where it stays a line break. Block structure is conveyed through `MediaWiki`'s
+//! line-oriented markup. Output carries no trailing newline; the caller appends one. This format has
+//! no public specification, so its rules are stated directly here.
 
 use std::fmt::Write as _;
 
@@ -10,7 +11,7 @@ use carta_ast::{
     Alignment, Attr, Block, Cell, Document, Format, Inline, ListAttributes, ListNumberStyle,
     MathType, Row, Table, TableBody, Target, to_plain_text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     RowSpanGrid, attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
@@ -22,8 +23,11 @@ use crate::common::{
 pub struct MediawikiWriter;
 
 impl Writer for MediawikiWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let mut state = State {
+            wrap: options.wrap,
+            ..State::default()
+        };
         let body = state.blocks(&document.blocks);
         let out = if state.has_notes {
             format!("{}\n\n<references />", body.trim_end_matches('\n'))
@@ -45,6 +49,11 @@ struct State {
     has_notes: bool,
     in_link: bool,
     in_term: bool,
+    /// Set while rendering a construct that occupies a single physical line — a compact list item or
+    /// a definition term/definition. There a source line break cannot survive as a newline even under
+    /// preserve wrapping, so it folds to a space.
+    single_line: bool,
+    wrap: WrapMode,
 }
 
 impl State {
@@ -165,11 +174,15 @@ impl State {
         let mut lines = Vec::new();
         for (term, definitions) in items {
             self.in_term = true;
+            self.single_line = true;
             let rendered_term = self.inlines(term);
             self.in_term = false;
+            self.single_line = false;
             lines.push(format!("; {rendered_term}"));
             for definition in definitions {
+                self.single_line = true;
                 let body = self.blocks(definition);
+                self.single_line = false;
                 lines.push(format!(": {}", body.trim_end_matches('\n')));
             }
         }
@@ -203,11 +216,16 @@ impl State {
             for inner in item {
                 match inner {
                     Block::Plain(inlines) => {
-                        lines.push(format!("{prefix} {}", self.inlines(inlines)));
+                        self.single_line = true;
+                        let text = self.inlines(inlines);
+                        self.single_line = false;
+                        lines.push(format!("{prefix} {text}"));
                         item_has_marker = true;
                     }
                     Block::Para(inlines) => {
+                        self.single_line = true;
                         let text = guarded_paragraph(self.inlines(inlines));
+                        self.single_line = false;
                         lines.push(format!("{prefix} {text}"));
                         item_has_marker = true;
                     }
@@ -362,6 +380,17 @@ impl State {
         let mut out = String::new();
         let mut pending_space = false;
         for inline in inlines {
+            // A preserved soft break is a real line break; it stands in for any pending space.
+            if matches!(inline, Inline::SoftBreak)
+                && self.wrap == WrapMode::Preserve
+                && !self.single_line
+            {
+                if !out.is_empty() {
+                    out.push('\n');
+                }
+                pending_space = false;
+                continue;
+            }
             if matches!(inline, Inline::Space | Inline::SoftBreak) {
                 pending_space = true;
                 continue;
@@ -402,6 +431,12 @@ impl State {
                 format!("{open}{}{close}", self.inlines(inlines))
             }
             Inline::Code(_, text) => format!("<code>{}</code>", escape_text(text)),
+            // A soft break stays a line break only when the source's own breaks are preserved and the
+            // surrounding construct spans more than a single physical line; otherwise it is inter-word
+            // whitespace, like an ordinary space.
+            Inline::SoftBreak if self.wrap == WrapMode::Preserve && !self.single_line => {
+                "\n".to_owned()
+            }
             Inline::Space | Inline::SoftBreak => " ".to_owned(),
             Inline::LineBreak => "<br />\n".to_owned(),
             Inline::Math(kind, text) => {

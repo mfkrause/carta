@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 use carta_ast::{
     Attr, Block, Document, Format, Inline, MathType, QuoteType, Row, Table, Target, to_plain_text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{self, GridSlot, RawTrim, RowSpanGrid};
 
@@ -18,8 +18,11 @@ use crate::common::{self, GridSlot, RawTrim, RowSpanGrid};
 pub struct JiraWriter;
 
 impl Writer for JiraWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let mut state = State {
+            wrap: options.wrap,
+            ..State::default()
+        };
         let body = state.blocks(&document.blocks);
         Ok(state.finish(body))
     }
@@ -30,6 +33,7 @@ impl Writer for JiraWriter {
 #[derive(Debug, Default)]
 struct State {
     notes: Vec<Note>,
+    wrap: WrapMode,
 }
 
 /// A collected footnote: its rendered body and whether that body's final block ends with a single
@@ -110,7 +114,14 @@ impl State {
 
     fn block_quote(&mut self, blocks: &[Block]) -> String {
         if let [Block::Para(inlines) | Block::Plain(inlines)] = blocks {
-            return format!("bq. {}", self.inlines(inlines));
+            let rendered = self.inlines(inlines);
+            // `bq.` carries a single physical line; once a preserved source break splits the quote
+            // across lines, the block `{quote}` form is needed to keep every line inside the quote.
+            return if rendered.contains('\n') {
+                format!("{{quote}}\n{rendered}\n{{quote}}")
+            } else {
+                format!("bq. {rendered}")
+            };
         }
         let body = self.blocks(blocks);
         let trailing = match blocks.last() {
@@ -272,6 +283,9 @@ impl State {
                 let text = normalize_whitespace(text);
                 format!("{{{{{}}}}}", escape_text_with(&text, None, None))
             }
+            // A soft break stays a line break only when the source's own breaks are preserved;
+            // otherwise it is inter-word whitespace, like an ordinary space.
+            Inline::SoftBreak if self.wrap == WrapMode::Preserve => "\n".to_owned(),
             Inline::Space | Inline::SoftBreak => " ".to_owned(),
             Inline::LineBreak => "\n".to_owned(),
             Inline::Math(kind, text) => self.math(kind, text, prev, next),
