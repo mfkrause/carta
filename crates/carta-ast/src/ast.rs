@@ -303,6 +303,19 @@ pub fn to_plain_text(inlines: &[Inline]) -> String {
     out
 }
 
+/// Flatten an inline sequence to its plain textual content while preserving quotation: markup
+/// wrappers are unwrapped to their contents, textual payloads ([`Inline::Str`], [`Inline::Code`],
+/// [`Inline::Math`]) collapse to [`Inline::Str`], breaks and spaces become a single space, and
+/// [`Inline::Quoted`] is kept intact so a downstream writer renders the format's quote glyphs around
+/// the stripped text. Raw passthrough and notes contribute nothing. Adjacent runs are left as
+/// separate [`Inline::Str`] nodes rather than coalesced.
+#[must_use]
+pub fn to_plain_inlines(inlines: &[Inline]) -> Vec<Inline> {
+    let mut out = Vec::new();
+    push_plain_inlines(inlines, &mut out);
+    out
+}
+
 /// Derive a heading identifier from plain text: a non-breaking space is treated as an ordinary
 /// space, only alphanumerics, whitespace, and `_`, `-`, `.` are kept, the result is lowercased,
 /// whitespace runs collapse to single hyphens, and any leading non-letter characters are dropped.
@@ -342,5 +355,68 @@ fn push_plain_text(inlines: &[Inline], out: &mut String) {
             | Inline::Span(_, xs) => push_plain_text(xs, out),
             Inline::RawInline(..) | Inline::Note(_) => {}
         }
+    }
+}
+
+fn push_plain_inlines(inlines: &[Inline], out: &mut Vec<Inline>) {
+    for inline in inlines {
+        match inline {
+            Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => {
+                out.push(Inline::Str(text.clone()));
+            }
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak => {
+                out.push(Inline::Str(" ".to_owned()));
+            }
+            Inline::Quoted(quote, xs) => {
+                out.push(Inline::Quoted(quote.clone(), to_plain_inlines(xs)));
+            }
+            Inline::Emph(xs)
+            | Inline::Underline(xs)
+            | Inline::Strong(xs)
+            | Inline::Strikeout(xs)
+            | Inline::Superscript(xs)
+            | Inline::Subscript(xs)
+            | Inline::SmallCaps(xs)
+            | Inline::Cite(_, xs)
+            | Inline::Link(_, xs, _)
+            | Inline::Image(_, xs, _)
+            | Inline::Span(_, xs) => push_plain_inlines(xs, out),
+            Inline::RawInline(..) | Inline::Note(_) => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_inlines_unwraps_markup_keeps_quotation_and_drops_passthrough() {
+        let inlines = vec![
+            Inline::Emph(vec![Inline::Str("emph".to_owned())]),
+            Inline::Space,
+            Inline::Quoted(
+                QuoteType::DoubleQuote,
+                vec![Inline::Strong(vec![Inline::Str("loud".to_owned())])],
+            ),
+            Inline::Code(Attr::default(), "code".to_owned()),
+            Inline::Math(MathType::InlineMath, "x".to_owned()),
+            Inline::RawInline(Format("html".to_owned()), "<br>".to_owned()),
+            Inline::Note(vec![Block::Para(vec![Inline::Str("note".to_owned())])]),
+        ];
+        let plain = to_plain_inlines(&inlines);
+        // The emphasis wrapper is gone, the space collapses to a `Str`, the quotation survives with
+        // its own markup stripped inside, code and math keep their text, and raw passthrough and the
+        // note contribute nothing.
+        assert_eq!(
+            plain,
+            vec![
+                Inline::Str("emph".to_owned()),
+                Inline::Str(" ".to_owned()),
+                Inline::Quoted(QuoteType::DoubleQuote, vec![Inline::Str("loud".to_owned())]),
+                Inline::Str("code".to_owned()),
+                Inline::Str("x".to_owned()),
+            ]
+        );
     }
 }
