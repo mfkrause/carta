@@ -159,10 +159,11 @@ fn alpha(value: &Value) -> String {
     }
 }
 
-/// Lowercase Roman numerals for `1..=3999`; `0` is empty and non-integer or negative values are left
-/// as their own text. Inputs above `3999` are out of range and continue the greedy expansion.
+/// Lowercase Roman numerals over their defined range `1..=3999`; `0` renders empty. A value outside
+/// that range — non-integer, negative, or `4000` and above — is left as its own text, since Roman
+/// numerals are undefined there and an unbounded input must not drive unbounded work.
 fn roman(value: &Value) -> String {
-    let Some(mut n) = as_int(value).filter(|n| *n >= 0) else {
+    let Some(mut n) = as_int(value).filter(|n| (0..=3999).contains(n)) else {
         return stringify(value);
     };
     let mut out = String::new();
