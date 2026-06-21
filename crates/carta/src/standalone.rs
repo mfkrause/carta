@@ -105,14 +105,16 @@ fn build_context(
     let mut context: BTreeMap<String, Value> = BTreeMap::new();
     let mut meta_json = serde_json::Map::new();
     for (key, value) in &document.meta {
-        context.insert(
-            key.clone(),
-            meta_to_value(value, writer, options, context_mode)?,
-        );
-        meta_json.insert(
-            key.clone(),
-            value_to_json(&meta_to_value(value, writer, options, json_mode)?),
-        );
+        let context_value = meta_to_value(value, writer, options, context_mode)?;
+        // The two modes coincide for a writer whose context and JSON forms share the same trailing
+        // (the glyph-terminated formats), so the value is rendered once and serialized directly.
+        let json = if context_mode == json_mode {
+            value_to_json(&context_value)
+        } else {
+            value_to_json(&meta_to_value(value, writer, options, json_mode)?)
+        };
+        meta_json.insert(key.clone(), json);
+        context.insert(key.clone(), context_value);
     }
     context.insert(
         "meta-json".to_owned(),
@@ -159,7 +161,7 @@ fn enable_colorlinks(context: &mut BTreeMap<String, Value>) {
 }
 
 /// How a metadata value's block-shaped content becomes a template value.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum BlockMode<'a> {
     /// Render blocks as themselves, appending `trailing` so they sit in the surrounding layout the
     /// way the format separates blocks.
