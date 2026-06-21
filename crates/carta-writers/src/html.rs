@@ -23,11 +23,7 @@ pub struct HtmlWriter;
 
 impl Writer for HtmlWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_with_flavor(
-            &document.blocks,
-            Flavor::Html5,
-            options.wrap,
-        ))
+        Ok(render_fragment(&document.blocks, options.wrap))
     }
 
     fn default_template(&self) -> Option<&'static str> {
