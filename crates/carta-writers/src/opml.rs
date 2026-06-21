@@ -8,7 +8,7 @@
 //! Output carries no trailing newline; the caller appends one.
 
 use carta_ast::{Block, Document, Inline};
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::html::render_inline_line;
 use crate::markdown::{MarkdownConfig, render_blocks};
@@ -18,11 +18,11 @@ use crate::markdown::{MarkdownConfig, render_blocks};
 pub struct OpmlWriter;
 
 impl Writer for OpmlWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let sections = sectionize(&document.blocks);
         let mut out = String::new();
         for section in &sections {
-            render_section(section, 0, &mut out);
+            render_section(section, 0, options.wrap, &mut out);
         }
         Ok(out.trim_end_matches('\n').to_owned())
     }
@@ -31,15 +31,20 @@ impl Writer for OpmlWriter {
         Some(include_str!("templates/default.opml"))
     }
 
-    fn render_meta_inlines(&self, inlines: &[Inline], _options: &WriterOptions) -> Result<String> {
+    fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
         Ok(render_blocks(
             &[Block::Plain(inlines.to_vec())],
             MarkdownConfig::extended(),
+            options.wrap,
         ))
     }
 
-    fn render_meta_blocks(&self, blocks: &[Block], _options: &WriterOptions) -> Result<String> {
-        Ok(render_blocks(blocks, MarkdownConfig::extended()))
+    fn render_meta_blocks(&self, blocks: &[Block], options: &WriterOptions) -> Result<String> {
+        Ok(render_blocks(
+            blocks,
+            MarkdownConfig::extended(),
+            options.wrap,
+        ))
     }
 }
 
@@ -99,11 +104,11 @@ fn sectionize(blocks: &[Block]) -> Vec<Section<'_>> {
     sections
 }
 
-fn render_section(section: &Section, depth: usize, out: &mut String) {
+fn render_section(section: &Section, depth: usize, wrap: WrapMode, out: &mut String) {
     let indent = "  ".repeat(depth);
     let text = escape_outline(&render_inline_line(section.heading));
     let body_blocks: Vec<Block> = section.body.iter().map(|block| (*block).clone()).collect();
-    let note = render_blocks(&body_blocks, MarkdownConfig::extended());
+    let note = render_blocks(&body_blocks, MarkdownConfig::extended(), wrap);
     out.push_str(&indent);
     out.push_str("<outline text=\"");
     out.push_str(&text);
@@ -115,7 +120,7 @@ fn render_section(section: &Section, depth: usize, out: &mut String) {
     }
     out.push_str(">\n");
     for child in &section.children {
-        render_section(child, depth + 1, out);
+        render_section(child, depth + 1, wrap, out);
     }
     out.push_str(&indent);
     out.push_str("</outline>\n");

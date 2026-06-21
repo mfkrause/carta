@@ -16,7 +16,7 @@ use carta_ast::{
     Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, Row, Table,
     Target, Text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, MULTILINE_WIDTH, NotesHost, Piece, TableForm, append_notes,
@@ -74,8 +74,12 @@ impl MarkdownConfig {
 pub struct MarkdownWriter;
 
 impl Writer for MarkdownWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        Ok(render_document(document, MarkdownConfig::extended()))
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_document(
+            document,
+            MarkdownConfig::extended(),
+            options.wrap,
+        ))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -96,8 +100,12 @@ impl Writer for MarkdownWriter {
 pub struct GfmWriter;
 
 impl Writer for GfmWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        Ok(render_document(document, MarkdownConfig::github()))
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_document(
+            document,
+            MarkdownConfig::github(),
+            options.wrap,
+        ))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -250,16 +258,16 @@ fn push_yaml_literal(out: &mut String, pad: &str, text: &str) {
     }
 }
 
-fn render_document(document: &Document, config: MarkdownConfig) -> String {
-    let mut state = State::new(config);
+fn render_document(document: &Document, config: MarkdownConfig, wrap: WrapMode) -> String {
+    let mut state = State::new(config, wrap);
     let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
     append_notes(body, &state.footnotes)
 }
 
 /// Render a block sequence as a markdown fragment, accumulating footnotes for a trailing section.
 /// Exposed so a writer embedding markdown text can render a block list through this engine.
-pub(crate) fn render_blocks(blocks: &[Block], config: MarkdownConfig) -> String {
-    let mut state = State::new(config);
+pub(crate) fn render_blocks(blocks: &[Block], config: MarkdownConfig, wrap: WrapMode) -> String {
+    let mut state = State::new(config, wrap);
     let body = state.blocks_to_string(blocks, FILL_COLUMN);
     append_notes(body, &state.footnotes)
 }
@@ -267,13 +275,15 @@ pub(crate) fn render_blocks(blocks: &[Block], config: MarkdownConfig) -> String 
 #[derive(Debug)]
 struct State {
     config: MarkdownConfig,
+    wrap: WrapMode,
     footnotes: Vec<String>,
 }
 
 impl State {
-    fn new(config: MarkdownConfig) -> Self {
+    fn new(config: MarkdownConfig, wrap: WrapMode) -> Self {
         Self {
             config,
+            wrap,
             footnotes: Vec::new(),
         }
     }
@@ -305,7 +315,7 @@ impl State {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
                 let pieces = self.pieces(inlines);
-                fill(&pieces, width)
+                fill(&pieces, width, self.wrap)
             }
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
             Block::CodeBlock(attr, text) => self.code_block(attr, text),
@@ -546,20 +556,26 @@ impl State {
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block]) -> String {
         if self.config.is_github() {
-            return crate::html::render_fragment(&[Block::Figure(
-                attr.clone(),
-                caption.clone(),
-                blocks.to_vec(),
-            )]);
+            return crate::html::render_fragment(
+                &[Block::Figure(
+                    attr.clone(),
+                    caption.clone(),
+                    blocks.to_vec(),
+                )],
+                self.wrap,
+            );
         }
         if let Some(rendered) = self.implicit_figure(attr, caption, blocks) {
             return rendered;
         }
-        crate::html::render_fragment(&[Block::Figure(
-            attr.clone(),
-            caption.clone(),
-            blocks.to_vec(),
-        )])
+        crate::html::render_fragment(
+            &[Block::Figure(
+                attr.clone(),
+                caption.clone(),
+                blocks.to_vec(),
+            )],
+            self.wrap,
+        )
     }
 
     /// A figure renders as a bare image when it carries no attributes and its body is a single image
@@ -623,7 +639,10 @@ impl State {
     /// a narrow form with single-space cell padding. The caption follows the table as its own block.
     fn github_table(&mut self, table: &Table) -> String {
         if !pipe_representable(table) {
-            return crate::html::render_fragment(&[Block::Table(Box::new(table.clone()))]);
+            return crate::html::render_fragment(
+                &[Block::Table(Box::new(table.clone()))],
+                self.wrap,
+            );
         }
         let columns = table.col_specs.len();
         if columns == 0 {
@@ -690,7 +709,7 @@ impl State {
             pieces.push(Piece::Space);
             pieces.push(Piece::Text(suffix));
         }
-        Some(fill(&pieces, FILL_COLUMN))
+        Some(fill(&pieces, FILL_COLUMN, self.wrap))
     }
 
     /// Render the cells of one pipe-table row to single-line strings, padding the row out to the
@@ -898,8 +917,14 @@ impl State {
             .copied()
             .filter(|&(_, span)| span > 1)
             .collect();
-        let content =
-            grid::grid_content_widths(&table.col_specs, &natural, &minword, &colspans, columns);
+        let content = grid::grid_content_widths(
+            &table.col_specs,
+            &natural,
+            &minword,
+            &colspans,
+            columns,
+            self.wrap,
+        );
         let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
         let head_grid = self.grid_rows(&head, &head_layout, &content);
         let body_grid = self.grid_rows(&body, &body_layout, &content);
@@ -1007,7 +1032,7 @@ impl State {
             pieces.push(Piece::Space);
             pieces.push(Piece::Text(suffix));
         }
-        let body = fill_offset(&pieces, FILL_COLUMN.saturating_sub(base), 2);
+        let body = fill_offset(&pieces, FILL_COLUMN.saturating_sub(base), 2, self.wrap);
         let first = format!("{}: ", " ".repeat(base));
         let rest = " ".repeat(base);
         Some(indent_block(&body, &first, &rest))
@@ -1019,7 +1044,7 @@ impl State {
         for piece in &pieces {
             match piece {
                 Piece::Text(text) => out.push_str(text),
-                Piece::Space | Piece::Hard => out.push(' '),
+                Piece::Space | Piece::Soft | Piece::Hard => out.push(' '),
             }
         }
         out
@@ -1092,7 +1117,8 @@ impl State {
             }
             Inline::Cite(citations, inlines) => self.cite(citations, inlines, out),
             Inline::Code(_, text) => out.push(Piece::Text(code_span(text))),
-            Inline::Space | Inline::SoftBreak => out.push(Piece::Space),
+            Inline::Space => out.push(Piece::Space),
+            Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
                 out.push(Piece::Text("\\".to_owned()));
                 out.push(Piece::Hard);
@@ -1345,7 +1371,7 @@ impl NotesHost for State {
         initial: usize,
     ) -> String {
         let pieces = self.pieces(inlines);
-        fill_offset(&pieces, width, initial)
+        fill_offset(&pieces, width, initial, self.wrap)
     }
 
     fn record_note(&mut self, blocks: &[Block]) -> String {
@@ -1392,7 +1418,7 @@ fn pieces_to_string(pieces: &[Piece]) -> String {
     for piece in pieces {
         match piece {
             Piece::Text(text) => out.push_str(text),
-            Piece::Space => out.push(' '),
+            Piece::Space | Piece::Soft => out.push(' '),
             Piece::Hard => out.push('\n'),
         }
     }

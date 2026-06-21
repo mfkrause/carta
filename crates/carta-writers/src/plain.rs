@@ -8,7 +8,7 @@ use carta_ast::{
     Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType, Row,
     Table,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, MULTILINE_WIDTH, NotesHost, Piece, TableForm, append_notes,
@@ -24,8 +24,11 @@ use crate::grid;
 pub struct PlainWriter;
 
 impl Writer for PlainWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
-        let mut state = State::default();
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let mut state = State {
+            wrap: options.wrap,
+            ..State::default()
+        };
         let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
         Ok(append_notes(body, &state.footnotes))
     }
@@ -44,6 +47,7 @@ impl Writer for PlainWriter {
 #[derive(Debug, Default)]
 struct State {
     footnotes: Vec<String>,
+    wrap: WrapMode,
 }
 
 impl State {
@@ -82,7 +86,7 @@ impl State {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
                 let pieces = self.pieces(inlines);
-                fill(&pieces, width)
+                fill(&pieces, width, self.wrap)
             }
             Block::Header(_, _, inlines) => {
                 let pieces = self.pieces(inlines);
@@ -170,7 +174,7 @@ impl State {
             .iter()
             .map(|(term, definitions)| {
                 let term_pieces = self.pieces(term);
-                let mut group = fill(&term_pieces, width);
+                let mut group = fill(&term_pieces, width, self.wrap);
                 for definition in definitions {
                     let loose = is_loose_definition(definition);
                     let body = self.blocks_at(definition, width.saturating_sub(2), loose);
@@ -361,8 +365,14 @@ impl State {
             .copied()
             .filter(|&(_, span)| span > 1)
             .collect();
-        let content =
-            grid::grid_content_widths(&table.col_specs, &natural, &minword, &colspans, columns);
+        let content = grid::grid_content_widths(
+            &table.col_specs,
+            &natural,
+            &minword,
+            &colspans,
+            columns,
+            self.wrap,
+        );
         let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
         let head_grid = self.grid_rows(&head, &head_layout, &content);
         let body_grid = self.grid_rows(&body, &body_layout, &content);
@@ -498,7 +508,7 @@ impl State {
             pieces.push(Piece::Space);
             pieces.push(Piece::Text(suffix));
         }
-        let body = fill_offset(&pieces, FILL_COLUMN.saturating_sub(base), 2);
+        let body = fill_offset(&pieces, FILL_COLUMN.saturating_sub(base), 2, self.wrap);
         let first = format!("{}: ", " ".repeat(base));
         let rest = " ".repeat(base);
         Some(indent_block(&body, &first, &rest))
@@ -564,7 +574,8 @@ impl State {
                 self.extend_pieces(inlines, out);
                 out.push(Piece::Text(close.to_string()));
             }
-            Inline::Space | Inline::SoftBreak => out.push(Piece::Space),
+            Inline::Space => out.push(Piece::Space),
+            Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => out.push(Piece::Hard),
             Inline::Math(kind, tex) => self.math(kind, tex, out),
             Inline::RawInline(format, text) => {
@@ -621,7 +632,7 @@ impl NotesHost for State {
         initial: usize,
     ) -> String {
         let pieces = self.pieces(inlines);
-        fill_offset(&pieces, width, initial)
+        fill_offset(&pieces, width, initial, self.wrap)
     }
 }
 
@@ -655,7 +666,7 @@ fn join_pieces(pieces: &[Piece], hard: char) -> String {
     for piece in pieces {
         match piece {
             Piece::Text(text) => out.push_str(text),
-            Piece::Space => out.push(' '),
+            Piece::Space | Piece::Soft => out.push(' '),
             Piece::Hard => out.push(hard),
         }
     }
