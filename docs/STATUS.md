@@ -192,7 +192,7 @@ Document-conversion features independent of any single format.
 | --- | :---: | --- |
 | Standalone output + templates (`-s`) | ❌ | writers emit fragments only |
 | Table of contents (`--toc`) | ❌ | |
-| Text wrapping (`--wrap`, `--columns`) | ❌ | width fixed per writer |
+| Text wrapping (`--wrap`, `--columns`) | 🚧 | `--wrap=auto\|none\|preserve` honored by every writer that lays out lines; `--columns` (configurable fill width) not yet — width fixed at 72 |
 | Section numbering (`--number-sections`) | ❌ | |
 | Metadata / variables (`-M`, `-V`, `--metadata-file`) | ❌ | |
 | Syntax highlighting (`--highlight-style`) | ❌ | code emitted verbatim |
