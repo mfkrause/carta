@@ -9,7 +9,7 @@
 //! format has no public specification.
 
 use carta_ast::{Attr, Block, Document, Inline};
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
 use crate::latex::{Dialect, anchor, render_fragment, render_heading, render_titled_open};
 use crate::slides::{FrameTitle, Heading, Slide, group_headings, segment, slide_level};
@@ -33,6 +33,10 @@ impl Writer for BeamerWriter {
 
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.beamer"))
+    }
+
+    fn meta_var_style(&self) -> MetaVarStyle {
+        MetaVarStyle::Pdf
     }
 
     fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {

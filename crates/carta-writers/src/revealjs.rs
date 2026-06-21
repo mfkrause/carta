@@ -13,7 +13,7 @@
 use std::fmt::Write;
 
 use carta_ast::{Block, Document, Inline};
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
 use crate::html::{SlideRenderer, fill_slides};
 use crate::slides::{FrameTitle, MAX_LEVEL, Slide, segment, slide_level};
@@ -57,6 +57,10 @@ impl Writer for RevealjsWriter {
 
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.revealjs"))
+    }
+
+    fn meta_var_style(&self) -> MetaVarStyle {
+        MetaVarStyle::Web
     }
 
     fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {

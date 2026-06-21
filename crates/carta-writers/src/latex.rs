@@ -12,7 +12,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, Target, to_plain_text,
 };
-use carta_core::{Result, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, attribute_value, display_width, fill, indent_block, list_is_tight, numeral,
@@ -32,6 +32,10 @@ impl Writer for LatexWriter {
 
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.latex"))
+    }
+
+    fn meta_var_style(&self) -> MetaVarStyle {
+        MetaVarStyle::Pdf
     }
 }
 
