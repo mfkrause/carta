@@ -30,6 +30,10 @@ impl Writer for TypstWriter {
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.typst"))
     }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
 }
 
 /// A fragment of rendered inline content awaiting line filling. Text fragments are breakable on the
