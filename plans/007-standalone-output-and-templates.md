@@ -53,6 +53,14 @@ These were settled with the maintainer; do not relitigate without cause.
    any reader/writer) and `metadata-file = ["standalone", "read-commonmark"]` (adds `--metadata-file`,
    transitively pulling commonmark so the broken combination is unrepresentable). `full`/`default`
    include both (§4.7).
+7. **`--wrap=auto|none|preserve` — RESOLVED (2026-06-21): implement in full now.** The block pipes
+   (`left`/`right`/`center`/`nowrap`) are already complete as single-line padding (the design in the
+   open-question note below); the oracle's char-level multi-line block wrap is an undocumented
+   layout-engine artifact and is logged as a known gap, not reproduced. The CLI `--wrap` flag is a
+   separate cross-cutting writer feature: `auto` reflows at the fill column (today's default, so default
+   output is unchanged), `none` collapses each block to a single line (a soft break becomes a space),
+   `preserve` keeps source soft breaks as line breaks and does not reflow. It threads a `WrapMode`
+   through `WriterOptions` into every text writer's fill machinery.
 
 ## Scope and STATUS impact
 
@@ -589,3 +597,24 @@ pandoc emits templates verbatim with no added newline.)_
 
 - _Commits, `RESULT templates …`, structural-check results, known divergences, deferred
   pipes/variables, and the STATUS.md edits go here._
+
+### Batch C — `--wrap=auto|none|preserve` (2026-06-21)
+
+- Threaded a `WrapMode` through `WriterOptions` into every text writer's fill machinery and added
+  the `--wrap` CLI flag (default `auto`, so default output is byte-identical to before).
+  - `feat(carta-core): add a wrap mode to the writer options`
+  - `feat(carta-writers): lay out each text writer under the selected wrap mode`
+  - `feat(carta-cli): add the --wrap flag for line-wrapping control`
+  - `test(carta): pin none and preserve wrap output across the text writers`
+- Layout archetypes settled: bordered-grid cells (`rst`, the `markdown`/`plain` grid path) keep
+  fitting their column; free-flowing cells (`asciidoc` pipes, `typst` tables) follow the document
+  wrap mode; the `latex`/`beamer` slide and table-row paths reflow only under `auto`.
+- Verification: a full writer × corpus × {auto,none,preserve} sweep showed **zero** wrap-specific
+  divergences. Every remaining diff fails identically in all three modes — pre-existing,
+  non-wrap feature gaps (syntax highlighting, code line-numbering, math rendering, task-list
+  checkboxes), out of scope for this batch.
+- Offline coverage: 66 cross-checked snapshots in `golden_wrap.rs` (none/preserve across the 11
+  line-laying writers) plus a `parse_wrap` CLI unit test; default-mode output unchanged (no
+  `golden_writer` snapshot churn).
+- Deferred: `--columns` (configurable fill width — still fixed at 72); the char-level multi-line
+  block-pipe wrap is a layout-engine artifact and stays a logged known gap, not reproduced.
