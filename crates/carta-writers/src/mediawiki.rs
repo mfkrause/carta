@@ -44,6 +44,9 @@ impl Writer for MediawikiWriter {
 
 /// Tracks whether any footnote was emitted, so the trailing `<references />` block is added only when
 /// the document actually uses notes.
+// The flags are independent render-state bits that can hold at once (a link inside a single-line
+// term, say), not a configuration enum, so they stay as separate booleans.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 struct State {
     has_notes: bool,
