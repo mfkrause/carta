@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use carta::ast::MetaValue;
-use carta::{Error, ReaderOptions, Result, WriterOptions, convert};
+use carta::{Error, ReaderOptions, Result, WrapMode, WriterOptions, convert};
 use clap::{ArgAction, Parser};
 
 const LIST_FLAGS: [&str; 4] = [
@@ -49,6 +49,10 @@ struct Cli {
     /// accumulates into a list.
     #[arg(short = 'V', long = "variable", value_name = "KEY[=VAL]")]
     variable: Vec<String>,
+    /// Text wrapping in the output: `auto` reflows to the column width, `none` keeps each block on a
+    /// single line, `preserve` keeps the input's own line breaks.
+    #[arg(long = "wrap", value_name = "auto|none|preserve", default_value = "auto", value_parser = parse_wrap)]
+    wrap: WrapMode,
     /// Set a metadata field: `KEY=VAL` (`true`/`false` become booleans), or bare `KEY` for `true`.
     /// Repeatable.
     #[arg(short = 'M', long = "metadata", value_name = "KEY[=VAL]")]
@@ -127,6 +131,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
                 .to_owned(),
         );
     }
+    writer_options.wrap = cli.wrap;
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
@@ -159,6 +164,18 @@ fn template_dir(path: &Path) -> PathBuf {
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."))
         .to_path_buf()
+}
+
+/// Parse the `--wrap` argument into a [`WrapMode`].
+fn parse_wrap(value: &str) -> std::result::Result<WrapMode, String> {
+    match value {
+        "auto" => Ok(WrapMode::Auto),
+        "none" => Ok(WrapMode::None),
+        "preserve" => Ok(WrapMode::Preserve),
+        other => Err(format!(
+            "invalid wrap mode '{other}' (expected auto, none, or preserve)"
+        )),
+    }
 }
 
 /// Parse `-V` specifiers into raw key/value pairs, defaulting a bare `KEY` to `"true"`.
@@ -270,7 +287,8 @@ mod tests {
     // missing key should fail the test loudly.
     #![allow(clippy::indexing_slicing)]
 
-    use super::{Cli, parse_metadata, parse_variables, template_dir};
+    use super::{Cli, parse_metadata, parse_variables, parse_wrap, template_dir};
+    use carta::WrapMode;
     use carta::ast::MetaValue;
     use clap::CommandFactory;
     use std::path::{Path, PathBuf};
@@ -348,5 +366,13 @@ mod tests {
     fn cli_definition_is_valid() {
         // Catches a clap configuration error (e.g. a duplicate short flag) at test time.
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn wrap_mode_parses_the_three_names_and_rejects_others() {
+        assert_eq!(parse_wrap("auto"), Ok(WrapMode::Auto));
+        assert_eq!(parse_wrap("none"), Ok(WrapMode::None));
+        assert_eq!(parse_wrap("preserve"), Ok(WrapMode::Preserve));
+        assert!(parse_wrap("soft").is_err());
     }
 }
