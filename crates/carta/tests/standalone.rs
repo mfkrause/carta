@@ -91,9 +91,99 @@ fn standalone_latex_context_and_precedence() {
         &options(),
     )
     .unwrap();
+    // `pagetitle` is an HTML-family page-`<title>` fallback, so it is absent for LaTeX: `$pagetitle$`
+    // renders empty here even though `title` is set.
     assert_eq!(
         output,
-        "T=Hello \\emph{World}|PT=Hello World|F=yes|G=red,blue|\
+        "T=Hello \\emph{World}|PT=|F=yes|G=red,blue|\
 O=from-V & raw|M=from-M|VM=from-V-vm|D=default-val|B=Body text."
     );
+}
+
+/// A document carrying the inputs the plain-text identity variables are built from: a title with
+/// markup, an author list, and a date.
+const IDENTITY_INPUT: &str = "\
+---
+title: A *Grand* Report
+author:
+  - Ada Lovelace
+  - Alan Turing
+date: 2026-06-20
+---
+Body.
+";
+
+/// Dumps every identity variable, with `author-meta` exercised both flat and as a loop so a list
+/// value is distinguishable from a single joined string.
+const IDENTITY_TEMPLATE: &str = "TM=[$title-meta$]|AM=[$author-meta$]|DM=[$date-meta$]|\
+PT=[$pagetitle$]|AML=[$for(author-meta)$<$author-meta$>$sep$,$endfor$]";
+
+fn identity_options() -> WriterOptions {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some(IDENTITY_TEMPLATE.to_owned());
+    options
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn web_identity_variables_expose_pagetitle_date_and_author_list() {
+    let output = convert(
+        "markdown",
+        "html",
+        IDENTITY_INPUT,
+        &ReaderOptions::default(),
+        &identity_options(),
+    )
+    .unwrap();
+    // A web head exposes `pagetitle`, `date-meta`, and `author-meta` as a list (one entry per
+    // author, so a flat interpolation concatenates them); `title-meta` is PDF-only and stays empty.
+    assert_eq!(
+        output,
+        "TM=[]|AM=[Ada LovelaceAlan Turing]|DM=[2026-06-20]|PT=[A Grand Report]|\
+AML=[<Ada Lovelace>,<Alan Turing>]"
+    );
+}
+
+#[cfg(feature = "write-latex")]
+#[test]
+fn pdf_identity_variables_expose_title_meta_and_joined_authors() {
+    let output = convert(
+        "markdown",
+        "latex",
+        IDENTITY_INPUT,
+        &ReaderOptions::default(),
+        &identity_options(),
+    )
+    .unwrap();
+    // A PDF document exposes `title-meta` and `author-meta` joined into one `; `-separated string (a
+    // loop sees a single value); `pagetitle` and `date-meta` are web-only and stay empty.
+    assert_eq!(
+        output,
+        "TM=[A Grand Report]|AM=[Ada Lovelace; Alan Turing]|DM=[]|PT=[]|\
+AML=[<Ada Lovelace; Alan Turing>]"
+    );
+}
+
+#[cfg(feature = "write-latex")]
+#[test]
+fn pdf_identity_variables_are_defined_even_without_metadata() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some(
+        "AML=[$for(author-meta)$<$author-meta$>$endfor$]|\
+TML=[$for(title-meta)$<$title-meta$>$endfor$]"
+            .to_owned(),
+    );
+    let output = convert(
+        "markdown",
+        "latex",
+        "Body only.\n",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // `title-meta` and `author-meta` are always defined, so a loop iterates once over the empty
+    // string even when the document carries no title or author.
+    assert_eq!(output, "AML=[<>]|TML=[<>]");
 }

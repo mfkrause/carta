@@ -95,6 +95,7 @@ dependencies = [
  "carta-writers",
  "criterion",
  "insta",
+ "serde_json",
 ]
 
 [[package]]
