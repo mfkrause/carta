@@ -4,11 +4,11 @@
 <meta charset="utf-8" />
 <meta name="generator" content="carta" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-$for(author)$
-<meta name="author" content="$author$" />
+$for(author-meta)$
+<meta name="author" content="$author-meta$" />
 $endfor$
-$if(date)$
-<meta name="dcterms.date" content="$date$" />
+$if(date-meta)$
+<meta name="dcterms.date" content="$date-meta$" />
 $endif$
 $if(keywords)$
 <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
