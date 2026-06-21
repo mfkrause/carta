@@ -19,7 +19,7 @@ expression: output
 \usepackage{hyperref}
 \hypersetup{
   pdftitle={A Grand Report},
-  pdfauthor={Ada Lovelace, Alan Turing},
+  pdfauthor={Ada Lovelace; Alan Turing},
   pdflang={en},
   hidelinks,
   pdfcreator={carta}}
