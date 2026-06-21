@@ -93,7 +93,7 @@ fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontM
 ///
 /// # Errors
 /// [`Error::InvalidMetadata`] if the content is not valid YAML.
-pub fn parse_metadata_yaml(
+pub(crate) fn parse_metadata_yaml(
     content: &str,
     options: &ReaderOptions,
 ) -> Result<BTreeMap<String, MetaValue>> {
@@ -115,7 +115,7 @@ pub fn parse_metadata_yaml(
 ///
 /// # Errors
 /// [`Error::InvalidMetadata`] if the content is not a valid JSON object.
-pub fn parse_metadata_json(
+pub(crate) fn parse_metadata_json(
     content: &str,
     options: &ReaderOptions,
 ) -> Result<BTreeMap<String, MetaValue>> {

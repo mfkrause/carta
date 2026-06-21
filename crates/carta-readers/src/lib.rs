@@ -12,6 +12,8 @@ pub mod csv;
 pub mod html;
 #[cfg(feature = "json")]
 pub mod json;
+#[cfg(feature = "commonmark")]
+pub mod metadata;
 #[cfg(feature = "native")]
 pub mod native;
 #[cfg(feature = "opml")]

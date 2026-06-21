@@ -92,13 +92,10 @@ pub fn parse_metadata_file(
     content: &str,
     json: bool,
 ) -> Result<std::collections::BTreeMap<String, ast::MetaValue>> {
-    let mut options = ReaderOptions::default();
-    options.extensions = presets::MARKDOWN;
-    options.greedy_paragraphs = true;
     if json {
-        carta_readers::commonmark::parse_metadata_json(content, &options)
+        carta_readers::metadata::parse_json(content)
     } else {
-        carta_readers::commonmark::parse_metadata_yaml(content, &options)
+        carta_readers::metadata::parse_yaml(content)
     }
 }
 
