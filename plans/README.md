@@ -28,7 +28,7 @@ findings are recorded below so they aren't re-audited.
 | 004 | Allocation hygiene bundle (6 reader hot-path sites) | P2 | M | 001 (soft) | TODO |
 | 005 | Spike: byte-offset scanning + boxed `Inline` variants (report, not merge) | P2 | M | 001 (hard) | TODO |
 | 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | DONE |
-| 007 | Standalone output + template engine (folds in the metadata/variable context it requires) | P1 | L | — | TODO |
+| 007 | Standalone output + template engine (folds in the metadata/variable context it requires) | P1 | L | — | DONE (on `feat/standalone-templates`; engine + 13 default templates + identity vars + `-s`/`--template`/`-M`/`-V`/`--metadata-file`. Full conformance suite green across all surfaces; STATUS rows flipped. Awaiting operator merge) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
