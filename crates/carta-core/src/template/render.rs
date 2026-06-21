@@ -163,7 +163,10 @@ fn render_partial(
     let Some(source) = resolve(name) else {
         return;
     };
-    let Ok(template) = Template::parse(&source) else {
+    // A partial drops a single trailing newline from its source, so the line a `$name()$` sits on
+    // is not forced open by the partial file's own final newline.
+    let source = source.strip_suffix('\n').unwrap_or(&source);
+    let Ok(template) = Template::parse(source) else {
         return;
     };
     match map_over {
