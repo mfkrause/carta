@@ -1,5 +1,5 @@
 $if(title)$
-#set document(title: [$title$]$if(author)$, author: ($for(author)$[$author$]$sep$, $endfor$)$endif$$if(keywords)$, keywords: ($for(keywords)$"$keywords$"$sep$, $endfor$)$endif$)
+#set document(title: [$title$]$if(author)$, author: ($for(author)$[$if(author.name)$$author.name$$else$$author$$endif$]$sep$, $endfor$)$endif$$if(keywords)$, keywords: ($for(keywords)$"$keywords$"$sep$, $endfor$)$endif$)
 $endif$
 #set page(numbering: "1", number-align: center)
 #set text(font: ("Linux Libertine",), lang: "$if(lang)$$lang$$else$en$endif$")
@@ -19,7 +19,7 @@ $endif$
 ]]
 $endif$
 $for(author)$
-#align(center)[$author$]
+#align(center)[$if(author.name)$$author.name$$else$$author$$endif$]
 $endfor$
 $if(date)$
 #align(center)[$date$]
