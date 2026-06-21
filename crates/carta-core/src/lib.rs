@@ -100,11 +100,33 @@ pub struct WriterOptions {
     /// reader's values and `-M` override.
     #[cfg(feature = "template")]
     pub metadata_defaults: std::collections::BTreeMap<String, carta_ast::MetaValue>,
+
+    /// The source name an HTML-family standalone document falls back to for its `pagetitle` when no
+    /// `title` metadata is present: an input file's stem, or `-` for standard input. `None` outside
+    /// the command line, where there is no source name and the fallback is empty.
+    #[cfg(feature = "template")]
+    pub source_name: Option<String>,
 }
 
 /// Parses input text in some source format into the document model.
 pub trait Reader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document>;
+}
+
+/// Which plain-text identity variables a writer's standalone template draws on. The document's
+/// title, authors, and date are exposed as markup-free, target-escaped text for places that cannot
+/// carry markup — a web document head or a PDF document's properties. See [`Writer::meta_var_style`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetaVarStyle {
+    /// The format exposes none of these variables.
+    #[default]
+    None,
+    /// A web document head: `pagetitle` (the title, falling back to the source name), `date-meta`
+    /// (the date), and `author-meta` (the authors, one list entry each).
+    Web,
+    /// A PDF document's properties: `title-meta` (the title) and `author-meta` (the authors joined
+    /// into one string with `; `).
+    Pdf,
 }
 
 /// Renders the document model into some target format's text.
@@ -150,6 +172,29 @@ pub trait Writer {
     /// fragment (no wrapping document exists for the format).
     fn default_template(&self) -> Option<&'static str> {
         None
+    }
+
+    /// A standalone document this format assembles structurally, embedding the metadata and block
+    /// list in one value rather than wrapping a text body in a template — the data form is the
+    /// canonical example. Returned in place of template rendering. `None` (the default) when the
+    /// format wraps its body with a text template instead.
+    ///
+    /// # Errors
+    /// Propagates any error from rendering the document.
+    fn standalone_document(
+        &self,
+        document: &Document,
+        options: &WriterOptions,
+    ) -> Result<Option<String>> {
+        let _ = (document, options);
+        Ok(None)
+    }
+
+    /// Which plain-text identity variables this writer's standalone template draws on — the title,
+    /// authors, and date as markup-free text. The default is [`MetaVarStyle::None`]; an HTML-family
+    /// writer returns [`MetaVarStyle::Web`] and a LaTeX-family writer [`MetaVarStyle::Pdf`].
+    fn meta_var_style(&self) -> MetaVarStyle {
+        MetaVarStyle::None
     }
 
     /// A title presentation the template language cannot express from individual variables — an
