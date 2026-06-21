@@ -50,7 +50,7 @@ fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontM
     let lines: Vec<&str> = normalized.split('\n').collect();
     // A fence line is `---` (open or close) or `...` (close) with optional trailing whitespace;
     // leading whitespace disqualifies it, so the comparison trims only the end.
-    if !lines.first().is_some_and(|line| line.trim_end() == "---") {
+    if lines.first().is_none_or(|line| line.trim_end() != "---") {
         return Ok(None);
     }
     let close = lines
