@@ -251,3 +251,159 @@ TML=[$for(title-meta)$<$title-meta$>$endfor$]"
     // string even when the document carries no title or author.
     assert_eq!(output, "AML=[<>]|TML=[<>]");
 }
+
+/// A block-scalar title: its YAML value is a literal block, so the title parses to block metadata
+/// rather than inline. A lone paragraph still has an inline form, so its soft line break folds into a
+/// space and the text flows into a single-line metadata field.
+const BLOCK_SCALAR_TITLE: &str = "\
+---
+title: |
+  Multi-line
+  Title Block
+---
+Body.
+";
+
+/// A block-scalar title spanning two paragraphs: several blocks have no single-paragraph inline form,
+/// so any variable that requires inline text comes out empty.
+const TWO_PARAGRAPH_TITLE: &str = "\
+---
+title: |
+  First Para
+
+  Second Para
+---
+Body.
+";
+
+#[cfg(feature = "write-html")]
+#[test]
+fn web_pagetitle_flattens_a_lone_paragraph_title() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("[$pagetitle$]".to_owned());
+    let output = convert(
+        "markdown",
+        "html",
+        BLOCK_SCALAR_TITLE,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // The block-scalar title's lone paragraph supplies its inline text; the soft break becomes a space.
+    assert_eq!(output, "[Multi-line Title Block]");
+}
+
+#[cfg(feature = "write-latex")]
+#[test]
+fn pdf_title_meta_flattens_a_lone_paragraph_title() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("[$title-meta$]".to_owned());
+    let output = convert(
+        "markdown",
+        "latex",
+        BLOCK_SCALAR_TITLE,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert_eq!(output, "[Multi-line Title Block]");
+}
+
+#[cfg(feature = "write-latex")]
+#[test]
+fn pdf_title_meta_is_empty_for_a_multi_paragraph_title() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("[$title-meta$]".to_owned());
+    let output = convert(
+        "markdown",
+        "latex",
+        TWO_PARAGRAPH_TITLE,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // Several blocks have no single-paragraph inline form, so the inline metadata variable is empty.
+    assert_eq!(output, "[]");
+}
+
+#[cfg(feature = "write-man")]
+#[test]
+fn man_flattens_block_metadata_into_a_header_field() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("[$title$]".to_owned());
+
+    let single = convert(
+        "markdown",
+        "man",
+        BLOCK_SCALAR_TITLE,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // The lone paragraph flattens to inline roff — no paragraph macro leaks into the header field.
+    assert_eq!(single, "[Multi\\-line Title Block]");
+
+    let multi = convert(
+        "markdown",
+        "man",
+        TWO_PARAGRAPH_TITLE,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert_eq!(multi, "[]");
+}
+
+#[cfg(feature = "write-rst")]
+#[test]
+fn rst_builds_a_title_block_from_a_block_scalar_title() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("[$titleblock$]".to_owned());
+    let output = convert(
+        "markdown",
+        "rst",
+        BLOCK_SCALAR_TITLE,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // The flattened title heads an over- and underlined title block sized to its display width.
+    assert_eq!(
+        output,
+        "[======================\nMulti-line Title Block\n======================]"
+    );
+}
+
+#[cfg(feature = "write-typst")]
+#[test]
+fn typst_default_template_renders_a_structured_author_name() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    let output = convert(
+        "markdown",
+        "typst",
+        "---\nauthor:\n  - name: Grace Hopper\ntitle: Hi\n---\n\nBody.\n",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // A structured author exposes its `name`; it must reach both the document metadata and the title
+    // block as text, never collapsing to a boolean from a non-empty map being interpolated directly.
+    assert!(
+        output.contains("author: ([Grace Hopper])"),
+        "structured author name should reach #set document: {output}"
+    );
+    assert!(
+        output.contains("#align(center)[Grace Hopper]"),
+        "structured author should render in the title block: {output}"
+    );
+    assert!(
+        !output.contains("[true]"),
+        "a structured author must not collapse to a boolean: {output}"
+    );
+}
