@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_wrap.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l l.
+T{
+k
+T}@T{
+description
+T}
+_
+T{
+a
+T}@T{
+this cell holds a deliberately long run of text that cannot fit inside one seventy\-two column line and therefore forces a layout decision
+T}
+.TE
