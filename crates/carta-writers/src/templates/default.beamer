@@ -19,7 +19,9 @@ $endif$
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \hypersetup{
-  pdftitle={$pagetitle$},
+$if(title-meta)$
+  pdftitle={$title-meta$},
+$endif$
   pdfcreator={carta}}
 $for(header-includes)$
 $header-includes$

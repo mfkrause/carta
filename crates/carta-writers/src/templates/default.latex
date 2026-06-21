@@ -23,9 +23,11 @@ $endfor$
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \usepackage{hyperref}
 \hypersetup{
-  pdftitle={$pagetitle$},
-$if(author)$
-  pdfauthor={$for(author)$$author$$sep$, $endfor$},
+$if(title-meta)$
+  pdftitle={$title-meta$},
+$endif$
+$if(author-meta)$
+  pdfauthor={$author-meta$},
 $endif$
 $if(lang)$
   pdflang={$lang$},
