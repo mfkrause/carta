@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use carta_ast::{Alignment, Attr, Block, Document, Format, Inline, ListAttributes};
 use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
-pub use frontmatter::{parse_metadata_json, parse_metadata_yaml};
+pub(crate) use frontmatter::{parse_metadata_json, parse_metadata_yaml};
 
 /// Parses `CommonMark` text into the document model.
 ///
