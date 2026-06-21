@@ -22,6 +22,82 @@ struct Scope {
     value: Value,
 }
 
+/// The growing output, plus a one-bit memory of how the last text reached it.
+///
+/// A block-level value (a rendered body or block metadata) carries a trailing blank line. When such
+/// a value sits on its own line in the template — `$body$` followed by a newline — that line's own
+/// break would stack onto the value's trailing blank line and open an extra empty line. So a value
+/// that ends in a newline absorbs every newline that immediately follows it: its own trailing blank
+/// line stands, and the line break (or blank lines) written after it in the template are dropped.
+/// Literal template text never arms this, so blank lines an author writes between literals are
+/// preserved exactly.
+#[derive(Default)]
+struct Sink {
+    buf: String,
+    absorb_newline: bool,
+}
+
+impl Sink {
+    /// Append literal template text verbatim, save that a preceding value's trailing newline first
+    /// swallows any leading newlines of this text.
+    fn push_literal(&mut self, text: &str) {
+        let text = self.take_absorbed(text);
+        self.buf.push_str(text);
+        self.absorb_newline = false;
+    }
+
+    /// Append an interpolated value, indenting its continuation lines to a space-only current-line
+    /// prefix. A preceding value's trailing newline swallows any leading newlines of this value; a
+    /// value that ends in a newline arms the same rule for whatever follows.
+    fn push_value(&mut self, text: &str) {
+        let text = self.take_absorbed(text);
+        let ends_with_newline = text.ends_with('\n');
+        let indent = self.current_indent();
+        if indent == 0 || !text.contains('\n') {
+            self.buf.push_str(text);
+        } else {
+            let pad = " ".repeat(indent);
+            let mut lines = text.split('\n');
+            if let Some(first) = lines.next() {
+                self.buf.push_str(first);
+            }
+            for line in lines {
+                self.buf.push('\n');
+                // A blank line stays blank: indenting it would leave trailing spaces on an otherwise
+                // empty line, so the prefix is applied only to lines that carry content.
+                if !line.is_empty() {
+                    self.buf.push_str(&pad);
+                    self.buf.push_str(line);
+                }
+            }
+        }
+        self.absorb_newline = ends_with_newline;
+    }
+
+    /// Drop every leading newline from `text` when a preceding value armed the rule.
+    fn take_absorbed<'a>(&self, text: &'a str) -> &'a str {
+        if self.absorb_newline {
+            text.trim_start_matches('\n')
+        } else {
+            text
+        }
+    }
+
+    /// The indentation to apply to a value's continuation lines: the current line's width when it is
+    /// all spaces, else zero.
+    fn current_indent(&self) -> usize {
+        let line = match self.buf.rfind('\n') {
+            Some(k) => self.buf.get(k + 1..).unwrap_or(""),
+            None => self.buf.as_str(),
+        };
+        if !line.is_empty() && line.bytes().all(|b| b == b' ') {
+            line.len()
+        } else {
+            0
+        }
+    }
+}
+
 impl Template {
     /// Render the template against `context`. `resolve_partial` maps a partial name to its source
     /// text; pass a closure returning `None` for templates that use no partials.
@@ -34,7 +110,7 @@ impl Template {
         context: &Value,
         resolve_partial: &dyn Fn(&str) -> Option<String>,
     ) -> Result<String, TemplateError> {
-        let mut out = String::new();
+        let mut sink = Sink::default();
         let mut scopes = Vec::new();
         render_nodes(
             &self.nodes,
@@ -42,9 +118,9 @@ impl Template {
             &mut scopes,
             resolve_partial,
             0,
-            &mut out,
+            &mut sink,
         )?;
-        Ok(out)
+        Ok(sink.buf)
     }
 }
 
@@ -54,7 +130,7 @@ fn render_nodes(
     scopes: &mut Vec<Scope>,
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
-    out: &mut String,
+    out: &mut Sink,
 ) -> Result<(), TemplateError> {
     for node in nodes {
         render_node(node, ctx, scopes, resolve, depth, out)?;
@@ -68,13 +144,13 @@ fn render_node(
     scopes: &mut Vec<Scope>,
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
-    out: &mut String,
+    out: &mut Sink,
 ) -> Result<(), TemplateError> {
     match node {
-        Node::Literal(text) => out.push_str(text),
+        Node::Literal(text) => out.push_literal(text),
         Node::Var(expr) => {
             if let Some(value) = eval(expr, ctx, scopes) {
-                emit_value(out, &pipe::stringify(&value));
+                out.push_value(&pipe::stringify(&value));
             } else if !expr.pipes.is_empty() {
                 // An absent path is an empty value; its pipe chain still applies, so `$x/length$`
                 // on a missing `x` yields `0` rather than vanishing.
@@ -82,7 +158,7 @@ fn render_node(
                 for filter in &expr.pipes {
                     value = pipe::apply(&value, filter);
                 }
-                emit_value(out, &pipe::stringify(&value));
+                out.push_value(&pipe::stringify(&value));
             }
         }
         Node::If {
@@ -140,7 +216,7 @@ fn render_for(
     scopes: &mut Vec<Scope>,
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
-    out: &mut String,
+    out: &mut Sink,
 ) -> Result<(), TemplateError> {
     let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
         return Ok(());
@@ -169,7 +245,7 @@ fn render_partial(
     scopes: &mut Vec<Scope>,
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
-    out: &mut String,
+    out: &mut Sink,
 ) -> Result<(), TemplateError> {
     if depth >= MAX_DEPTH {
         return Ok(());
@@ -185,9 +261,8 @@ fn render_partial(
     let template = Template::parse(source)?;
     match map_over {
         None => {
-            let mut buf = String::new();
-            render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf)?;
-            emit_value(out, &buf);
+            let rendered = render_to_string(&template.nodes, ctx, scopes, resolve, depth + 1)?;
+            out.push_value(&rendered);
         }
         Some(expr) => {
             let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
@@ -200,17 +275,28 @@ fn render_partial(
                     bind: None,
                     value: item,
                 });
-                let mut buf = String::new();
-                let result =
-                    render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf);
+                let result = render_to_string(&template.nodes, ctx, scopes, resolve, depth + 1);
                 scopes.pop();
-                result?;
-                pieces.push(buf);
+                pieces.push(result?);
             }
-            emit_value(out, &pieces.join(&separator));
+            out.push_value(&pieces.join(&separator));
         }
     }
     Ok(())
+}
+
+/// Render `nodes` into an independent string, used for a partial's body before it is interpolated as
+/// a single value into the surrounding output.
+fn render_to_string(
+    nodes: &[Node],
+    ctx: &Value,
+    scopes: &mut Vec<Scope>,
+    resolve: &dyn Fn(&str) -> Option<String>,
+    depth: usize,
+) -> Result<String, TemplateError> {
+    let mut sink = Sink::default();
+    render_nodes(nodes, ctx, scopes, resolve, depth, &mut sink)?;
+    Ok(sink.buf)
 }
 
 /// A scalar or map iterates as a single element; a list iterates its elements.
@@ -272,42 +358,5 @@ fn truthy(value: &Value) -> bool {
         // A map is present-and-therefore-true even when it carries no entries.
         Value::Map(_) => true,
         Value::Bool(b) => *b,
-    }
-}
-
-/// Append a produced value, indenting continuation lines to match a space-only current-line prefix.
-fn emit_value(out: &mut String, text: &str) {
-    let indent = current_indent(out);
-    if indent == 0 || !text.contains('\n') {
-        out.push_str(text);
-        return;
-    }
-    let pad = " ".repeat(indent);
-    let mut lines = text.split('\n');
-    if let Some(first) = lines.next() {
-        out.push_str(first);
-    }
-    for line in lines {
-        out.push('\n');
-        // A blank line stays blank: indenting it would leave trailing spaces on an otherwise
-        // empty line, so the prefix is applied only to lines that carry content.
-        if !line.is_empty() {
-            out.push_str(&pad);
-            out.push_str(line);
-        }
-    }
-}
-
-/// The indentation to apply to continuation lines: the current line's width when it is all spaces,
-/// else zero.
-fn current_indent(out: &str) -> usize {
-    let line = match out.rfind('\n') {
-        Some(k) => out.get(k + 1..).unwrap_or(""),
-        None => out,
-    };
-    if !line.is_empty() && line.bytes().all(|b| b == b' ') {
-        line.len()
-    } else {
-        0
     }
 }

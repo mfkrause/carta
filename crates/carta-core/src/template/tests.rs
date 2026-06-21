@@ -449,6 +449,25 @@ fn output_is_verbatim_no_added_newline() {
     assert_eq!(render("one newline\n", &map(&[])), "one newline\n");
 }
 
+#[test]
+fn value_trailing_newline_absorbs_the_line_break_after_it() {
+    // A block value ending in a blank line, alone on its line: the line's own break folds into the
+    // value's trailing blank line rather than opening a second empty line.
+    let ctx = map(&[("body", s("first\n\nsecond\n\n"))]);
+    assert_eq!(
+        render("before\n$body$\nafter\n", &ctx),
+        "before\nfirst\n\nsecond\n\nafter\n"
+    );
+    // A value with no trailing newline leaves the following line break intact.
+    let inline = map(&[("title", s("Hello"))]);
+    assert_eq!(render("a\n$title$\nb\n", &inline), "a\nHello\nb\n");
+    // The value's trailing blank line absorbs the whole following newline run, however long.
+    assert_eq!(
+        render("before\n$body$\n\n\nafter\n", &ctx),
+        "before\nfirst\n\nsecond\n\nafter\n"
+    );
+}
+
 /// Build a copy of `base` (a map) with one extra key.
 fn map_merge(base: &Value, key: &str, value: Value) -> Value {
     let Value::Map(m) = base else {
