@@ -10,7 +10,8 @@
 pub use carta_ast as ast;
 pub use carta_ast::Document;
 pub use carta_core::{
-    Error, Extension, Extensions, Reader, ReaderOptions, Result, Writer, WriterOptions, presets,
+    Error, Extension, Extensions, Reader, ReaderOptions, Result, WrapMode, Writer, WriterOptions,
+    presets,
 };
 
 mod format_spec;
