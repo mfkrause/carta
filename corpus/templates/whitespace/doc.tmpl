@@ -1,0 +1,12 @@
+START
+$if(on)$
+block-line
+$endif$
+inline: $if(on)$yes$endif$ tail
+indented body:
+    $body$
+list with indented items:
+$for(xs)$
+    * $xs$
+$endfor$
+END

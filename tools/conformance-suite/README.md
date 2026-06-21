@@ -50,6 +50,7 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 | `roundtrip` | JSON codec identity: `pandoc -f native -t json` then `carta -f json -t json` | fetched `.native` corpus |
 | `commands` | declarative command tests, vs a live normalized oracle | `.oracle/tests/test/command/*.md` |
 | `extensions` | structural gate: every reader-honored extension has an oracle-parity case | `crates/carta-core` (the variant table), the reader source, and `corpus/text-ext/` |
+| `templates` | `-f markdown -t TARGET --template=T`, compared byte-for-byte (verbatim output, no trailing-newline tolerance) | self-contained `corpus/templates/<case>/` (an owned template + body/metadata + optional flags) across eight targets |
 
 ### Comparison and normalization
 

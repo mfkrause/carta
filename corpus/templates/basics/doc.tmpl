@@ -1,0 +1,18 @@
+title: $title$
+$if(subtitle)$
+subtitle: $subtitle$
+$endif$
+owner: $info.owner$
+team: $info.team$
+missing: [$absent$]
+tags: $tags$
+status:
+$if(draft)$
+draft
+$elseif(review)$
+in review
+$else$
+final
+$endif$
+----
+$body$
