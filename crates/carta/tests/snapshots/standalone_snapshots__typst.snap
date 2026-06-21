@@ -2,14 +2,14 @@
 source: crates/carta/tests/standalone_snapshots.rs
 expression: output
 ---
-#set document(title: [A #emph[Grand] Report], author: ([Ada Lovelace], [Alan Turing]))
+#set document(title: [A #emph[Grand] "Report"], author: ([Ada Lovelace], [Alan Turing]), keywords: ("analysis", "computing"))
 #set page(numbering: "1", number-align: center)
 #set text(font: ("Linux Libertine",), lang: "en")
 #set par(justify: true)
 #set heading(numbering: none)
 
 #align(center)[#block[
-#text(weight: "bold", size: 1.75em)[A #emph[Grand] Report]
+#text(weight: "bold", size: 1.75em)[A #emph[Grand] "Report"#footnote[With thanks to the reviewers.]]
 #parbreak()
 #text(size: 1.25em)[On Matters of Import]
 ]]

@@ -9,12 +9,17 @@ author:
 - Ada Lovelace
 - Alan Turing
 date: 2026-06-20
+description: A short standalone document.
+dir: ltr
+fontsize: 12pt
+institute: The Analytical Society
 keywords:
 - analysis
 - computing
 lang: en
 subtitle: On Matters of Import
-title: A *Grand* Report
+thanks: With thanks to the reviewers.
+title: A *Grand* "Report"
 ---
 
 # Introduction

@@ -3,7 +3,7 @@ source: crates/carta/tests/standalone_snapshots.rs
 expression: output
 ---
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" dir="ltr">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta http-equiv="Content-Style-Type" content="text/css" />
@@ -12,9 +12,10 @@ expression: output
 <meta name="author" content="Alan Turing" />
 <meta name="date" content="2026-06-20" />
 <meta name="keywords" content="analysis, computing" />
-<title>A Grand Report</title>
+<meta name="description" content="A short standalone document." />
+<title>A Grand “Report”</title>
 <style type="text/css">
-body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: sans-serif; color: #1a1a1a; }
+body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: sans-serif; color: #1a1a1a; font-size: 12pt; }
 h1, h2, h3, h4 { line-height: 1.2; }
 pre { overflow: auto; padding: 1em; background-color: #f6f6f6; }
 blockquote { margin-left: 1.5em; padding-left: 1em; border-left: 3px solid #cccccc; }
@@ -26,7 +27,7 @@ table { border-collapse: collapse; }
 </head>
 <body>
 <div id="header">
-<h1 class="title">A <em>Grand</em> Report</h1>
+<h1 class="title">A <em>Grand</em> “Report”</h1>
 <h1 class="subtitle">On Matters of Import</h1>
 <h2 class="author">Ada Lovelace</h2>
 <h2 class="author">Alan Turing</h2>

@@ -1,5 +1,5 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$>
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta http-equiv="Content-Style-Type" content="text/css" />
@@ -18,7 +18,7 @@ $if(description)$
 $endif$
 <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
 <style type="text/css">
-body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: sans-serif; color: #1a1a1a; }
+body { margin: 0 auto; max-width: 40em; padding: 2em 1em; line-height: 1.5; font-family: sans-serif; color: #1a1a1a;$if(fontsize)$ font-size: $fontsize$;$endif$ }
 h1, h2, h3, h4 { line-height: 1.2; }
 pre { overflow: auto; padding: 1em; background-color: #f6f6f6; }
 blockquote { margin-left: 1.5em; padding-left: 1em; border-left: 3px solid #cccccc; }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html$if(lang)$ lang="$lang$"$endif$>
+<html$if(lang)$ lang="$lang$"$endif$$if(dir)$ dir="$dir$"$endif$>
 <head>
 <meta charset="utf-8" />
 <meta name="generator" content="carta" />
@@ -7,6 +7,12 @@
 $for(author)$
 <meta name="author" content="$author$" />
 $endfor$
+$if(date)$
+<meta name="dcterms.date" content="$date$" />
+$endif$
+$if(keywords)$
+<meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
 <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$</title>
 <link rel="stylesheet" href="https://unpkg.com/reveal.js@^5/dist/reset.css" />
 <link rel="stylesheet" href="https://unpkg.com/reveal.js@^5/dist/reveal.css" />
@@ -29,6 +35,9 @@ $if(subtitle)$
 $endif$
 $for(author)$
 <p class="author">$author$</p>
+$endfor$
+$for(institute)$
+<p class="institute">$institute$</p>
 $endfor$
 $if(date)$
 <p class="date">$date$</p>

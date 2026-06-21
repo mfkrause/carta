@@ -1,5 +1,5 @@
 $if(title)$
-#set document(title: [$title$]$if(author)$, author: ($for(author)$[$author$]$sep$, $endfor$)$endif$)
+#set document(title: [$title$]$if(author)$, author: ($for(author)$[$author$]$sep$, $endfor$)$endif$$if(keywords)$, keywords: ($for(keywords)$"$keywords$"$sep$, $endfor$)$endif$)
 $endif$
 #set page(numbering: "1", number-align: center)
 #set text(font: ("Linux Libertine",), lang: "$if(lang)$$lang$$else$en$endif$")
@@ -11,7 +11,7 @@ $header-includes$
 $endfor$
 $if(title)$
 #align(center)[#block[
-#text(weight: "bold", size: 1.75em)[$title$]
+#text(weight: "bold", size: 1.75em)[$title$$if(thanks)$#footnote[$thanks$]$endif$]
 $if(subtitle)$
 #parbreak()
 #text(size: 1.25em)[$subtitle$]

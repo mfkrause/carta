@@ -165,6 +165,70 @@ AML=[<Ada Lovelace; Alan Turing>]"
     );
 }
 
+#[cfg(feature = "write-plain")]
+#[test]
+fn plain_title_block_shows_author_and_date_without_a_title() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    let output = convert(
+        "markdown",
+        "plain",
+        "---\nauthor: Ada Lovelace\ndate: 2026-06-20\n---\n\nBody text.\n",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // The author and date head the document even though no title is set; a blank line separates the
+    // block from the body.
+    assert_eq!(output, "Ada Lovelace\n2026-06-20\n\nBody text.\n");
+}
+
+/// A title mixing markup with a quotation: the identity variables strip the markup but keep the
+/// quotation so the target's quote glyphs survive into a `<title>` or PDF property.
+const QUOTED_TITLE_INPUT: &str = "\
+---
+title: An *emphatic* \"Report\"
+---
+Body.
+";
+
+#[cfg(feature = "write-html")]
+#[test]
+fn web_pagetitle_strips_markup_but_keeps_quote_glyphs() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("[$pagetitle$]".to_owned());
+    let output = convert(
+        "markdown",
+        "html",
+        QUOTED_TITLE_INPUT,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // `emphatic` loses its emphasis; the quotation around `Report` renders as the format's curly
+    // quotes rather than being dropped.
+    assert_eq!(output, "[An emphatic \u{201c}Report\u{201d}]");
+}
+
+#[cfg(feature = "write-latex")]
+#[test]
+fn pdf_title_meta_strips_markup_but_keeps_quote_glyphs() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("[$title-meta$]".to_owned());
+    let output = convert(
+        "markdown",
+        "latex",
+        QUOTED_TITLE_INPUT,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // The quotation renders as TeX quote ligatures; the emphasis is gone.
+    assert_eq!(output, "[An emphatic ``Report'']");
+}
+
 #[cfg(feature = "write-latex")]
 #[test]
 fn pdf_identity_variables_are_defined_even_without_metadata() {
