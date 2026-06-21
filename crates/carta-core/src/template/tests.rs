@@ -277,6 +277,8 @@ fn roman_numbers_and_passthrough() {
     assert_eq!(r("2024"), "mmxxiv");
     assert_eq!(r("3999"), "mmmcmxcix");
     assert_eq!(r("0"), ""); // zero is empty
+    assert_eq!(r("4000"), "4000"); // above the defined range, passes through
+    assert_eq!(r("999999999"), "999999999"); // a large value never drives unbounded work
     assert_eq!(r("-1"), "-1"); // negative passes through
     assert_eq!(r("abc"), "abc"); // non-integer passes through
     assert_eq!(r(" 4 "), " 4 "); // surrounding whitespace disqualifies the integer
