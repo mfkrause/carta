@@ -58,12 +58,31 @@ pub struct ReaderOptions {
     pub greedy_paragraphs: bool,
 }
 
+/// How a text writer lays out the lines of a paragraph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WrapMode {
+    /// Reflow inline content, breaking lines to keep them within the fill column. A soft line break
+    /// in the source is just inter-word space and is re-flowed like any other.
+    #[default]
+    Auto,
+    /// Never break a paragraph: each one is a single line, with soft breaks rendered as spaces. Lines
+    /// run as long as their content (only an explicit hard break starts a new line).
+    None,
+    /// Keep the source's own line breaks: a soft break stays a line break and content is not
+    /// reflowed, but lines are not wrapped to a column either.
+    Preserve,
+}
+
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct WriterOptions {
     /// Format extensions to enable.
     pub extensions: Extensions,
+
+    /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
+    /// own line breaks preserved.
+    pub wrap: WrapMode,
 
     /// Emit a complete document by wrapping the rendered body in the target format's template,
     /// rather than a bare fragment.
