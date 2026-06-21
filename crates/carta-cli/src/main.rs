@@ -45,17 +45,17 @@ struct Cli {
     /// Render with this template file instead of the format's built-in default; implies `-s`.
     #[arg(long = "template", value_name = "FILE")]
     template: Option<PathBuf>,
-    /// Set a template variable: `KEY=VAL`, or bare `KEY` for `true`. Repeatable; a repeated key
-    /// accumulates into a list.
-    #[arg(short = 'V', long = "variable", value_name = "KEY[=VAL]")]
+    /// Set a template variable: `KEY:VAL` (or `KEY=VAL`), or bare `KEY` for `true`. Repeatable; a
+    /// repeated key accumulates into a list.
+    #[arg(short = 'V', long = "variable", value_name = "KEY[:VAL]")]
     variable: Vec<String>,
     /// Text wrapping in the output: `auto` reflows to the column width, `none` keeps each block on a
     /// single line, `preserve` keeps the input's own line breaks.
     #[arg(long = "wrap", value_name = "auto|none|preserve", default_value = "auto", value_parser = parse_wrap)]
     wrap: WrapMode,
-    /// Set a metadata field: `KEY=VAL` (`true`/`false` become booleans), or bare `KEY` for `true`.
-    /// Repeatable.
-    #[arg(short = 'M', long = "metadata", value_name = "KEY[=VAL]")]
+    /// Set a metadata field: `KEY:VAL` (or `KEY=VAL`; `true`/`false` become booleans), or bare `KEY`
+    /// for `true`. Repeatable.
+    #[arg(short = 'M', long = "metadata", value_name = "KEY[:VAL]")]
     metadata: Vec<String>,
     /// Read metadata from a YAML or JSON file. Repeatable; later files override earlier ones, and all
     /// sit below the document's own metadata.
@@ -178,11 +178,12 @@ fn parse_wrap(value: &str) -> std::result::Result<WrapMode, String> {
     }
 }
 
-/// Parse `-V` specifiers into raw key/value pairs, defaulting a bare `KEY` to `"true"`.
+/// Parse `-V` specifiers into raw key/value pairs, defaulting a bare `KEY` to `"true"`. A specifier
+/// splits on its first `:` or `=`, whichever comes first, so the value may contain the other.
 fn parse_variables(specs: &[String]) -> Vec<(String, String)> {
     specs
         .iter()
-        .map(|spec| match spec.split_once('=') {
+        .map(|spec| match spec.split_once([':', '=']) {
             Some((key, value)) => (key.to_owned(), value.to_owned()),
             None => (spec.clone(), "true".to_owned()),
         })
@@ -191,10 +192,11 @@ fn parse_variables(specs: &[String]) -> Vec<(String, String)> {
 
 /// Parse `-M` specifiers into metadata values: `true`/`false` become booleans, a bare `KEY` becomes
 /// `true`, and anything else is a string. A repeated key accumulates its values into a list in order.
+/// A specifier splits on its first `:` or `=`, whichever comes first.
 fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
     let mut map: BTreeMap<String, MetaValue> = BTreeMap::new();
     for spec in specs {
-        let (key, value) = match spec.split_once('=') {
+        let (key, value) = match spec.split_once([':', '=']) {
             Some((key, "true")) => (key, MetaValue::MetaBool(true)),
             Some((key, "false")) => (key, MetaValue::MetaBool(false)),
             Some((key, value)) => (key, MetaValue::MetaString(value.to_owned())),
@@ -308,6 +310,32 @@ mod tests {
                 ("eq".to_owned(), "a=b".to_owned()),
             ]
         );
+    }
+
+    #[test]
+    fn variable_splits_on_the_first_colon_or_equals() {
+        assert_eq!(
+            vars(&["k:v", "colon:a=b", "equals=a:b"]),
+            vec![
+                ("k".to_owned(), "v".to_owned()),
+                // The first separator wins: a `:` before an `=` keeps the `=` in the value.
+                ("colon".to_owned(), "a=b".to_owned()),
+                ("equals".to_owned(), "a:b".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn metadata_splits_on_the_first_colon_or_equals() {
+        let map = parse_metadata(
+            &["a:val", "b:true", "c:x=y"]
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(map["a"], MetaValue::MetaString("val".to_owned()));
+        assert_eq!(map["b"], MetaValue::MetaBool(true));
+        assert_eq!(map["c"], MetaValue::MetaString("x=y".to_owned()));
     }
 
     #[test]
