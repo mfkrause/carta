@@ -489,8 +489,11 @@ impl Builder<'_> {
             return Err(TemplateError::new("expected `for`"));
         };
         self.pos += 1;
-        let bind = match (expr.path.as_slice(), expr.pipes.is_empty()) {
-            ([only], true) => Some(only.clone()),
+        // A single-segment loop expression also binds that name to the current element (so
+        // `$for(xs)$…$xs$` works, as does `$for(m/pairs)$…$m.key$`); a pipe on the segment does not
+        // change the name. `$it$` always refers to the element regardless.
+        let bind = match expr.path.as_slice() {
+            [only] => Some(only.clone()),
             _ => None,
         };
         let body = self.sequence()?;
