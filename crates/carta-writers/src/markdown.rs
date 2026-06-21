@@ -9,6 +9,7 @@
 //! express, keeping smart punctuation verbatim. Inline content wraps at a fill column of 72. Output
 //! carries no trailing newline; the caller appends one.
 
+use std::borrow::Cow;
 use std::fmt::Write;
 
 use carta_ast::{
@@ -233,7 +234,7 @@ fn push_yaml_scalar(out: &mut String, pad: &str, key: &str, scalar: &str) {
         let _ = writeln!(out, "{pad}{key}: |");
         push_yaml_literal(out, pad, scalar);
     } else {
-        let _ = writeln!(out, "{pad}{key}: {scalar}");
+        let _ = writeln!(out, "{pad}{key}: {}", yaml_inline_scalar(scalar));
     }
 }
 
@@ -243,8 +244,56 @@ fn push_yaml_scalar_item(out: &mut String, pad: &str, scalar: &str) {
         let _ = writeln!(out, "{pad}- |");
         push_yaml_literal(out, &format!("{pad}  "), scalar);
     } else {
-        let _ = writeln!(out, "{pad}- {scalar}");
+        let _ = writeln!(out, "{pad}- {}", yaml_inline_scalar(scalar));
     }
+}
+
+/// Render a single-line scalar as YAML flow text: a double-quoted string when a plain scalar would be
+/// reparsed as something other than its text, otherwise the text verbatim.
+fn yaml_inline_scalar(scalar: &str) -> Cow<'_, str> {
+    if yaml_needs_quoting(scalar) {
+        Cow::Owned(yaml_quote(scalar))
+    } else {
+        Cow::Borrowed(scalar)
+    }
+}
+
+/// Whether a single-line scalar must be double-quoted to round-trip as itself. An empty string,
+/// surrounding spaces, an embedded colon or ` #` comment opener, a leading YAML indicator character,
+/// or a word YAML reads as a boolean or null all force quoting.
+fn yaml_needs_quoting(scalar: &str) -> bool {
+    if scalar.is_empty() || scalar.starts_with(' ') || scalar.ends_with(' ') {
+        return true;
+    }
+    if scalar.contains(':') || scalar.contains(" #") {
+        return true;
+    }
+    if scalar
+        .chars()
+        .next()
+        .is_some_and(|first| "-?,[]{}#&*!|>'\"%@`".contains(first))
+    {
+        return true;
+    }
+    matches!(
+        scalar.to_ascii_lowercase().as_str(),
+        "true" | "false" | "yes" | "no" | "on" | "off" | "null"
+    )
+}
+
+/// Double-quote a scalar, escaping backslashes and quotes so it parses back to the same text.
+fn yaml_quote(scalar: &str) -> String {
+    let mut quoted = String::with_capacity(scalar.len() + 2);
+    quoted.push('"');
+    for ch in scalar.chars() {
+        match ch {
+            '\\' => quoted.push_str("\\\\"),
+            '"' => quoted.push_str("\\\""),
+            _ => quoted.push(ch),
+        }
+    }
+    quoted.push('"');
+    quoted
 }
 
 /// Indent every line of `text` two spaces past `pad`, forming the body of a literal block scalar.
@@ -1903,4 +1952,67 @@ mod entity_names {
 fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
     let alnum = |ch: Option<char>| ch.is_some_and(char::is_alphanumeric);
     !(alnum(before) && alnum(after))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{yaml_inline_scalar, yaml_needs_quoting};
+
+    #[test]
+    fn yaml_quotes_only_scalars_that_would_reparse_wrongly() {
+        // A colon, a ` #` comment opener, a leading indicator, surrounding space, emptiness, and a
+        // bool/null keyword each force quoting.
+        for forced in [
+            "Chapter 1: The Beginning",
+            "a:b",
+            "ends:",
+            "http://example.com",
+            "has #comment",
+            "-leading",
+            "#leading",
+            "@leading",
+            "!leading",
+            "%leading",
+            " leading",
+            "trailing ",
+            "",
+            "true",
+            "False",
+            "NULL",
+            "yes",
+            "off",
+        ] {
+            assert!(
+                yaml_needs_quoting(forced),
+                "expected quoting for {forced:?}"
+            );
+        }
+
+        // Plain text, interior punctuation that stays valid bare, numbers, and non-keyword words are
+        // left unquoted.
+        for bare in [
+            "plain words",
+            "interior-dash here",
+            "comma,here",
+            "has \" quote",
+            "back\\slash",
+            "123",
+            "1.5",
+            "None",
+            "under_score",
+        ] {
+            assert!(
+                !yaml_needs_quoting(bare),
+                "expected no quoting for {bare:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn yaml_quote_escapes_backslash_and_quote() {
+        assert_eq!(yaml_inline_scalar("a: b"), "\"a: b\"");
+        assert_eq!(yaml_inline_scalar("a \" b"), "a \" b");
+        assert_eq!(yaml_inline_scalar(": x\\y"), "\": x\\\\y\"");
+        assert_eq!(yaml_inline_scalar("plain"), "plain");
+    }
 }
