@@ -48,14 +48,19 @@ pub(crate) fn extract(normalized: &str, options: &ReaderOptions) -> Result<Front
 /// through); `Ok(Some(..))` carries the metadata and body; `Err` marks malformed YAML.
 fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontMatter>> {
     let lines: Vec<&str> = normalized.split('\n').collect();
-    if lines.first() != Some(&"---") {
+    // A fence line is `---` (open or close) or `...` (close) with optional trailing whitespace;
+    // leading whitespace disqualifies it, so the comparison trims only the end.
+    if !lines.first().is_some_and(|line| line.trim_end() == "---") {
         return Ok(None);
     }
     let close = lines
         .iter()
         .enumerate()
         .skip(1)
-        .find(|&(_, &line)| line == "---" || line == "...")
+        .find(|&(_, &line)| {
+            let line = line.trim_end();
+            line == "---" || line == "..."
+        })
         .map(|(i, _)| i);
     // The closing fence is mandatory; without it the opening `---` is an ordinary thematic break.
     let Some(close) = close else {
@@ -325,4 +330,48 @@ fn strip_field_marker(line: &str) -> &str {
 
 fn starts_with_space(line: &str) -> bool {
     line.starts_with([' ', '\t'])
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::commonmark::CommonmarkReader;
+    use carta_ast::{Block, MetaValue};
+    use carta_core::{Extension, Extensions, Reader, ReaderOptions};
+
+    fn read(input: &str) -> carta_ast::Document {
+        let mut options = ReaderOptions::default();
+        let mut extensions = Extensions::empty();
+        extensions.insert(Extension::YamlMetadataBlock);
+        options.extensions = extensions;
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+    }
+
+    #[test]
+    fn fence_lines_tolerate_trailing_whitespace() {
+        // Trailing spaces or tabs on either fence still delimit the block, and the body that
+        // follows is not part of the metadata.
+        let document = read("---   \ntitle: T\n---\t\n\nBody\n");
+        assert_eq!(
+            document.meta.get("title"),
+            Some(&MetaValue::MetaInlines(vec![carta_ast::Inline::Str(
+                "T".to_owned()
+            )]))
+        );
+        assert!(matches!(document.blocks.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn closing_ellipsis_fence_tolerates_trailing_whitespace() {
+        let document = read("---\ntitle: T\n...  \n\nBody\n");
+        assert!(document.meta.contains_key("title"));
+    }
+
+    #[test]
+    fn an_indented_opening_fence_is_not_front_matter() {
+        // A fence must start at the line's first column; leading whitespace disqualifies it.
+        let document = read("   ---\ntitle: T\n---\n\nBody\n");
+        assert!(document.meta.is_empty());
+    }
 }
