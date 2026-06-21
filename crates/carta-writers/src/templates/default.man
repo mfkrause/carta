@@ -3,5 +3,5 @@
 $body$
 $if(author)$
 .SH AUTHORS
-$for(author)$$author$$sep$; $endfor$
+$for(author)$$author$$sep$; $endfor$.
 $endif$

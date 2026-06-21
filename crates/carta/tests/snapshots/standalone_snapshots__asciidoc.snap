@@ -2,7 +2,7 @@
 source: crates/carta/tests/standalone_snapshots.rs
 expression: output
 ---
-= A _Grand_ Report
+= A _Grand_ "`Report`"
 Ada Lovelace; Alan Turing
 2026-06-20
 :keywords: analysis, computing
