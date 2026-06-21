@@ -33,6 +33,10 @@ impl Writer for PlainWriter {
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.plain"))
     }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and

@@ -29,6 +29,10 @@ impl Writer for CommonmarkWriter {
         let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
         Ok(append_notes(body, &state.footnotes))
     }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and

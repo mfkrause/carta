@@ -32,6 +32,10 @@ impl Writer for MediawikiWriter {
         };
         Ok(out.trim_end_matches('\n').to_owned())
     }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
 }
 
 /// Tracks whether any footnote was emitted, so the trailing `<references />` block is added only when
