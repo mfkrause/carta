@@ -8,8 +8,8 @@ use super::node::{Align, Pipe};
 /// Apply one pipe to a value.
 pub(crate) fn apply(value: &Value, pipe: &Pipe) -> Value {
     match pipe {
-        Pipe::Uppercase => Value::Str(stringify(value).to_uppercase()),
-        Pipe::Lowercase => Value::Str(stringify(value).to_lowercase()),
+        Pipe::Uppercase => map_str(value, str::to_uppercase),
+        Pipe::Lowercase => map_str(value, lowercase),
         Pipe::Length => Value::Str(length(value).to_string()),
         Pipe::Reverse => reverse(value),
         Pipe::First => nth_end(value, End::First),
@@ -30,28 +30,46 @@ pub(crate) fn apply(value: &Value, pipe: &Pipe) -> Value {
     }
 }
 
-/// Flatten a value to its bare string form (lists concatenate with no separator).
+/// Flatten a value to its bare string form (lists concatenate with no separator). A map is a present,
+/// non-empty value whose bare form is `true`, so it reads the same way a boolean `true` does.
 pub(crate) fn stringify(value: &Value) -> String {
     match value {
         Value::Str(s) => s.clone(),
         Value::Bool(b) => if *b { "true" } else { "false" }.to_string(),
         Value::List(items) => items.iter().map(stringify).collect(),
-        Value::Map(_) => String::new(),
+        Value::Map(_) => "true".to_string(),
     }
+}
+
+/// Apply a text transformation to a string-shaped value. A boolean or map is not textual, so the
+/// string filters leave it untouched and it keeps rendering as `true`/`false`.
+fn map_str(value: &Value, f: impl Fn(&str) -> String) -> Value {
+    match value {
+        Value::Bool(_) | Value::Map(_) => value.clone(),
+        other => Value::Str(f(&stringify(other))),
+    }
+}
+
+/// Lowercase character by character, so a capital sigma always becomes a plain `σ` rather than the
+/// word-final `ς` that a context-sensitive full-string mapping would pick.
+fn lowercase(s: &str) -> String {
+    s.chars().flat_map(char::to_lowercase).collect()
 }
 
 fn length(value: &Value) -> usize {
     match value {
         Value::List(items) => items.len(),
         Value::Map(map) => map.len(),
-        other => stringify(other).chars().count(),
+        Value::Bool(_) => 0,
+        Value::Str(s) => s.chars().count(),
     }
 }
 
 fn reverse(value: &Value) -> Value {
     match value {
         Value::List(items) => Value::List(items.iter().rev().cloned().collect()),
-        other => Value::Str(stringify(other).chars().rev().collect()),
+        Value::Str(s) => Value::Str(s.chars().rev().collect()),
+        Value::Bool(_) | Value::Map(_) => value.clone(),
     }
 }
 
@@ -116,10 +134,16 @@ fn record(key: String, value: Value) -> Value {
     Value::Map(map)
 }
 
-/// A value's integer form, when it is one (ignoring surrounding whitespace). `None` for anything that
-/// is not a base-ten integer, so the numbering pipes can leave such values untouched.
+/// A value's integer form, when it is one. The grammar is a run of ASCII digits with an optional
+/// leading `-`: surrounding whitespace or a leading `+` disqualifies it, so the numbering pipes leave
+/// such values untouched.
 fn as_int(value: &Value) -> Option<i64> {
-    stringify(value).trim().parse().ok()
+    let text = stringify(value);
+    let digits = text.strip_prefix('-').unwrap_or(&text);
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
 }
 
 /// Single-letter cyclic numbering over the lowercase alphabet: `1`→`a` … `25`→`y`, with the cycle

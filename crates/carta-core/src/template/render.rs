@@ -9,9 +9,9 @@
 
 use std::borrow::Cow;
 
-use super::Value;
 use super::node::{Expr, Node, Template};
 use super::pipe;
+use super::{TemplateError, Value};
 
 /// Guards against unbounded partial recursion (a partial that includes itself).
 const MAX_DEPTH: usize = 64;
@@ -25,12 +25,15 @@ struct Scope {
 impl Template {
     /// Render the template against `context`. `resolve_partial` maps a partial name to its source
     /// text; pass a closure returning `None` for templates that use no partials.
-    #[must_use]
+    ///
+    /// # Errors
+    /// [`TemplateError`] when a referenced partial cannot be resolved (`resolve_partial` returns
+    /// `None` for a name the template actually uses).
     pub fn render(
         &self,
         context: &Value,
         resolve_partial: &dyn Fn(&str) -> Option<String>,
-    ) -> String {
+    ) -> Result<String, TemplateError> {
         let mut out = String::new();
         let mut scopes = Vec::new();
         render_nodes(
@@ -40,8 +43,8 @@ impl Template {
             resolve_partial,
             0,
             &mut out,
-        );
-        out
+        )?;
+        Ok(out)
     }
 }
 
@@ -52,10 +55,11 @@ fn render_nodes(
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
     out: &mut String,
-) {
+) -> Result<(), TemplateError> {
     for node in nodes {
-        render_node(node, ctx, scopes, resolve, depth, out);
+        render_node(node, ctx, scopes, resolve, depth, out)?;
     }
+    Ok(())
 }
 
 fn render_node(
@@ -65,11 +69,19 @@ fn render_node(
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
     out: &mut String,
-) {
+) -> Result<(), TemplateError> {
     match node {
         Node::Literal(text) => out.push_str(text),
         Node::Var(expr) => {
             if let Some(value) = eval(expr, ctx, scopes) {
+                emit_value(out, &pipe::stringify(&value));
+            } else if !expr.pipes.is_empty() {
+                // An absent path is an empty value; its pipe chain still applies, so `$x/length$`
+                // on a missing `x` yields `0` rather than vanishing.
+                let mut value = Value::Str(String::new());
+                for filter in &expr.pipes {
+                    value = pipe::apply(&value, filter);
+                }
                 emit_value(out, &pipe::stringify(&value));
             }
         }
@@ -79,11 +91,10 @@ fn render_node(
         } => {
             for (cond, body) in branches {
                 if eval(cond, ctx, scopes).as_deref().is_some_and(truthy) {
-                    render_nodes(body, ctx, scopes, resolve, depth, out);
-                    return;
+                    return render_nodes(body, ctx, scopes, resolve, depth, out);
                 }
             }
-            render_nodes(otherwise, ctx, scopes, resolve, depth, out);
+            render_nodes(otherwise, ctx, scopes, resolve, depth, out)?;
         }
         Node::For {
             expr,
@@ -100,7 +111,7 @@ fn render_node(
             resolve,
             depth,
             out,
-        ),
+        )?,
         Node::Partial {
             name,
             map_over,
@@ -114,8 +125,9 @@ fn render_node(
             resolve,
             depth,
             out,
-        ),
+        )?,
     }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -129,21 +141,23 @@ fn render_for(
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
     out: &mut String,
-) {
+) -> Result<(), TemplateError> {
     let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
-        return;
+        return Ok(());
     };
     for (i, item) in items.into_iter().enumerate() {
         if i > 0 {
-            render_nodes(sep, ctx, scopes, resolve, depth, out);
+            render_nodes(sep, ctx, scopes, resolve, depth, out)?;
         }
         scopes.push(Scope {
             bind: bind.cloned(),
             value: item,
         });
-        render_nodes(body, ctx, scopes, resolve, depth, out);
+        let result = render_nodes(body, ctx, scopes, resolve, depth, out);
         scopes.pop();
+        result?;
     }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -156,28 +170,28 @@ fn render_partial(
     resolve: &dyn Fn(&str) -> Option<String>,
     depth: usize,
     out: &mut String,
-) {
+) -> Result<(), TemplateError> {
     if depth >= MAX_DEPTH {
-        return;
+        return Ok(());
     }
     let Some(source) = resolve(name) else {
-        return;
+        return Err(TemplateError::new(format!(
+            "partial `{name}` could not be found"
+        )));
     };
     // A partial drops a single trailing newline from its source, so the line a `$name()$` sits on
     // is not forced open by the partial file's own final newline.
     let source = source.strip_suffix('\n').unwrap_or(&source);
-    let Ok(template) = Template::parse(source) else {
-        return;
-    };
+    let template = Template::parse(source)?;
     match map_over {
         None => {
             let mut buf = String::new();
-            render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf);
+            render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf)?;
             emit_value(out, &buf);
         }
         Some(expr) => {
             let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
-                return;
+                return Ok(());
             };
             let separator = sep.cloned().unwrap_or_default();
             let mut pieces = Vec::new();
@@ -187,13 +201,16 @@ fn render_partial(
                     value: item,
                 });
                 let mut buf = String::new();
-                render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf);
+                let result =
+                    render_nodes(&template.nodes, ctx, scopes, resolve, depth + 1, &mut buf);
                 scopes.pop();
+                result?;
                 pieces.push(buf);
             }
             emit_value(out, &pieces.join(&separator));
         }
     }
+    Ok(())
 }
 
 /// A scalar or map iterates as a single element; a list iterates its elements.
@@ -221,8 +238,10 @@ fn eval<'a>(expr: &Expr, ctx: &'a Value, scopes: &'a [Scope]) -> Option<Cow<'a, 
 /// the root context; the rest descends through maps.
 fn lookup<'a>(path: &[String], ctx: &'a Value, scopes: &'a [Scope]) -> Option<&'a Value> {
     let (head, rest) = path.split_first()?;
-    let base = if head == "it" {
-        &scopes.last()?.value
+    let base = if head == "it"
+        && let Some(scope) = scopes.last()
+    {
+        &scope.value
     } else if let Some(scope) = scopes
         .iter()
         .rev()
@@ -247,8 +266,11 @@ fn lookup<'a>(path: &[String], ctx: &'a Value, scopes: &'a [Scope]) -> Option<&'
 fn truthy(value: &Value) -> bool {
     match value {
         Value::Str(s) => !s.is_empty(),
-        Value::List(items) => !items.is_empty(),
-        Value::Map(map) => !map.is_empty(),
+        // A list is truthy when it holds at least one truthy element: a list of empty strings, or a
+        // list whose only member is itself empty, is falsy.
+        Value::List(items) => items.iter().any(truthy),
+        // A map is present-and-therefore-true even when it carries no entries.
+        Value::Map(_) => true,
         Value::Bool(b) => *b,
     }
 }
