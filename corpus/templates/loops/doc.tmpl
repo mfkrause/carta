@@ -1,0 +1,17 @@
+simple:
+$for(colors)$
+- $colors$
+$endfor$
+joined: $for(colors)$$colors$$sep$, $endfor$
+people:
+$for(people)$
+- $people.name$ ($people.role$)
+$endfor$
+matrix:
+$for(rows)$
+$for(rows)$[$rows$]$endfor$
+$endfor$
+pairs:
+$for(dict/pairs)$
+$dict.key$=$dict.value$
+$endfor$
