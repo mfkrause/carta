@@ -41,8 +41,9 @@ impl Value {
     }
 }
 
-/// A template that failed to parse (an unterminated directive, an unmatched `$if$`/`$for$`, an
-/// unknown pipe, …).
+/// A template that could not be processed: either a parse failure (an unterminated directive, an
+/// unmatched `$if$`/`$for$`, an unknown pipe, …) or a render failure (a referenced partial that
+/// cannot be resolved).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TemplateError {
     message: String,
