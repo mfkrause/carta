@@ -97,20 +97,6 @@ fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: boo
                 word.push(text);
                 word_width += display_width(text);
             }
-            Piece::Space => {
-                place_word(
-                    &mut out,
-                    &mut column,
-                    &mut at_line_start,
-                    pending_space,
-                    &word,
-                    word_width,
-                    width,
-                );
-                word.clear();
-                word_width = 0;
-                pending_space = true;
-            }
             // A soft break forces a line break only when preserving the source's own breaks;
             // otherwise it is just inter-word space (and may become a reflow point under Auto).
             Piece::Soft if preserve_softs => {
@@ -132,7 +118,7 @@ fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: boo
                 }
                 pending_space = false;
             }
-            Piece::Soft => {
+            Piece::Space | Piece::Soft => {
                 place_word(
                     &mut out,
                     &mut column,

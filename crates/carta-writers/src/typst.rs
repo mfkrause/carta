@@ -689,7 +689,6 @@ fn fill_with(
     let mut pending_space = false;
     for fragment in fragments {
         match fragment {
-            Fragment::Space => pending_space = true,
             Fragment::Soft if preserve_softs => {
                 out.push('\n');
                 column = indent;
@@ -697,7 +696,7 @@ fn fill_with(
                 at_line_start = true;
                 physical_line_start = true;
             }
-            Fragment::Soft => pending_space = true,
+            Fragment::Space | Fragment::Soft => pending_space = true,
             Fragment::LineBreak => {
                 out.push_str(" \\ ");
                 column += 3;

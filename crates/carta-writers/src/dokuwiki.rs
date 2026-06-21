@@ -614,8 +614,7 @@ fn cell_text(cell: &Cell, wrap: WrapMode) -> String {
         .filter(|rendered| !rendered.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n")
-        .replace('\n', "\\\\ ")
-        .replace(CONTENT_BREAK, "\\\\ ")
+        .replace(['\n', CONTENT_BREAK], "\\\\ ")
 }
 
 /// Render one block of a table cell. Top-level lists start at the left margin (depth zero) rather
