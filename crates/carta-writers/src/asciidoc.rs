@@ -31,6 +31,10 @@ impl Writer for AsciidocWriter {
     fn default_template(&self) -> Option<&'static str> {
         Some(include_str!("templates/default.asciidoc"))
     }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
 }
 
 #[derive(Debug, Default)]

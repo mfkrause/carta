@@ -85,6 +85,10 @@ impl Writer for MarkdownWriter {
     fn title_block(&self, document: &Document, options: &WriterOptions) -> Result<Option<String>> {
         yaml_metadata_block(self, document, options)
     }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
 }
 
 /// Renders a document to the GitHub-flavored markdown dialect.
@@ -102,6 +106,10 @@ impl Writer for GfmWriter {
 
     fn title_block(&self, document: &Document, options: &WriterOptions) -> Result<Option<String>> {
         yaml_metadata_block(self, document, options)
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
     }
 }
 

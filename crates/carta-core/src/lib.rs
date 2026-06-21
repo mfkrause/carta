@@ -163,4 +163,11 @@ pub trait Writer {
         let _ = (document, options);
         Ok(None)
     }
+
+    /// Whether this writer lays the document out as newline-terminated lines, so a non-empty `body`
+    /// template variable ends with a newline. Writers that build their markup as one string ending
+    /// at its final glyph (HTML, LaTeX, and the like) leave the default `false`.
+    fn body_ends_with_newline(&self) -> bool {
+        false
+    }
 }

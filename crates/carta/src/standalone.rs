@@ -81,7 +81,14 @@ fn build_context(
     for (key, value) in &document.meta {
         context.insert(key.clone(), meta_to_value(value, writer, options)?);
     }
-    context.insert("body".to_owned(), Value::Str(body.to_owned()));
+    // Writers that lay the document out as newline-terminated lines carry that final newline into
+    // the body variable; an empty body stays empty.
+    let body = if writer.body_ends_with_newline() && !body.is_empty() {
+        format!("{body}\n")
+    } else {
+        body.to_owned()
+    };
+    context.insert("body".to_owned(), Value::Str(body));
     if let Some(page_title) = pagetitle(document, writer, options)? {
         context.insert("pagetitle".to_owned(), Value::Str(page_title));
     }
