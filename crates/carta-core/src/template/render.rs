@@ -267,8 +267,12 @@ fn emit_value(out: &mut String, text: &str) {
     }
     for line in lines {
         out.push('\n');
-        out.push_str(&pad);
-        out.push_str(line);
+        // A blank line stays blank: indenting it would leave trailing spaces on an otherwise
+        // empty line, so the prefix is applied only to lines that carry content.
+        if !line.is_empty() {
+            out.push_str(&pad);
+            out.push_str(line);
+        }
     }
 }
 
