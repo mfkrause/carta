@@ -8,6 +8,9 @@
 //! the indent. Literal template text is always emitted verbatim.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::rc::Rc;
 
 use super::node::{Expr, Node, Template};
 use super::pipe;
@@ -20,6 +23,44 @@ const MAX_DEPTH: usize = 64;
 struct Scope {
     bind: Option<String>,
     value: Value,
+}
+
+/// A parsed-partial cache layered over the caller's name→source resolver. A partial referenced more
+/// than once — across the template or from inside a loop body — is read and parsed a single time,
+/// and later references reuse the parsed tree. A name that resolves to no source is remembered as
+/// absent.
+struct Partials<'a> {
+    resolve: &'a dyn Fn(&str) -> Option<String>,
+    cache: RefCell<BTreeMap<String, Option<Rc<Template>>>>,
+}
+
+impl<'a> Partials<'a> {
+    fn new(resolve: &'a dyn Fn(&str) -> Option<String>) -> Self {
+        Self {
+            resolve,
+            cache: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    /// The parsed partial named `name`, or `None` when no source resolves for it. The parsed tree is
+    /// cached so repeated references parse the source once; a parse error in the source propagates.
+    fn get(&self, name: &str) -> Result<Option<Rc<Template>>, TemplateError> {
+        if let Some(cached) = self.cache.borrow().get(name) {
+            return Ok(cached.clone());
+        }
+        let parsed = match (self.resolve)(name) {
+            // A partial drops a single trailing newline from its source, so the line a `$name()$`
+            // sits on is not forced open by the partial file's own final newline.
+            Some(source) => Some(Rc::new(Template::parse(
+                source.strip_suffix('\n').unwrap_or(&source),
+            )?)),
+            None => None,
+        };
+        self.cache
+            .borrow_mut()
+            .insert(name.to_owned(), parsed.clone());
+        Ok(parsed)
+    }
 }
 
 /// The growing output, plus a one-bit memory of how the last text reached it.
@@ -110,16 +151,10 @@ impl Template {
         context: &Value,
         resolve_partial: &dyn Fn(&str) -> Option<String>,
     ) -> Result<String, TemplateError> {
+        let partials = Partials::new(resolve_partial);
         let mut sink = Sink::default();
         let mut scopes = Vec::new();
-        render_nodes(
-            &self.nodes,
-            context,
-            &mut scopes,
-            resolve_partial,
-            0,
-            &mut sink,
-        )?;
+        render_nodes(&self.nodes, context, &mut scopes, &partials, 0, &mut sink)?;
         Ok(sink.buf)
     }
 }
@@ -128,12 +163,12 @@ fn render_nodes(
     nodes: &[Node],
     ctx: &Value,
     scopes: &mut Vec<Scope>,
-    resolve: &dyn Fn(&str) -> Option<String>,
+    partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
 ) -> Result<(), TemplateError> {
     for node in nodes {
-        render_node(node, ctx, scopes, resolve, depth, out)?;
+        render_node(node, ctx, scopes, partials, depth, out)?;
     }
     Ok(())
 }
@@ -142,7 +177,7 @@ fn render_node(
     node: &Node,
     ctx: &Value,
     scopes: &mut Vec<Scope>,
-    resolve: &dyn Fn(&str) -> Option<String>,
+    partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
 ) -> Result<(), TemplateError> {
@@ -170,10 +205,10 @@ fn render_node(
                     .as_deref()
                     .is_some_and(Value::is_truthy)
                 {
-                    return render_nodes(body, ctx, scopes, resolve, depth, out);
+                    return render_nodes(body, ctx, scopes, partials, depth, out);
                 }
             }
-            render_nodes(otherwise, ctx, scopes, resolve, depth, out)?;
+            render_nodes(otherwise, ctx, scopes, partials, depth, out)?;
         }
         Node::For {
             expr,
@@ -187,7 +222,7 @@ fn render_node(
             sep,
             ctx,
             scopes,
-            resolve,
+            partials,
             depth,
             out,
         )?,
@@ -201,7 +236,7 @@ fn render_node(
             sep.as_ref(),
             ctx,
             scopes,
-            resolve,
+            partials,
             depth,
             out,
         )?,
@@ -217,7 +252,7 @@ fn render_for(
     sep: &[Node],
     ctx: &Value,
     scopes: &mut Vec<Scope>,
-    resolve: &dyn Fn(&str) -> Option<String>,
+    partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
 ) -> Result<(), TemplateError> {
@@ -226,13 +261,13 @@ fn render_for(
     };
     for (i, item) in items.into_iter().enumerate() {
         if i > 0 {
-            render_nodes(sep, ctx, scopes, resolve, depth, out)?;
+            render_nodes(sep, ctx, scopes, partials, depth, out)?;
         }
         scopes.push(Scope {
             bind: bind.cloned(),
             value: item,
         });
-        let result = render_nodes(body, ctx, scopes, resolve, depth, out);
+        let result = render_nodes(body, ctx, scopes, partials, depth, out);
         scopes.pop();
         result?;
     }
@@ -246,25 +281,21 @@ fn render_partial(
     sep: Option<&String>,
     ctx: &Value,
     scopes: &mut Vec<Scope>,
-    resolve: &dyn Fn(&str) -> Option<String>,
+    partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
 ) -> Result<(), TemplateError> {
     if depth >= MAX_DEPTH {
         return Ok(());
     }
-    let Some(source) = resolve(name) else {
+    let Some(template) = partials.get(name)? else {
         return Err(TemplateError::new(format!(
             "partial `{name}` could not be found"
         )));
     };
-    // A partial drops a single trailing newline from its source, so the line a `$name()$` sits on
-    // is not forced open by the partial file's own final newline.
-    let source = source.strip_suffix('\n').unwrap_or(&source);
-    let template = Template::parse(source)?;
     match map_over {
         None => {
-            let rendered = render_to_string(&template.nodes, ctx, scopes, resolve, depth + 1)?;
+            let rendered = render_to_string(&template.nodes, ctx, scopes, partials, depth + 1)?;
             out.push_value(&rendered);
         }
         Some(expr) => {
@@ -278,7 +309,7 @@ fn render_partial(
                     bind: None,
                     value: item,
                 });
-                let result = render_to_string(&template.nodes, ctx, scopes, resolve, depth + 1);
+                let result = render_to_string(&template.nodes, ctx, scopes, partials, depth + 1);
                 scopes.pop();
                 pieces.push(result?);
             }
@@ -294,11 +325,11 @@ fn render_to_string(
     nodes: &[Node],
     ctx: &Value,
     scopes: &mut Vec<Scope>,
-    resolve: &dyn Fn(&str) -> Option<String>,
+    partials: &Partials<'_>,
     depth: usize,
 ) -> Result<String, TemplateError> {
     let mut sink = Sink::default();
-    render_nodes(nodes, ctx, scopes, resolve, depth, &mut sink)?;
+    render_nodes(nodes, ctx, scopes, partials, depth, &mut sink)?;
     Ok(sink.buf)
 }
 
