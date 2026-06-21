@@ -14,10 +14,16 @@ fn render(src: &str, ctx: &Value) -> String {
     Template::parse(src)
         .expect("template should parse")
         .render(ctx, &no_partials)
+        .expect("template should render")
 }
 
-/// Render with an in-memory partial set.
-fn render_with(src: &str, ctx: &Value, partials: &[(&str, &str)]) -> String {
+/// Render with an in-memory partial set, returning the render result so missing-partial errors can
+/// be asserted.
+fn try_render_with(
+    src: &str,
+    ctx: &Value,
+    partials: &[(&str, &str)],
+) -> Result<String, super::TemplateError> {
     let owned: Vec<(String, String)> = partials
         .iter()
         .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
@@ -31,6 +37,11 @@ fn render_with(src: &str, ctx: &Value, partials: &[(&str, &str)]) -> String {
     Template::parse(src)
         .expect("template should parse")
         .render(ctx, &resolve)
+}
+
+/// Render with an in-memory partial set, expecting success.
+fn render_with(src: &str, ctx: &Value, partials: &[(&str, &str)]) -> String {
+    try_render_with(src, ctx, partials).expect("template should render")
 }
 
 fn s(text: &str) -> Value {
@@ -86,12 +97,26 @@ fn bool_renders_and_is_conditionally_falsy() {
 
 #[test]
 fn truthiness_of_empty_values() {
-    let falsy = "$if(x)$Y$else$N$endif$";
-    assert_eq!(render(falsy, &map(&[])), "N"); // absent
-    assert_eq!(render(falsy, &map(&[("x", s(""))])), "N"); // empty string
-    assert_eq!(render(falsy, &map(&[("x", list(&[]))])), "N"); // empty list
-    assert_eq!(render(falsy, &map(&[("x", s("v"))])), "Y");
-    assert_eq!(render(falsy, &map(&[("x", list(&[s("v")]))])), "Y");
+    let cond = "$if(x)$Y$else$N$endif$";
+    assert_eq!(render(cond, &map(&[])), "N"); // absent
+    assert_eq!(render(cond, &map(&[("x", s(""))])), "N"); // empty string
+    assert_eq!(render(cond, &map(&[("x", list(&[]))])), "N"); // empty list
+    assert_eq!(render(cond, &map(&[("x", s("v"))])), "Y");
+    assert_eq!(render(cond, &map(&[("x", list(&[s("v")]))])), "Y");
+    // A map is present-and-true even when it has no entries.
+    assert_eq!(render(cond, &map(&[("x", map(&[]))])), "Y");
+    assert_eq!(render(cond, &map(&[("x", map(&[("k", s("v"))]))])), "Y");
+    // A list is truthy only when some element is: all-empty members, or a single empty list, is falsy.
+    assert_eq!(render(cond, &map(&[("x", list(&[s(""), s("")]))])), "N");
+    assert_eq!(render(cond, &map(&[("x", list(&[list(&[])]))])), "N");
+    assert_eq!(render(cond, &map(&[("x", list(&[s(""), s("v")]))])), "Y");
+}
+
+#[test]
+fn map_stringifies_to_true() {
+    // A present map has no textual form of its own; interpolating it reads as `true`.
+    let ctx = map(&[("author", map(&[("name", s("Z"))]))]);
+    assert_eq!(render("$author$", &ctx), "true");
 }
 
 #[test]
@@ -120,6 +145,16 @@ fn direct_list_interpolation_has_no_separator() {
 fn for_scalar_is_single_element() {
     let ctx = map(&[("x", s("solo"))]);
     assert_eq!(render("$for(x)$[$it$]$endfor$", &ctx), "[solo]");
+}
+
+#[test]
+fn bare_it_outside_a_loop_reads_the_root() {
+    // With no enclosing loop, `it` is an ordinary root variable rather than a binding error.
+    let ctx = map(&[("it", s("rootval"))]);
+    assert_eq!(render("[$it$]", &ctx), "[rootval]");
+    // A loop still rebinds `it` to its element, shadowing the root for the loop body.
+    let ctx = map(&[("it", map(&[("tags", list(&[s("one"), s("two")]))]))]);
+    assert_eq!(render("$for(it.tags)$<$it$>$endfor$", &ctx), "<one><two>");
 }
 
 #[test]
@@ -168,6 +203,34 @@ fn pipes_string_case() {
 }
 
 #[test]
+fn lowercase_is_codepoint_by_codepoint() {
+    // A capital sigma always lowercases to a plain σ, never the word-final form ς a whole-string
+    // mapping would choose at the end of a word.
+    let ctx = map(&[("x", s("ΟΔΟΣ"))]);
+    assert_eq!(render("$x/lowercase$", &ctx), "οδοσ");
+}
+
+#[test]
+fn string_pipes_leave_a_bool_untouched() {
+    // A bool is not textual: the case pipes pass it through, and its length is zero.
+    let t = map(&[("x", Value::Bool(true))]);
+    assert_eq!(render("$x/uppercase$", &t), "true");
+    assert_eq!(render("$x/lowercase$", &t), "true");
+    assert_eq!(render("[$x/length$]", &t), "[0]");
+}
+
+#[test]
+fn pipe_chain_applies_to_an_absent_value() {
+    // An absent variable is an empty value, so a trailing pipe still runs: `length` is 0, while the
+    // text pipes produce nothing. A bare absent variable stays empty.
+    let ctx = map(&[("present", s("x"))]);
+    assert_eq!(render("[$gone/length$]", &ctx), "[0]");
+    assert_eq!(render("[$gone/uppercase$]", &ctx), "[]");
+    assert_eq!(render("[$gone/uppercase/length$]", &ctx), "[0]");
+    assert_eq!(render("[$gone$]", &ctx), "[]");
+}
+
+#[test]
 fn pipes_length_and_list_ops() {
     let ctx = map(&[("xs", list(&[s("a"), s("b"), s("c")])), ("w", s("hello"))]);
     assert_eq!(render("$xs/length$", &ctx), "3");
@@ -202,6 +265,8 @@ fn alpha_is_single_letter_cyclic() {
     assert_eq!(a("0"), "`");
     assert_eq!(a("-1"), "-1"); // negative passes through
     assert_eq!(a("abc"), "abc"); // non-integer passes through
+    assert_eq!(a(" 3 "), " 3 "); // surrounding whitespace disqualifies the integer
+    assert_eq!(a("+3"), "+3"); // a leading plus disqualifies it
 }
 
 #[test]
@@ -214,6 +279,8 @@ fn roman_numbers_and_passthrough() {
     assert_eq!(r("0"), ""); // zero is empty
     assert_eq!(r("-1"), "-1"); // negative passes through
     assert_eq!(r("abc"), "abc"); // non-integer passes through
+    assert_eq!(r(" 4 "), " 4 "); // surrounding whitespace disqualifies the integer
+    assert_eq!(r("+4"), "+4"); // a leading plus disqualifies it
 }
 
 #[test]
@@ -255,8 +322,31 @@ fn partial_plain_and_mapped() {
 }
 
 #[test]
-fn missing_partial_renders_empty() {
-    assert_eq!(render_with("[$gone()$]", &map(&[]), &[]), "[]");
+fn standalone_partial_absorbs_its_following_newline() {
+    let p = &[("p", "PARTIAL\n")];
+    // A partial alone on its line (only blanks before it, a newline right after) absorbs that
+    // newline, so the next line follows directly; leading indentation is preserved.
+    assert_eq!(render_with("A\n$p()$\nB\n", &map(&[]), p), "A\nPARTIALB\n");
+    assert_eq!(
+        render_with("A\n  $p()$\nB\n", &map(&[]), p),
+        "A\n  PARTIALB\n"
+    );
+    // Trailing spaces before the newline, or any non-blank before the call, leave the newline.
+    assert_eq!(
+        render_with("A\n$p()$  \nB\n", &map(&[]), p),
+        "A\nPARTIAL  \nB\n"
+    );
+    assert_eq!(render_with("XX$p()$\nB\n", &map(&[]), p), "XXPARTIAL\nB\n");
+    // An inline partial only drops its own trailing newline.
+    assert_eq!(render_with("A $p()$ B\n", &map(&[]), p), "A PARTIAL B\n");
+}
+
+#[test]
+fn missing_partial_is_an_error() {
+    // A referenced partial that cannot be resolved aborts the render rather than vanishing, so a
+    // typo in a partial name never silently drops content.
+    let result = try_render_with("[$gone()$]", &map(&[]), &[]);
+    assert!(result.is_err(), "expected an error, got {result:?}");
 }
 
 // --- Whitespace and standalone-line rules ---
@@ -277,6 +367,22 @@ fn standalone_control_directive_consumes_its_line() {
         "START\nLINE-A\nEND\n"
     );
     assert_eq!(render(t, &map(&[])), "START\nEND\n");
+}
+
+#[test]
+fn indented_control_directive_keeps_its_indentation() {
+    // The directive's trailing newline is swallowed, but the indentation before it survives and
+    // prefixes onto the following content, so the body shifts rightward.
+    let ctx = map(&[("items", list(&[s("a")]))]);
+    assert_eq!(
+        render("X\n  $if(items)$\nIN\n  $endif$\nY\n", &ctx),
+        "X\n  IN\n  Y\n"
+    );
+    // Two indented directives back to back: their indents concatenate onto the next line.
+    assert_eq!(
+        render("X\n  $if(items)$\n  $endif$\nY\n", &ctx),
+        "X\n    Y\n"
+    );
 }
 
 #[test]

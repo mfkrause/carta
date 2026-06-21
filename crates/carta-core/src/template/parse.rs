@@ -17,11 +17,12 @@
 //! opening directive: if `$if$`/`$for$` is the last non-whitespace on its line, the construct is a
 //! block. In a block construct, the opening's trailing newline is swallowed, and every other
 //! directive of that same construct (`$elseif$`/`$else$`/`$sep$` and the closing `$endif$`/
-//! `$endfor$`) that likewise ends its own line has its leading indentation and trailing newline
-//! removed. When the opening shares its line with other content the construct is inline: every one
-//! of its directives — even a closing one alone on its line — keeps its surrounding whitespace and
-//! newline verbatim, so an inline `$for$` whose `$endfor$` sits on its own line emits the blank
-//! line that follows it.
+//! `$endfor$`) that likewise ends its own line has its trailing newline removed. Any indentation
+//! *before* the directive survives and prefixes onto the following content, so an indented control
+//! line shifts its body rightward. When the opening shares its line with other content the construct
+//! is inline: every one of its directives — even a closing one alone on its line — keeps its
+//! surrounding whitespace and newline verbatim, so an inline `$for$` whose `$endfor$` sits on its
+//! own line emits the blank line that follows it.
 
 use super::TemplateError;
 use super::node::{Align, Expr, Node, Pipe, Template};
@@ -315,57 +316,72 @@ fn pipe_args(text: &str) -> Vec<String> {
     out
 }
 
-/// Strip the lines occupied by the directives of every block construct.
+/// Strip the trailing newline on the line occupied by each block construct's directives.
 ///
 /// A `$if$`/`$for$` whose opening ends its line opens a block: its trailing newline is swallowed,
 /// and each later directive of that construct (`$elseif$`/`$else$`/`$sep$`, the closing) that ends
 /// its own line is likewise dropped. The block flag rides a nesting stack, so each construct's
 /// interior directives consult the construct they belong to, not whichever directive came last.
 ///
+/// Any indentation *preceding* the directive on its line is left in place: it then sits directly
+/// in front of the following content, so an indented control line shifts its body rightward.
+///
+/// A plain `$name()$` partial is treated as standalone under a stricter rule: when only blanks
+/// precede it back to the previous newline and a newline immediately follows it, that single
+/// newline is absorbed (trailing blanks before the newline, or any non-blank, leave it in place).
+///
 /// All decisions are taken over the original token text in a first pass, then applied — so trimming
 /// one directive's line never perturbs the line analysis of its neighbours.
 fn trim_standalone(tokens: &mut [Token]) {
-    // First pass over the original tokens: per directive, whether to drop its trailing newline and
-    // (separately) the indentation on its own line. The block flag rides a nesting stack.
+    // First pass over the original tokens. `drop_newline` swallows a block construct directive's
+    // whole trailing line; `absorb_partial` swallows just the newline glued to a standalone partial.
+    // Both are computed before any text is trimmed so neighbours never perturb one another.
     let mut blocks: Vec<bool> = Vec::new();
-    let decisions: Vec<(bool, bool)> = tokens
+    let drop_newline: Vec<bool> = tokens
+        .iter()
+        .enumerate()
+        .map(|(i, token)| match token {
+            Token::If(_) | Token::For(_) => {
+                let block = forward_blank(tokens, i);
+                blocks.push(block);
+                block
+            }
+            Token::ElseIf(_) | Token::Else | Token::Sep => {
+                blocks.last().copied().unwrap_or(false) && forward_blank(tokens, i)
+            }
+            Token::EndIf | Token::EndFor => {
+                blocks.pop().unwrap_or(false) && forward_blank(tokens, i)
+            }
+            _ => false,
+        })
+        .collect();
+    let absorb_partial: Vec<bool> = tokens
         .iter()
         .enumerate()
         .map(|(i, token)| {
-            let consume = match token {
-                Token::If(_) | Token::For(_) => {
-                    let block = forward_blank(tokens, i);
-                    blocks.push(block);
-                    block
-                }
-                Token::ElseIf(_) | Token::Else | Token::Sep => {
-                    blocks.last().copied().unwrap_or(false) && forward_blank(tokens, i)
-                }
-                Token::EndIf | Token::EndFor => {
-                    blocks.pop().unwrap_or(false) && forward_blank(tokens, i)
-                }
-                _ => false,
-            };
-            (consume, consume && backward_blank(tokens, i))
+            matches!(token, Token::Partial { map_over: None, .. })
+                && blank_before(tokens, i)
+                && matches!(tokens.get(i + 1), Some(Token::Text(t)) if t.starts_with('\n'))
         })
         .collect();
-    // Second pass applies the decisions; the analysis above used the untrimmed text, so trimming
-    // one directive's line never perturbs a neighbour's.
-    for (i, &(drop_newline, drop_indent)) in decisions.iter().enumerate() {
-        if drop_newline && let Some(Token::Text(t)) = tokens.get_mut(i + 1) {
-            trim_leading_line(t);
-        }
-        if drop_indent
-            && let Some(prev) = i.checked_sub(1)
-            && let Some(Token::Text(t)) = tokens.get_mut(prev)
+    // Second pass applies the decisions. The two sets never target the same token: each acts on the
+    // text that follows its own directive, and a token is a control directive or a partial, not both.
+    for (i, (&drop_nl, &absorb)) in drop_newline.iter().zip(&absorb_partial).enumerate() {
+        if drop_nl {
+            if let Some(Token::Text(t)) = tokens.get_mut(i + 1) {
+                trim_leading_line(t);
+            }
+        } else if absorb
+            && let Some(Token::Text(t)) = tokens.get_mut(i + 1)
+            && let Some(rest) = t.strip_prefix('\n')
         {
-            trim_trailing_line(t);
+            *t = rest.to_string();
         }
     }
 }
 
 /// Whether everything before token `i` back to the previous newline is whitespace.
-fn backward_blank(tokens: &[Token], i: usize) -> bool {
+fn blank_before(tokens: &[Token], i: usize) -> bool {
     match i.checked_sub(1) {
         None => true,
         Some(prev) => match tokens.get(prev) {
@@ -387,14 +403,6 @@ fn forward_blank(tokens: &[Token], i: usize) -> bool {
             None => i + 1 == tokens.len() - 1 && t.chars().all(is_blank),
         },
         _ => false,
-    }
-}
-
-/// Drop trailing blanks after the last newline (or the whole string if it has none).
-fn trim_trailing_line(text: &mut String) {
-    match text.rfind('\n') {
-        Some(k) => text.truncate(k + 1),
-        None => text.clear(),
     }
 }
 

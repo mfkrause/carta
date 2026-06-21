@@ -58,7 +58,7 @@ pub(crate) fn render(
         .clone()
         .unwrap_or_else(|| to_base.to_owned());
     let resolve = move |name: &str| resolve_partial(dir.as_deref(), &ext, name);
-    let mut output = template.render(&context, &resolve);
+    let mut output = template.render(&context, &resolve)?;
     // A standalone document carries at most one trailing newline beyond its last line: when the
     // filled template ends in a blank line (its final line and the body both end in a newline),
     // one of the two is dropped so no spurious blank trails the document. A single or absent
