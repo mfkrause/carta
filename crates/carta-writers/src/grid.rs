@@ -432,11 +432,12 @@ pub(crate) fn merged_width(content: &[usize], start: usize, span: usize) -> usiz
     total + 3 * span.saturating_sub(1)
 }
 
-/// The content width a fractional column spec maps to in a grid table.
+/// The content width a fractional column spec maps to in a grid table, scaled against the fill
+/// column.
 // Layout arithmetic over a bounded fraction (0.0–1.0): truncation by `floor` is intended.
-#[allow(clippy::cast_possible_truncation)]
-fn explicit_grid_width(fraction: f64) -> i64 {
-    (fraction * 72.0).floor() as i64 - 3
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn explicit_grid_width(fraction: f64, width: usize) -> i64 {
+    (fraction * width as f64).floor() as i64 - 3
 }
 
 /// Resolve grid content widths: explicit fractional specs when present, otherwise a
@@ -449,26 +450,29 @@ pub(crate) fn grid_content_widths(
     minword: &[usize],
     colspans: &[(usize, usize)],
     columns: usize,
+    width: usize,
     wrap: WrapMode,
 ) -> Vec<usize> {
     let explicit = specs.iter().any(|spec| match &spec.width {
-        ColWidth::ColWidth(fraction) => *fraction > 0.0 && explicit_grid_width(*fraction) > 0,
+        ColWidth::ColWidth(fraction) => {
+            *fraction > 0.0 && explicit_grid_width(*fraction, width) > 0
+        }
         ColWidth::ColWidthDefault => false,
     });
     if !explicit {
-        return auto_grid_widths(natural, minword, columns, wrap);
+        return auto_grid_widths(natural, minword, columns, width, wrap);
     }
     let mut widths: Vec<usize> = (0..columns)
         .map(|index| match specs.get(index).map(|spec| &spec.width) {
             Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
-                let scaled = explicit_grid_width(*fraction).max(0) as usize;
+                let scaled = explicit_grid_width(*fraction, width).max(0) as usize;
                 scaled.max(minword.get(index).copied().unwrap_or(0))
             }
             _ => natural.get(index).copied().unwrap_or(0),
         })
         .collect();
     for &(start, span) in colspans {
-        let floor = colspan_width_floor(specs, start, span);
+        let floor = colspan_width_floor(specs, start, span, width);
         for column in start..start + span {
             if let Some(value) = widths.get_mut(column) {
                 *value = (*value).max(floor);
@@ -485,16 +489,17 @@ pub(crate) fn grid_content_widths(
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
     clippy::cast_sign_loss
 )]
-fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize) -> usize {
+fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize, width: usize) -> usize {
     let span_fraction: f64 = (start..start + span)
         .filter_map(|index| match specs.get(index).map(|spec| &spec.width) {
             Some(ColWidth::ColWidth(fraction)) => Some(*fraction),
             _ => None,
         })
         .sum();
-    let required = ((span_fraction * 72.0).floor() as i64 - 1).max(0);
+    let required = ((span_fraction * width as f64).floor() as i64 - 1).max(0);
     let interior = span.saturating_sub(1) as i64;
     let span = span.max(1) as i64;
     ((required - interior + span - 1) / span).max(0) as usize
@@ -511,6 +516,7 @@ fn auto_grid_widths(
     natural: &[usize],
     minword: &[usize],
     columns: usize,
+    width: usize,
     wrap: WrapMode,
 ) -> Vec<usize> {
     // With no width wrapping, cells render on a single line, so each column grows to hold its
@@ -520,7 +526,7 @@ fn auto_grid_widths(
             .map(|index| natural.get(index).copied().unwrap_or(0))
             .collect();
     }
-    let available = 71i64 - 3 * columns as i64;
+    let available = (width as i64).saturating_sub(1) - 3 * columns as i64;
     let mut budget = available.max(0) as usize;
     let mut assigned: Vec<Option<usize>> = vec![None; columns];
     let mut remaining: Vec<usize> = (0..columns).collect();
