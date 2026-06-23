@@ -60,19 +60,20 @@ pub struct ReaderOptions {
 }
 
 /// How math is presented by a format that offers a choice of renderers (the HTML family). The
-/// inline markup a writer emits is the same for every method — the source TeX wrapped in `\(…\)` or
-/// `\[…\]` inside a `span.math` — so the method only decides which loader a standalone document
-/// pulls in to typeset that markup.
+/// method decides both the inline markup inside a `span.math` and which loader a standalone document
+/// pulls in to typeset it: a MathJax (or plain) document carries the source TeX wrapped in `\(…\)` /
+/// `\[…\]`, whereas a KaTeX document carries the bare TeX, which its in-browser loader reads from the
+/// span directly.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum MathMethod {
     /// No renderer: the `\(…\)` / `\[…\]` markup is left for the reader to typeset (or read as
     /// source). The default.
     #[default]
     Plain,
-    /// MathJax, loaded from the given script URL.
+    /// MathJax, loaded from the given script URL. The markup keeps the `\(…\)` / `\[…\]` delimiters.
     MathJax(String),
     /// KaTeX, loaded from the given asset base URL (the directory holding `katex.min.js` and its
-    /// stylesheet).
+    /// stylesheet). The span carries bare TeX without delimiters.
     Katex(String),
 }
 

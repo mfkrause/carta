@@ -15,7 +15,7 @@ use std::fmt::Write;
 use carta_ast::{Block, Document, Inline};
 use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
-use crate::html::{SlideRenderer, fill_slides};
+use crate::html::{SlideRenderer, fill_slides, fill_width};
 use crate::slides::{FrameTitle, MAX_LEVEL, Slide, segment, slide_level};
 
 /// Renders a document to a nested-`<section>` slide deck.
@@ -52,7 +52,7 @@ impl Writer for RevealjsWriter {
             Some(section) => section,
             None => body,
         };
-        Ok(fill_slides(&assembled, options.wrap))
+        Ok(fill_slides(&assembled, options.wrap, fill_width(options)))
     }
 
     fn default_template(&self) -> Option<&'static str> {
