@@ -10,7 +10,7 @@ use carta_ast::{
     Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, MetaValue,
     Row, Table, Target, single_block_inlines, slug, to_plain_text,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, attribute_value, block_inlines, body_rows, display_width, fill, fill_cell,
@@ -56,6 +56,14 @@ impl Writer for RstWriter {
     }
 
     fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+
+    fn toc_style(&self) -> TocStyle {
+        TocStyle::Native
+    }
+
+    fn numbers_sections_natively(&self) -> bool {
         true
     }
 

@@ -10,7 +10,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Inline, ListAttributes,
     ListNumberStyle, MathType, QuoteType, Row, Table, TableBody, Target, slug, to_plain_text,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, attribute_value, display_width, fill,
@@ -37,6 +37,10 @@ impl Writer for AsciidocWriter {
 
     fn body_ends_with_newline(&self) -> bool {
         true
+    }
+
+    fn toc_style(&self) -> TocStyle {
+        TocStyle::Native
     }
 }
 
