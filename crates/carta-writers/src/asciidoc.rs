@@ -27,7 +27,8 @@ impl Writer for AsciidocWriter {
             wrap: options.wrap,
             ..State::default()
         };
-        let body = state.blocks(&document.blocks, FILL_COLUMN);
+        let width = options.columns.unwrap_or(FILL_COLUMN);
+        let body = state.blocks(&document.blocks, width);
         Ok(body.trim_end_matches('\n').to_owned())
     }
 

@@ -27,11 +27,13 @@ pub struct RstWriter;
 
 impl Writer for RstWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let width = options.columns.unwrap_or(FILL_COLUMN);
         let mut state = State {
             wrap: options.wrap,
+            width,
             ..State::default()
         };
-        let body = state.blocks_to_string(&document.blocks, FILL_COLUMN, true);
+        let body = state.blocks_to_string(&document.blocks, width, true);
         let mut sections = Vec::new();
         if !body.is_empty() {
             sections.push(body);
@@ -98,15 +100,30 @@ fn title_line(value: Option<&MetaValue>) -> Option<String> {
 /// Collects the deferred constructs accumulated during rendering: footnote definitions and image
 /// substitution definitions, both emitted as their own sections after the document body. The counter
 /// names images that carry no alt text.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct State {
     footnotes: Vec<String>,
     substitutions: Vec<String>,
     fallback_count: usize,
     wrap: WrapMode,
+    /// The fill column the document body lays out to.
+    width: usize,
     /// Set while laying out the content of a table cell, whose field reflows to its column width
     /// even when the document is not auto-wrapped.
     in_cell: bool,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            footnotes: Vec::new(),
+            substitutions: Vec::new(),
+            fallback_count: 0,
+            wrap: WrapMode::default(),
+            width: FILL_COLUMN,
+            in_cell: false,
+        }
+    }
 }
 
 /// An inline-rendering unit: an unbreakable text run carrying whether it is RST markup (so its
@@ -808,7 +825,7 @@ impl State {
         let index = self.footnotes.len();
         self.footnotes.push(String::new());
         let number = index + 1;
-        let body = self.blocks_to_string(blocks, FILL_COLUMN.saturating_sub(3), false);
+        let body = self.blocks_to_string(blocks, self.width.saturating_sub(3), false);
         let entry = if body.is_empty() {
             format!(".. [{number}]")
         } else {
@@ -870,7 +887,7 @@ impl State {
         }
         let widths = self.simple_widths(&rows, columns);
         let total = widths.iter().sum::<usize>() + columns.saturating_sub(1);
-        if total > FILL_COLUMN {
+        if total > self.width {
             None
         } else {
             Some(widths)
@@ -1004,7 +1021,7 @@ impl State {
             &minword,
             &colspans,
             columns,
-            FILL_COLUMN,
+            self.width,
             self.wrap,
         );
         let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
