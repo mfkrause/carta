@@ -17,4 +17,8 @@ $elseif(date)$
 $date$
 
 $endif$
+$if(toc)$
+$toc$
+
+$endif$
 $body$

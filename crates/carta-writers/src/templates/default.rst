@@ -13,4 +13,14 @@ $if(abstract)$
 $endif$
 
 $endif$
+$if(toc)$
+.. contents::
+   :depth: $toc-depth$
+..
+
+$endif$
+$if(numbersections)$
+.. section-numbering::
+
+$endif$
 $body$

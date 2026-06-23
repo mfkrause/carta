@@ -12,6 +12,9 @@ $endif$
 $if(lang)$
 :lang: $lang$
 $endif$
+$if(toc)$
+:toc:
+$endif$
 
 $endif$
 $if(abstract)$
