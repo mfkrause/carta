@@ -9,6 +9,7 @@ use std::io;
 use carta_ast::{Block, Document, Inline};
 
 pub mod extensions;
+pub mod sections;
 #[cfg(feature = "template")]
 pub mod template;
 
@@ -304,6 +305,15 @@ pub trait Writer {
     /// heading; a format with a native counter (the typesetting formats) overrides to `true` and is
     /// driven by a `numbersections` template flag instead.
     fn numbers_sections_natively(&self) -> bool {
+        false
+    }
+
+    /// Whether this writer carries section numbers in the heading text, so the number is spliced into
+    /// each heading before rendering (and contents entries inherit it). The default leaves headings
+    /// untouched; a format that renders the number inline (HTML) overrides to `true`. A format with a
+    /// native counter relies on [`numbers_sections_natively`](Writer::numbers_sections_natively)
+    /// instead and leaves this `false`.
+    fn numbers_sections_in_body(&self) -> bool {
         false
     }
 }
