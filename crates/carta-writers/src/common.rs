@@ -241,6 +241,11 @@ pub(crate) trait NotesHost {
         initial: usize,
     ) -> String;
 
+    /// The fill width a note's body lays out to: the document's configured column width.
+    fn base_width(&self) -> usize {
+        FILL_COLUMN
+    }
+
     /// Record a footnote: reserve its slot before rendering (so nested notes number after it), fill
     /// the slot with the assembled body, and return the inline `[n]` marker.
     fn record_note(&mut self, blocks: &[Block]) -> String {
@@ -268,15 +273,16 @@ pub(crate) trait NotesHost {
     /// Render a footnote's body: the first block's opening line is offset by the marker width, every
     /// later block and continuation line sits at the margin.
     fn note_body(&mut self, blocks: &[Block], initial: usize) -> String {
+        let width = self.base_width();
         let rendered = blocks
             .iter()
             .enumerate()
             .map(|(position, block)| {
                 let is_plain = matches!(block, Block::Plain(_));
                 let text = if position == 0 {
-                    self.note_block_offset(block, FILL_COLUMN, initial)
+                    self.note_block_offset(block, width, initial)
                 } else {
-                    self.render_block(block, FILL_COLUMN)
+                    self.render_block(block, width)
                 };
                 (is_plain, text)
             })
@@ -1419,10 +1425,6 @@ pub(crate) fn body_rows(table: &carta_ast::Table) -> Vec<&carta_ast::Row> {
 /// fixed: large enough that no reflow occurs.
 #[cfg(any(feature = "plain", feature = "markdown", feature = "gfm"))]
 pub(crate) const MEASURE_WIDTH: usize = 100_000;
-
-/// The character budget a fractional column width scales against in a multiline table.
-#[cfg(any(feature = "plain", feature = "markdown", feature = "gfm"))]
-pub(crate) const MULTILINE_WIDTH: usize = 71;
 
 /// The layout a text-grid table takes: the compact space-aligned simple form, the reflowing
 /// multiline form, or the bordered grid form.

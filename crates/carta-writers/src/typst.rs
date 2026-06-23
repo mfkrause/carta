@@ -23,7 +23,8 @@ pub struct TypstWriter;
 
 impl Writer for TypstWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        let body = blocks(&document.blocks, options.wrap);
+        let width = options.columns.unwrap_or(FILL_COLUMN);
+        let body = blocks(&document.blocks, width, options.wrap);
         Ok(body.trim_end_matches('\n').to_owned())
     }
 
@@ -64,11 +65,11 @@ enum Fragment {
 
 /// Render a top-level (or nested) block sequence. Every block is separated from the next by a blank
 /// line, except that a header is followed by a single newline.
-fn blocks(items: &[Block], wrap: WrapMode) -> String {
+fn blocks(items: &[Block], width: usize, wrap: WrapMode) -> String {
     let mut out = String::new();
     let mut previous_is_header = false;
     for item in items {
-        let piece = block(item, wrap);
+        let piece = block(item, width, wrap);
         if piece.is_empty() {
             continue;
         }
@@ -84,26 +85,28 @@ fn blocks(items: &[Block], wrap: WrapMode) -> String {
     out
 }
 
-fn block(value: &Block, wrap: WrapMode) -> String {
+fn block(value: &Block, width: usize, wrap: WrapMode) -> String {
     match value {
-        Block::Plain(items) | Block::Para(items) => fill_inlines(items, FILL_COLUMN, wrap),
-        Block::Header(level, attr, items) => header(*level, attr, items, wrap),
+        Block::Plain(items) | Block::Para(items) => fill_inlines(items, width, wrap),
+        Block::Header(level, attr, items) => header(*level, attr, items, width, wrap),
         Block::CodeBlock(attr, text) => code_block(attr, text),
         Block::RawBlock(format, text) => raw_passthrough(format, text),
-        Block::BlockQuote(items) => format!("#quote(block: true)[\n{}\n]", blocks(items, wrap)),
-        Block::BulletList(items) => bullet_list(items, wrap),
-        Block::OrderedList(list_attrs, items) => ordered_list(list_attrs, items, wrap),
-        Block::DefinitionList(items) => definition_list(items, wrap),
+        Block::BlockQuote(items) => {
+            format!("#quote(block: true)[\n{}\n]", blocks(items, width, wrap))
+        }
+        Block::BulletList(items) => bullet_list(items, width, wrap),
+        Block::OrderedList(list_attrs, items) => ordered_list(list_attrs, items, width, wrap),
+        Block::DefinitionList(items) => definition_list(items, width, wrap),
         Block::HorizontalRule => "#horizontalrule".to_owned(),
-        Block::LineBlock(lines) => line_block(lines, wrap),
-        Block::Table(table) => render_table(table, wrap),
-        Block::Figure(_, caption, items) => figure(caption, items, wrap),
-        Block::Div(attr, items) => div(attr, items, wrap),
+        Block::LineBlock(lines) => line_block(lines, width, wrap),
+        Block::Table(table) => render_table(table, width, wrap),
+        Block::Figure(_, caption, items) => figure(caption, items, width, wrap),
+        Block::Div(attr, items) => div(attr, items, width, wrap),
     }
 }
 
-fn header(level: i32, attr: &Attr, items: &[Inline], wrap: WrapMode) -> String {
-    let text = inline_run(items, wrap);
+fn header(level: i32, attr: &Attr, items: &[Inline], width: usize, wrap: WrapMode) -> String {
+    let text = inline_run(items, width, wrap);
     let heading = if attr.classes.iter().any(|class| class == "unnumbered") {
         format!("#heading(level: {level}, numbering: none)[{text}]")
     } else {
@@ -155,20 +158,25 @@ fn backtick_fence(text: &str) -> String {
     "`".repeat(longest.max(2) + 1)
 }
 
-fn bullet_list(items: &[Vec<Block>], wrap: WrapMode) -> String {
+fn bullet_list(items: &[Vec<Block>], width: usize, wrap: WrapMode) -> String {
     let loose = !list_is_tight(items);
     let mut lines = Vec::new();
     for item in items {
-        lines.push(list_item("- ", item, wrap));
+        lines.push(list_item("- ", item, width, wrap));
     }
     lines.join(if loose { "\n\n" } else { "\n" })
 }
 
-fn ordered_list(attrs: &ListAttributes, items: &[Vec<Block>], wrap: WrapMode) -> String {
+fn ordered_list(
+    attrs: &ListAttributes,
+    items: &[Vec<Block>],
+    width: usize,
+    wrap: WrapMode,
+) -> String {
     let loose = !list_is_tight(items);
     let mut lines = Vec::new();
     for item in items {
-        lines.push(list_item("+ ", item, wrap));
+        lines.push(list_item("+ ", item, width, wrap));
     }
     let body = lines.join(if loose { "\n\n" } else { "\n" });
     if is_default_enum(attrs) {
@@ -222,8 +230,8 @@ fn enum_numbering(attrs: &ListAttributes) -> String {
 
 /// Render one list item: the marker on its first line, with every continuation line indented to
 /// align under the marker's text column.
-fn list_item(marker: &str, item: &[Block], wrap: WrapMode) -> String {
-    let body = blocks(item, wrap);
+fn list_item(marker: &str, item: &[Block], width: usize, wrap: WrapMode) -> String {
+    let body = blocks(item, width, wrap);
     let indent = " ".repeat(marker.len());
     let mut out = String::new();
     for (index, line) in body.lines().enumerate() {
@@ -238,16 +246,21 @@ fn list_item(marker: &str, item: &[Block], wrap: WrapMode) -> String {
     format!("{marker}{out}")
 }
 
-fn definition_list(items: &[(Vec<Inline>, Vec<Vec<Block>>)], wrap: WrapMode) -> String {
+fn definition_list(
+    items: &[(Vec<Inline>, Vec<Vec<Block>>)],
+    width: usize,
+    wrap: WrapMode,
+) -> String {
     let mut lines = Vec::new();
     for (term, definitions) in items {
         let body = blocks(
             &definitions.iter().flatten().cloned().collect::<Vec<_>>(),
+            width,
             wrap,
         );
         lines.push(format!(
             "/ {}: #block[\n{body}\n]",
-            escape_term_colons(&inline_run(term, wrap))
+            escape_term_colons(&inline_run(term, width, wrap))
         ));
     }
     lines.join("\n")
@@ -272,13 +285,16 @@ fn escape_term_colons(term: &str) -> String {
     out
 }
 
-fn line_block(lines: &[Vec<Inline>], wrap: WrapMode) -> String {
-    let rendered: Vec<String> = lines.iter().map(|line| inline_run(line, wrap)).collect();
+fn line_block(lines: &[Vec<Inline>], width: usize, wrap: WrapMode) -> String {
+    let rendered: Vec<String> = lines
+        .iter()
+        .map(|line| inline_run(line, width, wrap))
+        .collect();
     rendered.join(" \\ ")
 }
 
-fn div(attr: &Attr, items: &[Block], wrap: WrapMode) -> String {
-    let body = blocks(items, wrap);
+fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode) -> String {
+    let body = blocks(items, width, wrap);
     let trailing = match items.last() {
         Some(Block::Plain(_)) => "",
         _ => "\n",
@@ -290,14 +306,14 @@ fn div(attr: &Attr, items: &[Block], wrap: WrapMode) -> String {
     }
 }
 
-fn figure(caption: &Caption, items: &[Block], wrap: WrapMode) -> String {
+fn figure(caption: &Caption, items: &[Block], width: usize, wrap: WrapMode) -> String {
     let inner = match figure_image(items) {
         Some(image) => image,
-        None => format!("[{}]", blocks(items, wrap)),
+        None => format!("[{}]", blocks(items, width, wrap)),
     };
     format!(
         "#figure({inner},\n  caption: [\n    {}\n  ]\n)",
-        blocks(&caption.long, wrap).trim_end_matches('\n')
+        blocks(&caption.long, width, wrap).trim_end_matches('\n')
     )
 }
 
@@ -313,7 +329,7 @@ fn figure_image(items: &[Block]) -> Option<String> {
     }
 }
 
-fn render_table(table: &Table, wrap: WrapMode) -> String {
+fn render_table(table: &Table, width: usize, wrap: WrapMode) -> String {
     let columns = table_columns(table);
     let aligns = table_aligns(table);
     let mut grid = String::new();
@@ -326,18 +342,18 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
         let _ = writeln!(
             grid,
             "    table.header({},),",
-            render_row(&cells, "    table.header(", 6, wrap)
+            render_row(&cells, "    table.header(", 6, width, wrap)
         );
         grid.push_str("    table.hline(),\n");
     }
 
     for body in &table.bodies {
         let head = collect_rows(&body.head);
-        emit_rows(&mut grid, &head, wrap);
+        emit_rows(&mut grid, &head, width, wrap);
         if !head.is_empty() {
             grid.push_str("    table.hline(),\n");
         }
-        emit_rows(&mut grid, &collect_rows(&body.body), wrap);
+        emit_rows(&mut grid, &collect_rows(&body.body), width, wrap);
     }
 
     let foot_rows = collect_rows(&table.foot.rows);
@@ -347,13 +363,17 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
         let _ = writeln!(
             grid,
             "    table.footer({},),",
-            render_row(&cells, "    table.footer(", 6, wrap)
+            render_row(&cells, "    table.footer(", 6, width, wrap)
         );
     }
 
     let mut out = format!("#figure(\n  align(center)[#table(\n{grid}  )]\n");
     if !table.caption.long.is_empty() {
-        let _ = writeln!(out, "  , caption: {}", table_caption(&table.caption.long));
+        let _ = writeln!(
+            out,
+            "  , caption: {}",
+            table_caption(&table.caption.long, width)
+        );
     }
     out.push_str("  , kind: table\n  )");
     match label(&table.attr.id) {
@@ -364,11 +384,11 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
 
 /// Render a table caption within `[..]`. A single inline block stays on one line; richer content is
 /// laid out as an indented block, two columns in.
-fn table_caption(content: &[Block]) -> String {
+fn table_caption(content: &[Block], width: usize) -> String {
     if let [Block::Plain(inlines) | Block::Para(inlines)] = content {
-        format!("[{}]", inline_run(inlines, WrapMode::Auto))
+        format!("[{}]", inline_run(inlines, width, WrapMode::Auto))
     } else {
-        let mut body = blocks(content, WrapMode::Auto);
+        let mut body = blocks(content, width, WrapMode::Auto);
         if !matches!(content.last(), Some(Block::Plain(_))) {
             body.push('\n');
         }
@@ -376,16 +396,16 @@ fn table_caption(content: &[Block]) -> String {
     }
 }
 
-fn emit_rows(grid: &mut String, rows: &[Vec<&Cell>], wrap: WrapMode) {
+fn emit_rows(grid: &mut String, rows: &[Vec<&Cell>], width: usize, wrap: WrapMode) {
     for row in rows {
-        let _ = writeln!(grid, "    {},", render_row(row, "    ", 4, wrap));
+        let _ = writeln!(grid, "    {},", render_row(row, "    ", 4, width, wrap));
     }
 }
 
 /// Render a row's cells as a `, `-joined sequence. Each cell's content is laid out from the column
 /// where its opening bracket falls (so a long cell wraps against the fill column), which depends on
 /// the `prefix` that opens the row line and the widths of the cells before it.
-fn render_row(row: &[&Cell], prefix: &str, indent: usize, wrap: WrapMode) -> String {
+fn render_row(row: &[&Cell], prefix: &str, indent: usize, width: usize, wrap: WrapMode) -> String {
     let mut out = String::new();
     let mut column = display_width(prefix);
     for (index, cell) in row.iter().enumerate() {
@@ -393,7 +413,7 @@ fn render_row(row: &[&Cell], prefix: &str, indent: usize, wrap: WrapMode) -> Str
             out.push_str(", ");
             column += 2;
         }
-        let rendered = table_cell(cell, column, indent, wrap);
+        let rendered = table_cell(cell, column, indent, width, wrap);
         match rendered.rfind('\n') {
             Some(position) => column = display_width(&rendered[position + 1..]),
             None => column += display_width(&rendered),
@@ -448,7 +468,7 @@ fn alignment(value: &Alignment) -> &'static str {
     }
 }
 
-fn table_cell(cell: &Cell, column: usize, indent: usize, wrap: WrapMode) -> String {
+fn table_cell(cell: &Cell, column: usize, indent: usize, width: usize, wrap: WrapMode) -> String {
     let mut spans = Vec::new();
     if cell.col_span != 1 {
         spans.push(format!("colspan: {}", cell.col_span));
@@ -463,23 +483,35 @@ fn table_cell(cell: &Cell, column: usize, indent: usize, wrap: WrapMode) -> Stri
     let bracket_column = column + display_width(&prefix);
     format!(
         "{prefix}{}",
-        cell_content(&cell.content, bracket_column, indent, wrap)
+        cell_content(&cell.content, bracket_column, indent, width, wrap)
     )
 }
 
 /// Render a cell's content within `[..]`. A single block of inline content fills against the column
 /// where its opening bracket sits; richer content is laid out as an indented block. Wrapped lines sit
 /// `indent` columns in.
-fn cell_content(content: &[Block], bracket_column: usize, indent: usize, wrap: WrapMode) -> String {
+fn cell_content(
+    content: &[Block],
+    bracket_column: usize,
+    indent: usize,
+    width: usize,
+    wrap: WrapMode,
+) -> String {
     let pad = " ".repeat(indent);
     match content {
         [Block::Plain(inlines) | Block::Para(inlines)] => {
-            let filled = fill_cell(&fragments(inlines, wrap), bracket_column + 1, indent, wrap);
+            let filled = fill_cell(
+                &fragments(inlines, width, wrap),
+                bracket_column + 1,
+                indent,
+                width,
+                wrap,
+            );
             format!("[{}]", indent_continuation(&filled, &pad))
         }
         [] => "[]".to_owned(),
         blocks_value => {
-            let mut body = blocks(blocks_value, wrap);
+            let mut body = blocks(blocks_value, width, wrap);
             if !matches!(blocks_value.last(), Some(Block::Plain(_))) {
                 body.push('\n');
             }
@@ -505,15 +537,15 @@ fn indent_continuation(body: &str, indent: &str) -> String {
 
 /// Render inline content laid out per the document's wrap mode (paragraph context).
 fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode) -> String {
-    fill(&fragments(items, wrap), width, wrap)
+    fill(&fragments(items, width, wrap), width, wrap)
 }
 
 /// Render inline content without wrapping, single-spacing the breakable units (nested markup
 /// context, where the surrounding construct controls layout). A nested footnote's body still
 /// reflows per the document `wrap`.
-fn inline_run(items: &[Inline], wrap: WrapMode) -> String {
+fn inline_run(items: &[Inline], width: usize, wrap: WrapMode) -> String {
     let mut out = String::new();
-    for fragment in fragments(items, wrap) {
+    for fragment in fragments(items, width, wrap) {
         match fragment {
             Fragment::Text(text) | Fragment::Atom(text) => out.push_str(&text),
             Fragment::Space | Fragment::Soft => out.push(' '),
@@ -526,7 +558,7 @@ fn inline_run(items: &[Inline], wrap: WrapMode) -> String {
 /// Build the fragment stream for an inline sequence. A leading `(` on the very first text fragment is
 /// escaped here (the only character whose escape depends on opening the whole sequence rather than a
 /// physical line).
-fn fragments(items: &[Inline], wrap: WrapMode) -> Vec<Fragment> {
+fn fragments(items: &[Inline], width: usize, wrap: WrapMode) -> Vec<Fragment> {
     let mut out = Vec::new();
     let mut after_space = true;
     let mut first_inline = true;
@@ -541,41 +573,48 @@ fn fragments(items: &[Inline], wrap: WrapMode) -> Vec<Fragment> {
             Inline::SoftBreak => out.push(Fragment::Soft),
             Inline::LineBreak => out.push(Fragment::LineBreak),
             Inline::Emph(inner) => {
-                extend_wrapped(&mut out, inner, "#emph[", "]", wrap);
+                extend_wrapped(&mut out, inner, "#emph[", "]", width, wrap);
                 first_inline = false;
             }
             Inline::Strong(inner) => {
-                extend_wrapped(&mut out, inner, "#strong[", "]", wrap);
+                extend_wrapped(&mut out, inner, "#strong[", "]", width, wrap);
                 first_inline = false;
             }
             Inline::Strikeout(inner) => {
-                extend_wrapped(&mut out, inner, "#strike[", "]", wrap);
+                extend_wrapped(&mut out, inner, "#strike[", "]", width, wrap);
                 first_inline = false;
             }
             Inline::Underline(inner) => {
-                extend_wrapped(&mut out, inner, "#underline[", "]", wrap);
+                extend_wrapped(&mut out, inner, "#underline[", "]", width, wrap);
                 first_inline = false;
             }
             Inline::SmallCaps(inner) => {
-                extend_wrapped(&mut out, inner, "#smallcaps[", "]", wrap);
+                extend_wrapped(&mut out, inner, "#smallcaps[", "]", width, wrap);
                 first_inline = false;
             }
             Inline::Quoted(kind, inner) => {
                 let (open, close) = quote_marks(kind);
-                extend_wrapped(&mut out, inner, &open.to_string(), &close.to_string(), wrap);
+                extend_wrapped(
+                    &mut out,
+                    inner,
+                    &open.to_string(),
+                    &close.to_string(),
+                    width,
+                    wrap,
+                );
                 first_inline = false;
             }
             Inline::Span(attr, inner) if attr.id.is_empty() => {
                 let (open, close) = span_wrapper(attr);
-                extend_wrapped(&mut out, inner, open, close, wrap);
+                extend_wrapped(&mut out, inner, open, close, width, wrap);
                 first_inline = false;
             }
             Inline::Span(attr, inner) => {
-                out.push(Fragment::Atom(span(attr, inner, first_inline, wrap)));
+                out.push(Fragment::Atom(span(attr, inner, first_inline, width, wrap)));
                 first_inline = false;
             }
             other => {
-                let rendered = inline(other, wrap);
+                let rendered = inline(other, width, wrap);
                 if !rendered.is_empty() {
                     out.push(Fragment::Atom(rendered));
                     first_inline = false;
@@ -597,9 +636,10 @@ fn extend_wrapped(
     items: &[Inline],
     open: &str,
     close: &str,
+    width: usize,
     wrap: WrapMode,
 ) {
-    let mut inner = fragments(items, wrap);
+    let mut inner = fragments(items, width, wrap);
     let is_textual =
         |fragment: &Fragment| matches!(fragment, Fragment::Text(_) | Fragment::Atom(_));
     match inner.iter().position(is_textual) {
@@ -663,9 +703,15 @@ fn fill(fragments: &[Fragment], width: usize, wrap: WrapMode) -> String {
 /// emitted at column zero; the caller applies the indent. The cell content is `#table` source rather
 /// than a bordered field, so it follows the document wrap mode: only `Auto` reflows to the fill
 /// column, while `None` and `Preserve` keep it on physical lines split solely on source soft breaks.
-fn fill_cell(fragments: &[Fragment], first: usize, indent: usize, wrap: WrapMode) -> String {
+fn fill_cell(
+    fragments: &[Fragment],
+    first: usize,
+    indent: usize,
+    width: usize,
+    wrap: WrapMode,
+) -> String {
     let width = if matches!(wrap, WrapMode::Auto) {
-        FILL_COLUMN
+        width
     } else {
         usize::MAX
     };
@@ -757,19 +803,19 @@ fn escape_open_marker(word: &str) -> String {
     }
 }
 
-fn inline(value: &Inline, wrap: WrapMode) -> String {
+fn inline(value: &Inline, width: usize, wrap: WrapMode) -> String {
     match value {
         Inline::Str(text) => escape_text(text, true, false),
-        Inline::Emph(items) => format!("#emph[{}]", inline_run(items, wrap)),
-        Inline::Strong(items) => format!("#strong[{}]", inline_run(items, wrap)),
-        Inline::Underline(items) => format!("#underline[{}]", inline_run(items, wrap)),
-        Inline::Strikeout(items) => format!("#strike[{}]", inline_run(items, wrap)),
-        Inline::Superscript(items) => format!("#super[{}]", inline_run(items, wrap)),
-        Inline::Subscript(items) => format!("#sub[{}]", inline_run(items, wrap)),
-        Inline::SmallCaps(items) => format!("#smallcaps[{}]", inline_run(items, wrap)),
+        Inline::Emph(items) => format!("#emph[{}]", inline_run(items, width, wrap)),
+        Inline::Strong(items) => format!("#strong[{}]", inline_run(items, width, wrap)),
+        Inline::Underline(items) => format!("#underline[{}]", inline_run(items, width, wrap)),
+        Inline::Strikeout(items) => format!("#strike[{}]", inline_run(items, width, wrap)),
+        Inline::Superscript(items) => format!("#super[{}]", inline_run(items, width, wrap)),
+        Inline::Subscript(items) => format!("#sub[{}]", inline_run(items, width, wrap)),
+        Inline::SmallCaps(items) => format!("#smallcaps[{}]", inline_run(items, width, wrap)),
         Inline::Quoted(kind, items) => {
             let (open, close) = quote_marks(kind);
-            format!("{open}{}{close}", inline_run(items, wrap))
+            format!("{open}{}{close}", inline_run(items, width, wrap))
         }
         Inline::Cite(citations, _) => cite(citations),
         Inline::Code(_, text) => inline_code(text),
@@ -777,15 +823,15 @@ fn inline(value: &Inline, wrap: WrapMode) -> String {
         Inline::LineBreak => " \\ ".to_owned(),
         Inline::Math(kind, text) => math(kind, text),
         Inline::RawInline(format, text) => raw_inline_passthrough(format, text),
-        Inline::Link(_, items, target) => link(items, target, wrap),
+        Inline::Link(_, items, target) => link(items, target, width, wrap),
         Inline::Image(attr, alt, target) => format!("#box({})", image_call(attr, alt, target)),
-        Inline::Note(blocks) => format!("#footnote[{}]", self_blocks(blocks, wrap)),
-        Inline::Span(attr, items) => span(attr, items, false, wrap),
+        Inline::Note(blocks) => format!("#footnote[{}]", self_blocks(blocks, width, wrap)),
+        Inline::Span(attr, items) => span(attr, items, false, width, wrap),
     }
 }
 
-fn self_blocks(items: &[Block], wrap: WrapMode) -> String {
-    blocks(items, wrap).trim_end_matches('\n').to_owned()
+fn self_blocks(items: &[Block], width: usize, wrap: WrapMode) -> String {
+    blocks(items, width, wrap).trim_end_matches('\n').to_owned()
 }
 
 fn cite(citations: &[carta_ast::Citation]) -> String {
@@ -796,7 +842,7 @@ fn cite(citations: &[carta_ast::Citation]) -> String {
     out
 }
 
-fn link(items: &[Inline], target: &Target, wrap: WrapMode) -> String {
+fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode) -> String {
     let plain = to_plain_text(items);
     let url = escape_string(&target.url);
     if plain == target.url {
@@ -804,7 +850,7 @@ fn link(items: &[Inline], target: &Target, wrap: WrapMode) -> String {
     } else {
         // The label is laid out at unbounded width so it is never reflowed (the link is one unit for
         // wrapping), yet a source line break inside it is still kept under `Preserve`.
-        let label = fill(&fragments(items, wrap), usize::MAX, wrap);
+        let label = fill(&fragments(items, width, wrap), usize::MAX, wrap);
         format!("#link(\"{url}\")[{label}]")
     }
 }
@@ -812,15 +858,15 @@ fn link(items: &[Inline], target: &Target, wrap: WrapMode) -> String {
 /// Render a span: its semantic classes select a wrapper, then a trailing id label. A label opening
 /// the inline sequence is anchored with a leading zero-width space so it does not attach to the
 /// preceding markup.
-fn span(attr: &Attr, items: &[Inline], at_start: bool, wrap: WrapMode) -> String {
+fn span(attr: &Attr, items: &[Inline], at_start: bool, width: usize, wrap: WrapMode) -> String {
     let content = if attr.classes.iter().any(|class| class == "mark") {
-        format!("#highlight[{}]", inline_run(items, wrap))
+        format!("#highlight[{}]", inline_run(items, width, wrap))
     } else if attr.classes.iter().any(|class| class == "underline") {
-        format!("#underline[{}]", inline_run(items, wrap))
+        format!("#underline[{}]", inline_run(items, width, wrap))
     } else if attr.classes.iter().any(|class| class == "smallcaps") {
-        format!("#smallcaps[{}]", inline_run(items, wrap))
+        format!("#smallcaps[{}]", inline_run(items, width, wrap))
     } else {
-        inline_run(items, wrap)
+        inline_run(items, width, wrap)
     };
     match label(&attr.id) {
         Some(rendered) if at_start => format!("\u{200b}{content}{rendered}"),
@@ -1129,6 +1175,46 @@ mod tests {
         let rendered = render(vec![para(words)]);
         assert!(rendered.contains('\n'));
         assert!(rendered.lines().all(|line| line.len() <= FILL_COLUMN));
+    }
+
+    fn render_columns(blocks: Vec<Block>, columns: usize) -> String {
+        let document = Document {
+            blocks,
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.columns = Some(columns);
+        TypstWriter.write(&document, &options).unwrap()
+    }
+
+    fn many_words() -> Vec<Block> {
+        let words: Vec<Inline> = std::iter::repeat_n(
+            [str_inline("word"), Inline::Space]
+                .into_iter()
+                .collect::<Vec<_>>(),
+            20,
+        )
+        .flatten()
+        .chain(std::iter::once(str_inline("end")))
+        .collect();
+        vec![para(words)]
+    }
+
+    #[test]
+    fn custom_columns_bound_the_filled_width() {
+        let narrow = render_columns(many_words(), 25);
+        let wide = render_columns(many_words(), 70);
+        assert!(narrow.lines().all(|line| line.len() <= 25));
+        assert!(wide.lines().all(|line| line.len() <= 70));
+        assert!(narrow.lines().count() > wide.lines().count());
+    }
+
+    #[test]
+    fn omitted_columns_matches_the_default_fill_width() {
+        assert_eq!(
+            render(many_words()),
+            render_columns(many_words(), FILL_COLUMN)
+        );
     }
 
     #[test]

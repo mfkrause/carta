@@ -26,6 +26,7 @@ pub struct ManWriter;
 impl Writer for ManWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let mut state = State {
+            width: options.columns.unwrap_or(FILL_COLUMN),
             wrap: options.wrap,
             ..State::default()
         };
@@ -57,11 +58,23 @@ impl Writer for ManWriter {
 }
 
 /// Writer state threaded through the render: the accumulated footnote bodies, in reference order,
-/// and the paragraph layout mode that governs whether filled text wraps to the fill column.
-#[derive(Debug, Default)]
+/// the fill column that bounds wrapped prose, and the paragraph layout mode that governs whether
+/// filled text wraps to that column.
+#[derive(Debug)]
 struct State {
     notes: Vec<String>,
+    width: usize,
     wrap: WrapMode,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            notes: Vec::new(),
+            width: FILL_COLUMN,
+            wrap: WrapMode::default(),
+        }
+    }
 }
 
 /// The active font attributes, rendered to a `\f[..]` selector. Each emphasis inline pushes its
@@ -336,7 +349,7 @@ impl State {
     /// `WrapMode::Auto` the text is filled to the fill column; otherwise the paragraph stays one line.
     fn fill_inlines(&mut self, items: &[Inline]) -> String {
         let fragments = self.fragments(items, Font::default());
-        fill(&fragments, true, self.wrap)
+        fill(&fragments, self.width, true, self.wrap)
     }
 
     /// Render inline content as paragraph text without breaking after sentence ends; used where the
@@ -344,7 +357,7 @@ impl State {
     /// filled to the fill column; otherwise the paragraph stays one line.
     fn fill_flowed(&mut self, items: &[Inline]) -> String {
         let fragments = self.fragments(items, Font::default());
-        fill(&fragments, false, self.wrap)
+        fill(&fragments, self.width, false, self.wrap)
     }
 
     /// Render inline content as an unwrapped run (heading, list term, caption fragment). Text and
@@ -672,9 +685,9 @@ fn ends_sentence(visible: &str) -> bool {
 /// Under `WrapMode::Auto` the effective fill column is the fill column; otherwise it is unbounded, so
 /// no width-based break is ever taken and each paragraph stays a single physical line (only an
 /// explicit hard break, carried as a `Control` fragment, still starts a new line).
-fn fill(fragments: &[Fragment], sentence_breaks: bool, wrap: WrapMode) -> String {
+fn fill(fragments: &[Fragment], width: usize, sentence_breaks: bool, wrap: WrapMode) -> String {
     let fill_column = if wrap == WrapMode::Auto {
-        FILL_COLUMN
+        width
     } else {
         usize::MAX
     };
@@ -1223,6 +1236,49 @@ mod tests {
         for line in rendered.lines().skip(1) {
             assert!(visible_width(line) <= FILL_COLUMN, "line too wide: {line}");
         }
+    }
+
+    fn render_columns(blocks: Vec<Block>, columns: usize) -> String {
+        let document = Document {
+            blocks,
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.columns = Some(columns);
+        ManWriter.write(&document, &options).unwrap()
+    }
+
+    fn many_words() -> Vec<Block> {
+        let mut inlines = Vec::new();
+        for index in 0..30 {
+            if index > 0 {
+                inlines.push(Inline::Space);
+            }
+            inlines.push(s("wordwordword"));
+        }
+        vec![para(inlines)]
+    }
+
+    #[test]
+    fn custom_columns_bound_the_filled_width() {
+        let narrow = render_columns(many_words(), 30);
+        let wide = render_columns(many_words(), 80);
+        for line in narrow.lines().skip(1) {
+            assert!(visible_width(line) <= 30, "line too wide: {line}");
+        }
+        for line in wide.lines().skip(1) {
+            assert!(visible_width(line) <= 80, "line too wide: {line}");
+        }
+        // The narrower budget needs strictly more physical lines.
+        assert!(narrow.lines().count() > wide.lines().count());
+    }
+
+    #[test]
+    fn omitted_columns_matches_the_default_fill_width() {
+        assert_eq!(
+            render(many_words()),
+            render_columns(many_words(), FILL_COLUMN)
+        );
     }
 
     #[test]

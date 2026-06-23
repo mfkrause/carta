@@ -28,7 +28,7 @@ impl Writer for LatexWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let body = render_blocks(
             &document.blocks,
-            FILL_COLUMN,
+            options.columns.unwrap_or(FILL_COLUMN),
             0,
             Dialect::Article,
             options.wrap,
@@ -111,7 +111,7 @@ pub(crate) fn render_titled_open(
     wrap: WrapMode,
 ) -> String {
     let mut pieces = vec![Piece::Text(prefix.to_owned())];
-    pieces.extend(inline_pieces(inlines, dialect, wrap));
+    pieces.extend(inline_pieces(inlines, FILL_COLUMN, dialect, wrap));
     pieces.push(Piece::Text("}".to_owned()));
     fill(&pieces, FILL_COLUMN, wrap)
 }
@@ -202,7 +202,7 @@ fn header(
     };
     let unnumbered = attr.classes.iter().any(|class| class == "unnumbered");
     let star = if unnumbered { "*" } else { "" };
-    let inner = inline_pieces(inlines, dialect, wrap);
+    let inner = inline_pieces(inlines, width, dialect, wrap);
 
     let mut content = vec![Piece::Text(format!("\\{command}{star}{{"))];
     if needs_texorpdfstring(inlines) {
@@ -997,7 +997,7 @@ fn cell_content(cell: &Cell, width: usize, dialect: Dialect, wrap: WrapMode) -> 
     if is_simple_cell(cell) {
         match cell.content.first() {
             Some(Block::Plain(inlines) | Block::Para(inlines)) => {
-                flatten_pieces(&inline_pieces(inlines, dialect, wrap))
+                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap))
             }
             _ => String::new(),
         }
@@ -1086,7 +1086,7 @@ fn table_caption(
         .map(|inlines| {
             format!(
                 "[{}]",
-                flatten_pieces(&inline_pieces(inlines, dialect, wrap))
+                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap))
             )
         })
         .unwrap_or_default();
@@ -1099,7 +1099,7 @@ fn table_caption(
                 pieces.push(Piece::Hard);
             }
             first = false;
-            pieces.extend(inline_pieces(inlines, dialect, wrap));
+            pieces.extend(inline_pieces(inlines, width, dialect, wrap));
         }
     }
     let mut close = String::from("}");
@@ -1179,40 +1179,48 @@ fn needs_texorpdfstring(inlines: &[Inline]) -> bool {
 }
 
 fn inlines_to_string(inlines: &[Inline], width: usize, dialect: Dialect, wrap: WrapMode) -> String {
-    fill(&inline_pieces(inlines, dialect, wrap), width, wrap)
+    fill(&inline_pieces(inlines, width, dialect, wrap), width, wrap)
 }
 
-fn inline_pieces(inlines: &[Inline], dialect: Dialect, wrap: WrapMode) -> Vec<Piece> {
+fn inline_pieces(inlines: &[Inline], width: usize, dialect: Dialect, wrap: WrapMode) -> Vec<Piece> {
     let mut out = Vec::new();
     for inline in inlines {
-        push_inline(inline, &mut out, dialect, wrap);
+        push_inline(inline, &mut out, width, dialect, wrap);
     }
     out
 }
 
-fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect, wrap: WrapMode) {
+fn push_inline(
+    inline: &Inline,
+    out: &mut Vec<Piece>,
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+) {
     match inline {
         Inline::Str(text) => out.push(Piece::Text(escape(text, EscapeMode::Text))),
-        Inline::Emph(inlines) => wrap_command("\\emph{", inlines, out, dialect, wrap),
-        Inline::Strong(inlines) => wrap_command("\\textbf{", inlines, out, dialect, wrap),
-        Inline::Underline(inlines) => wrap_command("\\ul{", inlines, out, dialect, wrap),
-        Inline::Strikeout(inlines) => wrap_command("\\st{", inlines, out, dialect, wrap),
+        Inline::Emph(inlines) => wrap_command("\\emph{", inlines, out, width, dialect, wrap),
+        Inline::Strong(inlines) => wrap_command("\\textbf{", inlines, out, width, dialect, wrap),
+        Inline::Underline(inlines) => wrap_command("\\ul{", inlines, out, width, dialect, wrap),
+        Inline::Strikeout(inlines) => wrap_command("\\st{", inlines, out, width, dialect, wrap),
         Inline::Superscript(inlines) => {
-            wrap_command("\\textsuperscript{", inlines, out, dialect, wrap);
+            wrap_command("\\textsuperscript{", inlines, out, width, dialect, wrap);
         }
-        Inline::Subscript(inlines) => wrap_command("\\textsubscript{", inlines, out, dialect, wrap),
-        Inline::SmallCaps(inlines) => wrap_command("\\textsc{", inlines, out, dialect, wrap),
+        Inline::Subscript(inlines) => {
+            wrap_command("\\textsubscript{", inlines, out, width, dialect, wrap);
+        }
+        Inline::SmallCaps(inlines) => wrap_command("\\textsc{", inlines, out, width, dialect, wrap),
         Inline::Quoted(kind, inlines) => {
             let (open, close) = quote_marks(kind);
             out.push(Piece::Text(open.to_owned()));
             for inline in inlines {
-                push_inline(inline, out, dialect, wrap);
+                push_inline(inline, out, width, dialect, wrap);
             }
             out.push(Piece::Text(close.to_owned()));
         }
         Inline::Cite(_, inlines) => {
             for inline in inlines {
-                push_inline(inline, out, dialect, wrap);
+                push_inline(inline, out, width, dialect, wrap);
             }
         }
         Inline::Code(_, text) => {
@@ -1240,7 +1248,7 @@ fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect, wrap: Wr
             }
         }
         Inline::Link(attr, inlines, target) => {
-            push_link(attr, inlines, target, out, dialect, wrap);
+            push_link(attr, inlines, target, out, width, dialect, wrap);
         }
         Inline::Image(attr, inlines, target) => out.push(Piece::Text(image(attr, inlines, target))),
         Inline::Span(attr, inlines) => {
@@ -1252,11 +1260,11 @@ fn push_inline(inline: &Inline, out: &mut Vec<Piece>, dialect: Dialect, wrap: Wr
             open.push('{');
             out.push(Piece::Text(open));
             for inline in inlines {
-                push_inline(inline, out, dialect, wrap);
+                push_inline(inline, out, width, dialect, wrap);
             }
             out.push(Piece::Text("}".to_owned()));
         }
-        Inline::Note(blocks) => out.push(Piece::Text(note(blocks, dialect, wrap))),
+        Inline::Note(blocks) => out.push(Piece::Text(note(blocks, width, dialect, wrap))),
     }
 }
 
@@ -1264,12 +1272,13 @@ fn wrap_command(
     open: &str,
     inlines: &[Inline],
     out: &mut Vec<Piece>,
+    width: usize,
     dialect: Dialect,
     wrap: WrapMode,
 ) {
     out.push(Piece::Text(open.to_owned()));
     for inline in inlines {
-        push_inline(inline, out, dialect, wrap);
+        push_inline(inline, out, width, dialect, wrap);
     }
     out.push(Piece::Text("}".to_owned()));
 }
@@ -1279,6 +1288,7 @@ fn push_link(
     inlines: &[Inline],
     target: &Target,
     out: &mut Vec<Piece>,
+    width: usize,
     dialect: Dialect,
     wrap: WrapMode,
 ) {
@@ -1294,7 +1304,7 @@ fn push_link(
     }
     out.push(Piece::Text(format!("\\href{{{url}}}{{")));
     for inline in inlines {
-        push_inline(inline, out, dialect, wrap);
+        push_inline(inline, out, width, dialect, wrap);
     }
     out.push(Piece::Text("}".to_owned()));
 }
@@ -1384,8 +1394,8 @@ fn trim_number(value: f64) -> String {
 /// continuation paragraphs align with the first; a code block instead sits flush against the margin
 /// in a `Verbatim` environment, since verbatim content cannot be indented, and pushes the closing
 /// brace onto its own line.
-fn note(blocks: &[Block], dialect: Dialect, wrap: WrapMode) -> String {
-    let width = FILL_COLUMN.saturating_sub(2);
+fn note(blocks: &[Block], base_width: usize, dialect: Dialect, wrap: WrapMode) -> String {
+    let width = base_width.saturating_sub(2);
     let mut parts: Vec<String> = Vec::new();
     let mut ends_with_code = false;
     for block in blocks {
@@ -1536,6 +1546,41 @@ mod tests {
 
     fn str_inlines(text: &str) -> Vec<Inline> {
         vec![Inline::Str(text.to_owned())]
+    }
+
+    fn render_columns(blocks: Vec<Block>, columns: usize) -> String {
+        let document = Document {
+            blocks,
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.columns = Some(columns);
+        LatexWriter.write(&document, &options).unwrap()
+    }
+
+    fn long_paragraph() -> Vec<Block> {
+        let words: Vec<Inline> =
+            "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi"
+                .split(' ')
+                .flat_map(|word| [Inline::Str(word.to_owned()), Inline::Space])
+                .collect();
+        vec![Block::Para(words)]
+    }
+
+    #[test]
+    fn custom_columns_change_paragraph_wrapping() {
+        let narrow = render_columns(long_paragraph(), 20);
+        let wide = render_columns(long_paragraph(), 70);
+        assert!(narrow.lines().count() > wide.lines().count());
+        assert!(narrow.lines().all(|line| line.chars().count() <= 20));
+    }
+
+    #[test]
+    fn omitted_columns_uses_the_default_fill_width() {
+        assert_eq!(
+            render(long_paragraph()),
+            render_columns(long_paragraph(), 72)
+        );
     }
 
     #[test]
