@@ -12,7 +12,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, Target, to_plain_text,
 };
-use carta_core::{MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, attribute_value, display_width, fill, indent_block, list_is_tight, numeral,
@@ -42,6 +42,14 @@ impl Writer for LatexWriter {
 
     fn meta_var_style(&self) -> MetaVarStyle {
         MetaVarStyle::Pdf
+    }
+
+    fn toc_style(&self) -> TocStyle {
+        TocStyle::Native
+    }
+
+    fn numbers_sections_natively(&self) -> bool {
+        true
     }
 }
 
