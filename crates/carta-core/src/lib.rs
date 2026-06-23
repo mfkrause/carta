@@ -301,6 +301,14 @@ pub trait Writer {
         TocStyle::List
     }
 
+    /// Whether a list-style table of contents attaches a back-reference anchor — an `id` on each
+    /// entry's link — so the entries can be linked to. The default includes them; a format that
+    /// cannot represent an inline identifier (so an attributed link would degrade to raw markup)
+    /// overrides to `false`. Honored only when [`toc_style`](Writer::toc_style) is [`TocStyle::List`].
+    fn toc_link_anchors(&self) -> bool {
+        true
+    }
+
     /// Whether this format numbers sections with its own typesetting counter rather than carrying the
     /// number in the heading text. The default splices a `header-section-number` span into each
     /// heading; a format with a native counter (the typesetting formats) overrides to `true` and is
