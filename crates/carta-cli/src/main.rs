@@ -65,8 +65,8 @@ struct Cli {
     /// Include an automatically generated table of contents in the standalone output.
     #[arg(long = "toc", visible_alias = "table-of-contents")]
     toc: bool,
-    /// The deepest heading level the table of contents includes (default 3).
-    #[arg(long = "toc-depth", value_name = "N")]
+    /// The deepest heading level the table of contents includes (default 3; 1–6).
+    #[arg(long = "toc-depth", value_name = "N", value_parser = parse_toc_depth)]
     toc_depth: Option<usize>,
     /// Use MathJax to display embedded TeX math in HTML output. An optional URL overrides the script
     /// location.
@@ -229,6 +229,14 @@ fn parse_wrap(value: &str) -> std::result::Result<WrapMode, String> {
     }
 }
 
+/// Parse `--toc-depth`, accepting only the 1–6 heading levels a table of contents can reach.
+fn parse_toc_depth(value: &str) -> std::result::Result<usize, String> {
+    match value.parse::<usize>() {
+        Ok(depth @ 1..=6) => Ok(depth),
+        _ => Err(format!("'{value}' is not a heading level between 1 and 6")),
+    }
+}
+
 /// Parse `-V` specifiers into raw key/value pairs, defaulting a bare `KEY` to `"true"`. A specifier
 /// splits on its first `:` or `=`, whichever comes first, so the value may contain the other.
 fn parse_variables(specs: &[String]) -> Vec<(String, String)> {
@@ -340,7 +348,7 @@ mod tests {
     // missing key should fail the test loudly.
     #![allow(clippy::indexing_slicing)]
 
-    use super::{Cli, parse_metadata, parse_variables, parse_wrap, template_dir};
+    use super::{Cli, parse_metadata, parse_toc_depth, parse_variables, parse_wrap, template_dir};
     use carta::WrapMode;
     use carta::ast::MetaValue;
     use clap::CommandFactory;
@@ -453,5 +461,14 @@ mod tests {
         assert_eq!(parse_wrap("none"), Ok(WrapMode::None));
         assert_eq!(parse_wrap("preserve"), Ok(WrapMode::Preserve));
         assert!(parse_wrap("soft").is_err());
+    }
+
+    #[test]
+    fn toc_depth_accepts_one_through_six_and_rejects_the_rest() {
+        assert_eq!(parse_toc_depth("1"), Ok(1));
+        assert_eq!(parse_toc_depth("6"), Ok(6));
+        assert!(parse_toc_depth("0").is_err());
+        assert!(parse_toc_depth("7").is_err());
+        assert!(parse_toc_depth("two").is_err());
     }
 }
