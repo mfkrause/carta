@@ -15,23 +15,31 @@ const MAX_LEVEL: usize = 6;
 /// A heading carrying this class keeps the counters unchanged and receives no number.
 const UNNUMBERED: &str = "unnumbered";
 
-/// Per-level section counters, advanced one heading at a time in document order.
+/// Per-level section counters, advanced one heading at a time in document order. Numbers are joined
+/// from `base`, the document's shallowest heading level.
 struct Counters {
     levels: [u32; MAX_LEVEL],
+    /// The shallowest heading level in the document (1-indexed), the level a number's first segment
+    /// counts. Levels between this and a deeper heading that precedes its first appearance read as
+    /// zero.
+    base: usize,
 }
 
 impl Counters {
-    fn new() -> Self {
+    fn new(base: usize) -> Self {
         Self {
             levels: [0; MAX_LEVEL],
+            base: base.clamp(1, MAX_LEVEL),
         }
     }
 
     /// Advance the counters for a heading of `level` (clamped to 1..=6) and return its dotted
     /// number, or `None` when the heading is unnumbered (the counters are then left unchanged). A
     /// level's counter increments and every deeper level resets; the number joins the counters from
-    /// the first non-zero level up to this one, so a document that opens at level 2 still numbers
-    /// from `1` and a skipped level reads as a zero (`1` then a level-3 heading is `1.0.1`).
+    /// the document's shallowest heading level up to this one. A document whose shallowest heading is
+    /// level 2 still numbers from `1`; a skipped level reads as a zero (`1` then a level-3 heading is
+    /// `1.0.1`); and a heading deeper than the base level appearing before any heading reaches that
+    /// base reads with leading zeros (a level-2 heading before the first level-1 heading is `0.1`).
     fn advance(&mut self, level: i32, classes: &[String]) -> Option<String> {
         if classes.iter().any(|class| class == UNNUMBERED) {
             return None;
@@ -43,14 +51,10 @@ impl Counters {
         for slot in self.levels.iter_mut().skip(level) {
             *slot = 0;
         }
-        let first = self
-            .levels
-            .iter()
-            .position(|&count| count != 0)
-            .unwrap_or(0);
+        let start = self.base.saturating_sub(1).min(level.saturating_sub(1));
         let number = self
             .levels
-            .get(first..level)
+            .get(start..level)
             .unwrap_or(&[])
             .iter()
             .map(u32::to_string)
@@ -60,11 +64,32 @@ impl Counters {
     }
 }
 
+/// The shallowest heading level anywhere in `blocks` (recursing through divisions), or 1 when the
+/// document has no headings. This anchors section numbering: it is the level a number's first segment
+/// counts from.
+fn min_heading_level(blocks: &[Block]) -> usize {
+    fn walk(blocks: &[Block], min: &mut Option<usize>) {
+        for block in blocks {
+            match block {
+                Block::Header(level, _, _) => {
+                    let level = usize::try_from(*level).unwrap_or(1).clamp(1, MAX_LEVEL);
+                    *min = Some(min.map_or(level, |current| current.min(level)));
+                }
+                Block::Div(_, inner) => walk(inner, min),
+                _ => {}
+            }
+        }
+    }
+    let mut min = None;
+    walk(blocks, &mut min);
+    min.unwrap_or(1)
+}
+
 /// Splice section numbers into the headings of `blocks`, walking nested sections in document order. A
 /// numbered heading gains a leading `header-section-number` span holding its number, a following
 /// space, and a `number` key/value attribute; an unnumbered heading is left untouched.
 pub fn number_sections(blocks: &mut [Block]) {
-    let mut counters = Counters::new();
+    let mut counters = Counters::new(min_heading_level(blocks));
     number_in(blocks, &mut counters);
 }
 
@@ -95,7 +120,7 @@ fn number_in(blocks: &mut [Block], counters: &mut Counters) {
 /// Footnotes are dropped and links unwrapped, so an entry never nests an anchor or a note marker.
 #[must_use]
 pub fn build_toc(blocks: &[Block], depth: usize, numbered: bool, anchors: bool) -> Option<Block> {
-    let mut counters = Counters::new();
+    let mut counters = Counters::new(min_heading_level(blocks));
     let mut entries = Vec::new();
     collect_entries(
         blocks,
@@ -112,10 +137,11 @@ pub fn build_toc(blocks: &[Block], depth: usize, numbered: bool, anchors: bool) 
     }
 }
 
-/// One contents entry: the heading's level (for nesting) and the prepared link.
+/// One contents entry: the heading's level (for nesting) and the prepared inlines (a link to the
+/// heading, or plain text when the heading carries no id to target).
 struct Entry {
     level: i32,
-    link: Inline,
+    content: Vec<Inline>,
 }
 
 fn collect_entries(
@@ -135,7 +161,7 @@ fn collect_entries(
                 if (1..=depth).contains(&usize::try_from(*level).unwrap_or(0)) {
                     entries.push(Entry {
                         level: *level,
-                        link: toc_link(attr, inlines, numbered, number.as_deref(), anchors),
+                        content: toc_entry(attr, inlines, numbered, number.as_deref(), anchors),
                     });
                 }
             }
@@ -158,7 +184,7 @@ fn nest(entries: &[Entry]) -> Vec<Vec<Block>> {
             .take_while(|entry| entry.level > first.level)
             .count();
         let (children, after) = tail.split_at(child_count);
-        let mut blocks = vec![Block::Plain(vec![first.link.clone()])];
+        let mut blocks = vec![Block::Plain(first.content.clone())];
         if !children.is_empty() {
             blocks.push(Block::BulletList(nest(children)));
         }
@@ -168,16 +194,17 @@ fn nest(entries: &[Entry]) -> Vec<Vec<Block>> {
     items
 }
 
-/// The link for one contents entry, targeting the heading. With `anchors`, the link also carries its
-/// own id — the heading id prefixed with `toc-` — so it can be linked back to. A numbered entry leads
-/// with a `toc-section-number` span and a space.
-fn toc_link(
+/// The inlines for one contents entry. A numbered entry leads with a `toc-section-number` span and a
+/// space. When the heading carries an id, the entry is a link targeting it — and, with `anchors`, the
+/// link also carries its own id (the heading id prefixed with `toc-`) so it can be linked back to.
+/// When the heading has no id there is nothing to target, so the entry is plain text.
+fn toc_entry(
     attr: &Attr,
     inlines: &[Inline],
     numbered: bool,
     number: Option<&str>,
     anchors: bool,
-) -> Inline {
+) -> Vec<Inline> {
     let mut content = Vec::new();
     if let Some(number) = number.filter(|_| numbered) {
         content.push(Inline::Span(
@@ -187,8 +214,11 @@ fn toc_link(
         content.push(Inline::Space);
     }
     content.extend(clean_toc_inlines(inlines));
+    if attr.id.is_empty() {
+        return content;
+    }
     let link_attr = Attr {
-        id: if anchors && !attr.id.is_empty() {
+        id: if anchors {
             format!("toc-{}", attr.id)
         } else {
             String::new()
@@ -196,14 +226,14 @@ fn toc_link(
         classes: Vec::new(),
         attributes: Vec::new(),
     };
-    Inline::Link(
+    vec![Inline::Link(
         link_attr,
         content,
         Target {
             url: format!("#{}", attr.id),
             title: String::new(),
         },
-    )
+    )]
 }
 
 /// Strip a heading's inlines for use in a contents entry: drop footnotes and replace each link with
@@ -308,6 +338,27 @@ mod tests {
         let mut blocks = vec![header(1, &[], "One"), header(3, &[], "Jump")];
         number_sections(&mut blocks);
         assert_eq!(number_of(&blocks[1]), Some("1.0.1".to_owned()));
+    }
+
+    #[test]
+    fn deep_heading_before_its_base_level_reads_with_zero_ancestors() {
+        let mut blocks = vec![
+            header(2, &[], "Deep"),
+            header(3, &[], "Deeper"),
+            header(1, &[], "Top"),
+        ];
+        number_sections(&mut blocks);
+        assert_eq!(number_of(&blocks[0]), Some("0.1".to_owned()));
+        assert_eq!(number_of(&blocks[1]), Some("0.1.1".to_owned()));
+        assert_eq!(number_of(&blocks[2]), Some("1".to_owned()));
+    }
+
+    #[test]
+    fn shallowest_level_anchors_numbering_even_when_levels_only_deepen() {
+        let mut blocks = vec![header(6, &[], "Six"), header(5, &[], "Five")];
+        number_sections(&mut blocks);
+        assert_eq!(number_of(&blocks[0]), Some("0.1".to_owned()));
+        assert_eq!(number_of(&blocks[1]), Some("1".to_owned()));
     }
 
     #[test]
@@ -434,5 +485,17 @@ mod tests {
         };
         assert!(attr.id.is_empty());
         assert_eq!(target.url, "#one");
+    }
+
+    #[test]
+    fn toc_entry_without_an_id_is_plain_text() {
+        let heading = Block::Header(1, Attr::default(), vec![Inline::Str("Untitled".to_owned())]);
+        let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
+            panic!("expected a contents list");
+        };
+        let Some(Block::Plain(inlines)) = items[0].first() else {
+            panic!("expected a plain item");
+        };
+        assert_eq!(inlines, &vec![Inline::Str("Untitled".to_owned())]);
     }
 }
