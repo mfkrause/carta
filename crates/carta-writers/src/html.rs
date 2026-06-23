@@ -1,9 +1,10 @@
 //! HTML writer: renders the document model to an html5 fragment.
 //!
-//! Syntax highlighting and TeX math rendering are neutralized: code blocks render as a plain
-//! `<pre><code>` and math as a MathJax-style `\(…\)` / `\[…\]` passthrough span. Those two
-//! subsystems are deferred (see `docs/plans/slice-1-commonmark-html.md`). Output is a fragment with
-//! no trailing newline; the caller appends one.
+//! Syntax highlighting is neutralized: code blocks render as a plain `<pre><code>` (deferred; see
+//! `docs/plans/slice-1-commonmark-html.md`). TeX math renders as a `span.math` passthrough whose
+//! contents an in-browser typesetting loader reads — wrapped in `\(…\)` / `\[…\]` delimiters for the
+//! delimiter-scanning loaders, or as bare TeX for the one that reads the span directly. Output is a
+//! fragment with no trailing newline; the caller appends one.
 
 use std::fmt::Write as _;
 
@@ -11,7 +12,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
     ListNumberStyle, MathType, Row, Table, TableBody, Target, Text, to_plain_text,
 };
-use carta_core::{MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
+use carta_core::{MathMethod, MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, RowSpanGrid, is_known_attribute, is_wide, normalize_image_attr, quote_marks,
@@ -23,7 +24,13 @@ pub struct HtmlWriter;
 
 impl Writer for HtmlWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_fragment(&document.blocks, options.wrap))
+        Ok(render_with_flavor(
+            &document.blocks,
+            Flavor::Html5,
+            options.wrap,
+            fill_width(options),
+            math_output(options),
+        ))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -49,6 +56,8 @@ impl Writer for Html4Writer {
             &document.blocks,
             Flavor::Html4,
             options.wrap,
+            fill_width(options),
+            math_output(options),
         ))
     }
 
@@ -170,28 +179,56 @@ impl SlideRenderer {
 // Used by the slide writer; unreferenced when its feature is sliced out of the build.
 #[allow(dead_code)]
 #[must_use]
-pub(crate) fn fill_slides(assembled: &str, wrap: WrapMode) -> String {
-    restore(&reflow(assembled, wrap))
+pub(crate) fn fill_slides(assembled: &str, wrap: WrapMode, width: usize) -> String {
+    restore(&reflow(assembled, wrap, width))
         .trim_end_matches('\n')
         .to_owned()
 }
 
 /// Render a block sequence to an html5 fragment, including the footnote section for any notes the
-/// blocks carry, laid out under `wrap`. The fragment carries no trailing newline.
+/// blocks carry, laid out under `wrap` and filled to the default column. The fragment carries no
+/// trailing newline.
 pub(crate) fn render_fragment(blocks: &[Block], wrap: WrapMode) -> String {
-    render_with_flavor(blocks, Flavor::Html5, wrap)
+    render_with_flavor(
+        blocks,
+        Flavor::Html5,
+        wrap,
+        FILL_COLUMN,
+        MathOutput::Delimited,
+    )
 }
 
-fn render_with_flavor(blocks: &[Block], flavor: Flavor, wrap: WrapMode) -> String {
+fn render_with_flavor(
+    blocks: &[Block],
+    flavor: Flavor,
+    wrap: WrapMode,
+    width: usize,
+    math: MathOutput,
+) -> String {
     let mut state = State {
         flavor,
+        math,
         ..State::default()
     };
     let mut out = String::new();
     state.blocks(&mut out, blocks);
     state.push_footnote_section(&mut out);
-    let filled = restore(&reflow(&out, wrap));
+    let filled = restore(&reflow(&out, wrap, width));
     filled.trim_end_matches('\n').to_owned()
+}
+
+/// The column an html writer fills to: the requested width, or the default when none is set.
+pub(crate) fn fill_width(options: &WriterOptions) -> usize {
+    options.columns.unwrap_or(FILL_COLUMN)
+}
+
+/// Which math markup an html writer emits for the chosen renderer. KaTeX reads bare TeX from the
+/// span; every other method keeps the delimiters.
+fn math_output(options: &WriterOptions) -> MathOutput {
+    match options.math_method {
+        MathMethod::Katex(_) => MathOutput::Raw,
+        MathMethod::Plain | MathMethod::MathJax(_) => MathOutput::Delimited,
+    }
 }
 
 /// Render an inline sequence to a single line of html, with every breakable space emitted as one
@@ -240,6 +277,18 @@ enum AttrOrder {
     Header,
 }
 
+/// How a `span.math` carries its TeX. A typesetting loader that scans the page for delimited math
+/// (MathJax) needs the `\(…\)` / `\[…\]` wrappers; KaTeX reads the bare TeX from the span and so
+/// takes [`MathOutput::Raw`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum MathOutput {
+    /// The TeX is wrapped in `\(…\)` (inline) or `\[…\]` (display). The default.
+    #[default]
+    Delimited,
+    /// The span carries the bare TeX with no delimiters.
+    Raw,
+}
+
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and
 /// emitted as a section at the end of the document.
 #[derive(Debug, Default)]
@@ -247,6 +296,7 @@ struct State {
     footnotes: Vec<String>,
     in_anchor: bool,
     flavor: Flavor,
+    math: MathOutput,
 }
 
 /// Class names that select a dedicated HTML element for a [`Inline::Span`] instead of a generic
@@ -651,13 +701,17 @@ impl State {
             Inline::SoftBreak => out.push(SOFT),
             Inline::LineBreak => out.push_str("<br />\n"),
             Inline::Math(kind, text) => {
-                let (class, open, close) = match kind {
-                    MathType::InlineMath => ("inline", "\\(", "\\)"),
-                    MathType::DisplayMath => ("display", "\\[", "\\]"),
+                let (class, delimiters) = match kind {
+                    MathType::InlineMath => ("inline", ("\\(", "\\)")),
+                    MathType::DisplayMath => ("display", ("\\[", "\\]")),
+                };
+                let (open, close) = match self.math {
+                    MathOutput::Delimited => delimiters,
+                    MathOutput::Raw => ("", ""),
                 };
                 let _ = write!(
                     out,
-                    "<span class=\"math {class}\">{open}{}{close}</span>",
+                    "<span{BREAK}class=\"math {class}\">{open}{}{close}</span>",
                     escape_text(text)
                 );
             }
@@ -1163,14 +1217,14 @@ fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
 
 /// Resolve the break sentinels in an assembled fragment under the document's wrap mode.
 ///
-/// Under [`WrapMode::Auto`] inline content fills to [`FILL_COLUMN`] with a greedy fill: a break point
+/// Under [`WrapMode::Auto`] inline content fills to `width` columns with a greedy fill: a break point
 /// ([`BREAK`] or [`SOFT`]) becomes a newline when keeping the following chunk on the current line
 /// would exceed the fill column, where the chunk is the run of literal text up to the next break
 /// point or hard newline. Under [`WrapMode::None`] no break point ever becomes a newline — every one
 /// is a space. Under [`WrapMode::Preserve`] a [`SOFT`] (a soft break from the source) becomes a
 /// newline while a [`BREAK`] (a breakable space) stays a space, and lines are not reflowed. Hard
 /// newlines (block structure) always reset the column; consecutive break points collapse to one.
-fn reflow(input: &str, wrap: WrapMode) -> String {
+fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
     let mut out = String::with_capacity(input.len());
     let mut column = 0usize;
     let mut chars = input.chars();
@@ -1195,7 +1249,7 @@ fn reflow(input: &str, wrap: WrapMode) -> String {
                         }
                         chunk += char_width(following);
                     }
-                    if column + 1 + chunk > FILL_COLUMN {
+                    if column + 1 + chunk > width {
                         out.push('\n');
                         column = 0;
                     } else {
