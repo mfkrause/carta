@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use carta::ast::MetaValue;
-use carta::{Error, ReaderOptions, Result, WrapMode, WriterOptions, convert};
+use carta::{Error, MathMethod, ReaderOptions, Result, WrapMode, WriterOptions, convert};
 use clap::{ArgAction, Parser};
 
 const LIST_FLAGS: [&str; 4] = [
@@ -29,6 +29,9 @@ const LIST_FLAGS: [&str; 4] = [
     about = "Document converter",
     disable_version_flag = true
 )]
+// A command line surfaces each flag as its own field; grouping the boolean toggles into a sub-struct
+// would only obscure the one-flag-one-field mapping clap relies on.
+#[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Input format (e.g. `commonmark`, `json`).
     #[arg(short = 'f', long = "from", required_unless_present_any = LIST_FLAGS)]
@@ -53,6 +56,28 @@ struct Cli {
     /// single line, `preserve` keeps the input's own line breaks.
     #[arg(long = "wrap", value_name = "auto|none|preserve", default_value = "auto", value_parser = parse_wrap)]
     wrap: WrapMode,
+    /// Column at which `--wrap=auto` reflows text. Defaults to the writer's built-in width.
+    #[arg(long = "columns", value_name = "N")]
+    columns: Option<usize>,
+    /// Number section headings (`1`, `1.1`, …).
+    #[arg(short = 'N', long = "number-sections")]
+    number_sections: bool,
+    /// Include an automatically generated table of contents in the standalone output.
+    #[arg(long = "toc", visible_alias = "table-of-contents")]
+    toc: bool,
+    /// The deepest heading level the table of contents includes (default 3).
+    #[arg(long = "toc-depth", value_name = "N")]
+    toc_depth: Option<usize>,
+    /// Use MathJax to display embedded TeX math in HTML output. An optional URL overrides the script
+    /// location.
+    #[allow(clippy::option_option)]
+    #[arg(long = "mathjax", value_name = "URL", num_args = 0..=1, require_equals = true)]
+    mathjax: Option<Option<String>>,
+    /// Use KaTeX to display embedded TeX math in HTML output. An optional URL overrides the asset
+    /// base location.
+    #[allow(clippy::option_option)]
+    #[arg(long = "katex", value_name = "URL", num_args = 0..=1, require_equals = true)]
+    katex: Option<Option<String>>,
     /// Set a metadata field: `KEY:VAL` (or `KEY=VAL`; `true`/`false` become booleans), or bare `KEY`
     /// for `true`. Repeatable.
     #[arg(short = 'M', long = "metadata", value_name = "KEY[:VAL]")]
@@ -132,6 +157,11 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         );
     }
     writer_options.wrap = cli.wrap;
+    writer_options.columns = cli.columns;
+    writer_options.number_sections = cli.number_sections;
+    writer_options.toc = cli.toc;
+    writer_options.toc_depth = cli.toc_depth;
+    writer_options.math_method = math_method(cli);
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
@@ -164,6 +194,27 @@ fn template_dir(path: &Path) -> PathBuf {
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."))
         .to_path_buf()
+}
+
+/// The script URL MathJax loads from when `--mathjax` is given no explicit location.
+const DEFAULT_MATHJAX_URL: &str = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js";
+/// The asset base URL KaTeX loads from when `--katex` is given no explicit location.
+const DEFAULT_KATEX_URL: &str = "https://cdn.jsdelivr.net/npm/katex@latest/dist/";
+
+/// Resolve the math renderer from the `--mathjax`/`--katex` flags. Each flag's optional value
+/// overrides its default URL; when both are given, MathJax wins. Absent both, math is left as
+/// `\(…\)` / `\[…\]` source.
+fn math_method(cli: &Cli) -> MathMethod {
+    if let Some(url) = &cli.mathjax {
+        MathMethod::MathJax(
+            url.clone()
+                .unwrap_or_else(|| DEFAULT_MATHJAX_URL.to_owned()),
+        )
+    } else if let Some(url) = &cli.katex {
+        MathMethod::Katex(url.clone().unwrap_or_else(|| DEFAULT_KATEX_URL.to_owned()))
+    } else {
+        MathMethod::Plain
+    }
 }
 
 /// Parse the `--wrap` argument into a [`WrapMode`].

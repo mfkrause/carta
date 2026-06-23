@@ -13,7 +13,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Format, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, QuoteType, Table, Target, to_plain_text,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{FILL_COLUMN, attribute_value, display_width};
 
@@ -32,6 +32,14 @@ impl Writer for TypstWriter {
     }
 
     fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+
+    fn toc_style(&self) -> TocStyle {
+        TocStyle::Native
+    }
+
+    fn numbers_sections_natively(&self) -> bool {
         true
     }
 }

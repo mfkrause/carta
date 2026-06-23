@@ -9,7 +9,7 @@
 //! format has no public specification.
 
 use carta_ast::{Attr, Block, Document, Inline};
-use carta_core::{MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
+use carta_core::{MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::latex::{Dialect, anchor, render_fragment, render_heading, render_titled_open};
 use crate::slides::{FrameTitle, Heading, Slide, group_headings, segment, slide_level};
@@ -37,6 +37,14 @@ impl Writer for BeamerWriter {
 
     fn meta_var_style(&self) -> MetaVarStyle {
         MetaVarStyle::Pdf
+    }
+
+    fn toc_style(&self) -> TocStyle {
+        TocStyle::Native
+    }
+
+    fn numbers_sections_natively(&self) -> bool {
+        true
     }
 
     fn render_meta_inlines(&self, inlines: &[Inline], options: &WriterOptions) -> Result<String> {
