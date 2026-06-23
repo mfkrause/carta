@@ -10,6 +10,7 @@
 use carta_ast::{Block, Document, Inline};
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
+use crate::common::FILL_COLUMN;
 use crate::html::render_inline_line;
 use crate::markdown::{MarkdownConfig, render_blocks};
 
@@ -19,10 +20,11 @@ pub struct OpmlWriter;
 
 impl Writer for OpmlWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let width = options.columns.unwrap_or(FILL_COLUMN);
         let sections = sectionize(&document.blocks);
         let mut out = String::new();
         for section in &sections {
-            render_section(section, 0, options.wrap, &mut out);
+            render_section(section, 0, width, options.wrap, &mut out);
         }
         Ok(out.trim_end_matches('\n').to_owned())
     }
@@ -35,6 +37,7 @@ impl Writer for OpmlWriter {
         Ok(render_blocks(
             &[Block::Plain(inlines.to_vec())],
             MarkdownConfig::extended(),
+            options.columns.unwrap_or(FILL_COLUMN),
             options.wrap,
         ))
     }
@@ -43,6 +46,7 @@ impl Writer for OpmlWriter {
         Ok(render_blocks(
             blocks,
             MarkdownConfig::extended(),
+            options.columns.unwrap_or(FILL_COLUMN),
             options.wrap,
         ))
     }
@@ -104,11 +108,11 @@ fn sectionize(blocks: &[Block]) -> Vec<Section<'_>> {
     sections
 }
 
-fn render_section(section: &Section, depth: usize, wrap: WrapMode, out: &mut String) {
+fn render_section(section: &Section, depth: usize, width: usize, wrap: WrapMode, out: &mut String) {
     let indent = "  ".repeat(depth);
     let text = escape_outline(&render_inline_line(section.heading));
     let body_blocks: Vec<Block> = section.body.iter().map(|block| (*block).clone()).collect();
-    let note = render_blocks(&body_blocks, MarkdownConfig::extended(), wrap);
+    let note = render_blocks(&body_blocks, MarkdownConfig::extended(), width, wrap);
     out.push_str(&indent);
     out.push_str("<outline text=\"");
     out.push_str(&text);
@@ -120,7 +124,7 @@ fn render_section(section: &Section, depth: usize, wrap: WrapMode, out: &mut Str
     }
     out.push_str(">\n");
     for child in &section.children {
-        render_section(child, depth + 1, wrap, out);
+        render_section(child, depth + 1, width, wrap, out);
     }
     out.push_str(&indent);
     out.push_str("</outline>\n");

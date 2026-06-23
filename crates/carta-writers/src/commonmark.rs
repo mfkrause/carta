@@ -25,11 +25,13 @@ pub struct CommonmarkWriter;
 
 impl Writer for CommonmarkWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let width = options.columns.unwrap_or(FILL_COLUMN);
         let mut state = State {
             wrap: options.wrap,
+            width,
             ..State::default()
         };
-        let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
+        let body = state.blocks_to_string(&document.blocks, width);
         Ok(append_notes(body, &state.footnotes))
     }
 
@@ -45,11 +47,22 @@ impl Writer for CommonmarkWriter {
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and
-/// emitted as a section at the end of the document.
-#[derive(Debug, Default)]
+/// emitted as a section at the end of the document, along with the configured fill width.
+#[derive(Debug)]
 struct State {
     footnotes: Vec<String>,
     wrap: WrapMode,
+    width: usize,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            footnotes: Vec::new(),
+            wrap: WrapMode::default(),
+            width: FILL_COLUMN,
+        }
+    }
 }
 
 impl State {
@@ -110,7 +123,7 @@ impl State {
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
-            Block::HorizontalRule => "-".repeat(FILL_COLUMN),
+            Block::HorizontalRule => "-".repeat(width),
             Block::Div(attr, blocks) => {
                 let body = self.blocks_to_string(blocks, width);
                 format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
@@ -406,6 +419,10 @@ impl NotesHost for State {
     ) -> String {
         let pieces = self.pieces(inlines, true);
         fill_offset(&pieces, width, initial, self.wrap)
+    }
+
+    fn base_width(&self) -> usize {
+        self.width
     }
 }
 

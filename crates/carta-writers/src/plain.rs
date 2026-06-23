@@ -11,11 +11,10 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, MEASURE_WIDTH, MULTILINE_WIDTH, NotesHost, Piece, TableForm, append_notes,
-    block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose,
-    lay_row, measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks,
-    table_form,
+    FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
+    body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill, fill_offset,
+    filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose, lay_row,
+    measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
 
@@ -25,11 +24,13 @@ pub struct PlainWriter;
 
 impl Writer for PlainWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        let width = options.columns.unwrap_or(FILL_COLUMN);
         let mut state = State {
             wrap: options.wrap,
+            width,
             ..State::default()
         };
-        let body = state.blocks_to_string(&document.blocks, FILL_COLUMN);
+        let body = state.blocks_to_string(&document.blocks, width);
         Ok(append_notes(body, &state.footnotes))
     }
 
@@ -43,11 +44,22 @@ impl Writer for PlainWriter {
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and
-/// emitted as a section at the end of the document.
-#[derive(Debug, Default)]
+/// emitted as a section at the end of the document, along with the configured fill width.
+#[derive(Debug)]
 struct State {
     footnotes: Vec<String>,
     wrap: WrapMode,
+    width: usize,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            footnotes: Vec::new(),
+            wrap: WrapMode::default(),
+            width: FILL_COLUMN,
+        }
+    }
 }
 
 impl State {
@@ -109,8 +121,8 @@ impl State {
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
-            Block::HorizontalRule => "-".repeat(FILL_COLUMN),
-            Block::Table(table) => self.table(table),
+            Block::HorizontalRule => "-".repeat(width),
+            Block::Table(table) => self.table(table, width),
             Block::Figure(_, _, blocks) | Block::Div(_, blocks) => {
                 self.blocks_to_string(blocks, width)
             }
@@ -188,17 +200,17 @@ impl State {
         groups.join("\n\n")
     }
 
-    fn table(&mut self, table: &Table) -> String {
+    fn table(&mut self, table: &Table, width: usize) -> String {
         if table.col_specs.is_empty() {
             return String::new();
         }
         let form = table_form(table);
         let body = match form {
             TableForm::Simple => self.simple_table(table),
-            TableForm::Multiline => self.multiline_table(table),
-            TableForm::Grid => self.grid_table(table),
+            TableForm::Multiline => self.multiline_table(table, width),
+            TableForm::Grid => self.grid_table(table, width),
         };
-        match self.table_caption(table, form) {
+        match self.table_caption(table, form, width) {
             Some(caption) if body.is_empty() => caption,
             Some(caption) => format!("{body}\n\n{caption}"),
             None => body,
@@ -261,7 +273,7 @@ impl State {
     /// A multiline table: cells wrap within their column and rows are separated by blank lines.
     /// Column widths come from explicit fractional specs (floored at the widest unbreakable word)
     /// or, lacking those, from the natural content width. Indented two columns.
-    fn multiline_table(&mut self, table: &Table) -> String {
+    fn multiline_table(&mut self, table: &Table, width: usize) -> String {
         let columns = table.col_specs.len();
         let aligns: Vec<&Alignment> = table.col_specs.iter().map(|spec| &spec.align).collect();
         let header: Vec<Vec<Vec<Piece>>> = table
@@ -282,9 +294,9 @@ impl State {
         let mut minword = vec![0usize; columns];
         for row in header.iter().chain(body.iter()) {
             for (index, cell) in row.iter().enumerate() {
-                let (width, word) = measure_pieces(cell);
+                let (cell_width, word) = measure_pieces(cell);
                 if let Some(value) = natural.get_mut(index) {
-                    *value = (*value).max(width);
+                    *value = (*value).max(cell_width);
                 }
                 if let Some(value) = minword.get_mut(index) {
                     *value = (*value).max(word);
@@ -302,7 +314,8 @@ impl State {
                             clippy::cast_possible_truncation,
                             clippy::cast_sign_loss
                         )]
-                        let scaled = (fraction * MULTILINE_WIDTH as f64).floor().max(0.0) as usize;
+                        let scaled =
+                            (fraction * width.saturating_sub(1) as f64).floor().max(0.0) as usize;
                         scaled.max(minword.get(index).copied().unwrap_or(0) + 2)
                     }
                     _ => natural.get(index).copied().unwrap_or(0) + 2,
@@ -332,7 +345,7 @@ impl State {
     /// A grid table: bordered cells that carry spans, block-level content, or a footer. Column
     /// widths come from explicit fractional specs or a content-proportional fit; the engine in
     /// [`crate::grid`] draws the borders. Not indented.
-    fn grid_table(&mut self, table: &Table) -> String {
+    fn grid_table(&mut self, table: &Table, width: usize) -> String {
         let columns = table.col_specs.len();
         let aligns: Vec<Alignment> = table
             .col_specs
@@ -371,9 +384,13 @@ impl State {
             &minword,
             &colspans,
             columns,
+            width,
             self.wrap,
         );
-        let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
+        let col_widths: Vec<usize> = content
+            .iter()
+            .map(|content_width| content_width + 2)
+            .collect();
         let head_grid = self.grid_rows(&head, &head_layout, &content);
         let body_grid = self.grid_rows(&body, &body_layout, &content);
         let foot_grid = self.grid_rows(&foot, &foot_layout, &content);
@@ -488,7 +505,7 @@ impl State {
     /// The caption block, prefixed `: ` and indented to match the table form (two columns for
     /// simple and multiline tables, none for grids). A non-empty caption carries any table
     /// attributes as a trailing `{#id .class key="value"}` suffix.
-    fn table_caption(&mut self, table: &Table, form: TableForm) -> Option<String> {
+    fn table_caption(&mut self, table: &Table, form: TableForm, width: usize) -> Option<String> {
         let base = if matches!(form, TableForm::Grid) {
             0
         } else {
@@ -508,7 +525,7 @@ impl State {
             pieces.push(Piece::Space);
             pieces.push(Piece::Text(suffix));
         }
-        let body = fill_offset(&pieces, FILL_COLUMN.saturating_sub(base), 2, self.wrap);
+        let body = fill_offset(&pieces, width.saturating_sub(base), 2, self.wrap);
         let first = format!("{}: ", " ".repeat(base));
         let rest = " ".repeat(base);
         Some(indent_block(&body, &first, &rest))
@@ -633,6 +650,10 @@ impl NotesHost for State {
     ) -> String {
         let pieces = self.pieces(inlines);
         fill_offset(&pieces, width, initial, self.wrap)
+    }
+
+    fn base_width(&self) -> usize {
+        self.width
     }
 }
 
@@ -811,6 +832,44 @@ mod tests {
         PlainWriter
             .write(&document, &WriterOptions::default())
             .unwrap()
+    }
+
+    fn render_columns(blocks: Vec<Block>, columns: usize) -> String {
+        let document = Document {
+            blocks,
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.columns = Some(columns);
+        PlainWriter.write(&document, &options).unwrap()
+    }
+
+    fn long_paragraph() -> Vec<Block> {
+        let words: Vec<Inline> = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda"
+            .split(' ')
+            .flat_map(|word| [Inline::Str(word.to_owned()), Inline::Space])
+            .collect();
+        vec![Block::Para(words)]
+    }
+
+    #[test]
+    fn narrow_columns_wraps_a_paragraph_sooner() {
+        let wide = render_columns(long_paragraph(), 40);
+        let narrow = render_columns(long_paragraph(), 20);
+        // A narrower fill column forces more line breaks.
+        assert!(narrow.lines().count() > wide.lines().count());
+        // Every laid-out line stays within the requested width.
+        assert!(narrow.lines().all(|line| line.chars().count() <= 20));
+        assert!(wide.lines().all(|line| line.chars().count() <= 40));
+    }
+
+    #[test]
+    fn omitted_columns_uses_the_default_fill_width() {
+        // The default-width render is identical to passing the built-in width explicitly.
+        assert_eq!(
+            render(long_paragraph()),
+            render_columns(long_paragraph(), 72)
+        );
     }
 
     fn math_para(kind: MathType, tex: &str) -> Block {

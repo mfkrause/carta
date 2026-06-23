@@ -1004,6 +1004,7 @@ impl State {
             &minword,
             &colspans,
             columns,
+            FILL_COLUMN,
             self.wrap,
         );
         let col_widths: Vec<usize> = content.iter().map(|width| width + 2).collect();
