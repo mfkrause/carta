@@ -120,6 +120,12 @@ impl Writer for GfmWriter {
     fn body_ends_with_newline(&self) -> bool {
         true
     }
+
+    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
+    }
 }
 
 /// Serialize document metadata as a sorted-key YAML block delimited by `---` lines, or `None` when

@@ -36,6 +36,12 @@ impl Writer for CommonmarkWriter {
     fn body_ends_with_newline(&self) -> bool {
         true
     }
+
+    // `CommonMark` has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
+    }
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and
