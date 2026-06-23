@@ -720,7 +720,7 @@ impl State {
                 let _ = write!(
                     out,
                     "<span{BREAK}class=\"math {class}\">{open}{}{close}</span>",
-                    escape_text(text)
+                    escape_math(text)
                 );
             }
             Inline::RawInline(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
@@ -1313,15 +1313,17 @@ fn is_zero_width(ch: char) -> bool {
     )
 }
 
-/// Escape `&`, `<`, and `>` to their HTML entities, and additionally `"` when `quotes` is set.
-fn escape(text: &str, quotes: bool) -> String {
+/// Escape `&`, `<`, and `>` to their HTML entities, and additionally `"` when `double_quote` and `'`
+/// when `single_quote` is set.
+fn escape(text: &str, double_quote: bool, single_quote: bool) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
-            '"' if quotes => out.push_str("&quot;"),
+            '"' if double_quote => out.push_str("&quot;"),
+            '\'' if single_quote => out.push_str("&#39;"),
             _ => protect_char(ch, &mut out),
         }
     }
@@ -1382,13 +1384,19 @@ fn restore(text: &str) -> String {
     out
 }
 
-/// Escape running text and inline code, which leave the double quote literal.
+/// Escape running text and inline code, which leave both quote characters literal.
 fn escape_text(text: &str) -> String {
-    escape(text, false)
+    escape(text, false, false)
 }
 
 /// Escape an attribute value, where the double quote must be entity-encoded. The same policy applies
 /// to a `<pre><code>` block's body.
 fn escape_attr(text: &str) -> String {
-    escape(text, true)
+    escape(text, true, false)
+}
+
+/// Escape the body of a math span, where both quote characters must be entity-encoded so the verbatim
+/// formula survives intact for the math renderer.
+fn escape_math(text: &str) -> String {
+    escape(text, true, true)
 }
