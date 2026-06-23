@@ -66,7 +66,17 @@ pub fn convert(
     #[cfg(not(feature = "standalone"))]
     let document = reader.read(input, &reader_options)?;
 
-    let body = writer.write(&document, &writer_options)?;
+    // A section number carried in the heading text is spliced into a copy of the document before the
+    // body is rendered; the pristine document still feeds the contents builder, which numbers its own
+    // entries. A format with a typesetting counter leaves the body untouched and is driven by a
+    // template flag instead.
+    let body = if writer_options.number_sections && writer.numbers_sections_in_body() {
+        let mut numbered = document.clone();
+        carta_core::sections::number_sections(&mut numbered.blocks);
+        writer.write(&numbered, &writer_options)?
+    } else {
+        writer.write(&document, &writer_options)?
+    };
 
     #[cfg(feature = "standalone")]
     if (writer_options.standalone || writer_options.template.is_some())

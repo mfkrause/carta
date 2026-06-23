@@ -40,6 +40,10 @@ impl Writer for HtmlWriter {
     fn meta_var_style(&self) -> MetaVarStyle {
         MetaVarStyle::Web
     }
+
+    fn numbers_sections_in_body(&self) -> bool {
+        true
+    }
 }
 
 /// Renders a document to an html4 fragment. The html4 dialect uses presentational attributes
@@ -67,6 +71,10 @@ impl Writer for Html4Writer {
 
     fn meta_var_style(&self) -> MetaVarStyle {
         MetaVarStyle::Web
+    }
+
+    fn numbers_sections_in_body(&self) -> bool {
+        true
     }
 }
 
