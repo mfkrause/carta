@@ -196,6 +196,7 @@ pub(crate) fn fill_slides(assembled: &str, wrap: WrapMode, width: usize) -> Stri
 /// Render a block sequence to an html5 fragment, including the footnote section for any notes the
 /// blocks carry, laid out under `wrap` and filled to the default column. The fragment carries no
 /// trailing newline.
+#[cfg(any(feature = "commonmark", feature = "markdown", feature = "gfm"))]
 pub(crate) fn render_fragment(blocks: &[Block], wrap: WrapMode) -> String {
     render_with_flavor(
         blocks,
