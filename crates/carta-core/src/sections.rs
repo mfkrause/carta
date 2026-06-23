@@ -4,8 +4,8 @@
 //! `header-section-number` span carrying the number, a following space, and a `number` key/value
 //! attribute. [`build_toc`] produces a nested bullet list linking to the document's headings, which a
 //! writer renders into the `toc` template variable. Both number headings the same way — a counter per
-//! level, the result joined from the first level in use — so a heading and its contents entry always
-//! carry the same number.
+//! level, the result joined from the document's shallowest heading level — so a heading and its
+//! contents entry always carry the same number.
 
 use carta_ast::{Attr, Block, Inline, Target};
 
