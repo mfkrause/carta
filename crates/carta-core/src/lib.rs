@@ -58,6 +58,35 @@ pub struct ReaderOptions {
     pub greedy_paragraphs: bool,
 }
 
+/// How math is presented by a format that offers a choice of renderers (the HTML family). The
+/// inline markup a writer emits is the same for every method — the source TeX wrapped in `\(…\)` or
+/// `\[…\]` inside a `span.math` — so the method only decides which loader a standalone document
+/// pulls in to typeset that markup.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum MathMethod {
+    /// No renderer: the `\(…\)` / `\[…\]` markup is left for the reader to typeset (or read as
+    /// source). The default.
+    #[default]
+    Plain,
+    /// MathJax, loaded from the given script URL.
+    MathJax(String),
+    /// KaTeX, loaded from the given asset base URL (the directory holding `katex.min.js` and its
+    /// stylesheet).
+    Katex(String),
+}
+
+/// How a writer supplies a table of contents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TocStyle {
+    /// The contents are rendered as a nested list and placed in the `toc` template variable. The
+    /// default.
+    #[default]
+    List,
+    /// The format assembles its own contents from a directive in its template, so only a boolean
+    /// `toc` flag is exposed and no list is generated.
+    Native,
+}
+
 /// How a text writer lays out the lines of a paragraph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WrapMode {
@@ -83,6 +112,25 @@ pub struct WriterOptions {
     /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
     /// own line breaks preserved.
     pub wrap: WrapMode,
+
+    /// The fill column a wrapping writer reflows to under [`WrapMode::Auto`]. `None` uses the
+    /// writer's built-in default width.
+    pub columns: Option<usize>,
+
+    /// Splice a hierarchical section number into each heading. A format that numbers headings with a
+    /// typesetting counter applies it through its template instead (see
+    /// [`Writer::numbers_sections_natively`]).
+    pub number_sections: bool,
+
+    /// Emit a table of contents in a standalone document.
+    pub toc: bool,
+
+    /// The deepest heading level the table of contents includes. `None` uses the conventional depth
+    /// of three.
+    pub toc_depth: Option<usize>,
+
+    /// How math is presented by a format offering a choice of renderers (the HTML family).
+    pub math_method: MathMethod,
 
     /// Emit a complete document by wrapping the rendered body in the target format's template,
     /// rather than a bare fragment.
@@ -241,6 +289,21 @@ pub trait Writer {
     /// template variable ends with a newline. Writers that build their markup as one string ending
     /// at its final glyph (HTML, LaTeX, and the like) leave the default `false`.
     fn body_ends_with_newline(&self) -> bool {
+        false
+    }
+
+    /// How this writer supplies a table of contents. The default renders a nested list into the
+    /// `toc` variable; a format whose template assembles its own contents from a directive overrides
+    /// to [`TocStyle::Native`].
+    fn toc_style(&self) -> TocStyle {
+        TocStyle::List
+    }
+
+    /// Whether this format numbers sections with its own typesetting counter rather than carrying the
+    /// number in the heading text. The default splices a `header-section-number` span into each
+    /// heading; a format with a native counter (the typesetting formats) overrides to `true` and is
+    /// driven by a `numbersections` template flag instead.
+    fn numbers_sections_natively(&self) -> bool {
         false
     }
 }
