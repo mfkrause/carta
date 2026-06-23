@@ -83,11 +83,12 @@ $abstract$
 \end{abstract}
 $endif$
 $if(toc)$
-\begin{frame}
+\begin{frame}[allowframebreaks]
 $if(toc-title)$
 \frametitle{$toc-title$}
 $endif$
-\tableofcontents[hideallsubsections]
+\setcounter{tocdepth}{$if(toc-depth)$$toc-depth$$else$3$endif$}
+\tableofcontents
 \end{frame}
 $endif$
 $if(lof)$

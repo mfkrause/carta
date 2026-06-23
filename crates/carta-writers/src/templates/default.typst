@@ -4,7 +4,7 @@ $endif$
 #set page(numbering: "1", number-align: center)
 #set text(font: ("Linux Libertine",), lang: "$if(lang)$$lang$$else$en$endif$")
 #set par(justify: true)
-#set heading(numbering: none)
+#set heading(numbering: $if(numbersections)$"1.1.1.1.1"$else$none$endif$)
 
 $for(header-includes)$
 $header-includes$
@@ -31,7 +31,7 @@ $abstract$
 ]
 $endif$
 $if(toc)$
-#outline(depth: $if(toc-depth)$$toc-depth$$else$3$endif$, indent: auto)
+#outline(title: auto, depth: $if(toc-depth)$$toc-depth$$else$3$endif$)
 $endif$
 $body$
 $for(include-after)$
