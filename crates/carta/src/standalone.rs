@@ -11,8 +11,9 @@ use std::path::Path;
 use carta_ast::{
     Document, Inline, MetaValue, single_block_inlines, to_plain_inlines, to_plain_text,
 };
+use carta_core::sections::build_toc;
 use carta_core::template::{Template, Value};
-use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
+use carta_core::{MathMethod, MetaVarStyle, Result, TocStyle, Writer, WriterOptions};
 
 /// Layer the extra metadata sources into `document.meta`: metadata-file defaults sit lowest, the
 /// document's own values override them, and `-M` values override the document. Merging is whole-key
@@ -129,6 +130,7 @@ fn build_context(
     };
     context.insert("body".to_owned(), Value::Str(body));
     insert_identity_vars(&mut context, document, writer, options)?;
+    insert_output_vars(&mut context, document, writer, options)?;
     if let Some(block) = writer.title_block(document, options)? {
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
@@ -299,6 +301,55 @@ fn insert_identity_vars(
                 rendered.push(writer.render_meta_inlines(author, options)?);
             }
             context.insert("author-meta".to_owned(), Value::Str(rendered.join("; ")));
+        }
+    }
+    Ok(())
+}
+
+/// Insert the variables that drive a standalone document's table of contents, section numbering, and
+/// math typesetting. A contents request exposes `toc-depth` and `toc` — a list rendered through the
+/// target writer, or a boolean flag for a format that assembles its own contents from a template
+/// directive. Native section numbering exposes `numbersections`. A math renderer exposes its loader's
+/// flag and URL. A document that requests none of these leaves the context untouched.
+fn insert_output_vars(
+    context: &mut BTreeMap<String, Value>,
+    document: &Document,
+    writer: &dyn Writer,
+    options: &WriterOptions,
+) -> Result<()> {
+    if options.toc {
+        let depth = options.toc_depth.unwrap_or(3);
+        match writer.toc_style() {
+            TocStyle::Native => {
+                context.insert("toc".to_owned(), Value::Bool(true));
+            }
+            TocStyle::List => {
+                let toc = build_toc(
+                    &document.blocks,
+                    depth,
+                    options.number_sections,
+                    writer.toc_link_anchors(),
+                );
+                if let Some(block) = toc {
+                    let rendered = writer.render_meta_blocks(&[block], options)?;
+                    context.insert("toc".to_owned(), Value::Str(rendered));
+                }
+            }
+        }
+        context.insert("toc-depth".to_owned(), Value::Str(depth.to_string()));
+    }
+    if options.number_sections && writer.numbers_sections_natively() {
+        context.insert("numbersections".to_owned(), Value::Bool(true));
+    }
+    match &options.math_method {
+        MathMethod::Plain => {}
+        MathMethod::MathJax(url) => {
+            context.insert("mathjax".to_owned(), Value::Bool(true));
+            context.insert("mathjaxurl".to_owned(), Value::Str(url.clone()));
+        }
+        MathMethod::Katex(url) => {
+            context.insert("katex".to_owned(), Value::Bool(true));
+            context.insert("katexurl".to_owned(), Value::Str(url.clone()));
         }
     }
     Ok(())
