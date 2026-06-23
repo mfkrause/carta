@@ -165,6 +165,12 @@ echo '# Hello' | carta -f commonmark -t html
 # inspect the document model
 carta -f commonmark -t json input.md
 
+# standalone document with a table of contents and numbered sections
+carta -f commonmark -t html -s --toc --number-sections input.md -o output.html
+
+# render HTML math with MathJax (or --katex)
+carta -f commonmark -t html -s --mathjax input.md -o output.html
+
 # discover what this build supports
 carta --list-input-formats
 carta --list-output-formats
