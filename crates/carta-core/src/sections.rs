@@ -36,7 +36,7 @@ impl Counters {
         if classes.iter().any(|class| class == UNNUMBERED) {
             return None;
         }
-        let level = (level.max(1) as usize).min(MAX_LEVEL);
+        let level = usize::try_from(level).unwrap_or(1).clamp(1, MAX_LEVEL);
         if let Some(slot) = self.levels.get_mut(level - 1) {
             *slot += 1;
         }
@@ -90,13 +90,21 @@ fn number_in(blocks: &mut [Block], counters: &mut Counters) {
 /// Build a nested bullet list linking to the document's headings down to `depth`, or `None` when no
 /// heading qualifies. With `numbered`, each entry carries a leading `toc-section-number` span holding
 /// the heading's number (computed exactly as [`number_sections`] does); without it, entries carry
-/// only the heading text. Footnotes are dropped and links unwrapped, so an entry never nests an
-/// anchor or a note marker.
+/// only the heading text. With `anchors`, each entry's link carries its own `toc-`-prefixed id so it
+/// can be linked back to; formats that cannot represent an inline identifier pass `false` to omit it.
+/// Footnotes are dropped and links unwrapped, so an entry never nests an anchor or a note marker.
 #[must_use]
-pub fn build_toc(blocks: &[Block], depth: usize, numbered: bool) -> Option<Block> {
+pub fn build_toc(blocks: &[Block], depth: usize, numbered: bool, anchors: bool) -> Option<Block> {
     let mut counters = Counters::new();
     let mut entries = Vec::new();
-    collect_entries(blocks, depth, numbered, &mut counters, &mut entries);
+    collect_entries(
+        blocks,
+        depth,
+        numbered,
+        anchors,
+        &mut counters,
+        &mut entries,
+    );
     if entries.is_empty() {
         None
     } else {
@@ -114,6 +122,7 @@ fn collect_entries(
     blocks: &[Block],
     depth: usize,
     numbered: bool,
+    anchors: bool,
     counters: &mut Counters,
     entries: &mut Vec<Entry>,
 ) {
@@ -123,14 +132,16 @@ fn collect_entries(
                 // Every heading advances the counters so numbers stay consistent with the body, even
                 // those deeper than `depth` that the contents list omits.
                 let number = counters.advance(*level, &attr.classes);
-                if *level >= 1 && (*level as usize) <= depth {
+                if (1..=depth).contains(&usize::try_from(*level).unwrap_or(0)) {
                     entries.push(Entry {
                         level: *level,
-                        link: toc_link(attr, inlines, numbered, number.as_deref()),
+                        link: toc_link(attr, inlines, numbered, number.as_deref(), anchors),
                     });
                 }
             }
-            Block::Div(_, inner) => collect_entries(inner, depth, numbered, counters, entries),
+            Block::Div(_, inner) => {
+                collect_entries(inner, depth, numbered, anchors, counters, entries);
+            }
             _ => {}
         }
     }
@@ -157,25 +168,30 @@ fn nest(entries: &[Entry]) -> Vec<Vec<Block>> {
     items
 }
 
-/// The link for one contents entry: an anchor whose own id is the heading id prefixed with `toc-`,
-/// targeting the heading. A numbered entry leads with a `toc-section-number` span and a space.
-fn toc_link(attr: &Attr, inlines: &[Inline], numbered: bool, number: Option<&str>) -> Inline {
+/// The link for one contents entry, targeting the heading. With `anchors`, the link also carries its
+/// own id — the heading id prefixed with `toc-` — so it can be linked back to. A numbered entry leads
+/// with a `toc-section-number` span and a space.
+fn toc_link(
+    attr: &Attr,
+    inlines: &[Inline],
+    numbered: bool,
+    number: Option<&str>,
+    anchors: bool,
+) -> Inline {
     let mut content = Vec::new();
-    if numbered {
-        if let Some(number) = number {
-            content.push(Inline::Span(
-                section_number_attr("toc-section-number"),
-                vec![Inline::Str(number.to_owned())],
-            ));
-            content.push(Inline::Space);
-        }
+    if let Some(number) = number.filter(|_| numbered) {
+        content.push(Inline::Span(
+            section_number_attr("toc-section-number"),
+            vec![Inline::Str(number.to_owned())],
+        ));
+        content.push(Inline::Space);
     }
     content.extend(clean_toc_inlines(inlines));
     let link_attr = Attr {
-        id: if attr.id.is_empty() {
-            String::new()
-        } else {
+        id: if anchors && !attr.id.is_empty() {
             format!("toc-{}", attr.id)
+        } else {
+            String::new()
         },
         classes: Vec::new(),
         attributes: Vec::new(),
@@ -327,7 +343,7 @@ mod tests {
             header(2, &[], "Two"),
             header(3, &[], "Three"),
         ];
-        let Some(Block::BulletList(items)) = build_toc(&blocks, 2, false) else {
+        let Some(Block::BulletList(items)) = build_toc(&blocks, 2, false, true) else {
             panic!("expected a contents list");
         };
         // One top-level item ("One") with a single nested item ("Two"); "Three" is past depth 2.
@@ -341,13 +357,21 @@ mod tests {
 
     #[test]
     fn empty_document_has_no_toc() {
-        assert!(build_toc(&[Block::Para(vec![Inline::Str("hi".to_owned())])], 3, false).is_none());
+        assert!(
+            build_toc(
+                &[Block::Para(vec![Inline::Str("hi".to_owned())])],
+                3,
+                false,
+                true
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn toc_entry_links_to_heading() {
         let blocks = vec![header(1, &[], "One")];
-        let Some(Block::BulletList(items)) = build_toc(&blocks, 3, true) else {
+        let Some(Block::BulletList(items)) = build_toc(&blocks, 3, true, true) else {
             panic!("expected a contents list");
         };
         let Some(Block::Plain(inlines)) = items[0].first() else {
@@ -384,7 +408,7 @@ mod tests {
                 Inline::Note(vec![Block::Para(vec![Inline::Str("note".to_owned())])]),
             ],
         );
-        let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false) else {
+        let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
             panic!("expected a contents list");
         };
         let Some(Block::Plain(inlines)) = items[0].first() else {
@@ -394,5 +418,21 @@ mod tests {
             panic!("expected a link");
         };
         assert_eq!(content, &vec![Inline::Str("text".to_owned())]);
+    }
+
+    #[test]
+    fn toc_without_anchors_omits_entry_ids() {
+        let blocks = vec![header(1, &[], "One")];
+        let Some(Block::BulletList(items)) = build_toc(&blocks, 3, false, false) else {
+            panic!("expected a contents list");
+        };
+        let Some(Block::Plain(inlines)) = items[0].first() else {
+            panic!("expected a plain item");
+        };
+        let Some(Inline::Link(attr, _, target)) = inlines.first() else {
+            panic!("expected a link");
+        };
+        assert!(attr.id.is_empty());
+        assert_eq!(target.url, "#one");
     }
 }
