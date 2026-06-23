@@ -302,6 +302,10 @@ mod tests {
         }
     }
 
+    fn number_at(blocks: &[Block], index: usize) -> Option<String> {
+        blocks.get(index).and_then(number_of)
+    }
+
     #[test]
     fn numbers_increment_and_reset_by_level() {
         let mut blocks = vec![
@@ -329,15 +333,15 @@ mod tests {
     fn document_opening_at_level_two_numbers_from_one() {
         let mut blocks = vec![header(2, &[], "Start"), header(3, &[], "Child")];
         number_sections(&mut blocks);
-        assert_eq!(number_of(&blocks[0]), Some("1".to_owned()));
-        assert_eq!(number_of(&blocks[1]), Some("1.1".to_owned()));
+        assert_eq!(number_at(&blocks, 0), Some("1".to_owned()));
+        assert_eq!(number_at(&blocks, 1), Some("1.1".to_owned()));
     }
 
     #[test]
     fn skipped_level_reads_as_zero() {
         let mut blocks = vec![header(1, &[], "One"), header(3, &[], "Jump")];
         number_sections(&mut blocks);
-        assert_eq!(number_of(&blocks[1]), Some("1.0.1".to_owned()));
+        assert_eq!(number_at(&blocks, 1), Some("1.0.1".to_owned()));
     }
 
     #[test]
@@ -348,17 +352,17 @@ mod tests {
             header(1, &[], "Top"),
         ];
         number_sections(&mut blocks);
-        assert_eq!(number_of(&blocks[0]), Some("0.1".to_owned()));
-        assert_eq!(number_of(&blocks[1]), Some("0.1.1".to_owned()));
-        assert_eq!(number_of(&blocks[2]), Some("1".to_owned()));
+        assert_eq!(number_at(&blocks, 0), Some("0.1".to_owned()));
+        assert_eq!(number_at(&blocks, 1), Some("0.1.1".to_owned()));
+        assert_eq!(number_at(&blocks, 2), Some("1".to_owned()));
     }
 
     #[test]
     fn shallowest_level_anchors_numbering_even_when_levels_only_deepen() {
         let mut blocks = vec![header(6, &[], "Six"), header(5, &[], "Five")];
         number_sections(&mut blocks);
-        assert_eq!(number_of(&blocks[0]), Some("0.1".to_owned()));
-        assert_eq!(number_of(&blocks[1]), Some("1".to_owned()));
+        assert_eq!(number_at(&blocks, 0), Some("0.1".to_owned()));
+        assert_eq!(number_at(&blocks, 1), Some("1".to_owned()));
     }
 
     #[test]
@@ -369,15 +373,15 @@ mod tests {
             header(2, &[], "Listed"),
         ];
         number_sections(&mut blocks);
-        assert_eq!(number_of(&blocks[1]), None);
-        assert_eq!(number_of(&blocks[2]), Some("1.1".to_owned()));
+        assert_eq!(number_at(&blocks, 1), None);
+        assert_eq!(number_at(&blocks, 2), Some("1.1".to_owned()));
     }
 
     #[test]
     fn numbered_heading_leads_with_a_span() {
         let mut blocks = vec![header(1, &[], "One")];
         number_sections(&mut blocks);
-        let Block::Header(_, _, inlines) = &blocks[0] else {
+        let Some(Block::Header(_, _, inlines)) = blocks.first() else {
             panic!("expected a header");
         };
         assert!(matches!(
@@ -399,11 +403,14 @@ mod tests {
         };
         // One top-level item ("One") with a single nested item ("Two"); "Three" is past depth 2.
         assert_eq!(items.len(), 1);
-        let Some(Block::BulletList(children)) = items[0].get(1) else {
+        let Some(Block::BulletList(children)) = items.first().and_then(|item| item.get(1)) else {
             panic!("expected a nested list");
         };
         assert_eq!(children.len(), 1);
-        assert!(children[0].get(1).is_none());
+        let Some(child) = children.first() else {
+            panic!("expected a child item");
+        };
+        assert!(child.get(1).is_none());
     }
 
     #[test]
@@ -425,7 +432,7 @@ mod tests {
         let Some(Block::BulletList(items)) = build_toc(&blocks, 3, true, true) else {
             panic!("expected a contents list");
         };
-        let Some(Block::Plain(inlines)) = items[0].first() else {
+        let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
             panic!("expected a plain item");
         };
         let Some(Inline::Link(attr, content, target)) = inlines.first() else {
@@ -462,7 +469,7 @@ mod tests {
         let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
             panic!("expected a contents list");
         };
-        let Some(Block::Plain(inlines)) = items[0].first() else {
+        let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
             panic!("expected a plain item");
         };
         let Some(Inline::Link(_, content, _)) = inlines.first() else {
@@ -477,7 +484,7 @@ mod tests {
         let Some(Block::BulletList(items)) = build_toc(&blocks, 3, false, false) else {
             panic!("expected a contents list");
         };
-        let Some(Block::Plain(inlines)) = items[0].first() else {
+        let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
             panic!("expected a plain item");
         };
         let Some(Inline::Link(attr, _, target)) = inlines.first() else {
@@ -493,7 +500,7 @@ mod tests {
         let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
             panic!("expected a contents list");
         };
-        let Some(Block::Plain(inlines)) = items[0].first() else {
+        let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
             panic!("expected a plain item");
         };
         assert_eq!(inlines, &vec![Inline::Str("Untitled".to_owned())]);
