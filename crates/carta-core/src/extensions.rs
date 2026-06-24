@@ -103,6 +103,13 @@ define_extensions! {
     // Single- and double-backslash math delimiters: `\(…\)`/`\[…\]` and `\\(…\\)`/`\\[…\\]`.
     TexMathSingleBackslash => "tex_math_single_backslash",
     TexMathDoubleBackslash => "tex_math_double_backslash",
+    // Code-block surface: backtick-fenced ```` ``` ```` and tilde-fenced `~~~` blocks. When neither is
+    // available the writer drops to the four-space indented form.
+    FencedCodeBlocks => "fenced_code_blocks",
+    BacktickCodeBlocks => "backtick_code_blocks",
+    // GitHub math surface: inline `` $`…`$ `` and a ```` ```math ```` display block, as opposed to the
+    // `$…$`/`$$…$$` dollar form.
+    TexMathGfm => "tex_math_gfm",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
@@ -225,10 +232,12 @@ pub mod presets {
     pub const GFM: Extensions = Extensions::from_list(&[
         Extension::Strikeout,
         Extension::PipeTables,
+        Extension::BacktickCodeBlocks,
         Extension::TaskLists,
         Extension::Autolink,
         Extension::Footnotes,
         Extension::TexMathDollars,
+        Extension::TexMathGfm,
         Extension::GfmAutoIdentifiers,
         Extension::RawHtml,
         Extension::Emoji,
@@ -274,6 +283,8 @@ pub mod presets {
         Extension::RawHtml,
         Extension::HeaderAttributes,
         Extension::FencedCodeAttributes,
+        Extension::FencedCodeBlocks,
+        Extension::BacktickCodeBlocks,
         Extension::InlineCodeAttributes,
         Extension::LinkAttributes,
         Extension::DefinitionLists,
@@ -356,6 +367,21 @@ mod tests {
         assert!(presets::COMMONMARK_X.contains(Extension::Attributes));
         // The strict CommonMark dialect keeps none of these.
         assert!(presets::COMMONMARK.is_empty());
+    }
+
+    #[test]
+    fn code_and_math_surface_variants_round_trip_and_seed_presets() {
+        for token in ["fenced_code_blocks", "backtick_code_blocks", "tex_math_gfm"] {
+            let ext = Extension::from_name(token).expect("a declared variant");
+            assert_eq!(ext.name(), token);
+        }
+        // The Markdown dialect fences code with both backtick and tilde forms.
+        assert!(presets::MARKDOWN.contains(Extension::FencedCodeBlocks));
+        assert!(presets::MARKDOWN.contains(Extension::BacktickCodeBlocks));
+        // GFM fences with backticks and renders math in its own surface; it has no tilde-fence form.
+        assert!(presets::GFM.contains(Extension::BacktickCodeBlocks));
+        assert!(presets::GFM.contains(Extension::TexMathGfm));
+        assert!(!presets::GFM.contains(Extension::FencedCodeBlocks));
     }
 
     #[test]
