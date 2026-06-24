@@ -14,6 +14,12 @@ fn default_extensions(base: &str) -> Extensions {
         "commonmark_x" => presets::COMMONMARK_X,
         "markdown" => presets::MARKDOWN,
         "gfm" => presets::GFM,
+        "html" | "html5" | "html4" => Extensions::from_list(&[
+            Extension::AutoIdentifiers,
+            Extension::LineBlocks,
+            Extension::NativeDivs,
+            Extension::NativeSpans,
+        ]),
         _ => Extensions::empty(),
     }
 }
@@ -122,5 +128,40 @@ mod tests {
         assert!(!ext.contains(Extension::Smart));
         assert!(!ext.contains(Extension::PipeTables));
         assert!(ext.contains(Extension::DefinitionLists));
+    }
+
+    #[test]
+    fn html_enables_its_structural_defaults() {
+        for spec in ["html", "html5", "html4"] {
+            let (base, ext) = parse_format_spec(spec).unwrap();
+            assert_eq!(base, spec);
+            assert!(ext.contains(Extension::AutoIdentifiers));
+            assert!(ext.contains(Extension::LineBlocks));
+            assert!(ext.contains(Extension::NativeDivs));
+            assert!(ext.contains(Extension::NativeSpans));
+            // The text extensions are opt-in, not part of the default set.
+            assert!(!ext.contains(Extension::Smart));
+            assert!(!ext.contains(Extension::TexMathDollars));
+        }
+    }
+
+    #[test]
+    fn html_toggles_add_text_and_remove_structural_extensions() {
+        let (_, ext) = parse_format_spec("html+smart+tex_math_dollars").unwrap();
+        assert!(ext.contains(Extension::Smart));
+        assert!(ext.contains(Extension::TexMathDollars));
+        assert!(ext.contains(Extension::NativeDivs));
+
+        let (_, ext) = parse_format_spec("html-native_divs-auto_identifiers").unwrap();
+        assert!(!ext.contains(Extension::NativeDivs));
+        assert!(!ext.contains(Extension::AutoIdentifiers));
+        assert!(ext.contains(Extension::NativeSpans));
+        assert!(ext.contains(Extension::LineBlocks));
+    }
+
+    #[test]
+    fn html_unknown_extension_is_an_error() {
+        let err = parse_format_spec("html+bogus").unwrap_err();
+        assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
     }
 }
