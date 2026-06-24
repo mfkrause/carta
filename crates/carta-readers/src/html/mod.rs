@@ -753,6 +753,156 @@ mod tests {
         assert!(matches!(children.as_slice(), [Block::Plain(_)]));
     }
 
+    /// Read with the `html` default set plus the given text extensions, which is what `html+smart`
+    /// and the `html+tex_math_*` corpus specs resolve to.
+    fn read_with_text_ext(input: &str, added: &[Extension]) -> Vec<Block> {
+        read_with(input, html_defaults().union(Extensions::from_list(added)))
+    }
+
+    fn para_inlines_ext(input: &str, added: &[Extension]) -> Vec<Inline> {
+        match read_with_text_ext(input, added).into_iter().next() {
+            Some(Block::Para(inlines) | Block::Plain(inlines)) => inlines,
+            other => panic!("expected a paragraph, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn smart_off_keeps_literal_punctuation() {
+        let inlines = para_inlines("<p>\"a\" -- ... ---</p>");
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("\"a\"".to_string()),
+                Inline::Space,
+                Inline::Str("--".to_string()),
+                Inline::Space,
+                Inline::Str("...".to_string()),
+                Inline::Space,
+                Inline::Str("---".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn smart_on_curls_quotes_and_folds_dashes() {
+        let inlines = para_inlines_ext("<p>\"a\" -- ... ---</p>", &[Extension::Smart]);
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Quoted(
+                    carta_ast::QuoteType::DoubleQuote,
+                    vec![Inline::Str("a".to_string())]
+                ),
+                Inline::Space,
+                Inline::Str("\u{2013}".to_string()),
+                Inline::Space,
+                Inline::Str("\u{2026}".to_string()),
+                Inline::Space,
+                Inline::Str("\u{2014}".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_dollars_off_keeps_literal_text() {
+        let inlines = para_inlines("<p>$x^2$ and $$y$$</p>");
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("$x^2$".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Str("$$y$$".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_dollars_on_splits_inline_and_display() {
+        let inlines = para_inlines_ext("<p>$x^2$ and $$y$$</p>", &[Extension::TexMathDollars]);
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Math(MathType::InlineMath, "x^2".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Math(MathType::DisplayMath, "y".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_single_backslash_on_splits_inline_and_display() {
+        let inlines = para_inlines_ext(
+            "<p>\\(x\\) and \\[y\\]</p>",
+            &[Extension::TexMathSingleBackslash],
+        );
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Math(MathType::InlineMath, "x".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Math(MathType::DisplayMath, "y".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_double_backslash_on_splits_inline_and_display() {
+        let inlines = para_inlines_ext(
+            "<p>\\\\(x\\\\) and \\\\[y\\\\]</p>",
+            &[Extension::TexMathDoubleBackslash],
+        );
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Math(MathType::InlineMath, "x".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Math(MathType::DisplayMath, "y".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn note_reference_reconstructs_body_and_drops_container() {
+        let result = blocks(concat!(
+            "text<a href=\"#fn1\" class=\"footnote-ref\" role=\"doc-noteref\"><sup>1</sup></a>\n",
+            "<section class=\"footnotes\" role=\"doc-endnotes\"><hr /><ol>",
+            "<li id=\"fn1\"><p>the note",
+            "<a href=\"#fnref1\" class=\"footnote-back\" role=\"doc-backlink\">\u{21a9}</a></p></li>",
+            "</ol></section>",
+        ));
+        assert_eq!(
+            result.as_slice(),
+            [Block::Plain(vec![
+                Inline::Str("text".to_string()),
+                Inline::Note(vec![Block::Para(vec![
+                    Inline::Str("the".to_string()),
+                    Inline::Space,
+                    Inline::Str("note".to_string()),
+                ])]),
+            ])]
+        );
+    }
+
+    #[test]
+    fn unmatched_note_reference_becomes_an_empty_note() {
+        let result = blocks("text<a href=\"#missing\" role=\"doc-noteref\"><sup>1</sup></a>");
+        assert_eq!(
+            result.as_slice(),
+            [Block::Plain(vec![
+                Inline::Str("text".to_string()),
+                Inline::Note(Vec::new()),
+            ])]
+        );
+    }
+
     #[cfg(feature = "opml")]
     #[test]
     fn inline_fragment_parses_markup_and_trims_edges() {
