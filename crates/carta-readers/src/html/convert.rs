@@ -11,6 +11,7 @@ use carta_ast::{
 use carta_core::{Extension, Extensions};
 
 use super::classify::{BlockKind, InlineKind, block_kind, inline_kind, is_inline_element};
+use super::notes::{ENDNOTES_ROLE, has_role, noteref_target};
 use super::table::{
     cell_alignment, column_alignments, column_widths, normalize_cell_style, row_elements,
     row_head_columns, span_attr, table_width,
@@ -81,6 +82,9 @@ pub(super) struct Converter {
     /// `auto_identifiers`, `line_blocks`) gate how block and inline wrappers are emitted; the text
     /// extensions (`smart`, the TeX math forms) drive the inline finishing pass.
     ext: Extensions,
+    /// Footnote bodies indexed by id, recovered from the endnotes container before the main pass so a
+    /// reference anchor anywhere — even one preceding its definition — resolves to a [`Inline::Note`].
+    note_bodies: BTreeMap<String, Vec<Block>>,
 }
 
 impl Converter {
@@ -88,6 +92,15 @@ impl Converter {
         Self {
             ext,
             ..Self::default()
+        }
+    }
+
+    /// Convert the raw footnote bodies recovered from the endnotes container into blocks, indexed by
+    /// id. Run before the main pass so a reference resolves regardless of where its definition sits.
+    pub(super) fn index_notes(&mut self, defs: BTreeMap<String, Vec<Node>>) {
+        for (id, nodes) in defs {
+            let body = self.child_blocks(&nodes, false);
+            self.note_bodies.insert(id, body);
         }
     }
 
@@ -130,6 +143,12 @@ impl Converter {
                         continue;
                     }
                     if e.name == "style" && is_blank_run(pending) {
+                        continue;
+                    }
+                    if has_role(e, ENDNOTES_ROLE) {
+                        // The endnotes container's bodies have already been lifted into their
+                        // references, so the container itself carries no remaining content.
+                        flush(pending, out);
                         continue;
                     }
                     if let Some(kind) = block_kind(&e.name) {
@@ -651,6 +670,11 @@ impl Converter {
     }
 
     fn anchor(&self, out: &mut Vec<Inline>, e: &Element) {
+        if let Some(id) = noteref_target(e) {
+            let body = self.note_bodies.get(&id).cloned().unwrap_or_default();
+            out.push(Inline::Note(body));
+            return;
+        }
         let inner = self.build_inlines(&e.children);
         let (leading, trimmed, trailing) = hoist_edge_whitespace(inner);
         let mut attr = extract_attr(e, &["href", "title", "name"]);
