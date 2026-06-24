@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Format, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, TableBody,
-    TableFoot, TableHead, Target, slug, to_plain_text,
+    TableFoot, TableHead, Target, slug, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions};
 
@@ -428,7 +428,12 @@ impl Converter {
         if !attr.id.is_empty() {
             self.used_ids.insert(attr.id.clone());
         } else if self.ext.contains(Extension::AutoIdentifiers) {
-            let base = slug(&to_plain_text(inlines));
+            let plain = to_plain_text(inlines);
+            let base = if self.ext.contains(Extension::GfmAutoIdentifiers) {
+                slug_gfm(&plain)
+            } else {
+                slug(&plain)
+            };
             let base = if base.is_empty() {
                 "section".to_string()
             } else {
