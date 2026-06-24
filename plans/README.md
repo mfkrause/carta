@@ -29,6 +29,8 @@ findings are recorded below so they aren't re-audited.
 | 005 | Spike: byte-offset scanning + boxed `Inline` variants (report, not merge) | P2 | M | 001 (hard) | TODO |
 | 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | DONE |
 | 007 | Standalone output + template engine (folds in the metadata/variable context it requires) | P1 | L | — | DONE (on `feat/standalone-templates`; engine + 13 default templates + identity vars + `-s`/`--template`/`-M`/`-V`/`--metadata-file`. Full conformance suite green across all surfaces; STATUS rows flipped. Awaiting operator merge) |
+| 008 | Finish the HTML reader (extension toggles, footnote reconstruction, shared inline-scanner module) | P1 | L | 006 (soft) | TODO |
+| 009 | Writer extension toggles (drive the Markdown engine + text writers by the effective `Extensions` set; new Markdown dialects + `commonmark_x` writer) | P1 | L | 006 (soft) | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -46,6 +48,13 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJE
   (`emphasis_heavy` — per-match Vec node splices dominate on matched-pair-heavy input) is a
   candidate question for 005's representation spike; see 003's Executed note.
 - 002 and 001 are independent and can run in parallel.
+- 008 and 009 both soft-depend on 006 (DONE), which built the shared extension plumbing
+  (`parse_format_spec`, `ReaderOptions`/`WriterOptions.extensions`, the `corpus/text-ext` +
+  `reader-ext` conformance pattern). 008 is the HTML-reader counterpart; 009 is the writer-side
+  counterpart 006 §9 names as a follow-up. They touch disjoint code (008: HTML reader + the shared
+  inline-scanner extracted from `commonmark/inline.rs`; 009: the Markdown/CommonMark writers) and can
+  run in parallel — the one coupling is `commonmark/inline.rs`, which 008 refactors and plan 003
+  (DONE) rewrote, so 008 must rebase onto 003's resolver, not an older one.
 
 ## Findings considered and rejected (do not re-audit)
 
