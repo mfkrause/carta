@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Inline"},{"t":"Space"},{"t":"Str","c":"math"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"a^2 + b^2 = c^2"]},{"t":"Space"},{"t":"Str","c":"sits"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"text,"},{"t":"Space"},{"t":"Str","c":"while"},{"t":"Space"},{"t":"Str","c":"display"},{"t":"Space"},{"t":"Str","c":"math"},{"t":"Space"},{"t":"Math","c":[{"t":"DisplayMath"},"\\int_0^1 x \\, dx"]},{"t":"Space"},{"t":"Str","c":"stands"},{"t":"Space"},{"t":"Str","c":"on"},{"t":"Space"},{"t":"Str","c":"its"},{"t":"Space"},{"t":"Str","c":"own."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"bare"},{"t":"Space"},{"t":"Str","c":"price"},{"t":"Space"},{"t":"Str","c":"like"},{"t":"Space"},{"t":"Str","c":"$5"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"$10"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"not"},{"t":"Space"},{"t":"Str","c":"math."}]}]}
