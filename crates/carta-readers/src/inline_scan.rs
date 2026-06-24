@@ -110,6 +110,9 @@ fn is_backslash_math_closer(chars: &[char], i: usize, slashes: usize, close: cha
 /// its length: a multiple of three is all em dashes, an even length is all en dashes, and an odd
 /// length that is not a multiple of three takes one or two en dashes — whichever leaves a multiple of
 /// three — with the rest em dashes.
+///
+/// The HTML reader folds dash runs greedily instead, so this minimal decomposition is `CommonMark`-only.
+#[cfg(feature = "commonmark")]
 pub(crate) fn fold_dash_run(len: usize) -> String {
     let (em, en) = if len.is_multiple_of(3) {
         (len / 3, 0)
