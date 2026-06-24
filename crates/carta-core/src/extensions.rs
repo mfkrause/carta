@@ -119,6 +119,9 @@ define_extensions! {
     // A backslash at a line's end is a hard line break, written as a trailing `\`; without it the
     // writer falls back to two trailing spaces.
     EscapedLineBreaks => "escaped_line_breaks",
+    // An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
+    // without it every `_` is escaped so the strict reader cannot start emphasis mid-word.
+    IntrawordUnderscores => "intraword_underscores",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
@@ -328,6 +331,7 @@ pub mod presets {
         Extension::BlankBeforeBlockquote,
         Extension::BlankBeforeHeader,
         Extension::EscapedLineBreaks,
+        Extension::IntrawordUnderscores,
     ]);
 
     /// The legacy GitHub Markdown dialect (`markdown_github`). Mirrors Pandoc's set
@@ -347,6 +351,7 @@ pub mod presets {
         Extension::GfmAutoIdentifiers,
         Extension::Emoji,
         Extension::Alerts,
+        Extension::IntrawordUnderscores,
     ]);
 
     /// The PHP Markdown Extra dialect (`markdown_phpextra`). Mirrors Pandoc's set
@@ -359,6 +364,7 @@ pub mod presets {
         Extension::FencedCodeBlocks,
         Extension::Footnotes,
         Extension::HeaderAttributes,
+        Extension::IntrawordUnderscores,
         Extension::LinkAttributes,
         Extension::MarkdownAttribute,
         Extension::PipeTables,
@@ -380,6 +386,7 @@ pub mod presets {
         Extension::Footnotes,
         Extension::ImplicitFigures,
         Extension::ImplicitHeaderReferences,
+        Extension::IntrawordUnderscores,
         Extension::MarkdownAttribute,
         Extension::MmdHeaderIdentifiers,
         Extension::PipeTables,
@@ -389,6 +396,14 @@ pub mod presets {
         Extension::Superscript,
         Extension::TexMathDollars,
     ]);
+
+    /// The original Markdown dialect (`markdown_strict`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_strict`), restricted to the variants that exist and affect
+    /// writer output — only raw HTML. With no fenced or backtick code, tables, definition lists,
+    /// footnotes, task lists, math, or any attribute syntax, every richer construct falls back to
+    /// indented code, an HTML block, or a raw glyph. Lacking `intraword_underscores`, every `_` is
+    /// escaped; lacking `pipe_tables`, a literal `|` is left unescaped.
+    pub const MARKDOWN_STRICT: Extensions = Extensions::from_list(&[Extension::RawHtml]);
 }
 
 #[cfg(test)]

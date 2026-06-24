@@ -101,6 +101,7 @@ format_dispatch! {
     "write-markdown" => "markdown_github" => carta_writers::MarkdownGithubWriter;
     "write-markdown" => "markdown_phpextra" => carta_writers::MarkdownPhpextraWriter;
     "write-markdown" => "markdown_mmd" => carta_writers::MarkdownMmdWriter;
+    "write-markdown" => "markdown_strict" => carta_writers::MarkdownStrictWriter;
     "write-gfm" => "gfm" => carta_writers::GfmWriter;
     "write-rst" => "rst" => carta_writers::RstWriter;
     "write-mediawiki" => "mediawiki" => carta_writers::MediawikiWriter;

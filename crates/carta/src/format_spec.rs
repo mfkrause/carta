@@ -16,6 +16,7 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_github" => presets::MARKDOWN_GITHUB,
         "markdown_phpextra" => presets::MARKDOWN_PHPEXTRA,
         "markdown_mmd" => presets::MARKDOWN_MMD,
+        "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
         _ => Extensions::empty(),
     }
