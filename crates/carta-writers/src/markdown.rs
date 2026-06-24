@@ -232,6 +232,32 @@ impl Writer for MarkdownPhpextraWriter {
     }
 }
 
+/// Renders a document to the `MultiMarkdown` dialect (`markdown_mmd`): backtick-fenced code, pipe
+/// tables, definition lists, footnotes, sub/superscript, and dollar math, with everything outside
+/// that set — strikeout, spans, header attributes, fenced divs — falling back to HTML or indented
+/// forms.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownMmdWriter;
+
+impl Writer for MarkdownMmdWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_MMD,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+}
+
 /// Serialize document metadata as a sorted-key YAML block delimited by `---` lines, or `None` when
 /// there is no metadata. Scalars render through `writer` so inline markup survives; block values
 /// become literal block scalars; sequences and maps nest by indentation. Keys emit in the map's
@@ -511,9 +537,16 @@ impl State {
         let text = self.inlines_oneline(inlines);
         let auto_identifiers = self.config.has(Extension::AutoIdentifiers)
             || self.config.has(Extension::GfmAutoIdentifiers);
-        let suffix = if !self.config.has(Extension::HeaderAttributes)
-            || header_attr_implicit(attr, inlines, auto_identifiers)
-        {
+        let implicit = header_attr_implicit(attr, inlines, auto_identifiers);
+        let suffix = if self.config.has(Extension::MmdHeaderIdentifiers) {
+            // MultiMarkdown writes only the identifier, in a trailing `[id]`; classes and key/value
+            // pairs are dropped. An attribute that an auto-identifier would regenerate is omitted.
+            if implicit {
+                String::new()
+            } else {
+                format!(" [{}]", attr.id)
+            }
+        } else if !self.config.has(Extension::HeaderAttributes) || implicit {
             String::new()
         } else {
             format!(" {}", pandoc_attr(attr))
@@ -836,6 +869,11 @@ impl State {
             image_attr
                 .attributes
                 .insert(0, ("alt".to_owned(), alt_text));
+        }
+        // If the image itself would fall back to an HTML `<img>`, the shorthand cannot carry it; the
+        // caller renders the whole figure as an HTML `<figure>` instead.
+        if self.image_renders_as_html(&image_attr) {
+            return None;
         }
         let mut out = Vec::new();
         self.image(&image_attr, &caption_inlines, target, &mut out);
@@ -1564,10 +1602,14 @@ impl State {
         )));
     }
 
+    /// Whether an image carrying `attr` must fall back to an HTML `<img>`: it has attributes the
+    /// dialect cannot express as a native `{…}` suffix because it lacks `link_attributes`.
+    fn image_renders_as_html(&self, attr: &Attr) -> bool {
+        !self.config.has(Extension::LinkAttributes) && (has_dimension(attr) || !attr_is_empty(attr))
+    }
+
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
-        if !self.config.has(Extension::LinkAttributes)
-            && (has_dimension(attr) || !attr_is_empty(attr))
-        {
+        if self.image_renders_as_html(attr) {
             out.push(Piece::Text(image_html(attr, inlines, target)));
             return;
         }

@@ -28,6 +28,7 @@ const TARGETS: &[&str] = &[
     "markdown",
     "markdown_github",
     "markdown_phpextra",
+    "markdown_mmd",
     "gfm",
     "rst",
     "mediawiki",
