@@ -1,13 +1,14 @@
 //! Markdown writer engine: renders the document model to a markdown family text format.
 //!
-//! Two surface variants share this engine, selected by a [`MarkdownConfig`]: the full-featured
-//! markdown variant emits the format's extended syntax (attribute blocks on headers, links, images
-//! and spans; native subscript/superscript; fenced divs; pipe-free space-aligned and bordered
-//! tables; citation syntax; raw passthrough with a format tag) and downgrades smart punctuation to
-//! ASCII; the GitHub variant restricts itself to that dialect's constructs (pipe tables, task-list
-//! checkboxes, native strikeout) and falls back to inline or block HTML for everything it cannot
-//! express, keeping smart punctuation verbatim. Inline content wraps at a fill column of 72. Output
-//! carries no trailing newline; the caller appends one.
+//! Every markdown-family dialect shares this engine, parameterized by the [`MarkdownConfig`] it runs
+//! with — chiefly the active [`Extensions`] set. Each construct consults the set to choose its
+//! surface: an attribute block on a header, link, image, or span versus a bare or HTML rendering;
+//! native subscript/superscript/strikeout versus an HTML tag; fenced versus indented code; fenced
+//! divs versus `<div>`; space-aligned, bordered, pipe, or HTML tables; citation syntax versus the
+//! display text; dollar, GitHub, or linearized math; raw passthrough with a format tag versus a
+//! verbatim or dropped fallback. Smart punctuation is rewritten to ASCII when the `smart` extension
+//! is active and emitted as the literal glyph otherwise. Inline content wraps at a fill column of
+//! 72. Output carries no trailing newline; the caller appends one.
 
 use std::borrow::Cow;
 use std::fmt::Write;
@@ -17,7 +18,7 @@ use carta_ast::{
     Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, Row, Table,
     Target, Text,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions, presets};
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
@@ -28,44 +29,43 @@ use crate::common::{
 };
 use crate::grid;
 
-/// Which markdown dialect the engine renders. The variants differ in which constructs have native
-/// syntax versus an HTML fallback, in list and table forms, and in smart-punctuation handling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Variant {
-    /// The full-featured markdown dialect.
-    Extended,
-    /// The GitHub-flavored dialect.
-    GitHub,
-}
-
-/// The rendering configuration shared by both entry points and exposed to sibling writers that embed
-/// markdown (the outline writer renders note text through this engine).
+/// The rendering configuration shared by every entry point and exposed to sibling writers that embed
+/// markdown (the outline writer renders note text through this engine). The active [`Extensions`]
+/// set decides which constructs have native syntax versus a fallback; `braced_div_attrs` forces a
+/// fenced div's single-class shorthand to the braced `{.class}` form rather than the bare `class`
+/// one.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct MarkdownConfig {
-    variant: Variant,
+    extensions: Extensions,
+    braced_div_attrs: bool,
 }
 
 impl MarkdownConfig {
+    /// The full-featured markdown dialect.
     pub(crate) fn extended() -> Self {
         Self {
-            variant: Variant::Extended,
+            extensions: presets::MARKDOWN,
+            braced_div_attrs: false,
         }
     }
 
+    /// The GitHub-flavored dialect.
     pub(crate) fn github() -> Self {
         Self {
-            variant: Variant::GitHub,
+            extensions: presets::GFM,
+            braced_div_attrs: false,
         }
     }
 
-    fn is_github(self) -> bool {
-        self.variant == Variant::GitHub
+    /// Whether the active extension set contains `ext`.
+    fn has(self, ext: Extension) -> bool {
+        self.extensions.contains(ext)
     }
 
-    /// Whether the dialect downgrades smart punctuation (curly quotes, en/em dashes, ellipsis) to
-    /// their ASCII forms on output.
-    fn downgrades_smart(self) -> bool {
-        self.variant == Variant::Extended
+    /// Whether spans (underline, small caps, the generic `Span`) have native bracketed-span syntax
+    /// available, as opposed to an HTML `<span>` fallback.
+    fn span_syntax(self) -> bool {
+        self.has(Extension::BracketedSpans) || self.has(Extension::NativeSpans)
     }
 }
 
@@ -406,7 +406,9 @@ impl State {
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
         let hashes = "#".repeat(usize::try_from(level.max(1)).unwrap_or(1));
         let text = self.inlines_oneline(inlines);
-        let suffix = if self.config.is_github() || header_attr_implicit(attr, inlines) {
+        let suffix = if !self.config.has(Extension::HeaderAttributes)
+            || header_attr_implicit(attr, inlines)
+        {
             String::new()
         } else {
             format!(" {}", pandoc_attr(attr))
@@ -420,15 +422,24 @@ impl State {
 
     fn code_block(&mut self, attr: &Attr, text: &str) -> String {
         let body = text.strip_suffix('\n').unwrap_or(text);
-        let info = if self.config.is_github() {
-            github_code_info(attr)
+        let backtick = self.config.has(Extension::BacktickCodeBlocks);
+        let fenced = backtick || self.config.has(Extension::FencedCodeBlocks);
+        let info = if fenced {
+            if self.config.has(Extension::FencedCodeAttributes) {
+                extended_code_info(attr)
+            } else {
+                github_code_info(attr)
+            }
         } else {
-            extended_code_info(attr)
+            None
         };
         let Some(info) = info else {
             return indent_code(text);
         };
-        let fence = "`".repeat(backtick_fence_len(body));
+        let fence_char = if backtick { '`' } else { '~' };
+        let fence = fence_char
+            .to_string()
+            .repeat(fence_run_len(body, fence_char));
         if body.is_empty() {
             format!("{fence}{info}\n{fence}")
         } else {
@@ -437,25 +448,25 @@ impl State {
     }
 
     fn raw_block(&mut self, format: &Format, text: &str) -> String {
-        if self.config.is_github() {
-            if is_html_format(format) {
-                collapse_trailing_newline(text)
-            } else {
-                String::new()
-            }
+        let passthrough = if is_html_format(format) {
+            self.config.has(Extension::RawHtml)
         } else {
+            self.config.has(Extension::RawAttribute)
+        };
+        if passthrough {
             collapse_trailing_newline(text)
+        } else {
+            String::new()
         }
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
-        if self.config.is_github() {
-            let body = self.blocks_to_string(blocks, width);
+        let body = self.blocks_to_string(blocks, width);
+        if !self.config.has(Extension::FencedDivs) {
             return format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr));
         }
-        let body = self.blocks_to_string(blocks, width);
         let fence = ":".repeat(colon_fence_len(&body));
-        let opener = div_opener(attr);
+        let opener = div_opener(attr, self.config.braced_div_attrs);
         if body.is_empty() {
             format!("{fence}{opener}\n{fence}")
         } else {
@@ -464,7 +475,7 @@ impl State {
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
-        if self.config.is_github() {
+        if !self.config.has(Extension::LineBlocks) {
             let rendered: Vec<String> = lines
                 .iter()
                 .map(|line| self.inlines_oneline(line))
@@ -540,10 +551,11 @@ impl State {
         rendered.join(item_separator(loose))
     }
 
-    /// The numeral style and delimiter to render an ordered list with. The GitHub dialect collapses
-    /// every style to decimal and every delimiter to a period or a single closing parenthesis.
+    /// The numeral style and delimiter to render an ordered list with. Without the fancy-list
+    /// extension every style collapses to decimal and every delimiter to a period or a single
+    /// closing parenthesis.
     fn ordered_marks(&self, attrs: &ListAttributes) -> (ListNumberStyle, ListNumberDelim) {
-        if self.config.is_github() {
+        if !self.config.has(Extension::FancyLists) {
             let delim = match attrs.delim {
                 ListNumberDelim::OneParen | ListNumberDelim::TwoParens => ListNumberDelim::OneParen,
                 ListNumberDelim::Period | ListNumberDelim::DefaultDelim => ListNumberDelim::Period,
@@ -558,7 +570,7 @@ impl State {
         items: &[(Vec<Inline>, Vec<Vec<Block>>)],
         width: usize,
     ) -> String {
-        if self.config.is_github() {
+        if !self.config.has(Extension::DefinitionLists) {
             return self.definition_list_fallback(items, width);
         }
         let groups: Vec<String> = items
@@ -568,7 +580,7 @@ impl State {
         groups.join("\n\n")
     }
 
-    /// One term and its definitions in the extended dialect: the term on its own line, then each
+    /// One term and its definitions in definition-list syntax: the term on its own line, then each
     /// definition introduced by `:` with a two-column hanging indent.
     fn definition_group(
         &mut self,
@@ -596,8 +608,8 @@ impl State {
         }
     }
 
-    /// The GitHub dialect has no definition-list syntax: each term renders as a line ending in a
-    /// hard break and its definitions follow as ordinary blocks.
+    /// Without the definition-list extension there is no native syntax: each term renders as a line
+    /// ending in a hard break and its definitions follow as ordinary blocks.
     fn definition_list_fallback(
         &mut self,
         items: &[(Vec<Inline>, Vec<Vec<Block>>)],
@@ -623,7 +635,7 @@ impl State {
     }
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block]) -> String {
-        if self.config.is_github() {
+        if !self.config.has(Extension::ImplicitFigures) {
             return crate::html::render_fragment(
                 &[Block::Figure(
                     attr.clone(),
@@ -683,8 +695,17 @@ impl State {
     }
 
     fn table(&mut self, table: &Table, width: usize) -> String {
-        if self.config.is_github() {
-            return self.github_table(table, width);
+        let native = self.config.has(Extension::SimpleTables)
+            || self.config.has(Extension::MultilineTables)
+            || self.config.has(Extension::GridTables);
+        if !native {
+            if self.config.has(Extension::PipeTables) {
+                return self.github_table(table, width);
+            }
+            return crate::html::render_fragment(
+                &[Block::Table(Box::new(table.clone()))],
+                self.wrap,
+            );
         }
         if table.col_specs.is_empty() {
             return String::new();
@@ -1147,39 +1168,45 @@ impl State {
             Inline::Str(text) => out.push(Piece::Text(self.escape_str(text))),
             Inline::Emph(inlines) => self.wrap_markup("*", inlines, out),
             Inline::Strong(inlines) => self.wrap_markup("**", inlines, out),
-            Inline::Strikeout(inlines) => self.wrap_markup("~~", inlines, out),
-            Inline::Underline(inlines) => {
-                if self.config.is_github() {
-                    self.wrap_tag("u", inlines, out);
+            Inline::Strikeout(inlines) => {
+                if self.config.has(Extension::Strikeout) {
+                    self.wrap_markup("~~", inlines, out);
                 } else {
+                    self.wrap_tag("s", inlines, out);
+                }
+            }
+            Inline::Underline(inlines) => {
+                if self.config.span_syntax() {
                     self.wrap_span(&underline_attr(), inlines, out);
+                } else {
+                    self.wrap_tag("u", inlines, out);
                 }
             }
             Inline::Superscript(inlines) => {
-                if self.config.is_github() {
-                    self.wrap_tag("sup", inlines, out);
-                } else {
+                if self.config.has(Extension::Superscript) {
                     self.wrap_markup("^", inlines, out);
+                } else {
+                    self.wrap_tag("sup", inlines, out);
                 }
             }
             Inline::Subscript(inlines) => {
-                if self.config.is_github() {
-                    self.wrap_tag("sub", inlines, out);
-                } else {
+                if self.config.has(Extension::Subscript) {
                     self.wrap_markup("~", inlines, out);
+                } else {
+                    self.wrap_tag("sub", inlines, out);
                 }
             }
             Inline::SmallCaps(inlines) => {
-                if self.config.is_github() {
+                if self.config.span_syntax() {
+                    self.wrap_span(&smallcaps_attr(), inlines, out);
+                } else {
                     out.push(Piece::Text("<span class=\"smallcaps\">".to_owned()));
                     self.extend_pieces(inlines, out);
                     out.push(Piece::Text("</span>".to_owned()));
-                } else {
-                    self.wrap_span(&smallcaps_attr(), inlines, out);
                 }
             }
             Inline::Quoted(kind, inlines) => {
-                let (open, close) = if self.config.downgrades_smart() {
+                let (open, close) = if self.config.has(Extension::Smart) {
                     ascii_quote_marks(kind)
                 } else {
                     quote_marks(kind)
@@ -1196,19 +1223,19 @@ impl State {
                 out.push(Piece::Text("\\".to_owned()));
                 out.push(Piece::Hard);
             }
-            Inline::Math(kind, text) => out.push(Piece::Text(self.math(kind, text))),
+            Inline::Math(kind, text) => self.math(kind, text, out),
             Inline::RawInline(format, text) => self.raw_inline(format, text, out),
             Inline::Link(attr, inlines, target) => self.link(attr, inlines, target, out),
             Inline::Image(attr, inlines, target) => self.image(attr, inlines, target, out),
             Inline::Span(attr, inlines) => {
                 if attr_is_empty(attr) {
                     self.extend_pieces(inlines, out);
-                } else if self.config.is_github() {
+                } else if self.config.span_syntax() {
+                    self.wrap_span(attr, inlines, out);
+                } else {
                     out.push(Piece::Text(format!("<span{}>", render_html_attr(attr))));
                     self.extend_pieces(inlines, out);
                     out.push(Piece::Text("</span>".to_owned()));
-                } else {
-                    self.wrap_span(attr, inlines, out);
                 }
             }
             Inline::Note(blocks) => {
@@ -1218,17 +1245,55 @@ impl State {
         }
     }
 
-    fn math(&self, kind: &MathType, text: &str) -> String {
-        match (self.config.is_github(), kind) {
-            (false, MathType::InlineMath) => format!("${text}$"),
-            (false, MathType::DisplayMath) => format!("$${text}$$"),
-            (true, MathType::InlineMath) => format!("$`{text}`$"),
-            (true, MathType::DisplayMath) => format!("``` math\n{text}\n```"),
+    /// Render a math node. The GitHub math surface writes an inline `` $`…`$ `` span and a fenced
+    /// ```` ```math ```` display block; the dollar surface writes `$…$`/`$$…$$`. With neither, the
+    /// expression linearizes to inline markup.
+    fn math(&mut self, kind: &MathType, text: &str, out: &mut Vec<Piece>) {
+        if self.config.has(Extension::TexMathGfm) {
+            let rendered = match kind {
+                MathType::InlineMath => format!("$`{text}`$"),
+                MathType::DisplayMath => format!("``` math\n{text}\n```"),
+            };
+            out.push(Piece::Text(rendered));
+            return;
+        }
+        if self.config.has(Extension::TexMathDollars) {
+            let rendered = match kind {
+                MathType::InlineMath => format!("${text}$"),
+                MathType::DisplayMath => format!("$${text}$$"),
+            };
+            out.push(Piece::Text(rendered));
+            return;
+        }
+        self.math_fallback(kind, text, out);
+    }
+
+    /// Render a math node when the dialect has no math syntax: the expression linearized to inline
+    /// markup when it converts, nothing when it is empty, otherwise the verbatim source wrapped in
+    /// the kind's `$`/`$$` delimiters and routed through the running-text path so its literal text is
+    /// escaped. Inline source has its edge whitespace trimmed before wrapping; display source is
+    /// wrapped as written.
+    fn math_fallback(&mut self, kind: &MathType, tex: &str, out: &mut Vec<Piece>) {
+        match crate::math::to_inlines(tex) {
+            Some(inlines) => {
+                for converted in &inlines {
+                    self.inline(converted, out);
+                }
+            }
+            None if tex.trim().is_empty() => {}
+            None => {
+                let (delim, body) = match kind {
+                    MathType::DisplayMath => ("$$", tex),
+                    MathType::InlineMath => ("$", tex.trim()),
+                };
+                let fallback = Inline::Str(format!("{delim}{body}{delim}"));
+                self.inline(&fallback, out);
+            }
         }
     }
 
     fn raw_inline(&mut self, format: &Format, text: &str, out: &mut Vec<Piece>) {
-        if self.config.is_github() {
+        if !self.config.has(Extension::RawAttribute) {
             if is_html_format(format) {
                 out.push(Piece::Text(text.to_owned()));
             }
@@ -1241,10 +1306,10 @@ impl State {
         )));
     }
 
-    /// Render a citation. The extended dialect reconstructs citation syntax; the GitHub dialect has
-    /// no citation extension, so it renders the citation's display inlines instead.
+    /// Render a citation. With the citation extension this reconstructs citation syntax; without it
+    /// there is no such syntax, so the citation's display inlines render instead.
     fn cite(&mut self, citations: &[Citation], inlines: &[Inline], out: &mut Vec<Piece>) {
-        if self.config.is_github() {
+        if !self.config.has(Extension::Citations) {
             self.extend_pieces(inlines, out);
             return;
         }
@@ -1327,7 +1392,7 @@ impl State {
             out.push(Piece::Text(autolink));
             return;
         }
-        if self.config.is_github() && !attr_is_empty(attr) {
+        if !self.config.has(Extension::LinkAttributes) && !attr_is_empty(attr) {
             out.push(Piece::Text(format!(
                 "<a href=\"{}\"{}{}>",
                 escape_attr(&target.url),
@@ -1352,7 +1417,9 @@ impl State {
     }
 
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
-        if self.config.is_github() && (has_dimension(attr) || !attr_is_empty(attr)) {
+        if !self.config.has(Extension::LinkAttributes)
+            && (has_dimension(attr) || !attr_is_empty(attr))
+        {
             out.push(Piece::Text(image_html(attr, inlines, target)));
             return;
         }
@@ -1370,14 +1437,15 @@ impl State {
     }
 
     /// Escape the markdown-significant characters of running text. Inline-markup openers (`` ` ``,
-    /// `*`, `[`, `]`, `<`, `>`, `|`), the math delimiter `$`, and entity-introducing `&` are escaped
-    /// in every dialect; `~`/`^` (sub/superscript) and a word-initial `@` (citation) are escaped only
-    /// in the extended dialect. A `#` run that would open a heading is escaped at the start of a line;
-    /// `_` is escaped at a word boundary. A backslash is escaped per dialect.
+    /// `*`, `[`, `]`, `<`, `>`, `|`), the math delimiter `$`, and entity-introducing `&` are always
+    /// escaped; `~` and `^` are escaped only when subscript and superscript have native syntax, and a
+    /// word-initial `@` only when citations do. A `#` run that would open a heading is escaped at the
+    /// start of a line; `_` is escaped at a word boundary. A backslash is escaped per the raw-TeX
+    /// extension. Smart-punctuation glyphs are rewritten to ASCII when the `smart` extension is
+    /// active.
     fn escape_str(&self, text: &str) -> String {
-        let github = self.config.is_github();
         let downgraded;
-        let text = if self.config.downgrades_smart() {
+        let text = if self.config.has(Extension::Smart) {
             downgraded = downgrade_smart(text);
             downgraded.as_str()
         } else {
@@ -1398,11 +1466,15 @@ impl State {
                     out.push('\\');
                     out.push(ch);
                 }
-                '~' | '^' if !github => {
+                '~' if self.config.has(Extension::Subscript) => {
                     out.push('\\');
                     out.push(ch);
                 }
-                '@' if !github && word_start => out.push_str("\\@"),
+                '^' if self.config.has(Extension::Superscript) => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '@' if self.config.has(Extension::Citations) && word_start => out.push_str("\\@"),
                 '&' if begins_character_reference(tail()) => out.push_str("\\&"),
                 '&' if begins_named_entity(tail()) => out.push_str("\\&"),
                 '_' if is_word_boundary(prev, next) => out.push_str("\\_"),
@@ -1414,16 +1486,17 @@ impl State {
         out
     }
 
-    /// Escape a backslash. The extended dialect doubles every backslash; the GitHub dialect doubles
-    /// only a trailing backslash and otherwise emits it verbatim.
+    /// Escape a backslash. When raw TeX passes through verbatim every backslash is doubled so it is
+    /// not mistaken for an escape; otherwise only a trailing backslash is doubled and an interior one
+    /// is emitted verbatim.
     fn escape_backslash(&self, next: Option<char>, out: &mut String) {
-        if self.config.is_github() {
+        if self.config.has(Extension::RawTex) {
+            out.push_str("\\\\");
+        } else {
             match next {
                 None => out.push_str("\\\\"),
                 Some(_) => out.push('\\'),
             }
-        } else {
-            out.push_str("\\\\");
         }
     }
 }
@@ -1559,9 +1632,9 @@ fn starts_heading(text: &str) -> bool {
     matches!(text.chars().nth(hashes), None | Some(' '))
 }
 
-/// The info string for a fenced code block in the extended dialect, or `None` to render it indented
-/// (no attributes). A lone class becomes a bare language tag; anything richer uses the attribute
-/// block form.
+/// The info string for a fenced code block when fenced-code attributes are available, or `None` to
+/// render it indented (no attributes). A lone class becomes a bare language tag; anything richer
+/// uses the attribute block form.
 fn extended_code_info(attr: &Attr) -> Option<String> {
     if attr_is_empty(attr) {
         return None;
@@ -1575,8 +1648,8 @@ fn extended_code_info(attr: &Attr) -> Option<String> {
     Some(format!(" {}", pandoc_attr(attr)))
 }
 
-/// The info string for a fenced code block in the GitHub dialect, or `None` for indented output:
-/// only the first class survives, as a bare language tag.
+/// The info string for a fenced code block when fenced-code attributes are unavailable, or `None`
+/// for indented output: only the first class survives, as a bare language tag.
 fn github_code_info(attr: &Attr) -> Option<String> {
     match attr.classes.first() {
         Some(class) if !class.is_empty() => Some(format!(" {class}")),
@@ -1600,10 +1673,12 @@ fn indent_code(text: &str) -> String {
     out
 }
 
-fn backtick_fence_len(text: &str) -> usize {
+/// The fence length for a fenced code block built from `fence`: longer than the longest leading run
+/// of that character already in the body (so the fence cannot close early), and at least three.
+fn fence_run_len(text: &str, fence: char) -> usize {
     let mut longest = 0;
     for line in text.split('\n') {
-        let run = line.chars().take_while(|&c| c == '`').count();
+        let run = line.chars().take_while(|&c| c == fence).count();
         longest = longest.max(run);
     }
     (longest + 1).max(3)
@@ -1620,10 +1695,11 @@ fn colon_fence_len(body: &str) -> usize {
     (longest + 1).max(3)
 }
 
-/// The text following a fenced-div opener: a bare class when the div carries only a single class,
-/// otherwise an attribute block.
-fn div_opener(attr: &Attr) -> String {
-    if attr.id.is_empty()
+/// The text following a fenced-div opener: a bare class when the div carries only a single class and
+/// the shorthand is allowed (`braced` is false), otherwise an attribute block.
+fn div_opener(attr: &Attr, braced: bool) -> String {
+    if !braced
+        && attr.id.is_empty()
         && attr.attributes.is_empty()
         && let [class] = attr.classes.as_slice()
     {
@@ -1757,8 +1833,8 @@ fn title_attr(title: &Text) -> String {
     }
 }
 
-/// An image rendered as an HTML `<img>` element (the GitHub fallback for an image carrying
-/// attributes).
+/// An image rendered as an HTML `<img>` element (the fallback for an image carrying attributes when
+/// link attributes have no native syntax).
 fn image_html(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
     let alt = carta_ast::to_plain_text(inlines);
     let alt_attr = if alt.is_empty() {
