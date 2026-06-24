@@ -7,6 +7,7 @@
 
 mod classify;
 mod convert;
+mod notes;
 mod table;
 mod tokenize;
 mod tree;
@@ -43,6 +44,7 @@ fn parse(input: &str, ext: Extensions) -> Document {
     let (head, body) = locate(&roots);
 
     let mut converter = Converter::new(ext);
+    converter.index_notes(notes::collect_note_defs(&body));
     let meta = head.map(extract_meta).unwrap_or_default();
     let blocks = converter.blocks(&body, false);
     Document {
