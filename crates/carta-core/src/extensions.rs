@@ -110,6 +110,9 @@ define_extensions! {
     // GitHub math surface: inline `` $`…`$ `` and a ```` ```math ```` display block, as opposed to the
     // `$…$`/`$$…$$` dollar form.
     TexMathGfm => "tex_math_gfm",
+    // A backslash at a line's end is a hard line break, written as a trailing `\`; without it the
+    // writer falls back to two trailing spaces.
+    EscapedLineBreaks => "escaped_line_breaks",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
@@ -318,6 +321,26 @@ pub mod presets {
         Extension::TableAttributes,
         Extension::BlankBeforeBlockquote,
         Extension::BlankBeforeHeader,
+        Extension::EscapedLineBreaks,
+    ]);
+
+    /// The legacy GitHub Markdown dialect (`markdown_github`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_github`), restricted to the variants that exist and
+    /// affect writer output: backtick-fenced code, pipe tables, strikeout, task lists, footnotes,
+    /// autolinking, emoji, and alerts, but no smart typography, math, spans, or fenced divs.
+    pub const MARKDOWN_GITHUB: Extensions = Extensions::from_list(&[
+        Extension::Strikeout,
+        Extension::PipeTables,
+        Extension::Footnotes,
+        Extension::TaskLists,
+        Extension::Autolink,
+        Extension::RawHtml,
+        Extension::FencedCodeBlocks,
+        Extension::BacktickCodeBlocks,
+        Extension::AutoIdentifiers,
+        Extension::GfmAutoIdentifiers,
+        Extension::Emoji,
+        Extension::Alerts,
     ]);
 }
 

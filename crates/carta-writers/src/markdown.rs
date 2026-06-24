@@ -31,13 +31,19 @@ use crate::grid;
 
 /// The rendering configuration shared by every entry point and exposed to sibling writers that embed
 /// markdown (the outline writer renders note text through this engine). The active [`Extensions`]
-/// set decides which constructs have native syntax versus a fallback; `braced_div_attrs` forces a
-/// fenced div's single-class shorthand to the braced `{.class}` form rather than the bare `class`
-/// one.
+/// set decides which constructs have native syntax versus a fallback. `cmark` marks the `CommonMark`
+/// writer family (`gfm`, `commonmark_x`) as opposed to the pandoc-markdown family (`markdown` and the
+/// sparse dialects): the two families share nearly identical extension sets but differ in a handful
+/// of constructs no extension can distinguish — a div with no fenced-div syntax wraps in raw `<div>`
+/// for the former and renders its contents transparently for the latter; an ordered list with no
+/// `fancy_lists`/`startnum` keeps its delimiter and start number for the former and collapses to
+/// `1.` for the latter; a hard line break writes `\` for the former and two trailing spaces for the
+/// latter. The flag also selects a fenced div's braced `{.class}` shorthand over the bare `class`
+/// form.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct MarkdownConfig {
     extensions: Extensions,
-    braced_div_attrs: bool,
+    cmark: bool,
 }
 
 impl MarkdownConfig {
@@ -45,7 +51,7 @@ impl MarkdownConfig {
     pub(crate) fn extended() -> Self {
         Self {
             extensions: presets::MARKDOWN,
-            braced_div_attrs: false,
+            cmark: false,
         }
     }
 
@@ -59,27 +65,34 @@ impl MarkdownConfig {
     fn span_syntax(self) -> bool {
         self.has(Extension::BracketedSpans) || self.has(Extension::NativeSpans)
     }
+
+    /// The marker a hard line break is written with: a trailing `\` for the `CommonMark` family and
+    /// any pandoc-markdown dialect with `escaped_line_breaks`, two trailing spaces otherwise.
+    fn hard_break(self) -> &'static str {
+        if self.cmark || self.has(Extension::EscapedLineBreaks) {
+            "\\"
+        } else {
+            "  "
+        }
+    }
 }
 
 /// Render a document with a markdown-family writer. The active extension set is the one the caller
 /// selected through the format spec; when the caller supplied none — a direct writer invocation
 /// rather than a `convert` that seeds the target's own extensions — the writer's `default` dialect
-/// set is used. `braced_div_attrs` chooses a fenced div's single-class shorthand form.
+/// set is used. `cmark` selects the `CommonMark` writer family's behaviors (see [`MarkdownConfig`]).
 fn render_dialect(
     document: &Document,
     options: &WriterOptions,
     default: Extensions,
-    braced_div_attrs: bool,
+    cmark: bool,
 ) -> String {
     let extensions = if options.extensions.is_empty() {
         default
     } else {
         options.extensions
     };
-    let config = MarkdownConfig {
-        extensions,
-        braced_div_attrs,
-    };
+    let config = MarkdownConfig { extensions, cmark };
     render_document(
         document,
         config,
@@ -116,7 +129,7 @@ pub struct GfmWriter;
 
 impl Writer for GfmWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_dialect(document, options, presets::GFM, false))
+        Ok(render_dialect(document, options, presets::GFM, true))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -161,6 +174,31 @@ impl Writer for CommonmarkXWriter {
 
     fn title_block(&self, document: &Document, options: &WriterOptions) -> Result<Option<String>> {
         yaml_metadata_block(self, document, options)
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+}
+
+/// Renders a document to the legacy GitHub Markdown dialect (`markdown_github`): backtick-fenced
+/// code, pipe tables, strikeout, and task lists, with everything outside that set — spans,
+/// sub/superscript, definition lists, fenced divs, math — falling back to HTML or indented forms.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownGithubWriter;
+
+impl Writer for MarkdownGithubWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_GITHUB,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
     }
 
     fn body_ends_with_newline(&self) -> bool {
@@ -514,10 +552,19 @@ impl State {
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
         let body = self.blocks_to_string(blocks, width);
         if !self.config.has(Extension::FencedDivs) {
-            return format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr));
+            // The `CommonMark` family, and any pandoc-markdown dialect that parses raw HTML divs,
+            // wrap the contents in a literal `<div>`; the sparse pandoc-markdown dialects have no
+            // div syntax at all and render the contents transparently.
+            if self.config.cmark
+                || self.config.has(Extension::NativeDivs)
+                || self.config.has(Extension::MarkdownInHtmlBlocks)
+            {
+                return format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr));
+            }
+            return body;
         }
         let fence = ":".repeat(colon_fence_len(&body));
-        let opener = div_opener(attr, self.config.braced_div_attrs);
+        let opener = div_opener(attr, self.config.cmark);
         if body.is_empty() {
             format!("{fence}{opener}\n{fence}")
         } else {
@@ -531,7 +578,7 @@ impl State {
                 .iter()
                 .map(|line| self.inlines_oneline(line))
                 .collect();
-            return rendered.join("\\\n");
+            return rendered.join(&format!("{}\n", self.config.hard_break()));
         }
         let rendered: Vec<String> = lines
             .iter()
@@ -585,11 +632,12 @@ impl State {
     ) -> String {
         let loose = is_loose(items);
         let (style, delim) = self.ordered_marks(attrs);
+        let start = self.ordered_start(attrs);
         let rendered: Vec<String> = items
             .iter()
             .enumerate()
             .map(|(offset, item)| {
-                let number = attrs.start.saturating_add(offset_as_i32(offset));
+                let number = start.saturating_add(offset_as_i32(offset));
                 let marker = ordered_marker(number, &style, &delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let body = self.blocks_to_string(item, width.saturating_sub(field));
@@ -602,18 +650,32 @@ impl State {
         rendered.join(item_separator(loose))
     }
 
-    /// The numeral style and delimiter to render an ordered list with. Without the fancy-list
-    /// extension every style collapses to decimal and every delimiter to a period or a single
-    /// closing parenthesis.
+    /// The numeral style and delimiter to render an ordered list with. With the fancy-list extension
+    /// the source style and delimiter are kept. Without it the `CommonMark` family still collapses the
+    /// style to decimal but keeps a closing-parenthesis delimiter; the pandoc-markdown dialects have
+    /// no rich-list syntax at all and collapse every list to a decimal period (`1.`).
     fn ordered_marks(&self, attrs: &ListAttributes) -> (ListNumberStyle, ListNumberDelim) {
-        if !self.config.has(Extension::FancyLists) {
+        if self.config.has(Extension::FancyLists) {
+            return (attrs.style.clone(), attrs.delim.clone());
+        }
+        if self.config.cmark {
             let delim = match attrs.delim {
                 ListNumberDelim::OneParen | ListNumberDelim::TwoParens => ListNumberDelim::OneParen,
                 ListNumberDelim::Period | ListNumberDelim::DefaultDelim => ListNumberDelim::Period,
             };
             return (ListNumberStyle::Decimal, delim);
         }
-        (attrs.style.clone(), attrs.delim.clone())
+        (ListNumberStyle::Decimal, ListNumberDelim::Period)
+    }
+
+    /// The first ordered-list number. The `CommonMark` family and the `startnum` extension honor the
+    /// source list's start number; the other pandoc-markdown dialects renumber from 1.
+    fn ordered_start(&self, attrs: &ListAttributes) -> i32 {
+        if self.config.cmark || self.config.has(Extension::Startnum) {
+            attrs.start
+        } else {
+            1
+        }
     }
 
     fn definition_list(
@@ -830,14 +892,14 @@ impl State {
         }
     }
 
-    /// The GitHub-table caption: the caption blocks reflowed and concatenated with a backslash hard
-    /// break between blocks, carrying any table attributes as a trailing `{#id .class key="value"}`
+    /// The GitHub-table caption: the caption blocks reflowed and concatenated with a hard break
+    /// between blocks, carrying any table attributes as a trailing `{#id .class key="value"}`
     /// suffix. `None` when the caption is empty.
     fn github_caption(&mut self, caption: &Caption, attr: &Attr, width: usize) -> Option<String> {
         let mut pieces: Vec<Piece> = Vec::new();
         for block in &caption.long {
             if !pieces.is_empty() {
-                pieces.push(Piece::Text("\\".to_owned()));
+                pieces.push(Piece::Text(self.config.hard_break().to_owned()));
                 pieces.push(Piece::Hard);
             }
             self.extend_pieces(block_inlines(block), &mut pieces);
@@ -1165,7 +1227,7 @@ impl State {
         let mut pieces: Vec<Piece> = Vec::new();
         for block in &table.caption.long {
             if !pieces.is_empty() {
-                pieces.push(Piece::Text("\\".to_owned()));
+                pieces.push(Piece::Text(self.config.hard_break().to_owned()));
                 pieces.push(Piece::Hard);
             }
             self.extend_pieces(block_inlines(block), &mut pieces);
@@ -1271,7 +1333,7 @@ impl State {
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
-                out.push(Piece::Text("\\".to_owned()));
+                out.push(Piece::Text(self.config.hard_break().to_owned()));
                 out.push(Piece::Hard);
             }
             Inline::Math(kind, text) => self.math(kind, text, out),
@@ -1513,7 +1575,11 @@ impl State {
             match ch {
                 '#' if word_start && starts_heading(tail()) => out.push_str("\\#"),
                 '!' if next == Some('[') => out.push_str("\\!"),
-                '`' | '*' | '[' | ']' | '<' | '>' | '|' | '$' => {
+                '`' | '*' | '[' | ']' | '<' | '>' | '|' => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '$' if self.config.has(Extension::TexMathDollars) => {
                     out.push('\\');
                     out.push(ch);
                 }

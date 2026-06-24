@@ -98,6 +98,7 @@ format_dispatch! {
     "write-commonmark" => "commonmark" => carta_writers::CommonmarkWriter;
     "write-markdown" => "markdown" => carta_writers::MarkdownWriter;
     "write-markdown" => "commonmark_x" => carta_writers::CommonmarkXWriter;
+    "write-markdown" => "markdown_github" => carta_writers::MarkdownGithubWriter;
     "write-gfm" => "gfm" => carta_writers::GfmWriter;
     "write-rst" => "rst" => carta_writers::RstWriter;
     "write-mediawiki" => "mediawiki" => carta_writers::MediawikiWriter;
