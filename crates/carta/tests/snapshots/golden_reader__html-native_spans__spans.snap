@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"classed"},{"t":"Space"},{"t":"Str","c":"span"},{"t":"Space"},{"t":"Str","c":"unwraps"},{"t":"Space"},{"t":"Str","c":"to"},{"t":"Space"},{"t":"Str","c":"plain"},{"t":"Space"},{"t":"Str","c":"text,"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"small"},{"t":"Space"},{"t":"Str","c":"caps"},{"t":"Space"},{"t":"Str","c":"run"},{"t":"Space"},{"t":"Str","c":"unwraps"},{"t":"Space"},{"t":"Str","c":"too,"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"cited"},{"t":"Space"},{"t":"Str","c":"span"},{"t":"Space"},{"t":"Str","c":"unwraps"},{"t":"Space"},{"t":"Str","c":"as"},{"t":"Space"},{"t":"Str","c":"well"},{"t":"Space"},{"t":"Str","c":"when"},{"t":"Space"},{"t":"Str","c":"native_spans"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"off."}]}]}
