@@ -206,6 +206,32 @@ impl Writer for MarkdownGithubWriter {
     }
 }
 
+/// Renders a document to the PHP Markdown Extra dialect (`markdown_phpextra`): tilde-fenced code,
+/// pipe tables, definition lists, footnotes, and header/link attributes, with everything outside
+/// that set — strikeout, spans, sub/superscript, math, fenced divs — falling back to HTML or
+/// indented forms. Its code fences use tildes since the dialect lacks backtick code blocks.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownPhpextraWriter;
+
+impl Writer for MarkdownPhpextraWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_PHPEXTRA,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+}
+
 /// Serialize document metadata as a sorted-key YAML block delimited by `---` lines, or `None` when
 /// there is no metadata. Scalars render through `writer` so inline markup survives; block values
 /// become literal block scalars; sequences and maps nest by indentation. Keys emit in the map's
@@ -483,8 +509,10 @@ impl State {
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
         let hashes = "#".repeat(usize::try_from(level.max(1)).unwrap_or(1));
         let text = self.inlines_oneline(inlines);
+        let auto_identifiers = self.config.has(Extension::AutoIdentifiers)
+            || self.config.has(Extension::GfmAutoIdentifiers);
         let suffix = if !self.config.has(Extension::HeaderAttributes)
-            || header_attr_implicit(attr, inlines)
+            || header_attr_implicit(attr, inlines, auto_identifiers)
         {
             String::new()
         } else {
@@ -554,12 +582,17 @@ impl State {
         if !self.config.has(Extension::FencedDivs) {
             // The `CommonMark` family, and any pandoc-markdown dialect that parses raw HTML divs,
             // wrap the contents in a literal `<div>`; the sparse pandoc-markdown dialects have no
-            // div syntax at all and render the contents transparently.
+            // div syntax at all and render the contents transparently. The `markdown_attribute`
+            // dialects also wrap, tagging the `<div>` with `data-markdown="1"` so its contents are
+            // still parsed as Markdown.
+            let marker = self.config.has(Extension::MarkdownAttribute);
             if self.config.cmark
                 || self.config.has(Extension::NativeDivs)
                 || self.config.has(Extension::MarkdownInHtmlBlocks)
+                || marker
             {
-                return format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr));
+                let data = if marker { " data-markdown=\"1\"" } else { "" };
+                return format!("<div{}{data}>\n\n{body}\n\n</div>", render_html_attr(attr));
             }
             return body;
         }
@@ -588,7 +621,9 @@ impl State {
     }
 
     fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
-        if let Some(rendered) = self.task_list(items, width) {
+        if self.config.has(Extension::TaskLists)
+            && let Some(rendered) = self.task_list(items, width)
+        {
             return rendered;
         }
         let loose = is_loose(items);
@@ -1931,10 +1966,11 @@ fn caption_blocks_as_inlines(blocks: &[Block]) -> Option<Vec<Inline>> {
 
 /// Whether a header's attributes are exactly the identifier a reader would derive from its text, so
 /// the explicit `{#id}` block is redundant and can be dropped.
-fn header_attr_implicit(attr: &Attr, inlines: &[Inline]) -> bool {
+fn header_attr_implicit(attr: &Attr, inlines: &[Inline], auto_identifiers: bool) -> bool {
     attr.classes.is_empty()
         && attr.attributes.is_empty()
-        && (attr.id.is_empty() || attr.id == carta_ast::slug(&carta_ast::to_plain_text(inlines)))
+        && (attr.id.is_empty()
+            || (auto_identifiers && attr.id == carta_ast::slug(&carta_ast::to_plain_text(inlines))))
 }
 
 fn is_autolink_class(attr: &Attr) -> bool {

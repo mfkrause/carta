@@ -85,6 +85,9 @@ define_extensions! {
     NativeSpans => "native_spans",
     // Markdown is parsed inside block-level HTML, which is otherwise split tag-by-tag.
     MarkdownInHtmlBlocks => "markdown_in_html_blocks",
+    // A `<div>`/`<span>` emitted for a div/span carries a `data-markdown="1"` marker so its contents
+    // are still parsed as Markdown; this also forces a div with no native syntax into an HTML wrap.
+    MarkdownAttribute => "markdown_attribute",
     // Inline raw TeX (`\command{…}`, `\begin{env}…\end{env}`) passes through verbatim.
     RawTex => "raw_tex",
     // `[@key]` / `@key` citation references.
@@ -341,6 +344,22 @@ pub mod presets {
         Extension::GfmAutoIdentifiers,
         Extension::Emoji,
         Extension::Alerts,
+    ]);
+
+    /// The PHP Markdown Extra dialect (`markdown_phpextra`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_phpextra`), restricted to the variants that exist and
+    /// affect writer output: definition lists, fenced (tilde) code blocks, footnotes, header and
+    /// link attributes, pipe tables, and raw HTML. It has no backtick code fences, so code fences
+    /// are written with tildes, and no smart typography, math, strikeout, spans, or fenced divs.
+    pub const MARKDOWN_PHPEXTRA: Extensions = Extensions::from_list(&[
+        Extension::DefinitionLists,
+        Extension::FencedCodeBlocks,
+        Extension::Footnotes,
+        Extension::HeaderAttributes,
+        Extension::LinkAttributes,
+        Extension::MarkdownAttribute,
+        Extension::PipeTables,
+        Extension::RawHtml,
     ]);
 }
 
