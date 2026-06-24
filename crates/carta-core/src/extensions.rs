@@ -244,7 +244,10 @@ pub mod presets {
         Extension::Alerts,
     ]);
 
-    /// `CommonMark` with a broad set of inline and block extensions enabled.
+    /// `CommonMark` with a broad set of inline and block extensions enabled. Mirrors Pandoc's
+    /// `commonmark_x` extension set (`pandoc --list-extensions=commonmark_x`); `backtick_code_blocks`
+    /// is additionally carried because the shared Markdown engine fences code on that flag, which
+    /// `CommonMark` does natively.
     pub const COMMONMARK_X: Extensions = Extensions::from_list(&[
         Extension::Smart,
         Extension::Strikeout,
@@ -256,7 +259,9 @@ pub mod presets {
         Extension::TexMathDollars,
         Extension::FencedDivs,
         Extension::BracketedSpans,
+        Extension::BacktickCodeBlocks,
         Extension::RawHtml,
+        Extension::RawAttribute,
         Extension::Attributes,
         Extension::HeaderAttributes,
         Extension::FencedCodeAttributes,
@@ -266,6 +271,8 @@ pub mod presets {
         Extension::FancyLists,
         Extension::GfmAutoIdentifiers,
         Extension::ImplicitHeaderReferences,
+        Extension::Emoji,
+        Extension::Alerts,
     ]);
 
     /// The extended Markdown dialect: the broad default extension set.
