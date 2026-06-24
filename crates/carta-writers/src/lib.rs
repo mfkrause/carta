@@ -98,7 +98,8 @@ pub use man::ManWriter;
 pub use markdown::GfmWriter;
 #[cfg(feature = "markdown")]
 pub use markdown::{
-    CommonmarkXWriter, MarkdownGithubWriter, MarkdownPhpextraWriter, MarkdownWriter,
+    CommonmarkXWriter, MarkdownGithubWriter, MarkdownMmdWriter, MarkdownPhpextraWriter,
+    MarkdownWriter,
 };
 #[cfg(feature = "mediawiki")]
 pub use mediawiki::MediawikiWriter;

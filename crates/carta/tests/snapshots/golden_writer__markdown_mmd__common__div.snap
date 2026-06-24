@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<div id="d" class="note" data-markdown="1">
+
+body paragraph
+
+</div>

@@ -11,7 +11,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-TARGETS="html html4 latex rst plain commonmark commonmark_x markdown markdown_github markdown_phpextra gfm mediawiki native json typst dokuwiki jira asciidoc man opml beamer revealjs"
+TARGETS="html html4 latex rst plain commonmark commonmark_x markdown markdown_github markdown_phpextra markdown_mmd gfm mediawiki native json typst dokuwiki jira asciidoc man opml beamer revealjs"
 [ $# -gt 0 ] && TARGETS="$1"
 
 for target in $TARGETS; do

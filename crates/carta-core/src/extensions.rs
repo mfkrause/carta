@@ -73,6 +73,9 @@ define_extensions! {
     // Header identifiers and the references they enable.
     AutoIdentifiers => "auto_identifiers",
     GfmAutoIdentifiers => "gfm_auto_identifiers",
+    // A header's explicit identifier is written in MultiMarkdown's trailing `[id]` form rather than
+    // the `{#id}` attribute block.
+    MmdHeaderIdentifiers => "mmd_header_identifiers",
     ImplicitHeaderReferences => "implicit_header_references",
     // Bare images with a caption become figures.
     ImplicitFigures => "implicit_figures",
@@ -360,6 +363,31 @@ pub mod presets {
         Extension::MarkdownAttribute,
         Extension::PipeTables,
         Extension::RawHtml,
+    ]);
+
+    /// The `MultiMarkdown` dialect (`markdown_mmd`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_mmd`), restricted to the variants that exist and affect
+    /// writer output: backtick-fenced code, definition lists, footnotes, pipe tables, implicit
+    /// figures and header references, sub/superscript, dollar math, raw HTML and raw attributes,
+    /// auto identifiers, `MultiMarkdown`'s trailing `[id]` header identifiers, and the `data-markdown`
+    /// div marker. It has no header attribute blocks, strikeout, task lists, smart typography, spans,
+    /// or fenced divs. Its `tex_math_double_backslash` only affects reading; the writer emits `$…$`
+    /// math through `tex_math_dollars`.
+    pub const MARKDOWN_MMD: Extensions = Extensions::from_list(&[
+        Extension::AutoIdentifiers,
+        Extension::BacktickCodeBlocks,
+        Extension::DefinitionLists,
+        Extension::Footnotes,
+        Extension::ImplicitFigures,
+        Extension::ImplicitHeaderReferences,
+        Extension::MarkdownAttribute,
+        Extension::MmdHeaderIdentifiers,
+        Extension::PipeTables,
+        Extension::RawAttribute,
+        Extension::RawHtml,
+        Extension::Subscript,
+        Extension::Superscript,
+        Extension::TexMathDollars,
     ]);
 }
 
