@@ -41,18 +41,10 @@ pub(crate) struct MarkdownConfig {
 }
 
 impl MarkdownConfig {
-    /// The full-featured markdown dialect.
+    /// The full-featured markdown dialect, used when a sibling writer embeds markdown text.
     pub(crate) fn extended() -> Self {
         Self {
             extensions: presets::MARKDOWN,
-            braced_div_attrs: false,
-        }
-    }
-
-    /// The GitHub-flavored dialect.
-    pub(crate) fn github() -> Self {
-        Self {
-            extensions: presets::GFM,
             braced_div_attrs: false,
         }
     }
@@ -69,18 +61,40 @@ impl MarkdownConfig {
     }
 }
 
+/// Render a document with a markdown-family writer. The active extension set is the one the caller
+/// selected through the format spec; when the caller supplied none — a direct writer invocation
+/// rather than a `convert` that seeds the target's own extensions — the writer's `default` dialect
+/// set is used. `braced_div_attrs` chooses a fenced div's single-class shorthand form.
+fn render_dialect(
+    document: &Document,
+    options: &WriterOptions,
+    default: Extensions,
+    braced_div_attrs: bool,
+) -> String {
+    let extensions = if options.extensions.is_empty() {
+        default
+    } else {
+        options.extensions
+    };
+    let config = MarkdownConfig {
+        extensions,
+        braced_div_attrs,
+    };
+    render_document(
+        document,
+        config,
+        options.columns.unwrap_or(FILL_COLUMN),
+        options.wrap,
+    )
+}
+
 /// Renders a document to the full-featured markdown dialect.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MarkdownWriter;
 
 impl Writer for MarkdownWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_document(
-            document,
-            MarkdownConfig::extended(),
-            options.columns.unwrap_or(FILL_COLUMN),
-            options.wrap,
-        ))
+        Ok(render_dialect(document, options, presets::MARKDOWN, false))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -102,12 +116,7 @@ pub struct GfmWriter;
 
 impl Writer for GfmWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_document(
-            document,
-            MarkdownConfig::github(),
-            options.columns.unwrap_or(FILL_COLUMN),
-            options.wrap,
-        ))
+        Ok(render_dialect(document, options, presets::GFM, false))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -126,6 +135,36 @@ impl Writer for GfmWriter {
     // degrade to raw HTML; entries link without a back-reference anchor instead.
     fn toc_link_anchors(&self) -> bool {
         false
+    }
+}
+
+/// Renders a document to the `CommonMark` dialect with a broad set of inline and block extensions
+/// enabled. Like the full markdown dialect it emits native syntax for spans, sub/superscript,
+/// definition lists, and fenced divs, differing chiefly in that a fenced div always carries a braced
+/// attribute block rather than the bare single-class shorthand.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CommonmarkXWriter;
+
+impl Writer for CommonmarkXWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::COMMONMARK_X,
+            true,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn title_block(&self, document: &Document, options: &WriterOptions) -> Result<Option<String>> {
+        yaml_metadata_block(self, document, options)
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
     }
 }
 
@@ -448,15 +487,27 @@ impl State {
     }
 
     fn raw_block(&mut self, format: &Format, text: &str) -> String {
-        let passthrough = if is_html_format(format) {
+        // A raw block round-trips verbatim only when its format is one the dialect can embed
+        // natively: HTML under `raw_html`, or TeX under `raw_tex`. Otherwise it needs the
+        // `raw_attribute` fenced form (```` ```{=fmt} ````); without that extension it is dropped.
+        let native = if is_html_format(format) {
             self.config.has(Extension::RawHtml)
+        } else if is_tex_format(format) {
+            self.config.has(Extension::RawTex)
         } else {
-            self.config.has(Extension::RawAttribute)
+            false
         };
-        if passthrough {
-            collapse_trailing_newline(text)
+        if native {
+            return collapse_trailing_newline(text);
+        }
+        if !self.config.has(Extension::RawAttribute) {
+            return String::new();
+        }
+        let body = collapse_trailing_newline(text);
+        if body.is_empty() {
+            format!("```{{={}}}\n```", format.0)
         } else {
-            String::new()
+            format!("```{{={}}}\n{body}\n```", format.0)
         }
     }
 
@@ -1616,6 +1667,13 @@ fn quote_block(body: &str) -> String {
 
 fn is_html_format(format: &Format) -> bool {
     matches!(format.0.as_str(), "html" | "html4" | "html5")
+}
+
+/// Whether a raw-format name denotes TeX, which Markdown dialects with `raw_tex` embed verbatim.
+/// `ConTeXt` and other TeX-adjacent formats are excluded — Pandoc routes only `tex`/`latex` through
+/// the verbatim path and renders everything else via the `raw_attribute` fenced form.
+fn is_tex_format(format: &Format) -> bool {
+    matches!(format.0.as_str(), "tex" | "latex")
 }
 
 fn collapse_trailing_newline(text: &str) -> String {
