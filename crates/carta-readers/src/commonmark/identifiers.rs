@@ -198,7 +198,7 @@ fn push_stringified(inlines: &[Inline], out: &mut String) {
 fn slug(algorithm: Algorithm, text: &str) -> String {
     match algorithm {
         Algorithm::Markdown => slug_markdown(text),
-        Algorithm::Gfm => slug_gfm(text),
+        Algorithm::Gfm => carta_ast::slug_gfm(text),
     }
 }
 
@@ -228,24 +228,11 @@ fn slug_markdown(text: &str) -> String {
     }
 }
 
-fn slug_gfm(text: &str) -> String {
-    text.chars()
-        .flat_map(char::to_lowercase)
-        .filter_map(|c| {
-            if c.is_alphanumeric() || matches!(c, '_' | '-') {
-                Some(c)
-            } else if c.is_whitespace() {
-                Some('-')
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{slug_gfm, slug_markdown};
+    use carta_ast::slug_gfm;
+
+    use super::slug_markdown;
 
     #[test]
     fn markdown_keeps_dots_and_strips_the_leading_non_letter_run() {
