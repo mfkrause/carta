@@ -22,6 +22,7 @@ use super::scan::{
     scan_html_tag, scan_inline_target, unescape_string,
 };
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
+use crate::inline_scan::{fold_dash_run, fold_ellipsis_run, is_unicode_whitespace};
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
 const TASK_UNCHECKED: &str = "\u{2610}";
@@ -963,57 +964,18 @@ impl InlineParser<'_> {
         false
     }
 
-    /// Scan a backslash math span whose delimiters are `slashes` backslashes followed by `(` (inline)
-    /// or `[` (display). The cursor is on the first backslash; `slashes` counts the backslashes of the
-    /// opener. The content runs to the matching `slashes`-backslash + `)`/`]` closer, honoring
-    /// `\`-escapes inside, and must be non-empty before any trimming. Inline content is trimmed of
-    /// surrounding whitespace; display content is kept verbatim. On success the cursor moves past the
-    /// closer and a `Math` node is pushed.
+    /// Scan a backslash math span at the cursor (on the first backslash), pushing a `Math` node and
+    /// advancing past the closer on a match. See [`crate::inline_scan::scan_backslash_math`].
     fn scan_backslash_math(&mut self, slashes: usize) -> bool {
-        let open = self.pos + slashes;
-        let (close_bracket, math_type) = match self.chars.get(open).copied() {
-            Some('(') => (')', MathType::InlineMath),
-            Some('[') => (']', MathType::DisplayMath),
-            _ => return false,
-        };
-        let content_start = open + 1;
-        let mut i = content_start;
-        while self.chars.get(i).is_some() {
-            if self.is_backslash_math_closer(i, slashes, close_bracket) {
-                if i == content_start {
-                    return false; // empty content is not a math span
-                }
-                let raw: String = match self.chars.get(content_start..i) {
-                    Some(slice) => slice.iter().collect(),
-                    None => return false,
-                };
-                let content = match math_type {
-                    MathType::InlineMath => raw.trim().to_owned(),
-                    MathType::DisplayMath => raw,
-                };
-                self.pos = i + slashes + 1;
+        match crate::inline_scan::scan_backslash_math(self.chars, self.pos, slashes) {
+            Some((math_type, content, next)) => {
+                self.pos = next;
                 self.nodes
                     .push(Node::Inline(Inline::Math(math_type, content)));
-                return true;
+                true
             }
-            // The single-backslash form treats a `\` as escaping the next character, so an escaped
-            // delimiter inside the content does not close the span; the closer test above already
-            // ran, so a real `\)`/`\]` closer is never reached here. The double-backslash form has
-            // no such escaping: a longer backslash run simply leaves its leading backslashes in the
-            // content.
-            if slashes == 1 && self.chars.get(i) == Some(&'\\') && self.chars.get(i + 1).is_some() {
-                i += 2;
-                continue;
-            }
-            i += 1;
+            None => false,
         }
-        false
-    }
-
-    /// Whether a `slashes`-backslash run followed by `close` begins at index `i`.
-    fn is_backslash_math_closer(&self, i: usize, slashes: usize, close: char) -> bool {
-        (0..slashes).all(|k| self.chars.get(i + k) == Some(&'\\'))
-            && self.chars.get(i + slashes) == Some(&close)
     }
 
     /// Try a raw inline TeX command at the cursor (on the leading `\`), gated behind `raw_tex`. A
@@ -1265,13 +1227,17 @@ impl InlineParser<'_> {
     /// a failed first closer leaves the opener literal.
     fn dollar_math(&mut self) {
         if self.at(1) == Some('$') {
-            if let Some((content, next)) = self.scan_display_math() {
+            if let Some((content, next)) =
+                crate::inline_scan::scan_display_math(self.chars, self.pos)
+            {
                 self.pos = next;
                 self.nodes
                     .push(Node::Inline(Inline::Math(MathType::DisplayMath, content)));
                 return;
             }
-        } else if let Some((content, next)) = self.scan_inline_math() {
+        } else if let Some((content, next)) =
+            crate::inline_scan::scan_inline_math(self.chars, self.pos)
+        {
             self.pos = next;
             self.nodes
                 .push(Node::Inline(Inline::Math(MathType::InlineMath, content)));
@@ -1279,52 +1245,6 @@ impl InlineParser<'_> {
         }
         self.pos += 1;
         self.push_text('$');
-    }
-
-    /// Scan inline math starting at the opening `$`. Returns the content and the index past the
-    /// closing `$`, or `None` if no valid `$…$` begins here.
-    fn scan_inline_math(&self) -> Option<(String, usize)> {
-        if self.at(1).is_none_or(is_unicode_whitespace) {
-            return None;
-        }
-        let content_start = self.pos + 1;
-        let mut i = content_start;
-        while let Some(&ch) = self.chars.get(i) {
-            if ch == '\\' && self.chars.get(i + 1).is_some() {
-                i += 2;
-                continue;
-            }
-            if ch == '$' {
-                let prev_space = self
-                    .chars
-                    .get(i - 1)
-                    .copied()
-                    .is_none_or(is_unicode_whitespace);
-                let next_digit = self.chars.get(i + 1).is_some_and(char::is_ascii_digit);
-                if prev_space || next_digit {
-                    return None;
-                }
-                let content: String = self.chars.get(content_start..i)?.iter().collect();
-                return Some((content, i + 1));
-            }
-            i += 1;
-        }
-        None
-    }
-
-    /// Scan display math starting at the opening `$$`. Returns the content and the index past the
-    /// closing `$$`, or `None` if no closing `$$` follows.
-    fn scan_display_math(&self) -> Option<(String, usize)> {
-        let content_start = self.pos + 2;
-        let mut i = content_start;
-        while self.chars.get(i).is_some() {
-            if self.chars.get(i) == Some(&'$') && self.chars.get(i + 1) == Some(&'$') {
-                let content: String = self.chars.get(content_start..i)?.iter().collect();
-                return Some((content, i + 2));
-            }
-            i += 1;
-        }
-        None
     }
 
     fn left_angle(&mut self) {
@@ -2802,34 +2722,6 @@ fn delimiter_literal(ch: u8, count: usize) -> String {
     }
 }
 
-/// Fold a run of `len` hyphens (`len >= 2`) into the fewest em (`—`) and en (`–`) dashes that sum to
-/// its length: a multiple of three is all em dashes, an even length is all en dashes, and an odd
-/// length that is not a multiple of three takes one or two en dashes — whichever leaves a multiple of
-/// three — with the rest em dashes.
-fn fold_dash_run(len: usize) -> String {
-    let (em, en) = if len.is_multiple_of(3) {
-        (len / 3, 0)
-    } else if len.is_multiple_of(2) {
-        (0, len / 2)
-    } else {
-        let en = if len % 3 == 1 { 2 } else { 1 };
-        ((len - 2 * en) / 3, en)
-    };
-    let mut out = String::with_capacity((em + en) * 3);
-    out.extend(std::iter::repeat_n('\u{2014}', em));
-    out.extend(std::iter::repeat_n('\u{2013}', en));
-    out
-}
-
-/// Fold a run of `len` dots into one ellipsis (`…`) per group of three, leaving the remaining one or
-/// two dots literal.
-fn fold_ellipsis_run(len: usize) -> String {
-    let mut out = String::with_capacity(len / 3 * 3 + len % 3);
-    out.extend(std::iter::repeat_n('\u{2026}', len / 3));
-    out.extend(std::iter::repeat_n('.', len % 3));
-    out
-}
-
 fn decrement_delimiter(nodes: &mut [Node], index: usize, by: usize) {
     if let Some(Node::Delimiter(d)) = nodes.get_mut(index) {
         d.count = d.count.saturating_sub(by);
@@ -3245,16 +3137,6 @@ fn quote_flanking(_ch: u8, before: Option<char>, after: Option<char>) -> (bool, 
     let can_open = left_flanking && !before_alnum;
     let can_close = right_flanking && !after_alnum;
     (can_open, can_close)
-}
-
-fn is_unicode_whitespace(ch: char) -> bool {
-    ch == ' '
-        || ch == '\t'
-        || ch == '\n'
-        || ch == '\u{0c}'
-        || ch == '\u{0b}'
-        || ch == '\r'
-        || ch.is_whitespace()
 }
 
 /// A Unicode punctuation character per the spec: an ASCII punctuation character or anything in the
