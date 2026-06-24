@@ -18,6 +18,9 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_mmd" => presets::MARKDOWN_MMD,
         "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
+        // LaTeX and Beamer default to `smart`: the writer renders quotes and dashes as TeX
+        // ligatures unless `-smart` asks for the literal Unicode punctuation instead.
+        "latex" | "beamer" => Extensions::from_list(&[Extension::Smart]),
         _ => Extensions::empty(),
     }
 }
