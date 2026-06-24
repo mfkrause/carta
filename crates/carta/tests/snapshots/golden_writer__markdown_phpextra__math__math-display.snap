@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+∫<sub>0</sub><sup>1</sup>*x* *d**x*

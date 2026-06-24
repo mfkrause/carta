@@ -14,6 +14,7 @@ fn default_extensions(base: &str) -> Extensions {
         "commonmark_x" => presets::COMMONMARK_X,
         "markdown" => presets::MARKDOWN,
         "markdown_github" => presets::MARKDOWN_GITHUB,
+        "markdown_phpextra" => presets::MARKDOWN_PHPEXTRA,
         "gfm" => presets::GFM,
         _ => Extensions::empty(),
     }
