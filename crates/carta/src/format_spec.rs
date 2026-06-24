@@ -13,6 +13,7 @@ fn default_extensions(base: &str) -> Extensions {
         "commonmark" => Extensions::from_list(&[Extension::RawHtml]),
         "commonmark_x" => presets::COMMONMARK_X,
         "markdown" => presets::MARKDOWN,
+        "markdown_github" => presets::MARKDOWN_GITHUB,
         "gfm" => presets::GFM,
         _ => Extensions::empty(),
     }
