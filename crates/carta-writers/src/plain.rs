@@ -5,16 +5,17 @@
 //! trailing newline; the caller appends one. This format has no public specification.
 
 use carta_ast::{
-    Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType, Row,
-    Table,
+    Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType,
+    QuoteType, Row, Table,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
-    body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill, fill_offset,
-    filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose, lay_row,
-    measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks, table_form,
+    FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
+    block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
+    fill_offset, filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose,
+    lay_row, measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks,
+    table_form,
 };
 use crate::grid;
 
@@ -28,6 +29,7 @@ impl Writer for PlainWriter {
         let mut state = State {
             wrap: options.wrap,
             width,
+            smart: options.extensions.contains(Extension::Smart),
             ..State::default()
         };
         let body = state.blocks_to_string(&document.blocks, width);
@@ -50,6 +52,9 @@ struct State {
     footnotes: Vec<String>,
     wrap: WrapMode,
     width: usize,
+    /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
+    /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
+    smart: bool,
 }
 
 impl Default for State {
@@ -58,6 +63,7 @@ impl Default for State {
             footnotes: Vec::new(),
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
+            smart: false,
         }
     }
 }
@@ -557,7 +563,12 @@ impl State {
 
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
         match inline {
-            Inline::Str(text) | Inline::Code(_, text) => out.push(Piece::Text(text.clone())),
+            Inline::Str(text) => out.push(Piece::Text(if self.smart {
+                unsmarten(text)
+            } else {
+                text.clone()
+            })),
+            Inline::Code(_, text) => out.push(Piece::Text(text.clone())),
             Inline::Emph(inlines)
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
@@ -586,7 +597,14 @@ impl State {
                 uppercase_pieces(out, start);
             }
             Inline::Quoted(kind, inlines) => {
-                let (open, close) = quote_marks(kind);
+                let (open, close) = if self.smart {
+                    match kind {
+                        QuoteType::SingleQuote => ('\'', '\''),
+                        QuoteType::DoubleQuote => ('"', '"'),
+                    }
+                } else {
+                    quote_marks(kind)
+                };
                 out.push(Piece::Text(open.to_string()));
                 self.extend_pieces(inlines, out);
                 out.push(Piece::Text(close.to_string()));
@@ -661,6 +679,19 @@ impl NotesHost for State {
 /// whose format matches `plain` (case-insensitively) is emitted; everything else is dropped.
 fn is_plain_format(format: &Format) -> bool {
     format.0.eq_ignore_ascii_case("plain")
+}
+
+/// Collapse Unicode smart punctuation in a text run to its ASCII form for a `smart`-enabled render;
+/// every other character passes through unchanged.
+fn unsmarten(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ascii_punctuation(ch) {
+            Some(ascii) => out.push_str(ascii),
+            None => out.push(ch),
+        }
+    }
+    out
 }
 
 /// Whether a single definition lays out with blank lines. A definition is rendered

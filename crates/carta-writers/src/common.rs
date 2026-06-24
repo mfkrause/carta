@@ -23,6 +23,20 @@ pub(crate) fn quote_marks(kind: &QuoteType) -> (char, char) {
     }
 }
 
+/// The ASCII rendering of a Unicode smart-punctuation character: the form a `smart`-enabled writer
+/// emits so the text round-trips through a non-Unicode reader. Returns `None` for any other char.
+/// Curly quotes collapse to straight quotes, en/em dashes to `--`/`---`, and the ellipsis to `...`.
+pub(crate) fn ascii_punctuation(ch: char) -> Option<&'static str> {
+    Some(match ch {
+        '\u{2018}' | '\u{2019}' => "'",
+        '\u{201c}' | '\u{201d}' => "\"",
+        '\u{2013}' => "--",
+        '\u{2014}' => "---",
+        '\u{2026}' => "...",
+        _ => return None,
+    })
+}
+
 /// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, a
 /// soft line break from the source, or a forced line break.
 #[derive(Debug, Clone)]
