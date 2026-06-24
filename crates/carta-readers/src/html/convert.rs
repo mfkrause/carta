@@ -8,6 +8,7 @@ use carta_ast::{
     ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, TableBody,
     TableFoot, TableHead, Target, slug, to_plain_text,
 };
+use carta_core::{Extension, Extensions};
 
 use super::classify::{BlockKind, InlineKind, block_kind, inline_kind, is_inline_element};
 use super::table::{
@@ -70,9 +71,20 @@ pub(super) struct Converter {
     /// when parsing a standalone inline fragment, where an unknown tag carries meaning the consumer
     /// may want to round-trip.
     preserve_unknown_tags: bool,
+    /// The enabled extension set. Structural extensions (`native_divs`, `native_spans`,
+    /// `auto_identifiers`, `line_blocks`) gate how block and inline wrappers are emitted; the text
+    /// extensions (`smart`, the TeX math forms) drive the inline finishing pass.
+    ext: Extensions,
 }
 
 impl Converter {
+    pub(super) fn new(ext: Extensions) -> Self {
+        Self {
+            ext,
+            ..Self::default()
+        }
+    }
+
     pub(super) fn blocks(&mut self, nodes: &[&Node], in_list: bool) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending = Vec::new();
@@ -155,11 +167,15 @@ impl Converter {
             BlockKind::Pre => out.push(Self::code_block(e)),
             BlockKind::HorizontalRule => out.push(Block::HorizontalRule),
             BlockKind::Div { sectioning } => {
-                if !sectioning && is_line_block_div(e) {
+                if self.ext.contains(Extension::LineBlocks) && !sectioning && is_line_block_div(e) {
                     out.push(Block::LineBlock(self.line_block_lines(&e.children)));
-                } else {
+                } else if self.ext.contains(Extension::NativeDivs) {
                     let attr = div_attr(e, sectioning);
                     out.push(Block::Div(attr, self.child_blocks(&e.children, false)));
+                } else {
+                    // `native_divs` off: the wrapper carries no document structure, so its content
+                    // is spliced into the surrounding block flow.
+                    out.extend(self.child_blocks(&e.children, false));
                 }
             }
             BlockKind::DefinitionList => out.push(self.definition_list(e)),
@@ -384,7 +400,9 @@ impl Converter {
 
     fn header_attr(&mut self, e: &Element, inlines: &[Inline]) -> Attr {
         let mut attr = extract_attr(e, &[]);
-        if attr.id.is_empty() {
+        if !attr.id.is_empty() {
+            self.used_ids.insert(attr.id.clone());
+        } else if self.ext.contains(Extension::AutoIdentifiers) {
             let base = slug(&to_plain_text(inlines));
             let base = if base.is_empty() {
                 "section".to_string()
@@ -392,9 +410,8 @@ impl Converter {
                 base
             };
             attr.id = self.unique_id(base);
-        } else {
-            self.used_ids.insert(attr.id.clone());
         }
+        // `auto_identifiers` off: a heading without an explicit id keeps an empty one.
         attr
     }
 
@@ -446,7 +463,11 @@ impl Converter {
             InlineKind::LineBreak => out.push(Inline::LineBreak),
             InlineKind::Span => {
                 let inner = self.build_inlines(&e.children);
-                if is_small_caps(e) {
+                if !self.ext.contains(Extension::NativeSpans) {
+                    // `native_spans` off: a bare `<span>` carries no inline structure, so it
+                    // unwraps to its content (the small-caps style is likewise dropped).
+                    out.extend(inner);
+                } else if is_small_caps(e) {
                     out.push(Inline::SmallCaps(inner));
                 } else {
                     out.push(Inline::Span(extract_attr(e, &[]), inner));

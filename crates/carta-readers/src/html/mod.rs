@@ -14,7 +14,7 @@ mod tree;
 use std::borrow::Cow;
 
 use carta_ast::Document;
-use carta_core::{Reader, ReaderOptions, Result};
+use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 #[cfg(feature = "opml")]
 use carta_ast::Inline;
@@ -30,19 +30,19 @@ use tree::{build_tree, locate};
 pub struct HtmlReader;
 
 impl Reader for HtmlReader {
-    fn read(&self, input: &str, _options: &ReaderOptions) -> Result<Document> {
-        Ok(parse(input))
+    fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
+        Ok(parse(input, options.extensions))
     }
 }
 
-fn parse(input: &str) -> Document {
+fn parse(input: &str, ext: Extensions) -> Document {
     let normalized = normalize(input);
     let chars: Vec<char> = normalized.chars().collect();
     let tokens = tokenize(&chars);
     let roots = build_tree(tokens);
     let (head, body) = locate(&roots);
 
-    let mut converter = Converter::default();
+    let mut converter = Converter::new(ext);
     let meta = head.map(extract_meta).unwrap_or_default();
     let blocks = converter.blocks(&body, false);
     Document {
@@ -91,13 +91,30 @@ fn normalize(input: &str) -> Cow<'_, str> {
 mod tests {
     use super::HtmlReader;
     use carta_ast::{Block, Inline, MathType};
-    use carta_core::{Reader, ReaderOptions};
+    use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
-    fn blocks(input: &str) -> Vec<Block> {
+    /// The structural extensions enabled by default for the `html` format. The unit tests exercise
+    /// this default dialect; `+`/`-` toggle behavior is covered by the golden corpus.
+    fn html_defaults() -> Extensions {
+        Extensions::from_list(&[
+            Extension::AutoIdentifiers,
+            Extension::LineBlocks,
+            Extension::NativeDivs,
+            Extension::NativeSpans,
+        ])
+    }
+
+    fn read_with(input: &str, extensions: Extensions) -> Vec<Block> {
+        let mut options = ReaderOptions::default();
+        options.extensions = extensions;
         HtmlReader
-            .read(input, &ReaderOptions::default())
+            .read(input, &options)
             .expect("reader should not fail")
             .blocks
+    }
+
+    fn blocks(input: &str) -> Vec<Block> {
+        read_with(input, html_defaults())
     }
 
     #[test]
@@ -663,6 +680,75 @@ mod tests {
         };
         assert_eq!(items.len(), 1);
         assert_eq!(items.first().map(Vec::len), Some(2));
+    }
+
+    #[test]
+    fn native_divs_off_splices_div_children() {
+        let result = read_with("<div class=\"c\"><p>x</p></div>", Extensions::empty());
+        assert!(matches!(result.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn native_divs_off_drops_sectioning_wrapper() {
+        let result = read_with("<section><p>x</p></section>", Extensions::empty());
+        assert!(matches!(result.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn native_spans_off_unwraps_span_and_small_caps() {
+        let plain = read_with("<p><span class=\"c\">x</span></p>", Extensions::empty());
+        let Some(Block::Para(inlines)) = plain.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string())]);
+
+        let caps = read_with(
+            "<p><span style=\"font-variant: small-caps\">x</span></p>",
+            Extensions::empty(),
+        );
+        let Some(Block::Para(inlines)) = caps.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string())]);
+    }
+
+    #[test]
+    fn native_spans_off_keeps_class_carrying_inlines() {
+        // `<mark>`/`<kbd>` and friends are their own constructs, not `<span>` elements, so the
+        // toggle leaves them as spans.
+        let result = read_with("<p><mark>m</mark></p>", Extensions::empty());
+        let Some(Block::Para(inlines)) = result.first() else {
+            panic!("expected paragraph");
+        };
+        assert!(matches!(inlines.first(), Some(Inline::Span(_, _))));
+    }
+
+    #[test]
+    fn auto_identifiers_off_leaves_id_empty_but_keeps_explicit() {
+        let generated = read_with("<h1>Hello World</h1>", Extensions::empty());
+        let Some(Block::Header(_, attr, _)) = generated.first() else {
+            panic!("expected header");
+        };
+        assert_eq!(attr.id, "");
+
+        let explicit = read_with("<h2 id=\"keep\">T</h2>", Extensions::empty());
+        let Some(Block::Header(_, attr, _)) = explicit.first() else {
+            panic!("expected header");
+        };
+        assert_eq!(attr.id, "keep");
+    }
+
+    #[test]
+    fn line_blocks_off_keeps_a_plain_div() {
+        let result = read_with(
+            "<div class=\"line-block\">a<br>b</div>",
+            Extensions::from_list(&[Extension::NativeDivs]),
+        );
+        let Some(Block::Div(attr, children)) = result.first() else {
+            panic!("expected div");
+        };
+        assert_eq!(attr.classes, vec!["line-block".to_string()]);
+        assert!(matches!(children.as_slice(), [Block::Plain(_)]));
     }
 
     #[cfg(feature = "opml")]
