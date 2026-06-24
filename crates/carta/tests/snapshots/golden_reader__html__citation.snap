@@ -2,4 +2,4 @@
 source: crates/carta/tests/golden_reader.rs
 expression: json
 ---
-{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"According"},{"t":"Space"},{"t":"Str","c":"to"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"source"},{"t":"Space"},{"t":"Span","c":[["",["citation"],[["cites","smith2020"]]],[{"t":"Str","c":"(Smith"},{"t":"Space"},{"t":"Str","c":"2020)"}]]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"claim"},{"t":"Space"},{"t":"Str","c":"holds."}]}]}
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"See"},{"t":"Space"},{"t":"Span","c":[["",["citation"],[["cites","x"]]],[{"t":"Str","c":"(X"},{"t":"Space"},{"t":"Str","c":"2020)"}]]},{"t":"Str","c":"."}]}]}
