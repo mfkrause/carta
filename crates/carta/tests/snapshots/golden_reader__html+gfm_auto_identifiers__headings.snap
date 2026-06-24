@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["12-section-ab",[],[]],[{"t":"Str","c":"1.2"},{"t":"Space"},{"t":"Str","c":"Section"},{"t":"Space"},{"t":"Str","c":"A.B"}]]},{"t":"Para","c":[{"t":"Str","c":"Body"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"under"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"first"},{"t":"Space"},{"t":"Str","c":"heading."}]},{"t":"Header","c":[2,["tools--tips",[],[]],[{"t":"Str","c":"Tools"},{"t":"Space"},{"t":"Str","c":"&"},{"t":"Space"},{"t":"Str","c":"Tips"}]]},{"t":"Para","c":[{"t":"Str","c":"More"},{"t":"Space"},{"t":"Str","c":"text."}]},{"t":"Header","c":[2,["über-café",[],[]],[{"t":"Str","c":"Über"},{"t":"Space"},{"t":"Str","c":"Café"}]]},{"t":"Header","c":[2,["repeat",[],[]],[{"t":"Str","c":"Repeat"}]]},{"t":"Header","c":[2,["repeat-1",[],[]],[{"t":"Str","c":"Repeat"}]]},{"t":"Header","c":[2,["explicit-id",[],[]],[{"t":"Str","c":"Kept"},{"t":"Space"},{"t":"Str","c":"verbatim"}]]},{"t":"Header","c":[3,["section",[],[]],[{"t":"Str","c":"!!!"}]]}]}

@@ -903,6 +903,51 @@ mod tests {
         );
     }
 
+    fn header_ids(input: &str, added: &[Extension]) -> Vec<String> {
+        read_with_text_ext(input, added)
+            .into_iter()
+            .filter_map(|block| match block {
+                Block::Header(_, attr, _) => Some(attr.id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn gfm_auto_identifiers_drops_dots_keeps_digits_and_does_not_collapse() {
+        // The `gfm_auto_identifiers` slug differs from the default: dots are dropped, leading digits
+        // survive, and removed punctuation leaves its surrounding separators (no run collapsing).
+        let ids = header_ids(
+            "<h2>1.2 Section A.B</h2><h2>Tools &amp; Tips</h2>",
+            &[Extension::GfmAutoIdentifiers],
+        );
+        assert_eq!(ids, vec!["12-section-ab", "tools--tips"]);
+    }
+
+    #[test]
+    fn gfm_auto_identifiers_keep_the_section_fallback_and_increment_on_collision() {
+        let ids = header_ids(
+            "<h2>Repeat</h2><h2>Repeat</h2><h3>!!!</h3>",
+            &[Extension::GfmAutoIdentifiers],
+        );
+        assert_eq!(ids, vec!["repeat", "repeat-1", "section"]);
+    }
+
+    #[test]
+    fn gfm_auto_identifiers_need_auto_identifiers_to_take_effect() {
+        let ids = read_with(
+            "<h2>1.2 Section A.B</h2>",
+            Extensions::from_list(&[Extension::GfmAutoIdentifiers]),
+        )
+        .into_iter()
+        .filter_map(|block| match block {
+            Block::Header(_, attr, _) => Some(attr.id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+        assert_eq!(ids, vec![String::new()]);
+    }
+
     #[cfg(feature = "opml")]
     #[test]
     fn inline_fragment_parses_markup_and_trims_edges() {
