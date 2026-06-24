@@ -24,6 +24,7 @@ const TARGETS: &[&str] = &[
     "native",
     "latex",
     "commonmark",
+    "commonmark_x",
     "markdown",
     "gfm",
     "rst",

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[x]{#theid .kbd .mid .mark .rest k="v"} [term]{.dfn}
