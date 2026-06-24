@@ -30,12 +30,16 @@ The broad Markdown preset on the CommonMark engine. Most of the preset's extensi
 | `latex_macros` | not modeled — `\newcommand` / `\def` definitions are neither collected nor expanded |
 
 ### `html` — 🚧
+All block and inline structure. The `html`/`html5`/`html4` [extension](#extensions) defaults
+(`auto_identifiers`, `line_blocks`, `native_divs`, `native_spans`) and any `ReaderOptions.extensions`
+toggles are honored — including `smart`, the `tex_math_*` families, and `gfm_auto_identifiers`.
+Footnotes are reconstructed into `Note` inlines; a `<span class="citation">` round-trips as a
+citation `Span` (the same shape the dialect's own reader yields — there is no `Cite` node). The
+`raw_tex` and `raw_html` toggles are inert here — inline raw HTML is always preserved regardless.
 
 | Gap | Detail |
 | --- | --- |
-| Extensions | `ReaderOptions.extensions` is ignored |
-| `<script>` / `<style>` | dropped (except math-bearing `<script>`) |
-| Inline round-trip | no `Note` / `Cite` reconstruction |
+| Raw HTML blocks | A block-level raw element set off by blank lines (a free-standing `<style>`, or any unrecognized element) is dropped rather than kept as a `RawInline`-bearing paragraph. `<script>` and comments are always dropped. |
 
 ### `opml` — ✅
 Outline depth → header level; the `text` attribute's inline HTML markup is parsed; `_note` parsed as
