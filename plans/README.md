@@ -29,7 +29,7 @@ findings are recorded below so they aren't re-audited.
 | 005 | Spike: byte-offset scanning + boxed `Inline` variants (report, not merge) | P2 | M | 001 (hard) | TODO |
 | 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | DONE |
 | 007 | Standalone output + template engine (folds in the metadata/variable context it requires) | P1 | L | — | DONE (on `feat/standalone-templates`; engine + 13 default templates + identity vars + `-s`/`--template`/`-M`/`-V`/`--metadata-file`. Full conformance suite green across all surfaces; STATUS rows flipped. Awaiting operator merge) |
-| 008 | Finish the HTML reader (extension toggles, footnote reconstruction, shared inline-scanner module) | P1 | L | 006 (soft) | TODO |
+| 008 | Finish the HTML reader (extension toggles, footnote reconstruction, shared inline-scanner module) | P1 | L | 006 (soft) | DONE (on `worktree-finish-html-reader`, 8 commits `da065af`..`6da40c4`. Extension toggles, smart/`tex_math_*` via a shared inline-scanner, always-on footnote `Note` reconstruction, and the `gfm_auto_identifiers` stretch (implemented, not deferred — pinned to the oracle). Full conformance suite green across all surfaces; coverage 92.46%. STATUS rows reworded; reader stays 🚧 for one residual — a blank-line-separated raw HTML block (e.g. a free-standing `<style>`) is dropped, a raw-HTML-block behavior out of scope. Awaiting operator merge) |
 | 009 | Writer extension toggles (drive the Markdown engine + text writers by the effective `Extensions` set; new Markdown dialects + `commonmark_x` writer) | P1 | L | 006 (soft) | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
