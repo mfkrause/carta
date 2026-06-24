@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span id="theid" class="kbd mid mark rest" data-k="v">x</span>
+<span class="dfn">term</span>

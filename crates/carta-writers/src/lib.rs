@@ -99,7 +99,7 @@ pub use markdown::GfmWriter;
 #[cfg(feature = "markdown")]
 pub use markdown::{
     CommonmarkXWriter, MarkdownGithubWriter, MarkdownMmdWriter, MarkdownPhpextraWriter,
-    MarkdownWriter,
+    MarkdownStrictWriter, MarkdownWriter,
 };
 #[cfg(feature = "mediawiki")]
 pub use mediawiki::MediawikiWriter;

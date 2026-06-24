@@ -249,11 +249,19 @@ pub(crate) trait NotesHost {
     /// Record a footnote: reserve its slot before rendering (so nested notes number after it), fill
     /// the slot with the assembled body, and return the inline `[n]` marker.
     fn record_note(&mut self, blocks: &[Block]) -> String {
+        self.numbered_note(blocks)
+    }
+
+    /// Record a footnote in the generic numbered form — a `[n]` reference marker and a matching
+    /// `[n] body` definition whose first line is offset by the marker width. This is the layout a
+    /// markdown dialect without the `footnotes` extension falls back to, so it stays reachable even
+    /// when [`record_note`](Self::record_note) is overridden with a richer footnote syntax.
+    fn numbered_note(&mut self, blocks: &[Block]) -> String {
         let index = self.notes().len();
         self.notes().push(String::new());
         let marker = format!("[{}]", index + 1);
         let field = marker.chars().count() + 1;
-        let body = self.note_body(blocks, field);
+        let body = self.offset_note_body(blocks, field);
         // The body shares the marker's line only when it opens with a paragraph; a leading block of
         // any other kind (a code block, a list) begins on the line below the marker.
         let starts_inline = matches!(blocks.first(), Some(Block::Plain(_) | Block::Para(_)));
@@ -273,6 +281,13 @@ pub(crate) trait NotesHost {
     /// Render a footnote's body: the first block's opening line is offset by the marker width, every
     /// later block and continuation line sits at the margin.
     fn note_body(&mut self, blocks: &[Block], initial: usize) -> String {
+        self.offset_note_body(blocks, initial)
+    }
+
+    /// The marker-offset note body: the first block's opening line begins `initial` columns in and
+    /// every later block sits at the margin. Kept separate from [`note_body`](Self::note_body) so an
+    /// overriding writer can still reach the generic layout from [`numbered_note`](Self::numbered_note).
+    fn offset_note_body(&mut self, blocks: &[Block], initial: usize) -> String {
         let width = self.base_width();
         let rendered = blocks
             .iter()

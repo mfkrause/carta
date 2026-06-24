@@ -258,6 +258,32 @@ impl Writer for MarkdownMmdWriter {
     }
 }
 
+/// Renders a document to the original Markdown dialect (`markdown_strict`): the sparsest pandoc
+/// dialect, with only raw HTML beyond plain Markdown. Code blocks indent, tables and strikeout and
+/// sub/superscript fall back to HTML, task-list checkboxes keep their raw glyphs, and every other
+/// richer construct degrades to its plainest form.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownStrictWriter;
+
+impl Writer for MarkdownStrictWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_STRICT,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+}
+
 /// Serialize document metadata as a sorted-key YAML block delimited by `---` lines, or `None` when
 /// there is no metadata. Scalars render through `writer` so inline markup survives; block values
 /// become literal block scalars; sequences and maps nest by indentation. Keys emit in the map's
@@ -888,10 +914,7 @@ impl State {
             if self.config.has(Extension::PipeTables) {
                 return self.github_table(table, width);
             }
-            return crate::html::render_fragment(
-                &[Block::Table(Box::new(table.clone()))],
-                self.wrap,
-            );
+            return self.html_table(table);
         }
         if table.col_specs.is_empty() {
             return String::new();
@@ -909,15 +932,22 @@ impl State {
         }
     }
 
+    /// Render a table as a raw HTML block, for a dialect whose extension set gives it no native
+    /// table syntax. A raw HTML block in markdown is terminated by a blank line, so any blank line
+    /// the table's HTML spans — an empty body, the gap between two row groups — is collapsed by
+    /// [`encode_html_block_blank_lines`] so the whole table stays a single block.
+    fn html_table(&self, table: &Table) -> String {
+        let html =
+            crate::html::render_fragment(&[Block::Table(Box::new(table.clone()))], self.wrap);
+        encode_html_block_blank_lines(&html)
+    }
+
     /// A GitHub table: a pipe table when every cell is a single line and no cell spans, otherwise an
     /// HTML table. A column-aligned pipe table whose columns together exceed the fill column drops to
     /// a narrow form with single-space cell padding. The caption follows the table as its own block.
     fn github_table(&mut self, table: &Table, width: usize) -> String {
         if !pipe_representable(table) {
-            return crate::html::render_fragment(
-                &[Block::Table(Box::new(table.clone()))],
-                self.wrap,
-            );
+            return self.html_table(table);
         }
         let columns = table.col_specs.len();
         if columns == 0 {
@@ -1627,12 +1657,14 @@ impl State {
     }
 
     /// Escape the markdown-significant characters of running text. Inline-markup openers (`` ` ``,
-    /// `*`, `[`, `]`, `<`, `>`, `|`), the math delimiter `$`, and entity-introducing `&` are always
-    /// escaped; `~` and `^` are escaped only when subscript and superscript have native syntax, and a
-    /// word-initial `@` only when citations do. A `#` run that would open a heading is escaped at the
-    /// start of a line; `_` is escaped at a word boundary. A backslash is escaped per the raw-TeX
-    /// extension. Smart-punctuation glyphs are rewritten to ASCII when the `smart` extension is
-    /// active.
+    /// `*`, `[`, `]`, `<`, `>`), the math delimiter `$`, and entity-introducing `&` are always
+    /// escaped; `|` only when pipe tables make it a cell separator; `~` and `^` only when subscript
+    /// and superscript have native syntax; and a word-initial `@` only when citations do. A `#` run
+    /// that would open a heading is escaped at the start of a line. An `_` is escaped at a word
+    /// boundary, and everywhere in a pandoc-markdown dialect without `intraword_underscores` (the
+    /// `CommonMark` family never treats an intra-word `_` as emphasis, so it is left literal there).
+    /// A backslash is escaped per the raw-TeX extension. Smart-punctuation glyphs are rewritten to
+    /// ASCII when the `smart` extension is active.
     fn escape_str(&self, text: &str) -> String {
         let downgraded;
         let text = if self.config.has(Extension::Smart) {
@@ -1652,7 +1684,11 @@ impl State {
             match ch {
                 '#' if word_start && starts_heading(tail()) => out.push_str("\\#"),
                 '!' if next == Some('[') => out.push_str("\\!"),
-                '`' | '*' | '[' | ']' | '<' | '>' | '|' => {
+                '`' | '*' | '[' | ']' | '<' | '>' => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '|' if self.config.has(Extension::PipeTables) => {
                     out.push('\\');
                     out.push(ch);
                 }
@@ -1671,7 +1707,11 @@ impl State {
                 '@' if self.config.has(Extension::Citations) && word_start => out.push_str("\\@"),
                 '&' if begins_character_reference(tail()) => out.push_str("\\&"),
                 '&' if begins_named_entity(tail()) => out.push_str("\\&"),
-                '_' if is_word_boundary(prev, next) => out.push_str("\\_"),
+                '_' if is_word_boundary(prev, next)
+                    || !(self.config.cmark || self.config.has(Extension::IntrawordUnderscores)) =>
+                {
+                    out.push_str("\\_");
+                }
                 '\\' => self.escape_backslash(next, &mut out),
                 other => out.push(other),
             }
@@ -1719,6 +1759,11 @@ impl NotesHost for State {
     }
 
     fn record_note(&mut self, blocks: &[Block]) -> String {
+        // Without the `footnotes` extension the dialect has no `[^n]` syntax, so a note degrades to
+        // the generic numbered `[n]` reference and definition.
+        if !self.config.has(Extension::Footnotes) {
+            return self.numbered_note(blocks);
+        }
         let index = self.notes().len();
         self.notes().push(String::new());
         let marker = format!("[^{}]", index + 1);
@@ -1756,6 +1801,25 @@ impl NotesHost for State {
             .collect();
         crate::common::join_loose(rendered)
     }
+}
+
+/// Encode the blank lines of a raw HTML fragment so it survives as one raw HTML block in markdown.
+/// A blank line ends a raw HTML block, so the newline that opens one — any newline directly
+/// following another — is rewritten as the `&#10;` character reference, leaving single line breaks
+/// untouched. This mirrors pandoc's encoding for an HTML table embedded in a markdown dialect with
+/// no native table syntax.
+fn encode_html_block_blank_lines(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut prev_newline = false;
+    for ch in html.chars() {
+        if ch == '\n' && prev_newline {
+            out.push_str("&#10;");
+        } else {
+            out.push(ch);
+        }
+        prev_newline = ch == '\n';
+    }
+    out
 }
 
 fn pieces_to_string(pieces: &[Piece]) -> String {
