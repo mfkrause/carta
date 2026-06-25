@@ -142,7 +142,12 @@ impl Converter {
                         flush(pending, out);
                         continue;
                     }
-                    if e.name == "style" && is_blank_run(pending) {
+                    if e.name == "style" && pending.is_empty() {
+                        // A `<style>` with no preceding sibling at all is metadata (a document head,
+                        // or the leading node of a block run) and contributes nothing. Once any
+                        // sibling node precedes it — even whitespace — it is body content: it joins
+                        // the inline run as a raw fragment via the inline path below, and the next
+                        // block boundary flushes that run into its own paragraph.
                         continue;
                     }
                     if has_role(e, ENDNOTES_ROLE) {
@@ -1378,15 +1383,6 @@ fn math_script_type(e: &Element) -> Option<MathType> {
 
 fn is_math_script(e: &Element) -> bool {
     math_script_type(e).is_some()
-}
-
-fn is_blank_run(inlines: &[Inline]) -> bool {
-    inlines.iter().all(|inline| {
-        matches!(
-            inline,
-            Inline::Space | Inline::SoftBreak | Inline::LineBreak
-        )
-    })
 }
 
 fn is_checkbox(e: &Element) -> bool {
