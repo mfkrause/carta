@@ -36,7 +36,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| HTML (`html`, `html5`, `html4`) | 🚧 | ✅ |
+| HTML (`html`, `html5`, `html4`) | ✅ | ✅ |
 | Chunked HTML (`chunkedhtml`) | ➖ | ❌ |
 | reveal.js (`revealjs`) | ➖ | ✅ |
 | Beamer (`beamer`) | ➖ | ✅ |
