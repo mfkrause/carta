@@ -63,8 +63,9 @@ As `csv`, tab-delimited.
 
 ## Writers
 
-Writers render the full AST but do not branch on extensions — each emits a fixed dialect (see
-[cross-cutting features](#cross-cutting-features)).
+Writers render the full AST. The Markdown family branches on the effective `Extensions` set, and the
+text writers that have a meaningful toggle honor it (today that is `smart`); the rest emit a fixed
+dialect (see [writer extension toggles](#cross-cutting-features)).
 
 ### `html` (+ `html5`, `html4`) — ✅
 All blocks and inlines. `html4` uses presentational attributes and `div.float` figures.
@@ -87,8 +88,9 @@ height falls back to an HTML `<img>`. Math is translated to a Unicode-text appro
 verbatim `$…$` / `$$…$$` source kept only for expressions that cannot be linearized.
 
 ### `markdown` — 🚧
-Renders every AST node, but emits a fixed dialect (extension output toggles not honored) and the
-unmodeled pandoc-markdown extensions are unavailable.
+Renders every AST node and branches on the effective `Extensions` set, so `+`/`-` toggles and the
+sibling dialect presets change output; the unmodeled pandoc-markdown extensions (the reader-only and
+`mmd_*` families) remain unavailable.
 
 ### `rst` — ✅
 All blocks and inlines; grid/simple/multiline tables, figure directives, `:math:` role.
@@ -130,11 +132,10 @@ AST → Pandoc JSON.
 AST → native literals.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
-`_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `commonmark_x`, `context`,
+`_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
 `csljson`, `docbook` (+ `4`, `5`), `docx`, `dzslides`, `epub` (+ `2`, `3`), `fb2`, `haddock`,
-`icml`, `ipynb`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markdown_strict`,
-`markdown_mmd`, `markdown_phpextra`, `markdown_github`, `markua`, `ms`, `muse`, `odt`,
-`opendocument`, `org`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
+`icml`, `ipynb`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
+`odt`, `opendocument`, `org`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
 `vimdoc`, `xml`, `xwiki`, `zimwiki`.
 
 ---
@@ -199,7 +200,7 @@ Document-conversion features independent of any single format.
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in AST, not processed |
 | Filters (Lua / JSON) | ❌ | |
 | Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | `--mathjax` and `--katex` select the HTML math renderer: MathJax wraps inline and display TeX in `\(…\)` / `\[…\]` inside `<span class="math">`, KaTeX emits the bare TeX; standalone output pulls in the matching loader script. With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering it to plain HTML markup. Elsewhere TeX passes through verbatim where the target accepts raw TeX (latex, rst, asciidoc, mediawiki, dokuwiki) and is otherwise translated to the target's native math — Typst's native syntax for `typst`, a Unicode-text approximation for `commonmark`/`plain`/`man`/`jira`. No MathML, webtex, or default plain-HTML renderer yet |
-| Writer extension toggles | ❌ | each writer emits a fixed dialect |
+| Writer extension toggles | ✅ | the effective `Extensions` set (`default_extensions(base)` ± `+`/`-` toggles, unioned in by `convert`) drives output. The Markdown engine is fully extension-driven: `markdown`/`gfm` reproduce their prior output byte-for-byte, the `commonmark_x`/`markdown_strict`/`markdown_mmd`/`markdown_phpextra`/`markdown_github` dialects are their default presets, and per-extension toggles (`-fenced_divs`, `-strikeout`, `+definition_lists`, …) take effect. `smart` is honored by `latex`, `beamer`, `rst`, `plain`, and `typst` (quotes and dashes render as the format's ligature/straight spellings under `+smart`, as literal Unicode under `-smart`); the per-format default lives in `default_extensions` (`latex`/`beamer`/`typst` default on, `rst`/`plain` off). Inert where the toggle changes nothing or the format rejects it: `html`/`html4`, `mediawiki`, `dokuwiki`, `opml`, `native`, `asciidoc`, `jira`, `man`, `revealjs`. One deferral: `rst` does not yet backslash-escape literal ASCII `--`/`...` under the non-default `+smart` |
 | Embed resources / extract media | ❌ | |
 | Multiple inputs / defaults files (`--defaults`) | ❌ | CLI takes one input |
 | CLI introspection (`--list-input-formats`, `--list-extensions`, …) | ✅ | `--list-input-formats`, `--list-output-formats` (canonical names and aliases), `--list-extensions[=FORMAT]` (`+`/`-` per the format's default set; the Markdown dialect when no format is given) |
