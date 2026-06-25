@@ -13,7 +13,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Format, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, QuoteType, Table, Target, to_plain_text,
 };
-use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{FILL_COLUMN, attribute_value, display_width};
 
@@ -24,7 +24,8 @@ pub struct TypstWriter;
 impl Writer for TypstWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let width = options.columns.unwrap_or(FILL_COLUMN);
-        let body = blocks(&document.blocks, width, options.wrap);
+        let smart = options.extensions.contains(Extension::Smart);
+        let body = blocks(&document.blocks, width, options.wrap, smart);
         Ok(body.trim_end_matches('\n').to_owned())
     }
 
@@ -65,11 +66,11 @@ enum Fragment {
 
 /// Render a top-level (or nested) block sequence. Every block is separated from the next by a blank
 /// line, except that a header is followed by a single newline.
-fn blocks(items: &[Block], width: usize, wrap: WrapMode) -> String {
+fn blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
     let mut out = String::new();
     let mut previous_is_header = false;
     for item in items {
-        let piece = block(item, width, wrap);
+        let piece = block(item, width, wrap, smart);
         if piece.is_empty() {
             continue;
         }
@@ -85,28 +86,40 @@ fn blocks(items: &[Block], width: usize, wrap: WrapMode) -> String {
     out
 }
 
-fn block(value: &Block, width: usize, wrap: WrapMode) -> String {
+fn block(value: &Block, width: usize, wrap: WrapMode, smart: bool) -> String {
     match value {
-        Block::Plain(items) | Block::Para(items) => fill_inlines(items, width, wrap),
-        Block::Header(level, attr, items) => header(*level, attr, items, width, wrap),
+        Block::Plain(items) | Block::Para(items) => fill_inlines(items, width, wrap, smart),
+        Block::Header(level, attr, items) => header(*level, attr, items, width, wrap, smart),
         Block::CodeBlock(attr, text) => code_block(attr, text),
         Block::RawBlock(format, text) => raw_passthrough(format, text),
         Block::BlockQuote(items) => {
-            format!("#quote(block: true)[\n{}\n]", blocks(items, width, wrap))
+            format!(
+                "#quote(block: true)[\n{}\n]",
+                blocks(items, width, wrap, smart)
+            )
         }
-        Block::BulletList(items) => bullet_list(items, width, wrap),
-        Block::OrderedList(list_attrs, items) => ordered_list(list_attrs, items, width, wrap),
-        Block::DefinitionList(items) => definition_list(items, width, wrap),
+        Block::BulletList(items) => bullet_list(items, width, wrap, smart),
+        Block::OrderedList(list_attrs, items) => {
+            ordered_list(list_attrs, items, width, wrap, smart)
+        }
+        Block::DefinitionList(items) => definition_list(items, width, wrap, smart),
         Block::HorizontalRule => "#horizontalrule".to_owned(),
-        Block::LineBlock(lines) => line_block(lines, width, wrap),
-        Block::Table(table) => render_table(table, width, wrap),
-        Block::Figure(_, caption, items) => figure(caption, items, width, wrap),
-        Block::Div(attr, items) => div(attr, items, width, wrap),
+        Block::LineBlock(lines) => line_block(lines, width, wrap, smart),
+        Block::Table(table) => render_table(table, width, wrap, smart),
+        Block::Figure(_, caption, items) => figure(caption, items, width, wrap, smart),
+        Block::Div(attr, items) => div(attr, items, width, wrap, smart),
     }
 }
 
-fn header(level: i32, attr: &Attr, items: &[Inline], width: usize, wrap: WrapMode) -> String {
-    let text = inline_run(items, width, wrap);
+fn header(
+    level: i32,
+    attr: &Attr,
+    items: &[Inline],
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) -> String {
+    let text = inline_run(items, width, wrap, smart);
     let heading = if attr.classes.iter().any(|class| class == "unnumbered") {
         format!("#heading(level: {level}, numbering: none)[{text}]")
     } else {
@@ -158,11 +171,11 @@ fn backtick_fence(text: &str) -> String {
     "`".repeat(longest.max(2) + 1)
 }
 
-fn bullet_list(items: &[Vec<Block>], width: usize, wrap: WrapMode) -> String {
+fn bullet_list(items: &[Vec<Block>], width: usize, wrap: WrapMode, smart: bool) -> String {
     let loose = !list_is_tight(items);
     let mut lines = Vec::new();
     for item in items {
-        lines.push(list_item("- ", item, width, wrap));
+        lines.push(list_item("- ", item, width, wrap, smart));
     }
     lines.join(if loose { "\n\n" } else { "\n" })
 }
@@ -172,11 +185,12 @@ fn ordered_list(
     items: &[Vec<Block>],
     width: usize,
     wrap: WrapMode,
+    smart: bool,
 ) -> String {
     let loose = !list_is_tight(items);
     let mut lines = Vec::new();
     for item in items {
-        lines.push(list_item("+ ", item, width, wrap));
+        lines.push(list_item("+ ", item, width, wrap, smart));
     }
     let body = lines.join(if loose { "\n\n" } else { "\n" });
     if is_default_enum(attrs) {
@@ -230,8 +244,8 @@ fn enum_numbering(attrs: &ListAttributes) -> String {
 
 /// Render one list item: the marker on its first line, with every continuation line indented to
 /// align under the marker's text column.
-fn list_item(marker: &str, item: &[Block], width: usize, wrap: WrapMode) -> String {
-    let body = blocks(item, width, wrap);
+fn list_item(marker: &str, item: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
+    let body = blocks(item, width, wrap, smart);
     let indent = " ".repeat(marker.len());
     let mut out = String::new();
     for (index, line) in body.lines().enumerate() {
@@ -250,6 +264,7 @@ fn definition_list(
     items: &[(Vec<Inline>, Vec<Vec<Block>>)],
     width: usize,
     wrap: WrapMode,
+    smart: bool,
 ) -> String {
     let mut lines = Vec::new();
     for (term, definitions) in items {
@@ -257,10 +272,11 @@ fn definition_list(
             &definitions.iter().flatten().cloned().collect::<Vec<_>>(),
             width,
             wrap,
+            smart,
         );
         lines.push(format!(
             "/ {}: #block[\n{body}\n]",
-            escape_term_colons(&inline_run(term, width, wrap))
+            escape_term_colons(&inline_run(term, width, wrap, smart))
         ));
     }
     lines.join("\n")
@@ -285,16 +301,16 @@ fn escape_term_colons(term: &str) -> String {
     out
 }
 
-fn line_block(lines: &[Vec<Inline>], width: usize, wrap: WrapMode) -> String {
+fn line_block(lines: &[Vec<Inline>], width: usize, wrap: WrapMode, smart: bool) -> String {
     let rendered: Vec<String> = lines
         .iter()
-        .map(|line| inline_run(line, width, wrap))
+        .map(|line| inline_run(line, width, wrap, smart))
         .collect();
     rendered.join(" \\ ")
 }
 
-fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode) -> String {
-    let body = blocks(items, width, wrap);
+fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
+    let body = blocks(items, width, wrap, smart);
     let trailing = match items.last() {
         Some(Block::Plain(_)) => "",
         _ => "\n",
@@ -306,14 +322,14 @@ fn div(attr: &Attr, items: &[Block], width: usize, wrap: WrapMode) -> String {
     }
 }
 
-fn figure(caption: &Caption, items: &[Block], width: usize, wrap: WrapMode) -> String {
+fn figure(caption: &Caption, items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
     let inner = match figure_image(items) {
         Some(image) => image,
-        None => format!("[{}]", blocks(items, width, wrap)),
+        None => format!("[{}]", blocks(items, width, wrap, smart)),
     };
     format!(
         "#figure({inner},\n  caption: [\n    {}\n  ]\n)",
-        blocks(&caption.long, width, wrap).trim_end_matches('\n')
+        blocks(&caption.long, width, wrap, smart).trim_end_matches('\n')
     )
 }
 
@@ -329,7 +345,7 @@ fn figure_image(items: &[Block]) -> Option<String> {
     }
 }
 
-fn render_table(table: &Table, width: usize, wrap: WrapMode) -> String {
+fn render_table(table: &Table, width: usize, wrap: WrapMode, smart: bool) -> String {
     let columns = table_columns(table);
     let aligns = table_aligns(table);
     let mut grid = String::new();
@@ -342,18 +358,18 @@ fn render_table(table: &Table, width: usize, wrap: WrapMode) -> String {
         let _ = writeln!(
             grid,
             "    table.header({},),",
-            render_row(&cells, "    table.header(", 6, width, wrap)
+            render_row(&cells, "    table.header(", 6, width, wrap, smart)
         );
         grid.push_str("    table.hline(),\n");
     }
 
     for body in &table.bodies {
         let head = collect_rows(&body.head);
-        emit_rows(&mut grid, &head, width, wrap);
+        emit_rows(&mut grid, &head, width, wrap, smart);
         if !head.is_empty() {
             grid.push_str("    table.hline(),\n");
         }
-        emit_rows(&mut grid, &collect_rows(&body.body), width, wrap);
+        emit_rows(&mut grid, &collect_rows(&body.body), width, wrap, smart);
     }
 
     let foot_rows = collect_rows(&table.foot.rows);
@@ -363,7 +379,7 @@ fn render_table(table: &Table, width: usize, wrap: WrapMode) -> String {
         let _ = writeln!(
             grid,
             "    table.footer({},),",
-            render_row(&cells, "    table.footer(", 6, width, wrap)
+            render_row(&cells, "    table.footer(", 6, width, wrap, smart)
         );
     }
 
@@ -372,7 +388,7 @@ fn render_table(table: &Table, width: usize, wrap: WrapMode) -> String {
         let _ = writeln!(
             out,
             "  , caption: {}",
-            table_caption(&table.caption.long, width)
+            table_caption(&table.caption.long, width, smart)
         );
     }
     out.push_str("  , kind: table\n  )");
@@ -384,11 +400,11 @@ fn render_table(table: &Table, width: usize, wrap: WrapMode) -> String {
 
 /// Render a table caption within `[..]`. A single inline block stays on one line; richer content is
 /// laid out as an indented block, two columns in.
-fn table_caption(content: &[Block], width: usize) -> String {
+fn table_caption(content: &[Block], width: usize, smart: bool) -> String {
     if let [Block::Plain(inlines) | Block::Para(inlines)] = content {
-        format!("[{}]", inline_run(inlines, width, WrapMode::Auto))
+        format!("[{}]", inline_run(inlines, width, WrapMode::Auto, smart))
     } else {
-        let mut body = blocks(content, width, WrapMode::Auto);
+        let mut body = blocks(content, width, WrapMode::Auto, smart);
         if !matches!(content.last(), Some(Block::Plain(_))) {
             body.push('\n');
         }
@@ -396,16 +412,27 @@ fn table_caption(content: &[Block], width: usize) -> String {
     }
 }
 
-fn emit_rows(grid: &mut String, rows: &[Vec<&Cell>], width: usize, wrap: WrapMode) {
+fn emit_rows(grid: &mut String, rows: &[Vec<&Cell>], width: usize, wrap: WrapMode, smart: bool) {
     for row in rows {
-        let _ = writeln!(grid, "    {},", render_row(row, "    ", 4, width, wrap));
+        let _ = writeln!(
+            grid,
+            "    {},",
+            render_row(row, "    ", 4, width, wrap, smart)
+        );
     }
 }
 
 /// Render a row's cells as a `, `-joined sequence. Each cell's content is laid out from the column
 /// where its opening bracket falls (so a long cell wraps against the fill column), which depends on
 /// the `prefix` that opens the row line and the widths of the cells before it.
-fn render_row(row: &[&Cell], prefix: &str, indent: usize, width: usize, wrap: WrapMode) -> String {
+fn render_row(
+    row: &[&Cell],
+    prefix: &str,
+    indent: usize,
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) -> String {
     let mut out = String::new();
     let mut column = display_width(prefix);
     for (index, cell) in row.iter().enumerate() {
@@ -413,7 +440,7 @@ fn render_row(row: &[&Cell], prefix: &str, indent: usize, width: usize, wrap: Wr
             out.push_str(", ");
             column += 2;
         }
-        let rendered = table_cell(cell, column, indent, width, wrap);
+        let rendered = table_cell(cell, column, indent, width, wrap, smart);
         match rendered.rfind('\n') {
             Some(position) => column = display_width(&rendered[position + 1..]),
             None => column += display_width(&rendered),
@@ -468,7 +495,14 @@ fn alignment(value: &Alignment) -> &'static str {
     }
 }
 
-fn table_cell(cell: &Cell, column: usize, indent: usize, width: usize, wrap: WrapMode) -> String {
+fn table_cell(
+    cell: &Cell,
+    column: usize,
+    indent: usize,
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) -> String {
     let mut spans = Vec::new();
     if cell.col_span != 1 {
         spans.push(format!("colspan: {}", cell.col_span));
@@ -483,7 +517,7 @@ fn table_cell(cell: &Cell, column: usize, indent: usize, width: usize, wrap: Wra
     let bracket_column = column + display_width(&prefix);
     format!(
         "{prefix}{}",
-        cell_content(&cell.content, bracket_column, indent, width, wrap)
+        cell_content(&cell.content, bracket_column, indent, width, wrap, smart)
     )
 }
 
@@ -496,12 +530,13 @@ fn cell_content(
     indent: usize,
     width: usize,
     wrap: WrapMode,
+    smart: bool,
 ) -> String {
     let pad = " ".repeat(indent);
     match content {
         [Block::Plain(inlines) | Block::Para(inlines)] => {
             let filled = fill_cell(
-                &fragments(inlines, width, wrap),
+                &fragments(inlines, width, wrap, smart),
                 bracket_column + 1,
                 indent,
                 width,
@@ -511,7 +546,7 @@ fn cell_content(
         }
         [] => "[]".to_owned(),
         blocks_value => {
-            let mut body = blocks(blocks_value, width, wrap);
+            let mut body = blocks(blocks_value, width, wrap, smart);
             if !matches!(blocks_value.last(), Some(Block::Plain(_))) {
                 body.push('\n');
             }
@@ -536,16 +571,16 @@ fn indent_continuation(body: &str, indent: &str) -> String {
 }
 
 /// Render inline content laid out per the document's wrap mode (paragraph context).
-fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode) -> String {
-    fill(&fragments(items, width, wrap), width, wrap)
+fn fill_inlines(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> String {
+    fill(&fragments(items, width, wrap, smart), width, wrap)
 }
 
 /// Render inline content without wrapping, single-spacing the breakable units (nested markup
 /// context, where the surrounding construct controls layout). A nested footnote's body still
 /// reflows per the document `wrap`.
-fn inline_run(items: &[Inline], width: usize, wrap: WrapMode) -> String {
+fn inline_run(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> String {
     let mut out = String::new();
-    for fragment in fragments(items, width, wrap) {
+    for fragment in fragments(items, width, wrap, smart) {
         match fragment {
             Fragment::Text(text) | Fragment::Atom(text) => out.push_str(&text),
             Fragment::Space | Fragment::Soft => out.push(' '),
@@ -558,7 +593,7 @@ fn inline_run(items: &[Inline], width: usize, wrap: WrapMode) -> String {
 /// Build the fragment stream for an inline sequence. A leading `(` on the very first text fragment is
 /// escaped here (the only character whose escape depends on opening the whole sequence rather than a
 /// physical line).
-fn fragments(items: &[Inline], width: usize, wrap: WrapMode) -> Vec<Fragment> {
+fn fragments(items: &[Inline], width: usize, wrap: WrapMode, smart: bool) -> Vec<Fragment> {
     let mut out = Vec::new();
     let mut after_space = true;
     let mut first_inline = true;
@@ -566,34 +601,39 @@ fn fragments(items: &[Inline], width: usize, wrap: WrapMode) -> Vec<Fragment> {
         let next_after_space = matches!(item, Inline::Space | Inline::SoftBreak);
         match item {
             Inline::Str(text) => {
-                out.push(Fragment::Text(escape_text(text, after_space, first_inline)));
+                out.push(Fragment::Text(escape_text(
+                    text,
+                    after_space,
+                    first_inline,
+                    smart,
+                )));
                 first_inline = false;
             }
             Inline::Space => out.push(Fragment::Space),
             Inline::SoftBreak => out.push(Fragment::Soft),
             Inline::LineBreak => out.push(Fragment::LineBreak),
             Inline::Emph(inner) => {
-                extend_wrapped(&mut out, inner, "#emph[", "]", width, wrap);
+                extend_wrapped(&mut out, inner, "#emph[", "]", width, wrap, smart);
                 first_inline = false;
             }
             Inline::Strong(inner) => {
-                extend_wrapped(&mut out, inner, "#strong[", "]", width, wrap);
+                extend_wrapped(&mut out, inner, "#strong[", "]", width, wrap, smart);
                 first_inline = false;
             }
             Inline::Strikeout(inner) => {
-                extend_wrapped(&mut out, inner, "#strike[", "]", width, wrap);
+                extend_wrapped(&mut out, inner, "#strike[", "]", width, wrap, smart);
                 first_inline = false;
             }
             Inline::Underline(inner) => {
-                extend_wrapped(&mut out, inner, "#underline[", "]", width, wrap);
+                extend_wrapped(&mut out, inner, "#underline[", "]", width, wrap, smart);
                 first_inline = false;
             }
             Inline::SmallCaps(inner) => {
-                extend_wrapped(&mut out, inner, "#smallcaps[", "]", width, wrap);
+                extend_wrapped(&mut out, inner, "#smallcaps[", "]", width, wrap, smart);
                 first_inline = false;
             }
             Inline::Quoted(kind, inner) => {
-                let (open, close) = quote_marks(kind);
+                let (open, close) = quote_marks(kind, smart);
                 extend_wrapped(
                     &mut out,
                     inner,
@@ -601,20 +641,28 @@ fn fragments(items: &[Inline], width: usize, wrap: WrapMode) -> Vec<Fragment> {
                     &close.to_string(),
                     width,
                     wrap,
+                    smart,
                 );
                 first_inline = false;
             }
             Inline::Span(attr, inner) if attr.id.is_empty() => {
                 let (open, close) = span_wrapper(attr);
-                extend_wrapped(&mut out, inner, open, close, width, wrap);
+                extend_wrapped(&mut out, inner, open, close, width, wrap, smart);
                 first_inline = false;
             }
             Inline::Span(attr, inner) => {
-                out.push(Fragment::Atom(span(attr, inner, first_inline, width, wrap)));
+                out.push(Fragment::Atom(span(
+                    attr,
+                    inner,
+                    first_inline,
+                    width,
+                    wrap,
+                    smart,
+                )));
                 first_inline = false;
             }
             other => {
-                let rendered = inline(other, width, wrap);
+                let rendered = inline(other, width, wrap, smart);
                 if !rendered.is_empty() {
                     out.push(Fragment::Atom(rendered));
                     first_inline = false;
@@ -638,8 +686,9 @@ fn extend_wrapped(
     close: &str,
     width: usize,
     wrap: WrapMode,
+    smart: bool,
 ) {
-    let mut inner = fragments(items, width, wrap);
+    let mut inner = fragments(items, width, wrap, smart);
     let is_textual =
         |fragment: &Fragment| matches!(fragment, Fragment::Text(_) | Fragment::Atom(_));
     match inner.iter().position(is_textual) {
@@ -803,35 +852,41 @@ fn escape_open_marker(word: &str) -> String {
     }
 }
 
-fn inline(value: &Inline, width: usize, wrap: WrapMode) -> String {
+fn inline(value: &Inline, width: usize, wrap: WrapMode, smart: bool) -> String {
     match value {
-        Inline::Str(text) => escape_text(text, true, false),
-        Inline::Emph(items) => format!("#emph[{}]", inline_run(items, width, wrap)),
-        Inline::Strong(items) => format!("#strong[{}]", inline_run(items, width, wrap)),
-        Inline::Underline(items) => format!("#underline[{}]", inline_run(items, width, wrap)),
-        Inline::Strikeout(items) => format!("#strike[{}]", inline_run(items, width, wrap)),
-        Inline::Superscript(items) => format!("#super[{}]", inline_run(items, width, wrap)),
-        Inline::Subscript(items) => format!("#sub[{}]", inline_run(items, width, wrap)),
-        Inline::SmallCaps(items) => format!("#smallcaps[{}]", inline_run(items, width, wrap)),
+        Inline::Str(text) => escape_text(text, true, false, smart),
+        Inline::Emph(items) => format!("#emph[{}]", inline_run(items, width, wrap, smart)),
+        Inline::Strong(items) => format!("#strong[{}]", inline_run(items, width, wrap, smart)),
+        Inline::Underline(items) => {
+            format!("#underline[{}]", inline_run(items, width, wrap, smart))
+        }
+        Inline::Strikeout(items) => format!("#strike[{}]", inline_run(items, width, wrap, smart)),
+        Inline::Superscript(items) => format!("#super[{}]", inline_run(items, width, wrap, smart)),
+        Inline::Subscript(items) => format!("#sub[{}]", inline_run(items, width, wrap, smart)),
+        Inline::SmallCaps(items) => {
+            format!("#smallcaps[{}]", inline_run(items, width, wrap, smart))
+        }
         Inline::Quoted(kind, items) => {
-            let (open, close) = quote_marks(kind);
-            format!("{open}{}{close}", inline_run(items, width, wrap))
+            let (open, close) = quote_marks(kind, smart);
+            format!("{open}{}{close}", inline_run(items, width, wrap, smart))
         }
         Inline::Cite(citations, _) => cite(citations),
         Inline::Code(_, text) => inline_code(text),
         Inline::Space | Inline::SoftBreak => " ".to_owned(),
         Inline::LineBreak => " \\ ".to_owned(),
-        Inline::Math(kind, text) => math(kind, text),
+        Inline::Math(kind, text) => math(kind, text, smart),
         Inline::RawInline(format, text) => raw_inline_passthrough(format, text),
-        Inline::Link(_, items, target) => link(items, target, width, wrap),
+        Inline::Link(_, items, target) => link(items, target, width, wrap, smart),
         Inline::Image(attr, alt, target) => format!("#box({})", image_call(attr, alt, target)),
-        Inline::Note(blocks) => format!("#footnote[{}]", self_blocks(blocks, width, wrap)),
-        Inline::Span(attr, items) => span(attr, items, false, width, wrap),
+        Inline::Note(blocks) => format!("#footnote[{}]", self_blocks(blocks, width, wrap, smart)),
+        Inline::Span(attr, items) => span(attr, items, false, width, wrap, smart),
     }
 }
 
-fn self_blocks(items: &[Block], width: usize, wrap: WrapMode) -> String {
-    blocks(items, width, wrap).trim_end_matches('\n').to_owned()
+fn self_blocks(items: &[Block], width: usize, wrap: WrapMode, smart: bool) -> String {
+    blocks(items, width, wrap, smart)
+        .trim_end_matches('\n')
+        .to_owned()
 }
 
 fn cite(citations: &[carta_ast::Citation]) -> String {
@@ -842,7 +897,7 @@ fn cite(citations: &[carta_ast::Citation]) -> String {
     out
 }
 
-fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode) -> String {
+fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode, smart: bool) -> String {
     let plain = to_plain_text(items);
     let url = escape_string(&target.url);
     if plain == target.url {
@@ -850,7 +905,7 @@ fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode) -> Stri
     } else {
         // The label is laid out at unbounded width so it is never reflowed (the link is one unit for
         // wrapping), yet a source line break inside it is still kept under `Preserve`.
-        let label = fill(&fragments(items, width, wrap), usize::MAX, wrap);
+        let label = fill(&fragments(items, width, wrap, smart), usize::MAX, wrap);
         format!("#link(\"{url}\")[{label}]")
     }
 }
@@ -858,15 +913,22 @@ fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode) -> Stri
 /// Render a span: its semantic classes select a wrapper, then a trailing id label. A label opening
 /// the inline sequence is anchored with a leading zero-width space so it does not attach to the
 /// preceding markup.
-fn span(attr: &Attr, items: &[Inline], at_start: bool, width: usize, wrap: WrapMode) -> String {
+fn span(
+    attr: &Attr,
+    items: &[Inline],
+    at_start: bool,
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) -> String {
     let content = if attr.classes.iter().any(|class| class == "mark") {
-        format!("#highlight[{}]", inline_run(items, width, wrap))
+        format!("#highlight[{}]", inline_run(items, width, wrap, smart))
     } else if attr.classes.iter().any(|class| class == "underline") {
-        format!("#underline[{}]", inline_run(items, width, wrap))
+        format!("#underline[{}]", inline_run(items, width, wrap, smart))
     } else if attr.classes.iter().any(|class| class == "smallcaps") {
-        format!("#smallcaps[{}]", inline_run(items, width, wrap))
+        format!("#smallcaps[{}]", inline_run(items, width, wrap, smart))
     } else {
-        inline_run(items, width, wrap)
+        inline_run(items, width, wrap, smart)
     };
     match label(&attr.id) {
         Some(rendered) if at_start => format!("\u{200b}{content}{rendered}"),
@@ -931,14 +993,14 @@ fn trim_decimals(text: &str) -> String {
 /// Render a math expression as Typst. The source is translated to Typst's native math markup when
 /// possible; an expression with no Typst equivalent is emitted verbatim, with its TeX delimiters
 /// reconstructed and the whole run escaped as ordinary markup text.
-fn math(kind: &MathType, text: &str) -> String {
+fn math(kind: &MathType, text: &str, smart: bool) -> String {
     let display = matches!(kind, MathType::DisplayMath);
     let Some(math) = crate::math::to_typst_labeled(text, display) else {
         let verbatim = match kind {
             MathType::InlineMath => format!("${text}$"),
             MathType::DisplayMath => format!("$${text}$$"),
         };
-        return escape_text(&verbatim, false, true);
+        return escape_text(&verbatim, false, true, smart);
     };
     let crate::math::TypstMath { body, label } = math;
     // An equation `\label` is set as a Typst reference label immediately after the closing `$`.
@@ -977,10 +1039,12 @@ fn raw_passthrough(format: &Format, text: &str) -> String {
     }
 }
 
-fn quote_marks(kind: &QuoteType) -> (char, char) {
-    match kind {
-        QuoteType::SingleQuote => ('\'', '\''),
-        QuoteType::DoubleQuote => ('"', '"'),
+fn quote_marks(kind: &QuoteType, smart: bool) -> (char, char) {
+    match (kind, smart) {
+        (QuoteType::SingleQuote, true) => ('\'', '\''),
+        (QuoteType::DoubleQuote, true) => ('"', '"'),
+        (QuoteType::SingleQuote, false) => ('\u{2018}', '\u{2019}'),
+        (QuoteType::DoubleQuote, false) => ('\u{201C}', '\u{201D}'),
     }
 }
 
@@ -991,7 +1055,7 @@ fn quote_marks(kind: &QuoteType) -> (char, char) {
 /// it opens a token that is not preceded by a space; a `-` or `/` directly following one of its own
 /// kind is escaped. En/em dashes are spelled `--`/`---`. The leading `- + = /` line markers are left
 /// for the fill pass, which escapes them only at a physical line start.
-fn escape_text(text: &str, after_space: bool, first_text: bool) -> String {
+fn escape_text(text: &str, after_space: bool, first_text: bool, smart: bool) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
     for (index, &ch) in chars.iter().enumerate() {
@@ -1010,7 +1074,12 @@ fn escape_text(text: &str, after_space: bool, first_text: bool) -> String {
             '-' | '/' => previous == Some(&ch),
             _ => false,
         };
-        if let Some(replacement) = smart_replacement(ch) {
+        // The non-breaking space is Typst's structural `~` shortcut, independent of smart punctuation.
+        if ch == '\u{00A0}' {
+            out.push('~');
+            continue;
+        }
+        if smart && let Some(replacement) = smart_replacement(ch) {
             out.push_str(replacement);
             continue;
         }
@@ -1023,15 +1092,13 @@ fn escape_text(text: &str, after_space: bool, first_text: bool) -> String {
 }
 
 /// The literal spelling Typst markup uses for a punctuation character that has a typographic form:
-/// dashes become their hyphen runs, smart quotes their straight equivalents, and a non-breaking
-/// space the `~` shortcut.
+/// dashes become their hyphen runs and smart quotes their straight equivalents.
 fn smart_replacement(ch: char) -> Option<&'static str> {
     match ch {
         '\u{2013}' => Some("--"),
         '\u{2014}' => Some("---"),
         '\u{2018}' | '\u{2019}' => Some("'"),
         '\u{201C}' | '\u{201D}' => Some("\""),
-        '\u{00A0}' => Some("~"),
         _ => None,
     }
 }
@@ -1052,15 +1119,22 @@ fn escape_string(text: &str) -> String {
 mod tests {
     use super::*;
     use carta_ast::Document;
+    use carta_core::Extensions;
+
+    fn smart_options() -> WriterOptions {
+        // `-t typst` defaults to `smart` on (see `default_extensions` in `format_spec`); the writer
+        // unit tests mirror that default so they exercise the smart-on rendering path.
+        let mut options = WriterOptions::default();
+        options.extensions = Extensions::from_list(&[Extension::Smart]);
+        options
+    }
 
     fn render(blocks: Vec<Block>) -> String {
         let document = Document {
             blocks,
             ..Document::default()
         };
-        TypstWriter
-            .write(&document, &WriterOptions::default())
-            .unwrap()
+        TypstWriter.write(&document, &smart_options()).unwrap()
     }
 
     fn para(inlines: Vec<Inline>) -> Block {
@@ -1182,7 +1256,7 @@ mod tests {
             blocks,
             ..Document::default()
         };
-        let mut options = WriterOptions::default();
+        let mut options = smart_options();
         options.columns = Some(columns);
         TypstWriter.write(&document, &options).unwrap()
     }
