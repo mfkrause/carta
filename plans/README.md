@@ -30,7 +30,7 @@ findings are recorded below so they aren't re-audited.
 | 006 | CommonMark reader: low-complexity extension set (strikeout, sub/superscript, hard_line_breaks, task_lists, raw_html) | P1 | M | — | DONE |
 | 007 | Standalone output + template engine (folds in the metadata/variable context it requires) | P1 | L | — | DONE (on `feat/standalone-templates`; engine + 13 default templates + identity vars + `-s`/`--template`/`-M`/`-V`/`--metadata-file`. Full conformance suite green across all surfaces; STATUS rows flipped. Awaiting operator merge) |
 | 008 | Finish the HTML reader (extension toggles, footnote reconstruction, shared inline-scanner module) | P1 | L | 006 (soft) | TODO |
-| 009 | Writer extension toggles (drive the Markdown engine + text writers by the effective `Extensions` set; new Markdown dialects + `commonmark_x` writer) | P1 | L | 006 (soft) | TODO |
+| 009 | Writer extension toggles (drive the Markdown engine + text writers by the effective `Extensions` set; new Markdown dialects + `commonmark_x` writer) | P1 | L | 006 (soft) | DONE (on `feat/009-writer-extension-toggles`, head `653a8f6`. `Variant` removed; Markdown engine is `Extensions`-driven with `markdown`/`gfm` byte-identical; `commonmark_x` + `markdown_{strict,mmd,phpextra,github}` dialects wired; `smart` honored by `latex`/`beamer`/`rst`/`plain`/`typst`. `ast-ext` corpus + writer-ext conformance group green. Two notes: `typst` smart was wired despite §2 listing it out-of-scope — empirical probing showed a real parity gap (see §10 follow-up); and `rst` does not yet backslash-escape literal ASCII `--`/`...` under non-default `+smart`) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
