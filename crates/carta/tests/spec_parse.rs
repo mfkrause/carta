@@ -5,6 +5,8 @@
 
 // Integration-test harness code: panicking on a known example is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The net parses CommonMark spec examples, so it only applies when that reader is compiled in.
+#![cfg(feature = "read-commonmark")]
 
 use carta::ReaderOptions;
 
