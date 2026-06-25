@@ -12,7 +12,7 @@
 
 ## Status
 
-- **Status**: DONE (2026-06-24)
+- **Status**: DONE (2026-06-24; residual closed and reader flipped to ✅ 2026-06-25)
 - **Priority**: P1
 - **Effort**: L (one reader, but the shared-scanner extraction touches the CommonMark inline parser
   and must keep its snapshots byte-identical; that refactor is the subtle part)
@@ -554,3 +554,33 @@ keeps the reader cell 🚧 to match.
 - **Deferred:** none from this plan. The commonmark writer's line-wrap of a long raw-HTML inline
   differs from the oracle (surfaced by the citation e2e case); that is a writer concern (plan 009
   territory), so the reader-layer `citation.html` sample was kept short enough not to wrap.
+
+## Residual closed (2026-06-25)
+
+The one residual the 2026-06-24 pass left open is fixed; the reader is now **✅**.
+
+Re-probing the oracle showed the §3.12 "script/style at parity" framing was incomplete and the
+2026-06-24 gap note was inaccurate on two counts: the divergence is not blank-line-gated, and
+unrecognized elements (`<link>`, `<meta>`, `<noscript>`, `<template>`, `<foo>`) are already at
+parity. The actual gap was narrow — a `<style>` carrying document CSS that sits in body flow: the
+oracle keeps it verbatim as `Para [RawInline (Format "html") …]`; carta dropped it.
+
+The discriminator is purely the node immediately before the `<style>`: with *any* preceding sibling
+(even a whitespace text node) it is body content and kept; with none (a document head, or the leading
+node of a block run) it is metadata and dropped. The reader already emitted the exact `RawInline`
+for a mid-text `<style>` via the inline path, so the fix is a one-condition narrowing in the block
+walk (`is_blank_run` → `pending.is_empty()`); adjacent styles and surrounding whitespace fold into
+one paragraph through the existing flush, byte-for-byte with the oracle (single style →
+`Para [RawInline]`, two styles → one `Para` with a `SoftBreak`, attributes serialized faithfully,
+`Plain`-vs-`Para` promotion intact).
+
+- **Fix + tests + corpus** (`4d5e238`): the block-walk condition; three reader unit tests
+  (kept-after-a-block, dropped-when-adjacent, adjacent-styles-share-a-paragraph); a
+  `corpus/text/html/raw-style.html` golden that also round-trips clean through every e2e target.
+- **Verification**: a 30-case oracle differential sweep (leading / adjacent / whitespace / nested /
+  explicit-body / head / attrs / raw `<>&` content / non-paraish neighbors / script / comment)
+  byte-identical; full gate re-run green — `nextest --workspace` (1351), `--doc`,
+  `clippy --all-targets --all-features`, `fmt --check`, the minimal `read-html,write-json` build +
+  nextest, and `run.sh all` (every surface fail=0 err=0, e2e html 64).
+- **Docs**: `docs/STATUS.md` reworded to the accurate `<style>` rule with the gap table removed; the
+  reader cell flipped to **✅** in `docs/STATUS.md` and `README.md`.
