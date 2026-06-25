@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+“hello” ‘world’ “x” ‘y’ en–dash em—dash wait…
+\end{frame}

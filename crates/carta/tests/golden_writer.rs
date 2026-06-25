@@ -71,3 +71,28 @@ fn writer_output_snapshots() {
         }
     }
 }
+
+/// Extension-toggle golden pass: each `corpus/ast-ext/<spec>/*` directory is named for the full
+/// target format spec (e.g. `markdown-fenced_divs`, `latex-smart`) it is rendered with. `convert`
+/// resolves the spec's base writer and the `±toggle` extensions, so this freezes the toggled output
+/// that the default `corpus/ast` pass (which only renders bare format names) never reaches. A spec
+/// whose base writer is not compiled into this build is skipped.
+#[test]
+fn writer_ext_output_snapshots() {
+    let writers = carta::supported_output_formats();
+    for case in corpus_cases("ast-ext") {
+        let base = case.group.split(['+', '-']).next().unwrap_or(&case.group);
+        if !writers.contains(&base) {
+            continue;
+        }
+        let output = carta::convert(
+            "json",
+            &case.group,
+            &case.input,
+            &ReaderOptions::default(),
+            &WriterOptions::default(),
+        )
+        .unwrap_or_else(|error| panic!("convert json -> {} {}: {error}", case.group, case.label));
+        insta::assert_snapshot!(format!("ast-ext__{}__{}", case.group, case.label), output);
+    }
+}
