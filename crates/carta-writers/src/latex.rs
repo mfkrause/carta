@@ -591,6 +591,7 @@ fn line_block(
         .join("\\\\\n")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn figure(
     attr: &Attr,
     caption: &Caption,
@@ -1289,6 +1290,7 @@ fn inline_pieces(
     out
 }
 
+#[allow(clippy::too_many_lines)]
 fn push_inline(
     inline: &Inline,
     out: &mut Vec<Piece>,
@@ -1421,6 +1423,7 @@ fn wrap_command(
     out.push(Piece::Text("}".to_owned()));
 }
 
+#[allow(clippy::too_many_arguments)]
 fn push_link(
     attr: &Attr,
     inlines: &[Inline],
