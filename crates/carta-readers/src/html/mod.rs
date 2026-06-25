@@ -609,6 +609,44 @@ mod tests {
     }
 
     #[test]
+    fn style_after_a_block_is_kept_as_a_raw_paragraph() {
+        let result = blocks("<p>a</p>\n<style>.x{}</style>\n<p>b</p>");
+        let [Block::Para(_), Block::Para(mid), Block::Para(_)] = result.as_slice() else {
+            panic!("expected three paragraphs");
+        };
+        assert!(matches!(
+            mid.as_slice(),
+            [Inline::RawInline(format, text)]
+                if format.0 == "html" && text == "<style>.x{}</style>"
+        ));
+    }
+
+    #[test]
+    fn style_directly_adjacent_to_a_block_is_dropped() {
+        assert!(matches!(
+            blocks("<p>a</p><style>.x{}</style><p>b</p>").as_slice(),
+            [Block::Para(_), Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn adjacent_styles_share_one_raw_paragraph() {
+        let result = blocks("<p>a</p>\n<style>s1{}</style>\n<style>s2{}</style>\n<p>b</p>");
+        let [_, Block::Para(mid), _] = result.as_slice() else {
+            panic!("expected three paragraphs");
+        };
+        assert!(matches!(
+            mid.as_slice(),
+            [
+                Inline::RawInline(f1, t1),
+                Inline::SoftBreak,
+                Inline::RawInline(f2, t2),
+            ] if f1.0 == "html" && t1 == "<style>s1{}</style>"
+                && f2.0 == "html" && t2 == "<style>s2{}</style>"
+        ));
+    }
+
+    #[test]
     fn math_script_becomes_inline_math() {
         let inlines = para_inlines(r#"<p><script type="math/tex">\D</script></p>"#);
         assert!(matches!(
