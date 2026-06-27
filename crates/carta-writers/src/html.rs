@@ -856,22 +856,32 @@ impl State {
         );
     }
 
-    /// Render a footnote's blocks, appending the backlink inside the final paragraph when the last
-    /// block is one, else as a bare trailing element (an unwrapped `Plain`) of its own. The body is
-    /// returned as its own value because notes are gathered for a trailing section.
+    /// Render a footnote's blocks, appending the backlink inline after the final block's content
+    /// when that block is a paragraph (wrapped in `<p>`) or an unwrapped `Plain`; for any other
+    /// trailing block the backlink follows on its own line. The body is returned as its own value
+    /// because notes are gathered for a trailing section.
     fn note_body(&mut self, blocks: &[Block], backlink: &str) -> String {
         let mut body = String::new();
-        if let Some((Block::Para(inlines), rest)) = blocks.split_last() {
-            self.blocks(&mut body, rest);
-            append_trailing_newline(&mut body);
-            body.push_str("<p>");
-            self.inlines(&mut body, inlines);
-            body.push_str(backlink);
-            body.push_str("</p>");
-        } else {
-            self.blocks(&mut body, blocks);
-            append_trailing_newline(&mut body);
-            body.push_str(backlink);
+        match blocks.split_last() {
+            Some((Block::Para(inlines), rest)) => {
+                self.blocks(&mut body, rest);
+                append_trailing_newline(&mut body);
+                body.push_str("<p>");
+                self.inlines(&mut body, inlines);
+                body.push_str(backlink);
+                body.push_str("</p>");
+            }
+            Some((Block::Plain(inlines), rest)) => {
+                self.blocks(&mut body, rest);
+                append_trailing_newline(&mut body);
+                self.inlines(&mut body, inlines);
+                body.push_str(backlink);
+            }
+            _ => {
+                self.blocks(&mut body, blocks);
+                append_trailing_newline(&mut body);
+                body.push_str(backlink);
+            }
         }
         body
     }

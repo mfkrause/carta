@@ -3,7 +3,8 @@
 #
 # For each `corpus/ast/<feature>/*.json` not excluded for the target, compare
 # `carta -f json -t <target>` against `pandoc -f json -t <target>` (with oracle normalization).
-# JSON targets compare structurally; every other target compares as text. Excluded
+# The AST-interchange target compares structurally, notebooks after canonicalizing each cell's
+# random id, every other target as text. Excluded
 # (target, feature) pairs from exclusions.tsv are skipped and counted. On a full run (no target
 # argument) the extension-toggle group below also runs.
 #
@@ -12,14 +13,14 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-TARGETS="html html4 latex rst plain commonmark commonmark_x markdown markdown_github markdown_phpextra markdown_mmd markdown_strict gfm mediawiki native json typst dokuwiki jira asciidoc man opml beamer revealjs"
+TARGETS="html html4 latex rst plain commonmark commonmark_x markdown markdown_github markdown_phpextra markdown_mmd markdown_strict gfm mediawiki native json typst dokuwiki jira asciidoc man opml beamer revealjs ipynb"
 EXT_RUN=1
 [ $# -gt 0 ] && { TARGETS="$1"; EXT_RUN=0; }
 
 for target in $TARGETS; do
   conf_reset "writer-$target"
   norm="$(oracle_norm "$target")"
-  is_json_target "$target" && mode=json || mode=text
+  mode="$(compare_mode "$target")"
   for input in "$CORPUS"/ast/*/*.json; do
     [ -f "$input" ] || continue
     feature="$(basename "$(dirname "$input")")"
@@ -46,7 +47,7 @@ if [ "$EXT_RUN" = 1 ] && [ -d "$CORPUS/ast-ext" ]; then
     spec="$(basename "$spec_dir")"
     base="${spec%%[+-]*}"
     norm="$(oracle_norm "$base")"
-    is_json_target "$base" && mode=json || mode=text
+    mode="$(compare_mode "$base")"
     for input in "$spec_dir"/*.json; do
       [ -f "$input" ] || continue
       run_diff "$mode" "writer-ext/$spec/$(basename "$input")" "$input" \

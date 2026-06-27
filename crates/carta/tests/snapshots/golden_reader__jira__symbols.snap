@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Symbols"},{"t":"Space"},{"t":"Str","c":"👍"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"❌"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"❗"},{"t":"Space"},{"t":"Str","c":"here."}]},{"t":"Para","c":[{"t":"Str","c":"Ranges"},{"t":"Space"},{"t":"Str","c":"1--2"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"em"},{"t":"Space"},{"t":"Str","c":"—"},{"t":"Space"},{"t":"Str","c":"dash."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"—"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"quoted"},{"t":"Space"},{"t":"Str","c":"citation"}]},{"t":"Space"},{"t":"Str","c":"line."}]}]}

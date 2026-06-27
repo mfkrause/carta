@@ -1,0 +1,5 @@
+bq. A single quoted line.
+
+{quote}
+A quoted paragraph inside a block.
+{quote}

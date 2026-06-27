@@ -60,7 +60,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| reStructuredText (`rst`) | ❌ | ✅ |
+| reStructuredText (`rst`) | 🚧 | ✅ |
 | AsciiDoc (`asciidoc`) | ❌ | ✅ |
 | AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ❌ |
 | Asciidoctor (`asciidoctor`) | ➖ | ❌ |
@@ -75,9 +75,9 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| MediaWiki (`mediawiki`) | ❌ | ✅ |
-| DokuWiki (`dokuwiki`) | ❌ | ✅ |
-| Jira (`jira`) | ❌ | ✅ |
+| MediaWiki (`mediawiki`) | 🚧 | ✅ |
+| DokuWiki (`dokuwiki`) | 🚧 | ✅ |
+| Jira (`jira`) | 🚧 | ✅ |
 | Creole (`creole`) | ❌ | ➖ |
 | TikiWiki (`tikiwiki`) | ❌ | ➖ |
 | TWiki (`twiki`) | ❌ | ➖ |
@@ -89,7 +89,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| man (`man`) | ❌ | ✅ |
+| man (`man`) | 🚧 | ✅ |
 | mdoc (`mdoc`) | ❌ | ➖ |
 | ms (`ms`) | ➖ | ❌ |
 | vimdoc (`vimdoc`) | ➖ | ❌ |
@@ -102,7 +102,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | OpenDocument Text (`odt`) | ❌ | ❌ |
 | OpenDocument (`opendocument`) | ➖ | ❌ |
 | EPUB (`epub`, `epub2`, `epub3`) | ❌ | ❌ |
-| Jupyter Notebook (`ipynb`) | ❌ | ❌ |
+| Jupyter Notebook (`ipynb`) | 🚧 | 🚧 |
 | FictionBook2 (`fb2`) | ❌ | ❌ |
 | InDesign ICML (`icml`) | ➖ | ❌ |
 | Rich Text Format (`rtf`) | ❌ | ❌ |

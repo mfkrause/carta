@@ -51,6 +51,8 @@ pub mod commonmark;
 pub mod dokuwiki;
 #[cfg(feature = "html")]
 pub mod html;
+#[cfg(feature = "ipynb")]
+pub mod ipynb;
 #[cfg(feature = "jira")]
 pub mod jira;
 #[cfg(feature = "json")]
@@ -86,6 +88,8 @@ pub use commonmark::CommonmarkWriter;
 pub use dokuwiki::DokuwikiWriter;
 #[cfg(feature = "html")]
 pub use html::{Html4Writer, HtmlWriter};
+#[cfg(feature = "ipynb")]
+pub use ipynb::IpynbWriter;
 #[cfg(feature = "jira")]
 pub use jira::JiraWriter;
 #[cfg(feature = "json")]

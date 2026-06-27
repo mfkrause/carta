@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"introduces"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"indented"},{"t":"Space"},{"t":"Str","c":"code"},{"t":"Space"},{"t":"Str","c":"sample."}]},{"t":"CodeBlock","c":[["",[],[]],"this line is indented code\nso is this second line\n"]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"trailing"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"follows"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"sample."}]}]}

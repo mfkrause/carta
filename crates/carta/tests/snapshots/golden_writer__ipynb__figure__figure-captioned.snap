@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<figure>\n",
+    "<img src=\"pic.png\" title=\"fig title\" alt=\"a caption\" />\n",
+    "<figcaption aria-hidden=\"true\">a caption</figcaption>\n",
+    "</figure>"
+   ],
+   "id": "9d0bd2c5-f888-4a23-8e05-7691c7608bac"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

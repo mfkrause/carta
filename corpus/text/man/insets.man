@@ -1,0 +1,10 @@
+.TH T 1
+.SH INSETS
+Leading paragraph at the section level.
+.RS
+An inset paragraph one level in.
+.RS
+A further inset paragraph two levels in.
+.RE
+.RE
+Trailing paragraph back at the section level.

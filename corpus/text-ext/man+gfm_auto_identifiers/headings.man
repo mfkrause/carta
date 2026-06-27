@@ -1,0 +1,5 @@
+.TH T 1
+.SH "Special: Chars & Things!"
+A heading whose punctuation the identifier algorithm strips.
+.SH "Special: Chars & Things!"
+A repeated heading title disambiguated by a numeric suffix.

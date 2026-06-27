@@ -7,8 +7,9 @@
 //! column of 72.
 
 use carta_ast::{
-    Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, MetaValue,
-    QuoteType, Row, Table, Target, single_block_inlines, slug, to_plain_text,
+    Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, ListNumberDelim,
+    ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, Target, single_block_inlines,
+    slug, to_plain_text,
 };
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
@@ -342,10 +343,19 @@ impl State {
         items: &[Vec<Block>],
         width: usize,
     ) -> String {
+        // An unstyled list starting at 1 is written with the `#` auto-enumerator, which renumbers
+        // itself; an explicit style or a start past 1 needs literal numbers instead.
+        let auto_enumerated = attrs.start == 1
+            && matches!(attrs.style, ListNumberStyle::DefaultStyle)
+            && matches!(attrs.delim, ListNumberDelim::DefaultDelim);
         let markers: Vec<String> = (0..items.len())
             .map(|offset| {
-                let number = attrs.start.saturating_add(offset_as_i32(offset));
-                ordered_marker(number, &attrs.style, &attrs.delim)
+                if auto_enumerated {
+                    "#.".to_string()
+                } else {
+                    let number = attrs.start.saturating_add(offset_as_i32(offset));
+                    ordered_marker(number, &attrs.style, &attrs.delim)
+                }
             })
             .collect();
         let field = markers.iter().map(|m| m.chars().count()).max().unwrap_or(0) + 1;
@@ -1248,26 +1258,21 @@ fn is_simple_item(item: &[Block]) -> bool {
     item.is_empty() || matches!(item, [Block::Plain(_)])
 }
 
-/// Join already-rendered list items or definition groups. A list is tight only when every unit is a
-/// single line; one multi-line unit makes the whole list loose, separating all units with a blank
-/// line rather than a single newline. Empty units are dropped.
+/// Join already-rendered list items or definition groups. The gap before each unit depends on the
+/// one above it: a single-line unit is followed on the next line, a multi-line unit is followed
+/// across a blank line. Empty units are dropped and do not influence the gap around them.
 fn join_loose_items(units: Vec<(bool, String)>) -> String {
-    let separator = if units.iter().all(|(simple, _)| *simple) {
-        "\n"
-    } else {
-        "\n\n"
-    };
     let mut out = String::new();
-    let mut first = true;
-    for (_, text) in units {
+    let mut previous_simple: Option<bool> = None;
+    for (simple, text) in units {
         if text.is_empty() {
             continue;
         }
-        if !first {
-            out.push_str(separator);
+        if let Some(above_is_simple) = previous_simple {
+            out.push_str(if above_is_simple { "\n" } else { "\n\n" });
         }
         out.push_str(&text);
-        first = false;
+        previous_simple = Some(simple);
     }
     out
 }
@@ -1826,4 +1831,43 @@ fn split_at(inlines: &[Inline], is_separator: impl Fn(&Inline) -> bool) -> Vec<&
     }
     segments.push(inlines.get(start..).unwrap_or(&[]));
     segments
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unit(simple: bool, text: &str) -> (bool, String) {
+        (simple, text.to_string())
+    }
+
+    #[test]
+    fn all_single_line_units_join_tightly() {
+        let joined = join_loose_items(vec![unit(true, "a"), unit(true, "b"), unit(true, "c")]);
+        assert_eq!(joined, "a\nb\nc");
+    }
+
+    #[test]
+    fn all_multi_line_units_join_loosely() {
+        let joined = join_loose_items(vec![unit(false, "a"), unit(false, "b")]);
+        assert_eq!(joined, "a\n\nb");
+    }
+
+    #[test]
+    fn the_gap_below_a_unit_follows_that_unit_not_the_whole_list() {
+        // A single-line unit is followed on the next line even when a later unit is multi-line, and a
+        // multi-line unit forces a blank line before whatever follows it.
+        let joined = join_loose_items(vec![
+            unit(true, "one"),
+            unit(false, "two\n\n  - sub"),
+            unit(true, "three"),
+        ]);
+        assert_eq!(joined, "one\ntwo\n\n  - sub\n\nthree");
+    }
+
+    #[test]
+    fn empty_units_are_dropped_and_do_not_set_the_gap() {
+        let joined = join_loose_items(vec![unit(false, ""), unit(true, "a"), unit(true, "b")]);
+        assert_eq!(joined, "a\nb");
+    }
 }

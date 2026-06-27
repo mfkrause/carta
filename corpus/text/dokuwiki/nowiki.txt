@@ -1,0 +1,3 @@
+A span like %%//this//%% is shown verbatim with its markers intact.
+
+The tag form <nowiki>**also**</nowiki> escapes formatting just the same.

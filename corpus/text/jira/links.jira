@@ -1,0 +1,5 @@
+A [labeled link|http://example.com] and a bare [http://example.org].
+
+See http://example.net for the autolink and email me@example.com too.
+
+An [^file.txt] attachment and a [~username] user mention.

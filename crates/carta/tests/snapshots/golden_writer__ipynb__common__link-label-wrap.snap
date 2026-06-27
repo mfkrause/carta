@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Padding padding padding padding [a multi word link label\n",
+    "here](http://example.com/path) and trailing words to push wrapping."
+   ],
+   "id": "ec3991c1-79cc-4b96-9461-2c6101d56948"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

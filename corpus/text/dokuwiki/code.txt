@@ -1,0 +1,19 @@
+A plain code region:
+
+<code>
+plain text
+  preserved exactly
+</code>
+
+A highlighted region names its language:
+
+<code python>
+def greet(name):
+    return "hello " + name
+</code>
+
+A file region behaves the same way:
+
+<file>
+contents of a file
+</file>

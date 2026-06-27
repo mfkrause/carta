@@ -1,0 +1,4 @@
+before<!-- inline comment -->after
+
+<!-- whole line comment -->
+text after.

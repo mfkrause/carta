@@ -1,0 +1,12 @@
+.TH T 1
+.SH SEE ALSO
+Visit the
+.UR https://example.com/project
+project home page
+.UE
+for more information.
+.PP
+Report bugs to
+.MT bugs@example.com
+the maintainers
+.ME .

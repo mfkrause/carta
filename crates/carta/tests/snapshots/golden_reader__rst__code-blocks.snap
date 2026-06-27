@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"CodeBlock","c":[["",["python"],[]],"def greet(name):\n    return \"hello, \" + name"]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"parsed-literal"},{"t":"Space"},{"t":"Str","c":"block"},{"t":"Space"},{"t":"Str","c":"keeps"},{"t":"Space"},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Str","c":"markup:"}]},{"t":"Div","c":[["",["parsed-literal"],[]],[{"t":"Para","c":[{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"strong"}]},{"t":"Space"},{"t":"Str","c":"emphasis"}]}]]}]}

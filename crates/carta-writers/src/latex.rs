@@ -1444,6 +1444,18 @@ fn push_link(
         out.push(Piece::Text(format!("\\url{{{url}}}")));
         return;
     }
+    // A mailto link whose visible text is the bare address renders the address verbatim, with no
+    // hyperlink styling applied to the text.
+    if let [Inline::Str(text)] = inlines
+        && let Some(address) = target.url.strip_prefix("mailto:")
+        && text == address
+    {
+        let address = escape_url(address);
+        out.push(Piece::Text(format!(
+            "\\href{{{url}}}{{\\nolinkurl{{{address}}}}}"
+        )));
+        return;
+    }
     out.push(Piece::Text(format!("\\href{{{url}}}{{")));
     for inline in inlines {
         push_inline(inline, out, width, dialect, wrap, smart);
@@ -1611,7 +1623,7 @@ fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String {
             '-' if next == Some('-') => out.push_str("-\\/"),
             ' ' if mode == EscapeMode::Code => out.push_str("\\ "),
             '`' if mode == EscapeMode::Code => out.push_str("\\textasciigrave{}"),
-            '\u{a0}' if mode == EscapeMode::Text => out.push('~'),
+            '\u{a0}' => out.push('~'),
             '\u{2026}' if mode == EscapeMode::Text && smart => {
                 push_control_word(&mut out, "\\ldots", next, mode);
             }

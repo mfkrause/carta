@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Water"},{"t":"Space"},{"t":"Str","c":"H"},{"t":"Subscript","c":[{"t":"Str","c":"2"}]},{"t":"Str","c":"O"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"E=mc"},{"t":"Superscript","c":[{"t":"Str","c":"2"}]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Strikeout","c":[{"t":"Str","c":"gone"}]},{"t":"Space"},{"t":"Strikeout","c":[{"t":"Str","c":"old"}]},{"t":"Space"},{"t":"Str","c":"here."}]},{"t":"Para","c":[{"t":"Str","c":"Use"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"fn()"]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"mono"]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Span","c":[["",["kbd"],[]],[{"t":"Str","c":"Ctrl"}]]},{"t":"Space"},{"t":"Str","c":"here."}]}]}

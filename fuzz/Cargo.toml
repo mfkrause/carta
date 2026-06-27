@@ -64,6 +64,48 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "rst"
+path = "fuzz_targets/rst.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipynb"
+path = "fuzz_targets/ipynb.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mediawiki"
+path = "fuzz_targets/mediawiki.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dokuwiki"
+path = "fuzz_targets/dokuwiki.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jira"
+path = "fuzz_targets/jira.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "man"
+path = "fuzz_targets/man.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 debug = 1
 
