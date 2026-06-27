@@ -7,6 +7,7 @@
 
 mod classify;
 mod convert;
+mod notes;
 mod table;
 mod tokenize;
 mod tree;
@@ -14,7 +15,7 @@ mod tree;
 use std::borrow::Cow;
 
 use carta_ast::Document;
-use carta_core::{Reader, ReaderOptions, Result};
+use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 #[cfg(feature = "opml")]
 use carta_ast::Inline;
@@ -30,19 +31,20 @@ use tree::{build_tree, locate};
 pub struct HtmlReader;
 
 impl Reader for HtmlReader {
-    fn read(&self, input: &str, _options: &ReaderOptions) -> Result<Document> {
-        Ok(parse(input))
+    fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
+        Ok(parse(input, options.extensions))
     }
 }
 
-fn parse(input: &str) -> Document {
+fn parse(input: &str, ext: Extensions) -> Document {
     let normalized = normalize(input);
     let chars: Vec<char> = normalized.chars().collect();
     let tokens = tokenize(&chars);
     let roots = build_tree(tokens);
     let (head, body) = locate(&roots);
 
-    let mut converter = Converter::default();
+    let mut converter = Converter::new(ext);
+    converter.index_notes(notes::collect_note_defs(&body));
     let meta = head.map(extract_meta).unwrap_or_default();
     let blocks = converter.blocks(&body, false);
     Document {
@@ -91,13 +93,30 @@ fn normalize(input: &str) -> Cow<'_, str> {
 mod tests {
     use super::HtmlReader;
     use carta_ast::{Block, Inline, MathType};
-    use carta_core::{Reader, ReaderOptions};
+    use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
-    fn blocks(input: &str) -> Vec<Block> {
+    /// The structural extensions enabled by default for the `html` format. The unit tests exercise
+    /// this default dialect; `+`/`-` toggle behavior is covered by the golden corpus.
+    fn html_defaults() -> Extensions {
+        Extensions::from_list(&[
+            Extension::AutoIdentifiers,
+            Extension::LineBlocks,
+            Extension::NativeDivs,
+            Extension::NativeSpans,
+        ])
+    }
+
+    fn read_with(input: &str, extensions: Extensions) -> Vec<Block> {
+        let mut options = ReaderOptions::default();
+        options.extensions = extensions;
         HtmlReader
-            .read(input, &ReaderOptions::default())
+            .read(input, &options)
             .expect("reader should not fail")
             .blocks
+    }
+
+    fn blocks(input: &str) -> Vec<Block> {
+        read_with(input, html_defaults())
     }
 
     #[test]
@@ -590,6 +609,44 @@ mod tests {
     }
 
     #[test]
+    fn style_after_a_block_is_kept_as_a_raw_paragraph() {
+        let result = blocks("<p>a</p>\n<style>.x{}</style>\n<p>b</p>");
+        let [Block::Para(_), Block::Para(mid), Block::Para(_)] = result.as_slice() else {
+            panic!("expected three paragraphs");
+        };
+        assert!(matches!(
+            mid.as_slice(),
+            [Inline::RawInline(format, text)]
+                if format.0 == "html" && text == "<style>.x{}</style>"
+        ));
+    }
+
+    #[test]
+    fn style_directly_adjacent_to_a_block_is_dropped() {
+        assert!(matches!(
+            blocks("<p>a</p><style>.x{}</style><p>b</p>").as_slice(),
+            [Block::Para(_), Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn adjacent_styles_share_one_raw_paragraph() {
+        let result = blocks("<p>a</p>\n<style>s1{}</style>\n<style>s2{}</style>\n<p>b</p>");
+        let [_, Block::Para(mid), _] = result.as_slice() else {
+            panic!("expected three paragraphs");
+        };
+        assert!(matches!(
+            mid.as_slice(),
+            [
+                Inline::RawInline(f1, t1),
+                Inline::SoftBreak,
+                Inline::RawInline(f2, t2),
+            ] if f1.0 == "html" && t1 == "<style>s1{}</style>"
+                && f2.0 == "html" && t2 == "<style>s2{}</style>"
+        ));
+    }
+
+    #[test]
     fn math_script_becomes_inline_math() {
         let inlines = para_inlines(r#"<p><script type="math/tex">\D</script></p>"#);
         assert!(matches!(
@@ -663,6 +720,270 @@ mod tests {
         };
         assert_eq!(items.len(), 1);
         assert_eq!(items.first().map(Vec::len), Some(2));
+    }
+
+    #[test]
+    fn native_divs_off_splices_div_children() {
+        let result = read_with("<div class=\"c\"><p>x</p></div>", Extensions::empty());
+        assert!(matches!(result.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn native_divs_off_drops_sectioning_wrapper() {
+        let result = read_with("<section><p>x</p></section>", Extensions::empty());
+        assert!(matches!(result.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn native_spans_off_unwraps_span_and_small_caps() {
+        let plain = read_with("<p><span class=\"c\">x</span></p>", Extensions::empty());
+        let Some(Block::Para(inlines)) = plain.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string())]);
+
+        let caps = read_with(
+            "<p><span style=\"font-variant: small-caps\">x</span></p>",
+            Extensions::empty(),
+        );
+        let Some(Block::Para(inlines)) = caps.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string())]);
+    }
+
+    #[test]
+    fn native_spans_off_keeps_class_carrying_inlines() {
+        // `<mark>`/`<kbd>` and friends are their own constructs, not `<span>` elements, so the
+        // toggle leaves them as spans.
+        let result = read_with("<p><mark>m</mark></p>", Extensions::empty());
+        let Some(Block::Para(inlines)) = result.first() else {
+            panic!("expected paragraph");
+        };
+        assert!(matches!(inlines.first(), Some(Inline::Span(_, _))));
+    }
+
+    #[test]
+    fn auto_identifiers_off_leaves_id_empty_but_keeps_explicit() {
+        let generated = read_with("<h1>Hello World</h1>", Extensions::empty());
+        let Some(Block::Header(_, attr, _)) = generated.first() else {
+            panic!("expected header");
+        };
+        assert_eq!(attr.id, "");
+
+        let explicit = read_with("<h2 id=\"keep\">T</h2>", Extensions::empty());
+        let Some(Block::Header(_, attr, _)) = explicit.first() else {
+            panic!("expected header");
+        };
+        assert_eq!(attr.id, "keep");
+    }
+
+    #[test]
+    fn line_blocks_off_keeps_a_plain_div() {
+        let result = read_with(
+            "<div class=\"line-block\">a<br>b</div>",
+            Extensions::from_list(&[Extension::NativeDivs]),
+        );
+        let Some(Block::Div(attr, children)) = result.first() else {
+            panic!("expected div");
+        };
+        assert_eq!(attr.classes, vec!["line-block".to_string()]);
+        assert!(matches!(children.as_slice(), [Block::Plain(_)]));
+    }
+
+    /// Read with the `html` default set plus the given text extensions, which is what `html+smart`
+    /// and the `html+tex_math_*` corpus specs resolve to.
+    fn read_with_text_ext(input: &str, added: &[Extension]) -> Vec<Block> {
+        read_with(input, html_defaults().union(Extensions::from_list(added)))
+    }
+
+    fn para_inlines_ext(input: &str, added: &[Extension]) -> Vec<Inline> {
+        match read_with_text_ext(input, added).into_iter().next() {
+            Some(Block::Para(inlines) | Block::Plain(inlines)) => inlines,
+            other => panic!("expected a paragraph, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn smart_off_keeps_literal_punctuation() {
+        let inlines = para_inlines("<p>\"a\" -- ... ---</p>");
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("\"a\"".to_string()),
+                Inline::Space,
+                Inline::Str("--".to_string()),
+                Inline::Space,
+                Inline::Str("...".to_string()),
+                Inline::Space,
+                Inline::Str("---".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn smart_on_curls_quotes_and_folds_dashes() {
+        let inlines = para_inlines_ext("<p>\"a\" -- ... ---</p>", &[Extension::Smart]);
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Quoted(
+                    carta_ast::QuoteType::DoubleQuote,
+                    vec![Inline::Str("a".to_string())]
+                ),
+                Inline::Space,
+                Inline::Str("\u{2013}".to_string()),
+                Inline::Space,
+                Inline::Str("\u{2026}".to_string()),
+                Inline::Space,
+                Inline::Str("\u{2014}".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_dollars_off_keeps_literal_text() {
+        let inlines = para_inlines("<p>$x^2$ and $$y$$</p>");
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("$x^2$".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Str("$$y$$".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_dollars_on_splits_inline_and_display() {
+        let inlines = para_inlines_ext("<p>$x^2$ and $$y$$</p>", &[Extension::TexMathDollars]);
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Math(MathType::InlineMath, "x^2".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Math(MathType::DisplayMath, "y".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_single_backslash_on_splits_inline_and_display() {
+        let inlines = para_inlines_ext(
+            "<p>\\(x\\) and \\[y\\]</p>",
+            &[Extension::TexMathSingleBackslash],
+        );
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Math(MathType::InlineMath, "x".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Math(MathType::DisplayMath, "y".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn tex_math_double_backslash_on_splits_inline_and_display() {
+        let inlines = para_inlines_ext(
+            "<p>\\\\(x\\\\) and \\\\[y\\\\]</p>",
+            &[Extension::TexMathDoubleBackslash],
+        );
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Math(MathType::InlineMath, "x".to_string()),
+                Inline::Space,
+                Inline::Str("and".to_string()),
+                Inline::Space,
+                Inline::Math(MathType::DisplayMath, "y".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn note_reference_reconstructs_body_and_drops_container() {
+        let result = blocks(concat!(
+            "text<a href=\"#fn1\" class=\"footnote-ref\" role=\"doc-noteref\"><sup>1</sup></a>\n",
+            "<section class=\"footnotes\" role=\"doc-endnotes\"><hr /><ol>",
+            "<li id=\"fn1\"><p>the note",
+            "<a href=\"#fnref1\" class=\"footnote-back\" role=\"doc-backlink\">\u{21a9}</a></p></li>",
+            "</ol></section>",
+        ));
+        assert_eq!(
+            result.as_slice(),
+            [Block::Plain(vec![
+                Inline::Str("text".to_string()),
+                Inline::Note(vec![Block::Para(vec![
+                    Inline::Str("the".to_string()),
+                    Inline::Space,
+                    Inline::Str("note".to_string()),
+                ])]),
+            ])]
+        );
+    }
+
+    #[test]
+    fn unmatched_note_reference_becomes_an_empty_note() {
+        let result = blocks("text<a href=\"#missing\" role=\"doc-noteref\"><sup>1</sup></a>");
+        assert_eq!(
+            result.as_slice(),
+            [Block::Plain(vec![
+                Inline::Str("text".to_string()),
+                Inline::Note(Vec::new()),
+            ])]
+        );
+    }
+
+    fn header_ids(input: &str, added: &[Extension]) -> Vec<String> {
+        read_with_text_ext(input, added)
+            .into_iter()
+            .filter_map(|block| match block {
+                Block::Header(_, attr, _) => Some(attr.id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn gfm_auto_identifiers_drops_dots_keeps_digits_and_does_not_collapse() {
+        // The `gfm_auto_identifiers` slug differs from the default: dots are dropped, leading digits
+        // survive, and removed punctuation leaves its surrounding separators (no run collapsing).
+        let ids = header_ids(
+            "<h2>1.2 Section A.B</h2><h2>Tools &amp; Tips</h2>",
+            &[Extension::GfmAutoIdentifiers],
+        );
+        assert_eq!(ids, vec!["12-section-ab", "tools--tips"]);
+    }
+
+    #[test]
+    fn gfm_auto_identifiers_keep_the_section_fallback_and_increment_on_collision() {
+        let ids = header_ids(
+            "<h2>Repeat</h2><h2>Repeat</h2><h3>!!!</h3>",
+            &[Extension::GfmAutoIdentifiers],
+        );
+        assert_eq!(ids, vec!["repeat", "repeat-1", "section"]);
+    }
+
+    #[test]
+    fn gfm_auto_identifiers_need_auto_identifiers_to_take_effect() {
+        let ids = read_with(
+            "<h2>1.2 Section A.B</h2>",
+            Extensions::from_list(&[Extension::GfmAutoIdentifiers]),
+        )
+        .into_iter()
+        .filter_map(|block| match block {
+            Block::Header(_, attr, _) => Some(attr.id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+        assert_eq!(ids, vec![String::new()]);
     }
 
     #[cfg(feature = "opml")]

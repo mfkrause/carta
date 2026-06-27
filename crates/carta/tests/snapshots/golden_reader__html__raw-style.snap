@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Text"},{"t":"Space"},{"t":"Str","c":"before"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"stylesheet."}]},{"t":"Para","c":[{"t":"RawInline","c":["html","<style>.a { color: red; }</style>"]}]},{"t":"Para","c":[{"t":"Str","c":"Text"},{"t":"Space"},{"t":"Str","c":"between"},{"t":"Space"},{"t":"Str","c":"stylesheets."}]},{"t":"Para","c":[{"t":"RawInline","c":["html","<style type=\"text/css\">.b { color: blue; }</style>"]},{"t":"SoftBreak"},{"t":"RawInline","c":["html","<style media=\"print\">.c { display: none; }</style>"]}]},{"t":"Para","c":[{"t":"Str","c":"Text"},{"t":"Space"},{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"stylesheets."}]}]}

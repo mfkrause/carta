@@ -348,6 +348,27 @@ pub fn slug(text: &str) -> String {
         .collect()
 }
 
+/// Derive a heading identifier in the `gfm_auto_identifiers` style: full-Unicode lowercasing, keep
+/// only alphanumerics, `_`, and `-`, turn each whitespace character into a single `-`, and drop
+/// everything else (including `.`). Unlike [`slug`], whitespace runs are not collapsed and no
+/// leading characters are stripped, so punctuation removed between words leaves its surrounding
+/// separators in place.
+#[must_use]
+pub fn slug_gfm(text: &str) -> String {
+    text.chars()
+        .flat_map(char::to_lowercase)
+        .filter_map(|ch| {
+            if ch.is_alphanumeric() || matches!(ch, '_' | '-') {
+                Some(ch)
+            } else if ch.is_whitespace() {
+                Some('-')
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 fn push_plain_text(inlines: &[Inline], out: &mut String) {
     for inline in inlines {
         match inline {
@@ -462,5 +483,17 @@ mod tests {
             .is_empty()
         );
         assert!(single_block_inlines(&[Block::HorizontalRule]).is_empty());
+    }
+
+    #[test]
+    fn slug_gfm_drops_dots_keeps_digits_lowercases_and_does_not_collapse() {
+        assert_eq!(slug_gfm("Hello, World!"), "hello-world");
+        assert_eq!(slug_gfm("1.2 Section A.B"), "12-section-ab");
+        assert_eq!(slug_gfm("Foo & Bar"), "foo--bar");
+        assert_eq!(slug_gfm("a - b"), "a---b");
+        assert_eq!(slug_gfm("Über Café"), "über-café");
+        // No fallback: an all-punctuation heading slugs to the empty string, and the caller decides
+        // what to substitute.
+        assert_eq!(slug_gfm("!!!"), "");
     }
 }

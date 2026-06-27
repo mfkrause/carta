@@ -3,10 +3,10 @@
 //! offline. It does not assert *what* the AST is (that is the conformance suite's differential job)
 //! — only that no spec example makes the reader error or panic.
 
+// The whole suite drives the CommonMark reader, so it only applies when that reader is built in.
+#![cfg(feature = "read-commonmark")]
 // Integration-test harness code: panicking on a known example is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-// The net parses CommonMark spec examples, so it only applies when that reader is compiled in.
-#![cfg(feature = "read-commonmark")]
 
 use carta::ReaderOptions;
 

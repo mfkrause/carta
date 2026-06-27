@@ -4,13 +4,13 @@
 
 use super::tokenize::Token;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(super) enum Node {
     Element(Element),
     Text(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(super) struct Element {
     pub(super) name: String,
     pub(super) attrs: Vec<(String, String)>,
