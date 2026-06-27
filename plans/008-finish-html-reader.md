@@ -12,7 +12,7 @@
 
 ## Status
 
-- **Status**: TODO
+- **Status**: DONE (2026-06-24; residual closed and reader flipped to ✅ 2026-06-25)
 - **Priority**: P1
 - **Effort**: L (one reader, but the shared-scanner extraction touches the CommonMark inline parser
   and must keep its snapshots byte-identical; that refactor is the subtle part)
@@ -504,3 +504,83 @@ Stop and report (do not improvise) if:
   diverges in a context not probed here).
 - Extend the shared inline-scanner module's reuse to any future lightweight reader that needs smart
   punctuation / inline math (rst, asciidoc readers when they land).
+
+## Executed (2026-06-24)
+
+Branch `worktree-finish-html-reader`, on `9dd8896`. Every step landed, including the Step 8 stretch.
+
+- **Step 1 — html defaults** (`da065af`): `default_extensions("html"|"html5"|"html4")` returns
+  `auto_identifiers`, `line_blocks`, `native_divs`, `native_spans`.
+- **Steps 2–3 — thread + gate structural extensions** (`86fb6e6`): `ReaderOptions.extensions` flow
+  into the converter; the four structural extensions toggle their wrappers; `native_divs`/
+  `native_spans` off unwrap to children, `line_blocks` off keeps a plain div, `auto_identifiers` off
+  leaves a generated id empty.
+- **Step 4 — shared inline-scanner module** (`da0395e`): the math/smart scanners and flanking
+  predicates moved to `carta-readers/src/inline_scan.rs`, consumed by both the CommonMark engine
+  (now calling the shared predicates) and the HTML reader. CommonMark golden snapshots stayed
+  byte-identical.
+- **Steps 5–6 — smart + TeX math** (`7510e89`): a finishing pass over the tokenized inline stream
+  applies `smart` glyphs/dash/ellipsis folds and the three `tex_math_*` delimiter families; verbatim
+  in code context.
+- **Step 7 — footnote reconstruction** (`da621a6`): always-on `Note` reconstruction keyed on ARIA
+  roles (`doc-noteref`/`doc-endnotes`/`doc-backlink`, the shape realistic writer output carries); the
+  endnotes container is dropped and backlinks stripped. An unmatched ref becomes an empty `Note`.
+- **Steps 9–11 — tests + corpus** (`31b1391`, `a368214`): per-extension reader unit tests, golden
+  snapshots over `corpus/text/html/*` and `corpus/text-ext/html±…/*`, and the `reader-ext`
+  conformance group picks up the new `html±…` dirs with no shell change.
+- **Step 8 — `gfm_auto_identifiers`** (`6da40c4`): pinned to the oracle, so implemented rather than
+  deferred. Added shared `carta_ast::slug_gfm` (the CommonMark identifier pass now delegates to it);
+  the HTML `header_attr` picks it when both `auto_identifiers` and `gfm_auto_identifiers` are on,
+  reusing the existing `section` empty-slug fallback and increment-until-unique disambiguation
+  (the HTML reader disambiguates by increment, unlike the count-based CommonMark+gfm path). Default
+  `html` output is byte-unchanged.
+
+**STATUS corrections** (`docs/STATUS.md`): the three former gaps are resolved or reclassified —
+extensions are honored; `<script>`/comments drop at parity; a `<span class="citation">` round-trips
+as a citation `Span` (the dialect's own shape — there is no `Cite` node); `raw_tex`/`raw_html` are
+inert. The reader stays **🚧** for one residual: a block-level raw element set off by blank lines
+(a free-standing `<style>`, or any unrecognized element) is dropped rather than kept as a
+`RawInline`-bearing paragraph — a raw-HTML-block behavior, out of this plan's scope. `README.md`
+keeps the reader cell 🚧 to match.
+
+**Full gate, all green**: `cargo nextest run --workspace` (1348 pass), `cargo test --doc`,
+`cargo clippy --all-targets --all-features` (0 warnings), `cargo fmt --all --check`, the minimal
+`read-html,write-json` build + nextest, `run.sh all` (every surface fail=0 err=0), and
+`cargo llvm-cov --workspace --fail-under-lines 90` (92.46%).
+
+- **Aside (test gating, not reader code):** `tests/spec_parse.rs` unconditionally used the CommonMark
+  reader, so it failed the plan's `--features read-html,write-json` minimal-build gate. Gated the
+  whole suite with a file-level `#![cfg(feature = "read-commonmark")]`, matching `golden_reader.rs`.
+- **Deferred:** none from this plan. The commonmark writer's line-wrap of a long raw-HTML inline
+  differs from the oracle (surfaced by the citation e2e case); that is a writer concern (plan 009
+  territory), so the reader-layer `citation.html` sample was kept short enough not to wrap.
+
+## Residual closed (2026-06-25)
+
+The one residual the 2026-06-24 pass left open is fixed; the reader is now **✅**.
+
+Re-probing the oracle showed the §3.12 "script/style at parity" framing was incomplete and the
+2026-06-24 gap note was inaccurate on two counts: the divergence is not blank-line-gated, and
+unrecognized elements (`<link>`, `<meta>`, `<noscript>`, `<template>`, `<foo>`) are already at
+parity. The actual gap was narrow — a `<style>` carrying document CSS that sits in body flow: the
+oracle keeps it verbatim as `Para [RawInline (Format "html") …]`; carta dropped it.
+
+The discriminator is purely the node immediately before the `<style>`: with *any* preceding sibling
+(even a whitespace text node) it is body content and kept; with none (a document head, or the leading
+node of a block run) it is metadata and dropped. The reader already emitted the exact `RawInline`
+for a mid-text `<style>` via the inline path, so the fix is a one-condition narrowing in the block
+walk (`is_blank_run` → `pending.is_empty()`); adjacent styles and surrounding whitespace fold into
+one paragraph through the existing flush, byte-for-byte with the oracle (single style →
+`Para [RawInline]`, two styles → one `Para` with a `SoftBreak`, attributes serialized faithfully,
+`Plain`-vs-`Para` promotion intact).
+
+- **Fix + tests + corpus** (`4d5e238`): the block-walk condition; three reader unit tests
+  (kept-after-a-block, dropped-when-adjacent, adjacent-styles-share-a-paragraph); a
+  `corpus/text/html/raw-style.html` golden that also round-trips clean through every e2e target.
+- **Verification**: a 30-case oracle differential sweep (leading / adjacent / whitespace / nested /
+  explicit-body / head / attrs / raw `<>&` content / non-paraish neighbors / script / comment)
+  byte-identical; full gate re-run green — `nextest --workspace` (1351), `--doc`,
+  `clippy --all-targets --all-features`, `fmt --check`, the minimal `read-html,write-json` build +
+  nextest, and `run.sh all` (every surface fail=0 err=0, e2e html 64).
+- **Docs**: `docs/STATUS.md` reworded to the accurate `<style>` rule with the gap table removed; the
+  reader cell flipped to **✅** in `docs/STATUS.md` and `README.md`.

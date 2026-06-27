@@ -3,6 +3,8 @@
 
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod entities;
+#[cfg(any(feature = "commonmark", feature = "html"))]
+mod inline_scan;
 
 #[cfg(feature = "commonmark")]
 pub mod commonmark;

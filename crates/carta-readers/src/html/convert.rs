@@ -6,15 +6,20 @@ use std::collections::{BTreeMap, BTreeSet};
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Format, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, TableBody,
-    TableFoot, TableHead, Target, slug, to_plain_text,
+    TableFoot, TableHead, Target, slug, slug_gfm, to_plain_text,
 };
+use carta_core::{Extension, Extensions};
 
 use super::classify::{BlockKind, InlineKind, block_kind, inline_kind, is_inline_element};
+use super::notes::{ENDNOTES_ROLE, has_role, noteref_target};
 use super::table::{
     cell_alignment, column_alignments, column_widths, normalize_cell_style, row_elements,
     row_head_columns, span_attr, table_width,
 };
 use super::tree::{Element, Node, attr_value, collect_text, serialize_element, style_property};
+use crate::inline_scan::{
+    fold_ellipsis_run, scan_backslash_math, scan_display_math, scan_inline_math,
+};
 
 /// Build inline content from a node tree, with no surrounding block. Used to parse a string of HTML
 /// inline markup into inlines: leading and trailing whitespace is trimmed, matching how inline
@@ -65,14 +70,40 @@ fn text_inlines(e: &Element) -> Vec<Inline> {
 pub(super) struct Converter {
     used_ids: BTreeSet<String>,
     in_list_item: std::cell::Cell<bool>,
+    /// When set, the inline finishing pass runs in code context: text becomes verbatim code, so
+    /// `smart` emits curly glyphs in place of [`Inline::Quoted`] and the math forms are not scanned.
+    in_code: std::cell::Cell<bool>,
     /// When set, an inline tag with no structural mapping is kept verbatim as a raw HTML inline
     /// (open tag, parsed inner content, close tag) instead of being unwrapped to its children. Used
     /// when parsing a standalone inline fragment, where an unknown tag carries meaning the consumer
     /// may want to round-trip.
     preserve_unknown_tags: bool,
+    /// The enabled extension set. Structural extensions (`native_divs`, `native_spans`,
+    /// `auto_identifiers`, `line_blocks`) gate how block and inline wrappers are emitted; the text
+    /// extensions (`smart`, the TeX math forms) drive the inline finishing pass.
+    ext: Extensions,
+    /// Footnote bodies indexed by id, recovered from the endnotes container before the main pass so a
+    /// reference anchor anywhere — even one preceding its definition — resolves to a [`Inline::Note`].
+    note_bodies: BTreeMap<String, Vec<Block>>,
 }
 
 impl Converter {
+    pub(super) fn new(ext: Extensions) -> Self {
+        Self {
+            ext,
+            ..Self::default()
+        }
+    }
+
+    /// Convert the raw footnote bodies recovered from the endnotes container into blocks, indexed by
+    /// id. Run before the main pass so a reference resolves regardless of where its definition sits.
+    pub(super) fn index_notes(&mut self, defs: BTreeMap<String, Vec<Node>>) {
+        for (id, nodes) in defs {
+            let body = self.child_blocks(&nodes, false);
+            self.note_bodies.insert(id, body);
+        }
+    }
+
     pub(super) fn blocks(&mut self, nodes: &[&Node], in_list: bool) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending = Vec::new();
@@ -111,7 +142,18 @@ impl Converter {
                         flush(pending, out);
                         continue;
                     }
-                    if e.name == "style" && is_blank_run(pending) {
+                    if e.name == "style" && pending.is_empty() {
+                        // A `<style>` with no preceding sibling at all is metadata (a document head,
+                        // or the leading node of a block run) and contributes nothing. Once any
+                        // sibling node precedes it — even whitespace — it is body content: it joins
+                        // the inline run as a raw fragment via the inline path below, and the next
+                        // block boundary flushes that run into its own paragraph.
+                        continue;
+                    }
+                    if has_role(e, ENDNOTES_ROLE) {
+                        // The endnotes container's bodies have already been lifted into their
+                        // references, so the container itself carries no remaining content.
+                        flush(pending, out);
                         continue;
                     }
                     if let Some(kind) = block_kind(&e.name) {
@@ -155,11 +197,15 @@ impl Converter {
             BlockKind::Pre => out.push(Self::code_block(e)),
             BlockKind::HorizontalRule => out.push(Block::HorizontalRule),
             BlockKind::Div { sectioning } => {
-                if !sectioning && is_line_block_div(e) {
+                if self.ext.contains(Extension::LineBlocks) && !sectioning && is_line_block_div(e) {
                     out.push(Block::LineBlock(self.line_block_lines(&e.children)));
-                } else {
+                } else if self.ext.contains(Extension::NativeDivs) {
                     let attr = div_attr(e, sectioning);
                     out.push(Block::Div(attr, self.child_blocks(&e.children, false)));
+                } else {
+                    // `native_divs` off: the wrapper carries no document structure, so its content
+                    // is spliced into the surrounding block flow.
+                    out.extend(self.child_blocks(&e.children, false));
                 }
             }
             BlockKind::DefinitionList => out.push(self.definition_list(e)),
@@ -384,17 +430,23 @@ impl Converter {
 
     fn header_attr(&mut self, e: &Element, inlines: &[Inline]) -> Attr {
         let mut attr = extract_attr(e, &[]);
-        if attr.id.is_empty() {
-            let base = slug(&to_plain_text(inlines));
+        if !attr.id.is_empty() {
+            self.used_ids.insert(attr.id.clone());
+        } else if self.ext.contains(Extension::AutoIdentifiers) {
+            let plain = to_plain_text(inlines);
+            let base = if self.ext.contains(Extension::GfmAutoIdentifiers) {
+                slug_gfm(&plain)
+            } else {
+                slug(&plain)
+            };
             let base = if base.is_empty() {
                 "section".to_string()
             } else {
                 base
             };
             attr.id = self.unique_id(base);
-        } else {
-            self.used_ids.insert(attr.id.clone());
         }
+        // `auto_identifiers` off: a heading without an explicit id keeps an empty one.
         attr
     }
 
@@ -420,10 +472,94 @@ impl Converter {
         out
     }
 
+    fn smart(&self) -> bool {
+        self.ext.contains(Extension::Smart)
+    }
+
+    /// Whether any TeX math form is enabled.
+    fn math_active(&self) -> bool {
+        self.ext.contains(Extension::TexMathDollars)
+            || self.ext.contains(Extension::TexMathSingleBackslash)
+            || self.ext.contains(Extension::TexMathDoubleBackslash)
+    }
+
+    /// Append a text node, applying the inline finishing pass. Verbatim by default; with `smart` the
+    /// quotes, dashes, and ellipses become typographic forms, and with a math form enabled the TeX
+    /// delimiters become [`Inline::Math`]. In code context the text stays a code run, so `smart`
+    /// emits curly glyphs rather than [`Inline::Quoted`] and math is never scanned.
+    fn append_text(&self, out: &mut Vec<Inline>, text: &str) {
+        if self.in_code.get() {
+            if self.smart() || self.math_active() {
+                let chars: Vec<char> = text.chars().collect();
+                let items = self.scan_items(&chars);
+                emit_code(&items, self.smart(), out);
+            } else {
+                push_text(out, text);
+            }
+        } else if self.smart() {
+            let chars: Vec<char> = text.chars().collect();
+            let items = self.scan_items(&chars);
+            for inline in resolve_smart(&items, 0, items.len()) {
+                absorb(out, inline);
+            }
+        } else if self.math_active() {
+            let chars: Vec<char> = text.chars().collect();
+            let items = self.scan_items(&chars);
+            emit_math_only(&items, out);
+        } else {
+            push_text(out, text);
+        }
+    }
+
+    /// Split a text node into literal characters and math spans. Math is scanned greedily from the
+    /// left; a delimiter that opens no valid span stays a literal character.
+    fn scan_items(&self, chars: &[char]) -> Vec<Item> {
+        let mut items = Vec::new();
+        let math = self.math_active();
+        let mut i = 0;
+        while let Some(&c) = chars.get(i) {
+            if math && let Some((math_type, content, next)) = self.try_math(chars, i) {
+                items.push(Item::Math(math_type, content));
+                i = next;
+                continue;
+            }
+            items.push(Item::Lit(c));
+            i += 1;
+        }
+        items
+    }
+
+    /// Try to read a math span at `i`. A backslash opener prefers the double-backslash form; a
+    /// `$$` opener is display math and a lone `$` is inline math, each only when its form is enabled.
+    fn try_math(&self, chars: &[char], i: usize) -> Option<(MathType, String, usize)> {
+        match chars.get(i)? {
+            '\\' => {
+                if self.ext.contains(Extension::TexMathDoubleBackslash)
+                    && chars.get(i + 1) == Some(&'\\')
+                    && let Some(found) = scan_backslash_math(chars, i, 2)
+                {
+                    return Some(found);
+                }
+                if self.ext.contains(Extension::TexMathSingleBackslash) {
+                    return scan_backslash_math(chars, i, 1);
+                }
+                None
+            }
+            '$' if self.ext.contains(Extension::TexMathDollars) => {
+                if chars.get(i + 1) == Some(&'$') {
+                    scan_display_math(chars, i).map(|(c, n)| (MathType::DisplayMath, c, n))
+                } else {
+                    scan_inline_math(chars, i).map(|(c, n)| (MathType::InlineMath, c, n))
+                }
+            }
+            _ => None,
+        }
+    }
+
     fn append_inline(&self, out: &mut Vec<Inline>, node: &Node) {
         let e = match node {
             Node::Text(text) => {
-                push_text(out, text);
+                self.append_text(out, text);
                 return;
             }
             Node::Element(e) => e,
@@ -446,7 +582,11 @@ impl Converter {
             InlineKind::LineBreak => out.push(Inline::LineBreak),
             InlineKind::Span => {
                 let inner = self.build_inlines(&e.children);
-                if is_small_caps(e) {
+                if !self.ext.contains(Extension::NativeSpans) {
+                    // `native_spans` off: a bare `<span>` carries no inline structure, so it
+                    // unwraps to its content (the small-caps style is likewise dropped).
+                    out.extend(inner);
+                } else if is_small_caps(e) {
                     out.push(Inline::SmallCaps(inner));
                 } else {
                     out.push(Inline::Span(extract_attr(e, &[]), inner));
@@ -525,11 +665,14 @@ impl Converter {
         if let Some(class) = forced_class {
             attr.classes = vec![class.to_string()];
         }
-        if e.children
+        let has_elements = e
+            .children
             .iter()
-            .any(|node| matches!(node, Node::Element(_)))
-        {
+            .any(|node| matches!(node, Node::Element(_)));
+        if has_elements || self.smart() || self.math_active() {
+            let previous = self.in_code.replace(true);
             let inner = self.build_inlines(&e.children);
+            self.in_code.set(previous);
             codify(out, inner, &attr);
         } else {
             out.push(Inline::Code(attr, collect_text(e)));
@@ -537,6 +680,11 @@ impl Converter {
     }
 
     fn anchor(&self, out: &mut Vec<Inline>, e: &Element) {
+        if let Some(id) = noteref_target(e) {
+            let body = self.note_bodies.get(&id).cloned().unwrap_or_default();
+            out.push(Inline::Note(body));
+            return;
+        }
         let inner = self.build_inlines(&e.children);
         let (leading, trimmed, trailing) = hoist_edge_whitespace(inner);
         let mut attr = extract_attr(e, &["href", "title", "name"]);
@@ -624,6 +772,361 @@ fn codified(inlines: Vec<Inline>, attr: &Attr) -> Vec<Inline> {
     let mut out = Vec::new();
     codify(&mut out, inlines, attr);
     out
+}
+
+/// A unit of a text node during the inline finishing pass: a literal character, or a math span
+/// already lifted out of the surrounding text.
+enum Item {
+    Lit(char),
+    Math(MathType, String),
+}
+
+/// The curly quote glyphs the smart pass produces.
+const LEFT_DOUBLE: char = '\u{201C}';
+const RIGHT_DOUBLE: char = '\u{201D}';
+const LEFT_SINGLE: char = '\u{2018}';
+const APOSTROPHE: char = '\u{2019}';
+
+/// Whether a quote at `i` may open: it must follow an opening context — the node start, a math span,
+/// whitespace, or one of `.`, `-`, `\`, `"`, `'`, or a curly quote — and be followed by a
+/// non-whitespace character. A quote glued to a letter, digit, or most punctuation cannot open.
+fn can_open(items: &[Item], i: usize) -> bool {
+    let opens_after = match i.checked_sub(1).and_then(|prev| items.get(prev)) {
+        // The node start and a preceding math span are both opening contexts.
+        None | Some(Item::Math(..)) => true,
+        Some(Item::Lit(c)) => {
+            c.is_whitespace()
+                || matches!(
+                    *c,
+                    '.' | '-'
+                        | '\\'
+                        | '"'
+                        | '\''
+                        | LEFT_SINGLE
+                        | APOSTROPHE
+                        | LEFT_DOUBLE
+                        | RIGHT_DOUBLE
+                )
+        }
+    };
+    let followed_by_nonspace = match items.get(i + 1) {
+        Some(Item::Math(..)) => true,
+        Some(Item::Lit(c)) => !c.is_whitespace(),
+        None => false,
+    };
+    opens_after && followed_by_nonspace
+}
+
+/// The index in `from..hi` of the next double quote, which closes a double-quoted span.
+fn find_next_double(items: &[Item], from: usize, hi: usize) -> Option<usize> {
+    (from..hi).find(|&j| matches!(items.get(j), Some(Item::Lit('"'))))
+}
+
+/// The index in `from..hi` of the single quote that closes a single-quoted span: the first one not
+/// glued to a following letter or digit, so a contraction's apostrophe is skipped over.
+fn find_single_close(items: &[Item], from: usize, hi: usize) -> Option<usize> {
+    (from..hi).find(|&j| {
+        matches!(items.get(j), Some(Item::Lit('\'')))
+            && !matches!(items.get(j + 1), Some(Item::Lit(c)) if c.is_alphanumeric())
+    })
+}
+
+/// Resolve a span of items into smart inlines: quotes pair into [`Inline::Quoted`], an unpaired
+/// quote reverts to its curly glyph, math spans pass through, and the literal runs between them fold
+/// dashes and ellipses before collapsing whitespace.
+fn resolve_smart(items: &[Item], lo: usize, hi: usize) -> Vec<Inline> {
+    let mut out = Vec::new();
+    let mut buf = String::new();
+    let mut i = lo;
+    while i < hi {
+        match items.get(i) {
+            Some(Item::Math(math_type, content)) => {
+                flush_run(&mut buf, &mut out);
+                out.push(Inline::Math(math_type.clone(), content.clone()));
+                i += 1;
+            }
+            Some(Item::Lit('"')) => {
+                if can_open(items, i)
+                    && let Some(j) = find_next_double(items, i + 1, hi)
+                {
+                    flush_run(&mut buf, &mut out);
+                    out.push(Inline::Quoted(
+                        QuoteType::DoubleQuote,
+                        resolve_smart(items, i + 1, j),
+                    ));
+                    i = j + 1;
+                } else {
+                    // An opener with no closer is a left quote; a quote that cannot open is a right
+                    // quote.
+                    buf.push(if can_open(items, i) {
+                        LEFT_DOUBLE
+                    } else {
+                        RIGHT_DOUBLE
+                    });
+                    i += 1;
+                }
+            }
+            Some(Item::Lit('\'')) => {
+                if can_open(items, i)
+                    && let Some(j) = find_single_close(items, i + 1, hi)
+                {
+                    flush_run(&mut buf, &mut out);
+                    out.push(Inline::Quoted(
+                        QuoteType::SingleQuote,
+                        resolve_smart(items, i + 1, j),
+                    ));
+                    i = j + 1;
+                } else {
+                    // An unpaired single quote is always an apostrophe.
+                    buf.push(APOSTROPHE);
+                    i += 1;
+                }
+            }
+            Some(Item::Lit(c)) => {
+                buf.push(*c);
+                i += 1;
+            }
+            None => break,
+        }
+    }
+    flush_run(&mut buf, &mut out);
+    out
+}
+
+/// Emit a text node when math forms are enabled but `smart` is not: literal runs stay verbatim
+/// (subject only to whitespace collapse) and math spans pass through.
+fn emit_math_only(items: &[Item], out: &mut Vec<Inline>) {
+    let mut buf = String::new();
+    for item in items {
+        match item {
+            Item::Math(math_type, content) => {
+                if !buf.is_empty() {
+                    push_text(out, &buf);
+                    buf.clear();
+                }
+                out.push(Inline::Math(math_type.clone(), content.clone()));
+            }
+            Item::Lit(c) => buf.push(*c),
+        }
+    }
+    if !buf.is_empty() {
+        push_text(out, &buf);
+    }
+}
+
+/// Flush a literal run into `out`: fold its dashes and ellipses, then collapse whitespace into the
+/// surrounding inline breaks.
+fn flush_run(buf: &mut String, out: &mut Vec<Inline>) {
+    if !buf.is_empty() {
+        push_text(out, &fold_smart_punct(buf));
+        buf.clear();
+    }
+}
+
+/// Emit the text of an inline `<code>` element under `smart` and/or a math form. Top-level math spans
+/// lift out as bare [`Inline::Math`]; the verbatim text between them becomes [`Inline::Str`] runs
+/// (which [`codify`] then wraps as code), with whitespace collapsed to single spaces and — under
+/// `smart` — dashes, ellipses, and paired quotes rendered as their typographic glyphs.
+fn emit_code(items: &[Item], smart: bool, out: &mut Vec<Inline>) {
+    let hi = items.len();
+    let mut result = String::new();
+    let mut run = String::new();
+    let mut i = 0;
+    while i < hi {
+        match items.get(i) {
+            Some(Item::Math(math_type, content)) => {
+                finalize_run(&mut run, &mut result, smart);
+                if !result.is_empty() {
+                    push_str(out, &result);
+                    result.clear();
+                }
+                out.push(Inline::Math(math_type.clone(), content.clone()));
+                i += 1;
+            }
+            Some(Item::Lit('"')) if smart => {
+                if can_open(items, i)
+                    && let Some(j) = find_next_double(items, i + 1, hi)
+                {
+                    finalize_run(&mut run, &mut result, smart);
+                    result.push(LEFT_DOUBLE);
+                    result.push_str(&code_build(items, i + 1, j));
+                    result.push(RIGHT_DOUBLE);
+                    i = j + 1;
+                } else {
+                    run.push(if can_open(items, i) {
+                        LEFT_DOUBLE
+                    } else {
+                        RIGHT_DOUBLE
+                    });
+                    i += 1;
+                }
+            }
+            Some(Item::Lit('\'')) if smart => {
+                if can_open(items, i)
+                    && let Some(j) = find_single_close(items, i + 1, hi)
+                {
+                    finalize_run(&mut run, &mut result, smart);
+                    result.push(LEFT_SINGLE);
+                    result.push_str(&code_build(items, i + 1, j));
+                    result.push(APOSTROPHE);
+                    i = j + 1;
+                } else {
+                    run.push(APOSTROPHE);
+                    i += 1;
+                }
+            }
+            Some(Item::Lit(c)) => {
+                run.push(*c);
+                i += 1;
+            }
+            None => break,
+        }
+    }
+    finalize_run(&mut run, &mut result, smart);
+    if !result.is_empty() {
+        push_str(out, &result);
+    }
+}
+
+/// Build the flat code text of a quote-delimited span: nested quotes become glyphs and math flattens
+/// to its content, since the whole span renders as one code string. The result is already finalized,
+/// so the caller appends it verbatim.
+fn code_build(items: &[Item], lo: usize, hi: usize) -> String {
+    let mut result = String::new();
+    let mut run = String::new();
+    let mut i = lo;
+    while i < hi {
+        match items.get(i) {
+            Some(Item::Math(_, content)) => {
+                finalize_run(&mut run, &mut result, true);
+                result.push_str(content);
+                i += 1;
+            }
+            Some(Item::Lit('"')) => {
+                if can_open(items, i)
+                    && let Some(j) = find_next_double(items, i + 1, hi)
+                {
+                    finalize_run(&mut run, &mut result, true);
+                    result.push(LEFT_DOUBLE);
+                    result.push_str(&code_build(items, i + 1, j));
+                    result.push(RIGHT_DOUBLE);
+                    i = j + 1;
+                } else {
+                    run.push(if can_open(items, i) {
+                        LEFT_DOUBLE
+                    } else {
+                        RIGHT_DOUBLE
+                    });
+                    i += 1;
+                }
+            }
+            Some(Item::Lit('\'')) => {
+                if can_open(items, i)
+                    && let Some(j) = find_single_close(items, i + 1, hi)
+                {
+                    finalize_run(&mut run, &mut result, true);
+                    result.push(LEFT_SINGLE);
+                    result.push_str(&code_build(items, i + 1, j));
+                    result.push(APOSTROPHE);
+                    i = j + 1;
+                } else {
+                    run.push(APOSTROPHE);
+                    i += 1;
+                }
+            }
+            Some(Item::Lit(c)) => {
+                run.push(*c);
+                i += 1;
+            }
+            None => break,
+        }
+    }
+    finalize_run(&mut run, &mut result, true);
+    result
+}
+
+/// Finalize a literal code run into `result`: fold its dashes and ellipses (under `smart`), then
+/// collapse each whitespace span to a single space, joining cleanly with any text already there.
+fn finalize_run(run: &mut String, result: &mut String, smart: bool) {
+    if run.is_empty() {
+        return;
+    }
+    let folded = if smart {
+        fold_smart_punct(run)
+    } else {
+        std::mem::take(run)
+    };
+    run.clear();
+    let mut prev_space = result.ends_with(' ');
+    for ch in folded.chars() {
+        if ch.is_ascii_whitespace() {
+            if !prev_space {
+                result.push(' ');
+                prev_space = true;
+            }
+        } else {
+            result.push(ch);
+            prev_space = false;
+        }
+    }
+}
+
+/// Fold a run of `n` hyphens left to right: each group of three becomes an em dash (`—`), a final
+/// pair becomes an en dash (`–`), and a single leftover hyphen stays literal.
+fn fold_dashes(n: usize, out: &mut String) {
+    let mut n = n;
+    while n >= 3 {
+        out.push('\u{2014}');
+        n -= 3;
+    }
+    if n == 2 {
+        out.push('\u{2013}');
+    } else if n == 1 {
+        out.push('-');
+    }
+}
+
+/// Fold a literal run's typography: a run of hyphens becomes em and en dashes, and a run of dots
+/// becomes ellipses with up to two trailing dots.
+fn fold_smart_punct(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(&c) = chars.peek() {
+        match c {
+            '-' => {
+                let mut n = 0;
+                while chars.peek() == Some(&'-') {
+                    chars.next();
+                    n += 1;
+                }
+                fold_dashes(n, &mut out);
+            }
+            '.' => {
+                let mut n = 0;
+                while chars.peek() == Some(&'.') {
+                    chars.next();
+                    n += 1;
+                }
+                out.push_str(&fold_ellipsis_run(n));
+            }
+            _ => {
+                out.push(c);
+                chars.next();
+            }
+        }
+    }
+    out
+}
+
+/// Merge a finished inline into a run, joining adjacent strings and collapsing adjacent breaks the
+/// way [`push_text`] does, so a smart pass over one text node fuses cleanly with its neighbors.
+fn absorb(out: &mut Vec<Inline>, inline: Inline) {
+    match inline {
+        Inline::Str(text) => push_str(out, &text),
+        Inline::Space => push_break(out, false),
+        Inline::SoftBreak => push_break(out, true),
+        other => out.push(other),
+    }
 }
 
 /// Whether a `<span>` requests small-caps rendering, either through the `smallcaps` class or a
@@ -880,15 +1383,6 @@ fn math_script_type(e: &Element) -> Option<MathType> {
 
 fn is_math_script(e: &Element) -> bool {
     math_script_type(e).is_some()
-}
-
-fn is_blank_run(inlines: &[Inline]) -> bool {
-    inlines.iter().all(|inline| {
-        matches!(
-            inline,
-            Inline::Space | Inline::SoftBreak | Inline::LineBreak
-        )
-    })
 }
 
 fn is_checkbox(e: &Element) -> bool {
