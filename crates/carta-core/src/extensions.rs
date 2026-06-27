@@ -73,6 +73,9 @@ define_extensions! {
     // Header identifiers and the references they enable.
     AutoIdentifiers => "auto_identifiers",
     GfmAutoIdentifiers => "gfm_auto_identifiers",
+    // A header's explicit identifier is written in MultiMarkdown's trailing `[id]` form rather than
+    // the `{#id}` attribute block.
+    MmdHeaderIdentifiers => "mmd_header_identifiers",
     ImplicitHeaderReferences => "implicit_header_references",
     // Bare images with a caption become figures.
     ImplicitFigures => "implicit_figures",
@@ -85,6 +88,9 @@ define_extensions! {
     NativeSpans => "native_spans",
     // Markdown is parsed inside block-level HTML, which is otherwise split tag-by-tag.
     MarkdownInHtmlBlocks => "markdown_in_html_blocks",
+    // A `<div>`/`<span>` emitted for a div/span carries a `data-markdown="1"` marker so its contents
+    // are still parsed as Markdown; this also forces a div with no native syntax into an HTML wrap.
+    MarkdownAttribute => "markdown_attribute",
     // Inline raw TeX (`\command{…}`, `\begin{env}…\end{env}`) passes through verbatim.
     RawTex => "raw_tex",
     // `[@key]` / `@key` citation references.
@@ -103,6 +109,19 @@ define_extensions! {
     // Single- and double-backslash math delimiters: `\(…\)`/`\[…\]` and `\\(…\\)`/`\\[…\\]`.
     TexMathSingleBackslash => "tex_math_single_backslash",
     TexMathDoubleBackslash => "tex_math_double_backslash",
+    // Code-block surface: backtick-fenced ```` ``` ```` and tilde-fenced `~~~` blocks. When neither is
+    // available the writer drops to the four-space indented form.
+    FencedCodeBlocks => "fenced_code_blocks",
+    BacktickCodeBlocks => "backtick_code_blocks",
+    // GitHub math surface: inline `` $`…`$ `` and a ```` ```math ```` display block, as opposed to the
+    // `$…$`/`$$…$$` dollar form.
+    TexMathGfm => "tex_math_gfm",
+    // A backslash at a line's end is a hard line break, written as a trailing `\`; without it the
+    // writer falls back to two trailing spaces.
+    EscapedLineBreaks => "escaped_line_breaks",
+    // An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
+    // without it every `_` is escaped so the strict reader cannot start emphasis mid-word.
+    IntrawordUnderscores => "intraword_underscores",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
@@ -225,17 +244,22 @@ pub mod presets {
     pub const GFM: Extensions = Extensions::from_list(&[
         Extension::Strikeout,
         Extension::PipeTables,
+        Extension::BacktickCodeBlocks,
         Extension::TaskLists,
         Extension::Autolink,
         Extension::Footnotes,
         Extension::TexMathDollars,
+        Extension::TexMathGfm,
         Extension::GfmAutoIdentifiers,
         Extension::RawHtml,
         Extension::Emoji,
         Extension::Alerts,
     ]);
 
-    /// `CommonMark` with a broad set of inline and block extensions enabled.
+    /// `CommonMark` with a broad set of inline and block extensions enabled. Mirrors Pandoc's
+    /// `commonmark_x` extension set (`pandoc --list-extensions=commonmark_x`); `backtick_code_blocks`
+    /// is additionally carried because the shared Markdown engine fences code on that flag, which
+    /// `CommonMark` does natively.
     pub const COMMONMARK_X: Extensions = Extensions::from_list(&[
         Extension::Smart,
         Extension::Strikeout,
@@ -247,7 +271,9 @@ pub mod presets {
         Extension::TexMathDollars,
         Extension::FencedDivs,
         Extension::BracketedSpans,
+        Extension::BacktickCodeBlocks,
         Extension::RawHtml,
+        Extension::RawAttribute,
         Extension::Attributes,
         Extension::HeaderAttributes,
         Extension::FencedCodeAttributes,
@@ -257,6 +283,8 @@ pub mod presets {
         Extension::FancyLists,
         Extension::GfmAutoIdentifiers,
         Extension::ImplicitHeaderReferences,
+        Extension::Emoji,
+        Extension::Alerts,
     ]);
 
     /// The extended Markdown dialect: the broad default extension set.
@@ -274,6 +302,8 @@ pub mod presets {
         Extension::RawHtml,
         Extension::HeaderAttributes,
         Extension::FencedCodeAttributes,
+        Extension::FencedCodeBlocks,
+        Extension::BacktickCodeBlocks,
         Extension::InlineCodeAttributes,
         Extension::LinkAttributes,
         Extension::DefinitionLists,
@@ -300,7 +330,80 @@ pub mod presets {
         Extension::TableAttributes,
         Extension::BlankBeforeBlockquote,
         Extension::BlankBeforeHeader,
+        Extension::EscapedLineBreaks,
+        Extension::IntrawordUnderscores,
     ]);
+
+    /// The legacy GitHub Markdown dialect (`markdown_github`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_github`), restricted to the variants that exist and
+    /// affect writer output: backtick-fenced code, pipe tables, strikeout, task lists, footnotes,
+    /// autolinking, emoji, and alerts, but no smart typography, math, spans, or fenced divs.
+    pub const MARKDOWN_GITHUB: Extensions = Extensions::from_list(&[
+        Extension::Strikeout,
+        Extension::PipeTables,
+        Extension::Footnotes,
+        Extension::TaskLists,
+        Extension::Autolink,
+        Extension::RawHtml,
+        Extension::FencedCodeBlocks,
+        Extension::BacktickCodeBlocks,
+        Extension::AutoIdentifiers,
+        Extension::GfmAutoIdentifiers,
+        Extension::Emoji,
+        Extension::Alerts,
+        Extension::IntrawordUnderscores,
+    ]);
+
+    /// The PHP Markdown Extra dialect (`markdown_phpextra`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_phpextra`), restricted to the variants that exist and
+    /// affect writer output: definition lists, fenced (tilde) code blocks, footnotes, header and
+    /// link attributes, pipe tables, and raw HTML. It has no backtick code fences, so code fences
+    /// are written with tildes, and no smart typography, math, strikeout, spans, or fenced divs.
+    pub const MARKDOWN_PHPEXTRA: Extensions = Extensions::from_list(&[
+        Extension::DefinitionLists,
+        Extension::FencedCodeBlocks,
+        Extension::Footnotes,
+        Extension::HeaderAttributes,
+        Extension::IntrawordUnderscores,
+        Extension::LinkAttributes,
+        Extension::MarkdownAttribute,
+        Extension::PipeTables,
+        Extension::RawHtml,
+    ]);
+
+    /// The `MultiMarkdown` dialect (`markdown_mmd`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_mmd`), restricted to the variants that exist and affect
+    /// writer output: backtick-fenced code, definition lists, footnotes, pipe tables, implicit
+    /// figures and header references, sub/superscript, dollar math, raw HTML and raw attributes,
+    /// auto identifiers, `MultiMarkdown`'s trailing `[id]` header identifiers, and the `data-markdown`
+    /// div marker. It has no header attribute blocks, strikeout, task lists, smart typography, spans,
+    /// or fenced divs. Its `tex_math_double_backslash` only affects reading; the writer emits `$…$`
+    /// math through `tex_math_dollars`.
+    pub const MARKDOWN_MMD: Extensions = Extensions::from_list(&[
+        Extension::AutoIdentifiers,
+        Extension::BacktickCodeBlocks,
+        Extension::DefinitionLists,
+        Extension::Footnotes,
+        Extension::ImplicitFigures,
+        Extension::ImplicitHeaderReferences,
+        Extension::IntrawordUnderscores,
+        Extension::MarkdownAttribute,
+        Extension::MmdHeaderIdentifiers,
+        Extension::PipeTables,
+        Extension::RawAttribute,
+        Extension::RawHtml,
+        Extension::Subscript,
+        Extension::Superscript,
+        Extension::TexMathDollars,
+    ]);
+
+    /// The original Markdown dialect (`markdown_strict`). Mirrors Pandoc's set
+    /// (`pandoc --list-extensions=markdown_strict`), restricted to the variants that exist and affect
+    /// writer output — only raw HTML. With no fenced or backtick code, tables, definition lists,
+    /// footnotes, task lists, math, or any attribute syntax, every richer construct falls back to
+    /// indented code, an HTML block, or a raw glyph. Lacking `intraword_underscores`, every `_` is
+    /// escaped; lacking `pipe_tables`, a literal `|` is left unescaped.
+    pub const MARKDOWN_STRICT: Extensions = Extensions::from_list(&[Extension::RawHtml]);
 }
 
 #[cfg(test)]
@@ -356,6 +459,21 @@ mod tests {
         assert!(presets::COMMONMARK_X.contains(Extension::Attributes));
         // The strict CommonMark dialect keeps none of these.
         assert!(presets::COMMONMARK.is_empty());
+    }
+
+    #[test]
+    fn code_and_math_surface_variants_round_trip_and_seed_presets() {
+        for token in ["fenced_code_blocks", "backtick_code_blocks", "tex_math_gfm"] {
+            let ext = Extension::from_name(token).expect("a declared variant");
+            assert_eq!(ext.name(), token);
+        }
+        // The Markdown dialect fences code with both backtick and tilde forms.
+        assert!(presets::MARKDOWN.contains(Extension::FencedCodeBlocks));
+        assert!(presets::MARKDOWN.contains(Extension::BacktickCodeBlocks));
+        // GFM fences with backticks and renders math in its own surface; it has no tilde-fence form.
+        assert!(presets::GFM.contains(Extension::BacktickCodeBlocks));
+        assert!(presets::GFM.contains(Extension::TexMathGfm));
+        assert!(!presets::GFM.contains(Extension::FencedCodeBlocks));
     }
 
     #[test]

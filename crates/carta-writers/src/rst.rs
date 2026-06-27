@@ -8,13 +8,14 @@
 
 use carta_ast::{
     Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, MetaValue,
-    Row, Table, Target, single_block_inlines, slug, to_plain_text,
+    QuoteType, Row, Table, Target, single_block_inlines, slug, to_plain_text,
 };
-use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, block_inlines, body_rows, display_width, fill, fill_cell,
-    indent_block, is_known_scheme, is_uri_scheme, offset_as_i32, ordered_marker, quote_marks,
+    FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
+    display_width, fill, fill_cell, indent_block, is_known_scheme, is_uri_scheme, offset_as_i32,
+    ordered_marker, quote_marks,
 };
 use crate::grid;
 
@@ -31,6 +32,7 @@ impl Writer for RstWriter {
         let mut state = State {
             wrap: options.wrap,
             width,
+            smart: options.extensions.contains(Extension::Smart),
             ..State::default()
         };
         let body = state.blocks_to_string(&document.blocks, width, true);
@@ -111,6 +113,9 @@ struct State {
     /// Set while laying out the content of a table cell, whose field reflows to its column width
     /// even when the document is not auto-wrapped.
     in_cell: bool,
+    /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
+    /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
+    smart: bool,
 }
 
 impl Default for State {
@@ -122,6 +127,7 @@ impl Default for State {
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
             in_cell: false,
+            smart: false,
         }
     }
 }
@@ -456,7 +462,7 @@ impl State {
     fn token(&mut self, inline: &Inline, in_emphasis: bool, out: &mut Vec<Token>) {
         match inline {
             Inline::Str(text) => out.push(Token::Word {
-                text: escape(text),
+                text: escape(text, self.smart),
                 complex: false,
                 lead: text.chars().next().unwrap_or('\0'),
             }),
@@ -493,7 +499,14 @@ impl State {
                 }
             }
             Inline::Quoted(kind, inlines) => {
-                let (open, close) = quote_marks(kind);
+                let (open, close) = if self.smart {
+                    match kind {
+                        QuoteType::SingleQuote => ('\'', '\''),
+                        QuoteType::DoubleQuote => ('"', '"'),
+                    }
+                } else {
+                    quote_marks(kind)
+                };
                 self.wrapped(
                     inlines,
                     &open.to_string(),
@@ -1523,7 +1536,7 @@ fn is_safe_preceder(ch: char) -> bool {
 /// doubled. A `*`, backtick, or `|` is escaped where it could open or close inline markup given its
 /// neighbors. A `_` is a reference marker: it is escaped everywhere except where it is buried directly
 /// before an alphanumeric and is not itself opening at a word boundary.
-fn escape(text: &str) -> String {
+fn escape(text: &str, smart: bool) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::new();
     for (index, &ch) in chars.iter().enumerate() {
@@ -1543,7 +1556,12 @@ fn escape(text: &str) -> String {
                 }
                 out.push(ch);
             }
-            _ => out.push(ch),
+            // With `smart`, Unicode punctuation collapses to its ASCII form; otherwise it passes
+            // through as the literal character.
+            _ => match smart.then(|| ascii_punctuation(ch)).flatten() {
+                Some(ascii) => out.push_str(ascii),
+                None => out.push(ch),
+            },
         }
     }
     out

@@ -13,7 +13,15 @@ fn default_extensions(base: &str) -> Extensions {
         "commonmark" => Extensions::from_list(&[Extension::RawHtml]),
         "commonmark_x" => presets::COMMONMARK_X,
         "markdown" => presets::MARKDOWN,
+        "markdown_github" => presets::MARKDOWN_GITHUB,
+        "markdown_phpextra" => presets::MARKDOWN_PHPEXTRA,
+        "markdown_mmd" => presets::MARKDOWN_MMD,
+        "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
+        // LaTeX, Beamer, and Typst default to `smart`: the writer renders quotes and dashes as TeX
+        // ligatures (or Typst's straight-quote/hyphen-run spellings) unless `-smart` asks for the
+        // literal Unicode punctuation instead.
+        "latex" | "beamer" | "typst" => Extensions::from_list(&[Extension::Smart]),
         "html" | "html5" | "html4" => Extensions::from_list(&[
             Extension::AutoIdentifiers,
             Extension::LineBlocks,

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| l   |   r |  c  | d   |
+|:----|----:|:---:|-----|
+| 1   |   2 |  3  | 4   |
