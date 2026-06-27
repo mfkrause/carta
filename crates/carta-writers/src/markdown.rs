@@ -32,8 +32,8 @@ use crate::grid;
 /// The rendering configuration shared by every entry point and exposed to sibling writers that embed
 /// markdown (the outline writer renders note text through this engine). The active [`Extensions`]
 /// set decides which constructs have native syntax versus a fallback. `cmark` marks the `CommonMark`
-/// writer family (`gfm`, `commonmark_x`) as opposed to the pandoc-markdown family (`markdown` and the
-/// sparse dialects): the two families share nearly identical extension sets but differ in a handful
+/// writer family (`gfm`, `commonmark_x`) as opposed to the `markdown`-dialect family (`markdown` and
+/// the sparse dialects): the two families share nearly identical extension sets but differ in a handful
 /// of constructs no extension can distinguish — a div with no fenced-div syntax wraps in raw `<div>`
 /// for the former and renders its contents transparently for the latter; an ordered list with no
 /// `fancy_lists`/`startnum` keeps its delimiter and start number for the former and collapses to
@@ -67,7 +67,7 @@ impl MarkdownConfig {
     }
 
     /// The marker a hard line break is written with: a trailing `\` for the `CommonMark` family and
-    /// any pandoc-markdown dialect with `escaped_line_breaks`, two trailing spaces otherwise.
+    /// any `markdown` dialect with `escaped_line_breaks`, two trailing spaces otherwise.
     fn hard_break(self) -> &'static str {
         if self.cmark || self.has(Extension::EscapedLineBreaks) {
             "\\"
@@ -270,7 +270,7 @@ impl Writer for MarkdownMmdWriter {
     }
 }
 
-/// Renders a document to the original Markdown dialect (`markdown_strict`): the sparsest pandoc
+/// Renders a document to the original Markdown dialect (`markdown_strict`): the sparsest `markdown`
 /// dialect, with only raw HTML beyond plain Markdown. Code blocks indent, tables and strikeout and
 /// sub/superscript fall back to HTML, task-list checkboxes keep their raw glyphs, and every other
 /// richer construct degrades to its plainest form.
@@ -593,7 +593,7 @@ impl State {
         } else if !self.config.has(Extension::HeaderAttributes) || implicit {
             String::new()
         } else {
-            format!(" {}", pandoc_attr(attr))
+            format!(" {}", attr_braces(attr))
         };
         if text.is_empty() {
             format!("{hashes}{suffix}").trim_end().to_owned()
@@ -658,8 +658,8 @@ impl State {
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
         let body = self.blocks_to_string(blocks, width);
         if !self.config.has(Extension::FencedDivs) {
-            // The `CommonMark` family, and any pandoc-markdown dialect that parses raw HTML divs,
-            // wrap the contents in a literal `<div>`; the sparse pandoc-markdown dialects have no
+            // The `CommonMark` family, and any `markdown` dialect that parses raw HTML divs,
+            // wrap the contents in a literal `<div>`; the sparse `markdown` dialects have no
             // div syntax at all and render the contents transparently. The `markdown_attribute`
             // dialects also wrap, tagging the `<div>` with `data-markdown="1"` so its contents are
             // still parsed as Markdown.
@@ -765,7 +765,7 @@ impl State {
 
     /// The numeral style and delimiter to render an ordered list with. With the fancy-list extension
     /// the source style and delimiter are kept. Without it the `CommonMark` family still collapses the
-    /// style to decimal but keeps a closing-parenthesis delimiter; the pandoc-markdown dialects have
+    /// style to decimal but keeps a closing-parenthesis delimiter; the `markdown` dialects have
     /// no rich-list syntax at all and collapse every list to a decimal period (`1.`).
     fn ordered_marks(&self, attrs: &ListAttributes) -> (ListNumberStyle, ListNumberDelim) {
         if self.config.has(Extension::FancyLists) {
@@ -782,7 +782,7 @@ impl State {
     }
 
     /// The first ordered-list number. The `CommonMark` family and the `startnum` extension honor the
-    /// source list's start number; the other pandoc-markdown dialects renumber from 1.
+    /// source list's start number; the other `markdown` dialects renumber from 1.
     fn ordered_start(&self, attrs: &ListAttributes) -> i32 {
         if self.config.cmark || self.config.has(Extension::Startnum) {
             attrs.start
@@ -1617,7 +1617,7 @@ impl State {
     fn wrap_span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
         out.push(Piece::Text("[".to_owned()));
         self.extend_pieces(inlines, out);
-        out.push(Piece::Text(format!("]{{{}}}", pandoc_attr_body(attr))));
+        out.push(Piece::Text(format!("]{{{}}}", attr_body(attr))));
     }
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
@@ -1643,7 +1643,7 @@ impl State {
         let attr_suffix = if attr_is_empty(attr) {
             String::new()
         } else {
-            pandoc_attr(attr)
+            attr_braces(attr)
         };
         out.push(Piece::Text(format!(
             "]({}){attr_suffix}",
@@ -1667,7 +1667,7 @@ impl State {
         let attr_suffix = if attr_is_empty(attr) {
             String::new()
         } else {
-            pandoc_attr(attr)
+            attr_braces(attr)
         };
         out.push(Piece::Text(format!(
             "]({}){attr_suffix}",
@@ -1680,7 +1680,7 @@ impl State {
     /// escaped; `|` only when pipe tables make it a cell separator; `~` and `^` only when subscript
     /// and superscript have native syntax; and a word-initial `@` only when citations do. A `#` run
     /// that would open a heading is escaped at the start of a line. An `_` is escaped at a word
-    /// boundary, and everywhere in a pandoc-markdown dialect without `intraword_underscores` (the
+    /// boundary, and everywhere in a `markdown` dialect without `intraword_underscores` (the
     /// `CommonMark` family never treats an intra-word `_` as emphasis, so it is left literal there).
     /// A backslash is escaped per the raw-TeX extension. Smart-punctuation glyphs are rewritten to
     /// ASCII when the `smart` extension is active.
@@ -1825,8 +1825,8 @@ impl NotesHost for State {
 /// Encode the blank lines of a raw HTML fragment so it survives as one raw HTML block in markdown.
 /// A blank line ends a raw HTML block, so the newline that opens one — any newline directly
 /// following another — is rewritten as the `&#10;` character reference, leaving single line breaks
-/// untouched. This mirrors pandoc's encoding for an HTML table embedded in a markdown dialect with
-/// no native table syntax.
+/// untouched. This keeps an HTML table embedded in a markdown dialect with no native table syntax
+/// intact as a single raw block.
 fn encode_html_block_blank_lines(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut prev_newline = false;
@@ -1896,8 +1896,8 @@ fn is_html_format(format: &Format) -> bool {
 }
 
 /// Whether a raw-format name denotes TeX, which Markdown dialects with `raw_tex` embed verbatim.
-/// `ConTeXt` and other TeX-adjacent formats are excluded — Pandoc routes only `tex`/`latex` through
-/// the verbatim path and renders everything else via the `raw_attribute` fenced form.
+/// `ConTeXt` and other TeX-adjacent formats are excluded — only `tex`/`latex` take the verbatim
+/// path; everything else is rendered via the `raw_attribute` fenced form.
 fn is_tex_format(format: &Format) -> bool {
     matches!(format.0.as_str(), "tex" | "latex")
 }
@@ -1929,7 +1929,7 @@ fn extended_code_info(attr: &Attr) -> Option<String> {
     {
         return Some(format!(" {class}"));
     }
-    Some(format!(" {}", pandoc_attr(attr)))
+    Some(format!(" {}", attr_braces(attr)))
 }
 
 /// The info string for a fenced code block when fenced-code attributes are unavailable, or `None`
@@ -1989,7 +1989,7 @@ fn div_opener(attr: &Attr, braced: bool) -> String {
     {
         return format!(" {class}");
     }
-    format!(" {}", pandoc_attr(attr))
+    format!(" {}", attr_braces(attr))
 }
 
 /// Replace smart-punctuation glyphs with their ASCII equivalents for a dialect that does not write
@@ -2137,13 +2137,13 @@ fn image_html(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
 
 /// The attribute block of a header, link, image, or code block: `{#id .class key="val"}` with the
 /// leading brace.
-fn pandoc_attr(attr: &Attr) -> String {
-    format!("{{{}}}", pandoc_attr_body(attr))
+fn attr_braces(attr: &Attr) -> String {
+    format!("{{{}}}", attr_body(attr))
 }
 
 /// The body of an attribute block (without the braces): id, then classes, then key/value pairs,
 /// each separated by a space. Unlike HTML attributes, unknown keys are emitted verbatim.
-fn pandoc_attr_body(attr: &Attr) -> String {
+fn attr_body(attr: &Attr) -> String {
     let mut parts: Vec<String> = Vec::new();
     if !attr.id.is_empty() {
         parts.push(format!("#{}", attr.id));
@@ -2236,7 +2236,7 @@ fn attribute_suffix(attr: &Attr) -> Option<String> {
     if attr_is_empty(attr) {
         return None;
     }
-    Some(pandoc_attr(attr))
+    Some(attr_braces(attr))
 }
 
 /// One pipe-table row: each cell padded to its column width and wrapped in `| … |`. Alignment
