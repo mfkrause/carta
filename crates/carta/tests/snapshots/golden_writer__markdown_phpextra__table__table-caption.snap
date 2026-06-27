@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| h   |
+|-----|
+| v   |
+
+A caption for the table

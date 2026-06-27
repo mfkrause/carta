@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[outer [inner](u2){#iid .ic} end](u1)

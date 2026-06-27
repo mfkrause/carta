@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+an equation *a*<sup>2</sup> + *b*<sup>2</sup> = *c*<sup>2</sup> inline

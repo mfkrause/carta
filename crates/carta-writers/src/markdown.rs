@@ -1,13 +1,14 @@
 //! Markdown writer engine: renders the document model to a markdown family text format.
 //!
-//! Two surface variants share this engine, selected by a [`MarkdownConfig`]: the full-featured
-//! markdown variant emits the format's extended syntax (attribute blocks on headers, links, images
-//! and spans; native subscript/superscript; fenced divs; pipe-free space-aligned and bordered
-//! tables; citation syntax; raw passthrough with a format tag) and downgrades smart punctuation to
-//! ASCII; the GitHub variant restricts itself to that dialect's constructs (pipe tables, task-list
-//! checkboxes, native strikeout) and falls back to inline or block HTML for everything it cannot
-//! express, keeping smart punctuation verbatim. Inline content wraps at a fill column of 72. Output
-//! carries no trailing newline; the caller appends one.
+//! Every markdown-family dialect shares this engine, parameterized by the [`MarkdownConfig`] it runs
+//! with — chiefly the active [`Extensions`] set. Each construct consults the set to choose its
+//! surface: an attribute block on a header, link, image, or span versus a bare or HTML rendering;
+//! native subscript/superscript/strikeout versus an HTML tag; fenced versus indented code; fenced
+//! divs versus `<div>`; space-aligned, bordered, pipe, or HTML tables; citation syntax versus the
+//! display text; dollar, GitHub, or linearized math; raw passthrough with a format tag versus a
+//! verbatim or dropped fallback. Smart punctuation is rewritten to ASCII when the `smart` extension
+//! is active and emitted as the literal glyph otherwise. Inline content wraps at a fill column of
+//! 72. Output carries no trailing newline; the caller appends one.
 
 use std::borrow::Cow;
 use std::fmt::Write;
@@ -17,7 +18,7 @@ use carta_ast::{
     Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, Row, Table,
     Target, Text,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions, presets};
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
@@ -28,45 +29,76 @@ use crate::common::{
 };
 use crate::grid;
 
-/// Which markdown dialect the engine renders. The variants differ in which constructs have native
-/// syntax versus an HTML fallback, in list and table forms, and in smart-punctuation handling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Variant {
-    /// The full-featured markdown dialect.
-    Extended,
-    /// The GitHub-flavored dialect.
-    GitHub,
-}
-
-/// The rendering configuration shared by both entry points and exposed to sibling writers that embed
-/// markdown (the outline writer renders note text through this engine).
+/// The rendering configuration shared by every entry point and exposed to sibling writers that embed
+/// markdown (the outline writer renders note text through this engine). The active [`Extensions`]
+/// set decides which constructs have native syntax versus a fallback. `cmark` marks the `CommonMark`
+/// writer family (`gfm`, `commonmark_x`) as opposed to the pandoc-markdown family (`markdown` and the
+/// sparse dialects): the two families share nearly identical extension sets but differ in a handful
+/// of constructs no extension can distinguish — a div with no fenced-div syntax wraps in raw `<div>`
+/// for the former and renders its contents transparently for the latter; an ordered list with no
+/// `fancy_lists`/`startnum` keeps its delimiter and start number for the former and collapses to
+/// `1.` for the latter; a hard line break writes `\` for the former and two trailing spaces for the
+/// latter. The flag also selects a fenced div's braced `{.class}` shorthand over the bare `class`
+/// form.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct MarkdownConfig {
-    variant: Variant,
+    extensions: Extensions,
+    cmark: bool,
 }
 
 impl MarkdownConfig {
+    /// The full-featured markdown dialect, used when a sibling writer embeds markdown text.
     pub(crate) fn extended() -> Self {
         Self {
-            variant: Variant::Extended,
+            extensions: presets::MARKDOWN,
+            cmark: false,
         }
     }
 
-    pub(crate) fn github() -> Self {
-        Self {
-            variant: Variant::GitHub,
+    /// Whether the active extension set contains `ext`.
+    fn has(self, ext: Extension) -> bool {
+        self.extensions.contains(ext)
+    }
+
+    /// Whether spans (underline, small caps, the generic `Span`) have native bracketed-span syntax
+    /// available, as opposed to an HTML `<span>` fallback.
+    fn span_syntax(self) -> bool {
+        self.has(Extension::BracketedSpans) || self.has(Extension::NativeSpans)
+    }
+
+    /// The marker a hard line break is written with: a trailing `\` for the `CommonMark` family and
+    /// any pandoc-markdown dialect with `escaped_line_breaks`, two trailing spaces otherwise.
+    fn hard_break(self) -> &'static str {
+        if self.cmark || self.has(Extension::EscapedLineBreaks) {
+            "\\"
+        } else {
+            "  "
         }
     }
+}
 
-    fn is_github(self) -> bool {
-        self.variant == Variant::GitHub
-    }
-
-    /// Whether the dialect downgrades smart punctuation (curly quotes, en/em dashes, ellipsis) to
-    /// their ASCII forms on output.
-    fn downgrades_smart(self) -> bool {
-        self.variant == Variant::Extended
-    }
+/// Render a document with a markdown-family writer. The active extension set is the one the caller
+/// selected through the format spec; when the caller supplied none — a direct writer invocation
+/// rather than a `convert` that seeds the target's own extensions — the writer's `default` dialect
+/// set is used. `cmark` selects the `CommonMark` writer family's behaviors (see [`MarkdownConfig`]).
+fn render_dialect(
+    document: &Document,
+    options: &WriterOptions,
+    default: Extensions,
+    cmark: bool,
+) -> String {
+    let extensions = if options.extensions.is_empty() {
+        default
+    } else {
+        options.extensions
+    };
+    let config = MarkdownConfig { extensions, cmark };
+    render_document(
+        document,
+        config,
+        options.columns.unwrap_or(FILL_COLUMN),
+        options.wrap,
+    )
 }
 
 /// Renders a document to the full-featured markdown dialect.
@@ -75,12 +107,7 @@ pub struct MarkdownWriter;
 
 impl Writer for MarkdownWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_document(
-            document,
-            MarkdownConfig::extended(),
-            options.columns.unwrap_or(FILL_COLUMN),
-            options.wrap,
-        ))
+        Ok(render_dialect(document, options, presets::MARKDOWN, false))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -102,12 +129,7 @@ pub struct GfmWriter;
 
 impl Writer for GfmWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
-        Ok(render_document(
-            document,
-            MarkdownConfig::github(),
-            options.columns.unwrap_or(FILL_COLUMN),
-            options.wrap,
-        ))
+        Ok(render_dialect(document, options, presets::GFM, true))
     }
 
     fn default_template(&self) -> Option<&'static str> {
@@ -116,6 +138,157 @@ impl Writer for GfmWriter {
 
     fn title_block(&self, document: &Document, options: &WriterOptions) -> Result<Option<String>> {
         yaml_metadata_block(self, document, options)
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+
+    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
+    }
+}
+
+/// Renders a document to the `CommonMark` dialect with a broad set of inline and block extensions
+/// enabled. Like the full markdown dialect it emits native syntax for spans, sub/superscript,
+/// definition lists, and fenced divs, differing chiefly in that a fenced div always carries a braced
+/// attribute block rather than the bare single-class shorthand.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CommonmarkXWriter;
+
+impl Writer for CommonmarkXWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::COMMONMARK_X,
+            true,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn title_block(&self, document: &Document, options: &WriterOptions) -> Result<Option<String>> {
+        yaml_metadata_block(self, document, options)
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+}
+
+/// Renders a document to the legacy GitHub Markdown dialect (`markdown_github`): backtick-fenced
+/// code, pipe tables, strikeout, and task lists, with everything outside that set — spans,
+/// sub/superscript, definition lists, fenced divs, math — falling back to HTML or indented forms.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownGithubWriter;
+
+impl Writer for MarkdownGithubWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_GITHUB,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+
+    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
+    }
+}
+
+/// Renders a document to the PHP Markdown Extra dialect (`markdown_phpextra`): tilde-fenced code,
+/// pipe tables, definition lists, footnotes, and header/link attributes, with everything outside
+/// that set — strikeout, spans, sub/superscript, math, fenced divs — falling back to HTML or
+/// indented forms. Its code fences use tildes since the dialect lacks backtick code blocks.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownPhpextraWriter;
+
+impl Writer for MarkdownPhpextraWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_PHPEXTRA,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+}
+
+/// Renders a document to the `MultiMarkdown` dialect (`markdown_mmd`): backtick-fenced code, pipe
+/// tables, definition lists, footnotes, sub/superscript, and dollar math, with everything outside
+/// that set — strikeout, spans, header attributes, fenced divs — falling back to HTML or indented
+/// forms.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownMmdWriter;
+
+impl Writer for MarkdownMmdWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_MMD,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
+    }
+
+    fn body_ends_with_newline(&self) -> bool {
+        true
+    }
+
+    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
+    }
+}
+
+/// Renders a document to the original Markdown dialect (`markdown_strict`): the sparsest pandoc
+/// dialect, with only raw HTML beyond plain Markdown. Code blocks indent, tables and strikeout and
+/// sub/superscript fall back to HTML, task-list checkboxes keep their raw glyphs, and every other
+/// richer construct degrades to its plainest form.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MarkdownStrictWriter;
+
+impl Writer for MarkdownStrictWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        Ok(render_dialect(
+            document,
+            options,
+            presets::MARKDOWN_STRICT,
+            false,
+        ))
+    }
+
+    fn default_template(&self) -> Option<&'static str> {
+        Some(include_str!("templates/default.markdown"))
     }
 
     fn body_ends_with_newline(&self) -> bool {
@@ -406,7 +579,18 @@ impl State {
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
         let hashes = "#".repeat(usize::try_from(level.max(1)).unwrap_or(1));
         let text = self.inlines_oneline(inlines);
-        let suffix = if self.config.is_github() || header_attr_implicit(attr, inlines) {
+        let auto_identifiers = self.config.has(Extension::AutoIdentifiers)
+            || self.config.has(Extension::GfmAutoIdentifiers);
+        let implicit = header_attr_implicit(attr, inlines, auto_identifiers);
+        let suffix = if self.config.has(Extension::MmdHeaderIdentifiers) {
+            // MultiMarkdown writes only the identifier, in a trailing `[id]`; classes and key/value
+            // pairs are dropped. An attribute that an auto-identifier would regenerate is omitted.
+            if implicit {
+                String::new()
+            } else {
+                format!(" [{}]", attr.id)
+            }
+        } else if !self.config.has(Extension::HeaderAttributes) || implicit {
             String::new()
         } else {
             format!(" {}", pandoc_attr(attr))
@@ -420,15 +604,24 @@ impl State {
 
     fn code_block(&mut self, attr: &Attr, text: &str) -> String {
         let body = text.strip_suffix('\n').unwrap_or(text);
-        let info = if self.config.is_github() {
-            github_code_info(attr)
+        let backtick = self.config.has(Extension::BacktickCodeBlocks);
+        let fenced = backtick || self.config.has(Extension::FencedCodeBlocks);
+        let info = if fenced {
+            if self.config.has(Extension::FencedCodeAttributes) {
+                extended_code_info(attr)
+            } else {
+                github_code_info(attr)
+            }
         } else {
-            extended_code_info(attr)
+            None
         };
         let Some(info) = info else {
             return indent_code(text);
         };
-        let fence = "`".repeat(backtick_fence_len(body));
+        let fence_char = if backtick { '`' } else { '~' };
+        let fence = fence_char
+            .to_string()
+            .repeat(fence_run_len(body, fence_char));
         if body.is_empty() {
             format!("{fence}{info}\n{fence}")
         } else {
@@ -437,25 +630,52 @@ impl State {
     }
 
     fn raw_block(&mut self, format: &Format, text: &str) -> String {
-        if self.config.is_github() {
-            if is_html_format(format) {
-                collapse_trailing_newline(text)
-            } else {
-                String::new()
-            }
+        // A raw block round-trips verbatim only when its format is one the dialect can embed
+        // natively: HTML under `raw_html`, or TeX under `raw_tex`. Otherwise it needs the
+        // `raw_attribute` fenced form (```` ```{=fmt} ````); without that extension it is dropped.
+        let native = if is_html_format(format) {
+            self.config.has(Extension::RawHtml)
+        } else if is_tex_format(format) {
+            self.config.has(Extension::RawTex)
         } else {
-            collapse_trailing_newline(text)
+            false
+        };
+        if native {
+            return collapse_trailing_newline(text);
+        }
+        if !self.config.has(Extension::RawAttribute) {
+            return String::new();
+        }
+        let body = collapse_trailing_newline(text);
+        let fence = "`".repeat(fence_run_len(&body, '`'));
+        if body.is_empty() {
+            format!("{fence}{{={}}}\n{fence}", format.0)
+        } else {
+            format!("{fence}{{={}}}\n{body}\n{fence}", format.0)
         }
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
-        if self.config.is_github() {
-            let body = self.blocks_to_string(blocks, width);
-            return format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr));
-        }
         let body = self.blocks_to_string(blocks, width);
+        if !self.config.has(Extension::FencedDivs) {
+            // The `CommonMark` family, and any pandoc-markdown dialect that parses raw HTML divs,
+            // wrap the contents in a literal `<div>`; the sparse pandoc-markdown dialects have no
+            // div syntax at all and render the contents transparently. The `markdown_attribute`
+            // dialects also wrap, tagging the `<div>` with `data-markdown="1"` so its contents are
+            // still parsed as Markdown.
+            let marker = self.config.has(Extension::MarkdownAttribute);
+            if self.config.cmark
+                || self.config.has(Extension::NativeDivs)
+                || self.config.has(Extension::MarkdownInHtmlBlocks)
+                || marker
+            {
+                let data = if marker { " data-markdown=\"1\"" } else { "" };
+                return format!("<div{}{data}>\n\n{body}\n\n</div>", render_html_attr(attr));
+            }
+            return body;
+        }
         let fence = ":".repeat(colon_fence_len(&body));
-        let opener = div_opener(attr);
+        let opener = div_opener(attr, self.config.cmark);
         if body.is_empty() {
             format!("{fence}{opener}\n{fence}")
         } else {
@@ -464,12 +684,12 @@ impl State {
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
-        if self.config.is_github() {
+        if !self.config.has(Extension::LineBlocks) {
             let rendered: Vec<String> = lines
                 .iter()
                 .map(|line| self.inlines_oneline(line))
                 .collect();
-            return rendered.join("\\\n");
+            return rendered.join(&format!("{}\n", self.config.hard_break()));
         }
         let rendered: Vec<String> = lines
             .iter()
@@ -479,7 +699,9 @@ impl State {
     }
 
     fn bullet_list(&mut self, items: &[Vec<Block>], width: usize) -> String {
-        if let Some(rendered) = self.task_list(items, width) {
+        if self.config.has(Extension::TaskLists)
+            && let Some(rendered) = self.task_list(items, width)
+        {
             return rendered;
         }
         let loose = is_loose(items);
@@ -523,11 +745,12 @@ impl State {
     ) -> String {
         let loose = is_loose(items);
         let (style, delim) = self.ordered_marks(attrs);
+        let start = self.ordered_start(attrs);
         let rendered: Vec<String> = items
             .iter()
             .enumerate()
             .map(|(offset, item)| {
-                let number = attrs.start.saturating_add(offset_as_i32(offset));
+                let number = start.saturating_add(offset_as_i32(offset));
                 let marker = ordered_marker(number, &style, &delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let body = self.blocks_to_string(item, width.saturating_sub(field));
@@ -540,17 +763,32 @@ impl State {
         rendered.join(item_separator(loose))
     }
 
-    /// The numeral style and delimiter to render an ordered list with. The GitHub dialect collapses
-    /// every style to decimal and every delimiter to a period or a single closing parenthesis.
+    /// The numeral style and delimiter to render an ordered list with. With the fancy-list extension
+    /// the source style and delimiter are kept. Without it the `CommonMark` family still collapses the
+    /// style to decimal but keeps a closing-parenthesis delimiter; the pandoc-markdown dialects have
+    /// no rich-list syntax at all and collapse every list to a decimal period (`1.`).
     fn ordered_marks(&self, attrs: &ListAttributes) -> (ListNumberStyle, ListNumberDelim) {
-        if self.config.is_github() {
+        if self.config.has(Extension::FancyLists) {
+            return (attrs.style.clone(), attrs.delim.clone());
+        }
+        if self.config.cmark {
             let delim = match attrs.delim {
                 ListNumberDelim::OneParen | ListNumberDelim::TwoParens => ListNumberDelim::OneParen,
                 ListNumberDelim::Period | ListNumberDelim::DefaultDelim => ListNumberDelim::Period,
             };
             return (ListNumberStyle::Decimal, delim);
         }
-        (attrs.style.clone(), attrs.delim.clone())
+        (ListNumberStyle::Decimal, ListNumberDelim::Period)
+    }
+
+    /// The first ordered-list number. The `CommonMark` family and the `startnum` extension honor the
+    /// source list's start number; the other pandoc-markdown dialects renumber from 1.
+    fn ordered_start(&self, attrs: &ListAttributes) -> i32 {
+        if self.config.cmark || self.config.has(Extension::Startnum) {
+            attrs.start
+        } else {
+            1
+        }
     }
 
     fn definition_list(
@@ -558,7 +796,7 @@ impl State {
         items: &[(Vec<Inline>, Vec<Vec<Block>>)],
         width: usize,
     ) -> String {
-        if self.config.is_github() {
+        if !self.config.has(Extension::DefinitionLists) {
             return self.definition_list_fallback(items, width);
         }
         let groups: Vec<String> = items
@@ -568,7 +806,7 @@ impl State {
         groups.join("\n\n")
     }
 
-    /// One term and its definitions in the extended dialect: the term on its own line, then each
+    /// One term and its definitions in definition-list syntax: the term on its own line, then each
     /// definition introduced by `:` with a two-column hanging indent.
     fn definition_group(
         &mut self,
@@ -596,8 +834,8 @@ impl State {
         }
     }
 
-    /// The GitHub dialect has no definition-list syntax: each term renders as a line ending in a
-    /// hard break and its definitions follow as ordinary blocks.
+    /// Without the definition-list extension there is no native syntax: each term renders as a line
+    /// ending in a hard break and its definitions follow as ordinary blocks.
     fn definition_list_fallback(
         &mut self,
         items: &[(Vec<Inline>, Vec<Vec<Block>>)],
@@ -623,7 +861,7 @@ impl State {
     }
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block]) -> String {
-        if self.config.is_github() {
+        if !self.config.has(Extension::ImplicitFigures) {
             return crate::html::render_fragment(
                 &[Block::Figure(
                     attr.clone(),
@@ -677,14 +915,25 @@ impl State {
                 .attributes
                 .insert(0, ("alt".to_owned(), alt_text));
         }
+        // If the image itself would fall back to an HTML `<img>`, the shorthand cannot carry it; the
+        // caller renders the whole figure as an HTML `<figure>` instead.
+        if self.image_renders_as_html(&image_attr) {
+            return None;
+        }
         let mut out = Vec::new();
         self.image(&image_attr, &caption_inlines, target, &mut out);
         Some(pieces_to_string(&out))
     }
 
     fn table(&mut self, table: &Table, width: usize) -> String {
-        if self.config.is_github() {
-            return self.github_table(table, width);
+        let native = self.config.has(Extension::SimpleTables)
+            || self.config.has(Extension::MultilineTables)
+            || self.config.has(Extension::GridTables);
+        if !native {
+            if self.config.has(Extension::PipeTables) {
+                return self.github_table(table, width);
+            }
+            return self.html_table(table);
         }
         if table.col_specs.is_empty() {
             return String::new();
@@ -702,15 +951,22 @@ impl State {
         }
     }
 
+    /// Render a table as a raw HTML block, for a dialect whose extension set gives it no native
+    /// table syntax. A raw HTML block in markdown is terminated by a blank line, so any blank line
+    /// the table's HTML spans — an empty body, the gap between two row groups — is collapsed by
+    /// [`encode_html_block_blank_lines`] so the whole table stays a single block.
+    fn html_table(&self, table: &Table) -> String {
+        let html =
+            crate::html::render_fragment(&[Block::Table(Box::new(table.clone()))], self.wrap);
+        encode_html_block_blank_lines(&html)
+    }
+
     /// A GitHub table: a pipe table when every cell is a single line and no cell spans, otherwise an
     /// HTML table. A column-aligned pipe table whose columns together exceed the fill column drops to
     /// a narrow form with single-space cell padding. The caption follows the table as its own block.
     fn github_table(&mut self, table: &Table, width: usize) -> String {
         if !pipe_representable(table) {
-            return crate::html::render_fragment(
-                &[Block::Table(Box::new(table.clone()))],
-                self.wrap,
-            );
+            return self.html_table(table);
         }
         let columns = table.col_specs.len();
         if columns == 0 {
@@ -758,14 +1014,14 @@ impl State {
         }
     }
 
-    /// The GitHub-table caption: the caption blocks reflowed and concatenated with a backslash hard
-    /// break between blocks, carrying any table attributes as a trailing `{#id .class key="value"}`
+    /// The GitHub-table caption: the caption blocks reflowed and concatenated with a hard break
+    /// between blocks, carrying any table attributes as a trailing `{#id .class key="value"}`
     /// suffix. `None` when the caption is empty.
     fn github_caption(&mut self, caption: &Caption, attr: &Attr, width: usize) -> Option<String> {
         let mut pieces: Vec<Piece> = Vec::new();
         for block in &caption.long {
             if !pieces.is_empty() {
-                pieces.push(Piece::Text("\\".to_owned()));
+                pieces.push(Piece::Text(self.config.hard_break().to_owned()));
                 pieces.push(Piece::Hard);
             }
             self.extend_pieces(block_inlines(block), &mut pieces);
@@ -1093,7 +1349,7 @@ impl State {
         let mut pieces: Vec<Piece> = Vec::new();
         for block in &table.caption.long {
             if !pieces.is_empty() {
-                pieces.push(Piece::Text("\\".to_owned()));
+                pieces.push(Piece::Text(self.config.hard_break().to_owned()));
                 pieces.push(Piece::Hard);
             }
             self.extend_pieces(block_inlines(block), &mut pieces);
@@ -1147,39 +1403,45 @@ impl State {
             Inline::Str(text) => out.push(Piece::Text(self.escape_str(text))),
             Inline::Emph(inlines) => self.wrap_markup("*", inlines, out),
             Inline::Strong(inlines) => self.wrap_markup("**", inlines, out),
-            Inline::Strikeout(inlines) => self.wrap_markup("~~", inlines, out),
-            Inline::Underline(inlines) => {
-                if self.config.is_github() {
-                    self.wrap_tag("u", inlines, out);
+            Inline::Strikeout(inlines) => {
+                if self.config.has(Extension::Strikeout) {
+                    self.wrap_markup("~~", inlines, out);
                 } else {
+                    self.wrap_tag("s", inlines, out);
+                }
+            }
+            Inline::Underline(inlines) => {
+                if self.config.span_syntax() {
                     self.wrap_span(&underline_attr(), inlines, out);
+                } else {
+                    self.wrap_tag("u", inlines, out);
                 }
             }
             Inline::Superscript(inlines) => {
-                if self.config.is_github() {
-                    self.wrap_tag("sup", inlines, out);
-                } else {
+                if self.config.has(Extension::Superscript) {
                     self.wrap_markup("^", inlines, out);
+                } else {
+                    self.wrap_tag("sup", inlines, out);
                 }
             }
             Inline::Subscript(inlines) => {
-                if self.config.is_github() {
-                    self.wrap_tag("sub", inlines, out);
-                } else {
+                if self.config.has(Extension::Subscript) {
                     self.wrap_markup("~", inlines, out);
+                } else {
+                    self.wrap_tag("sub", inlines, out);
                 }
             }
             Inline::SmallCaps(inlines) => {
-                if self.config.is_github() {
+                if self.config.span_syntax() {
+                    self.wrap_span(&smallcaps_attr(), inlines, out);
+                } else {
                     out.push(Piece::Text("<span class=\"smallcaps\">".to_owned()));
                     self.extend_pieces(inlines, out);
                     out.push(Piece::Text("</span>".to_owned()));
-                } else {
-                    self.wrap_span(&smallcaps_attr(), inlines, out);
                 }
             }
             Inline::Quoted(kind, inlines) => {
-                let (open, close) = if self.config.downgrades_smart() {
+                let (open, close) = if self.config.has(Extension::Smart) {
                     ascii_quote_marks(kind)
                 } else {
                     quote_marks(kind)
@@ -1193,22 +1455,22 @@ impl State {
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
-                out.push(Piece::Text("\\".to_owned()));
+                out.push(Piece::Text(self.config.hard_break().to_owned()));
                 out.push(Piece::Hard);
             }
-            Inline::Math(kind, text) => out.push(Piece::Text(self.math(kind, text))),
+            Inline::Math(kind, text) => self.math(kind, text, out),
             Inline::RawInline(format, text) => self.raw_inline(format, text, out),
             Inline::Link(attr, inlines, target) => self.link(attr, inlines, target, out),
             Inline::Image(attr, inlines, target) => self.image(attr, inlines, target, out),
             Inline::Span(attr, inlines) => {
                 if attr_is_empty(attr) {
                     self.extend_pieces(inlines, out);
-                } else if self.config.is_github() {
+                } else if self.config.span_syntax() {
+                    self.wrap_span(attr, inlines, out);
+                } else {
                     out.push(Piece::Text(format!("<span{}>", render_html_attr(attr))));
                     self.extend_pieces(inlines, out);
                     out.push(Piece::Text("</span>".to_owned()));
-                } else {
-                    self.wrap_span(attr, inlines, out);
                 }
             }
             Inline::Note(blocks) => {
@@ -1218,17 +1480,55 @@ impl State {
         }
     }
 
-    fn math(&self, kind: &MathType, text: &str) -> String {
-        match (self.config.is_github(), kind) {
-            (false, MathType::InlineMath) => format!("${text}$"),
-            (false, MathType::DisplayMath) => format!("$${text}$$"),
-            (true, MathType::InlineMath) => format!("$`{text}`$"),
-            (true, MathType::DisplayMath) => format!("``` math\n{text}\n```"),
+    /// Render a math node. The GitHub math surface writes an inline `` $`…`$ `` span and a fenced
+    /// ```` ```math ```` display block; the dollar surface writes `$…$`/`$$…$$`. With neither, the
+    /// expression linearizes to inline markup.
+    fn math(&mut self, kind: &MathType, text: &str, out: &mut Vec<Piece>) {
+        if self.config.has(Extension::TexMathGfm) {
+            let rendered = match kind {
+                MathType::InlineMath => format!("$`{text}`$"),
+                MathType::DisplayMath => format!("``` math\n{text}\n```"),
+            };
+            out.push(Piece::Text(rendered));
+            return;
+        }
+        if self.config.has(Extension::TexMathDollars) {
+            let rendered = match kind {
+                MathType::InlineMath => format!("${text}$"),
+                MathType::DisplayMath => format!("$${text}$$"),
+            };
+            out.push(Piece::Text(rendered));
+            return;
+        }
+        self.math_fallback(kind, text, out);
+    }
+
+    /// Render a math node when the dialect has no math syntax: the expression linearized to inline
+    /// markup when it converts, nothing when it is empty, otherwise the verbatim source wrapped in
+    /// the kind's `$`/`$$` delimiters and routed through the running-text path so its literal text is
+    /// escaped. Inline source has its edge whitespace trimmed before wrapping; display source is
+    /// wrapped as written.
+    fn math_fallback(&mut self, kind: &MathType, tex: &str, out: &mut Vec<Piece>) {
+        match crate::math::to_inlines(tex) {
+            Some(inlines) => {
+                for converted in &inlines {
+                    self.inline(converted, out);
+                }
+            }
+            None if tex.trim().is_empty() => {}
+            None => {
+                let (delim, body) = match kind {
+                    MathType::DisplayMath => ("$$", tex),
+                    MathType::InlineMath => ("$", tex.trim()),
+                };
+                let fallback = Inline::Str(format!("{delim}{body}{delim}"));
+                self.inline(&fallback, out);
+            }
         }
     }
 
     fn raw_inline(&mut self, format: &Format, text: &str, out: &mut Vec<Piece>) {
-        if self.config.is_github() {
+        if !self.config.has(Extension::RawAttribute) {
             if is_html_format(format) {
                 out.push(Piece::Text(text.to_owned()));
             }
@@ -1241,10 +1541,10 @@ impl State {
         )));
     }
 
-    /// Render a citation. The extended dialect reconstructs citation syntax; the GitHub dialect has
-    /// no citation extension, so it renders the citation's display inlines instead.
+    /// Render a citation. With the citation extension this reconstructs citation syntax; without it
+    /// there is no such syntax, so the citation's display inlines render instead.
     fn cite(&mut self, citations: &[Citation], inlines: &[Inline], out: &mut Vec<Piece>) {
-        if self.config.is_github() {
+        if !self.config.has(Extension::Citations) {
             self.extend_pieces(inlines, out);
             return;
         }
@@ -1327,7 +1627,7 @@ impl State {
             out.push(Piece::Text(autolink));
             return;
         }
-        if self.config.is_github() && !attr_is_empty(attr) {
+        if !self.config.has(Extension::LinkAttributes) && !attr_is_empty(attr) {
             out.push(Piece::Text(format!(
                 "<a href=\"{}\"{}{}>",
                 escape_attr(&target.url),
@@ -1351,8 +1651,14 @@ impl State {
         )));
     }
 
+    /// Whether an image carrying `attr` must fall back to an HTML `<img>`: it has attributes the
+    /// dialect cannot express as a native `{…}` suffix because it lacks `link_attributes`.
+    fn image_renders_as_html(&self, attr: &Attr) -> bool {
+        !self.config.has(Extension::LinkAttributes) && (has_dimension(attr) || !attr_is_empty(attr))
+    }
+
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
-        if self.config.is_github() && (has_dimension(attr) || !attr_is_empty(attr)) {
+        if self.image_renders_as_html(attr) {
             out.push(Piece::Text(image_html(attr, inlines, target)));
             return;
         }
@@ -1370,14 +1676,17 @@ impl State {
     }
 
     /// Escape the markdown-significant characters of running text. Inline-markup openers (`` ` ``,
-    /// `*`, `[`, `]`, `<`, `>`, `|`), the math delimiter `$`, and entity-introducing `&` are escaped
-    /// in every dialect; `~`/`^` (sub/superscript) and a word-initial `@` (citation) are escaped only
-    /// in the extended dialect. A `#` run that would open a heading is escaped at the start of a line;
-    /// `_` is escaped at a word boundary. A backslash is escaped per dialect.
+    /// `*`, `[`, `]`, `<`, `>`), the math delimiter `$`, and entity-introducing `&` are always
+    /// escaped; `|` only when pipe tables make it a cell separator; `~` and `^` only when subscript
+    /// and superscript have native syntax; and a word-initial `@` only when citations do. A `#` run
+    /// that would open a heading is escaped at the start of a line. An `_` is escaped at a word
+    /// boundary, and everywhere in a pandoc-markdown dialect without `intraword_underscores` (the
+    /// `CommonMark` family never treats an intra-word `_` as emphasis, so it is left literal there).
+    /// A backslash is escaped per the raw-TeX extension. Smart-punctuation glyphs are rewritten to
+    /// ASCII when the `smart` extension is active.
     fn escape_str(&self, text: &str) -> String {
-        let github = self.config.is_github();
         let downgraded;
-        let text = if self.config.downgrades_smart() {
+        let text = if self.config.has(Extension::Smart) {
             downgraded = downgrade_smart(text);
             downgraded.as_str()
         } else {
@@ -1394,18 +1703,34 @@ impl State {
             match ch {
                 '#' if word_start && starts_heading(tail()) => out.push_str("\\#"),
                 '!' if next == Some('[') => out.push_str("\\!"),
-                '`' | '*' | '[' | ']' | '<' | '>' | '|' | '$' => {
+                '`' | '*' | '[' | ']' | '<' | '>' => {
                     out.push('\\');
                     out.push(ch);
                 }
-                '~' | '^' if !github => {
+                '|' if self.config.has(Extension::PipeTables) => {
                     out.push('\\');
                     out.push(ch);
                 }
-                '@' if !github && word_start => out.push_str("\\@"),
+                '$' if self.config.has(Extension::TexMathDollars) => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '~' if self.config.has(Extension::Subscript) => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '^' if self.config.has(Extension::Superscript) => {
+                    out.push('\\');
+                    out.push(ch);
+                }
+                '@' if self.config.has(Extension::Citations) && word_start => out.push_str("\\@"),
                 '&' if begins_character_reference(tail()) => out.push_str("\\&"),
                 '&' if begins_named_entity(tail()) => out.push_str("\\&"),
-                '_' if is_word_boundary(prev, next) => out.push_str("\\_"),
+                '_' if is_word_boundary(prev, next)
+                    || !(self.config.cmark || self.config.has(Extension::IntrawordUnderscores)) =>
+                {
+                    out.push_str("\\_");
+                }
                 '\\' => self.escape_backslash(next, &mut out),
                 other => out.push(other),
             }
@@ -1414,16 +1739,17 @@ impl State {
         out
     }
 
-    /// Escape a backslash. The extended dialect doubles every backslash; the GitHub dialect doubles
-    /// only a trailing backslash and otherwise emits it verbatim.
+    /// Escape a backslash. When raw TeX passes through verbatim every backslash is doubled so it is
+    /// not mistaken for an escape; otherwise only a trailing backslash is doubled and an interior one
+    /// is emitted verbatim.
     fn escape_backslash(&self, next: Option<char>, out: &mut String) {
-        if self.config.is_github() {
+        if self.config.has(Extension::RawTex) {
+            out.push_str("\\\\");
+        } else {
             match next {
                 None => out.push_str("\\\\"),
                 Some(_) => out.push('\\'),
             }
-        } else {
-            out.push_str("\\\\");
         }
     }
 }
@@ -1452,6 +1778,11 @@ impl NotesHost for State {
     }
 
     fn record_note(&mut self, blocks: &[Block]) -> String {
+        // Without the `footnotes` extension the dialect has no `[^n]` syntax, so a note degrades to
+        // the generic numbered `[n]` reference and definition.
+        if !self.config.has(Extension::Footnotes) {
+            return self.numbered_note(blocks);
+        }
         let index = self.notes().len();
         self.notes().push(String::new());
         let marker = format!("[^{}]", index + 1);
@@ -1489,6 +1820,25 @@ impl NotesHost for State {
             .collect();
         crate::common::join_loose(rendered)
     }
+}
+
+/// Encode the blank lines of a raw HTML fragment so it survives as one raw HTML block in markdown.
+/// A blank line ends a raw HTML block, so the newline that opens one — any newline directly
+/// following another — is rewritten as the `&#10;` character reference, leaving single line breaks
+/// untouched. This mirrors pandoc's encoding for an HTML table embedded in a markdown dialect with
+/// no native table syntax.
+fn encode_html_block_blank_lines(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut prev_newline = false;
+    for ch in html.chars() {
+        if ch == '\n' && prev_newline {
+            out.push_str("&#10;");
+        } else {
+            out.push(ch);
+        }
+        prev_newline = ch == '\n';
+    }
+    out
 }
 
 fn pieces_to_string(pieces: &[Piece]) -> String {
@@ -1545,6 +1895,13 @@ fn is_html_format(format: &Format) -> bool {
     matches!(format.0.as_str(), "html" | "html4" | "html5")
 }
 
+/// Whether a raw-format name denotes TeX, which Markdown dialects with `raw_tex` embed verbatim.
+/// `ConTeXt` and other TeX-adjacent formats are excluded — Pandoc routes only `tex`/`latex` through
+/// the verbatim path and renders everything else via the `raw_attribute` fenced form.
+fn is_tex_format(format: &Format) -> bool {
+    matches!(format.0.as_str(), "tex" | "latex")
+}
+
 fn collapse_trailing_newline(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
 }
@@ -1559,9 +1916,9 @@ fn starts_heading(text: &str) -> bool {
     matches!(text.chars().nth(hashes), None | Some(' '))
 }
 
-/// The info string for a fenced code block in the extended dialect, or `None` to render it indented
-/// (no attributes). A lone class becomes a bare language tag; anything richer uses the attribute
-/// block form.
+/// The info string for a fenced code block when fenced-code attributes are available, or `None` to
+/// render it indented (no attributes). A lone class becomes a bare language tag; anything richer
+/// uses the attribute block form.
 fn extended_code_info(attr: &Attr) -> Option<String> {
     if attr_is_empty(attr) {
         return None;
@@ -1575,8 +1932,8 @@ fn extended_code_info(attr: &Attr) -> Option<String> {
     Some(format!(" {}", pandoc_attr(attr)))
 }
 
-/// The info string for a fenced code block in the GitHub dialect, or `None` for indented output:
-/// only the first class survives, as a bare language tag.
+/// The info string for a fenced code block when fenced-code attributes are unavailable, or `None`
+/// for indented output: only the first class survives, as a bare language tag.
 fn github_code_info(attr: &Attr) -> Option<String> {
     match attr.classes.first() {
         Some(class) if !class.is_empty() => Some(format!(" {class}")),
@@ -1600,10 +1957,12 @@ fn indent_code(text: &str) -> String {
     out
 }
 
-fn backtick_fence_len(text: &str) -> usize {
+/// The fence length for a fenced code block built from `fence`: longer than the longest leading run
+/// of that character already in the body (so the fence cannot close early), and at least three.
+fn fence_run_len(text: &str, fence: char) -> usize {
     let mut longest = 0;
     for line in text.split('\n') {
-        let run = line.chars().take_while(|&c| c == '`').count();
+        let run = line.chars().take_while(|&c| c == fence).count();
         longest = longest.max(run);
     }
     (longest + 1).max(3)
@@ -1620,10 +1979,11 @@ fn colon_fence_len(body: &str) -> usize {
     (longest + 1).max(3)
 }
 
-/// The text following a fenced-div opener: a bare class when the div carries only a single class,
-/// otherwise an attribute block.
-fn div_opener(attr: &Attr) -> String {
-    if attr.id.is_empty()
+/// The text following a fenced-div opener: a bare class when the div carries only a single class and
+/// the shorthand is allowed (`braced` is false), otherwise an attribute block.
+fn div_opener(attr: &Attr, braced: bool) -> String {
+    if !braced
+        && attr.id.is_empty()
         && attr.attributes.is_empty()
         && let [class] = attr.classes.as_slice()
     {
@@ -1731,10 +2091,11 @@ fn caption_blocks_as_inlines(blocks: &[Block]) -> Option<Vec<Inline>> {
 
 /// Whether a header's attributes are exactly the identifier a reader would derive from its text, so
 /// the explicit `{#id}` block is redundant and can be dropped.
-fn header_attr_implicit(attr: &Attr, inlines: &[Inline]) -> bool {
+fn header_attr_implicit(attr: &Attr, inlines: &[Inline], auto_identifiers: bool) -> bool {
     attr.classes.is_empty()
         && attr.attributes.is_empty()
-        && (attr.id.is_empty() || attr.id == carta_ast::slug(&carta_ast::to_plain_text(inlines)))
+        && (attr.id.is_empty()
+            || (auto_identifiers && attr.id == carta_ast::slug(&carta_ast::to_plain_text(inlines))))
 }
 
 fn is_autolink_class(attr: &Attr) -> bool {
@@ -1757,8 +2118,8 @@ fn title_attr(title: &Text) -> String {
     }
 }
 
-/// An image rendered as an HTML `<img>` element (the GitHub fallback for an image carrying
-/// attributes).
+/// An image rendered as an HTML `<img>` element (the fallback for an image carrying attributes when
+/// link attributes have no native syntax).
 fn image_html(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
     let alt = carta_ast::to_plain_text(inlines);
     let alt_attr = if alt.is_empty() {
@@ -2085,6 +2446,30 @@ mod tests {
                 render(long_paragraph(), None),
                 render(long_paragraph(), Some(72))
             );
+        }
+    }
+
+    mod raw_blocks {
+        use carta_ast::{Block, Document, Format};
+        use carta_core::{Writer, WriterOptions};
+
+        use crate::markdown::MarkdownWriter;
+
+        // A raw-attribute block opens with a backtick fence longer than any run inside its body, so a
+        // body that itself contains a ``` line cannot close the fence early.
+        #[test]
+        fn raw_attribute_fence_outgrows_a_backtick_run_in_the_body() {
+            let document = Document {
+                blocks: vec![Block::RawBlock(
+                    Format("dot".to_owned()),
+                    "```\ngraph {}\n```".to_owned(),
+                )],
+                ..Document::default()
+            };
+            let output = MarkdownWriter
+                .write(&document, &WriterOptions::default())
+                .unwrap();
+            assert_eq!(output, "````{=dot}\n```\ngraph {}\n```\n````");
         }
     }
 }
