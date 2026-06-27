@@ -1,0 +1,8 @@
+An internal link to [[start]] and one to a [[some:namespace:page]] target.
+
+A named internal link to [[start|the start page]] guides the reader.
+
+External links such as [[https://example.com|Example]] and the bare form
+https://example.org both work, as does an email like <user@example.com>.
+
+An interwiki shortcut points at [[wp>Wiki]] for background reading.

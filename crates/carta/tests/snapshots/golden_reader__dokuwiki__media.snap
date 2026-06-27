@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Str","c":"image"},{"t":"Space"},{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"logo.png"}],["/wiki/logo.png",""]]},{"t":"Space"},{"t":"Str","c":"sits"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"text."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"captioned"},{"t":"Space"},{"t":"Str","c":"image"},{"t":"Space"},{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"photo"}],["/wiki/photo.jpg",""]]},{"t":"Space"},{"t":"Str","c":"follows"},{"t":"Space"},{"t":"Str","c":"here."}]}]}

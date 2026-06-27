@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"ending"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"forced"},{"t":"Space"},{"t":"Str","c":"break"},{"t":"LineBreak"},{"t":"Str","c":"continues"},{"t":"Space"},{"t":"Str","c":"on"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"next"},{"t":"Space"},{"t":"Str","c":"visual"},{"t":"Space"},{"t":"Str","c":"line."}]},{"t":"HorizontalRule"},{"t":"Para","c":[{"t":"Str","c":"Text"},{"t":"Space"},{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"horizontal"},{"t":"Space"},{"t":"Str","c":"rule"},{"t":"Space"},{"t":"Str","c":"shows"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"divider"},{"t":"Space"},{"t":"Str","c":"above."}]}]}

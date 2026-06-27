@@ -1,0 +1,5 @@
+A line ending with a forced break\\ continues on the next visual line.
+
+----
+
+Text after a horizontal rule shows the divider above.

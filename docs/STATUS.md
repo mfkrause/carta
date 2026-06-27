@@ -56,11 +56,73 @@ Single table; cells are plain text — the format's full scope.
 ### `tsv` — ✅
 As `csv`, tab-delimited.
 
+### `rst` — 🚧
+reStructuredText blocks and inlines: sections, bullet/enumerated/definition/field lists, literal and
+line blocks, block quotes, footnotes and citations, hyperlink targets and substitutions, interpreted
+roles, the common directives (admonitions, image/figure, code, raw, role), and grid/simple tables.
+`auto_identifiers` supplies header slug ids.
+Gaps: grid-table cells that span rows or columns are emitted as separate single-span cells rather
+than merged; the `csv-table` and `list-table` directives fall through to a generic `Div` instead of a
+`Table`; the `contents` (table-of-contents) directive emits nothing; a definition-list classifier
+(`term : classifier`) stays part of the term; doctest blocks (`>>>`) read as ordinary paragraphs;
+only `auto_identifiers` is wired — no other RST-specific extension toggles.
+
+### `ipynb` — 🚧
+Jupyter notebooks (nbformat v4): markdown cells parsed in a GitHub-flavored Markdown dialect (the
+cell preset turns on `auto_identifiers`, `gfm_auto_identifiers`, `tex_math_dollars`, `pipe_tables`,
+`task_lists`, `strikeout`, `raw_html`, `autolink_bare_uris`, `fenced_code_blocks`,
+`backtick_code_blocks`, `intraword_underscores`); code cells become code blocks carrying their
+stream / `execute_result` / `display_data` / `error` outputs; notebook and cell metadata become
+attributes; `attachment:` image references and base64 image payloads are decoded.
+Gaps: nbformat v3 (worksheets) is not yet implemented; the reader is lenient where the format is
+strict (a stream output with no `name`, a null `execution_count`, or a missing top-level `nbformat`
+are accepted rather than rejected); unknown cell and output kinds are silently dropped;
+extreme-magnitude numbers may render in rounded or scientific form.
+
+### `mediawiki` — 🚧
+MediaWiki wikitext: headings, paragraphs, apostrophe bold/italic emphasis, bullet/numbered/definition
+and indent lists, preformatted and `<source>`/`<syntaxhighlight>` code blocks, block quotes,
+horizontal rules, internal and external links, `<nowiki>`, HTML passthrough, entities, and inline
+`<math>`. `auto_identifiers` supplies header ids.
+Gaps: table markup (`{| … |}`) and file/image/media embeds are not yet implemented; `smart`
+typographic substitution is not applied; block `<math display=block>` is emitted as inline math;
+namespaces other than file/image/media (Category, interwiki, leading-colon) read as ordinary
+wikilinks; a mid-paragraph `<pre>`/`<source>` falls through to HTML passthrough rather than a code
+block.
+
+### `dokuwiki` — 🚧
+DokuWiki markup: headings, paragraphs, bold/italic/underline/monospace, bullet and ordered lists,
+code and file blocks, quotes, tables, internal/external/interwiki links, media embeds, footnotes
+(`((…))`), `<nowiki>`/`%%` escapes, smart quotes, and entities.
+Gaps: `<code>`/`<file>`/`<HTML>`/`<PHP>` tags are recognized only at the start of a line — a
+mid-paragraph occurrence stays literal inline text instead of splitting the paragraph around a
+code/raw block; the single-quote vs `''` monospace interaction and the degenerate empty `''''`
+diverge in edge cases; a footnote closes at the first `))`, so nested parentheses are unbalanced;
+bare-URL autolinking requires an explicit `scheme://`.
+
+### `jira` — 🚧
+Jira wiki markup: headings, paragraphs, the text effects (strong, emphasis, citation, deleted,
+inserted, superscript, subscript, monospace), colored and anchored spans, bullet/numbered lists, the
+`{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji.
+Gaps: the `east_asian_line_breaks` extension is not modeled (no enum variant; it is off by default);
+an adversarial run of unbalanced `--`/`---` does not reproduce nested strikeout pairing; block
+brace-macros are recognized only at the start of a line (a mid-line `{code}` after other text reads as
+paragraph text); a `|` inside an image's `!src|props!` within a table cell is not depth-protected.
+
+### `man` — 🚧
+roff man pages: section and subsection headings (`.SH`/`.SS`), paragraphs, indented and
+tagged-paragraph lists (`.IP`/`.TP`) folded into bullet/ordered/definition lists, font macros
+(`\fB`, `.B`, `.BR`, …) mapped to strong/emphasis/code, `.nf`/`.EX` verbatim regions as code blocks,
+hyperlinks (`.UR`/`.MT`), and `.RS`/`.RE` nesting. `auto_identifiers` supplies header ids.
+Gaps: `tbl` tables (`.TS`/`.TE`) are not yet parsed; a single ambiguous list-marker letter
+(`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than lower-alpha; `.TQ` ends the list rather
+than attaching a second term; `.MR`/`.SM`/`.SB` are dropped; verbatim regions flatten embedded font
+macros and normalize tabs to a single space.
+
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
-`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `ipynb`, `jats`, `jira`, `latex`, `man`,
-`markdown_strict`, `markdown_mmd`, `markdown_phpextra`, `markdown_github`, `mdoc`, `mediawiki`,
-`muse`, `odt`, `org`, `pod`, `pptx`, `ris`, `rst`, `rtf`, `t2t`, `textile`, `tikiwiki`, `twiki`,
-`typst`, `vimwiki`, `xlsx`, `xml`.
+`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `latex`, `markdown_strict`, `markdown_mmd`,
+`markdown_phpextra`, `markdown_github`, `mdoc`, `muse`, `odt`, `org`, `pod`, `pptx`, `ris`, `rtf`,
+`t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---
 
@@ -134,10 +196,18 @@ AST → Pandoc JSON.
 ### `native` — ✅
 AST → native literals.
 
+### `ipynb` — 🚧
+AST → Jupyter notebook (nbformat v4): the document is split into markdown and code cells, code cells
+carrying their outputs, with document and cell metadata serialized from attributes. Cell ids are
+derived deterministically from cell content so output stays byte-reproducible.
+Gaps: an image output's data bundle is not reconstructed (that would require reading the referenced
+file), so such an output is not yet emitted; nested metadata keys (e.g. `kernelspec`) emit in sorted
+order rather than the format's hash order; standalone (`-s`), TOC, and section numbering are no-ops.
+
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
 `csljson`, `docbook` (+ `4`, `5`), `docx`, `dzslides`, `epub` (+ `2`, `3`), `fb2`, `haddock`,
-`icml`, `ipynb`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
+`icml`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
 `odt`, `opendocument`, `org`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
 `vimdoc`, `xml`, `xwiki`, `zimwiki`.
 

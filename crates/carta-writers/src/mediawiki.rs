@@ -128,7 +128,8 @@ impl State {
                 let body = self.blocks(blocks);
                 let trailing = match blocks.last() {
                     Some(block)
-                        if matches!(block, Block::Para(_)) || needs_trailing_blank(block) =>
+                        if matches!(block, Block::Para(_) | Block::Div(..))
+                            || needs_trailing_blank(block) =>
                     {
                         "\n\n"
                     }

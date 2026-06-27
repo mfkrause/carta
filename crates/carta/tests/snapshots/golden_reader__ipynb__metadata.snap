@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"jupyter":{"t":"MetaMap","c":{"authors":{"t":"MetaList","c":[{"t":"MetaMap","c":{"name":{"t":"MetaString","c":"Ada Lovelace"}}},{"t":"MetaMap","c":{"name":{"t":"MetaString","c":"Alan Turing"}}}]},"kernelspec":{"t":"MetaMap","c":{"display_name":{"t":"MetaString","c":"Python 3"},"language":{"t":"MetaString","c":"python"},"name":{"t":"MetaString","c":"python3"}}},"language_info":{"t":"MetaMap","c":{"mimetype":{"t":"MetaString","c":"text/x-python"},"name":{"t":"MetaString","c":"python"},"version":{"t":"MetaString","c":"3.11.0"}}},"nbformat":{"t":"MetaString","c":"4"},"nbformat_minor":{"t":"MetaString","c":"5"},"toc":{"t":"MetaMap","c":{"depth":{"t":"MetaString","c":"3"},"enabled":{"t":"MetaBool","c":true},"threshold":{"t":"MetaString","c":"6"}}}}}},"blocks":[{"t":"Div","c":[["body",["cell","markdown"],[]],[{"t":"Para","c":[{"t":"Str","c":"Document"},{"t":"Space"},{"t":"Str","c":"body."}]}]]}]}

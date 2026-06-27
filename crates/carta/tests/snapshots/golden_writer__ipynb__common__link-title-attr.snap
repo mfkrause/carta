@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<a href=\"http://example.com\" id=\"l\" class=\"ext\" title=\"a title\">text</a>"
+   ],
+   "id": "a28af6e7-d6f8-4506-93c5-6b2805b2852c"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

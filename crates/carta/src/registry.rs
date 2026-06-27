@@ -81,6 +81,12 @@ format_dispatch! {
     "read-csv" => "csv" => carta_readers::CsvReader;
     "read-tsv" => "tsv" => carta_readers::TsvReader;
     "read-opml" => "opml" => carta_readers::OpmlReader;
+    "read-rst" => "rst" => carta_readers::RstReader;
+    "read-ipynb" => "ipynb" => carta_readers::IpynbReader;
+    "read-mediawiki" => "mediawiki" => carta_readers::MediawikiReader;
+    "read-dokuwiki" => "dokuwiki" => carta_readers::DokuwikiReader;
+    "read-jira" => "jira" => carta_readers::JiraReader;
+    "read-man" => "man" => carta_readers::ManReader;
 }
 
 format_dispatch! {
@@ -113,4 +119,5 @@ format_dispatch! {
     "write-opml" => "opml" => carta_writers::OpmlWriter;
     "write-beamer" => "beamer" => carta_writers::BeamerWriter;
     "write-revealjs" => "revealjs" => carta_writers::RevealjsWriter;
+    "write-ipynb" => "ipynb" => carta_writers::IpynbWriter;
 }

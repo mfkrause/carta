@@ -18,15 +18,33 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_mmd" => presets::MARKDOWN_MMD,
         "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
-        // LaTeX, Beamer, and Typst default to `smart`: the writer renders quotes and dashes as TeX
-        // ligatures (or Typst's straight-quote/hyphen-run spellings) unless `-smart` asks for the
-        // literal Unicode punctuation instead.
-        "latex" | "beamer" | "typst" => Extensions::from_list(&[Extension::Smart]),
+        // These formats default to `smart`: quotes, dashes, and ellipses are folded into their
+        // typographic forms — TeX ligatures for `latex`/`beamer`, the corresponding glyphs for
+        // `typst` and `dokuwiki` — unless `-smart` asks for the literal Unicode punctuation instead.
+        "latex" | "beamer" | "typst" | "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
         "html" | "html5" | "html4" => Extensions::from_list(&[
             Extension::AutoIdentifiers,
             Extension::LineBlocks,
             Extension::NativeDivs,
             Extension::NativeSpans,
+        ]),
+        "rst" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        "mediawiki" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        // A notebook's markdown cells are parsed and rendered in a GitHub-flavored dialect with dollar
+        // math and auto identifiers on by default.
+        "ipynb" => Extensions::from_list(&[
+            Extension::AutoIdentifiers,
+            Extension::GfmAutoIdentifiers,
+            Extension::Autolink,
+            Extension::BacktickCodeBlocks,
+            Extension::FencedCodeBlocks,
+            Extension::IntrawordUnderscores,
+            Extension::PipeTables,
+            Extension::RawHtml,
+            Extension::Strikeout,
+            Extension::TaskLists,
+            Extension::TexMathDollars,
         ]),
         _ => Extensions::empty(),
     }

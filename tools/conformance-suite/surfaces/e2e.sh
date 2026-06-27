@@ -10,7 +10,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-FORMATS="commonmark html native json"
+FORMATS="commonmark html native json rst ipynb mediawiki dokuwiki jira man"
 TARGETS="html latex rst plain commonmark mediawiki native json"
 [ $# -gt 0 ] && FORMATS="$1"
 

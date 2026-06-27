@@ -1,0 +1,6 @@
+.TH PROGRAM 1 "2024-01-01" "version 1.0" "Program Manual"
+.SH NAME
+program \- do something useful
+.SH DESCRIPTION
+A short paragraph of running text whose lines are filled
+into a single paragraph separated by spaces.

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"DefinitionList","c":[[[{"t":"Str","c":"term"},{"t":"Space"},{"t":"Str","c":"one"}],[[{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"definition"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"first"},{"t":"Space"},{"t":"Str","c":"term."}]}]]],[[{"t":"Str","c":"term"},{"t":"Space"},{"t":"Str","c":"two"}],[[{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"definition"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"second"},{"t":"Space"},{"t":"Str","c":"term,"},{"t":"Space"},{"t":"Str","c":"which"},{"t":"SoftBreak"},{"t":"Str","c":"runs"},{"t":"Space"},{"t":"Str","c":"across"},{"t":"Space"},{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"source"},{"t":"Space"},{"t":"Str","c":"lines."}]}]]]]}]}

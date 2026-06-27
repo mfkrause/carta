@@ -1,0 +1,6 @@
+A paragraph introduces an indented code sample.
+
+  this line is indented code
+  so is this second line
+
+A trailing paragraph follows the sample.

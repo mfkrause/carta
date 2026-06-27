@@ -1,0 +1,14 @@
+The DokuWiki "Formatting Syntax" page (spec.txt) is documentation authored by
+Andreas Gohr and the DokuWiki community.
+
+As published on the DokuWiki documentation wiki
+(<https://www.dokuwiki.org/wiki:syntax>), this content is released under the
+Creative Commons CC-BY-SA 4.0 license:
+<https://creativecommons.org/licenses/by-sa/4.0/>.
+
+The same page also ships inside the DokuWiki software distribution (as
+data/pages/wiki/syntax.txt), which as a whole is released under the GNU General
+Public License, version 2:
+<https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
+
+Either license permits verbatim redistribution with attribution.

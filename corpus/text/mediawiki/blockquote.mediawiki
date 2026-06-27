@@ -1,0 +1,3 @@
+<blockquote>
+A quoted paragraph with ''emphasis''.
+</blockquote>

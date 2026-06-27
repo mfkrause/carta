@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "This is a deliberately long paragraph with wide 中文字符 glyphs and a\n",
+    "combining mark é so the writer measures column widths while wrapping at\n",
+    "the fill column boundary."
+   ],
+   "id": "23d939b2-1ae9-4a6d-bcc9-e6472f9d77c2"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

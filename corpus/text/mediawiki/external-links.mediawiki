@@ -1,0 +1,1 @@
+A [http://example.com labeled] and [http://example.org] and bare http://example.net here.
