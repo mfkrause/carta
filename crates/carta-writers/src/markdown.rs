@@ -204,6 +204,12 @@ impl Writer for MarkdownGithubWriter {
     fn body_ends_with_newline(&self) -> bool {
         true
     }
+
+    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
+    }
 }
 
 /// Renders a document to the PHP Markdown Extra dialect (`markdown_phpextra`): tilde-fenced code,
@@ -256,6 +262,12 @@ impl Writer for MarkdownMmdWriter {
     fn body_ends_with_newline(&self) -> bool {
         true
     }
+
+    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
+    }
 }
 
 /// Renders a document to the original Markdown dialect (`markdown_strict`): the sparsest pandoc
@@ -281,6 +293,12 @@ impl Writer for MarkdownStrictWriter {
 
     fn body_ends_with_newline(&self) -> bool {
         true
+    }
+
+    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
+    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    fn toc_link_anchors(&self) -> bool {
+        false
     }
 }
 
@@ -629,10 +647,11 @@ impl State {
             return String::new();
         }
         let body = collapse_trailing_newline(text);
+        let fence = "`".repeat(fence_run_len(&body, '`'));
         if body.is_empty() {
-            format!("```{{={}}}\n```", format.0)
+            format!("{fence}{{={}}}\n{fence}", format.0)
         } else {
-            format!("```{{={}}}\n{body}\n```", format.0)
+            format!("{fence}{{={}}}\n{body}\n{fence}", format.0)
         }
     }
 
@@ -2427,6 +2446,30 @@ mod tests {
                 render(long_paragraph(), None),
                 render(long_paragraph(), Some(72))
             );
+        }
+    }
+
+    mod raw_blocks {
+        use carta_ast::{Block, Document, Format};
+        use carta_core::{Writer, WriterOptions};
+
+        use crate::markdown::MarkdownWriter;
+
+        // A raw-attribute block opens with a backtick fence longer than any run inside its body, so a
+        // body that itself contains a ``` line cannot close the fence early.
+        #[test]
+        fn raw_attribute_fence_outgrows_a_backtick_run_in_the_body() {
+            let document = Document {
+                blocks: vec![Block::RawBlock(
+                    Format("dot".to_owned()),
+                    "```\ngraph {}\n```".to_owned(),
+                )],
+                ..Document::default()
+            };
+            let output = MarkdownWriter
+                .write(&document, &WriterOptions::default())
+                .unwrap();
+            assert_eq!(output, "````{=dot}\n```\ngraph {}\n```\n````");
         }
     }
 }
