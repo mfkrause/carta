@@ -256,10 +256,9 @@ pub mod presets {
         Extension::Alerts,
     ]);
 
-    /// `CommonMark` with a broad set of inline and block extensions enabled. Mirrors Pandoc's
-    /// `commonmark_x` extension set (`pandoc --list-extensions=commonmark_x`); `backtick_code_blocks`
-    /// is additionally carried because the shared Markdown engine fences code on that flag, which
-    /// `CommonMark` does natively.
+    /// The `commonmark_x` dialect: `CommonMark` with a broad set of inline and block extensions
+    /// enabled. `backtick_code_blocks` is additionally carried because the shared Markdown engine
+    /// fences code on that flag, which `CommonMark` does natively.
     pub const COMMONMARK_X: Extensions = Extensions::from_list(&[
         Extension::Smart,
         Extension::Strikeout,
@@ -334,10 +333,10 @@ pub mod presets {
         Extension::IntrawordUnderscores,
     ]);
 
-    /// The legacy GitHub Markdown dialect (`markdown_github`). Mirrors Pandoc's set
-    /// (`pandoc --list-extensions=markdown_github`), restricted to the variants that exist and
-    /// affect writer output: backtick-fenced code, pipe tables, strikeout, task lists, footnotes,
-    /// autolinking, emoji, and alerts, but no smart typography, math, spans, or fenced divs.
+    /// The legacy GitHub Markdown dialect (`markdown_github`). The set is restricted to the
+    /// variants that exist and affect writer output: backtick-fenced code, pipe tables, strikeout,
+    /// task lists, footnotes, autolinking, emoji, and alerts, but no smart typography, math, spans,
+    /// or fenced divs.
     pub const MARKDOWN_GITHUB: Extensions = Extensions::from_list(&[
         Extension::Strikeout,
         Extension::PipeTables,
@@ -354,11 +353,10 @@ pub mod presets {
         Extension::IntrawordUnderscores,
     ]);
 
-    /// The PHP Markdown Extra dialect (`markdown_phpextra`). Mirrors Pandoc's set
-    /// (`pandoc --list-extensions=markdown_phpextra`), restricted to the variants that exist and
-    /// affect writer output: definition lists, fenced (tilde) code blocks, footnotes, header and
-    /// link attributes, pipe tables, and raw HTML. It has no backtick code fences, so code fences
-    /// are written with tildes, and no smart typography, math, strikeout, spans, or fenced divs.
+    /// The PHP Markdown Extra dialect (`markdown_phpextra`). The set is restricted to the variants
+    /// that exist and affect writer output: definition lists, fenced (tilde) code blocks, footnotes,
+    /// header and link attributes, pipe tables, and raw HTML. It has no backtick code fences, so code
+    /// fences are written with tildes, and no smart typography, math, strikeout, spans, or fenced divs.
     pub const MARKDOWN_PHPEXTRA: Extensions = Extensions::from_list(&[
         Extension::DefinitionLists,
         Extension::FencedCodeBlocks,
@@ -371,11 +369,11 @@ pub mod presets {
         Extension::RawHtml,
     ]);
 
-    /// The `MultiMarkdown` dialect (`markdown_mmd`). Mirrors Pandoc's set
-    /// (`pandoc --list-extensions=markdown_mmd`), restricted to the variants that exist and affect
-    /// writer output: backtick-fenced code, definition lists, footnotes, pipe tables, implicit
-    /// figures and header references, sub/superscript, dollar math, raw HTML and raw attributes,
-    /// auto identifiers, `MultiMarkdown`'s trailing `[id]` header identifiers, and the `data-markdown`
+    /// The `MultiMarkdown` dialect (`markdown_mmd`). The set is restricted to the variants that
+    /// exist and affect writer output: backtick-fenced code, definition lists, footnotes, pipe
+    /// tables, implicit figures and header references, sub/superscript, dollar math, raw HTML and raw
+    /// attributes, auto identifiers, `MultiMarkdown`'s trailing `[id]` header identifiers, and the
+    /// `data-markdown`
     /// div marker. It has no header attribute blocks, strikeout, task lists, smart typography, spans,
     /// or fenced divs. Its `tex_math_double_backslash` only affects reading; the writer emits `$…$`
     /// math through `tex_math_dollars`.
@@ -397,9 +395,9 @@ pub mod presets {
         Extension::TexMathDollars,
     ]);
 
-    /// The original Markdown dialect (`markdown_strict`). Mirrors Pandoc's set
-    /// (`pandoc --list-extensions=markdown_strict`), restricted to the variants that exist and affect
-    /// writer output — only raw HTML. With no fenced or backtick code, tables, definition lists,
+    /// The original Markdown dialect (`markdown_strict`). The set is restricted to the variants that
+    /// exist and affect writer output — only raw HTML. With no fenced or backtick code, tables,
+    /// definition lists,
     /// footnotes, task lists, math, or any attribute syntax, every richer construct falls back to
     /// indented code, an HTML block, or a raw glyph. Lacking `intraword_underscores`, every `_` is
     /// escaped; lacking `pipe_tables`, a literal `|` is left unescaped.
