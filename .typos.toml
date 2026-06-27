@@ -21,6 +21,10 @@ extend-exclude = [
 # Rust `\u{…}` codepoint escapes are hex scalars, never prose; their interior hex digits
 # (e.g. the "BA" in \u{22BA}, \u{03BA}) otherwise read as words.
 extend-ignore-re = ['\\u\{[0-9A-Fa-f]+\}']
+# Abbreviated git commit hashes cited throughout the plans and docs (e.g. `7b2ba0f`) are pure
+# hex, but typos splits them into letter-runs ("ba" → "by"/"be"). Ignore identifiers that are
+# entirely lowercase hex of commit-hash length so a SHA's interior never reads as a word.
+extend-ignore-identifiers-re = ['^[0-9a-f]{7,40}$']
 
 [default.extend-identifiers]
 # Unicode scalar for the trumpet emoji (🎺); the trailing hex digits read as a word.
