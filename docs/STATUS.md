@@ -59,13 +59,25 @@ As `csv`, tab-delimited.
 ### `rst` — 🚧
 reStructuredText blocks and inlines: sections, bullet/enumerated/definition/field lists, literal and
 line blocks, block quotes, footnotes and citations, hyperlink targets and substitutions, interpreted
-roles, the common directives (admonitions, image/figure, code, raw, role), and grid/simple tables —
-including grid cells that span rows or columns, which merge into single multi-span cells, and the
-`csv-table` and `list-table` directives, which build a `Table`. `auto_identifiers` and
-`gfm_auto_identifiers` supply header slug ids, `ascii_identifiers` folds those ids to ASCII, and
-`smart` renders typographic quotes and dashes.
-Gaps: the `contents` (table-of-contents) directive emits nothing; a definition-list classifier
-(`term : classifier`) stays part of the term; doctest blocks (`>>>`) read as ordinary paragraphs.
+roles, and the common directives. A bullet list runs through a change of bullet character; an
+enumerated list disambiguates an ambiguous single-letter enumerator (a lone roman-numeral letter
+continues a roman list, otherwise it is alphabetic, and a lone `i` opens a roman list), and a
+two-line item whose second line is an under-indented run-on reads as a paragraph rather than a list.
+Directives carry their common options: `:name:` becomes the identifier, `:class:` adds classes, and
+any remaining options become attributes; the `line-block` directive builds a `LineBlock`, `table`
+takes its caption from the argument, `math` emits one `Math` per equation (wrapped in a labelled span
+when a `:label:`/`:nowrap:` option is set), a `code` block's `:number-lines:` adds the `numberLines`
+class and a `startFrom` attribute, a `figure`'s legend paragraphs join its caption, and the
+document-level directives (`meta`, `title`, `header`, `footer`, `sectnum`, `target-notes`, …) become
+classed divisions. A substitution reference (`|name|_`) and an indirect hyperlink target resolve
+through to their destination; an internal hyperlink target carries its identifier onto the block that
+follows it. Grid/simple tables — including grid cells that span rows or columns, which merge into
+single multi-span cells — and the `csv-table` and `list-table` directives build a `Table`.
+`auto_identifiers` and `gfm_auto_identifiers` supply header slug ids, `ascii_identifiers` folds those
+ids to ASCII, and `smart` renders typographic quotes and dashes.
+Gaps: the `contents` (table-of-contents) directive emits nothing; the `table` directive's `:widths:`
+is not applied to the built table; a definition-list classifier (`term : classifier`) stays part of
+the term; doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `ipynb` — 🚧
 Jupyter notebooks (nbformat v4): markdown cells parsed in a GitHub-flavored Markdown dialect (the
