@@ -405,8 +405,14 @@ impl State {
             directive.push_str("\n   name: ");
             directive.push_str(&attr.id);
         }
-        if let Some((image_attr, alt, _)) = image {
+        if let Some((image_attr, alt, target)) = image {
+            // The directive's alternate text is the image's, falling back to its title.
             let alt_text = to_plain_text(alt);
+            let alt_text = if alt_text.is_empty() {
+                target.title.clone()
+            } else {
+                alt_text
+            };
             if !alt_text.is_empty() {
                 directive.push_str("\n   :alt: ");
                 directive.push_str(&alt_text);
