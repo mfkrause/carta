@@ -82,16 +82,25 @@ extreme-magnitude numbers may render in rounded or scientific form.
 ### `mediawiki` — 🚧
 MediaWiki wikitext: headings, paragraphs, apostrophe bold/italic emphasis, bullet/numbered/definition
 and indent lists, preformatted and `<source>`/`<syntaxhighlight>` code blocks, block quotes,
-horizontal rules, internal and external links, `[[File:…]]`/`[[Image:…]]` embeds, `<nowiki>`, HTML
-passthrough, entities, and inline `<math>`. `auto_identifiers` supplies header ids. A `File:`/`Image:`
+horizontal rules, tables (`{| … |}`), internal and external links, `[[File:…]]`/`[[Image:…]]` embeds,
+`<nowiki>`, HTML passthrough, entities, and inline `<math>`. `auto_identifiers` supplies header ids,
+and `smart` curls quotation marks. A `File:`/`Image:`
 embed becomes an `Image` inline: the namespace is stripped and spaces become underscores to form the
 target, `NNpx`/`NNxNNpx` parameters set width/height attributes, placement and framing keywords
 (`thumb`, `frame`, `left`, `border`, …) and `key=value` options are consumed, and the last free
 parameter is the caption (the target name when none is given). A lone embed in a block or list item
 becomes a `Figure` with that caption (`implicit_figures`).
-Gaps: table markup (`{| … |}`) is not interpreted as a table — the region is kept verbatim as a
-raw block (a nested table is matched by depth so it does not close the outer one early); `smart`
-typographic substitution is not applied; block `<math display=block>` is emitted as inline math;
+Tables read as a `Table`: rows are separated by `|-`, data cells split on `||`, and header cells
+(`!`, split on `!!`) make up the head when the first row begins with a header. A `|+` line is the
+caption. A cell's leading attribute list is honored — `align` sets the cell alignment, `colspan`/
+`rowspan` set the spans, `id`/`class` populate the cell id and classes, and any other `name="value"`
+pair is kept as a cell attribute; the table's own and each row's attribute lists are dropped. The
+first row fixes the column count: a cell that would overflow it is dropped, a span is clamped to the
+remaining columns and rows, a column still covered by a `rowspan` is skipped, and a short row is
+padded with empty cells. A nested table is matched by depth so it does not close the outer one early.
+Under `smart`, a pair of straight double quotes becomes curly quotation marks (single quotes and
+apostrophes are left straight, since `''`/`'''` already mark emphasis).
+Gaps: block `<math display=block>` is emitted as inline math;
 the `Media:` namespace, leading-colon links (`[[:File:…]]`), and other namespaces (Category,
 interwiki) read as ordinary wikilinks rather than embeds or links to the media file; a mid-paragraph
 `<pre>`/`<source>` falls through to HTML passthrough rather than a code block.

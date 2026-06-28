@@ -1,0 +1,10 @@
+{|
+| colspan="2" | wide
+|-
+| a || b
+|-
+| rowspan="2" | tall
+| top
+|-
+| bottom
+|}
