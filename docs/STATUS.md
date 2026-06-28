@@ -83,8 +83,10 @@ extreme-magnitude numbers may render in rounded or scientific form.
 MediaWiki wikitext: headings, paragraphs, apostrophe bold/italic emphasis, bullet/numbered/definition
 and indent lists, preformatted and `<source>`/`<syntaxhighlight>` code blocks, block quotes,
 horizontal rules, tables (`{| … |}`), internal and external links, `[[File:…]]`/`[[Image:…]]` embeds,
-`<nowiki>`, HTML passthrough, entities, and inline `<math>`. `auto_identifiers` supplies header ids,
-and `smart` curls quotation marks. A `File:`/`Image:`
+`<nowiki>`, HTML passthrough, entities, and inline `<math>`. `auto_identifiers` supplies header ids
+(lowercased, with punctuation dropped); `gfm_auto_identifiers` switches to the GitHub slug with
+hyphen separators, where each emoji contributes its shortname (`🎉` → `tada`). `smart` curls
+quotation marks. A `File:`/`Image:`
 embed becomes an `Image` inline: the namespace is stripped and spaces become underscores to form the
 target, `NNpx`/`NNxNNpx` parameters set width/height attributes, placement and framing keywords
 (`thumb`, `frame`, `left`, `border`, …) and `key=value` options are consumed, and the last free
