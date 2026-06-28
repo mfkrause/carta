@@ -159,8 +159,10 @@ impl BlockParser<'_> {
     }
 
     fn horizontal_rule_here(&self) -> bool {
-        let (s, e) = trim(self.chars, self.pos, self.line_end());
-        e - s == 4 && (s..e).all(|k| self.chars.get(k) == Some(&'-'))
+        // A rule is exactly four hyphens at the line start; only trailing whitespace is allowed, so
+        // any leading indentation makes the line an ordinary paragraph instead.
+        let e = trim_end(self.chars, self.pos, self.line_end());
+        e - self.pos == 4 && (self.pos..e).all(|k| self.chars.get(k) == Some(&'-'))
     }
 
     fn blockquote_here(&self) -> bool {
@@ -171,13 +173,22 @@ impl BlockParser<'_> {
         self.chars.get(self.pos) == Some(&'|')
     }
 
-    /// A run of one or more list-marker characters at the line start, followed by a space.
+    /// A run of one or more list-marker characters, optionally indented, followed by a space and at
+    /// least one non-space character of item text. A marker with no content after it is ordinary text.
     fn list_here(&self) -> bool {
         let mut k = self.pos;
+        while matches!(self.chars.get(k), Some(' ' | '\t')) {
+            k += 1;
+        }
+        let marker_start = k;
         while matches!(self.chars.get(k), Some('*' | '-' | '#')) {
             k += 1;
         }
-        k > self.pos && self.chars.get(k) == Some(&' ')
+        if k == marker_start || self.chars.get(k) != Some(&' ') {
+            return false;
+        }
+        let content_start = k + 1;
+        trim_end(self.chars, content_start, self.line_end()) > content_start
     }
 
     fn line_starts_block(&self) -> bool {
@@ -221,10 +232,12 @@ impl BlockParser<'_> {
 
     fn parse_paragraph(&mut self) -> Block {
         let mut lines: Vec<Vec<Inline>> = Vec::new();
-        // The first line is always part of the paragraph; this guarantees forward progress.
+        // The first line is always part of the paragraph; this guarantees forward progress. Its
+        // leading whitespace is kept (it collapses to a single leading space), while continuation
+        // lines are trimmed on both sides.
         let e = self.line_end();
-        let (ts, te) = trim(self.chars, self.pos, e);
-        lines.push(parse_inlines(self.chars, ts, te));
+        let te = trim_end(self.chars, self.pos, e);
+        lines.push(parse_inlines(self.chars, self.pos, te));
         self.advance_line();
         loop {
             if self.at_end() {
@@ -311,14 +324,21 @@ impl BlockParser<'_> {
             }
             if self.list_here() {
                 let mut k = self.pos;
+                while matches!(self.chars.get(k), Some(' ' | '\t')) {
+                    k += 1;
+                }
+                let marker_start = k;
                 while matches!(self.chars.get(k), Some('*' | '-' | '#')) {
                     k += 1;
                 }
-                let marker: String = slice_to_string(self.chars, self.pos, k);
-                let (ts, te) = trim(self.chars, k, e);
+                let marker: String = slice_to_string(self.chars, marker_start, k);
+                // Exactly one space separates the marker from the item text; any further leading
+                // whitespace is part of the content and kept. Trailing whitespace is trimmed.
+                let content_start = k + 1;
+                let te = trim_end(self.chars, content_start, e);
                 items.push(ListItem {
                     marker,
-                    lines: vec![parse_inlines(self.chars, ts, te)],
+                    lines: vec![parse_inlines(self.chars, content_start, te)],
                 });
                 self.advance_line();
             } else if self.line_starts_block() {
@@ -458,9 +478,10 @@ struct ListItem {
 }
 
 /// Builds the nested list blocks for `items` at the given (1-based) depth, appending sibling lists
-/// to `out`. Items are grouped by the exact marker character at this depth: a different character
-/// starts a separate sibling list, and a longer marker sharing this depth's character nests as a
-/// child of the preceding item.
+/// to `out`. A marker's length is its nesting depth: items are grouped by the marker character at
+/// this depth, a different character starts a separate sibling list, and any item whose marker is
+/// longer than this depth nests inside the current item — so a lone `*** x` produces three nested
+/// lists even with no shallower item preceding it.
 fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
     let mut idx = 0;
     while idx < items.len() {
@@ -469,21 +490,26 @@ fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
             continue;
         };
         let mut list_items: Vec<Vec<Block>> = Vec::new();
-        while idx < items.len() {
-            if marker_char(items, idx, depth) != Some(group_char) {
-                break;
-            }
-            let mut item_blocks = item_content(items.get(idx));
-            let mut child_end = idx + 1;
-            while child_end < items.len()
-                && items
-                    .get(child_end)
-                    .is_some_and(|it| it.marker.chars().count() > depth)
+        while marker_char(items, idx, depth) == Some(group_char) {
+            let mut item_blocks = Vec::new();
+            // An item whose marker length is exactly this depth owns the text; a longer marker is an
+            // implicit parent that carries only its nested child list.
+            let owns_content = marker_len(items, idx) == depth;
+            let child_start = if owns_content {
+                if let Some(item) = items.get(idx) {
+                    item_blocks.push(Block::Para(join_lines(item.lines.clone())));
+                }
+                idx + 1
+            } else {
+                idx
+            };
+            let mut child_end = child_start;
+            while marker_len(items, child_end) > depth
                 && marker_char(items, child_end, depth) == Some(group_char)
             {
                 child_end += 1;
             }
-            if let Some(children) = items.get(idx + 1..child_end) {
+            if let Some(children) = items.get(child_start..child_end) {
                 build_lists(children, depth + 1, &mut item_blocks);
             }
             list_items.push(item_blocks);
@@ -510,11 +536,8 @@ fn marker_char(items: &[ListItem], idx: usize, depth: usize) -> Option<char> {
         .and_then(|it| it.marker.chars().nth(depth - 1))
 }
 
-fn item_content(item: Option<&ListItem>) -> Vec<Block> {
-    match item {
-        Some(item) => vec![Block::Para(join_lines(item.lines.clone()))],
-        None => Vec::new(),
-    }
+fn marker_len(items: &[ListItem], idx: usize) -> usize {
+    items.get(idx).map_or(0, |it| it.marker.chars().count())
 }
 
 fn join_lines(lines: Vec<Vec<Inline>>) -> Vec<Inline> {
@@ -707,11 +730,39 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
     out
 }
 
-/// Parses the character range `lo..hi` into inline nodes. Flanking decisions consult the real
-/// neighbouring characters via absolute indices, so a range bounded to a single line will not let
-/// markup escape that line.
+/// A unit of scanned inline content, before text-effect delimiters are paired up.
+enum Tok {
+    /// A run of literal text.
+    Text(String),
+    /// A single flanking delimiter that may open and/or close a text-effect span.
+    Delim {
+        marker: char,
+        open: bool,
+        close: bool,
+    },
+    /// A fully formed inline node — link, image, span, monospace, line break, or space.
+    Atom(Inline),
+}
+
+/// Parses the character range `lo..hi` into inline nodes: it scans the text into tokens, pairs the
+/// flanking delimiters into spans, and folds the result into a flat list of inlines. Flanking
+/// decisions consult the real neighbouring characters via absolute indices, so a range bounded to a
+/// single line will not let markup escape that line.
 fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
-    let mut out: Vec<Inline> = Vec::new();
+    finalize(resolve(scan_tokens(chars, lo, hi)))
+}
+
+fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
+    if !pending.is_empty() {
+        toks.push(Tok::Text(std::mem::take(pending)));
+    }
+}
+
+/// Scans `lo..hi` left to right into tokens: literal runs accumulate into [`Tok::Text`], a flanking
+/// delimiter becomes a [`Tok::Delim`], and a self-contained construct (link, image, brace span,
+/// citation, autolink, symbol) becomes a [`Tok::Atom`].
+fn scan_tokens(chars: &[char], lo: usize, hi: usize) -> Vec<Tok> {
+    let mut toks: Vec<Tok> = Vec::new();
     let mut pending = String::new();
     let mut i = lo;
 
@@ -721,8 +772,8 @@ fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
         };
 
         if c.is_whitespace() {
-            flush(&mut pending, &mut out);
-            out.push(Inline::Space);
+            push_text(&mut pending, &mut toks);
+            toks.push(Tok::Atom(Inline::Space));
             i += 1;
             while i < hi && chars.get(i).is_some_and(|c| c.is_whitespace()) {
                 i += 1;
@@ -730,60 +781,54 @@ fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
             continue;
         }
 
-        let prev_alnum = char_at(chars, i.wrapping_sub(1))
-            .filter(|_| i > 0)
-            .is_some_and(char::is_alphanumeric);
+        let prev_alnum = i > 0 && chars.get(i - 1).is_some_and(|c| c.is_alphanumeric());
 
         if !prev_alnum && let Some(end) = match_bare_url(chars, i, hi) {
-            flush(&mut pending, &mut out);
+            push_text(&mut pending, &mut toks);
             let url = slice_to_string(chars, i, end);
-            out.push(Inline::Link(
+            toks.push(Tok::Atom(Inline::Link(
                 Attr::default(),
                 vec![Inline::Str(url.clone())],
                 Target {
                     url,
                     title: String::new(),
                 },
-            ));
+            )));
             i = end;
             continue;
         }
 
         match c {
             '\\' => {
-                if i + 1 < hi && chars.get(i + 1) == Some(&'\\') {
-                    flush(&mut pending, &mut out);
-                    // A forced break absorbs the whitespace on either side of it.
-                    if out.last() == Some(&Inline::Space) {
-                        out.pop();
-                    }
-                    out.push(Inline::LineBreak);
-                    i += 2;
-                    while i < hi && chars.get(i).is_some_and(|c| c.is_whitespace()) {
-                        i += 1;
-                    }
-                } else if let Some(&next) = chars.get(i + 1).filter(|_| i + 1 < hi) {
-                    pending.push(next);
-                    i += 2;
+                i = scan_backslash(chars, i, hi, &mut pending, &mut toks);
+            }
+            '&' => {
+                if let Some((text, next)) = read_entity(chars, i, hi) {
+                    pending.push_str(&text);
+                    i = next;
                 } else {
-                    pending.push('\\');
+                    pending.push('&');
                     i += 1;
                 }
             }
             '?' => {
                 if let Some((next, inner)) = parse_citation(chars, i, hi) {
-                    flush(&mut pending, &mut out);
-                    out.push(Inline::Str("\u{2014}".to_string()));
-                    out.push(Inline::Space);
-                    out.push(Inline::Emph(inner));
+                    pending.push('\u{2014}');
+                    push_text(&mut pending, &mut toks);
+                    toks.push(Tok::Atom(Inline::Space));
+                    toks.push(Tok::Atom(Inline::Emph(inner)));
                     i = next;
                 } else {
                     pending.push('?');
                     i += 1;
                 }
             }
+            '*' | '_' | '+' | '^' | '~' => {
+                push_delimiter(c, chars, i, &mut pending, &mut toks);
+                i += 1;
+            }
             '-' => {
-                i = parse_dash(chars, i, hi, &mut pending, &mut out);
+                i = scan_dash(chars, i, hi, &mut pending, &mut toks);
             }
             '(' => {
                 if let Some((glyph, len)) = match_token_symbol(chars, i, PAREN_SYMBOLS) {
@@ -803,44 +848,332 @@ fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
                     i += 1;
                 }
             }
-            _ => {
-                if let Some((node, next)) = parse_structured(chars, i, hi, c) {
-                    flush(&mut pending, &mut out);
-                    out.push(node);
+            '[' | '!' | '{' => {
+                if let Some((node, next)) = scan_construct(c, chars, i, hi) {
+                    push_text(&mut pending, &mut toks);
+                    toks.push(Tok::Atom(node));
                     i = next;
                 } else {
                     pending.push(c);
                     i += 1;
                 }
             }
+            _ => {
+                pending.push(c);
+                i += 1;
+            }
         }
     }
 
-    flush(&mut pending, &mut out);
-    out
+    push_text(&mut pending, &mut toks);
+    toks
 }
 
-fn flush(pending: &mut String, out: &mut Vec<Inline>) {
-    if !pending.is_empty() {
-        out.push(Inline::Str(std::mem::take(pending)));
+/// The punctuation a backslash removes itself before, leaving the character as literal text. Any
+/// character outside this set keeps its backslash.
+fn is_escapable(c: char) -> bool {
+    matches!(
+        c,
+        '!' | '"'
+            | '#'
+            | '%'
+            | '&'
+            | '\''
+            | '('
+            | ')'
+            | '*'
+            | ','
+            | '-'
+            | '.'
+            | '/'
+            | ':'
+            | ';'
+            | '?'
+            | '@'
+            | '['
+            | ']'
+            | '_'
+            | '{'
+            | '}'
+    )
+}
+
+/// Reads a character reference at `i` (which holds `&`). A named reference or a decimal numeric
+/// reference resolves to its replacement text; a hexadecimal reference is not recognised and stays
+/// literal. Returns the decoded text and the index just past the closing `;`.
+fn read_entity(chars: &[char], i: usize, hi: usize) -> Option<(String, usize)> {
+    if chars.get(i + 1) == Some(&'#') {
+        let start = i + 2;
+        let mut k = start;
+        while k < hi && chars.get(k).is_some_and(char::is_ascii_digit) {
+            k += 1;
+        }
+        if k > start && chars.get(k) == Some(&';') {
+            let digits = slice_to_string(chars, start, k);
+            if let Ok(code) = digits.parse::<u32>() {
+                return Some((crate::entities::code_point(code).to_string(), k + 1));
+            }
+        }
+        return None;
+    }
+    let start = i + 1;
+    let mut k = start;
+    while k < hi && chars.get(k).is_some_and(char::is_ascii_alphanumeric) {
+        k += 1;
+    }
+    if k > start && chars.get(k) == Some(&';') {
+        let name = slice_to_string(chars, start, k);
+        if let Some(text) = crate::entities::lookup_named(&name) {
+            return Some((text.to_string(), k + 1));
+        }
+    }
+    None
+}
+
+/// Emits a flanking-delimiter token for one of the emphasis markers at `i`, or buffers the marker as
+/// literal text when it can neither open nor close a span.
+fn push_delimiter(
+    marker: char,
+    chars: &[char],
+    i: usize,
+    pending: &mut String,
+    toks: &mut Vec<Tok>,
+) {
+    let open = can_open(chars, i);
+    let close = can_close(chars, i);
+    if open || close {
+        push_text(pending, toks);
+        toks.push(Tok::Delim {
+            marker,
+            open,
+            close,
+        });
+    } else {
+        pending.push(marker);
     }
 }
 
-/// Attempts a delimited inline construct opening at `i`: a bracketed link, an image, a brace span
-/// (monospace, colour, or anchor), or a flanking text effect. Returns the node and the position
-/// just past it, or `None` when `c` opens nothing parseable here.
-fn parse_structured(chars: &[char], i: usize, hi: usize, c: char) -> Option<(Inline, usize)> {
+/// Parses a self-contained construct introduced by `c` at `i`: `[` starts a link, `!` an image, and
+/// `{` a brace span. Returns the resulting node and the index just past it, or `None` when the text
+/// does not form that construct.
+fn scan_construct(c: char, chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
     match c {
         '[' => parse_link(chars, i, hi),
         '!' => parse_image(chars, i, hi),
-        '{' => parse_brace_inline(chars, i, hi),
-        '*' | '_' | '+' | '^' | '~' => parse_wrap(chars, i, hi, c),
-        _ => None,
+        _ => parse_brace_inline(chars, i, hi),
     }
 }
 
-fn char_at(chars: &[char], i: usize) -> Option<char> {
-    chars.get(i).copied()
+/// Handles a backslash at `i`. A doubled backslash is a forced line break that absorbs the
+/// whitespace around it; a backslash before one of a fixed set of punctuation marks escapes that mark
+/// to a literal; before anything else the backslash itself stays literal. Returns the next position.
+fn scan_backslash(
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    pending: &mut String,
+    toks: &mut Vec<Tok>,
+) -> usize {
+    if i + 1 < hi && chars.get(i + 1) == Some(&'\\') {
+        push_text(pending, toks);
+        if matches!(toks.last(), Some(Tok::Atom(Inline::Space))) {
+            toks.pop();
+        }
+        toks.push(Tok::Atom(Inline::LineBreak));
+        let mut j = i + 2;
+        while j < hi && chars.get(j).is_some_and(|c| c.is_whitespace()) {
+            j += 1;
+        }
+        return j;
+    }
+    if let Some(&next) = chars.get(i + 1).filter(|_| i + 1 < hi)
+        && is_escapable(next)
+    {
+        pending.push(next);
+        return i + 2;
+    }
+    pending.push('\\');
+    i + 1
+}
+
+/// Handles a run of `-` at `i`. A run of two or more hyphens followed by a space or tab folds into
+/// typographic dashes: a word character on its left keeps the first hyphen attached to that word,
+/// then the remaining hyphens fold — two into an en dash, three or more into an em dash preceded by
+/// the surplus hyphens. Otherwise a single `-` is scanned as a strikeout delimiter (or literal text).
+/// Returns the next scan position. The character following the run is read from the full input rather
+/// than the line-content bound, so a hyphen run that ends a line still sees the space trimmed from it.
+fn scan_dash(
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    pending: &mut String,
+    toks: &mut Vec<Tok>,
+) -> usize {
+    let mut run = 0;
+    while i + run < hi && chars.get(i + run) == Some(&'-') {
+        run += 1;
+    }
+    let left_word = i > 0 && chars.get(i - 1).is_some_and(|c| c.is_alphanumeric());
+    let right_space = matches!(chars.get(i + run), Some(' ' | '\t'));
+    // A word on the left keeps its first hyphen attached, so only the remainder folds.
+    let fold_run = if left_word {
+        run.saturating_sub(1)
+    } else {
+        run
+    };
+    // Fold only when at least two hyphens remain to fold into a typographic dash. A lone leftover
+    // hyphen would render identically to literal text, so it is left as a strikeout delimiter instead
+    // — that way a `--…--` pair whose closing run is followed by a space can still form a span.
+    if right_space && fold_run >= 2 {
+        if left_word {
+            pending.push('-');
+        }
+        if fold_run == 2 {
+            pending.push('\u{2013}');
+        } else {
+            for _ in 0..fold_run.saturating_sub(3) {
+                pending.push('-');
+            }
+            pending.push('\u{2014}');
+        }
+        return i + run;
+    }
+
+    let open = can_open(chars, i);
+    let close = can_close(chars, i);
+    if open || close {
+        push_text(pending, toks);
+        toks.push(Tok::Delim {
+            marker: '-',
+            open,
+            close,
+        });
+    } else {
+        pending.push('-');
+    }
+    i + 1
+}
+
+/// Index of the nearest preceding open delimiter that carries `marker`.
+fn find_opener(acc: &[Tok], marker: char) -> Option<usize> {
+    acc.iter()
+        .rposition(|t| matches!(t, Tok::Delim { marker: m, open: true, .. } if *m == marker))
+}
+
+/// Pairs flanking delimiters into spans. A closing delimiter binds to the nearest open delimiter of
+/// the same marker with non-empty content between them; same-marker spans nest at most two deep.
+fn resolve(toks: Vec<Tok>) -> Vec<Tok> {
+    let mut acc: Vec<Tok> = Vec::new();
+    for tok in toks {
+        let Tok::Delim {
+            marker,
+            open,
+            close,
+        } = tok
+        else {
+            acc.push(tok);
+            continue;
+        };
+        if close
+            && let Some(open_idx) = find_opener(&acc, marker)
+            && acc.len() > open_idx + 1
+        {
+            let inner = finalize(acc.split_off(open_idx + 1));
+            if same_marker_depth(&inner, marker) < 2 {
+                acc.pop();
+                acc.push(Tok::Atom(make_span(marker, inner)));
+                continue;
+            }
+            // The nesting cap is reached: the opener stays unmatched and its already-resolved
+            // content returns to the stack.
+            acc.extend(inner.into_iter().map(Tok::Atom));
+        }
+        acc.push(Tok::Delim {
+            marker,
+            open,
+            close,
+        });
+    }
+    acc
+}
+
+/// Lowers resolved tokens into inlines: an unmatched delimiter becomes its literal marker character,
+/// adjacent text merges into one string, and adjacent spans of the same kind merge into one.
+fn finalize(toks: Vec<Tok>) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    for tok in toks {
+        let inline = match tok {
+            Tok::Text(s) => Inline::Str(s),
+            Tok::Delim { marker, .. } => Inline::Str(marker.to_string()),
+            Tok::Atom(node) => node,
+        };
+        let inline = match out.last_mut() {
+            Some(last) => match merge_adjacent(last, inline) {
+                None => continue,
+                Some(unmerged) => unmerged,
+            },
+            None => inline,
+        };
+        out.push(inline);
+    }
+    out
+}
+
+/// Merges `next` into `last` when they are two strings or two spans of the same kind, returning
+/// `None` on success and `Some(next)` when they do not combine.
+fn merge_adjacent(last: &mut Inline, next: Inline) -> Option<Inline> {
+    match (last, next) {
+        (Inline::Str(a), Inline::Str(b)) => {
+            a.push_str(&b);
+            None
+        }
+        (Inline::Strong(a), Inline::Strong(b))
+        | (Inline::Emph(a), Inline::Emph(b))
+        | (Inline::Underline(a), Inline::Underline(b))
+        | (Inline::Superscript(a), Inline::Superscript(b))
+        | (Inline::Subscript(a), Inline::Subscript(b))
+        | (Inline::Strikeout(a), Inline::Strikeout(b)) => {
+            a.extend(b);
+            None
+        }
+        (_, other) => Some(other),
+    }
+}
+
+fn make_span(marker: char, inner: Vec<Inline>) -> Inline {
+    match marker {
+        '*' => Inline::Strong(inner),
+        '_' => Inline::Emph(inner),
+        '+' => Inline::Underline(inner),
+        '^' => Inline::Superscript(inner),
+        '~' => Inline::Subscript(inner),
+        _ => Inline::Strikeout(inner),
+    }
+}
+
+/// The deepest nesting of spans carrying `marker` anywhere within `nodes`.
+fn same_marker_depth(nodes: &[Inline], marker: char) -> usize {
+    nodes
+        .iter()
+        .map(|n| node_marker_depth(n, marker))
+        .max()
+        .unwrap_or(0)
+}
+
+fn node_marker_depth(node: &Inline, marker: char) -> usize {
+    let (is_match, children) = match node {
+        Inline::Strong(k) => (marker == '*', Some(k)),
+        Inline::Emph(k) => (marker == '_', Some(k)),
+        Inline::Underline(k) => (marker == '+', Some(k)),
+        Inline::Superscript(k) => (marker == '^', Some(k)),
+        Inline::Subscript(k) => (marker == '~', Some(k)),
+        Inline::Strikeout(k) => (marker == '-', Some(k)),
+        _ => (false, None),
+    };
+    match children {
+        Some(k) => same_marker_depth(k, marker) + usize::from(is_match),
+        None => 0,
+    }
 }
 
 /// True when the character at `i` is absent (start/end of input) or not alphanumeric.
@@ -865,28 +1198,6 @@ fn can_close(chars: &[char], j: usize) -> bool {
     j > 0 && non_space(chars, j - 1) && boundary(chars, j + 1)
 }
 
-fn parse_wrap(chars: &[char], i: usize, hi: usize, marker: char) -> Option<(Inline, usize)> {
-    if !can_open(chars, i) {
-        return None;
-    }
-    let mut j = i + 1;
-    while j < hi {
-        if chars.get(j) == Some(&marker) && j > i + 1 && can_close(chars, j) {
-            let inner = parse_inlines(chars, i + 1, j);
-            let node = match marker {
-                '*' => Inline::Strong(inner),
-                '_' => Inline::Emph(inner),
-                '+' => Inline::Underline(inner),
-                '^' => Inline::Superscript(inner),
-                _ => Inline::Subscript(inner),
-            };
-            return Some((node, j + 1));
-        }
-        j += 1;
-    }
-    None
-}
-
 fn parse_citation(chars: &[char], i: usize, hi: usize) -> Option<(usize, Vec<Inline>)> {
     if chars.get(i + 1) != Some(&'?') {
         return None;
@@ -908,68 +1219,6 @@ fn parse_citation(chars: &[char], i: usize, hi: usize) -> Option<(usize, Vec<Inl
         j += 1;
     }
     None
-}
-
-/// Handles a `-` run: a whitespace-flanked run of two or three folds to an en or em dash; otherwise
-/// a single `-` may open a struck-through span. Returns the next scan position.
-fn parse_dash(
-    chars: &[char],
-    i: usize,
-    hi: usize,
-    pending: &mut String,
-    out: &mut Vec<Inline>,
-) -> usize {
-    let mut run = 0;
-    while i + run < hi && chars.get(i + run) == Some(&'-') {
-        run += 1;
-    }
-    let left_ws = char_at(chars, i.wrapping_sub(1))
-        .filter(|_| i > 0)
-        .is_none_or(char::is_whitespace);
-    let right_ws = if i + run < hi {
-        char_at(chars, i + run).is_none_or(char::is_whitespace)
-    } else {
-        true
-    };
-    if left_ws && right_ws && run == 2 {
-        pending.push('\u{2013}');
-        return i + 2;
-    }
-    if left_ws && right_ws && run == 3 {
-        pending.push('\u{2014}');
-        return i + 3;
-    }
-    // A run of two or more dashes that did not fold into a dash glyph stays literal as a whole; only
-    // a lone `-` is a strikeout delimiter, so the run's final dash must not open a span.
-    if run >= 2 {
-        for _ in 0..run {
-            pending.push('-');
-        }
-        return i + run;
-    }
-
-    let left_boundary = i == 0 || boundary(chars, i - 1);
-    let opens = left_boundary
-        && chars
-            .get(i + 1)
-            .is_some_and(|c| !c.is_whitespace() && *c != '-');
-    if opens {
-        let mut j = i + 1;
-        while j < hi {
-            if chars.get(j) == Some(&'-')
-                && j > i + 1
-                && non_space(chars, j - 1)
-                && boundary(chars, j + 1)
-            {
-                flush(pending, out);
-                out.push(Inline::Strikeout(parse_inlines(chars, i + 1, j)));
-                return j + 1;
-            }
-            j += 1;
-        }
-    }
-    pending.push('-');
-    i + 1
 }
 
 fn parse_brace_inline(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
@@ -1000,6 +1249,9 @@ fn parse_brace_inline(chars: &[char], i: usize, hi: usize) -> Option<(Inline, us
         let value_start = i + "{color:".len();
         let value_end = (value_start..hi).find(|&k| chars.get(k) == Some(&'}'))?;
         let value = slice_to_string(chars, value_start, value_end);
+        if !is_color_value(&value) {
+            return None;
+        }
         let close = find_token(chars.get(..hi).unwrap_or(chars), value_end + 1, "{color}")?;
         let inner = parse_inlines(chars, value_end + 1, close);
         let attr = Attr {
@@ -1023,6 +1275,15 @@ fn parse_brace_inline(chars: &[char], i: usize, hi: usize) -> Option<(Inline, us
     }
 
     None
+}
+
+/// A colour span's value is either a name of ASCII letters or a `#` followed by exactly six
+/// hexadecimal digits; anything else leaves the `{color:…}` markup as literal text.
+fn is_color_value(value: &str) -> bool {
+    if let Some(hex) = value.strip_prefix('#') {
+        return hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit());
+    }
+    !value.is_empty() && value.bytes().all(|b| b.is_ascii_alphabetic())
 }
 
 fn parse_link(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
@@ -1217,6 +1478,15 @@ fn trim(chars: &[char], start: usize, end: usize) -> (usize, usize) {
         e -= 1;
     }
     (s, e)
+}
+
+/// The end of `start..end` with trailing whitespace removed, leaving any leading whitespace in place.
+fn trim_end(chars: &[char], start: usize, end: usize) -> usize {
+    let mut e = end;
+    while e > start && chars.get(e - 1).is_some_and(|c| c.is_whitespace()) {
+        e -= 1;
+    }
+    e
 }
 
 #[cfg(test)]
@@ -1670,6 +1940,113 @@ mod tests {
                 Block::Para(vec![str_node("one")]),
                 Block::Para(vec![str_node("two")]),
             ]
+        );
+    }
+
+    #[test]
+    fn leading_space_opens_paragraph() {
+        assert_eq!(para(" hello"), vec![Inline::Space, str_node("hello")]);
+        assert_eq!(
+            para("   indented"),
+            vec![Inline::Space, str_node("indented")]
+        );
+    }
+
+    #[test]
+    fn backslash_before_non_escapable_stays_literal() {
+        assert_eq!(para("a\\1b"), vec![str_node("a\\1b")]);
+    }
+
+    #[test]
+    fn named_and_decimal_entities_decode_but_hex_does_not() {
+        assert_eq!(
+            para("&copy; &#169; &#x41;"),
+            vec![
+                str_node("\u{a9}"),
+                Inline::Space,
+                str_node("\u{a9}"),
+                Inline::Space,
+                str_node("&#x41;"),
+            ]
+        );
+    }
+
+    #[test]
+    fn empty_color_macro_is_literal() {
+        assert_eq!(para("{color:}x"), vec![str_node("{color:}x")]);
+    }
+
+    #[test]
+    fn four_dash_run_folds_to_hyphen_and_em_dash() {
+        assert_eq!(
+            para("a ---- b"),
+            vec![
+                str_node("a"),
+                Inline::Space,
+                str_node("-\u{2014}"),
+                Inline::Space,
+                str_node("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn dash_run_at_line_end_stays_literal() {
+        assert_eq!(
+            para("x --"),
+            vec![str_node("x"), Inline::Space, str_node("--")]
+        );
+    }
+
+    #[test]
+    fn repeated_markers_nest_bullet_lists() {
+        assert_eq!(
+            blocks("*** x"),
+            vec![Block::BulletList(vec![vec![Block::BulletList(vec![
+                vec![Block::BulletList(vec![vec![Block::Para(vec![str_node(
+                    "x"
+                )])]]),]
+            ])]])]
+        );
+    }
+
+    #[test]
+    fn indented_marker_still_opens_list() {
+        assert_eq!(
+            blocks(" * x"),
+            vec![Block::BulletList(vec![vec![Block::Para(vec![str_node(
+                "x"
+            )])]])]
+        );
+    }
+
+    #[test]
+    fn indented_dash_run_is_paragraph_not_rule() {
+        assert_eq!(
+            blocks("  ----"),
+            vec![Block::Para(vec![Inline::Space, str_node("----")])]
+        );
+    }
+
+    #[test]
+    fn same_marker_nesting_caps_at_two() {
+        assert_eq!(
+            para("*a**b*"),
+            vec![Inline::Strong(vec![str_node("a"), str_node("b")])]
+        );
+        assert_eq!(
+            para("**x**"),
+            vec![Inline::Strong(vec![Inline::Strong(vec![str_node("x")])])]
+        );
+    }
+
+    #[test]
+    fn strikeout_nests() {
+        assert_eq!(
+            para("--x--"),
+            vec![Inline::Strikeout(vec![Inline::Strikeout(vec![str_node(
+                "x"
+            )])])]
         );
     }
 }

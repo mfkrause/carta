@@ -1,0 +1,3 @@
+An empty {color:}value stays literal text.
+
+A real {color:red}red span{color} renders as a coloured span.

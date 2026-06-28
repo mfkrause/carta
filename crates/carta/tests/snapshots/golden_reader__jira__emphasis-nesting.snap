@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Adjacent"},{"t":"Space"},{"t":"Str","c":"runs"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"a"},{"t":"Str","c":"b"}]},{"t":"Space"},{"t":"Str","c":"merge"},{"t":"Space"},{"t":"Str","c":"into"},{"t":"Space"},{"t":"Str","c":"one"},{"t":"Space"},{"t":"Str","c":"strong"},{"t":"Space"},{"t":"Str","c":"span."}]},{"t":"Para","c":[{"t":"Str","c":"Doubled"},{"t":"Space"},{"t":"Str","c":"markers"},{"t":"Space"},{"t":"Strong","c":[{"t":"Strong","c":[{"t":"Str","c":"x"}]}]},{"t":"Space"},{"t":"Str","c":"nest"},{"t":"Space"},{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"strong"},{"t":"Space"},{"t":"Str","c":"spans."}]},{"t":"Para","c":[{"t":"Str","c":"Doubled"},{"t":"Space"},{"t":"Str","c":"dashes"},{"t":"Space"},{"t":"Strikeout","c":[{"t":"Strikeout","c":[{"t":"Str","c":"x"}]}]},{"t":"Space"},{"t":"Str","c":"nest"},{"t":"Space"},{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"strikeout"},{"t":"Space"},{"t":"Str","c":"spans."}]}]}

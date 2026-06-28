@@ -122,6 +122,9 @@ define_extensions! {
     // An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
     // without it every `_` is escaped so the strict reader cannot start emphasis mid-word.
     IntrawordUnderscores => "intraword_underscores",
+    // A soft line break that falls between two East Asian wide characters carries no width and is
+    // dropped, joining the two characters; between other characters it stays a space as usual.
+    EastAsianLineBreaks => "east_asian_line_breaks",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
