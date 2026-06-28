@@ -124,6 +124,13 @@ impl<'a> Cursor<'a> {
         self.indent_mark = self.indent();
     }
 
+    /// The indentation recorded by the most recent [`Cursor::note_indent`], in visual columns. Unlike
+    /// [`Cursor::indent`] it survives a later `skip_indent`, so a block opened after the indent was
+    /// consumed can still learn the column its line began at.
+    pub(super) fn noted_indent(&self) -> usize {
+        self.indent_mark
+    }
+
     pub(super) fn is_blank(&self) -> bool {
         self.bytes
             .get(self.offset..)
