@@ -518,8 +518,14 @@ impl State {
             if let Some(size) = image_size(attr) {
                 parts.push(size);
             }
-            if !alt.is_empty() {
-                parts.push(alt);
+            // The caption is the alternate text, falling back to the title.
+            let caption = if alt.is_empty() {
+                target.title.clone()
+            } else {
+                alt
+            };
+            if !caption.is_empty() {
+                parts.push(caption);
             }
         }
         format!("[[{}]]", parts.join("|"))
