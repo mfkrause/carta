@@ -18,8 +18,8 @@ use super::attr;
 use super::block::is_format_name_char;
 use super::identifiers::HeaderNumbering;
 use super::scan::{
-    is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
-    scan_html_tag, scan_inline_target, unescape_string,
+    escape_uri, is_ascii_punctuation, normalize_label, scan_autolink, scan_entity,
+    scan_following_label, scan_html_tag, scan_inline_target, unescape_string,
 };
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 use crate::inline_scan::{fold_dash_run, fold_ellipsis_run, is_unicode_whitespace};
@@ -1250,10 +1250,12 @@ impl InlineParser<'_> {
     fn left_angle(&mut self) {
         if let Some((inline, next)) = scan_autolink(self.chars, self.pos) {
             self.pos = next;
-            // The markdown dialect tags an explicit angle autolink with a `uri` or `email` class;
-            // the strict dialect leaves it unclassed.
+            // The markdown dialect tags an explicit angle autolink with a `uri` or `email` class
+            // and percent-encodes its destination; the strict dialect leaves it unclassed and
+            // verbatim. The destination is encoded after classification, which compares the shown
+            // text against the still-raw destination to tell a `uri` from an `email`.
             let inline = if self.notes.markdown {
-                classify_angle_autolink(inline)
+                escape_link_destination(classify_angle_autolink(inline))
             } else {
                 inline
             };
@@ -1782,7 +1784,12 @@ impl InlineParser<'_> {
         true
     }
 
-    fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target, attr: Attr) {
+    fn build_link(&mut self, opener_index: usize, is_image: bool, mut target: Target, attr: Attr) {
+        // The markdown dialect percent-encodes a destination's unsafe characters; the strict
+        // CommonMark and GitHub dialects keep it verbatim.
+        if self.notes.markdown {
+            target.url = escape_uri(&target.url);
+        }
         let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         // Any bracket stack entries that pointed into the split-off range are now part of the
@@ -2589,6 +2596,15 @@ fn classify_angle_autolink(inline: Inline) -> Inline {
     let is_email = matches!(text.first(), Some(Inline::Str(shown)) if *shown != target.url);
     attr.classes
         .push(if is_email { "email" } else { "uri" }.to_owned());
+    Inline::Link(attr, text, target)
+}
+
+/// Percent-encode the destination of a link, leaving its shown text untouched.
+fn escape_link_destination(inline: Inline) -> Inline {
+    let Inline::Link(attr, text, mut target) = inline else {
+        return inline;
+    };
+    target.url = escape_uri(&target.url);
     Inline::Link(attr, text, target)
 }
 

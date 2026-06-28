@@ -99,11 +99,18 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
                 } else {
                     Attr::default()
                 };
+                // The markdown dialect percent-encodes the destination's unsafe characters; the
+                // GitHub dialect keeps the matched text verbatim.
+                let url = if markdown {
+                    super::scan::escape_uri(&m.href)
+                } else {
+                    m.href
+                };
                 out.push(Inline::Link(
                     attr,
                     vec![Inline::Str(label)],
                     Target {
-                        url: m.href,
+                        url,
                         title: String::new(),
                     },
                 ));
