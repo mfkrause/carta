@@ -1,0 +1,7 @@
+[[File:Foo.jpg|thumb|A caption]]
+
+[[Image:My Photo.jpg]]
+
+[[File:Chart.png|100x200px|left|Sized chart]]
+
+An inline [[File:Icon.svg|icon]] sits in this paragraph.

@@ -34,6 +34,8 @@ pub enum Error {
     InvalidMetadata(String),
     #[error("template error: {0}")]
     Template(String),
+    #[error("cannot represent this content in the target format: {0}")]
+    Unrepresentable(String),
 }
 
 #[cfg(feature = "template")]

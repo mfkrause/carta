@@ -20,7 +20,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
-    ApiVersion, Attr, Block, Document, Format, Inline, ListAttributes, ListNumberDelim,
+    ApiVersion, Attr, Block, Caption, Document, Format, Inline, ListAttributes, ListNumberDelim,
     ListNumberStyle, MathType, Target, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
@@ -267,7 +267,7 @@ impl Parser {
             let depth = group.get(i).map_or(0, |it| it.markers.len());
             if depth == level + 1 {
                 let content = group.get(i).map_or("", |it| it.content.as_str());
-                let mut blocks = vec![Block::Plain(self.parse_inlines(content))];
+                let mut blocks = vec![plain_or_figure(self.parse_inlines(content))];
                 i += 1;
                 let start = i;
                 while i < group.len() && group.get(i).map_or(0, |it| it.markers.len()) > level + 1 {
@@ -319,7 +319,7 @@ impl Parser {
                     let term = self.parse_inlines(&term_str);
                     let mut defs: Vec<Vec<Block>> = Vec::new();
                     if let Some(d) = def_str {
-                        defs.push(vec![Block::Plain(self.parse_inlines(&d))]);
+                        defs.push(vec![plain_or_figure(self.parse_inlines(&d))]);
                     }
                     if !nested.is_empty() {
                         match defs.last_mut() {
@@ -329,7 +329,7 @@ impl Parser {
                     }
                     pairs.push((term, defs));
                 } else {
-                    let mut blocks = vec![Block::Plain(self.parse_inlines(&content))];
+                    let mut blocks = vec![plain_or_figure(self.parse_inlines(&content))];
                     blocks.extend(nested);
                     match pairs.last_mut() {
                         Some(last) => last.1.push(blocks),
@@ -450,7 +450,7 @@ impl Parser {
         if trimmed.is_empty() {
             return (None, cur);
         }
-        (Some(Block::Para(self.parse_inlines(trimmed))), cur)
+        (Some(para_or_figure(self.parse_inlines(trimmed))), cur)
     }
 
     fn parse_inlines(&mut self, text: &str) -> Vec<Inline> {
@@ -774,9 +774,11 @@ impl Parser {
         };
         let target = target_part.trim().to_string();
         if let Some(ns) = namespace_of(&target)
-            && matches!(ns.as_str(), "file" | "image" | "media")
+            && matches!(ns.as_str(), "file" | "image")
+            && !strip_namespace(&target).is_empty()
         {
-            todo!("mediawiki file, image, and media embeds");
+            let image = self.image_embed(&target, label_part.as_deref());
+            return Some((vec![image], close + 2));
         }
         let mut after = close + 2;
         let mut trail = String::new();
@@ -807,6 +809,42 @@ impl Parser {
             vec![Inline::Link(attr, label, Target { url, title })],
             after,
         ))
+    }
+
+    /// Builds the image for a `[[File:…|…]]` / `[[Image:…|…]]` embed. The page name (with the
+    /// namespace stripped) is the source; the `WxHpx` parameters set width/height; recognized
+    /// placement and option keywords are dropped; the last remaining parameter is the caption,
+    /// defaulting to the file name. A lone embed in its own paragraph later becomes a figure
+    /// (see [`lone_image_figure`]).
+    fn image_embed(&mut self, target: &str, params: Option<&str>) -> Inline {
+        let url = wikilink_url(strip_namespace(target));
+        let mut attributes: Vec<(String, String)> = Vec::new();
+        let mut caption: Option<String> = None;
+        if let Some(params) = params {
+            for part in params.split('|') {
+                let option = part.trim();
+                if let Some((width, height)) = image_size(option) {
+                    attributes.retain(|(key, _)| key != "width" && key != "height");
+                    attributes.push(("width".to_string(), width));
+                    if let Some(height) = height {
+                        attributes.push(("height".to_string(), height));
+                    }
+                } else if is_image_keyword(option) || option.contains('=') {
+                    // A placement, framing, or `key=value` option carries no caption text.
+                } else {
+                    caption = Some(part.to_string());
+                }
+            }
+        }
+        let caption = caption.unwrap_or_else(|| url.clone());
+        let alt = self.parse_inlines(&caption);
+        let title = to_plain_text(&alt);
+        let attr = Attr {
+            id: String::new(),
+            classes: Vec::new(),
+            attributes,
+        };
+        Inline::Image(attr, alt, Target { url, title })
     }
 
     fn make_id(&mut self, inlines: &[Inline]) -> String {
@@ -1287,6 +1325,105 @@ fn namespace_of(target: &str) -> Option<String> {
     }
     let (before, _) = target.split_once(':')?;
     Some(before.trim().to_lowercase())
+}
+
+// --- image embeds -------------------------------------------------------------------------------
+
+/// The page name with a leading `namespace:` prefix removed.
+fn strip_namespace(target: &str) -> &str {
+    match target.split_once(':') {
+        Some((_, rest)) => rest.trim(),
+        None => target,
+    }
+}
+
+/// Parses an image size parameter — `<w>px`, `x<h>px`, or `<w>x<h>px` — into its width and optional
+/// height. The width is the digits before an `x` (empty when the form is `x<h>px`); the height is
+/// the digits after it. Returns `None` for any parameter that is not a pixel size.
+fn image_size(param: &str) -> Option<(String, Option<String>)> {
+    let digits = param.strip_suffix("px")?;
+    match digits.split_once('x') {
+        Some((width, height)) => {
+            let valid = width.chars().all(|c| c.is_ascii_digit())
+                && !height.is_empty()
+                && height.chars().all(|c| c.is_ascii_digit());
+            valid.then(|| (width.to_string(), Some(height.to_string())))
+        }
+        None => (!digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()))
+            .then(|| (digits.to_string(), None)),
+    }
+}
+
+/// Whether an image parameter is a recognized placement, framing, or alignment keyword that
+/// carries no caption text.
+fn is_image_keyword(param: &str) -> bool {
+    matches!(
+        param.to_ascii_lowercase().as_str(),
+        "thumb"
+            | "thumbnail"
+            | "frame"
+            | "framed"
+            | "frameless"
+            | "border"
+            | "left"
+            | "right"
+            | "center"
+            | "centre"
+            | "none"
+            | "upright"
+            | "baseline"
+            | "sub"
+            | "super"
+            | "top"
+            | "text-top"
+            | "middle"
+            | "bottom"
+            | "text-bottom"
+    )
+}
+
+/// Wraps a paragraph whose only content is an image in a figure, moving the image's description to
+/// the figure caption; any other paragraph is returned unchanged.
+fn para_or_figure(inlines: Vec<Inline>) -> Block {
+    match lone_image_figure(&inlines) {
+        Some(figure) => figure,
+        None => Block::Para(inlines),
+    }
+}
+
+/// As [`para_or_figure`], for a context (a list item) whose tight content is a [`Block::Plain`].
+fn plain_or_figure(inlines: Vec<Inline>) -> Block {
+    match lone_image_figure(&inlines) {
+        Some(figure) => figure,
+        None => Block::Plain(inlines),
+    }
+}
+
+/// Builds a figure from a paragraph that holds a single image (ignoring surrounding whitespace),
+/// or `None` when the paragraph is anything else.
+fn lone_image_figure(inlines: &[Inline]) -> Option<Block> {
+    let mut significant = inlines.iter().filter(|inline| {
+        !matches!(
+            inline,
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak
+        )
+    });
+    let Inline::Image(attr, alt, target) = significant.next()? else {
+        return None;
+    };
+    if significant.next().is_some() {
+        return None;
+    }
+    let caption = Caption {
+        short: None,
+        long: vec![Block::Plain(alt.clone())],
+    };
+    let image = Inline::Image(attr.clone(), Vec::new(), target.clone());
+    Some(Block::Figure(
+        Attr::default(),
+        caption,
+        vec![Block::Plain(vec![image])],
+    ))
 }
 
 // --- identifiers --------------------------------------------------------------------------------
@@ -1968,6 +2105,121 @@ mod tests {
                 Target {
                     url: "Page".into(),
                     title: "Page".into(),
+                },
+            )])]
+        );
+    }
+
+    #[test]
+    fn lone_file_embed_becomes_a_figure() {
+        assert_eq!(
+            parse("[[File:Foo.jpg|thumb|A caption]]"),
+            vec![Block::Figure(
+                Attr::default(),
+                Caption {
+                    short: None,
+                    long: vec![Block::Plain(vec![
+                        Inline::Str("A".into()),
+                        Inline::Space,
+                        Inline::Str("caption".into()),
+                    ])],
+                },
+                vec![Block::Plain(vec![Inline::Image(
+                    Attr::default(),
+                    vec![],
+                    Target {
+                        url: "Foo.jpg".into(),
+                        title: "A caption".into(),
+                    },
+                )])],
+            )]
+        );
+    }
+
+    #[test]
+    fn embed_without_caption_defaults_to_the_file_name() {
+        assert_eq!(
+            parse("[[Image:My Photo.jpg]]"),
+            vec![Block::Figure(
+                Attr::default(),
+                Caption {
+                    short: None,
+                    long: vec![Block::Plain(vec![Inline::Str("My_Photo.jpg".into())])],
+                },
+                vec![Block::Plain(vec![Inline::Image(
+                    Attr::default(),
+                    vec![],
+                    Target {
+                        url: "My_Photo.jpg".into(),
+                        title: "My_Photo.jpg".into(),
+                    },
+                )])],
+            )]
+        );
+    }
+
+    #[test]
+    fn embed_size_parameters_set_width_and_height() {
+        assert_eq!(
+            parse("[[File:Foo.jpg|100x200px|cap]]"),
+            vec![Block::Figure(
+                Attr::default(),
+                Caption {
+                    short: None,
+                    long: vec![Block::Plain(vec![Inline::Str("cap".into())])],
+                },
+                vec![Block::Plain(vec![Inline::Image(
+                    Attr {
+                        id: String::new(),
+                        classes: vec![],
+                        attributes: vec![
+                            ("width".into(), "100".into()),
+                            ("height".into(), "200".into()),
+                        ],
+                    },
+                    vec![],
+                    Target {
+                        url: "Foo.jpg".into(),
+                        title: "cap".into(),
+                    },
+                )])],
+            )]
+        );
+    }
+
+    #[test]
+    fn inline_embed_stays_an_image_not_a_figure() {
+        assert_eq!(
+            parse("x [[File:Foo.jpg|cap]]"),
+            vec![Block::Para(vec![
+                Inline::Str("x".into()),
+                Inline::Space,
+                Inline::Image(
+                    Attr::default(),
+                    vec![Inline::Str("cap".into())],
+                    Target {
+                        url: "Foo.jpg".into(),
+                        title: "cap".into(),
+                    },
+                ),
+            ])]
+        );
+    }
+
+    #[test]
+    fn empty_file_embed_is_an_ordinary_wikilink() {
+        assert_eq!(
+            parse("[[File:]]"),
+            vec![Block::Para(vec![Inline::Link(
+                Attr {
+                    id: String::new(),
+                    classes: vec!["wikilink".into()],
+                    attributes: vec![],
+                },
+                vec![Inline::Str("File:".into())],
+                Target {
+                    url: "File:".into(),
+                    title: "File:".into(),
                 },
             )])]
         );
