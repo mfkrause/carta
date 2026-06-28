@@ -1747,6 +1747,32 @@ mod tests {
     }
 
     #[test]
+    fn a_paragraph_interrupted_by_an_html_block_reads_tight() {
+        // No blank line separates the paragraph from the div, so the div interrupts it as a block
+        // and the paragraph reads tight — `Plain` rather than `Para`.
+        let doc = read_markdown(
+            "text before\n<div>\ninside\n</div>\n",
+            &[Extension::MarkdownInHtmlBlocks, Extension::NativeDivs],
+        );
+        assert!(
+            matches!(doc.blocks.as_slice(), [Block::Plain(_), Block::Div(..)]),
+            "expected a tight paragraph then a div, got {:?}",
+            doc.blocks
+        );
+
+        // A blank line before the element leaves the paragraph loose, so it stays a full paragraph.
+        let loose = read_markdown(
+            "text before\n\n<div>\ninside\n</div>\n",
+            &[Extension::MarkdownInHtmlBlocks, Extension::NativeDivs],
+        );
+        assert!(
+            matches!(loose.blocks.as_slice(), [Block::Para(_), Block::Div(..)]),
+            "expected a loose paragraph then a div, got {:?}",
+            loose.blocks
+        );
+    }
+
+    #[test]
     fn a_simple_table_takes_an_above_caption() {
         let doc = document(
             "table: Above it.\n\nName   Age\n----   ---\nAnn    9\n",

@@ -172,6 +172,9 @@ struct Node {
     /// consumed. Recorded for paragraphs so a dash ruling on the next line can read a headed
     /// table's column alignment against the header's true position; zero for every other block.
     indent: usize,
+    /// Render this paragraph as `Plain` rather than `Para`. Set when a block-level HTML element
+    /// interrupts the paragraph with no blank line between, so the interrupted paragraph reads tight.
+    as_plain: bool,
     /// Whether the line that followed this block (while it was the deepest open block) was blank.
     /// Drives loose-vs-tight list classification.
     last_line_blank: bool,
@@ -186,6 +189,7 @@ impl Node {
             children: Vec::new(),
             text: String::new(),
             indent: 0,
+            as_plain: false,
             last_line_blank: false,
         }
     }
@@ -746,10 +750,9 @@ impl Parser {
     /// The whole open tag is consumed; any same-line remainder is re-fed so its content — including a
     /// close tag on the same line — flows through the normal line handling.
     ///
-    /// Known limitation: when the element directly interrupts an open paragraph with no blank line
-    /// between, that preceding paragraph stays `Para` rather than tightening to `Plain`. The
-    /// free-standing form — a blank line before the element — is exact. A self-closing tag
-    /// (`<div/>`) is read as an ordinary open and stays open until end of input.
+    /// When the element directly interrupts an open paragraph with no blank line between, that
+    /// preceding paragraph reads tight — `Plain` rather than `Para` — under `markdown_in_html_blocks`.
+    /// A self-closing tag (`<div/>`) is read as an ordinary open and stays open until end of input.
     fn open_html_element(
         &mut self,
         container: usize,
@@ -770,6 +773,11 @@ impl Parser {
         let as_div = is_div && native_divs;
         if !as_div && !markdown_in_html {
             return None;
+        }
+        // A paragraph still open here was not separated from the element by a blank line; with
+        // `markdown_in_html_blocks` the element interrupts it as a block and it reads tight.
+        if markdown_in_html {
+            self.tighten_interrupted_paragraph(container);
         }
         let raw_open = remaining.get(..open.len).unwrap_or(remaining).to_owned();
         let trailing = remaining.get(open.len..).unwrap_or("").to_owned();
@@ -973,6 +981,17 @@ impl Parser {
             index = child;
         }
         index
+    }
+
+    /// Mark the open paragraph interrupted by a block opener under `container` so it renders tight
+    /// (`Plain`). A no-op when the deepest open block is not a paragraph.
+    fn tighten_interrupted_paragraph(&mut self, container: usize) {
+        let leaf = self.deepest_open(container);
+        if matches!(self.kind(leaf), Some(Kind::Paragraph))
+            && let Some(node) = self.nodes.get_mut(leaf)
+        {
+            node.as_plain = true;
+        }
     }
 
     /// If the current line closes an open fenced div, close that div and everything nested inside it
@@ -2117,6 +2136,8 @@ impl Parser {
                         caption: None,
                         attr: Attr::default(),
                     }
+                } else if node.as_plain {
+                    IrBlock::Plain(trimmed.to_owned())
                 } else {
                     IrBlock::Para(trimmed.to_owned())
                 }
