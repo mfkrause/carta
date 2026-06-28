@@ -848,15 +848,22 @@ enum Token {
 }
 
 /// Render one row, reflowing it at `width` while preserving the hard breaks inside multi-line
-/// cells. Fields are separated by ` & ` and the row ends with ` \\`; a column covered by a span
-/// from an earlier or wider cell contributes an empty field.
+/// cells. Fields are separated by ` & ` and the row ends with ` \\`. A column covered by a span
+/// from an earlier or wider cell that still precedes a later cell contributes an empty field;
+/// columns trailing the row's last cell — covered by a multi-row cell stacked above — are dropped,
+/// ending the row early.
 fn render_row(row: &Row, placements: &[(usize, usize)], context: &TableContext) -> String {
     let mut tokens: Vec<Token> = Vec::new();
     let mut cells = row.cells.iter().zip(placements.iter());
     let mut next = cells.next();
     let mut column = 0usize;
     let mut first = true;
-    while column < context.plan.columns {
+    let last_column = placements
+        .iter()
+        .map(|&(start, span)| start + span.max(1))
+        .max()
+        .unwrap_or(0);
+    while column < last_column {
         if !first {
             tokens.push(Token::Space);
             tokens.push(Token::Word("&".to_owned()));
@@ -969,9 +976,12 @@ fn render_field(
     let row_span = cell.row_span.max(1);
     if row_span > 1 {
         let prefix = multirow_prefix(&resolved_align(cell, start, context.plan));
+        // Explicitly sized columns size the stacked cell to the column width (`=`); columns left at
+        // their natural width take the content's own width (`*`).
+        let sizing = if context.plan.explicit { "=" } else { "*" };
         glue_prefix(
             &mut field,
-            &format!("\\multirow{{{row_span}}}{{*}}{{{prefix}"),
+            &format!("\\multirow{{{row_span}}}{{{sizing}}}{{{prefix}"),
         );
         glue_suffix(&mut field, "}");
     }
@@ -1437,6 +1447,19 @@ fn push_link(
     if !attr.id.is_empty() {
         out.push(Piece::Text(phantom_label(&attr.id)));
     }
+    // A target into the document itself is a cross-reference, not an external location: the
+    // fragment names a label and the link resolves through `\hyperref` rather than `\href`.
+    if let Some(reference) = target.url.strip_prefix('#') {
+        out.push(Piece::Text(format!(
+            "\\hyperref[{}]{{",
+            cross_reference_label(reference)
+        )));
+        for inline in inlines {
+            push_inline(inline, out, width, dialect, wrap, smart);
+        }
+        out.push(Piece::Text("}".to_owned()));
+        return;
+    }
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
         && *text == target.url
@@ -1673,6 +1696,33 @@ fn escape_url(url: &str) -> String {
         }
     }
     out
+}
+
+/// The label naming an internal cross-reference, derived from a link's fragment. The fragment is
+/// first escaped as a URL, then every character outside the set of ASCII alphanumerics and
+/// `_-+=:;.` is rewritten as `ux` followed by its lowercase hexadecimal code point, so the result
+/// is a single token that is safe as the argument to `\hyperref`.
+fn cross_reference_label(reference: &str) -> String {
+    let mut escaped = String::with_capacity(reference.len());
+    for ch in reference.chars() {
+        match ch {
+            '\\' => escaped.push('/'),
+            '#' => escaped.push_str("\\#"),
+            '%' => escaped.push_str("\\%"),
+            '[' | ']' | '^' | '`' | '{' | '|' | '}' => percent_encode(ch, &mut escaped),
+            other => escaped.push(other),
+        }
+    }
+    let mut label = String::with_capacity(escaped.len());
+    for ch in escaped.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '+' | '=' | ':' | ';' | '.') {
+            label.push(ch);
+        } else {
+            label.push_str("ux");
+            let _ = write!(label, "{:x}", ch as u32);
+        }
+    }
+    label
 }
 
 fn percent_encode(ch: char, out: &mut String) {
