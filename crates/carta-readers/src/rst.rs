@@ -252,17 +252,12 @@ fn classify_numeral(numeral: &str) -> Option<(ListNumberStyle, i32)> {
             .ok()
             .map(|n| (ListNumberStyle::Decimal, n));
     }
-    if let Some(value) = roman_value(numeral) {
-        let style = if numeral.chars().all(|c| c.is_ascii_uppercase()) {
-            ListNumberStyle::UpperRoman
-        } else {
-            ListNumberStyle::LowerRoman
-        };
-        return Some((style, value));
-    }
+    // A lone letter is ambiguous between alphabetic and Roman numbering; it defaults to alphabetic
+    // unless it is `i`/`I`, the only single letter taken as Roman. A multi-letter token that is a
+    // valid Roman numeral (`iv`, `xii`) is Roman.
     let mut chars = numeral.chars();
     let single = chars.next()?;
-    if chars.next().is_none() && single.is_ascii_alphabetic() {
+    if chars.next().is_none() && single.is_ascii_alphabetic() && !matches!(single, 'i' | 'I') {
         let ordinal = i32::from((single.to_ascii_lowercase() as u8) - b'a' + 1);
         let style = if single.is_ascii_uppercase() {
             ListNumberStyle::UpperAlpha
@@ -271,7 +266,97 @@ fn classify_numeral(numeral: &str) -> Option<(ListNumberStyle, i32)> {
         };
         return Some((style, ordinal));
     }
+    if let Some(value) = roman_value(numeral) {
+        let style = if numeral.chars().all(|c| c.is_ascii_uppercase()) {
+            ListNumberStyle::UpperRoman
+        } else {
+            ListNumberStyle::LowerRoman
+        };
+        return Some((style, value));
+    }
     None
+}
+
+/// Whether `ch` is one of the letters that form a Roman numeral.
+fn is_roman_letter(ch: char) -> bool {
+    matches!(
+        ch.to_ascii_lowercase(),
+        'i' | 'v' | 'x' | 'l' | 'c' | 'd' | 'm'
+    )
+}
+
+/// The leading enumerator numeral of `line` — the token before its delimiter — when `line` opens
+/// with an enumerator. Used to reinterpret an ambiguous single-letter enumerator in the context of
+/// an already-established list style.
+fn enum_numeral(line: &str) -> Option<String> {
+    let chars: Vec<char> = line.chars().collect();
+    let start = usize::from(chars.first() == Some(&'('));
+    let mut end = start;
+    while chars
+        .get(end)
+        .is_some_and(|c| c.is_ascii_alphanumeric() || *c == '#')
+    {
+        end += 1;
+    }
+    let numeral: String = chars.get(start..end)?.iter().collect();
+    if numeral.is_empty() {
+        None
+    } else {
+        Some(numeral)
+    }
+}
+
+/// Whether a single-letter `numeral` continues a list whose established `style` it does not match on
+/// its own: any letter (of the style's case) continues an alphabetic list; only a Roman-numeral
+/// letter continues a Roman list.
+fn letter_continues(numeral: &str, style: ListNumberStyle) -> bool {
+    let mut chars = numeral.chars();
+    let (Some(ch), None) = (chars.next(), chars.next()) else {
+        return false;
+    };
+    if !ch.is_ascii_alphabetic() {
+        return false;
+    }
+    let upper = ch.is_ascii_uppercase();
+    match style {
+        ListNumberStyle::UpperAlpha => upper,
+        ListNumberStyle::LowerAlpha => !upper,
+        ListNumberStyle::UpperRoman => upper && is_roman_letter(ch),
+        ListNumberStyle::LowerRoman => !upper && is_roman_letter(ch),
+        _ => false,
+    }
+}
+
+/// Whether the enumerator opening `line` can belong to a list whose first item established `style`
+/// and `delim`. An auto-numbered (`#`) item joins any list and vice versa; otherwise the delimiter
+/// must match and the style must match directly or by an ambiguous single letter adopting it.
+fn enum_compatible(line: &str, style: ListNumberStyle, delim: ListNumberDelim) -> bool {
+    let Some((_, s, d, _)) = enumerator(line) else {
+        return false;
+    };
+    let item_auto = s == ListNumberStyle::DefaultStyle && d == ListNumberDelim::DefaultDelim;
+    let list_auto =
+        style == ListNumberStyle::DefaultStyle && delim == ListNumberDelim::DefaultDelim;
+    let style_ok = style == s || enum_numeral(line).is_some_and(|n| letter_continues(&n, style));
+    item_auto || list_auto || (style_ok && delim == d)
+}
+
+/// Whether the enumerated-list item whose first line is `lines[idx]` (content column `col`) is a
+/// well-formed item rather than the opening of an ordinary wrapped paragraph. The line after the
+/// item's first line must be blank, indented into the item, or itself a matching sibling enumerator;
+/// an under-indented line of ordinary text means the construct is a paragraph, not a list.
+fn item_well_formed(
+    lines: &[String],
+    idx: usize,
+    col: usize,
+    style: ListNumberStyle,
+    delim: ListNumberDelim,
+) -> bool {
+    let next = line_at(lines, idx + 1);
+    if is_blank(next) || indent_of(next) >= col {
+        return true;
+    }
+    enum_compatible(next, style, delim)
 }
 
 /// A field marker `:name: value`: the field name and the column at which the value begins.
@@ -569,6 +654,7 @@ struct Definitions {
     citations: Vec<(String, Vec<String>)>,
 }
 
+#[derive(Clone)]
 enum Substitution {
     Replace(String),
     Image(String, Attr, Vec<Inline>),
@@ -608,6 +694,13 @@ fn record_definition(
     match kind {
         Explicit::Target => {
             if let Some((name, url)) = parse_target(first, lines, start, end, indent) {
+                // A target with no destination is internal: a reference to it points at the
+                // identifier the target will carry onto its block.
+                let url = if url.trim().is_empty() {
+                    format!("#{}", name.trim())
+                } else {
+                    url
+                };
                 defs.targets.insert(normalize_name(&name), url);
             }
         }
@@ -747,6 +840,10 @@ fn parse_substitution(
 fn unicode_chars(argument: &str) -> String {
     let mut out = String::new();
     for token in argument.split_whitespace() {
+        // A standalone `..` introduces a trailing comment that is not part of the text.
+        if token == ".." {
+            break;
+        }
         let hex = token
             .strip_prefix("0x")
             .or_else(|| token.strip_prefix("0X"))
@@ -784,12 +881,26 @@ impl Parser<'_> {
     fn blocks(&mut self, lines: &[String]) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending_classes: Option<Vec<String>> = None;
+        let mut pending_targets: Vec<String> = Vec::new();
         let mut i = 0;
         while i < lines.len() {
             let line = line_at(lines, i);
             if is_blank(line) {
                 i += 1;
                 continue;
+            }
+            // An internal hyperlink target (a `.. _name:` with no destination) carries its
+            // identifier onto the block that follows it.
+            if matches!(classify_explicit(line), Some(Explicit::Target)) {
+                let indent = indent_of(line);
+                let end = explicit_extent(lines, i, indent);
+                if let Some((name, url)) = parse_target(line.trim_start(), lines, i, end, indent)
+                    && url.trim().is_empty()
+                {
+                    pending_targets.push(name.trim().to_string());
+                    i = end;
+                    continue;
+                }
             }
             let before = out.len();
             i = self.block_at(lines, i, &mut out);
@@ -799,6 +910,14 @@ impl Parser<'_> {
             {
                 let wrapped = out.split_off(before);
                 out.push(class_div(classes, wrapped));
+            }
+            // Internal targets seen since the last block attach their identifiers to it.
+            if !pending_targets.is_empty() && out.len() > before {
+                let produced = out.split_off(before);
+                out.extend(attach_targets(
+                    produced,
+                    std::mem::take(&mut pending_targets),
+                ));
             }
             // An empty `class` directive leaves a marker whose classes wrap the next block.
             if let Some(Block::Div(attr, content)) = out.last()
@@ -864,7 +983,9 @@ impl Parser<'_> {
             return self.bullet_list(lines, i, out);
         }
 
-        if enumerator(line).is_some() {
+        if let Some((_, style, delim, col)) = enumerator(line)
+            && item_well_formed(lines, i, col, style, delim)
+        {
             return self.ordered_list(lines, i, out);
         }
 
@@ -1098,7 +1219,6 @@ impl Parser<'_> {
     }
 
     fn bullet_list(&mut self, lines: &[String], start: usize, out: &mut Vec<Block>) -> usize {
-        let marker = line_at(lines, start).chars().next();
         let mut items: Vec<Vec<Block>> = Vec::new();
         let mut i = start;
         while let Some(line) = lines.get(i) {
@@ -1107,9 +1227,6 @@ impl Parser<'_> {
                 continue;
             }
             if indent_of(line) != 0 {
-                break;
-            }
-            if line.chars().next() != marker {
                 break;
             }
             let Some(col) = bullet_content_col(line) else {
@@ -1138,17 +1255,16 @@ impl Parser<'_> {
             if indent_of(line) != 0 {
                 break;
             }
-            let Some((_, s, d, col)) = enumerator(line) else {
+            let Some((_, _, _, col)) = enumerator(line) else {
                 break;
             };
-            // An auto-numbered (`#`) item carries no concrete style, so it joins whatever list is
-            // open; likewise an auto-numbered list absorbs a later concrete item. Otherwise the
-            // style and delimiter must match for the item to belong to the same list.
-            let item_auto =
-                s == ListNumberStyle::DefaultStyle && d == ListNumberDelim::DefaultDelim;
-            let list_auto =
-                style == ListNumberStyle::DefaultStyle && delim == ListNumberDelim::DefaultDelim;
-            if !(item_auto || list_auto || (style == s && delim == d)) {
+            // An auto-numbered (`#`) item joins whatever list is open and vice versa; otherwise the
+            // delimiter must match and the style must match directly or by an ambiguous single
+            // letter adopting the list's established style. A later item that is itself a run-on
+            // paragraph (its continuation under-indented) ends the list before it.
+            if !enum_compatible(line, style, delim)
+                || !item_well_formed(lines, i, col, style, delim)
+            {
                 break;
             }
             let (region, next) = Self::item_region(lines, i, col);
@@ -1330,11 +1446,31 @@ impl Parser<'_> {
                 out.push(Block::CodeBlock(attr, text));
             }
             "math" => {
-                let math = content.join("\n");
-                out.push(Block::Para(vec![Inline::Math(
-                    MathType::DisplayMath,
-                    math.trim().to_string(),
-                )]));
+                let mut equations = Vec::new();
+                if !argument.trim().is_empty() {
+                    equations.push(argument.trim().to_string());
+                }
+                equations.extend(blank_separated(&content));
+                let math: Vec<Inline> = equations
+                    .into_iter()
+                    .map(|eq| Inline::Math(MathType::DisplayMath, eq))
+                    .collect();
+                let (id, classes, attributes) = common_options(&options);
+                // Options (a `:label:`, `:nowrap:`, …) attach to the whole equation group through a
+                // wrapping span; without them the equations stand on their own.
+                let inlines = if id.is_empty() && classes.is_empty() && attributes.is_empty() {
+                    math
+                } else {
+                    vec![Inline::Span(
+                        Attr {
+                            id,
+                            classes,
+                            attributes,
+                        },
+                        math,
+                    )]
+                };
+                out.push(Block::Para(inlines));
             }
             "image" => {
                 let (attr, mut alt, url) = image_parts(&argument, &options);
@@ -1364,7 +1500,7 @@ impl Parser<'_> {
                     vec![Block::Para(vec![Inline::Str(title)])],
                 )];
                 blocks.extend(self.blocks(&directive_content(&body)));
-                out.push(class_div(vec![name.to_string()], blocks));
+                out.push(options_div(name, &options, blocks));
             }
             "admonition" => {
                 let mut blocks = Vec::new();
@@ -1412,23 +1548,17 @@ impl Parser<'_> {
                     out.push(class_div(classes, self.blocks(&content)));
                 }
             }
-            "role"
-            | "default-role"
-            | "sectnum"
-            | "section-numbering"
-            | "meta"
-            | "title"
-            | "header"
-            | "footer"
-            | "target-notes"
-            | "restructuredtext-test-directive" => {}
+            "line-block" => out.push(self.line_block_directive(&content)),
+            "table" => self.table_directive(&argument, &options, &content, out),
+            // A role definition configures inline interpretation; it produces no block of its own.
+            "role" | "default-role" => {}
             _ => {
                 let mut blocks = Vec::new();
                 if !argument.trim().is_empty() {
                     blocks.push(Block::Para(self.inlines(argument.trim())));
                 }
                 blocks.extend(self.blocks(&content));
-                out.push(class_div(vec![name.to_string()], blocks));
+                out.push(options_div(name, &options, blocks));
             }
         }
     }
@@ -1464,7 +1594,10 @@ impl Parser<'_> {
             if let Block::Plain(inlines) = &plain {
                 caption_inlines.clone_from(inlines);
             }
+            // The first body block is the caption proper; any further blocks are the legend, which
+            // joins the caption rather than the figure body.
             caption.long = vec![plain];
+            caption.long.extend(iter);
         }
         // The image description defaults to the figure's caption when no explicit alt is given.
         let description = if alt.is_empty() { caption_inlines } else { alt };
@@ -1476,9 +1609,49 @@ impl Parser<'_> {
                 title: String::new(),
             },
         );
-        let mut body = vec![Block::Plain(vec![image])];
-        body.extend(iter);
+        let body = vec![Block::Plain(vec![image])];
         Block::Figure(figure_attr(options), caption, body)
+    }
+
+    /// A `line-block` directive: each body line becomes one line of the block, with a blank body line
+    /// rendering as an empty line.
+    fn line_block_directive(&mut self, content: &[String]) -> Block {
+        let mut end = content.len();
+        while end > 0 && content.get(end - 1).is_some_and(|l| l.trim().is_empty()) {
+            end -= 1;
+        }
+        let lines = content
+            .get(..end)
+            .unwrap_or(&[])
+            .iter()
+            .map(|line| self.inlines(line.trim()))
+            .collect();
+        Block::LineBlock(lines)
+    }
+
+    /// A `table` directive: its body is an ordinary table whose caption is taken from the directive's
+    /// argument.
+    fn table_directive(
+        &mut self,
+        argument: &str,
+        _options: &[(String, String)],
+        content: &[String],
+        out: &mut Vec<Block>,
+    ) {
+        let mut blocks = self.blocks(content);
+        let argument = argument.trim();
+        if !argument.is_empty() {
+            let caption = self.inlines(argument);
+            if let Some(Block::Table(table)) =
+                blocks.iter_mut().find(|b| matches!(b, Block::Table(_)))
+            {
+                table.caption = Caption {
+                    short: None,
+                    long: vec![Block::Plain(caption)],
+                };
+            }
+        }
+        out.extend(blocks);
     }
 
     /// The trailing `citations` division gathering every citation definition, or `None` when the
@@ -2364,37 +2537,35 @@ impl Parser<'_> {
             return None;
         }
         let (name, mut end) = find_close_literal(chars, pos + 1, "|")?;
-        if chars.get(end) == Some(&'_') {
+        // A trailing underscore turns the substitution into a hyperlink reference: the expansion
+        // becomes the link text and the like-named target supplies the destination.
+        let referenced = chars.get(end) == Some(&'_');
+        if referenced {
             end += 1;
         }
-        match self.defs.substitutions.get(&normalize_name(&name)) {
+        let expansion = match self.defs.substitutions.get(&normalize_name(&name)).cloned() {
             Some(Substitution::Replace(text)) => {
-                let inlines = self.inlines(text);
+                let inlines = self.inlines(&text);
                 // A replacement that expands to several inlines is kept together as one unit.
-                let replacement = match inlines.len() {
+                match inlines.len() {
                     1 => inlines,
                     _ => vec![Inline::Span(Attr::default(), inlines)],
-                };
-                Some((replacement, false, end))
+                }
             }
-            Some(Substitution::Image(url, attr, alt)) => Some((
-                vec![Inline::Image(
-                    attr.clone(),
-                    alt.clone(),
-                    Target {
-                        url: url.clone(),
-                        title: String::new(),
-                    },
-                )],
-                false,
-                end,
-            )),
+            Some(Substitution::Image(url, attr, alt)) => vec![Inline::Image(
+                attr,
+                alt,
+                Target {
+                    url,
+                    title: String::new(),
+                },
+            )],
             None => {
                 // An undefined substitution is preserved as a placeholder link whose visible text is
                 // the reference as written and whose destination flags it as unresolved.
                 let mut display = Vec::new();
                 push_text(&mut display, &format!("|{name}|"));
-                Some((
+                return Some((
                     vec![Inline::Link(
                         Attr::default(),
                         display,
@@ -2405,9 +2576,22 @@ impl Parser<'_> {
                     )],
                     false,
                     end,
-                ))
+                ));
             }
-        }
+        };
+        let result = if referenced {
+            vec![Inline::Link(
+                Attr::default(),
+                expansion,
+                Target {
+                    url: self.resolve_target(&name),
+                    title: String::new(),
+                },
+            )]
+        } else {
+            expansion
+        };
+        Some((result, false, end))
     }
 
     fn note_reference(
@@ -2530,11 +2714,25 @@ impl Parser<'_> {
     }
 
     fn resolve_target(&self, name: &str) -> String {
-        self.defs
-            .targets
-            .get(&normalize_name(name))
-            .cloned()
-            .unwrap_or_default()
+        // An indirect target's destination is itself another target's name (`name_`); follow the
+        // chain to its concrete destination, stopping on an unknown name or a reference cycle.
+        let mut current = normalize_name(name);
+        let mut seen = std::collections::BTreeSet::new();
+        while seen.insert(current.clone()) {
+            let Some(url) = self.defs.targets.get(&current) else {
+                return String::new();
+            };
+            let referent = url
+                .strip_suffix('_')
+                .filter(|r| !r.ends_with('_'))
+                .map(|r| normalize_name(r.trim().trim_matches('`')))
+                .filter(|key| self.defs.targets.contains_key(key));
+            match referent {
+                Some(next) => current = next,
+                None => return url.clone(),
+            }
+        }
+        String::new()
     }
 
     fn next_anonymous(&mut self) -> String {
@@ -2740,6 +2938,14 @@ fn code_attr(argument: &str, options: &[(String, String)]) -> Attr {
         match key.as_str() {
             "name" => id.clone_from(value),
             "class" => classes.extend(value.split_whitespace().map(str::to_string)),
+            // Line numbering is requested by a marker class; a non-empty value sets the first line.
+            "number-lines" => {
+                classes.push("numberLines".to_string());
+                let start = value.trim();
+                if !start.is_empty() {
+                    attributes.push(("startFrom".to_string(), start.to_string()));
+                }
+            }
             other => attributes.push((other.to_string(), value.clone())),
         }
     }
@@ -2805,6 +3011,82 @@ fn class_div(classes: Vec<String>, blocks: Vec<Block>) -> Block {
         },
         blocks,
     )
+}
+
+/// Attach internal-target identifiers to the block they precede. A single target immediately before
+/// a section heading supplies the heading's identifier; otherwise each target wraps the block in a
+/// division carrying its identifier, the last target sitting innermost.
+fn attach_targets(mut blocks: Vec<Block>, mut targets: Vec<String>) -> Vec<Block> {
+    if targets.len() == 1
+        && let [Block::Header(_, attr, _)] = blocks.as_mut_slice()
+    {
+        attr.id = targets.remove(0);
+        return blocks;
+    }
+    for name in targets.into_iter().rev() {
+        blocks = vec![Block::Div(
+            Attr {
+                id: name,
+                classes: Vec::new(),
+                attributes: Vec::new(),
+            },
+            blocks,
+        )];
+    }
+    blocks
+}
+
+/// Split a directive's options into the identifier it sets (`:name:`), the extra classes it adds
+/// (`:class:`), and the remaining options carried as attributes, each in source order.
+fn common_options(options: &[(String, String)]) -> (String, Vec<String>, Vec<(String, String)>) {
+    let mut id = String::new();
+    let mut classes = Vec::new();
+    let mut attributes = Vec::new();
+    for (key, value) in options {
+        match key.as_str() {
+            "name" => id.clone_from(value),
+            "class" => classes.extend(value.split_whitespace().map(str::to_string)),
+            other => attributes.push((other.to_string(), value.clone())),
+        }
+    }
+    (id, classes, attributes)
+}
+
+/// Wrap a directive's blocks in a division named for the directive, folding its common options into
+/// the division's identifier, classes, and attributes. The directive name leads the class list.
+fn options_div(name: &str, options: &[(String, String)], blocks: Vec<Block>) -> Block {
+    let (id, extra, attributes) = common_options(options);
+    let mut classes = vec![name.to_string()];
+    classes.extend(extra);
+    Block::Div(
+        Attr {
+            id,
+            classes,
+            attributes,
+        },
+        blocks,
+    )
+}
+
+/// Group a directive body into the runs of consecutive non-blank lines, joined with newlines and
+/// trimmed. A blank line separates one group from the next; empty groups are dropped.
+fn blank_separated(lines: &[String]) -> Vec<String> {
+    let mut groups = Vec::new();
+    let mut current: Vec<&str> = Vec::new();
+    for line in lines {
+        if line.trim().is_empty() {
+            if !current.is_empty() {
+                groups.push(current.join("\n").trim().to_string());
+                current.clear();
+            }
+        } else {
+            current.push(line);
+        }
+    }
+    if !current.is_empty() {
+        groups.push(current.join("\n").trim().to_string());
+    }
+    groups
 }
 
 fn capitalize(text: &str) -> String {

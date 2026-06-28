@@ -162,7 +162,7 @@ pub enum MathType {
     DisplayMath,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum ListNumberStyle {
     DefaultStyle,
@@ -174,7 +174,7 @@ pub enum ListNumberStyle {
     UpperAlpha,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum ListNumberDelim {
     DefaultDelim,
