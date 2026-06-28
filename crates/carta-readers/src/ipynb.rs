@@ -338,8 +338,10 @@ fn error_output(output: &Value) -> Block {
 }
 
 /// Pick the richest renderable representation from an output's `data` bundle. An image (or PDF)
-/// representation wins, taken in MIME-name order; otherwise structured JSON, plain text, HTML,
-/// LaTeX, and Markdown are tried in that order. An empty or absent bundle yields no blocks.
+/// representation wins, taken in MIME-name order; otherwise structured JSON — `application/json` or
+/// any `+json` structured-syntax type — then plain text, HTML, LaTeX, and Markdown are tried in that
+/// order. Among several JSON representations the lowest MIME name is taken. An empty or absent bundle
+/// yields no blocks.
 fn data_to_blocks(data: Option<&Value>, metadata: Option<&Value>) -> Vec<Block> {
     let Some(Value::Object(data)) = data else {
         return Vec::new();
@@ -347,13 +349,10 @@ fn data_to_blocks(data: Option<&Value>, metadata: Option<&Value>) -> Vec<Block> 
     if let Some((mime, value)) = data.iter().find(|(mime, _)| is_image_like(mime)) {
         return vec![image_block(mime, value, metadata)];
     }
-    for mime in [
-        "application/json",
-        "text/plain",
-        "text/html",
-        "text/latex",
-        "text/markdown",
-    ] {
+    if let Some((mime, value)) = data.iter().find(|(mime, _)| is_json_like(mime)) {
+        return vec![non_image_block(mime, value)];
+    }
+    for mime in ["text/plain", "text/html", "text/latex", "text/markdown"] {
         if let Some(value) = data.get(mime) {
             return vec![non_image_block(mime, value)];
         }
@@ -365,15 +364,17 @@ fn data_to_blocks(data: Option<&Value>, metadata: Option<&Value>) -> Vec<Block> 
 /// its compact form; plain text becomes a code block (control sequences removed); HTML, LaTeX, and
 /// Markdown become raw passthrough blocks.
 fn non_image_block(mime: &str, value: &Value) -> Block {
-    match mime {
-        "application/json" => Block::CodeBlock(
+    if is_json_like(mime) {
+        return Block::CodeBlock(
             Attr {
                 id: String::new(),
                 classes: vec!["json".to_owned()],
                 attributes: Vec::new(),
             },
             value.to_string(),
-        ),
+        );
+    }
+    match mime {
         "text/html" => Block::RawBlock(Format("html".to_owned()), multiline_text(Some(value))),
         "text/latex" => Block::RawBlock(Format("latex".to_owned()), multiline_text(Some(value))),
         "text/markdown" => {
@@ -428,6 +429,12 @@ fn image_attr(mime: &str, metadata: Option<&Value>) -> Attr {
 /// type, or PDF.
 fn is_image_like(mime: &str) -> bool {
     mime.starts_with("image/") || mime == "application/pdf"
+}
+
+/// Whether a MIME type denotes structured JSON: the `application/json` type or any type whose
+/// structured-syntax suffix is `+json` (for example `application/geo+json`).
+fn is_json_like(mime: &str) -> bool {
+    mime == "application/json" || mime.ends_with("+json")
 }
 
 /// The file extension for an image-like MIME type.
