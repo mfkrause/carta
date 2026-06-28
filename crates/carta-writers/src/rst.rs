@@ -998,9 +998,13 @@ impl State {
             placements.push((col, span));
             col += span;
         }
-        // A blank first column would leave the row line starting with whitespace, which a simple
-        // table reads as a continuation rather than an empty cell; a lone backslash marks it.
-        if let Some(first) = col_lines.first_mut()
+        // A blank first column in a row that has content elsewhere would leave the row line
+        // starting with whitespace, which a simple table reads as a continuation rather than an
+        // empty cell; a lone backslash marks it. A wholly empty row carries no content to protect,
+        // so it stays blank.
+        let row_has_content = col_lines.iter().any(|lines| !lines.is_empty());
+        if row_has_content
+            && let Some(first) = col_lines.first_mut()
             && first.is_empty()
         {
             first.push("\\".to_owned());
