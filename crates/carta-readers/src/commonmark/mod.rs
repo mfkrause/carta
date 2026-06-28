@@ -1499,6 +1499,48 @@ mod tests {
     }
 
     #[test]
+    fn lists_without_preceding_blankline_lets_a_fresh_list_interrupt_a_paragraph() {
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        // A bullet and a decimal marker both open a list directly under the paragraph.
+        assert!(matches!(
+            greedy_blocks("text\n- item\n", ext).as_slice(),
+            [Block::Para(_), Block::BulletList(_)]
+        ));
+        assert!(matches!(
+            greedy_blocks("text\n2. item\n", ext).as_slice(),
+            [Block::Para(_), Block::OrderedList(_, _)]
+        ));
+    }
+
+    #[test]
+    fn a_list_shaped_line_ends_a_paragraph_even_when_no_list_opens() {
+        // With no enabled enumerator style for these shapes, the line still ends the paragraph and
+        // becomes a fresh paragraph of its own rather than folding in.
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        for line in ["(5) item", "ii. item", "a) item", "#) item"] {
+            let input = format!("text\n{line}\n");
+            assert!(
+                matches!(
+                    greedy_blocks(&input, ext).as_slice(),
+                    [Block::Para(_), Block::Para(_)]
+                ),
+                "expected two paragraphs for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_decimal_marker_closed_by_one_paren_stays_prose() {
+        // `2)` is too easily ordinary prose, so it neither opens a list nor ends the paragraph; the
+        // two lines fold into a single paragraph.
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        assert!(matches!(
+            greedy_blocks("text\n2) still prose\n", ext).as_slice(),
+            [Block::Para(_)]
+        ));
+    }
+
+    #[test]
     fn a_greedy_paragraph_folds_a_fenced_div_and_footnote_definition() {
         assert!(matches!(
             greedy_blocks("text\n::: note\nx\n:::\n", &[Extension::FencedDivs]).as_slice(),

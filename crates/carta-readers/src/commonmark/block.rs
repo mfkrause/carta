@@ -1275,19 +1275,24 @@ impl Parser {
     /// opener interrupt again. A list marker is structural: it still opens a sibling item in an open
     /// list or a sublist inside an item, and folds only where it would otherwise *start* a fresh list
     /// — when the paragraph is the container's own last child and the container is not itself a list
-    /// item or other indented item body.
+    /// item or other indented item body. The `lists_without_preceding_blankline` toggle drops that
+    /// last fold, so a fresh list interrupts the paragraph instead.
     fn greedy_gates(&self, container: usize, in_paragraph: bool) -> GreedyGates {
         if !self.greedy_paragraphs {
             return GreedyGates::default();
         }
-        let fresh_list_into_paragraph = !matches!(
-            self.kind(container),
-            Some(Kind::Item(_) | Kind::Definition { .. } | Kind::FootnoteDef(_))
-        ) && matches!(
-            self.last_open_child(container)
-                .and_then(|child| self.kind(child)),
-            Some(Kind::Paragraph)
-        );
+        let fresh_list_into_paragraph = !self
+            .extensions
+            .contains(Extension::ListsWithoutPrecedingBlankline)
+            && !matches!(
+                self.kind(container),
+                Some(Kind::Item(_) | Kind::Definition { .. } | Kind::FootnoteDef(_))
+            )
+            && matches!(
+                self.last_open_child(container)
+                    .and_then(|child| self.kind(child)),
+                Some(Kind::Paragraph)
+            );
         GreedyGates {
             foldable: in_paragraph,
             list_start: fresh_list_into_paragraph,
@@ -1563,6 +1568,38 @@ impl Parser {
                 && let Some(list) = self.list_marker(container, indent, cursor)
             {
                 return Some(list);
+            }
+            // Under `lists_without_preceding_blankline` a line that has a list-marker shape ends a
+            // greedy paragraph even when no enabled enumerator style opens a list there (e.g. a
+            // parenthesized or alphabetic marker while fancy lists are off): it starts a fresh
+            // paragraph rather than folding into the open one. The shape is judged with every
+            // enumerator style allowed, so the test is independent of which styles actually form a
+            // list here. A decimal enumerator closed by a single `)` (`2)`) is the one exception —
+            // too easily ordinary prose — so it neither breaks the paragraph nor opens a list.
+            if in_paragraph
+                && self
+                    .extensions
+                    .contains(Extension::ListsWithoutPrecedingBlankline)
+                && cursor
+                    .list_marker_at(
+                        true,
+                        self.extensions.contains(Extension::ExampleLists),
+                        false,
+                    )
+                    .is_some_and(|marker| {
+                        !marker.blank_after
+                            && !(matches!(marker.style, ListNumberStyle::Decimal)
+                                && matches!(marker.delim, ListNumberDelim::OneParen))
+                    })
+            {
+                if let Some(paragraph) = self
+                    .last_open_child(container)
+                    .filter(|&child| matches!(self.kind(child), Some(Kind::Paragraph)))
+                {
+                    self.close(paragraph);
+                }
+                let parent = self.place(container, &Kind::Paragraph);
+                return Some(self.append_child(parent, Node::new(Kind::Paragraph)));
             }
         }
         None
