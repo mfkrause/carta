@@ -49,3 +49,11 @@ UE = "UE"
 hom = "hom"
 oint = "oint"
 nin = "nin"
+# roff two-letter special-character names mapped by the man reader's glyph table:
+# \(Fo and \(fo are the angle-quotation marks, \(ba is the bar glyph.
+Fo = "Fo"
+fo = "fo"
+ba = "ba"
+# Test fixture key in the notebook reader: a metadata object whose keys pair the article "a"
+# with each JSON value type (anull/alist/amap) to exercise scalar, array, and object values.
+anull = "anull"

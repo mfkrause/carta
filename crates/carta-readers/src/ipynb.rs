@@ -25,7 +25,7 @@
 use std::collections::BTreeMap;
 
 use carta_ast::{ApiVersion, Attr, Block, Document, Format, Inline, MetaValue, Target};
-use carta_core::{Reader, ReaderOptions, Result};
+use carta_core::{Error, Reader, ReaderOptions, Result};
 use serde_json::Value;
 
 use crate::commonmark::CommonmarkReader;
@@ -42,7 +42,9 @@ impl Reader for IpynbReader {
             .and_then(Value::as_i64)
             .unwrap_or(4);
         if nbformat < 4 {
-            todo!("notebook format version 3 (worksheets)")
+            return Err(Error::UnsupportedFormat(format!(
+                "notebook format version {nbformat} (only nbformat 4 and later are read)"
+            )));
         }
         let nbformat_minor = notebook
             .get("nbformat_minor")
@@ -1087,6 +1089,15 @@ mod tests {
                 .is_err()
         );
         assert!(IpynbReader.read("", &ReaderOptions::default()).is_err());
+    }
+
+    #[test]
+    fn pre_v4_notebook_is_an_error_not_a_panic() {
+        let result = IpynbReader.read(
+            r#"{"nbformat": 3, "nbformat_minor": 0, "worksheets": []}"#,
+            &ReaderOptions::default(),
+        );
+        assert!(matches!(result, Err(Error::UnsupportedFormat(_))));
     }
 
     /// The body of the first output div of the first code cell.

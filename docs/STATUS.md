@@ -74,7 +74,7 @@ cell preset turns on `auto_identifiers`, `gfm_auto_identifiers`, `tex_math_dolla
 `backtick_code_blocks`, `intraword_underscores`); code cells become code blocks carrying their
 stream / `execute_result` / `display_data` / `error` outputs; notebook and cell metadata become
 attributes; `attachment:` image references and base64 image payloads are decoded.
-Gaps: nbformat v3 (worksheets) is not yet implemented; the reader is lenient where the format is
+Gaps: nbformat v3 (worksheets) is reported as an unsupported format rather than read; the reader is lenient where the format is
 strict (a stream output with no `name`, a null `execution_count`, or a missing top-level `nbformat`
 are accepted rather than rejected); unknown cell and output kinds are silently dropped;
 extreme-magnitude numbers may render in rounded or scientific form.
@@ -84,7 +84,9 @@ MediaWiki wikitext: headings, paragraphs, apostrophe bold/italic emphasis, bulle
 and indent lists, preformatted and `<source>`/`<syntaxhighlight>` code blocks, block quotes,
 horizontal rules, internal and external links, `<nowiki>`, HTML passthrough, entities, and inline
 `<math>`. `auto_identifiers` supplies header ids.
-Gaps: table markup (`{| … |}`) and file/image/media embeds are not yet implemented; `smart`
+Gaps: table markup (`{| … |}`) is not interpreted as a table — the region is kept verbatim as a
+raw block (a nested table is matched by depth so it does not close the outer one early); file,
+image, and media embeds are not yet implemented; `smart`
 typographic substitution is not applied; block `<math display=block>` is emitted as inline math;
 namespaces other than file/image/media (Category, interwiki, leading-colon) read as ordinary
 wikilinks; a mid-paragraph `<pre>`/`<source>` falls through to HTML passthrough rather than a code
@@ -114,7 +116,8 @@ roff man pages: section and subsection headings (`.SH`/`.SS`), paragraphs, inden
 tagged-paragraph lists (`.IP`/`.TP`) folded into bullet/ordered/definition lists, font macros
 (`\fB`, `.B`, `.BR`, …) mapped to strong/emphasis/code, `.nf`/`.EX` verbatim regions as code blocks,
 hyperlinks (`.UR`/`.MT`), and `.RS`/`.RE` nesting. `auto_identifiers` supplies header ids.
-Gaps: `tbl` tables (`.TS`/`.TE`) are not yet parsed; a single ambiguous list-marker letter
+Gaps: `tbl` tables (`.TS`/`.TE`) are not interpreted as tables — the region's literal cell text is
+kept verbatim as a code block; a single ambiguous list-marker letter
 (`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than lower-alpha; `.TQ` ends the list rather
 than attaching a second term; `.MR`/`.SM`/`.SB` are dropped; verbatim regions flatten embedded font
 macros and normalize tabs to a single space.

@@ -500,6 +500,7 @@ fn flush(pending: &mut String, out: &mut Vec<Inline>) {
 
 /// Scan characters into inlines from `*pos`. When `end_quote` is set, the scan stops and reports
 /// `true` on the matching closing quote; otherwise it runs to the end and reports `false`.
+#[allow(clippy::too_many_lines)]
 fn scan(
     chars: &[char],
     pos: &mut usize,

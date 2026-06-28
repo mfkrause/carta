@@ -86,6 +86,7 @@ impl IdRegistry {
 
     /// Reserve an explicit identifier so later derived ids avoid it. Only the increment-until-unique
     /// (`Plain`) scheme reserves; the count-suffix scheme tracks bases independently.
+    #[cfg(feature = "commonmark")]
     pub(crate) fn reserve(&mut self, scheme: IdScheme, id: &str) {
         if let IdScheme::Plain = scheme {
             self.seen.insert(id.to_owned());
@@ -112,6 +113,7 @@ mod tests {
         assert_eq!(registry.assign(IdScheme::Plain, "???"), "section-1");
     }
 
+    #[cfg(feature = "commonmark")]
     #[test]
     fn plain_scheme_avoids_reserved_identifiers() {
         let mut registry = IdRegistry::default();
@@ -129,6 +131,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "commonmark")]
     #[test]
     fn gfm_scheme_does_not_reserve_explicit_identifiers() {
         let mut registry = IdRegistry::default();

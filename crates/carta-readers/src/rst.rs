@@ -95,7 +95,7 @@ fn indent_of(line: &str) -> usize {
 }
 
 fn line_at(lines: &[String], i: usize) -> &str {
-    lines.get(i).map(String::as_str).unwrap_or("")
+    lines.get(i).map_or("", String::as_str)
 }
 
 /// A reference name normalized for case-insensitive, whitespace-insensitive lookup.
@@ -346,7 +346,7 @@ fn explicit_body(lines: &[String], start: usize, end: usize, prefix_len: usize) 
             body.push(dedent(line, min_indent));
         }
     }
-    while body.last().is_some_and(|l| l.is_empty()) {
+    while body.last().is_some_and(std::string::String::is_empty) {
         body.pop();
     }
     body
@@ -564,10 +564,7 @@ fn parse_anonymous(
     end: usize,
     indent: usize,
 ) -> String {
-    let rest = first
-        .strip_prefix("..")
-        .map(str::trim_start)
-        .unwrap_or(first);
+    let rest = first.strip_prefix("..").map_or(first, str::trim_start);
     let rest = rest.trim_start_matches('_');
     let rest = rest.trim_start_matches(':');
     let mut url = rest.trim().to_string();
@@ -585,11 +582,7 @@ fn parse_anonymous(
 fn footnote_body(lines: &[String], start: usize, end: usize, indent: usize) -> Vec<String> {
     let first = line_at(lines, start);
     let trimmed = first.trim_start();
-    let prefix_len = indent
-        + trimmed
-            .find(']')
-            .map(|p| p + 1)
-            .unwrap_or_else(|| trimmed.len());
+    let prefix_len = indent + trimmed.find(']').map_or_else(|| trimmed.len(), |p| p + 1);
     explicit_body(lines, start, end, prefix_len)
 }
 
@@ -676,20 +669,19 @@ impl Parser<'_> {
             let before = out.len();
             i = self.block_at(lines, i, &mut out);
             // A preceding empty `class` directive wraps the block just produced.
-            if let Some(classes) = pending_classes.take() {
-                if out.len() > before {
-                    let wrapped = out.split_off(before);
-                    out.push(class_div(classes, wrapped));
-                }
+            if let Some(classes) = pending_classes.take()
+                && out.len() > before
+            {
+                let wrapped = out.split_off(before);
+                out.push(class_div(classes, wrapped));
             }
             // An empty `class` directive leaves a marker whose classes wrap the next block.
-            if let Some(Block::Div(attr, content)) = out.last() {
-                if content.is_empty()
-                    && attr.classes.first().map(String::as_str) == Some(PENDING_CLASS)
-                {
-                    pending_classes = Some(attr.classes.get(1..).unwrap_or(&[]).to_vec());
-                    out.pop();
-                }
+            if let Some(Block::Div(attr, content)) = out.last()
+                && content.is_empty()
+                && attr.classes.first().map(String::as_str) == Some(PENDING_CLASS)
+            {
+                pending_classes = Some(attr.classes.get(1..).unwrap_or(&[]).to_vec());
+                out.pop();
             }
         }
         out
@@ -707,11 +699,12 @@ impl Parser<'_> {
         if let Some(c) = adornment_char(line) {
             // Overline section header.
             let title = line_at(lines, i + 1);
-            if !is_blank(title) && adornment_char(title).is_none() {
-                if adornment_char(line_at(lines, i + 2)) == Some(c) {
-                    out.push(self.header(title.trim(), c, true));
-                    return i + 3;
-                }
+            if !is_blank(title)
+                && adornment_char(title).is_none()
+                && adornment_char(line_at(lines, i + 2)) == Some(c)
+            {
+                out.push(self.header(title.trim(), c, true));
+                return i + 3;
             }
             if line.trim().chars().count() >= 4
                 && (i + 1 >= lines.len() || is_blank(line_at(lines, i + 1)))
@@ -723,23 +716,23 @@ impl Parser<'_> {
 
         // Underline section header.
         let next = line_at(lines, i + 1);
-        if let Some(c) = adornment_char(next) {
-            if next.trim().chars().count() >= line.trim().chars().count() {
-                out.push(self.header(line.trim(), c, false));
-                return i + 2;
-            }
+        if let Some(c) = adornment_char(next)
+            && next.trim().chars().count() >= line.trim().chars().count()
+        {
+            out.push(self.header(line.trim(), c, false));
+            return i + 2;
         }
 
-        if line.starts_with('+') {
-            if let Some(next_i) = self.grid_table(lines, i, out) {
-                return next_i;
-            }
+        if line.starts_with('+')
+            && let Some(next_i) = self.grid_table(lines, i, out)
+        {
+            return next_i;
         }
 
-        if is_simple_table_ruler(line) {
-            if let Some(next_i) = self.simple_table(lines, i, out) {
-                return next_i;
-            }
+        if is_simple_table_ruler(line)
+            && let Some(next_i) = self.simple_table(lines, i, out)
+        {
+            return next_i;
         }
 
         if bullet_content_col(line).is_some() {
@@ -791,12 +784,13 @@ impl Parser<'_> {
 
     fn heading_level(&mut self, adornment: char, overline: bool) -> i32 {
         let key = (adornment, overline);
-        if let Some(pos) = self.heading_styles.iter().position(|s| *s == key) {
-            (pos + 1) as i32
+        let level = if let Some(pos) = self.heading_styles.iter().position(|s| *s == key) {
+            pos + 1
         } else {
             self.heading_styles.push(key);
-            self.heading_styles.len() as i32
-        }
+            self.heading_styles.len()
+        };
+        i32::try_from(level).unwrap_or(i32::MAX)
     }
 
     fn block_quote(&mut self, lines: &[String], start: usize, out: &mut Vec<Block>) -> usize {
@@ -847,22 +841,20 @@ impl Parser<'_> {
         }
         let text = collected.join("\n");
         let literal = text.trim_end().ends_with("::");
-        if literal {
-            if let Some((code, next)) = self.literal_block(lines, i) {
-                let trimmed = minimize_colons(&text);
-                if !trimmed.is_empty() {
-                    out.push(Block::Para(self.inlines(&trimmed)));
-                }
-                out.push(code);
-                return next;
+        if literal && let Some((code, next)) = Self::literal_block(lines, i) {
+            let trimmed = minimize_colons(&text);
+            if !trimmed.is_empty() {
+                out.push(Block::Para(self.inlines(&trimmed)));
             }
+            out.push(code);
+            return next;
         }
         out.push(Block::Para(self.inlines(&text)));
         i
     }
 
     /// The literal (code) block following a `::` paragraph, when an indented block follows.
-    fn literal_block(&mut self, lines: &[String], from: usize) -> Option<(Block, usize)> {
+    fn literal_block(lines: &[String], from: usize) -> Option<(Block, usize)> {
         let mut i = from;
         while lines.get(i).is_some_and(|l| is_blank(l)) {
             i += 1;
@@ -894,7 +886,7 @@ impl Parser<'_> {
                 }
             })
             .collect();
-        while text_lines.last().is_some_and(|l| l.is_empty()) {
+        while text_lines.last().is_some_and(std::string::String::is_empty) {
             text_lines.pop();
         }
         Some((
@@ -946,7 +938,7 @@ impl Parser<'_> {
             let Some(col) = bullet_content_col(line) else {
                 break;
             };
-            let (region, next) = self.item_region(lines, i, col);
+            let (region, next) = Self::item_region(lines, i, col);
             items.push(self.blocks(&region));
             i = next;
         }
@@ -956,9 +948,8 @@ impl Parser<'_> {
     }
 
     fn ordered_list(&mut self, lines: &[String], start: usize, out: &mut Vec<Block>) -> usize {
-        let (start_num, style, delim, _) = match enumerator(line_at(lines, start)) {
-            Some(parsed) => parsed,
-            None => return self.paragraph(lines, start, out),
+        let Some((start_num, style, delim, _)) = enumerator(line_at(lines, start)) else {
+            return self.paragraph(lines, start, out);
         };
         let mut items: Vec<Vec<Block>> = Vec::new();
         let mut i = start;
@@ -983,7 +974,7 @@ impl Parser<'_> {
             if !(item_auto || list_auto || (style == s && delim == d)) {
                 break;
             }
-            let (region, next) = self.item_region(lines, i, col);
+            let (region, next) = Self::item_region(lines, i, col);
             items.push(self.blocks(&region));
             i = next;
         }
@@ -1001,7 +992,7 @@ impl Parser<'_> {
 
     /// The dedented body region of a list item beginning at line `start`, whose content starts at
     /// column `col`.
-    fn item_region(&self, lines: &[String], start: usize, col: usize) -> (Vec<String>, usize) {
+    fn item_region(lines: &[String], start: usize, col: usize) -> (Vec<String>, usize) {
         let first: String = line_at(lines, start).chars().skip(col).collect();
         let mut region = vec![first];
         let mut end = start;
@@ -1024,7 +1015,7 @@ impl Parser<'_> {
                 dedent(line, col)
             });
         }
-        while region.last().is_some_and(|l| l.is_empty()) {
+        while region.last().is_some_and(std::string::String::is_empty) {
             region.pop();
         }
         (region, end + 1)
@@ -1078,7 +1069,7 @@ impl Parser<'_> {
             }
             let term = self.inlines(line.trim());
             let col = indent_of(def);
-            let (region, next) = self.item_region(lines, i + 1, col);
+            let (region, next) = Self::item_region(lines, i + 1, col);
             items.push((term, vec![self.blocks(&region)]));
             i = next;
         }
@@ -1098,6 +1089,7 @@ impl Parser<'_> {
         end
     }
 
+    #[allow(clippy::too_many_lines)]
     fn directive(
         &mut self,
         name: &str,
@@ -1153,7 +1145,7 @@ impl Parser<'_> {
                         title: String::new(),
                     },
                 );
-                out.push(Block::Para(vec![self.wrap_target(image, &options)]));
+                out.push(Block::Para(vec![Self::wrap_target(image, &options)]));
             }
             "figure" => out.push(self.figure(&argument, &options, &content)),
             "note" | "warning" | "attention" | "caution" | "danger" | "error" | "hint"
@@ -1235,7 +1227,7 @@ impl Parser<'_> {
         }
     }
 
-    fn wrap_target(&mut self, image: Inline, options: &[(String, String)]) -> Inline {
+    fn wrap_target(image: Inline, options: &[(String, String)]) -> Inline {
         if let Some((_, url)) = options.iter().find(|(k, _)| k == "target") {
             Inline::Link(
                 Attr::default(),
@@ -1264,7 +1256,7 @@ impl Parser<'_> {
         if let Some(first) = iter.next() {
             let plain = to_plain(first);
             if let Block::Plain(inlines) = &plain {
-                caption_inlines = inlines.clone();
+                caption_inlines.clone_from(inlines);
             }
             caption.long = vec![plain];
         }
@@ -1317,6 +1309,8 @@ impl Parser<'_> {
 
     // --- grid tables ---
 
+    // Column widths are small character spans, far inside f64's exact-integer range.
+    #[allow(clippy::cast_precision_loss)]
     fn grid_table(
         &mut self,
         lines: &[String],
@@ -1417,10 +1411,10 @@ impl Parser<'_> {
             })
             .collect();
         let mut content = self.blocks(&region);
-        if let [Block::Para(_)] = content.as_slice() {
-            if let Some(Block::Para(inlines)) = content.pop() {
-                content.push(Block::Plain(inlines));
-            }
+        if let [Block::Para(_)] = content.as_slice()
+            && let Some(Block::Para(inlines)) = content.pop()
+        {
+            content.push(Block::Plain(inlines));
         }
         Cell {
             attr: Attr::default(),
@@ -1569,7 +1563,7 @@ impl Parser<'_> {
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
-                self.text_cell(&text, (b - a + 1) as i32)
+                self.text_cell(&text, i32::try_from(b - a + 1).unwrap_or(1))
             })
             .collect();
         Row {
@@ -1603,14 +1597,14 @@ impl Parser<'_> {
             }
             // A trailing underscore closes a simple hyperlink reference whose name is the run of
             // name characters that has just accumulated.
-            if ch == '_' {
-                if let Some((link, next)) = self.simple_reference(&chars, pos, &mut pending) {
-                    push_text(&mut out, &pending);
-                    pending.clear();
-                    out.push(link);
-                    pos = next;
-                    continue;
-                }
+            if ch == '_'
+                && let Some((link, next)) = self.simple_reference(&chars, pos, &mut pending)
+            {
+                push_text(&mut out, &pending);
+                pending.clear();
+                out.push(link);
+                pos = next;
+                continue;
             }
             if let Some((inline, drop_space, next)) = self.try_markup(&chars, pos) {
                 push_text(&mut out, &pending);
@@ -1637,7 +1631,7 @@ impl Parser<'_> {
         let prev = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
         match ch {
             '`' => self.backtick(chars, pos, prev),
-            '*' => self.emphasis(chars, pos, prev),
+            '*' => Self::emphasis(chars, pos, prev),
             '|' => self.substitution(chars, pos, prev),
             '[' => self.note_reference(chars, pos, prev),
             ':' => self.role_prefix(chars, pos, prev),
@@ -1646,7 +1640,6 @@ impl Parser<'_> {
     }
 
     fn emphasis(
-        &mut self,
         chars: &[char],
         pos: usize,
         prev: Option<char>,
@@ -1692,11 +1685,11 @@ impl Parser<'_> {
             return Some((vec![self.phrase_reference(&content, anonymous)], false, end));
         }
         // A trailing role applies to the interpreted text.
-        if chars.get(end) == Some(&':') {
-            if let Some((role, role_end)) = parse_role(chars, end) {
-                let inline = self.apply_role(&role, &content);
-                return Some((vec![inline], false, role_end));
-            }
+        if chars.get(end) == Some(&':')
+            && let Some((role, role_end)) = parse_role(chars, end)
+        {
+            let inline = self.apply_role(&role, &content);
+            return Some((vec![inline], false, role_end));
         }
         Some((
             vec![self.apply_role("title-reference", &content)],
@@ -1937,11 +1930,12 @@ impl Parser<'_> {
 fn split_directive(body: &[String]) -> (String, Vec<(String, String)>, Vec<String>) {
     let mut idx = 0;
     let mut argument = String::new();
-    if let Some(first) = body.first() {
-        if !first.is_empty() && option_line(first).is_none() {
-            argument = first.clone();
-            idx = 1;
-        }
+    if let Some(first) = body.first()
+        && !first.is_empty()
+        && option_line(first).is_none()
+    {
+        argument.clone_from(first);
+        idx = 1;
     }
     let mut options = Vec::new();
     while let Some(line) = body.get(idx) {
@@ -1953,7 +1947,7 @@ fn split_directive(body: &[String]) -> (String, Vec<(String, String)>, Vec<Strin
             None => break,
         }
     }
-    while body.get(idx).is_some_and(|l| l.is_empty()) {
+    while body.get(idx).is_some_and(std::string::String::is_empty) {
         idx += 1;
     }
     let content = body.get(idx..).unwrap_or(&[]).to_vec();
@@ -1968,7 +1962,7 @@ fn directive_content(body: &[String]) -> Vec<String> {
         idx += 1;
     }
     if idx > 0 {
-        while body.get(idx).is_some_and(|l| l.is_empty()) {
+        while body.get(idx).is_some_and(std::string::String::is_empty) {
             idx += 1;
         }
     }
@@ -1993,7 +1987,7 @@ fn code_attr(argument: &str, options: &[(String, String)]) -> Attr {
     let mut attributes = Vec::new();
     for (key, value) in options {
         match key.as_str() {
-            "name" => id = value.clone(),
+            "name" => id.clone_from(value),
             "class" => classes.extend(value.split_whitespace().map(str::to_string)),
             other => attributes.push((other.to_string(), value.clone())),
         }
@@ -2015,7 +2009,7 @@ fn image_parts(argument: &str, options: &[(String, String)]) -> (Attr, Vec<Inlin
     for (key, value) in options {
         match key.as_str() {
             "alt" => description = vec![Inline::Str(value.clone())],
-            "name" => id = value.clone(),
+            "name" => id.clone_from(value),
             "class" => classes.extend(value.split_whitespace().map(str::to_string)),
             "width" => attributes.push(("width".to_string(), value.clone())),
             "height" => attributes.push(("height".to_string(), value.clone())),
@@ -2039,7 +2033,7 @@ fn figure_attr(options: &[(String, String)]) -> Attr {
     let mut classes = Vec::new();
     for (key, value) in options {
         match key.as_str() {
-            "name" => id = value.clone(),
+            "name" => id.clone_from(value),
             "figclass" | "class" => classes.extend(value.split_whitespace().map(str::to_string)),
             _ => {}
         }
@@ -2131,10 +2125,7 @@ fn push_text(out: &mut Vec<Inline>, text: &str) {
             if !word.is_empty() {
                 out.push(Inline::Str(std::mem::take(&mut word)));
             }
-            if !matches!(
-                out.last(),
-                None | Some(Inline::Space) | Some(Inline::SoftBreak)
-            ) {
+            if !matches!(out.last(), None | Some(Inline::Space | Inline::SoftBreak)) {
                 out.push(Inline::Space);
             }
         } else {
@@ -2291,16 +2282,14 @@ fn parse_role(chars: &[char], pos: usize) -> Option<(String, usize)> {
 /// `<uri>`.
 fn split_embedded_uri(text: &str) -> (String, Option<String>) {
     let trimmed = text.trim_end();
-    if trimmed.ends_with('>') {
-        if let Some(open) = text.rfind('<') {
-            if let Some(close) = text.rfind('>') {
-                if open < close {
-                    let url = text.get(open + 1..close).unwrap_or("").trim().to_string();
-                    let label = text.get(..open).unwrap_or("").trim().to_string();
-                    return (label, Some(url));
-                }
-            }
-        }
+    if trimmed.ends_with('>')
+        && let Some(open) = text.rfind('<')
+        && let Some(close) = text.rfind('>')
+        && open < close
+    {
+        let url = text.get(open + 1..close).unwrap_or("").trim().to_string();
+        let label = text.get(..open).unwrap_or("").trim().to_string();
+        return (label, Some(url));
     }
     (text.to_string(), None)
 }
@@ -2358,10 +2347,10 @@ fn is_grid_content(line: &str, columns: &[(usize, usize)]) -> bool {
     }
     for (lo, hi) in columns {
         let left = lo.checked_sub(1).and_then(|p| chars.get(p)).copied();
-        if !matches!(left, Some('|') | Some('+')) {
+        if !matches!(left, Some('|' | '+')) {
             return false;
         }
-        if !matches!(chars.get(*hi).copied(), Some('|') | Some('+')) {
+        if !matches!(chars.get(*hi).copied(), Some('|' | '+')) {
             return false;
         }
     }
@@ -2424,7 +2413,7 @@ fn default_groups(count: usize) -> Vec<(usize, usize)> {
 /// least one `-`, which is what distinguishes an underline from cell text.
 fn span_underline_groups(line: &str, columns: &[(usize, usize)]) -> Option<Vec<(usize, usize)>> {
     let chars: Vec<char> = line.chars().collect();
-    let has_dash = chars.iter().any(|c| *c == '-');
+    let has_dash = chars.contains(&'-');
     if !has_dash || !chars.iter().all(|c| matches!(c, '-' | ' ')) {
         return None;
     }
