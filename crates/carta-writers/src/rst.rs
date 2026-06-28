@@ -133,14 +133,16 @@ impl Default for State {
     }
 }
 
-/// An inline-rendering unit: an unbreakable text run carrying whether it is RST markup (so its
-/// boundaries may need a `\ ` separator), a breakable space, a soft line break from the source, or a
-/// forced line break.
+/// An inline-rendering unit: an unbreakable text run carrying whether each of its edges is RST markup
+/// (so that edge may need a `\ ` separator from an abutting run), a breakable space, a soft line break
+/// from the source, or a forced line break. A word that only opens markup (e.g. `*one`) has a markup
+/// leading edge but a plain trailing edge, so the two edges are tracked separately.
 #[derive(Debug, Clone)]
 enum Token {
     Word {
         text: String,
-        complex: bool,
+        lead_complex: bool,
+        trail_complex: bool,
         lead: char,
     },
     /// A zero-width boundary that prints nothing but, like markup, needs a `\ ` separator when it
@@ -157,10 +159,18 @@ enum Token {
 /// rendered text. Escaped plain text uses [`plain_word`] instead, since escaping can prepend a
 /// backslash that is not the character RST would actually see.
 fn word(text: String, complex: bool) -> Token {
+    edge_word(text, complex, complex)
+}
+
+/// Build a word whose leading and trailing edges may carry markup independently. A boundary word that
+/// only opens markup marks its leading edge complex and its trailing edge plain, and vice versa, so an
+/// interior word abutting it on the plain side is not parted by a spurious `\ ` separator.
+fn edge_word(text: String, lead_complex: bool, trail_complex: bool) -> Token {
     let lead = text.chars().next().unwrap_or('\0');
     Token::Word {
         text,
-        complex,
+        lead_complex,
+        trail_complex,
         lead,
     }
 }
@@ -473,7 +483,8 @@ impl State {
         match inline {
             Inline::Str(text) => out.push(Token::Word {
                 text: escape(text, self.smart),
-                complex: false,
+                lead_complex: false,
+                trail_complex: false,
                 lead: text.chars().next().unwrap_or('\0'),
             }),
             Inline::Space => out.push(Token::Space),
@@ -738,13 +749,13 @@ impl State {
         for (index, token) in label_tokens.into_iter().enumerate() {
             match token {
                 Token::Word { text, .. } if index == first && index == last => {
-                    out.push(word(format!("`{text}{suffix}"), true));
+                    out.push(edge_word(format!("`{text}{suffix}"), true, true));
                 }
                 Token::Word { text, .. } if index == first => {
-                    out.push(word(format!("`{text}"), true));
+                    out.push(edge_word(format!("`{text}"), true, false));
                 }
                 Token::Word { text, .. } if index == last => {
-                    out.push(word(format!("{text}{suffix}"), true));
+                    out.push(edge_word(format!("{text}{suffix}"), false, true));
                 }
                 other => out.push(other),
             }
@@ -1365,19 +1376,20 @@ fn to_pieces(tokens: Vec<Token>) -> Vec<Piece> {
         match token {
             Token::Word {
                 text,
-                complex,
+                lead_complex,
+                trail_complex,
                 lead,
             } => {
                 let Some(last) = text.chars().last() else {
                     continue;
                 };
-                if let Some((previous_complex, previous_last)) = pending
-                    && separator_needed(previous_complex, previous_last, complex, lead)
+                if let Some((previous_trail_complex, previous_last)) = pending
+                    && separator_needed(previous_trail_complex, previous_last, lead_complex, lead)
                 {
                     out.push(Piece::Text("\\ ".to_owned()));
                 }
                 out.push(Piece::Text(text));
-                pending = Some((complex, last));
+                pending = Some((trail_complex, last));
             }
             Token::Marker => {
                 if pending.is_some_and(|(previous_complex, _)| previous_complex) {
@@ -1415,13 +1427,17 @@ fn wrap_run(body: Vec<Token>, opening: &str, closing: &str, complex: bool, out: 
             for (index, token) in body.into_iter().enumerate() {
                 match token {
                     Token::Word { text, .. } if index == first && index == last => {
-                        out.push(word(format!("{opening}{text}{closing}"), complex));
+                        out.push(edge_word(
+                            format!("{opening}{text}{closing}"),
+                            complex,
+                            complex,
+                        ));
                     }
                     Token::Word { text, .. } if index == first => {
-                        out.push(word(format!("{opening}{text}"), complex));
+                        out.push(edge_word(format!("{opening}{text}"), complex, false));
                     }
                     Token::Word { text, .. } if index == last => {
-                        out.push(word(format!("{text}{closing}"), complex));
+                        out.push(edge_word(format!("{text}{closing}"), false, complex));
                     }
                     other => out.push(other),
                 }
@@ -1455,13 +1471,13 @@ const MARKER_BOUNDARY: char = '\0';
 /// character that cannot legally follow it, or one preceded by a character that cannot legally
 /// precede it.
 fn separator_needed(
-    previous_complex: bool,
+    previous_trail_complex: bool,
     previous_last: char,
-    current_complex: bool,
+    current_lead_complex: bool,
     current_first: char,
 ) -> bool {
-    (previous_complex && !is_safe_follower(current_first))
-        || (current_complex && !is_safe_preceder(previous_last))
+    (previous_trail_complex && !is_safe_follower(current_first))
+        || (current_lead_complex && !is_safe_preceder(previous_last))
 }
 
 /// A phrase run partitioned around its non-space core, with the null-separator decision for each
