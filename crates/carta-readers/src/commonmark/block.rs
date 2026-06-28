@@ -168,6 +168,10 @@ struct Node {
     parent: usize,
     children: Vec<usize>,
     text: String,
+    /// The visual column this block's first line began at, before its leading indentation was
+    /// consumed. Recorded for paragraphs so a dash ruling on the next line can read a headed
+    /// table's column alignment against the header's true position; zero for every other block.
+    indent: usize,
     /// Whether the line that followed this block (while it was the deepest open block) was blank.
     /// Drives loose-vs-tight list classification.
     last_line_blank: bool,
@@ -181,6 +185,7 @@ impl Node {
             parent: 0,
             children: Vec::new(),
             text: String::new(),
+            indent: 0,
             last_line_blank: false,
         }
     }
@@ -822,13 +827,14 @@ impl Parser {
                 if !single_line(header) || !texttable::is_dash_line(cursor.remaining()) {
                     return false;
                 }
-                // A dash-ruled table has no cell delimiters: its columns are positional, so every
-                // line must share one left margin. The header reached here de-indented through the
-                // paragraph path, so it is re-indented to the ruling's margin before the ruling and
-                // the rows below (kept with their own leading whitespace) gather onto it.
+                // A dash-ruled table has no cell delimiters: its columns are positional, and per-column
+                // alignment is read from where the header text sits relative to the dash runs. So the
+                // header and ruling must share one coordinate. The header reached here de-indented
+                // through the paragraph path, so it is restored to the column it began at; the ruling
+                // and the rows below keep their own leading whitespace.
+                let header_indent = self.nodes.get(leaf).map_or(0, |node| node.indent);
                 let ruling = cursor.rest();
-                let indent = ruling.len() - ruling.trim_start_matches(' ').len();
-                let header = format!("{}{header}", " ".repeat(indent));
+                let header = format!("{}{header}", " ".repeat(header_indent));
                 if let Some(node) = self.nodes.get_mut(leaf) {
                     node.kind = Kind::TextTable;
                     node.text = header;
@@ -1882,6 +1888,7 @@ impl Parser {
             let leaf = self.deepest_open(container);
             match self.kind(leaf).cloned() {
                 Some(Kind::Paragraph) => {
+                    self.note_paragraph_indent(leaf, cursor);
                     self.append_text(leaf, &cursor.rest());
                     self.append_text(leaf, "\n");
                 }
@@ -1901,6 +1908,7 @@ impl Parser {
                     let rest = cursor.rest();
                     if !rest.trim().is_empty() {
                         let index = self.append_child(leaf, Node::new(Kind::Paragraph));
+                        self.note_paragraph_indent(index, cursor);
                         self.append_text(index, &rest);
                         self.append_text(index, "\n");
                     }
@@ -1920,8 +1928,21 @@ impl Parser {
 
         let parent = self.place(container, &Kind::Paragraph);
         let index = self.append_child(parent, Node::new(Kind::Paragraph));
+        self.note_paragraph_indent(index, cursor);
         self.append_text(index, &cursor.rest());
         self.append_text(index, "\n");
+    }
+
+    /// Record the column a freshly opened paragraph's first line began at, so a dash ruling on the
+    /// following line can read a headed table's alignment against the header's true position. Only an
+    /// empty paragraph is its first line; a continuation must not overwrite the recorded column.
+    fn note_paragraph_indent(&mut self, index: usize, cursor: &Cursor) {
+        let indent = cursor.noted_indent();
+        if let Some(node) = self.nodes.get_mut(index)
+            && node.text.is_empty()
+        {
+            node.indent = indent;
+        }
     }
 
     fn append_text(&mut self, index: usize, text: &str) {

@@ -236,7 +236,9 @@ pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
 #[cfg(test)]
 mod tests {
     use super::CommonmarkReader;
-    use carta_ast::{Attr, Block, Document, Inline, ListNumberDelim, ListNumberStyle, Target};
+    use carta_ast::{
+        Alignment, Attr, Block, Document, Inline, ListNumberDelim, ListNumberStyle, Target,
+    };
     use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
@@ -1715,6 +1717,33 @@ mod tests {
         assert!(matches!(doc.blocks.as_slice(), [Block::Table(_)]));
         let inlines = caption_inlines(&doc.blocks).expect("captioned table");
         assert_eq!(inlines.first(), Some(&Inline::Str("A".to_owned())));
+    }
+
+    #[test]
+    fn an_indented_simple_table_header_aligns_against_its_own_column() {
+        // The header sits two columns in from the ruling. Within each column the dashes are flush
+        // with the header text on the right and reach past it on the left, so the columns are right-
+        // or center-aligned — not the left alignment a header read at the ruling's margin would give.
+        let doc = read_markdown(
+            "  Right     Left     Center\n-------   ------   ----------\n     12     12        12\n",
+            &[Extension::SimpleTables],
+        );
+        let aligns: Vec<Alignment> = match doc.blocks.as_slice() {
+            [Block::Table(table)] => table
+                .col_specs
+                .iter()
+                .map(|spec| spec.align.clone())
+                .collect(),
+            other => panic!("expected a single table, got {other:?}"),
+        };
+        assert_eq!(
+            aligns,
+            vec![
+                Alignment::AlignRight,
+                Alignment::AlignRight,
+                Alignment::AlignCenter,
+            ]
+        );
     }
 
     #[test]
