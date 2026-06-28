@@ -11,6 +11,35 @@ use carta_ast::{Attr, Inline, Target};
 
 use super::LinkDef;
 
+/// Percent-encode the characters a link destination may not safely carry literally: ASCII
+/// whitespace and the delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes
+/// through unchanged — including a literal `%`, so an existing `%XX` sequence is preserved rather
+/// than doubled — as does all non-ASCII text. Applying it twice yields the same result.
+pub(crate) fn escape_uri(url: &str) -> String {
+    fn hex(nibble: u8) -> char {
+        char::from_digit(u32::from(nibble), 16)
+            .unwrap_or('0')
+            .to_ascii_uppercase()
+    }
+    let mut out = String::with_capacity(url.len());
+    for ch in url.chars() {
+        if ch.is_ascii_whitespace()
+            || matches!(
+                ch,
+                '<' | '>' | '|' | '"' | '{' | '}' | '[' | ']' | '^' | '`'
+            )
+        {
+            let byte = ch as u8;
+            out.push('%');
+            out.push(hex(byte >> 4));
+            out.push(hex(byte & 0x0f));
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 pub(crate) fn is_ascii_punctuation(ch: char) -> bool {
     matches!(
         ch,
@@ -667,4 +696,32 @@ fn skip_blanks_to_line_end(chars: &[char], index: &mut usize) {
 
 fn at_line_end(chars: &[char], index: usize) -> bool {
     matches!(chars.get(index).copied(), None | Some('\n'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_uri;
+
+    #[test]
+    fn unsafe_characters_become_uppercase_percent_escapes() {
+        assert_eq!(escape_uri("two words"), "two%20words");
+        assert_eq!(escape_uri("a{b}c"), "a%7Bb%7Dc");
+        assert_eq!(escape_uri("p^q"), "p%5Eq");
+        assert_eq!(
+            escape_uri("a<b>c|d\"e[f]g`h"),
+            "a%3Cb%3Ec%7Cd%22e%5Bf%5Dg%60h"
+        );
+    }
+
+    #[test]
+    fn a_literal_percent_is_never_encoded_so_the_pass_is_idempotent() {
+        assert_eq!(escape_uri("a%20b"), "a%20b");
+        let once = escape_uri("two words {x}");
+        assert_eq!(escape_uri(&once), once);
+    }
+
+    #[test]
+    fn backslashes_and_non_ascii_text_pass_through() {
+        assert_eq!(escape_uri("a\\b/café"), "a\\b/café");
+    }
 }
