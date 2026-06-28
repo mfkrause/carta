@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Span","c":[["inline-target",[],[]],[{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Str","c":"target"}]]},{"t":"Space"},{"t":"Str","c":"marks"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"spot"},{"t":"Space"},{"t":"Str","c":"that"},{"t":"Space"},{"t":"Str","c":"other"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"can"},{"t":"Space"},{"t":"Str","c":"point"},{"t":"Space"},{"t":"Str","c":"back"},{"t":"Space"},{"t":"Str","c":"to."}]},{"t":"Para","c":[{"t":"Str","c":"Here"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Span","c":[["another-one",[],[]],[{"t":"Str","c":"another"},{"t":"Space"},{"t":"Str","c":"one"}]]},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"middle"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"sentence."}]}]}

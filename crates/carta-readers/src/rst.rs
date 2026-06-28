@@ -7,15 +7,16 @@
 //! each reference against the collected definitions. Inline markup is parsed from the raw text of
 //! each leaf during the second pass.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
-    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, Row, Table, TableBody, TableFoot,
-    TableHead, Target,
+    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, TableBody,
+    TableFoot, TableHead, Target,
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
+use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
 
 /// Parses reStructuredText into the document model.
@@ -33,6 +34,7 @@ impl Reader for RstReader {
             defs: &defs,
             ext: options.extensions,
             heading_styles: Vec::new(),
+            ids: IdRegistry::default(),
             auto_footnote: 0,
             symbol_footnote: 0,
             anonymous: 0,
@@ -298,6 +300,128 @@ fn field_marker(line: &str) -> Option<(String, usize)> {
         idx += 1;
     }
     None
+}
+
+/// An option-list marker: an option group (a comma-separated run of `-a`, `-fARG`, `-f ARG`,
+/// `--word`, `--word=ARG`, or `/S` options) that fully fills the line up to the first run of two
+/// or more spaces (or the end of line). Returns the option-group text and the column at which the
+/// description body begins. The group must consume its entire candidate span — a trailing token
+/// after a single-space gap (e.g. `-f FILE extra`) is ordinary prose, not an option list.
+fn option_marker(line: &str) -> Option<(String, usize)> {
+    let chars: Vec<char> = line.chars().collect();
+    let gap = chars.windows(2).position(|pair| pair == [' ', ' ']);
+    let candidate_end = gap.unwrap_or(chars.len());
+    let candidate: String = chars.get(..candidate_end)?.iter().collect();
+    let candidate = candidate.trim_end();
+    if !valid_option_group(candidate) {
+        return None;
+    }
+    let value_col = match gap {
+        Some(g) => {
+            let mut v = g;
+            while chars.get(v) == Some(&' ') {
+                v += 1;
+            }
+            v
+        }
+        None => candidate.chars().count(),
+    };
+    Some((candidate.to_string(), value_col))
+}
+
+/// Whether `text` is a complete, comma-separated group of option specifiers with nothing left over.
+fn valid_option_group(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
+        return false;
+    }
+    let mut i = 0;
+    loop {
+        let Some(next) = parse_one_option(&chars, i) else {
+            return false;
+        };
+        i = next;
+        if i == chars.len() {
+            return true;
+        }
+        // Options are joined by a comma and a single space.
+        if chars.get(i) == Some(&',') && chars.get(i + 1) == Some(&' ') {
+            i += 2;
+        } else {
+            return false;
+        }
+    }
+}
+
+/// Parse a single option specifier starting at `i`, returning the index just past it (and any
+/// argument). Recognizes long options (`--word`, `--word=ARG`, `--word ARG`), short options
+/// (`-a`, `-aARG`, `-a ARG`), and DOS-style options (`/S`, `/S ARG`). Returns `None` if no valid
+/// specifier begins at `i`.
+fn parse_one_option(chars: &[char], i: usize) -> Option<usize> {
+    match chars.get(i) {
+        Some('-') if chars.get(i + 1) == Some(&'-') => {
+            // Long option: a name of letters, digits, and hyphens.
+            let mut j = i + 2;
+            let name_start = j;
+            while chars
+                .get(j)
+                .is_some_and(|c| c.is_ascii_alphanumeric() || *c == '-')
+            {
+                j += 1;
+            }
+            if j == name_start {
+                return None;
+            }
+            parse_optional_arg(chars, j)
+        }
+        Some('-') => {
+            // Short option: a hyphen and exactly one alphanumeric character.
+            let ch = chars.get(i + 1)?;
+            if !ch.is_ascii_alphanumeric() {
+                return None;
+            }
+            parse_optional_arg(chars, i + 2)
+        }
+        Some('/') => {
+            // DOS/VMS-style option: a slash and exactly one alphanumeric character.
+            let ch = chars.get(i + 1)?;
+            if !ch.is_ascii_alphanumeric() {
+                return None;
+            }
+            parse_optional_arg(chars, i + 2)
+        }
+        _ => None,
+    }
+}
+
+/// Parse an optional argument that follows an option specifier at `i`: an `=`-delimited argument,
+/// a single-space-delimited argument, or an argument attached directly to a short option. Returns
+/// the index just past the option (and argument, if present).
+fn parse_optional_arg(chars: &[char], i: usize) -> Option<usize> {
+    let delim = chars.get(i);
+    if delim == Some(&'=') || delim == Some(&' ') {
+        let arg_start = i + 1;
+        let mut j = arg_start;
+        while chars
+            .get(j)
+            .is_some_and(|c| !c.is_whitespace() && *c != ',')
+        {
+            j += 1;
+        }
+        if j == arg_start {
+            return None;
+        }
+        return Some(j);
+    }
+    // An argument attached directly to a short option (e.g. `-fARG`).
+    let mut j = i;
+    while chars
+        .get(j)
+        .is_some_and(|c| !c.is_whitespace() && *c != ',')
+    {
+        j += 1;
+    }
+    Some(j)
 }
 
 // --- explicit markup blocks --------------------------------------------------------------------
@@ -650,6 +774,7 @@ struct Parser<'a> {
     defs: &'a Definitions,
     ext: Extensions,
     heading_styles: Vec<(char, bool)>,
+    ids: IdRegistry,
     auto_footnote: usize,
     symbol_footnote: usize,
     anonymous: usize,
@@ -755,6 +880,10 @@ impl Parser<'_> {
             return self.line_block(lines, i, out);
         }
 
+        if option_marker(line).is_some() {
+            return self.option_list(lines, i, out);
+        }
+
         // Definition list: a single-line term immediately followed by a more-indented definition.
         if !is_blank(next) && indent_of(next) > 0 {
             return self.definition_list(lines, i, out);
@@ -766,10 +895,17 @@ impl Parser<'_> {
     fn header(&mut self, title: &str, adornment: char, overline: bool) -> Block {
         let level = self.heading_level(adornment, overline);
         let inlines = self.inlines(title);
-        let id = if self.ext.contains(Extension::AutoIdentifiers) {
-            carta_ast::slug(&carta_ast::to_plain_text(&inlines))
-        } else {
-            String::new()
+        let id = match IdScheme::select(self.ext) {
+            Some(scheme) => {
+                let plain = carta_ast::to_plain_text(&inlines);
+                let text = if self.ext.contains(Extension::AsciiIdentifiers) {
+                    asciify(&plain)
+                } else {
+                    plain
+                };
+                self.ids.assign(scheme, &text)
+            }
+            None => String::new(),
         };
         Block::Header(
             level,
@@ -862,7 +998,9 @@ impl Parser<'_> {
         let line = lines.get(i)?;
         let base = indent_of(line);
         if base == 0 {
-            return None;
+            // An unindented block whose every line opens with the same quoting character is a
+            // quoted literal block; the quoting characters are kept verbatim.
+            return Self::quoted_literal_block(lines, i);
         }
         let start = i;
         let mut end = i;
@@ -895,12 +1033,42 @@ impl Parser<'_> {
         ))
     }
 
+    /// A quoted literal block: an unindented run of lines that each begin with the same quoting
+    /// character (one of the adornment characters). The lines, quoting characters included, are the
+    /// code block's verbatim text.
+    fn quoted_literal_block(lines: &[String], start: usize) -> Option<(Block, usize)> {
+        let quote = line_at(lines, start).chars().next()?;
+        if !ADORNMENT_CHARS.contains(quote) {
+            return None;
+        }
+        let mut i = start;
+        let mut text_lines: Vec<String> = Vec::new();
+        while let Some(line) = lines.get(i) {
+            if is_blank(line) || line.chars().next() != Some(quote) {
+                break;
+            }
+            text_lines.push(line.clone());
+            i += 1;
+        }
+        if text_lines.is_empty() {
+            return None;
+        }
+        Some((Block::CodeBlock(Attr::default(), text_lines.join("\n")), i))
+    }
+
     fn line_block(&mut self, lines: &[String], start: usize, out: &mut Vec<Block>) -> usize {
-        let mut entries: Vec<Vec<Inline>> = Vec::new();
+        let base = indent_of(line_at(lines, start));
+        let mut entries: Vec<String> = Vec::new();
         let mut i = start;
         while let Some(line) = lines.get(i) {
+            if is_blank(line) {
+                break;
+            }
             let trimmed = line.trim_start();
             if let Some(rest) = trimmed.strip_prefix('|') {
+                if !matches!(rest.chars().next(), Some(' ') | None) {
+                    break;
+                }
                 let rest = rest.strip_prefix(' ').unwrap_or(rest);
                 // Indentation beyond the single separating space is preserved as non-breaking
                 // spaces so it survives into the rendered line.
@@ -910,13 +1078,22 @@ impl Parser<'_> {
                     "\u{a0}".repeat(leading),
                     rest.trim_start_matches(' ')
                 );
-                entries.push(self.inlines(&content));
+                entries.push(content);
+                i += 1;
+            } else if !entries.is_empty() && indent_of(line) > base {
+                // A further-indented line without its own `|` continues the preceding line,
+                // joined to it by a single space.
+                if let Some(last) = entries.last_mut() {
+                    last.push(' ');
+                    last.push_str(trimmed);
+                }
                 i += 1;
             } else {
                 break;
             }
         }
-        out.push(Block::LineBlock(entries));
+        let parsed = entries.iter().map(|entry| self.inlines(entry)).collect();
+        out.push(Block::LineBlock(parsed));
         i
     }
 
@@ -1077,6 +1254,33 @@ impl Parser<'_> {
         i
     }
 
+    /// An option list: each item pairs an option group (`-a`, `--all=ARG`, `/S`, comma-joined
+    /// variants) rendered as inline code with a description body. The body begins after the
+    /// two-or-more-space gap that follows the option group, or on the following indented lines.
+    fn option_list(&mut self, lines: &[String], start: usize, out: &mut Vec<Block>) -> usize {
+        let mut items: Vec<(Vec<Inline>, Vec<Vec<Block>>)> = Vec::new();
+        let mut i = start;
+        while let Some(line) = lines.get(i) {
+            if is_blank(line) {
+                i += 1;
+                continue;
+            }
+            if indent_of(line) != 0 {
+                break;
+            }
+            let Some((term, value_col)) = option_marker(line) else {
+                break;
+            };
+            let end = explicit_extent(lines, i, 0);
+            let body = explicit_body(lines, i, end, value_col);
+            let term_inline = vec![Inline::Code(Attr::default(), term)];
+            items.push((term_inline, vec![self.blocks(&body)]));
+            i = end;
+        }
+        out.push(Block::DefinitionList(items));
+        i
+    }
+
     // --- explicit markup ---
 
     fn explicit(&mut self, lines: &[String], start: usize, out: &mut Vec<Block>) -> usize {
@@ -1194,6 +1398,8 @@ impl Parser<'_> {
                 out.push(Block::BlockQuote(self.blocks(&content)));
             }
             "compound" => out.extend(self.blocks(&content)),
+            "csv-table" => self.csv_table(&argument, &options, &content, out),
+            "list-table" => self.list_table(&argument, &options, &content, out),
             "class" => {
                 let classes: Vec<String> =
                     argument.split_whitespace().map(str::to_string).collect();
@@ -1307,6 +1513,146 @@ impl Parser<'_> {
         ))
     }
 
+    // --- table directives ---
+
+    /// A `csv-table` directive: its rows are comma-separated values, with an optional explicit
+    /// `:header:` row and/or a count of leading `:header-rows:` taken from the data.
+    fn csv_table(
+        &mut self,
+        argument: &str,
+        options: &[(String, String)],
+        content: &[String],
+        out: &mut Vec<Block>,
+    ) {
+        let widths = directive_widths(options);
+        let mut records = parse_csv(&content.join("\n"));
+        let mut header_records: Vec<Vec<String>> = Vec::new();
+        if let Some((_, header)) = options.iter().find(|(k, _)| k == "header") {
+            header_records.extend(parse_csv(header));
+        }
+        let take = directive_count(options, "header-rows").min(records.len());
+        header_records.extend(records.drain(..take));
+        let num_cols = header_records
+            .iter()
+            .chain(records.iter())
+            .map(Vec::len)
+            .max()
+            .unwrap_or(0);
+        if num_cols == 0 {
+            return;
+        }
+        let head_rows = header_records
+            .iter()
+            .map(|r| self.csv_row(r, num_cols))
+            .collect();
+        let body_rows = records.iter().map(|r| self.csv_row(r, num_cols)).collect();
+        out.push(self.make_table(argument, widths, head_rows, body_rows, num_cols));
+    }
+
+    fn csv_row(&mut self, fields: &[String], num_cols: usize) -> Vec<Cell> {
+        (0..num_cols)
+            .map(|i| {
+                let content = match fields.get(i) {
+                    Some(f) if !f.is_empty() => vec![Block::Plain(self.inlines(f))],
+                    _ => Vec::new(),
+                };
+                Cell {
+                    attr: Attr::default(),
+                    align: Alignment::AlignDefault,
+                    row_span: 1,
+                    col_span: 1,
+                    content,
+                }
+            })
+            .collect()
+    }
+
+    /// A `list-table` directive: a two-level bullet list where each outer item is a row and its
+    /// nested bullet list supplies the row's cells.
+    fn list_table(
+        &mut self,
+        argument: &str,
+        options: &[(String, String)],
+        content: &[String],
+        out: &mut Vec<Block>,
+    ) {
+        let widths = directive_widths(options);
+        let mut rows: Vec<Vec<Vec<Block>>> = Vec::new();
+        for block in self.blocks(content) {
+            if let Block::BulletList(items) = block {
+                for item in items {
+                    let mut cells = Vec::new();
+                    for inner in item {
+                        if let Block::BulletList(cell_items) = inner {
+                            cells.extend(cell_items);
+                        }
+                    }
+                    rows.push(cells);
+                }
+            }
+        }
+        let num_cols = rows.iter().map(Vec::len).max().unwrap_or(0);
+        if num_cols == 0 {
+            return;
+        }
+        let take = directive_count(options, "header-rows").min(rows.len());
+        let head_src: Vec<Vec<Vec<Block>>> = rows.drain(..take).collect();
+        let head_rows = head_src
+            .into_iter()
+            .map(|r| list_row(r, num_cols))
+            .collect();
+        let body_rows = rows.into_iter().map(|r| list_row(r, num_cols)).collect();
+        out.push(self.make_table(argument, widths, head_rows, body_rows, num_cols));
+    }
+
+    /// Assemble a table from already-built header and body cell rows, a caption drawn from the
+    /// directive argument, and either explicit column widths or the default.
+    fn make_table(
+        &mut self,
+        caption: &str,
+        widths: Option<Vec<f64>>,
+        head_rows: Vec<Vec<Cell>>,
+        body_rows: Vec<Vec<Cell>>,
+        num_cols: usize,
+    ) -> Block {
+        let caption = if caption.trim().is_empty() {
+            Caption::default()
+        } else {
+            Caption {
+                short: None,
+                long: vec![Block::Plain(self.inlines(caption.trim()))],
+            }
+        };
+        let col_specs = (0..num_cols)
+            .map(|i| ColSpec {
+                align: Alignment::AlignDefault,
+                width: match &widths {
+                    Some(w) if w.len() == num_cols => w
+                        .get(i)
+                        .copied()
+                        .map_or(ColWidth::ColWidthDefault, ColWidth::ColWidth),
+                    _ => ColWidth::ColWidthDefault,
+                },
+            })
+            .collect();
+        Block::Table(Box::new(Table {
+            attr: Attr::default(),
+            caption,
+            col_specs,
+            head: TableHead {
+                attr: Attr::default(),
+                rows: cells_to_rows(head_rows),
+            },
+            bodies: vec![TableBody {
+                attr: Attr::default(),
+                row_head_columns: 0,
+                head: Vec::new(),
+                body: cells_to_rows(body_rows),
+            }],
+            foot: TableFoot::default(),
+        }))
+    }
+
     // --- grid tables ---
 
     // Column widths are small character spans, far inside f64's exact-integer range.
@@ -1317,81 +1663,162 @@ impl Parser<'_> {
         start: usize,
         out: &mut Vec<Block>,
     ) -> Option<usize> {
-        let columns = grid_columns(line_at(lines, start))?;
-        let mut rows_text: Vec<Vec<String>> = Vec::new();
-        let mut header_rows = 0usize;
-        let mut current: Vec<Vec<String>> = vec![Vec::new(); columns.len()];
-        let mut i = start + 1;
-        while let Some(line) = lines.get(i) {
-            if is_row_separator(line) {
-                let is_header = line.contains('=');
-                let cells: Vec<String> = current.iter().map(|cell| cell.join("\n")).collect();
-                rows_text.push(cells);
-                if is_header {
-                    header_rows = rows_text.len();
-                }
-                current = vec![Vec::new(); columns.len()];
-                i += 1;
-                if !lines.get(i).is_some_and(|l| is_grid_line(l)) {
-                    break;
-                }
-            } else if is_grid_content(line, &columns) {
-                for (col, (lo, hi)) in columns.iter().enumerate() {
-                    let segment: String = line.chars().take(*hi).skip(*lo).collect();
-                    if let Some(slot) = current.get_mut(col) {
-                        slot.push(segment.trim_end().to_string());
-                    }
-                }
-                i += 1;
-            } else {
-                break;
-            }
+        // The table runs over consecutive lines that belong to the grid (a border or a `|`-led row).
+        let mut end = start;
+        while lines.get(end).is_some_and(|l| is_grid_line(l)) {
+            end += 1;
         }
-        let total: usize = columns.iter().map(|(lo, hi)| hi.saturating_sub(*lo)).sum();
-        let divisor = total.max(72) as f64;
-        let col_specs: Vec<ColSpec> = columns
-            .iter()
-            .map(|(lo, hi)| ColSpec {
-                align: Alignment::AlignDefault,
-                width: ColWidth::ColWidth((hi.saturating_sub(*lo) + 1) as f64 / divisor),
+        if end - start < 3 {
+            return None;
+        }
+        // A padded character matrix so every position can be addressed by (row, column).
+        let width = (start..end)
+            .filter_map(|i| lines.get(i))
+            .map(|l| l.chars().count())
+            .max()
+            .unwrap_or(0);
+        let block: Vec<Vec<char>> = (start..end)
+            .filter_map(|i| lines.get(i))
+            .map(|l| {
+                let mut row: Vec<char> = l.chars().collect();
+                row.resize(width, ' ');
+                row
             })
             .collect();
-        let header = if header_rows > 0 {
-            rows_text.get(..header_rows).unwrap_or(&[]).to_vec()
-        } else {
-            Vec::new()
-        };
-        let body = rows_text.get(header_rows..).unwrap_or(&[]).to_vec();
+
+        let cells = scan_grid_cells(&block)?;
+        if cells.is_empty() {
+            return None;
+        }
+
+        // The vertical and horizontal grid lines, as the distinct cell-edge positions.
+        let mut col_edges: Vec<usize> = cells.iter().flat_map(|c| [c.left, c.right]).collect();
+        col_edges.sort_unstable();
+        col_edges.dedup();
+        let mut row_edges: Vec<usize> = cells.iter().flat_map(|c| [c.top, c.bottom]).collect();
+        row_edges.sort_unstable();
+        row_edges.dedup();
+        let col_index = |pos: usize| col_edges.iter().position(|e| *e == pos);
+        let row_index = |pos: usize| row_edges.iter().position(|e| *e == pos);
+        let num_cols = col_edges.len().checked_sub(1)?;
+        let num_rows = row_edges.len().checked_sub(1)?;
+        if num_cols == 0 || num_rows == 0 {
+            return None;
+        }
+
+        // Place each cell into a row/column grid, validating that the cells tile it exactly.
+        let mut grid: Vec<Vec<Option<GridCell>>> = vec![vec![None; num_cols]; num_rows];
+        let mut covered = vec![vec![false; num_cols]; num_rows];
+        for cell in &cells {
+            let r0 = row_index(cell.top)?;
+            let r1 = row_index(cell.bottom)?;
+            let c0 = col_index(cell.left)?;
+            let c1 = col_index(cell.right)?;
+            let text: String = (cell.top + 1..cell.bottom)
+                .filter_map(|r| block.get(r))
+                .map(|row| {
+                    let seg: String = row
+                        .get(cell.left + 1..cell.right)
+                        .map_or_else(String::new, |s| s.iter().collect());
+                    seg.trim_end().to_string()
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            for r in r0..r1 {
+                for c in c0..c1 {
+                    if covered.get(r).and_then(|row| row.get(c)).copied() != Some(false) {
+                        return None;
+                    }
+                    if let Some(slot) = covered.get_mut(r).and_then(|row| row.get_mut(c)) {
+                        *slot = true;
+                    }
+                }
+            }
+            if let Some(slot) = grid.get_mut(r0).and_then(|row| row.get_mut(c0)) {
+                *slot = Some(GridCell {
+                    text,
+                    row_span: r1 - r0,
+                    col_span: c1 - c0,
+                });
+            }
+        }
+        if covered.iter().any(|row| row.iter().any(|c| !c)) {
+            return None;
+        }
+
+        // A `=` separator line marks the boundary between header rows and body rows.
+        let header_rows = row_edges
+            .iter()
+            .position(|edge| block.get(*edge).is_some_and(|row| row.contains(&'=')))
+            .unwrap_or(0);
+
+        let last = *col_edges.last()?;
+        let first = *col_edges.first()?;
+        let total = last.saturating_sub(first).saturating_sub(num_cols);
+        let divisor = total.max(72) as f64;
+        let col_specs: Vec<ColSpec> = (0..num_cols)
+            .map(|i| {
+                let lo = col_edges.get(i).copied().unwrap_or(0);
+                let hi = col_edges.get(i + 1).copied().unwrap_or(lo);
+                ColSpec {
+                    align: Alignment::AlignDefault,
+                    width: ColWidth::ColWidth(hi.saturating_sub(lo) as f64 / divisor),
+                }
+            })
+            .collect();
+
+        let mut head_rows = Vec::new();
+        let mut body_rows = Vec::new();
+        for (r, row) in grid.iter().enumerate() {
+            let built = self.grid_row(row);
+            if r < header_rows {
+                head_rows.push(built);
+            } else {
+                body_rows.push(built);
+            }
+        }
+
         let table = Table {
             attr: Attr::default(),
             caption: Caption::default(),
             col_specs,
             head: TableHead {
                 attr: Attr::default(),
-                rows: header.iter().map(|r| self.grid_row(r)).collect(),
+                rows: head_rows,
             },
             bodies: vec![TableBody {
                 attr: Attr::default(),
                 row_head_columns: 0,
                 head: Vec::new(),
-                body: body.iter().map(|r| self.grid_row(r)).collect(),
+                body: body_rows,
             }],
             foot: TableFoot::default(),
         };
         out.push(Block::Table(Box::new(table)));
-        Some(i)
+        Some(end)
     }
 
-    fn grid_row(&mut self, cells: &[String]) -> Row {
+    /// Build one table row, emitting only the cells that originate in this row band; positions
+    /// covered by a row- or column-spanning cell that began earlier carry no cell of their own.
+    fn grid_row(&mut self, row: &[Option<GridCell>]) -> Row {
+        let cells = row
+            .iter()
+            .filter_map(|slot| slot.as_ref())
+            .map(|cell| {
+                let row_span = i32::try_from(cell.row_span).unwrap_or(1);
+                let col_span = i32::try_from(cell.col_span).unwrap_or(1);
+                self.text_cell(&cell.text, row_span, col_span)
+            })
+            .collect();
         Row {
             attr: Attr::default(),
-            cells: cells.iter().map(|text| self.text_cell(text, 1)).collect(),
+            cells,
         }
     }
 
     /// Build a cell from its newline-joined text. The shared blank-edges/min-indent normalization is
     /// applied, the text is parsed as block content, and a lone paragraph is demoted to a plain block.
-    fn text_cell(&mut self, text: &str, col_span: i32) -> Cell {
+    fn text_cell(&mut self, text: &str, row_span: i32, col_span: i32) -> Cell {
         let raw: Vec<String> = text.split('\n').map(str::to_string).collect();
         let trimmed = trim_blank_edges(raw);
         let min_indent = trimmed
@@ -1419,7 +1846,7 @@ impl Parser<'_> {
         Cell {
             attr: Attr::default(),
             align: Alignment::AlignDefault,
-            row_span: 1,
+            row_span,
             col_span,
             content,
         }
@@ -1563,7 +1990,7 @@ impl Parser<'_> {
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
-                self.text_cell(&text, i32::try_from(b - a + 1).unwrap_or(1))
+                self.text_cell(&text, 1, i32::try_from(b - a + 1).unwrap_or(1))
             })
             .collect();
         Row {
@@ -1576,11 +2003,13 @@ impl Parser<'_> {
 
     fn inlines(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
+        let smart = self.ext.contains(Extension::Smart);
         let mut out = Vec::new();
         let mut pending = String::new();
         let mut pos = 0;
         while pos < chars.len() {
             let ch = chars.get(pos).copied().unwrap_or(' ');
+            let prev = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
             if ch == '\\' {
                 match chars.get(pos + 1) {
                     Some(next) if next.is_whitespace() => pos += 2,
@@ -1593,6 +2022,19 @@ impl Parser<'_> {
                         pos += 1;
                     }
                 }
+                continue;
+            }
+            // An inline internal hyperlink target `_`name`` becomes a span carrying a slug
+            // identifier so the location can be linked to.
+            if ch == '_'
+                && chars.get(pos + 1) == Some(&'`')
+                && inline_start_ok(prev)
+                && let Some((span, next)) = self.inline_target(&chars, pos)
+            {
+                push_text(&mut out, &pending);
+                pending.clear();
+                out.push(span);
+                pos = next;
                 continue;
             }
             // A trailing underscore closes a simple hyperlink reference whose name is the run of
@@ -1616,12 +2058,106 @@ impl Parser<'_> {
                 pos = next;
                 continue;
             }
+            // A bare URI or email address that begins at a word boundary is auto-linked.
+            if autolink_boundary(prev)
+                && let Some((link, next)) = autolink(&chars, pos)
+            {
+                push_text(&mut out, &pending);
+                pending.clear();
+                out.push(link);
+                pos = next;
+                continue;
+            }
+            // Typographic punctuation under the `smart` extension: paired quotes become quotation
+            // nodes, a lone quote its apt curly glyph, hyphen runs en/em dashes, dot runs ellipses.
+            if smart {
+                match ch {
+                    '"' | '\'' => {
+                        if let Some((quoted, next)) = self.smart_quote(&chars, pos, ch) {
+                            push_text(&mut out, &pending);
+                            pending.clear();
+                            out.push(quoted);
+                            pos = next;
+                            continue;
+                        }
+                        pending.push(quote_glyph(&chars, pos, ch));
+                        pos += 1;
+                        continue;
+                    }
+                    '-' => {
+                        let n = run_length(&chars, pos, '-');
+                        pending.push_str(&fold_dashes(n));
+                        pos += n;
+                        continue;
+                    }
+                    '.' => {
+                        let n = run_length(&chars, pos, '.');
+                        pending.push_str(&fold_ellipsis(n));
+                        pos += n;
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
             pending.push(ch);
             pos += 1;
         }
         push_text(&mut out, &pending);
         trim_inline_ends(&mut out);
         out
+    }
+
+    /// An inline internal hyperlink target `_`name``: a span whose identifier is the slug of its
+    /// text, marking a location elsewhere markup can link to.
+    fn inline_target(&mut self, chars: &[char], pos: usize) -> Option<(Inline, usize)> {
+        let (name, end) = find_close_literal(chars, pos + 2, "`")?;
+        if name.trim().is_empty() {
+            return None;
+        }
+        let inner = self.inlines(&name);
+        let id = carta_ast::slug(&carta_ast::to_plain_text(&inner));
+        Some((
+            Inline::Span(
+                Attr {
+                    id,
+                    classes: Vec::new(),
+                    attributes: Vec::new(),
+                },
+                inner,
+            ),
+            end,
+        ))
+    }
+
+    /// A quoted run opened by a straight quote: scan for a matching closer and, on success, parse the
+    /// interior recursively into a quotation node. Returns `None` when the quote cannot open a run or
+    /// has no closer, leaving the caller to fold it into a lone glyph.
+    fn smart_quote(&mut self, chars: &[char], pos: usize, quote: char) -> Option<(Inline, usize)> {
+        if !can_open_quote(chars, pos) {
+            return None;
+        }
+        // A single quote against a preceding letter or digit is a word-internal apostrophe, never the
+        // opener of a quoted run.
+        if quote == '\'' {
+            let before = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
+            if before.is_some_and(char::is_alphanumeric) {
+                return None;
+            }
+        }
+        let mut j = pos + 1;
+        while j < chars.len() {
+            match chars.get(j).copied() {
+                Some('\\') => j += 2,
+                Some(c) if c == quote && can_close_quote(chars, j, quote) => {
+                    let content: String = chars.get(pos + 1..j)?.iter().collect();
+                    let inner = self.inlines(&content);
+                    return Some((Inline::Quoted(quote_type(quote), inner), j + 1));
+                }
+                Some(_) => j += 1,
+                None => break,
+            }
+        }
+        None
     }
 
     /// Attempt to parse inline markup at `pos`. On success returns the produced inlines, whether a
@@ -1647,19 +2183,90 @@ impl Parser<'_> {
         if !inline_start_ok(prev) {
             return None;
         }
-        let strong = chars.get(pos + 1) == Some(&'*');
-        let delim = if strong { 2 } else { 1 };
-        if chars.get(pos + delim).is_some_and(|c| c.is_whitespace()) {
+        if chars.get(pos + 1) == Some(&'*') {
+            if chars.get(pos + 2).is_none_or(|c| c.is_whitespace()) {
+                return None;
+            }
+            let (inner, end) = Self::scan_strong(chars, pos)?;
+            return Some((vec![Inline::Strong(inner)], false, end));
+        }
+        if chars.get(pos + 1).is_none_or(|c| c.is_whitespace()) {
             return None;
         }
-        let (content, end) = find_close(chars, pos + delim, if strong { "**" } else { "*" })?;
-        let inner = literal_text(&content);
-        let node = if strong {
-            Inline::Strong(inner)
-        } else {
-            Inline::Emph(inner)
-        };
-        Some((vec![node], false, end))
+        let (inner, end) = Self::scan_emphasis(chars, pos)?;
+        Some((vec![Inline::Emph(inner)], false, end))
+    }
+
+    /// Scan a strong span opened by `**` at `pos`. Its content is verbatim text in which a single `*`
+    /// is an ordinary character; the first later run of two or more `*` closes the span. Returns the
+    /// parsed content and the index past the closing delimiter, or `None` when no closer is found.
+    fn scan_strong(chars: &[char], pos: usize) -> Option<(Vec<Inline>, usize)> {
+        let mut pending = String::new();
+        let mut i = pos + 2;
+        while i < chars.len() {
+            match chars.get(i).copied() {
+                Some('\\') => {
+                    pending.push('\\');
+                    if let Some(&next) = chars.get(i + 1) {
+                        pending.push(next);
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                }
+                Some('*') if run_length(chars, i, '*') >= 2 => {
+                    return Some((literal_text(&pending), i + 2));
+                }
+                Some(c) => {
+                    pending.push(c);
+                    i += 1;
+                }
+                None => break,
+            }
+        }
+        None
+    }
+
+    /// Scan an emphasis span opened by a single `*` at `pos`. A later single `*`, or a `**` run that
+    /// is followed by whitespace, closes the span (consuming one `*`); a `**` run followed by content
+    /// is an inner strong start-string that is stripped, flushing the text gathered so far as its own
+    /// segment. Returns the content segments and the index past the closing `*`, or `None` with no
+    /// closer.
+    fn scan_emphasis(chars: &[char], pos: usize) -> Option<(Vec<Inline>, usize)> {
+        let mut result = Vec::new();
+        let mut pending = String::new();
+        let mut i = pos + 1;
+        while i < chars.len() {
+            match chars.get(i).copied() {
+                Some('\\') => {
+                    pending.push('\\');
+                    if let Some(&next) = chars.get(i + 1) {
+                        pending.push(next);
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                }
+                Some('*') => {
+                    let run = run_length(chars, i, '*');
+                    let after = chars.get(i + run).copied();
+                    if run >= 2 && after.is_some_and(|c| !c.is_whitespace()) {
+                        result.extend(literal_text(&pending));
+                        pending.clear();
+                        i += run;
+                    } else {
+                        result.extend(literal_text(&pending));
+                        return Some((result, i + 1));
+                    }
+                }
+                Some(c) => {
+                    pending.push(c);
+                    i += 1;
+                }
+                None => break,
+            }
+        }
+        None
     }
 
     fn backtick(
@@ -1783,8 +2390,22 @@ impl Parser<'_> {
                 end,
             )),
             None => {
-                let literal = format!("|{name}|");
-                Some((vec![Inline::Str(literal)], false, end))
+                // An undefined substitution is preserved as a placeholder link whose visible text is
+                // the reference as written and whose destination flags it as unresolved.
+                let mut display = Vec::new();
+                push_text(&mut display, &format!("|{name}|"));
+                Some((
+                    vec![Inline::Link(
+                        Attr::default(),
+                        display,
+                        Target {
+                            url: format!("##SUBST##|{name}|"),
+                            title: String::new(),
+                        },
+                    )],
+                    false,
+                    end,
+                ))
             }
         }
     }
@@ -1969,6 +2590,136 @@ fn directive_content(body: &[String]) -> Vec<String> {
     body.get(idx..).unwrap_or(&[]).to_vec()
 }
 
+/// The normalized column widths from a `:widths:` option, each as a fraction of their sum.
+/// `None` when the option is absent, set to `auto`, or carries no positive numbers.
+fn directive_widths(options: &[(String, String)]) -> Option<Vec<f64>> {
+    let value = options.iter().find(|(k, _)| k == "widths")?.1.trim();
+    if value.is_empty() || value == "auto" {
+        return None;
+    }
+    let nums: Vec<f64> = value
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| s.parse::<f64>().ok())
+        .collect();
+    let sum: f64 = nums.iter().sum();
+    if nums.is_empty() || sum <= 0.0 {
+        return None;
+    }
+    Some(nums.iter().map(|n| n / sum).collect())
+}
+
+/// The non-negative integer value of a directive option, defaulting to zero when absent or unparsable.
+fn directive_count(options: &[(String, String)], key: &str) -> usize {
+    options
+        .iter()
+        .find(|(k, _)| k == key)
+        .and_then(|(_, v)| v.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// Wrap each row's cells in a table [`Row`].
+fn cells_to_rows(rows: Vec<Vec<Cell>>) -> Vec<Row> {
+    rows.into_iter()
+        .map(|cells| Row {
+            attr: Attr::default(),
+            cells,
+        })
+        .collect()
+}
+
+/// Build one `list-table` row, padding short rows with empty cells and demoting a lone paragraph
+/// in a cell to a plain block.
+fn list_row(cells: Vec<Vec<Block>>, num_cols: usize) -> Vec<Cell> {
+    let mut row: Vec<Cell> = cells
+        .into_iter()
+        .map(|content| {
+            let content = if let [Block::Para(_)] = content.as_slice() {
+                content.into_iter().map(to_plain).collect()
+            } else {
+                content
+            };
+            Cell {
+                attr: Attr::default(),
+                align: Alignment::AlignDefault,
+                row_span: 1,
+                col_span: 1,
+                content,
+            }
+        })
+        .collect();
+    while row.len() < num_cols {
+        row.push(Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignDefault,
+            row_span: 1,
+            col_span: 1,
+            content: Vec::new(),
+        });
+    }
+    row
+}
+
+/// Parse comma-separated values into records of trimmed fields. Fields may be double-quoted, with a
+/// doubled quote denoting a literal quote; whitespace after a delimiter is ignored; and a quoted
+/// field may span lines. Blank records are dropped.
+fn parse_csv(text: &str) -> Vec<Vec<String>> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut records: Vec<Vec<String>> = Vec::new();
+    let mut record: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        while matches!(chars.get(i), Some(' ' | '\t')) {
+            i += 1;
+        }
+        let mut field = String::new();
+        if chars.get(i) == Some(&'"') {
+            i += 1;
+            loop {
+                match chars.get(i) {
+                    Some('"') if chars.get(i + 1) == Some(&'"') => {
+                        field.push('"');
+                        i += 2;
+                    }
+                    Some('"') => {
+                        i += 1;
+                        break;
+                    }
+                    Some(c) => {
+                        field.push(*c);
+                        i += 1;
+                    }
+                    None => break,
+                }
+            }
+            while !matches!(chars.get(i), Some(',' | '\n') | None) {
+                i += 1;
+            }
+        } else {
+            while !matches!(chars.get(i), Some(',' | '\n') | None) {
+                if let Some(c) = chars.get(i) {
+                    field.push(*c);
+                }
+                i += 1;
+            }
+        }
+        record.push(field.trim().to_string());
+        match chars.get(i) {
+            Some(',') => i += 1,
+            Some('\n') => {
+                i += 1;
+                records.push(std::mem::take(&mut record));
+            }
+            _ => i += 1,
+        }
+    }
+    if !record.is_empty() {
+        records.push(record);
+    }
+    records.retain(|r| !(r.len() == 1 && r.first().is_some_and(String::is_empty)));
+    records
+}
+
 /// Parse a directive option line `:key: value`, returning the key and its trimmed value.
 fn option_line(line: &str) -> Option<(String, String)> {
     let (name, col) = field_marker(line)?;
@@ -2062,6 +2813,68 @@ fn capitalize(text: &str) -> String {
         Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
         None => String::new(),
     }
+}
+
+/// Reduce text to ASCII for identifier derivation: an accented Latin letter maps to its base letter,
+/// any remaining non-ASCII character is dropped, and ASCII characters pass through unchanged. The
+/// caller's slug step then keeps only the identifier-valid characters.
+fn asciify(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if ch.is_ascii() {
+            out.push(ch);
+        } else if let Some(base) = ascii_base(ch) {
+            out.push(base);
+        }
+    }
+    out
+}
+
+/// The base ASCII letter an accented Latin letter reduces to, or `None` when the character has no
+/// such base (ligatures, stroked letters, and non-Latin scripts are dropped).
+fn ascii_base(ch: char) -> Option<char> {
+    let base = match ch {
+        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'Ā' | 'Ă' | 'Ą' => 'a',
+        'Ç' | 'Ć' | 'Č' | 'Ĉ' | 'Ċ' => 'c',
+        'Ď' | 'Ḋ' => 'd',
+        'È' | 'É' | 'Ê' | 'Ë' | 'Ē' | 'Ĕ' | 'Ė' | 'Ę' | 'Ě' => 'e',
+        'Ĝ' | 'Ğ' | 'Ġ' | 'Ģ' => 'g',
+        'Ĥ' => 'h',
+        'Ì' | 'Í' | 'Î' | 'Ï' | 'Ĩ' | 'Ī' | 'Ĭ' | 'Į' | 'İ' => 'i',
+        'Ĵ' => 'j',
+        'Ķ' => 'k',
+        'Ĺ' | 'Ļ' | 'Ľ' => 'l',
+        'Ñ' | 'Ń' | 'Ņ' | 'Ň' => 'n',
+        'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ō' | 'Ŏ' | 'Ő' => 'o',
+        'Ŕ' | 'Ŗ' | 'Ř' => 'r',
+        'Ś' | 'Ŝ' | 'Ş' | 'Š' => 's',
+        'Ţ' | 'Ť' => 't',
+        'Ù' | 'Ú' | 'Û' | 'Ü' | 'Ũ' | 'Ū' | 'Ŭ' | 'Ů' | 'Ű' | 'Ų' => 'u',
+        'Ŵ' => 'w',
+        'Ý' | 'Ŷ' | 'Ÿ' => 'y',
+        'Ź' | 'Ż' | 'Ž' => 'z',
+        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' | 'ă' | 'ą' => 'a',
+        'ç' | 'ć' | 'č' | 'ĉ' | 'ċ' => 'c',
+        'ď' | 'ḋ' => 'd',
+        'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => 'e',
+        'ĝ' | 'ğ' | 'ġ' | 'ģ' => 'g',
+        'ĥ' => 'h',
+        'ì' | 'í' | 'î' | 'ï' | 'ĩ' | 'ī' | 'ĭ' | 'į' | 'ı' => 'i',
+        'ĵ' => 'j',
+        'ķ' => 'k',
+        'ĺ' | 'ļ' | 'ľ' => 'l',
+        'ñ' | 'ń' | 'ņ' | 'ň' => 'n',
+        'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ō' | 'ŏ' | 'ő' => 'o',
+        'ŕ' | 'ŗ' | 'ř' => 'r',
+        'ś' | 'ŝ' | 'ş' | 'š' => 's',
+        'ţ' | 'ť' => 't',
+        'ù' | 'ú' | 'û' | 'ü' | 'ũ' | 'ū' | 'ŭ' | 'ů' | 'ű' | 'ų' => 'u',
+        'ŵ' => 'w',
+        'ý' | 'ŷ' | 'ÿ' => 'y',
+        'ź' | 'ż' | 'ž' => 'z',
+        _ => return None,
+    };
+    Some(base)
 }
 
 /// Demote a leading paragraph to a plain block, leaving any other block unchanged.
@@ -2213,30 +3026,6 @@ fn matches_at(chars: &[char], at: usize, delim: &[char]) -> bool {
         .all(|(k, d)| chars.get(at + k) == Some(d))
 }
 
-/// Find the closing delimiter of a parsed-content span (emphasis, strong): the next occurrence
-/// preceded by a non-whitespace character and followed by an end-context character. Returns the raw
-/// inner text and the index past the closing delimiter.
-fn find_close(chars: &[char], start: usize, delim: &str) -> Option<(String, usize)> {
-    let dchars: Vec<char> = delim.chars().collect();
-    let mut i = start;
-    while i < chars.len() {
-        if chars.get(i) == Some(&'\\') {
-            i += 2;
-            continue;
-        }
-        if matches_at(chars, i, &dchars) {
-            let before = i.checked_sub(1).and_then(|p| chars.get(p)).copied();
-            let after = chars.get(i + dchars.len()).copied();
-            if before.is_some_and(|c| !c.is_whitespace()) && inline_end_ok(after) {
-                let content: String = chars.get(start..i)?.iter().collect();
-                return Some((content, i + dchars.len()));
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
 /// Find the closing delimiter of a verbatim span (inline literal, interpreted text, substitution,
 /// bracketed label): the next occurrence of the delimiter. Returns the verbatim inner text and the
 /// index past the closing delimiter.
@@ -2294,63 +3083,676 @@ fn split_embedded_uri(text: &str) -> (String, Option<String>) {
     (text.to_string(), None)
 }
 
+// --- bare URI and email autolinking ------------------------------------------------------------
+
+/// Whether the character before a candidate autolink permits it to begin: a boundary, whitespace, or
+/// an opening bracket. This keeps an address that is already part of larger markup (an angle-bracket
+/// URI, a word fragment) from being linked twice.
+fn autolink_boundary(prev: Option<char>) -> bool {
+    match prev {
+        None => true,
+        Some(c) => c.is_whitespace() || matches!(c, '(' | '[' | '{'),
+    }
+}
+
+/// Attempt to auto-link a bare URI or email address beginning at `pos`.
+fn autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
+    try_uri_autolink(chars, pos).or_else(|| try_email_autolink(chars, pos))
+}
+
+/// Match a bare URI `scheme://…` whose scheme is registered, returning the link and the end index.
+fn try_uri_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
+    if !chars.get(pos).is_some_and(char::is_ascii_alphabetic) {
+        return None;
+    }
+    let mut k = pos;
+    while chars
+        .get(k)
+        .is_some_and(|&c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-'))
+    {
+        k += 1;
+    }
+    if !(chars.get(k) == Some(&':')
+        && chars.get(k + 1) == Some(&'/')
+        && chars.get(k + 2) == Some(&'/'))
+    {
+        return None;
+    }
+    let scheme: String = chars.get(pos..k)?.iter().collect::<String>().to_lowercase();
+    if !SCHEMES.contains(&scheme.as_str()) {
+        return None;
+    }
+    let content_start = k + 3;
+    let scan_end = forward_scan(chars, pos);
+    let end = trim_trailing(chars, content_start, scan_end);
+    if end <= content_start {
+        return None;
+    }
+    let url: String = chars.get(pos..end)?.iter().collect();
+    Some((link_to(url), end))
+}
+
+/// Match a bare email address `local@domain`, returning a `mailto:` link and the end index.
+fn try_email_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
+    let mut i = pos;
+    while chars.get(i).is_some_and(|&c| is_email_local(c)) {
+        i += 1;
+    }
+    if i == pos || chars.get(i) != Some(&'@') {
+        return None;
+    }
+    i += 1;
+    let domain_start = i;
+    let mut dots = 0usize;
+    let mut end = i;
+    loop {
+        let label_start = i;
+        if !chars.get(i).is_some_and(char::is_ascii_alphanumeric) {
+            break;
+        }
+        while chars
+            .get(i)
+            .is_some_and(|&c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            i += 1;
+        }
+        let mut label_end = i;
+        while label_end > label_start && chars.get(label_end - 1) == Some(&'-') {
+            label_end -= 1;
+        }
+        end = label_end;
+        i = label_end;
+        if chars.get(i) == Some(&'.') {
+            dots += 1;
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    if dots == 0 || end <= domain_start {
+        return None;
+    }
+    let address: String = chars.get(pos..end)?.iter().collect();
+    Some((
+        Inline::Link(
+            Attr::default(),
+            vec![Inline::Str(address.clone())],
+            Target {
+                url: format!("mailto:{address}"),
+                title: String::new(),
+            },
+        ),
+        end,
+    ))
+}
+
+/// A link whose visible text and destination are the same URL.
+fn link_to(url: String) -> Inline {
+    Inline::Link(
+        Attr::default(),
+        vec![Inline::Str(url.clone())],
+        Target {
+            url,
+            title: String::new(),
+        },
+    )
+}
+
+/// Whether a character may appear in an email address's local part.
+fn is_email_local(c: char) -> bool {
+    c.is_ascii_alphanumeric()
+        || matches!(
+            c,
+            '.' | '!'
+                | '#'
+                | '$'
+                | '%'
+                | '&'
+                | '\''
+                | '*'
+                | '+'
+                | '/'
+                | '='
+                | '?'
+                | '^'
+                | '_'
+                | '`'
+                | '{'
+                | '|'
+                | '}'
+                | '~'
+                | '-'
+        )
+}
+
+/// Walk a URL run forward, stopping at whitespace or `<`, balancing parentheses, and ending at an
+/// unbalanced `)` or a `]` outside any parenthesis.
+fn forward_scan(chars: &[char], from: usize) -> usize {
+    let mut depth: i32 = 0;
+    let mut j = from;
+    while let Some(&c) = chars.get(j) {
+        if c.is_whitespace() || c == '<' {
+            break;
+        }
+        match c {
+            '(' => depth += 1,
+            ')' | ']' if depth == 0 => break,
+            ')' => depth -= 1,
+            _ => {}
+        }
+        j += 1;
+    }
+    j
+}
+
+/// Drop trailing punctuation from a URL run, never below `min`. A trailing `;` takes a preceding
+/// `&entity;` with it.
+fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
+    while end > min {
+        match chars.get(end - 1) {
+            Some('!' | '"' | '\'' | '*' | ',' | '.' | ':' | '?' | '_' | '~') => end -= 1,
+            Some(';') => {
+                let mut j = end - 1;
+                while j > min
+                    && chars
+                        .get(j - 1)
+                        .is_some_and(|&c| c.is_ascii_alphanumeric() || c == '#')
+                {
+                    j -= 1;
+                }
+                end = if j > min && chars.get(j - 1) == Some(&'&') {
+                    j - 1
+                } else {
+                    end - 1
+                };
+            }
+            _ => break,
+        }
+    }
+    end
+}
+
+// --- typographic punctuation (smart) -----------------------------------------------------------
+
+/// The number of consecutive `ch` at `pos`.
+fn run_length(chars: &[char], pos: usize, ch: char) -> usize {
+    let mut n = 0;
+    while chars.get(pos + n) == Some(&ch) {
+        n += 1;
+    }
+    n
+}
+
+/// Fold a run of `n` hyphens into em and en dashes: every three become an em dash, a remaining two a
+/// single en dash, a remaining one a hyphen.
+fn fold_dashes(n: usize) -> String {
+    let mut s = "\u{2014}".repeat(n / 3);
+    match n % 3 {
+        2 => s.push('\u{2013}'),
+        1 => s.push('-'),
+        _ => {}
+    }
+    s
+}
+
+/// Fold a run of `n` dots: every three become an ellipsis, with any remainder kept as dots.
+fn fold_ellipsis(n: usize) -> String {
+    let mut s = "\u{2026}".repeat(n / 3);
+    s.push_str(&".".repeat(n % 3));
+    s
+}
+
+/// The quote-node kind for a straight quote character.
+fn quote_type(quote: char) -> QuoteType {
+    if quote == '\'' {
+        QuoteType::SingleQuote
+    } else {
+        QuoteType::DoubleQuote
+    }
+}
+
+/// The curly glyph a non-paired straight quote folds into: an apostrophe for `'`, and an opening or
+/// closing double quote depending on which side it leans.
+fn quote_glyph(chars: &[char], pos: usize, quote: char) -> char {
+    if quote == '\'' {
+        '\u{2019}'
+    } else if can_open_quote(chars, pos) {
+        '\u{201c}'
+    } else {
+        '\u{201d}'
+    }
+}
+
+/// Whether a character counts as punctuation for flanking: ASCII punctuation, or any other
+/// non-alphanumeric, non-whitespace character.
+fn is_punct(c: char) -> bool {
+    c.is_ascii_punctuation() || (!c.is_alphanumeric() && !c.is_whitespace())
+}
+
+fn is_ws_opt(opt: Option<char>) -> bool {
+    opt.is_none_or(char::is_whitespace)
+}
+
+fn is_punct_opt(opt: Option<char>) -> bool {
+    opt.is_some_and(is_punct)
+}
+
+/// Whether the quote at `pos` leans against following content (may open a quoted run).
+fn can_open_quote(chars: &[char], pos: usize) -> bool {
+    let before = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
+    let after = chars.get(pos + 1).copied();
+    !is_ws_opt(after) && (!is_punct_opt(after) || is_ws_opt(before) || is_punct_opt(before))
+}
+
+/// Whether the quote at `pos` leans against preceding content (may close a quoted run). A single
+/// quote may not close against a following alphanumeric, so a word-internal apostrophe never ends a
+/// quotation.
+fn can_close_quote(chars: &[char], pos: usize, quote: char) -> bool {
+    let before = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
+    let after = chars.get(pos + 1).copied();
+    let right_flanking =
+        !is_ws_opt(before) && (!is_punct_opt(before) || is_ws_opt(after) || is_punct_opt(after));
+    if !right_flanking {
+        return false;
+    }
+    if quote == '\'' {
+        !after.is_some_and(|c| c.is_alphanumeric())
+    } else {
+        true
+    }
+}
+
+/// Registered URI schemes recognized when auto-linking a bare URI.
+const SCHEMES: &[&str] = &[
+    "aaa",
+    "aaas",
+    "about",
+    "acap",
+    "acct",
+    "acr",
+    "adiumxtra",
+    "afp",
+    "afs",
+    "aim",
+    "apt",
+    "attachment",
+    "aw",
+    "barion",
+    "beshare",
+    "bitcoin",
+    "blob",
+    "bolo",
+    "browserext",
+    "callto",
+    "cap",
+    "chrome",
+    "chrome-extension",
+    "cid",
+    "coap",
+    "coaps",
+    "com-eventbrite-attendee",
+    "content",
+    "crid",
+    "cvs",
+    "data",
+    "dav",
+    "dict",
+    "dlna-playcontainer",
+    "dlna-playsingle",
+    "dns",
+    "dntp",
+    "dtn",
+    "dvb",
+    "ed2k",
+    "example",
+    "facetime",
+    "fax",
+    "feed",
+    "feedready",
+    "file",
+    "filesystem",
+    "finger",
+    "fish",
+    "ftp",
+    "geo",
+    "gg",
+    "git",
+    "gizmoproject",
+    "go",
+    "gopher",
+    "gtalk",
+    "h323",
+    "ham",
+    "hcp",
+    "http",
+    "https",
+    "hxxp",
+    "hxxps",
+    "iax",
+    "icap",
+    "icon",
+    "im",
+    "imap",
+    "info",
+    "iotdisco",
+    "ipn",
+    "ipp",
+    "ipps",
+    "irc",
+    "irc6",
+    "ircs",
+    "iris",
+    "isostore",
+    "itms",
+    "jabber",
+    "jar",
+    "jms",
+    "keyparc",
+    "lastfm",
+    "ldap",
+    "ldaps",
+    "lvlt",
+    "magnet",
+    "mailserver",
+    "mailto",
+    "maps",
+    "market",
+    "message",
+    "mid",
+    "mms",
+    "modem",
+    "mongodb",
+    "moz",
+    "ms-access",
+    "ms-browser-extension",
+    "ms-drive-to",
+    "ms-enrollment",
+    "ms-excel",
+    "ms-gamebarservices",
+    "ms-getoffice",
+    "ms-help",
+    "ms-infopath",
+    "ms-media-stream-id",
+    "ms-officeapp",
+    "ms-project",
+    "ms-powerpoint",
+    "ms-publisher",
+    "ms-search-repair",
+    "ms-secondary-screen-controller",
+    "ms-secondary-screen-setup",
+    "ms-settings",
+    "ms-settings-airplanemode",
+    "ms-settings-bluetooth",
+    "ms-settings-camera",
+    "ms-settings-cellular",
+    "ms-settings-cloudstorage",
+    "ms-settings-connectabledevices",
+    "ms-settings-displays-topology",
+    "ms-settings-emailandaccounts",
+    "ms-settings-language",
+    "ms-settings-location",
+    "ms-settings-lock",
+    "ms-settings-nfctransactions",
+    "ms-settings-notifications",
+    "ms-settings-power",
+    "ms-settings-privacy",
+    "ms-settings-proximity",
+    "ms-settings-screenrotation",
+    "ms-settings-wifi",
+    "ms-settings-workplace",
+    "ms-spd",
+    "ms-sttoverlay",
+    "ms-transit-to",
+    "ms-virtualtouchpad",
+    "ms-visio",
+    "ms-walk-to",
+    "ms-whiteboard",
+    "ms-whiteboard-cmd",
+    "ms-word",
+    "msnim",
+    "msrp",
+    "msrps",
+    "mtqp",
+    "mumble",
+    "mupdate",
+    "mvn",
+    "news",
+    "nfs",
+    "ni",
+    "nih",
+    "nntp",
+    "notes",
+    "ocf",
+    "oid",
+    "onenote",
+    "onenote-cmd",
+    "opaquelocktoken",
+    "pack",
+    "palm",
+    "paparazzi",
+    "pkcs11",
+    "platform",
+    "pop",
+    "pres",
+    "prospero",
+    "proxy",
+    "pwid",
+    "psyc",
+    "qb",
+    "query",
+    "redis",
+    "rediss",
+    "reload",
+    "res",
+    "resource",
+    "rmi",
+    "rsync",
+    "rtmfp",
+    "rtmp",
+    "rtsp",
+    "rtsps",
+    "rtspu",
+    "secondlife",
+    "service",
+    "session",
+    "sftp",
+    "sgn",
+    "shttp",
+    "sieve",
+    "sip",
+    "sips",
+    "skype",
+    "smb",
+    "sms",
+    "smtp",
+    "snews",
+    "snmp",
+    "soap.beep",
+    "soap.beeps",
+    "soldat",
+    "spotify",
+    "ssh",
+    "steam",
+    "stun",
+    "stuns",
+    "submit",
+    "svn",
+    "tag",
+    "teamspeak",
+    "tel",
+    "teliaeid",
+    "telnet",
+    "tftp",
+    "things",
+    "thismessage",
+    "tip",
+    "tn3270",
+    "tool",
+    "turn",
+    "turns",
+    "tv",
+    "udp",
+    "unreal",
+    "urn",
+    "ut2004",
+    "v-event",
+    "vemmi",
+    "vnc",
+    "view-source",
+    "wais",
+    "webcal",
+    "wpid",
+    "ws",
+    "wss",
+    "wtai",
+    "wyciwyg",
+    "xcon",
+    "xcon-userid",
+    "xfire",
+    "xmlrpc.beep",
+    "xmlrpc.beeps",
+    "xmpp",
+    "xri",
+    "ymsgr",
+    "z39.50",
+    "z39.50r",
+    "z39.50s",
+];
+
 // --- grid table helpers ------------------------------------------------------------------------
 
 /// Parse a grid table's top border into the inclusive-exclusive character ranges of its columns.
-fn grid_columns(border: &str) -> Option<Vec<(usize, usize)>> {
-    let chars: Vec<char> = border.chars().collect();
-    if chars.first() != Some(&'+') {
-        return None;
-    }
-    let pluses: Vec<usize> = chars
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| **c == '+')
-        .map(|(i, _)| i)
-        .collect();
-    if pluses.len() < 2 {
-        return None;
-    }
-    let mut columns = Vec::new();
-    for window in pluses.windows(2) {
-        let left = window.first().copied()?;
-        let right = window.get(1).copied()?;
-        let lo = left + 1;
-        if right <= lo {
-            return None;
-        }
-        for k in lo..right {
-            if chars.get(k) != Some(&'-') {
-                return None;
-            }
-        }
-        columns.push((lo, right));
-    }
-    Some(columns)
-}
-
 fn is_grid_line(line: &str) -> bool {
     line.starts_with('+') || line.starts_with('|')
 }
 
-/// Whether a line is a grid table row separator: a run of `+`, `-`, and `=` beginning with `+`.
-fn is_row_separator(line: &str) -> bool {
-    line.starts_with('+') && line.chars().all(|c| matches!(c, '+' | '-' | '='))
+/// A cell rectangle traced out of a grid table, in (line, column) matrix coordinates: its corners
+/// are the `+` at the top-left and the `+` at the bottom-right.
+struct ScanCell {
+    top: usize,
+    left: usize,
+    bottom: usize,
+    right: usize,
 }
 
-/// Whether a line carries grid table cell content: a `|`-led line whose column boundaries align with
-/// the border.
-fn is_grid_content(line: &str, columns: &[(usize, usize)]) -> bool {
-    let chars: Vec<char> = line.chars().collect();
-    if chars.first() != Some(&'|') {
-        return false;
+/// A placed grid-table cell: its raw interior text and its extent in row and column bands.
+#[derive(Clone)]
+struct GridCell {
+    text: String,
+    row_span: usize,
+    col_span: usize,
+}
+
+fn grid_at(block: &[Vec<char>], row: usize, col: usize) -> Option<char> {
+    block.get(row).and_then(|r| r.get(col)).copied()
+}
+
+/// Trace every cell of a grid table out of its character matrix. From the top-left corner, each
+/// cell rectangle is found by following its top edge right to a `+`, its right edge down to a `+`,
+/// its bottom edge left to the starting column, and its left edge back up to the top — each edge
+/// made solely of its border character (`-` across, `|` down), with `+` permitted where another
+/// grid line crosses. The corners opposite each cell seed the search for its right and lower
+/// neighbours. Returns `None` for a matrix that does not open with a corner.
+fn scan_grid_cells(block: &[Vec<char>]) -> Option<Vec<ScanCell>> {
+    let height = block.len();
+    let width = block.first().map_or(0, Vec::len);
+    if height < 2 || width < 2 || grid_at(block, 0, 0) != Some('+') {
+        return None;
     }
-    for (lo, hi) in columns {
-        let left = lo.checked_sub(1).and_then(|p| chars.get(p)).copied();
-        if !matches!(left, Some('|' | '+')) {
+    let bottom = height - 1;
+    let right = width - 1;
+    let mut cells = Vec::new();
+    let mut visited = vec![vec![false; width]; height];
+    let mut queue: VecDeque<(usize, usize)> = VecDeque::new();
+    queue.push_back((0, 0));
+    while let Some((top, left)) = queue.pop_front() {
+        if top >= bottom || left >= right {
+            continue;
+        }
+        if visited.get(top).and_then(|r| r.get(left)).copied() == Some(true) {
+            continue;
+        }
+        if let Some(slot) = visited.get_mut(top).and_then(|r| r.get_mut(left)) {
+            *slot = true;
+        }
+        let Some(cell) = trace_cell(block, top, left, bottom, right) else {
+            continue;
+        };
+        queue.push_back((cell.top, cell.right));
+        queue.push_back((cell.bottom, cell.left));
+        cells.push(cell);
+    }
+    Some(cells)
+}
+
+fn trace_cell(
+    block: &[Vec<char>],
+    top: usize,
+    left: usize,
+    bottom: usize,
+    right: usize,
+) -> Option<ScanCell> {
+    for col in left + 1..=right {
+        match grid_at(block, top, col) {
+            Some('+') => {
+                if let Some(b) = scan_cell_down(block, top, left, col, bottom) {
+                    return Some(ScanCell {
+                        top,
+                        left,
+                        bottom: b,
+                        right: col,
+                    });
+                }
+            }
+            // A `-` extends a body border; `=` extends the header/body separator.
+            Some('-' | '=') => {}
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn scan_cell_down(
+    block: &[Vec<char>],
+    top: usize,
+    left: usize,
+    right: usize,
+    bottom: usize,
+) -> Option<usize> {
+    for row in top + 1..=bottom {
+        match grid_at(block, row, right) {
+            Some('+') => {
+                if scan_cell_close(block, top, left, right, row) {
+                    return Some(row);
+                }
+            }
+            Some('|') => {}
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// Verify the bottom and left edges of a candidate cell: the bottom edge from `right` back to
+/// `left` is `-` (or a `+` crossing) and reaches a `+` at the bottom-left corner, and the left edge
+/// from `bottom` back to `top` is `|` (or a `+` crossing).
+fn scan_cell_close(
+    block: &[Vec<char>],
+    top: usize,
+    left: usize,
+    right: usize,
+    bottom: usize,
+) -> bool {
+    for col in left + 1..right {
+        if !matches!(grid_at(block, bottom, col), Some('-' | '=' | '+')) {
             return false;
         }
-        if !matches!(chars.get(*hi).copied(), Some('|' | '+')) {
+    }
+    if grid_at(block, bottom, left) != Some('+') {
+        return false;
+    }
+    for row in top + 1..bottom {
+        if !matches!(grid_at(block, row, left), Some('|' | '+')) {
             return false;
         }
     }
