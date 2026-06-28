@@ -129,11 +129,47 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width),
             Block::Table(table) => self.table(table, width),
-            Block::Figure(_, _, blocks) | Block::Div(_, blocks) => {
-                self.blocks_to_string(blocks, width)
+            Block::Figure(attr, caption, blocks) => {
+                match self.simple_figure(attr, &caption.long, blocks) {
+                    Some(rendered) => rendered,
+                    None => self.blocks_to_string(blocks, width),
+                }
             }
+            Block::Div(_, blocks) => self.blocks_to_string(blocks, width),
             Block::LineBlock(lines) => self.line_block(lines),
         }
+    }
+
+    /// A figure with no attributes whose body is a single bare image (a `Plain` holding one image
+    /// that itself carries no identifier or classes) renders as that image with the caption text in
+    /// place of its alternate text: `[caption]`. Any richer figure returns `None` so the caller
+    /// renders the body blocks instead.
+    fn simple_figure(
+        &mut self,
+        attr: &Attr,
+        caption_long: &[Block],
+        blocks: &[Block],
+    ) -> Option<String> {
+        if !attr.id.is_empty() || !attr.classes.is_empty() || !attr.attributes.is_empty() {
+            return None;
+        }
+        let [Block::Plain(inlines)] = blocks else {
+            return None;
+        };
+        let [Inline::Image(image_attr, _, target)] = inlines.as_slice() else {
+            return None;
+        };
+        if !image_attr.id.is_empty()
+            || !image_attr.classes.is_empty()
+            || !image_attr.attributes.is_empty()
+        {
+            return None;
+        }
+        let caption_inlines = figure_caption_inlines(caption_long)?;
+        let image = Inline::Image(image_attr.clone(), caption_inlines, target.clone());
+        let mut out = Vec::new();
+        self.inline(&image, &mut out);
+        Some(pieces_to_string(&out))
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
@@ -618,9 +654,12 @@ impl State {
                     out.push(Piece::Text(text.clone()));
                 }
             }
-            Inline::Image(_, inlines, _) => {
+            Inline::Image(_, inlines, target) => {
                 out.push(Piece::Text("[".to_owned()));
-                self.extend_pieces(inlines, out);
+                // Alternate text that merely repeats the source URL conveys nothing, so it is dropped.
+                if carta_ast::to_plain_text(inlines) != target.url {
+                    self.extend_pieces(inlines, out);
+                }
                 out.push(Piece::Text("]".to_owned()));
             }
             Inline::Note(blocks) => {
@@ -727,6 +766,23 @@ fn join_pieces(pieces: &[Piece], hard: char) -> String {
 
 fn pieces_to_string(pieces: &[Piece]) -> String {
     join_pieces(pieces, '\n')
+}
+
+/// Flatten a figure caption's blocks into one inline sequence, joining successive paragraphs with a
+/// line break. An empty caption yields an empty sequence; a caption holding anything other than
+/// paragraphs yields `None`.
+fn figure_caption_inlines(blocks: &[Block]) -> Option<Vec<Inline>> {
+    let mut inlines = Vec::new();
+    for (index, block) in blocks.iter().enumerate() {
+        let (Block::Plain(paragraph) | Block::Para(paragraph)) = block else {
+            return None;
+        };
+        if index > 0 {
+            inlines.push(Inline::LineBreak);
+        }
+        inlines.extend(paragraph.iter().cloned());
+    }
+    Some(inlines)
 }
 
 /// Flatten a header's inline pieces to a single line: a forced break renders as a space, keeping a
