@@ -557,7 +557,8 @@ impl State {
     fn block(&mut self, block: &Block, width: usize) -> String {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
-                let pieces = self.pieces(inlines);
+                let mut pieces = self.pieces(inlines);
+                escape_leading_markers(&mut pieces);
                 fill(&pieces, width, self.wrap)
             }
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines),
@@ -1483,8 +1484,10 @@ impl State {
     }
 
     /// Render a math node. The GitHub math surface writes an inline `` $`…`$ `` span and a fenced
-    /// ```` ```math ```` display block; the dollar surface writes `$…$`/`$$…$$`. With neither, the
-    /// expression linearizes to inline markup.
+    /// ```` ```math ```` display block; the dollar surface writes `$…$`/`$$…$$`; the single- and
+    /// double-backslash surfaces write `\(…\)`/`\[…\]` and `\\(…\\)`/`\\[…\\]`. With no math syntax
+    /// at all the expression linearizes to inline markup, and a display expression then occupies its
+    /// own source line, set off from the surrounding text by line breaks.
     fn math(&mut self, kind: &MathType, text: &str, out: &mut Vec<Piece>) {
         if self.config.has(Extension::TexMathGfm) {
             let rendered = match kind {
@@ -1500,6 +1503,32 @@ impl State {
                 MathType::DisplayMath => format!("$${text}$$"),
             };
             out.push(Piece::Text(rendered));
+            return;
+        }
+        if self.config.has(Extension::TexMathSingleBackslash) {
+            let rendered = match kind {
+                MathType::InlineMath => format!("\\({text}\\)"),
+                MathType::DisplayMath => format!("\\[{text}\\]"),
+            };
+            out.push(Piece::Text(rendered));
+            return;
+        }
+        if self.config.has(Extension::TexMathDoubleBackslash) {
+            let rendered = match kind {
+                MathType::InlineMath => format!("\\\\({text}\\\\)"),
+                MathType::DisplayMath => format!("\\\\[{text}\\\\]"),
+            };
+            out.push(Piece::Text(rendered));
+            return;
+        }
+        if matches!(kind, MathType::DisplayMath) {
+            let mut inner = Vec::new();
+            self.math_fallback(kind, text, &mut inner);
+            if !inner.is_empty() {
+                out.push(Piece::Hard);
+                out.append(&mut inner);
+                out.push(Piece::Hard);
+            }
             return;
         }
         self.math_fallback(kind, text, out);
@@ -1696,12 +1725,14 @@ impl State {
         };
         let mut out = String::with_capacity(text.len());
         let mut prev: Option<char> = None;
+        let mut backslash_run = 0usize;
         let mut iter = text.char_indices().peekable();
         while let Some((offset, ch)) = iter.next() {
             let next = iter.peek().map(|&(_, following)| following);
             let at_start = offset == 0;
             let word_start = at_start || prev.is_some_and(char::is_whitespace);
             let tail = || text.get(offset..).unwrap_or_default();
+            backslash_run = if ch == '\\' { backslash_run + 1 } else { 0 };
             match ch {
                 '#' if word_start && starts_heading(tail()) => out.push_str("\\#"),
                 '!' if next == Some('[') => out.push_str("\\!"),
@@ -1721,6 +1752,10 @@ impl State {
                     out.push('\\');
                     out.push(ch);
                 }
+                '~' if self.config.has(Extension::Strikeout) && next == Some('~') => {
+                    out.push('\\');
+                    out.push(ch);
+                }
                 '^' if self.config.has(Extension::Superscript) => {
                     out.push('\\');
                     out.push(ch);
@@ -1733,7 +1768,7 @@ impl State {
                 {
                     out.push_str("\\_");
                 }
-                '\\' => self.escape_backslash(next, &mut out),
+                '\\' => self.escape_backslash(next, backslash_run, &mut out),
                 other => out.push(other),
             }
             prev = Some(ch);
@@ -1742,16 +1777,18 @@ impl State {
     }
 
     /// Escape a backslash. When raw TeX passes through verbatim every backslash is doubled so it is
-    /// not mistaken for an escape; otherwise only a trailing backslash is doubled and an interior one
-    /// is emitted verbatim.
-    fn escape_backslash(&self, next: Option<char>, out: &mut String) {
+    /// not mistaken for an escape. Otherwise a backslash is emitted verbatim except where a run of
+    /// them ends the text with an odd length: the final one is then doubled so the run pads to an
+    /// even number of backslashes and its last character is part of an escaped pair rather than a
+    /// stray escape. `run_len` is the length of the backslash run ending at this character.
+    fn escape_backslash(&self, next: Option<char>, run_len: usize, out: &mut String) {
         if self.config.has(Extension::RawTex) {
             out.push_str("\\\\");
-        } else {
-            match next {
-                None => out.push_str("\\\\"),
-                Some(_) => out.push('\\'),
-            }
+            return;
+        }
+        out.push('\\');
+        if next.is_none() && run_len % 2 == 1 {
+            out.push('\\');
         }
     }
 }
@@ -1906,6 +1943,44 @@ fn is_tex_format(format: &Format) -> bool {
 
 fn collapse_trailing_newline(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
+}
+
+/// Escape a list marker that opens a paragraph, where it would otherwise start a list. Only the
+/// paragraph's first token is at risk: a marker on a later line is a continuation of the paragraph,
+/// not a list opener. A bullet marker (`-`/`+`) is escaped whenever it is the whole leading token;
+/// an ordered marker (digits then `.`/`)`) is escaped only when a space or the line end follows, the
+/// condition under which it would start a list.
+fn escape_leading_markers(pieces: &mut [Piece]) {
+    let break_follows = matches!(
+        pieces.get(1),
+        None | Some(Piece::Space | Piece::Soft | Piece::Hard)
+    );
+    let Some(Piece::Text(text)) = pieces.first_mut() else {
+        return;
+    };
+    if let Some(escaped) = escaped_leading_marker(text, break_follows) {
+        *text = escaped;
+    }
+}
+
+/// The escaped form of a leading list marker, or `None` when the token is not one. A bullet token is
+/// escaped unconditionally; an ordered token only when `break_follows` reports a space or line end
+/// after it.
+fn escaped_leading_marker(text: &str, break_follows: bool) -> Option<String> {
+    if text == "-" || text == "+" {
+        return Some(format!("\\{text}"));
+    }
+    let delim = text.chars().last()?;
+    if !break_follows || (delim != '.' && delim != ')') {
+        return None;
+    }
+    let digits = text
+        .get(..text.len() - delim.len_utf8())
+        .unwrap_or_default();
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    Some(format!("{digits}\\{delim}"))
 }
 
 /// Whether a `#` run at the current position would open an ATX heading: one to six `#` followed by a
@@ -2472,6 +2547,197 @@ mod tests {
                 .write(&document, &WriterOptions::default())
                 .unwrap();
             assert_eq!(output, "````{=dot}\n```\ngraph {}\n```\n````");
+        }
+    }
+
+    mod escaping {
+        use carta_ast::{Block, Document, Inline, MathType};
+        use carta_core::{Extension, Extensions, Writer, WriterOptions, presets};
+
+        use crate::markdown::MarkdownWriter;
+
+        fn s(text: &str) -> Inline {
+            Inline::Str(text.to_owned())
+        }
+
+        fn render(blocks: Vec<Block>) -> String {
+            render_with(blocks, presets::MARKDOWN)
+        }
+
+        fn render_with(blocks: Vec<Block>, extensions: Extensions) -> String {
+            let document = Document {
+                blocks,
+                ..Document::default()
+            };
+            let mut options = WriterOptions::default();
+            options.extensions = extensions;
+            MarkdownWriter.write(&document, &options).unwrap()
+        }
+
+        fn without(ext: Extension) -> Extensions {
+            let mut extensions = presets::MARKDOWN;
+            extensions.remove(ext);
+            extensions
+        }
+
+        #[test]
+        fn a_leading_ordered_marker_is_escaped_only_when_a_list_would_open() {
+            // A digit run then `.`/`)` followed by a space or the line end would open a list.
+            assert_eq!(
+                render(vec![Block::Para(vec![s("1."), Inline::Space, s("Item")])]),
+                "1\\. Item"
+            );
+            assert_eq!(
+                render(vec![Block::Para(vec![s("1)"), Inline::Space, s("Item")])]),
+                "1\\) Item"
+            );
+            assert_eq!(
+                render(vec![Block::Para(vec![s("12."), Inline::Space, s("Item")])]),
+                "12\\. Item"
+            );
+            assert_eq!(render(vec![Block::Para(vec![s("1.")])]), "1\\.");
+            // No following break: the token cannot start a list and stays bare.
+            assert_eq!(render(vec![Block::Para(vec![s("1.Item")])]), "1.Item");
+        }
+
+        #[test]
+        fn a_leading_bullet_marker_is_escaped() {
+            assert_eq!(
+                render(vec![Block::Para(vec![s("-"), Inline::Space, s("x")])]),
+                "\\- x"
+            );
+            assert_eq!(
+                render(vec![Block::Para(vec![s("+"), Inline::Space, s("x")])]),
+                "\\+ x"
+            );
+            // A plain block (e.g. a tight list item) is at the same risk.
+            assert_eq!(
+                render(vec![Block::Plain(vec![s("-"), Inline::Space, s("x")])]),
+                "\\- x"
+            );
+        }
+
+        #[test]
+        fn a_marker_past_the_first_token_is_left_alone() {
+            // Only the opening token can start a list; a marker on a wrapped continuation cannot.
+            assert_eq!(
+                render(vec![Block::Para(vec![
+                    s("text"),
+                    Inline::SoftBreak,
+                    s("-"),
+                    Inline::Space,
+                    s("x"),
+                ])]),
+                "text - x"
+            );
+        }
+
+        #[test]
+        fn a_double_tilde_is_escaped_under_strikeout() {
+            // With subscript off, only the strikeout-opening tilde of each pair is escaped.
+            assert_eq!(
+                render_with(
+                    vec![Block::Para(vec![s("~~foo~~")])],
+                    without(Extension::Subscript)
+                ),
+                "\\~~foo\\~~"
+            );
+            // With strikeout also off, the tildes are literal.
+            let mut bare = presets::MARKDOWN;
+            bare.remove(Extension::Subscript);
+            bare.remove(Extension::Strikeout);
+            assert_eq!(
+                render_with(vec![Block::Para(vec![s("~~foo~~")])], bare),
+                "~~foo~~"
+            );
+        }
+
+        #[test]
+        fn a_trailing_backslash_run_pads_to_an_even_length() {
+            // With raw-TeX passthrough off, a backslash run ending the text doubles its last member
+            // only when the run is odd, so the run never ends on a stray escape.
+            let exts = without(Extension::RawTex);
+            assert_eq!(
+                render_with(vec![Block::Para(vec![s("a\\")])], exts),
+                "a\\\\"
+            );
+            assert_eq!(
+                render_with(vec![Block::Para(vec![s("a\\\\")])], exts),
+                "a\\\\"
+            );
+            assert_eq!(
+                render_with(vec![Block::Para(vec![s("a\\\\\\")])], exts),
+                "a\\\\\\\\"
+            );
+            // An interior backslash is emitted verbatim.
+            assert_eq!(
+                render_with(vec![Block::Para(vec![s("a\\b")])], exts),
+                "a\\b"
+            );
+        }
+
+        #[test]
+        fn the_backslash_math_surfaces_wrap_the_expression() {
+            let single = {
+                let mut exts = presets::MARKDOWN;
+                exts.remove(Extension::TexMathDollars);
+                exts.insert(Extension::TexMathSingleBackslash);
+                exts
+            };
+            assert_eq!(
+                render_with(
+                    vec![Block::Para(vec![Inline::Math(
+                        MathType::InlineMath,
+                        "x^2".to_owned()
+                    )])],
+                    single
+                ),
+                "\\(x^2\\)"
+            );
+            assert_eq!(
+                render_with(
+                    vec![Block::Para(vec![Inline::Math(
+                        MathType::DisplayMath,
+                        "x^2".to_owned()
+                    )])],
+                    single
+                ),
+                "\\[x^2\\]"
+            );
+            let double = {
+                let mut exts = presets::MARKDOWN;
+                exts.remove(Extension::TexMathDollars);
+                exts.insert(Extension::TexMathDoubleBackslash);
+                exts
+            };
+            assert_eq!(
+                render_with(
+                    vec![Block::Para(vec![Inline::Math(
+                        MathType::InlineMath,
+                        "x^2".to_owned()
+                    )])],
+                    double
+                ),
+                "\\\\(x^2\\\\)"
+            );
+        }
+
+        #[test]
+        fn an_unwritable_display_math_falls_back_on_its_own_line() {
+            // With no math surface, a display expression linearizes to markup set off by line breaks.
+            assert_eq!(
+                render_with(
+                    vec![Block::Para(vec![
+                        s("before"),
+                        Inline::Space,
+                        Inline::Math(MathType::DisplayMath, "x^2".to_owned()),
+                        Inline::Space,
+                        s("after"),
+                    ])],
+                    without(Extension::TexMathDollars),
+                ),
+                "before\n*x*^2^\nafter"
+            );
         }
     }
 }

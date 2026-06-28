@@ -375,8 +375,9 @@ pub mod presets {
     /// attributes, auto identifiers, `MultiMarkdown`'s trailing `[id]` header identifiers, and the
     /// `data-markdown`
     /// div marker. It has no header attribute blocks, strikeout, task lists, smart typography, spans,
-    /// or fenced divs. Its `tex_math_double_backslash` only affects reading; the writer emits `$…$`
-    /// math through `tex_math_dollars`.
+    /// or fenced divs. With `tex_math_dollars` on and taking precedence, a `tex_math_double_backslash`
+    /// surface would not change this dialect's writer output, so it is left out of the preset and math
+    /// is emitted as `$…$`.
     pub const MARKDOWN_MMD: Extensions = Extensions::from_list(&[
         Extension::AutoIdentifiers,
         Extension::BacktickCodeBlocks,
