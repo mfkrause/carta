@@ -20,8 +20,11 @@ pub(crate) fn parse(
     greedy_paragraphs: bool,
 ) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
     let mut parser = Parser::new(extensions, greedy_paragraphs);
-    for line in split_lines(input) {
-        parser.process_line(line);
+    let lines = split_lines(input);
+    for index in 0..lines.len() {
+        let line = lines.get(index).copied().unwrap_or("");
+        let following = lines.get(index + 1..).unwrap_or(&[]);
+        parser.process_line(line, following);
     }
     parser.finalize_open_text_tables();
     parser.finish()
@@ -206,6 +209,10 @@ struct Parser {
     /// When set, most block openers do not interrupt an open paragraph (see
     /// [`ReaderOptions::greedy_paragraphs`](carta_core::ReaderOptions::greedy_paragraphs)).
     greedy_paragraphs: bool,
+    /// Set while a code fence that could not open a code block (its info names no language, or it
+    /// has no closing fence) is folding into a paragraph. Until a matching closing fence or a blank
+    /// line, each following line is absorbed as paragraph text with no block opener allowed to fire.
+    fence_fold: Option<FenceInfo>,
 }
 
 impl Parser {
@@ -215,6 +222,7 @@ impl Parser {
             refs: RefMap::new(),
             extensions,
             greedy_paragraphs,
+            fence_fold: None,
         }
     }
 
@@ -331,7 +339,7 @@ impl Parser {
         }
     }
 
-    fn process_line(&mut self, line: &str) {
+    fn process_line(&mut self, line: &str, following: &[&str]) {
         let mut cursor = Cursor::new(line);
 
         // Phase 1: descend through open containers, matching each one's continuation marker.
@@ -380,6 +388,23 @@ impl Parser {
         }
 
         let blank = cursor.is_blank();
+
+        // A folding code fence (one that opened no code block) absorbs each following line into its
+        // paragraph verbatim — no setext underline, table, or other opener may fire — until its
+        // matching closing fence (kept as the last line) or a blank line ends the fold.
+        if let Some(fence) = self.fence_fold.clone() {
+            if all_matched
+                && !blank
+                && matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph))
+            {
+                if cursor.indent() <= 3 && cursor.is_closing_fence(fence.marker, fence.length) {
+                    self.fence_fold = None;
+                }
+                self.add_line(container, false, false, &mut cursor);
+                return;
+            }
+            self.fence_fold = None;
+        }
 
         // A setext underline converts an open paragraph (directly under the matched container,
         // so fully matched) into a heading.
@@ -456,7 +481,7 @@ impl Parser {
         if !blank {
             loop {
                 cursor.note_indent();
-                if let Some(opened) = self.try_open(container, &mut cursor) {
+                if let Some(opened) = self.try_open(container, &mut cursor, following) {
                     started_new = true;
                     container = opened;
                     // Descend into the new container to open the next block on this line — but only
@@ -693,7 +718,7 @@ impl Parser {
             self.close(index);
             let trailing = line.get(end..).unwrap_or("").to_owned();
             if !trailing.is_empty() {
-                self.process_line(&trailing);
+                self.process_line(&trailing, &[]);
             }
             return;
         }
@@ -758,7 +783,7 @@ impl Parser {
         let parent = self.place(container, &kind);
         let index = self.append_child(parent, Node::new(kind));
         if !trailing.trim().is_empty() {
-            self.process_line(&trailing);
+            self.process_line(&trailing, &[]);
         }
         Some(index)
     }
@@ -857,9 +882,7 @@ impl Parser {
                     };
                 }
                 self.close(leaf);
-                for line in rest {
-                    self.process_line(&line);
-                }
+                self.refeed_lines(&rest);
             }
             None => {
                 let first = lines.first().copied().unwrap_or("");
@@ -874,10 +897,19 @@ impl Parser {
                     }
                 }
                 self.close(leaf);
-                for line in rest {
-                    self.process_line(&line);
-                }
+                self.refeed_lines(&rest);
             }
+        }
+    }
+
+    /// Re-feed a run of buffered lines through the line handler, each seeing the ones after it as
+    /// its look-ahead so a fenced code block among them can still find its closing fence.
+    fn refeed_lines(&mut self, lines: &[String]) {
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        for index in 0..refs.len() {
+            let line = refs.get(index).copied().unwrap_or("");
+            let following = refs.get(index + 1..).unwrap_or(&[]);
+            self.process_line(line, following);
         }
     }
 
@@ -997,7 +1029,7 @@ impl Parser {
         let after = trimmed.get(found.end..).unwrap_or("").to_owned();
         let trails = !before.trim().is_empty();
         if trails {
-            self.process_line(before);
+            self.process_line(before, &[]);
         }
         // Whether the element's final content block tightens from `Para` to `Plain`. A native div
         // tightens only when the close tag physically trails content on its own line. A raw element
@@ -1019,7 +1051,7 @@ impl Parser {
             node.open = false;
         }
         if !after.trim().is_empty() {
-            self.process_line(&after);
+            self.process_line(&after, &[]);
         }
         true
     }
@@ -1264,10 +1296,139 @@ impl Parser {
         }
     }
 
+    /// Whether a scanned code fence actually opens a fenced code block. Pure CommonMark always
+    /// recognizes a fence. The Markdown dialect instead gates each fence character on its own
+    /// extension — a backtick fence on `backtick_code_blocks`, a tilde fence on `fenced_code_blocks`
+    /// — and, lacking any extension that gives a richer info string meaning, requires the info string
+    /// to be a single bare language token: an info string carrying inner whitespace or a brace then
+    /// names no language and the fence is left to fold into a paragraph.
+    fn fence_opener_accepted(&self, fence: &FenceInfo) -> bool {
+        if !self.greedy_paragraphs {
+            return true;
+        }
+        let marker_allowed = match fence.marker {
+            b'`' => self.extensions.contains(Extension::BacktickCodeBlocks),
+            b'~' => self.extensions.contains(Extension::FencedCodeBlocks),
+            _ => false,
+        };
+        if !marker_allowed {
+            return false;
+        }
+        // A brace-delimited attribute block, or a raw-output marker, gives a non-bare info string
+        // meaning; the finalizer then interprets it. Without any of those extensions only a bare
+        // language token is accepted.
+        if self.extensions.contains(Extension::FencedCodeAttributes)
+            || self.extensions.contains(Extension::Attributes)
+            || self.extensions.contains(Extension::RawAttribute)
+        {
+            return true;
+        }
+        !fence
+            .info
+            .trim()
+            .chars()
+            .any(|ch| ch.is_whitespace() || ch == '{' || ch == '}')
+    }
+
+    /// Whether an opening code fence has a matching closing fence ahead, within the same container.
+    /// In the Markdown dialect a fenced code block must be closed: an unclosed fence — one that would
+    /// run to the container's end — does not open, and its lines fold into a paragraph instead. Pure
+    /// CommonMark lets an unclosed fence run to the end, so there a fence always opens.
+    ///
+    /// The closing fence is judged at the fence's own container level, so each look-ahead line first
+    /// replays the open containers' continuation markers; a line that breaks the chain (a block quote
+    /// losing its `>`, a list item losing its indent) cannot carry the close.
+    fn fence_reaches_close(&self, container: usize, fence: &FenceInfo, following: &[&str]) -> bool {
+        if !self.greedy_paragraphs {
+            return true;
+        }
+        let path = self.container_path(container);
+        for line in following {
+            let mut cursor = Cursor::new(line);
+            if !self.strip_container_path(&path, &mut cursor) {
+                return false;
+            }
+            if cursor.indent() <= 3 && cursor.is_closing_fence(fence.marker, fence.length) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The chain of open containers from the document root down to `container`, root first.
+    fn container_path(&self, container: usize) -> Vec<usize> {
+        let mut path = Vec::new();
+        let mut index = container;
+        loop {
+            path.push(index);
+            let parent = self.parent(index);
+            if parent == index {
+                break;
+            }
+            index = parent;
+        }
+        path.reverse();
+        path
+    }
+
+    /// Replay each container in `path` against a look-ahead `cursor`, read-only, consuming its
+    /// continuation marker and leaving the cursor at the content column. Returns whether every
+    /// container still matched. A blank line keeps an indent-based container (a list item, a
+    /// definition body) open as interior content, but a block quote requires its `>` on every line.
+    fn strip_container_path(&self, path: &[usize], cursor: &mut Cursor) -> bool {
+        for &index in path {
+            match self.kind(index) {
+                Some(
+                    Kind::Document
+                    | Kind::List(_)
+                    | Kind::DefinitionList
+                    | Kind::DefinitionItem { .. }
+                    | Kind::HtmlElement(_),
+                ) => {}
+                Some(Kind::BlockQuote) => {
+                    cursor.skip_up_to_three_spaces();
+                    if cursor.peek() == Some(b'>') {
+                        cursor.advance_one();
+                        cursor.consume_optional_space();
+                    } else {
+                        return false;
+                    }
+                }
+                Some(Kind::FencedDiv(info)) => cursor.advance_columns(info.indent),
+                Some(Kind::Item(ItemInfo { indent, .. }) | Kind::Definition { indent }) => {
+                    let indent = *indent;
+                    if !cursor.is_blank() {
+                        if cursor.indent() >= indent {
+                            cursor.advance_columns(indent);
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+                Some(Kind::FootnoteDef(_)) => {
+                    if !cursor.is_blank() {
+                        if cursor.indent() >= TAB_STOP {
+                            cursor.advance_columns(TAB_STOP);
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+
     /// Try to open a new block at the current cursor position inside `container`.
     // A flat dispatch over the block openers, tried in precedence order; it reads best as one sequence.
     #[allow(clippy::too_many_lines)]
-    fn try_open(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
+    fn try_open(
+        &mut self,
+        container: usize,
+        cursor: &mut Cursor,
+        following: &[&str],
+    ) -> Option<usize> {
         let indent = cursor.indent();
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
         let gates = self.greedy_gates(container, in_paragraph);
@@ -1330,10 +1491,21 @@ impl Parser {
                 self.close(index);
                 return Some(index);
             }
+            let fence_checkpoint = cursor.checkpoint();
             if let Some(fence) = cursor.fenced_code_start() {
-                let kind = Kind::FencedCode(fence);
-                let parent = self.place(container, &kind);
-                return Some(self.append_child(parent, Node::new(kind)));
+                if self.fence_opener_accepted(&fence)
+                    && self.fence_reaches_close(container, &fence, following)
+                {
+                    let kind = Kind::FencedCode(fence);
+                    let parent = self.place(container, &kind);
+                    return Some(self.append_child(parent, Node::new(kind)));
+                }
+                // The fence opens no code block; its opener line folds into a paragraph and the
+                // lines up to its matching close (if any) follow as that paragraph's text.
+                if self.greedy_paragraphs {
+                    self.fence_fold = Some(fence);
+                }
+                cursor.reset_to(fence_checkpoint);
             }
             // A recognized block-level HTML element whose inner content is parsed as markdown takes
             // precedence over the raw HTML-block reading, when the governing extension is on.

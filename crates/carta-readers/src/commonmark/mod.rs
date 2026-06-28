@@ -1511,10 +1511,32 @@ mod tests {
     }
 
     #[test]
-    fn a_fenced_code_block_still_ends_a_greedy_paragraph() {
+    fn a_closed_fenced_code_block_ends_a_greedy_paragraph() {
+        // A backtick fence ends a greedy paragraph only once its character is enabled and it is
+        // closed; the block then opens as its own sibling.
+        assert!(matches!(
+            greedy_blocks("text\n```\ncode\n```\n", &[Extension::BacktickCodeBlocks]).as_slice(),
+            [Block::Para(_), Block::CodeBlock(_, _)]
+        ));
+    }
+
+    #[test]
+    fn a_fence_without_its_character_enabled_folds_into_the_paragraph() {
+        // With no `backtick_code_blocks`, the fence names no code block; the run of lines up to its
+        // close stays paragraph text, where the matching backtick runs read as an inline code span.
         assert!(matches!(
             greedy_blocks("text\n```\ncode\n```\n", &[]).as_slice(),
-            [Block::Para(_), Block::CodeBlock(_, _)]
+            [Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn an_unclosed_fence_folds_into_the_paragraph() {
+        // A fence with its character enabled but no closing fence opens nothing: it runs to the end
+        // of its container, so the dialect keeps its lines as paragraph text instead.
+        assert!(matches!(
+            greedy_blocks("text\n```\ncode\n", &[Extension::BacktickCodeBlocks]).as_slice(),
+            [Block::Para(_)]
         ));
     }
 
