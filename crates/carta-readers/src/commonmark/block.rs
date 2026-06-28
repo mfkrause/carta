@@ -1539,7 +1539,20 @@ impl Parser {
     ) -> Option<usize> {
         let fancy = self.extensions.contains(Extension::FancyLists);
         let example = self.extensions.contains(Extension::ExampleLists);
-        let parsed = cursor.list_marker_at(fancy, example)?;
+        // The greedy Markdown dialect without fancy lists still recognizes the `#.` auto-number
+        // placeholder, but its ordered lists are limited to the period delimiter: a `)`-delimited
+        // enumerator such as `1)` is left as prose.
+        let plain_ordered = self.greedy_paragraphs && !fancy;
+        let parsed = cursor.list_marker_at(fancy, example, plain_ordered)?;
+        if plain_ordered
+            && !parsed.bullet
+            && !matches!(
+                parsed.delim,
+                ListNumberDelim::DefaultDelim | ListNumberDelim::Period
+            )
+        {
+            return None;
+        }
 
         // These restrictions apply only when the marker would interrupt a *bare* paragraph (one not
         // already inside a list): an empty item cannot interrupt, and an ordered marker may only
@@ -2076,10 +2089,18 @@ impl Parser {
             } else {
                 info.start
             };
+            // Without fancy lists the greedy Markdown dialect does not distinguish enumerator styles
+            // or delimiters: every ordered list carries the default style and delimiter.
+            let (style, delim) =
+                if self.greedy_paragraphs && !self.extensions.contains(Extension::FancyLists) {
+                    (ListNumberStyle::DefaultStyle, ListNumberDelim::DefaultDelim)
+                } else {
+                    (info.style.clone(), info.delim.clone())
+                };
             let attrs = ListAttributes {
                 start,
-                style: info.style.clone(),
-                delim: info.delim.clone(),
+                style,
+                delim,
             };
             IrBlock::OrderedList(attrs, items)
         }

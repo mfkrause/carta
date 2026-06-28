@@ -14,8 +14,8 @@
 //!   by one `Div` per execution output: a `stream` (stdout/stderr text), an `execute_result` or
 //!   `display_data` (the richest renderable bundle in the output's `data`), or an `error`
 //!   (its traceback).
-//! - A **raw** cell yields a single `RawBlock` whose target format is derived from the cell's
-//!   `format` metadata.
+//! - A **raw** cell yields a single `RawBlock` whose target format is read from the cell's
+//!   `raw_mimetype` metadata, falling back to its `format` metadata.
 //!
 //! Notebook-level metadata is exposed under a single `jupyter` metadata key, with the `nbformat`
 //! and `nbformat_minor` versions folded in. Image payloads in the outputs are referenced by a
@@ -177,13 +177,23 @@ fn cell_attr(cell: &Value, kind: &str) -> Attr {
     }
 }
 
-/// Render a JSON value as an attribute string: a string keeps its own text; anything else is its
-/// compact JSON form.
+/// Render a JSON value as an attribute string. A non-string takes its compact JSON form. A string
+/// keeps its own text, except that one which would otherwise read back as a number or boolean — an
+/// all-digit run such as `007`, or the literal `true`/`false` — is wrapped in double quotes so the
+/// distinction between the string and the scalar survives the round trip.
 fn attribute_value(value: &Value) -> String {
     match value {
+        Value::String(text) if is_integer_literal(text) || text == "true" || text == "false" => {
+            format!("\"{text}\"")
+        }
         Value::String(text) => text.clone(),
         other => other.to_string(),
     }
+}
+
+/// Whether `text` is a non-empty run of ASCII digits (`^[0-9]+$`).
+fn is_integer_literal(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// A markdown cell's blocks: its source parsed as Markdown with the reader's extensions, then with
@@ -193,6 +203,12 @@ fn markdown_cell_blocks(cell: &Value, options: &ReaderOptions) -> Result<Vec<Blo
     let source = multiline_text(cell.get("source"));
     let mut markdown_options = ReaderOptions::default();
     markdown_options.extensions = options.extensions;
+    // A notebook's markdown cells are written in the broad Markdown dialect (greedy paragraphs),
+    // not strict CommonMark: nested emphasis nests strong outside emph, a bare URI or email becomes
+    // a classed autolink, an ordered list's marker style and start are normalized unless the
+    // fancy-list and start-number extensions ask otherwise, and a raw HTML block carries no trailing
+    // newline.
+    markdown_options.greedy_paragraphs = true;
     let mut blocks = CommonmarkReader.read(&source, &markdown_options)?.blocks;
     let prefix = cell
         .get("id")
@@ -221,15 +237,17 @@ fn code_cell_blocks(cell: &Value, language: &str) -> Vec<Block> {
     blocks
 }
 
-/// A raw cell's block: a `RawBlock` whose format is derived from the cell's `format` metadata, or
-/// `ipynb` when none is declared.
+/// A raw cell's block: a `RawBlock` whose format is read from the cell's media type, or `ipynb`
+/// when none is declared. The media type is taken from `raw_mimetype`, falling back to `format` when
+/// the former is absent.
 fn raw_cell_block(cell: &Value) -> Block {
     let source = multiline_text(cell.get("source"));
-    let format = cell
-        .get("metadata")
-        .and_then(|metadata| metadata.get("format"))
-        .and_then(Value::as_str)
-        .map_or_else(|| "ipynb".to_owned(), format_from_mime);
+    let metadata = cell.get("metadata");
+    let mime = metadata
+        .and_then(|metadata| metadata.get("raw_mimetype"))
+        .or_else(|| metadata.and_then(|metadata| metadata.get("format")))
+        .and_then(Value::as_str);
+    let format = mime.map_or_else(|| "ipynb".to_owned(), format_from_mime);
     Block::RawBlock(Format(format), source)
 }
 
@@ -277,7 +295,10 @@ fn result_output(output: &Value, is_result: bool) -> Block {
         classes: vec!["output".to_owned(), kind.to_owned()],
         attributes,
     };
-    Block::Div(attr, data_to_blocks(output.get("data")))
+    Block::Div(
+        attr,
+        data_to_blocks(output.get("data"), output.get("metadata")),
+    )
 }
 
 /// An `error` output: its traceback as a plain `CodeBlock` inside a `Div` carrying the exception
@@ -319,12 +340,12 @@ fn error_output(output: &Value) -> Block {
 /// Pick the richest renderable representation from an output's `data` bundle. An image (or PDF)
 /// representation wins, taken in MIME-name order; otherwise structured JSON, plain text, HTML,
 /// LaTeX, and Markdown are tried in that order. An empty or absent bundle yields no blocks.
-fn data_to_blocks(data: Option<&Value>) -> Vec<Block> {
+fn data_to_blocks(data: Option<&Value>, metadata: Option<&Value>) -> Vec<Block> {
     let Some(Value::Object(data)) = data else {
         return Vec::new();
     };
     if let Some((mime, value)) = data.iter().find(|(mime, _)| is_image_like(mime)) {
-        return vec![image_block(mime, value)];
+        return vec![image_block(mime, value, metadata)];
     }
     for mime in [
         "application/json",
@@ -364,23 +385,43 @@ fn non_image_block(mime: &str, value: &Value) -> Block {
 }
 
 /// A `Para` holding a single image whose URL is the content-addressed file name of the decoded
-/// payload. SVG is stored as its source text; every other type is base64-decoded to bytes.
-fn image_block(mime: &str, value: &Value) -> Block {
+/// payload. SVG is stored as its source text; every other type is base64-decoded to bytes, falling
+/// back to the raw source bytes when the payload is not well-formed base64. Any entry the output's
+/// `metadata` records under the chosen MIME type becomes an attribute on the image.
+fn image_block(mime: &str, value: &Value, metadata: Option<&Value>) -> Block {
     let payload = multiline_text(Some(value));
     let bytes = if mime == "image/svg+xml" {
         payload.into_bytes()
     } else {
-        base64_decode(&payload)
+        base64_decode(&payload).unwrap_or_else(|| payload.into_bytes())
     };
     let name = format!("{}.{}", sha1_hex(&bytes), extension_for_mime(mime));
     Block::Para(vec![Inline::Image(
-        Attr::default(),
+        image_attr(mime, metadata),
         Vec::new(),
         Target {
             url: name,
             title: String::new(),
         },
     )])
+}
+
+/// The image attributes drawn from an output's `metadata`: every key under the entry named for the
+/// chosen MIME type, in sorted order, each value rendered as an attribute string.
+fn image_attr(mime: &str, metadata: Option<&Value>) -> Attr {
+    let mut attributes = Vec::new();
+    if let Some(Value::Object(by_mime)) = metadata
+        && let Some(Value::Object(entry)) = by_mime.get(mime)
+    {
+        for (key, value) in entry {
+            attributes.push((key.clone(), attribute_value(value)));
+        }
+    }
+    Attr {
+        id: String::new(),
+        classes: Vec::new(),
+        attributes,
+    }
 }
 
 /// Whether a MIME type denotes an image-like payload that is referenced as a file: any `image/*`
@@ -556,34 +597,58 @@ fn strip_attachment_inlines(inlines: &mut [Inline], prefix: Option<&str>) {
     }
 }
 
-/// Decode standard base64, ignoring whitespace and stopping at padding. Bytes that are not part of
-/// the alphabet are skipped.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "the low 8 bits of the accumulator are isolated before the cast"
-)]
-fn base64_decode(input: &str) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut accumulator: u32 = 0;
-    let mut bits: u32 = 0;
-    for byte in input.bytes() {
-        let value: u32 = match byte {
-            b'A'..=b'Z' => u32::from(byte - b'A'),
-            b'a'..=b'z' => u32::from(byte - b'a') + 26,
-            b'0'..=b'9' => u32::from(byte - b'0') + 52,
-            b'+' => 62,
-            b'/' => 63,
-            b'=' => break,
-            _ => continue,
-        };
-        accumulator = (accumulator << 6) | value;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((accumulator >> bits) as u8);
-        }
+/// Decode standard base64, ignoring inner whitespace. Returns `None` when the input — once
+/// whitespace is removed — is not well-formed: a length that is not a multiple of four, a symbol
+/// outside the alphabet, or padding that does not fall at the very end of the final quartet.
+fn base64_decode(input: &str) -> Option<Vec<u8>> {
+    let symbols: Vec<u8> = input
+        .bytes()
+        .filter(|byte| !byte.is_ascii_whitespace())
+        .collect();
+    if symbols.is_empty() {
+        return Some(Vec::new());
     }
-    out
+    if !symbols.len().is_multiple_of(4) {
+        return None;
+    }
+    let group_count = symbols.len() / 4;
+    let mut out = Vec::with_capacity(group_count * 3);
+    for (index, chunk) in symbols.chunks_exact(4).enumerate() {
+        let last = index + 1 == group_count;
+        let &[a, b, c, d] = chunk else { return None };
+        let v0 = sextet(a)?;
+        let v1 = sextet(b)?;
+        out.push((v0 << 2) | (v1 >> 4));
+        if c == b'=' {
+            if !last || d != b'=' {
+                return None;
+            }
+            continue;
+        }
+        let v2 = sextet(c)?;
+        out.push(((v1 & 0x0f) << 4) | (v2 >> 2));
+        if d == b'=' {
+            if !last {
+                return None;
+            }
+            continue;
+        }
+        let v3 = sextet(d)?;
+        out.push(((v2 & 0x03) << 6) | v3);
+    }
+    Some(out)
+}
+
+/// The 6-bit value of one standard base64 alphabet symbol, or `None` for any other byte.
+fn sextet(byte: u8) -> Option<u8> {
+    match byte {
+        b'A'..=b'Z' => Some(byte - b'A'),
+        b'a'..=b'z' => Some(byte - b'a' + 26),
+        b'0'..=b'9' => Some(byte - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    }
 }
 
 /// The SHA-1 digest of `data` as a 40-character lowercase hex string.
@@ -692,9 +757,14 @@ mod tests {
 
     #[test]
     fn base64_decodes_and_ignores_whitespace() {
-        assert_eq!(base64_decode("aGVsbG8="), b"hello");
-        assert_eq!(base64_decode("aGVs\nbG8="), b"hello");
-        assert_eq!(base64_decode(""), b"");
+        assert_eq!(base64_decode("aGVsbG8="), Some(b"hello".to_vec()));
+        assert_eq!(base64_decode("aGVs\nbG8="), Some(b"hello".to_vec()));
+        assert_eq!(base64_decode(""), Some(Vec::new()));
+        // A length that is not a multiple of four, a non-alphabet byte, and misplaced padding each
+        // fail to decode rather than silently dropping or truncating input.
+        assert_eq!(base64_decode("QQ"), None);
+        assert_eq!(base64_decode("aGVsbG8@"), None);
+        assert_eq!(base64_decode("a=VsbG8="), None);
     }
 
     #[test]
@@ -999,6 +1069,34 @@ mod tests {
         };
         // image/jpeg sorts before image/png and both before text/plain.
         assert_eq!(target.url, "22f545ac6b50163ce39bac49094c3f64e0858403.jpg");
+    }
+
+    #[test]
+    fn image_output_metadata_becomes_sorted_attributes() {
+        let document = read(
+            r#"{"cells": [{"cell_type": "code", "metadata": {}, "execution_count": 1,
+               "source": [], "outputs": [
+                 {"output_type": "display_data", "data": {"image/png": "iVBORw0KGgoAAAANSUhEUg=="},
+                  "metadata": {"image/png": {"width": 100, "height": 50, "needs_background": "light"}}}]}],
+               "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
+        );
+        let Some(Block::Div(_, body)) = first_output(&document) else {
+            panic!("expected an output div");
+        };
+        let Some(Block::Para(inlines)) = body.first() else {
+            panic!("expected a paragraph");
+        };
+        let Some(Inline::Image(attr, _, _)) = inlines.first() else {
+            panic!("expected an image");
+        };
+        assert_eq!(
+            attr.attributes,
+            vec![
+                ("height".to_owned(), "50".to_owned()),
+                ("needs_background".to_owned(), "light".to_owned()),
+                ("width".to_owned(), "100".to_owned()),
+            ]
+        );
     }
 
     #[test]

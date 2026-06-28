@@ -686,7 +686,7 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
     if ext.contains(Extension::Autolink) {
-        super::autolink::autolink_inlines(&mut inlines);
+        super::autolink::autolink_inlines(&mut inlines, notes.markdown);
     }
     if ext.contains(Extension::NativeSpans) {
         inlines = pair_native_spans(inlines);

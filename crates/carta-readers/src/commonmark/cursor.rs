@@ -401,8 +401,15 @@ impl<'a> Cursor<'a> {
 
     /// If the cursor sits at a list marker, return its parse. With `fancy` set, ordered enumerators
     /// also recognize alphabetic and roman styles and the `(x)` parenthesized delimiter; otherwise
-    /// only decimal `n.`/`n)` enumerators count.
-    pub(super) fn list_marker_at(&self, fancy: bool, example: bool) -> Option<ListMarkerParse> {
+    /// only decimal `n.`/`n)` enumerators count. With `hash_placeholder` set, the `#` auto-number
+    /// placeholder is recognized too — the greedy Markdown dialect honors `#.` independently of the
+    /// fancy alphabetic and roman enumerators.
+    pub(super) fn list_marker_at(
+        &self,
+        fancy: bool,
+        example: bool,
+        hash_placeholder: bool,
+    ) -> Option<ListMarkerParse> {
         let byte = self.peek()?;
         match byte {
             b'-' | b'+' | b'*' => {
@@ -435,7 +442,7 @@ impl<'a> Cursor<'a> {
                 self.example_marker_paren()
             }
             b'a'..=b'z' | b'A'..=b'Z' if fancy => self.enumerator_at(self.offset),
-            b'#' if fancy => self.hash_marker_at(),
+            b'#' if fancy || hash_placeholder => self.hash_marker_at(),
             b'(' if fancy => self.paren_enumerator_at(),
             _ => None,
         }
