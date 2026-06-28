@@ -3,7 +3,7 @@
 
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod entities;
-#[cfg(any(feature = "commonmark", feature = "man"))]
+#[cfg(any(feature = "commonmark", feature = "man", feature = "rst"))]
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod inline_scan;

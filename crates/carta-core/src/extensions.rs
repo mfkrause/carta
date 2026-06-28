@@ -122,6 +122,7 @@ define_extensions! {
     // An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
     // without it every `_` is escaped so the strict reader cannot start emphasis mid-word.
     IntrawordUnderscores => "intraword_underscores",
+    AsciiIdentifiers => "ascii_identifiers",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;

@@ -59,13 +59,13 @@ As `csv`, tab-delimited.
 ### `rst` — 🚧
 reStructuredText blocks and inlines: sections, bullet/enumerated/definition/field lists, literal and
 line blocks, block quotes, footnotes and citations, hyperlink targets and substitutions, interpreted
-roles, the common directives (admonitions, image/figure, code, raw, role), and grid/simple tables.
-`auto_identifiers` supplies header slug ids.
-Gaps: grid-table cells that span rows or columns are emitted as separate single-span cells rather
-than merged; the `csv-table` and `list-table` directives fall through to a generic `Div` instead of a
-`Table`; the `contents` (table-of-contents) directive emits nothing; a definition-list classifier
-(`term : classifier`) stays part of the term; doctest blocks (`>>>`) read as ordinary paragraphs;
-only `auto_identifiers` is wired — no other RST-specific extension toggles.
+roles, the common directives (admonitions, image/figure, code, raw, role), and grid/simple tables —
+including grid cells that span rows or columns, which merge into single multi-span cells, and the
+`csv-table` and `list-table` directives, which build a `Table`. `auto_identifiers` and
+`gfm_auto_identifiers` supply header slug ids, `ascii_identifiers` folds those ids to ASCII, and
+`smart` renders typographic quotes and dashes.
+Gaps: the `contents` (table-of-contents) directive emits nothing; a definition-list classifier
+(`term : classifier`) stays part of the term; doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `ipynb` — 🚧
 Jupyter notebooks (nbformat v4): markdown cells parsed in a GitHub-flavored Markdown dialect (the
@@ -258,7 +258,7 @@ is verified against the pinned oracle and tracked for a follow-up.
 
 No enum variant yet (notable, non-exhaustive): `latex_macros`, `intraword_underscores`,
 `backtick_code_blocks`, `abbreviations`, `wikilinks_title_after_pipe`,
-`wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`, `mmd_header_identifiers`,
+`wikilinks_title_before_pipe`, `mmd_title_block`, `mmd_header_identifiers`,
 `mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`, `old_dashes`,
 `east_asian_line_breaks`, `escaped_line_breaks`, `four_space_rule`,
 `lists_without_preceding_blankline`, `space_in_atx_header`, `literate_haskell`,
