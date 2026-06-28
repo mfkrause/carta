@@ -68,12 +68,18 @@ than merged; the `csv-table` and `list-table` directives fall through to a gener
 only `auto_identifiers` is wired — no other RST-specific extension toggles.
 
 ### `ipynb` — 🚧
-Jupyter notebooks (nbformat v4): markdown cells parsed in a GitHub-flavored Markdown dialect (the
-cell preset turns on `auto_identifiers`, `gfm_auto_identifiers`, `tex_math_dollars`, `pipe_tables`,
-`task_lists`, `strikeout`, `raw_html`, `autolink_bare_uris`, `fenced_code_blocks`,
-`backtick_code_blocks`, `intraword_underscores`); code cells become code blocks carrying their
-stream / `execute_result` / `display_data` / `error` outputs; notebook and cell metadata become
-attributes; `attachment:` image references and base64 image payloads are decoded.
+Jupyter notebooks (nbformat v4): markdown cells are parsed in the greedy Markdown dialect — a
+paragraph absorbs the lines that follow it, ordered lists collapse to a default number style, and
+bare URIs and email addresses autolink, each carrying a `uri` or `email` class (the cell preset also
+turns on `auto_identifiers`, `gfm_auto_identifiers`, `tex_math_dollars`, `pipe_tables`, `task_lists`,
+`strikeout`, `raw_html`, `autolink_bare_uris`, `fenced_code_blocks`, `backtick_code_blocks`,
+`intraword_underscores`). Code cells become code blocks carrying their stream / `execute_result` /
+`display_data` / `error` outputs. Notebook and cell metadata become attributes, with a scalar value
+quoted when a string is number- or boolean-shaped and left bare when it is an actual number or
+boolean. An image output is named by the hash of its decoded bytes (the raw payload when it is not
+valid base64) and carries its `metadata` entries as sorted image attributes; a raw cell's target
+format is taken from its `raw_mimetype`, falling back to `format`. `attachment:` image references
+and base64 image payloads are decoded.
 Gaps: nbformat v3 (worksheets) is reported as an unsupported format rather than read; the reader is lenient where the format is
 strict (a stream output with no `name`, a null `execution_count`, or a missing top-level `nbformat`
 are accepted rather than rejected); unknown cell and output kinds are silently dropped;
