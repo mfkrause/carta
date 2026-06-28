@@ -26,6 +26,7 @@ use carta_ast::{
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
+use crate::emoji;
 use crate::entities;
 
 /// Parses a wikitext document into the document model.
@@ -34,7 +35,7 @@ pub struct MediawikiReader;
 
 impl Reader for MediawikiReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let source = strip_comments(input);
+        let source = strip_comments(&expand_tabs(input));
         let chars: Vec<char> = source.chars().collect();
         let mut parser = Parser::new(options);
         let blocks = parser.parse_blocks(&chars);
@@ -103,6 +104,9 @@ enum Tok {
     Apostrophes(usize),
     BlockRaw(String),
     BlockBreak,
+    /// A verbatim block element (`<pre>`, `<blockquote>`, `<syntaxhighlight>`) found mid-paragraph:
+    /// it interrupts the paragraph and emerges as its own block.
+    Block(Block),
 }
 
 /// The role a recognized HTML tag plays in the inline stream.
@@ -225,7 +229,11 @@ impl Parser {
             return None;
         }
         let content_start = pos + m;
-        let closer = header_closer(chars, content_start, le, m)?;
+        // The closing run may sit several lines below: the heading text continues like a paragraph
+        // until a blank line or a line that opens its own block, and the trailing `=` run anywhere in
+        // that span closes it.
+        let region_end = header_region_end(chars, pos);
+        let closer = header_closer(chars, content_start, region_end, m)?;
         let content = collect_range(chars, content_start, closer);
         let inlines = self.parse_inlines(content.trim());
         Some((i32::try_from(m).unwrap_or(1), inlines, closer + m))
@@ -356,7 +364,16 @@ impl Parser {
                             None => defs.push(nested),
                         }
                     }
-                    pairs.push((term, defs));
+                    // Terms stacked with no definition between them share one entry, separated by a
+                    // line break, until a definition arrives.
+                    match pairs.last_mut() {
+                        Some((last_term, last_defs)) if last_defs.is_empty() => {
+                            last_term.push(Inline::LineBreak);
+                            last_term.extend(term);
+                            *last_defs = defs;
+                        }
+                        _ => pairs.push((term, defs)),
+                    }
                 } else {
                     let mut blocks = vec![plain_or_figure(self.parse_inlines(&content))];
                     blocks.extend(nested);
@@ -487,7 +504,7 @@ impl Parser {
     /// embedded in prose interrupts the paragraph exactly where it appears.
     fn parse_block_content(&mut self, text: &str) -> Vec<Block> {
         let chars: Vec<char> = text.chars().collect();
-        let toks = self.lex(&chars, false);
+        let toks = self.lex(&chars, false, true);
         let smart = self.smart();
         let mut blocks: Vec<Block> = Vec::new();
         let mut segment: Vec<Tok> = Vec::new();
@@ -496,6 +513,10 @@ impl Parser {
                 Tok::BlockRaw(raw) => {
                     flush_para_segment(&mut segment, &mut blocks, smart);
                     blocks.push(Block::RawBlock(format_html(), raw));
+                }
+                Tok::Block(block) => {
+                    flush_para_segment(&mut segment, &mut blocks, smart);
+                    blocks.push(block);
                 }
                 Tok::BlockBreak => flush_para_segment(&mut segment, &mut blocks, smart),
                 other => segment.push(other),
@@ -604,7 +625,7 @@ impl Parser {
                 let col_span = col_count(c.col_span).min(ncols - col);
                 let row_span = c.row_span.max(1).min(available);
                 let content_chars: Vec<char> = c.content.trim().chars().collect();
-                let content = self.parse_blocks(&content_chars);
+                let content = self.parse_cell_blocks(&content_chars);
                 cells.push(Cell {
                     attr: c.attr.clone(),
                     align: c.align.clone(),
@@ -636,6 +657,24 @@ impl Parser {
         ast_rows
     }
 
+    /// Parses a table cell's content. On the cell's first line the list and heading markers
+    /// `* # ; =` are inert and read as plain paragraph text; from the second line on every marker is
+    /// recognized again. Definition (`:`), horizontal rules, templates, and nested tables stay
+    /// active even on the first line.
+    fn parse_cell_blocks(&mut self, chars: &[char]) -> Vec<Block> {
+        let first = at(chars, 0);
+        let suppressed = matches!(first, Some('*' | '#' | ';'))
+            || (first == Some('=') && is_header_line_within(chars, 0, 0));
+        if !suppressed {
+            return self.parse_blocks(chars);
+        }
+        let (mut blocks, after) = self.parse_paragraph(chars, 0);
+        if let Some(rest) = chars.get(after..) {
+            blocks.extend(self.parse_blocks(rest));
+        }
+        blocks
+    }
+
     /// Parses the content of a `<ref>` note as blocks; a lone paragraph becomes a [`Block::Plain`].
     fn note_blocks(&mut self, chars: &[char]) -> Vec<Block> {
         let blocks = self.parse_blocks(chars);
@@ -647,7 +686,7 @@ impl Parser {
 
     fn parse_inlines(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
-        let toks = self.lex(&chars, false);
+        let toks = self.lex(&chars, false, false);
         let inlines = coalesce(resolve_emphasis(toks));
         if self.smart() {
             apply_smart_quotes(inlines)
@@ -660,11 +699,12 @@ impl Parser {
     /// preserved as code spans rather than collapsed.
     fn preformatted_line(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
-        let toks = self.lex(&chars, true);
+        let toks = self.lex(&chars, true, false);
         preformat_transform(resolve_emphasis(toks))
     }
 
-    fn lex(&mut self, chars: &[char], preformatted: bool) -> Vec<Tok> {
+    #[allow(clippy::too_many_lines)]
+    fn lex(&mut self, chars: &[char], preformatted: bool, block_context: bool) -> Vec<Tok> {
         let mut toks: Vec<Tok> = Vec::new();
         let mut word = String::new();
         let mut i = 0;
@@ -717,6 +757,15 @@ impl Parser {
                     i = next;
                     continue;
                 }
+                if block_context
+                    && starts_block_tag(chars, i)
+                    && let Some((block, next)) = self.parse_block_tag(chars, i)
+                {
+                    flush_word(&mut word, &mut toks);
+                    toks.push(Tok::Block(block));
+                    i = next;
+                    continue;
+                }
                 if let Some((tok, next)) = block_tag_token(chars, i) {
                     flush_word(&mut word, &mut toks);
                     toks.push(tok);
@@ -750,6 +799,16 @@ impl Parser {
                     for inline in inlines {
                         toks.push(Tok::Inline(inline));
                     }
+                    i = next;
+                    continue;
+                }
+                // A single `[` glued to a bare URL is a literal bracket followed by that URL.
+                if at(chars, i + 1) != Some('[')
+                    && let Some((inline, next)) = bare_url(chars, i + 1)
+                {
+                    word.push('[');
+                    flush_word(&mut word, &mut toks);
+                    toks.push(Tok::Inline(inline));
                     i = next;
                     continue;
                 }
@@ -956,6 +1015,11 @@ impl Parser {
         if !is_url(&url) {
             return None;
         }
+        // A bracketed URL with no label that runs straight into a letter or digit is not a link: the
+        // bracket stays literal and the URL continues past the `]` as a bare URL.
+        if label.is_empty() && at(chars, close + 1).is_some_and(char::is_alphanumeric) {
+            return None;
+        }
         let text = if label.is_empty() {
             self.link_counter += 1;
             vec![Inline::Str(self.link_counter.to_string())]
@@ -967,7 +1031,7 @@ impl Parser {
                 Attr::default(),
                 text,
                 Target {
-                    url,
+                    url: encode_url_target(&url),
                     title: String::new(),
                 },
             )],
@@ -976,18 +1040,27 @@ impl Parser {
     }
 
     fn internal_link(&mut self, chars: &[char], i: usize) -> Option<(Vec<Inline>, usize)> {
-        let close = find_seq(chars, i + 2, &[']', ']'])?;
-        let inner = collect_range(chars, i + 2, close);
-        let (target_part, label_part) = match inner.split_once('|') {
-            Some((t, l)) => (t.to_string(), Some(l.to_string())),
-            None => (inner.clone(), None),
+        // The target ends at the first `|` or the first `]]`, whichever comes first; nesting is not
+        // tracked, so a `]]` from an inner link can close an unpiped target.
+        let start = i + 2;
+        let (target_end, has_pipe) = scan_link_target(chars, start)?;
+        let target = collect_range(chars, start, target_end).trim().to_string();
+
+        // With a pipe present, the label runs to the `]]` that closes this link, stepping over any
+        // nested `[[ … ]]` so an inner link does not close the outer one.
+        let (label_content, close) = if has_pipe {
+            let label_start = target_end + 1;
+            let close = find_link_close(chars, label_start)?;
+            (Some(collect_range(chars, label_start, close)), close)
+        } else {
+            (None, target_end)
         };
-        let target = target_part.trim().to_string();
+
         if let Some(ns) = namespace_of(&target)
             && matches!(ns.as_str(), "file" | "image")
             && !strip_namespace(&target).is_empty()
         {
-            let image = self.image_embed(&target, label_part.as_deref());
+            let image = self.image_embed(&target, label_content.as_deref());
             return Some((vec![image], close + 2));
         }
         let mut after = close + 2;
@@ -1000,7 +1073,9 @@ impl Parser {
                 break;
             }
         }
-        let mut label = match &label_part {
+        let mut label = match &label_content {
+            // An empty label invokes the pipe trick: the display text is derived from the target.
+            Some(l) if l.trim().is_empty() => self.pipe_trick_label(&target),
             Some(l) => self.parse_inlines(l),
             None => self.parse_inlines(&target),
         };
@@ -1021,6 +1096,16 @@ impl Parser {
         ))
     }
 
+    /// The display text the pipe trick derives from an empty-label link's target: the part after the
+    /// first colon when the target is namespaced (so `Help:Contents` shows as `Contents`), otherwise
+    /// no text at all.
+    fn pipe_trick_label(&mut self, target: &str) -> Vec<Inline> {
+        match target.split_once(':') {
+            Some((_, rest)) => self.parse_inlines(rest),
+            None => Vec::new(),
+        }
+    }
+
     /// Builds the image for a `[[File:…|…]]` / `[[Image:…|…]]` embed. The page name (with the
     /// namespace stripped) is the source; the `WxHpx` parameters set width/height; recognized
     /// placement and option keywords are dropped; the last remaining parameter is the caption,
@@ -1039,8 +1124,9 @@ impl Parser {
                     if let Some(height) = height {
                         attributes.push(("height".to_string(), height));
                     }
-                } else if is_image_keyword(option) || option.contains('=') {
-                    // A placement, framing, or `key=value` option carries no caption text.
+                } else if is_image_keyword(option) || is_recognized_image_attr(option) {
+                    // A placement or framing keyword, or a recognized `key=value` attribute, carries
+                    // no caption text. An unrecognized `key=value` is treated as caption text.
                 } else {
                     caption = Some(part.to_string());
                 }
@@ -1060,7 +1146,7 @@ impl Parser {
     fn make_id(&mut self, inlines: &[Inline]) -> String {
         let plain = to_plain_text(inlines);
         if self.extensions.contains(Extension::GfmAutoIdentifiers) {
-            let base = slug_gfm(&plain);
+            let base = slug_gfm(&emoji_to_aliases(&plain));
             let base = if base.is_empty() {
                 "section".to_string()
             } else {
@@ -1095,6 +1181,39 @@ impl Parser {
             k += 1;
         }
     }
+}
+
+// --- preprocessing ------------------------------------------------------------------------------
+
+/// Expands tab characters to spaces on a four-column grid, with the column resetting at each line
+/// break. Wikitext markup is column-sensitive — a leading space marks preformatted text — so tabs
+/// are normalized before any block scanning runs.
+fn expand_tabs(input: &str) -> String {
+    if !input.contains('\t') {
+        return input.to_string();
+    }
+    let mut out = String::with_capacity(input.len());
+    let mut col = 0usize;
+    for ch in input.chars() {
+        match ch {
+            '\t' => {
+                let spaces = 4 - (col % 4);
+                for _ in 0..spaces {
+                    out.push(' ');
+                }
+                col += spaces;
+            }
+            '\n' => {
+                out.push('\n');
+                col = 0;
+            }
+            other => {
+                out.push(other);
+                col += 1;
+            }
+        }
+    }
+    out
 }
 
 // --- comment stripping --------------------------------------------------------------------------
@@ -1189,7 +1308,7 @@ fn resolve_emphasis(toks: Vec<Tok>) -> Vec<Inline> {
             Tok::Inline(inline) => units.push(Unit::Node(inline)),
             Tok::Apostrophes(n) => units.extend((0..n).map(|_| Unit::Apostrophe)),
             Tok::BlockRaw(raw) => units.push(Unit::Node(raw_html(raw))),
-            Tok::BlockBreak => {}
+            Tok::BlockBreak | Tok::Block(_) => {}
         }
     }
     let runs = apostrophe_runs(&units);
@@ -1222,53 +1341,42 @@ fn emphasis_width(strong: bool) -> usize {
     if strong { 3 } else { 2 }
 }
 
-/// Tries to open an emphasis span at the apostrophe run starting at `i`, given the kind of the
-/// immediately enclosing span. Returns the span node and the index just past its closing run.
-fn open_emphasis(
+/// Tries to open an emphasis span of the given kind at the apostrophe run starting at `i`. Returns
+/// the span node and the index just past its closing run, or `None` if no matching closer is found
+/// or the span would be empty.
+fn try_open(
     units: &[Unit],
     runs: &[usize],
     i: usize,
-    parent: Option<bool>,
+    strong: bool,
     budget: &mut usize,
 ) -> Option<(Inline, usize)> {
     if *budget == 0 {
         return None;
     }
     *budget -= 1;
-    let run = runs.get(i).copied().unwrap_or(0);
-    if run < 2 {
+    let width = emphasis_width(strong);
+    let (body, next, closed) = parse_runs(units, runs, i + width, Some(strong), budget);
+    if !closed || body.is_empty() {
         return None;
     }
-    // Short runs prefer the wider span; longer runs prefer the narrower one.
-    let order = if run <= 5 {
-        [true, false]
-    } else {
-        [false, true]
-    };
-    for strong in order {
-        let width = emphasis_width(strong);
-        if run < width || parent == Some(strong) {
-            continue;
-        }
-        let (body, next, closed) = parse_runs(units, runs, i + width, Some(strong), budget);
-        if !closed || body.is_empty() {
-            continue;
-        }
-        let body = strip_outer_whitespace(body);
-        return Some((
-            if strong {
-                Inline::Strong(body)
-            } else {
-                Inline::Emph(body)
-            },
-            next,
-        ));
-    }
-    None
+    let body = strip_outer_whitespace(body);
+    Some((
+        if strong {
+            Inline::Strong(body)
+        } else {
+            Inline::Emph(body)
+        },
+        next,
+    ))
 }
 
 /// Parses content until the run that closes `closer` (or end of input when `closer` is `None`).
 /// Returns the collected nodes, the index reached, and whether a closer was found.
+///
+/// At each apostrophe run, a wider `'''…'''` strong span is preferred over a `''…''` emphasis span,
+/// and closing the enclosing span takes precedence over opening a same-kind span. A run that opens
+/// nothing and closes nothing is emitted as literal apostrophes.
 fn parse_runs(
     units: &[Unit],
     runs: &[usize],
@@ -1285,16 +1393,27 @@ fn parse_runs(
                 pos += 1;
             }
             Unit::Apostrophe => {
-                if let Some((span, next)) = open_emphasis(units, runs, pos, closer, budget) {
+                let run = runs.get(pos).copied().unwrap_or(0);
+                if run >= emphasis_width(true)
+                    && closer != Some(true)
+                    && let Some((span, next)) = try_open(units, runs, pos, true, budget)
+                {
                     nodes.push(span);
                     pos = next;
                     continue;
                 }
-                if let Some(strong) = closer {
-                    let width = emphasis_width(strong);
-                    if runs.get(pos).copied().unwrap_or(0) >= width {
-                        return (nodes, pos + width, true);
-                    }
+                if let Some(strong) = closer
+                    && run >= emphasis_width(strong)
+                {
+                    return (nodes, pos + emphasis_width(strong), true);
+                }
+                if run >= emphasis_width(false)
+                    && closer != Some(false)
+                    && let Some((span, next)) = try_open(units, runs, pos, false, budget)
+                {
+                    nodes.push(span);
+                    pos = next;
+                    continue;
                 }
                 nodes.push(Inline::Str("'".to_string()));
                 pos += 1;
@@ -1642,13 +1761,19 @@ fn url_scheme_len(chars: &[char], i: usize) -> Option<usize> {
         .map(|scheme| scheme.chars().count())
 }
 
-/// Reads a bare URL beginning at a word boundary, trimming trailing sentence punctuation and an
-/// unmatched closing parenthesis. Returns the autolink and the index just past the consumed URL.
+/// Reads a bare URL beginning at a word boundary. The URL runs to the next space or angle bracket,
+/// after which trailing punctuation and unbalanced brackets are trimmed back. The displayed text
+/// keeps the characters literally while the link target percent-encodes the unsafe ones. Returns the
+/// autolink and the index just past the consumed URL.
 fn bare_url(chars: &[char], i: usize) -> Option<(Inline, usize)> {
     let scheme_len = url_scheme_len(chars, i)?;
     let mut j = i + scheme_len;
     while let Some(c) = at(chars, j) {
-        if c.is_whitespace() || matches!(c, '<' | '>' | '[' | ']' | '{' | '}' | '|' | '"') {
+        if c.is_whitespace() || matches!(c, '<' | '>') {
+            break;
+        }
+        // A run of two or more apostrophes opens emphasis, so it also ends the URL.
+        if c == '\'' && at(chars, j + 1) == Some('\'') {
             break;
         }
         j += 1;
@@ -1656,31 +1781,67 @@ fn bare_url(chars: &[char], i: usize) -> Option<(Inline, usize)> {
     if j <= i + scheme_len {
         return None;
     }
-    let mut url = collect_range(chars, i, j);
-    while let Some(last) = url.chars().last() {
-        let trailing_punctuation = matches!(last, '.' | ',' | ';' | ':' | '!' | '?');
-        let unmatched_paren = last == ')' && !url.contains('(');
-        if trailing_punctuation || unmatched_paren {
-            url.pop();
-        } else {
-            break;
-        }
-    }
-    if url.is_empty() {
+    let mut display = collect_range(chars, i, j);
+    trim_url_trailing(&mut display);
+    if display.is_empty() {
         return None;
     }
-    let consumed = url.chars().count();
+    let consumed = display.chars().count();
+    let target = encode_url_target(&display);
     Some((
         Inline::Link(
             Attr::default(),
-            vec![Inline::Str(url.clone())],
+            vec![Inline::Str(display)],
             Target {
-                url,
+                url: target,
                 title: String::new(),
             },
         ),
         i + consumed,
     ))
+}
+
+/// Trims a URL's trailing characters that read as sentence punctuation or unbalanced brackets: the
+/// always-trimmed set never legitimately ends a URL, and a closing bracket is trimmed only when it
+/// outnumbers its opener so a balanced `(a)` or `[a]` survives.
+fn trim_url_trailing(url: &mut String) {
+    while let Some(last) = url.chars().last() {
+        let always = matches!(
+            last,
+            '.' | ',' | ';' | ':' | '!' | '?' | '"' | '*' | '~' | '\'' | '|'
+        );
+        let unbalanced = match last {
+            ')' => url.matches(')').count() > url.matches('(').count(),
+            ']' => url.matches(']').count() > url.matches('[').count(),
+            '}' => url.matches('}').count() > url.matches('{').count(),
+            _ => false,
+        };
+        if always || unbalanced {
+            url.pop();
+        } else {
+            break;
+        }
+    }
+}
+
+/// Percent-encodes the characters a wikitext link target escapes, leaving the rest intact.
+fn encode_url_target(url: &str) -> String {
+    let mut out = String::with_capacity(url.len());
+    for ch in url.chars() {
+        match ch {
+            ' ' => out.push_str("%20"),
+            '"' => out.push_str("%22"),
+            '`' => out.push_str("%60"),
+            '^' => out.push_str("%5E"),
+            '[' => out.push_str("%5B"),
+            ']' => out.push_str("%5D"),
+            '{' => out.push_str("%7B"),
+            '}' => out.push_str("%7D"),
+            '|' => out.push_str("%7C"),
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 /// Builds a wikilink target URL from a page name: each run of whitespace collapses to a single
@@ -1778,6 +1939,19 @@ fn image_size(param: &str) -> Option<(String, Option<String>)> {
     }
 }
 
+/// Whether an image parameter is a recognized `key=value` attribute (`alt`, `link`, `class`,
+/// `page`) that is consumed without contributing caption text. Any other `key=value` becomes
+/// caption text.
+fn is_recognized_image_attr(param: &str) -> bool {
+    match param.split_once('=') {
+        Some((key, _)) => matches!(
+            key.trim().to_ascii_lowercase().as_str(),
+            "alt" | "link" | "class" | "page"
+        ),
+        None => false,
+    }
+}
+
 /// Whether an image parameter is a recognized placement, framing, or alignment keyword that
 /// carries no caption text.
 fn is_image_keyword(param: &str) -> bool {
@@ -1852,22 +2026,48 @@ fn lone_image_figure(inlines: &[Inline]) -> Option<Block> {
 
 // --- identifiers --------------------------------------------------------------------------------
 
+/// Under the `gfm_auto_identifiers` scheme each emoji that has a known shortname contributes that
+/// name to the identifier in place of the raw character. Spans of text with no emoji pass through
+/// unchanged; the shortname is spliced in directly, without inserting word boundaries.
+fn emoji_to_aliases(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while !rest.is_empty() {
+        if let Some((alias, len)) = emoji::alias_at(rest) {
+            out.push_str(alias);
+            rest = rest.get(len..).unwrap_or("");
+        } else if let Some(ch) = rest.chars().next() {
+            out.push(ch);
+            rest = rest.get(ch.len_utf8()..).unwrap_or("");
+        } else {
+            break;
+        }
+    }
+    out
+}
+
 /// Builds a heading identifier under the `auto_identifiers` scheme: lowercase, keep alphanumerics
-/// with `_` and `.`, collapse whitespace and `-` runs to a single `_`, drop other punctuation, and
-/// strip a leading run of non-letters.
+/// with `_` and `.`, collapse each whitespace run to a single `_`, turn each hyphen into its own
+/// `_`, drop other punctuation without breaking an adjacent whitespace run, and strip a leading run
+/// of non-letters.
 fn mediawiki_slug(text: &str) -> String {
     let mut out = String::new();
-    let mut pending = false;
+    let mut in_ws = false;
     for ch in text.chars() {
-        if ch.is_whitespace() || ch == '-' {
-            pending = true;
-        } else if ch.is_alphanumeric() || ch == '_' || ch == '.' {
-            if pending && !out.is_empty() {
+        if ch.is_whitespace() {
+            if !in_ws {
                 out.push('_');
+                in_ws = true;
             }
-            pending = false;
+        } else if ch == '-' {
+            out.push('_');
+            in_ws = false;
+        } else if ch.is_alphanumeric() || ch == '_' || ch == '.' {
             out.extend(ch.to_lowercase());
+            in_ws = false;
         }
+        // Other punctuation is transparent: it emits nothing and leaves a running whitespace
+        // collapse intact, so `Foo : Bar` and `Foo  Bar` both yield a single separating `_`.
     }
     out.chars().skip_while(|c| !c.is_alphabetic()).collect()
 }
@@ -2152,10 +2352,21 @@ fn tag_attribute(raw: &str, key: &str) -> Option<String> {
 
 // --- line classification ------------------------------------------------------------------------
 
+/// Recursion bound for the heading-region lookahead. A heading's text runs until the next line that
+/// opens a block, and deciding whether a `=`-prefixed line opens its own heading needs the same
+/// lookahead, so the two are mutually recursive. The bound caps that recursion: past it a
+/// `=`-prefixed line is judged by its own single line alone, so deeply stacked heading candidates
+/// cannot exhaust the stack.
+const MAX_HEADING_LOOKAHEAD: usize = 64;
+
 fn line_starts_block(chars: &[char], ls: usize) -> bool {
+    line_starts_block_within(chars, ls, 0)
+}
+
+fn line_starts_block_within(chars: &[char], ls: usize, depth: usize) -> bool {
     match at(chars, ls) {
         Some('*' | '#' | ':' | ';' | ' ') => true,
-        Some('=') => is_header_line(chars, ls),
+        Some('=') => is_header_line_within(chars, ls, depth),
         Some('-') => is_hr_line(chars, ls),
         Some('{') => matches!(at(chars, ls + 1), Some('{' | '|')),
         Some('<') => starts_block_tag(chars, ls),
@@ -2163,7 +2374,7 @@ fn line_starts_block(chars: &[char], ls: usize) -> bool {
     }
 }
 
-fn is_header_line(chars: &[char], pos: usize) -> bool {
+fn is_header_line_within(chars: &[char], pos: usize, depth: usize) -> bool {
     let le = line_end(chars, pos);
     let mut m = 0;
     while pos + m < le && at(chars, pos + m) == Some('=') {
@@ -2172,7 +2383,38 @@ fn is_header_line(chars: &[char], pos: usize) -> bool {
     if m == 0 || m > 6 {
         return false;
     }
-    header_closer(chars, pos + m, le, m).is_some()
+    if depth >= MAX_HEADING_LOOKAHEAD {
+        return header_closer(chars, pos + m, le, m).is_some();
+    }
+    let region_end = header_region_end_within(chars, pos, depth + 1);
+    header_closer(chars, pos + m, region_end, m).is_some()
+}
+
+/// The end index of the span a heading's text may cover: the heading continues across lines like a
+/// paragraph until a blank line or a line that opens its own block, and the result is the line end
+/// of the last line still part of that span.
+fn header_region_end(chars: &[char], pos: usize) -> usize {
+    header_region_end_within(chars, pos, 0)
+}
+
+fn header_region_end_within(chars: &[char], pos: usize, depth: usize) -> usize {
+    let n = chars.len();
+    let mut cur = pos;
+    loop {
+        let le = line_end(chars, cur);
+        if le >= n {
+            return le;
+        }
+        let next = le + 1;
+        if next >= n {
+            return le;
+        }
+        let next_end = line_end(chars, next);
+        if is_blank(chars, next, next_end) || line_starts_block_within(chars, next, depth) {
+            return le;
+        }
+        cur = next;
+    }
 }
 
 /// The index of the first bare `=` run after the heading text, when that run is at least `m` long;
@@ -2216,6 +2458,13 @@ fn split_term(content: &str) -> (String, Option<String>) {
     let mut i = 0;
     while i < n {
         if let Some(next) = skip_construct(&chars, i)
+            && next > i
+        {
+            i = next;
+            continue;
+        }
+        // A bare URL is stepped over whole so the `:` in its scheme is not read as the separator.
+        if let Some((_, next)) = bare_url(&chars, i)
             && next > i
         {
             i = next;
@@ -2724,6 +2973,45 @@ fn find_seq(chars: &[char], from: usize, seq: &[char]) -> Option<usize> {
         return None;
     }
     (from..=n - m).find(|&j| (0..m).all(|k| at(chars, j + k) == seq.get(k).copied()))
+}
+
+/// Scans an internal link's target from `start`: it ends at the first `|` or the first `]]`,
+/// whichever comes first, with no nesting tracked. Returns the end index and whether a `|` (rather
+/// than `]]`) was the delimiter, or `None` if neither appears.
+fn scan_link_target(chars: &[char], start: usize) -> Option<(usize, bool)> {
+    let mut i = start;
+    while let Some(c) = at(chars, i) {
+        if c == '|' {
+            return Some((i, true));
+        }
+        if c == ']' && at(chars, i + 1) == Some(']') {
+            return Some((i, false));
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Finds the `]]` that closes an internal link whose label may hold nested `[[ … ]]` links, stepping
+/// over each balanced inner pair so only the outer close is returned.
+fn find_link_close(chars: &[char], start: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut i = start;
+    while let Some(c) = at(chars, i) {
+        if c == '[' && at(chars, i + 1) == Some('[') {
+            depth += 1;
+            i += 2;
+        } else if c == ']' && at(chars, i + 1) == Some(']') {
+            if depth == 0 {
+                return Some(i);
+            }
+            depth -= 1;
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    None
 }
 
 fn matches_prefix_ci(chars: &[char], i: usize, prefix: &str) -> bool {
