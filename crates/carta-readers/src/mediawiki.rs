@@ -122,7 +122,13 @@ impl Parser {
                     continue;
                 }
                 if c == '{' && at(chars, pos + 1) == Some('|') {
-                    todo!("mediawiki table markup ({{| … |}})");
+                    let after = table_block_end(chars, pos);
+                    let raw = collect_range(chars, pos, after);
+                    blocks.push(Block::RawBlock(format_mediawiki(), raw));
+                    let (np, ls) = finish_inline_block(chars, after);
+                    pos = np;
+                    line_start = ls;
+                    continue;
                 }
                 if c == '='
                     && let Some((level, inlines, closer_end)) = self.try_header(chars, pos)
@@ -562,6 +568,7 @@ impl Parser {
         toks
     }
 
+    #[allow(clippy::too_many_lines)]
     fn handle_tag(&mut self, chars: &[char], i: usize) -> Option<(Vec<Inline>, usize)> {
         if at(chars, i) != Some('<') {
             return None;
@@ -1699,6 +1706,34 @@ fn collect_range(chars: &[char], start: usize, end: usize) -> String {
     chars.iter().skip(start).take(end - start).collect()
 }
 
+/// Finds the index one past the end of a table block opening with `{|` at `pos`. Opening (`{|`) and
+/// closing (`|}`) markers are matched by depth, scanning whole lines, so a nested table does not
+/// close the outer one early; an unterminated table runs to the end of input.
+fn table_block_end(chars: &[char], pos: usize) -> usize {
+    let n = chars.len();
+    let mut depth = 0usize;
+    let mut line = pos;
+    loop {
+        let mut content = line;
+        while matches!(at(chars, content), Some(' ' | '\t')) {
+            content += 1;
+        }
+        if at(chars, content) == Some('{') && at(chars, content + 1) == Some('|') {
+            depth += 1;
+        } else if at(chars, content) == Some('|') && at(chars, content + 1) == Some('}') {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                return content + 2;
+            }
+        }
+        let le = line_end(chars, line);
+        if le >= n {
+            return n;
+        }
+        line = le + 1;
+    }
+}
+
 fn line_end(chars: &[char], pos: usize) -> usize {
     find_char(chars, pos, '\n').unwrap_or(chars.len())
 }
@@ -1747,6 +1782,34 @@ mod tests {
         let mut options = ReaderOptions::default();
         options.extensions = Extensions::from_list(&[Extension::GfmAutoIdentifiers]);
         MediawikiReader.read(input, &options).expect("read").blocks
+    }
+
+    #[test]
+    fn table_markup_is_kept_as_a_raw_block() {
+        assert_eq!(
+            parse("{|\n! Header\n|-\n| Cell\n|}\nafter"),
+            vec![
+                Block::RawBlock(format_mediawiki(), "{|\n! Header\n|-\n| Cell\n|}".into()),
+                Block::Para(vec![Inline::Str("after".into())]),
+            ]
+        );
+    }
+
+    #[test]
+    fn unterminated_table_markup_does_not_panic() {
+        assert_eq!(
+            parse("{|"),
+            vec![Block::RawBlock(format_mediawiki(), "{|".into())]
+        );
+    }
+
+    #[test]
+    fn nested_table_markup_closes_at_the_outer_marker() {
+        let source = "{|\n|\n{|\n| inner\n|}\n|}";
+        assert_eq!(
+            parse(source),
+            vec![Block::RawBlock(format_mediawiki(), source.into())]
+        );
     }
 
     #[test]

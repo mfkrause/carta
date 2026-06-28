@@ -28,9 +28,7 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::NativeDivs,
             Extension::NativeSpans,
         ]),
-        "rst" => Extensions::from_list(&[Extension::AutoIdentifiers]),
-        "mediawiki" => Extensions::from_list(&[Extension::AutoIdentifiers]),
-        "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        "rst" | "mediawiki" | "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
         // A notebook's markdown cells are parsed and rendered in a GitHub-flavored dialect with dollar
         // math and auto identifiers on by default.
         "ipynb" => Extensions::from_list(&[

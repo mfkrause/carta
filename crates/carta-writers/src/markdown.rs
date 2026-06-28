@@ -48,6 +48,7 @@ pub(crate) struct MarkdownConfig {
 
 impl MarkdownConfig {
     /// The full-featured markdown dialect, used when a sibling writer embeds markdown text.
+    #[cfg(feature = "opml")]
     pub(crate) fn extended() -> Self {
         Self {
             extensions: presets::MARKDOWN,
@@ -500,6 +501,7 @@ fn render_document(
 
 /// Render a block sequence as a markdown fragment, accumulating footnotes for a trailing section.
 /// Exposed so a writer embedding markdown text can render a block list through this engine.
+#[cfg(feature = "opml")]
 pub(crate) fn render_blocks(
     blocks: &[Block],
     config: MarkdownConfig,

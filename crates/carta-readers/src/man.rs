@@ -241,7 +241,8 @@ impl<'a> Parser<'a> {
                 }
                 "TS" => {
                     flush_para(&mut fill, &mut blocks);
-                    todo!("man reader: tbl tables (.TS/.TE) are not yet parsed");
+                    self.advance();
+                    blocks.push(self.parse_tbl());
                 }
                 "br" => {
                     self.advance();
@@ -339,6 +340,34 @@ impl<'a> Parser<'a> {
                         self.advance();
                         text_lines.push(flatten(&split_args(rest).join(" ")));
                     }
+                    _ => self.advance(),
+                }
+            } else {
+                self.advance();
+                text_lines.push(flatten(line));
+            }
+        }
+        Block::CodeBlock(Attr::default(), text_lines.join("\n"))
+    }
+
+    /// Collects a tbl table region (`.TS`/`.TE`) as a code block. The table preprocessor's layout
+    /// directives are not interpreted; the region's literal lines (options, format, and cell rows)
+    /// are kept verbatim, with font macros and escapes reduced to plain text. The region ends at
+    /// `.TE`, or at a section heading or end of input (both left unconsumed).
+    fn parse_tbl(&mut self) -> Block {
+        let mut text_lines: Vec<String> = Vec::new();
+        while let Some(line) = self.peek() {
+            if let Some((name, _)) = control_parts(line) {
+                if is_comment(line) {
+                    self.advance();
+                    continue;
+                }
+                match name {
+                    "TE" => {
+                        self.advance();
+                        break;
+                    }
+                    "SH" | "SS" => break,
                     _ => self.advance(),
                 }
             } else {
@@ -1533,6 +1562,31 @@ mod tests {
         assert_eq!(
             doc.blocks.first(),
             Some(&Block::Para(vec![Inline::Str("\u{00c9}".into())]))
+        );
+    }
+
+    #[test]
+    fn tbl_region_is_kept_as_a_verbatim_code_block() {
+        let doc = read(".TH T 1\n.TS\nl l.\nName\tAge\nAda\t36\n.TE\nafter\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::CodeBlock(
+                Attr::default(),
+                "l l.\nName Age\nAda 36".into()
+            ))
+        );
+        assert_eq!(
+            doc.blocks.get(1),
+            Some(&Block::Para(vec![Inline::Str("after".into())]))
+        );
+    }
+
+    #[test]
+    fn unterminated_tbl_region_does_not_panic() {
+        let doc = read(".TS");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::CodeBlock(Attr::default(), String::new()))
         );
     }
 
