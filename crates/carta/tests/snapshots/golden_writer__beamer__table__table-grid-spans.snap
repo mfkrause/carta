@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.3472}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.1806}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.1528}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.1528}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Header row, column 1
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Header 2
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Header 3
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Header 4
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+body row 1, column 1 & column 2 & column 3 & column 4 \\
+body row 2 &
+\multicolumn{3}{>{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.4861} + 4\tabcolsep}@{}}{%
+Cells may span columns.} \\
+body row 3 & \multirow{2}{=}{Cells may span rows.} &
+\multicolumn{2}{>{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.3056} + 2\tabcolsep}@{}}{%
+\multirow{2}{=}{\begin{minipage}[t]{\linewidth}\raggedright
+\begin{itemize}
+\tightlist
+\item
+  Cells.
+\item
+  Contain.
+\item
+  Blocks.
+\end{itemize}
+\end{minipage}}} \\
+body row 4 \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{frame}
