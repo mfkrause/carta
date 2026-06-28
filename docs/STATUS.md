@@ -97,21 +97,29 @@ interwiki) read as ordinary wikilinks rather than embeds or links to the media f
 `<pre>`/`<source>` falls through to HTML passthrough rather than a code block.
 
 ### `dokuwiki` — 🚧
-DokuWiki markup: headings, paragraphs, bold/italic/underline/monospace, bullet and ordered lists,
-code and file blocks, quotes, tables, internal/external/interwiki links, media embeds, footnotes
-(`((…))`), `<nowiki>`/`%%` escapes, smart quotes, and entities.
+DokuWiki markup: headings (any content after the closing `=` run is re-parsed as its own following
+block), paragraphs, bold/italic/underline/monospace, bullet and ordered lists, code and file blocks,
+quotes, tables, internal/external/interwiki links, media embeds, footnotes (`((…))`),
+`<nowiki>`/`%%` escapes, smart quotes, and entities. Tabs expand to four-column tab stops, so a
+tab-indented line reads as indented code. A monospace `''…''` run requires non-blank content flanked
+by its markers; an empty or blank `''`, an empty `[[…]]`/`{{…}}`/`((…))`, and a `----` carrying any
+trailing character all stay literal. Extensions: `smart` (default on); `tex_math_dollars` (`$…$`
+inline and `$$…$$` display math); the heading-identifier family
+`auto_identifiers`/`gfm_auto_identifiers` with the `ascii_identifiers` fold; and
+`east_asian_line_breaks` (a soft break between two wide characters is dropped).
 Gaps: `<code>`/`<file>`/`<HTML>`/`<PHP>` tags are recognized only at the start of a line — a
 mid-paragraph occurrence stays literal inline text instead of splitting the paragraph around a
-code/raw block; the single-quote vs `''` monospace interaction and the degenerate empty `''''`
-diverge in edge cases; a footnote closes at the first `))`, so nested parentheses are unbalanced;
-bare-URL autolinking requires an explicit `scheme://`.
+code/raw block; a footnote closes at the first `))`, so nested parentheses are unbalanced; bare-URL
+autolinking requires an explicit `scheme://`; an empty `<sub>`/`<sup>`/`<del>` tag pair and a lone
+`|` line are not yet handled, and a few straight-quote orientation edge cases differ.
 
 ### `jira` — 🚧
 Jira wiki markup: headings, paragraphs, the text effects (strong, emphasis, citation, deleted,
 inserted, superscript, subscript, monospace), colored and anchored spans, bullet/numbered lists, the
 `{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji.
-Gaps: the `east_asian_line_breaks` extension is not modeled (no enum variant; it is off by default);
-an adversarial run of unbalanced `--`/`---` does not reproduce nested strikeout pairing; block
+Gaps: the `east_asian_line_breaks` extension is accepted but not applied here (the reader does not
+drop soft breaks between wide characters); an adversarial run of unbalanced `--`/`---` does not
+reproduce nested strikeout pairing; block
 brace-macros are recognized only at the start of a line (a mid-line `{code}` after other text reads as
 paragraph text); a `|` inside an image's `!src|props!` within a table cell is not depth-protected.
 
@@ -258,9 +266,9 @@ is verified against the pinned oracle and tracked for a follow-up.
 
 No enum variant yet (notable, non-exhaustive): `latex_macros`, `intraword_underscores`,
 `backtick_code_blocks`, `abbreviations`, `wikilinks_title_after_pipe`,
-`wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`, `mmd_header_identifiers`,
+`wikilinks_title_before_pipe`, `mmd_title_block`, `mmd_header_identifiers`,
 `mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`, `old_dashes`,
-`east_asian_line_breaks`, `escaped_line_breaks`, `four_space_rule`,
+`escaped_line_breaks`, `four_space_rule`,
 `lists_without_preceding_blankline`, `space_in_atx_header`, `literate_haskell`,
 `rebase_relative_paths`, `gutenberg`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)

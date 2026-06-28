@@ -73,6 +73,8 @@ define_extensions! {
     // Header identifiers and the references they enable.
     AutoIdentifiers => "auto_identifiers",
     GfmAutoIdentifiers => "gfm_auto_identifiers",
+    // Fold a derived identifier down to ASCII, dropping diacritics before the slug is formed.
+    AsciiIdentifiers => "ascii_identifiers",
     // A header's explicit identifier is written in MultiMarkdown's trailing `[id]` form rather than
     // the `{#id}` attribute block.
     MmdHeaderIdentifiers => "mmd_header_identifiers",
@@ -122,6 +124,9 @@ define_extensions! {
     // An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
     // without it every `_` is escaped so the strict reader cannot start emphasis mid-word.
     IntrawordUnderscores => "intraword_underscores",
+    // A soft line break between two wide East Asian characters carries no width, so it is dropped
+    // rather than rendered as a space.
+    EastAsianLineBreaks => "east_asian_line_breaks",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;

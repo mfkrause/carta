@@ -133,6 +133,7 @@ dependencies = [
  "serde",
  "serde_json",
  "unicode-general-category",
+ "unicode-normalization",
 ]
 
 [[package]]
