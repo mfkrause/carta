@@ -22,7 +22,7 @@ use std::iter::Peekable;
 use std::str::Chars;
 
 use carta_ast::{Attr, Block, Document, Format, Inline, MetaValue, to_plain_text};
-use carta_core::{Extension, Extensions, Result, Writer, WriterOptions};
+use carta_core::{Error, Extension, Extensions, Result, Writer, WriterOptions};
 
 use crate::markdown::MarkdownWriter;
 
@@ -102,7 +102,7 @@ fn typed_cell(
     counter: &mut usize,
 ) -> Result<Json> {
     if has_class(attr, "code") {
-        Ok(code_cell(attr, content, counter))
+        code_cell(attr, content, counter)
     } else if has_class(attr, "raw") {
         Ok(raw_cell(attr, content, counter))
     } else {
@@ -144,7 +144,7 @@ fn execution_count_json(attr: &Attr) -> Json {
     }
 }
 
-fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
+fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Result<Json> {
     let mut source = String::new();
     let mut found_source = false;
     let mut outputs = Vec::new();
@@ -156,7 +156,7 @@ fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
                 found_source = true;
             }
             Block::Div(output_attr, inner) if has_class(output_attr, "output") => {
-                outputs.push(output_object(output_attr, inner));
+                outputs.push(output_object(output_attr, inner)?);
             }
             _ => {}
         }
@@ -165,7 +165,7 @@ fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
     let execution_count = execution_count_json(attr);
     let id = next_id(&attr.id, &source, counter);
 
-    Json::Object(vec![
+    Ok(Json::Object(vec![
         ("cell_type".to_owned(), Json::Str("code".to_owned())),
         ("execution_count".to_owned(), execution_count),
         (
@@ -175,7 +175,7 @@ fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
         ("outputs".to_owned(), Json::Array(outputs)),
         ("source".to_owned(), source_lines(&source)),
         ("id".to_owned(), Json::Str(id)),
-    ])
+    ]))
 }
 
 /// A raw cell: the first raw block's text as source under the mime type its format maps to.
@@ -199,8 +199,8 @@ fn raw_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
 }
 
 /// Reconstructs an output object from an `output` div. The output kind is the div's second class.
-fn output_object(attr: &Attr, content: &[Block]) -> Json {
-    match attr.classes.get(1).map(String::as_str) {
+fn output_object(attr: &Attr, content: &[Block]) -> Result<Json> {
+    let output = match attr.classes.get(1).map(String::as_str) {
         Some("stream") => {
             let name = attr
                 .classes
@@ -245,7 +245,7 @@ fn output_object(attr: &Attr, content: &[Block]) -> Json {
                 ),
                 ("execution_count".to_owned(), execution_count),
                 ("metadata".to_owned(), Json::Object(Vec::new())),
-                ("data".to_owned(), data_bundle(content)),
+                ("data".to_owned(), data_bundle(content)?),
             ])
         }
         _ => Json::Object(vec![
@@ -254,13 +254,18 @@ fn output_object(attr: &Attr, content: &[Block]) -> Json {
                 Json::Str("display_data".to_owned()),
             ),
             ("metadata".to_owned(), Json::Object(Vec::new())),
-            ("data".to_owned(), data_bundle(content)),
+            ("data".to_owned(), data_bundle(content)?),
         ]),
-    }
+    };
+    Ok(output)
 }
 
 /// The mime bundle of a rich output: each recognized block contributes one mime entry.
-fn data_bundle(content: &[Block]) -> Json {
+///
+/// An image output references its payload by file name (the document model carries no embedded
+/// bytes), so it cannot be turned back into the notebook's base64 `data` entry and is reported as
+/// unrepresentable rather than written as a broken bundle.
+fn data_bundle(content: &[Block]) -> Result<Json> {
     let mut entries = Vec::new();
     for block in content {
         match block {
@@ -270,13 +275,17 @@ fn data_bundle(content: &[Block]) -> Json {
             Block::RawBlock(Format(format), text) => {
                 entries.push((format_to_mime(format), source_lines(text)));
             }
-            Block::Para(inlines) | Block::Plain(inlines) if contains_image(inlines) => {
-                todo!("ipynb: reconstruct an image output's data bundle from its referenced file")
+            Block::Para(inlines) | Block::Plain(inlines) => {
+                if let Some(url) = image_url(inlines) {
+                    return Err(Error::Unrepresentable(format!(
+                        "an image output references the file {url:?}, whose data is not embedded in the document"
+                    )));
+                }
             }
             _ => {}
         }
     }
-    Json::Object(entries)
+    Ok(Json::Object(entries))
 }
 
 /// The text of the first code block in a sequence, or empty when there is none.
@@ -289,11 +298,12 @@ fn first_verbatim(content: &[Block]) -> String {
     String::new()
 }
 
-/// Whether an inline sequence contains an image.
-fn contains_image(inlines: &[Inline]) -> bool {
-    inlines
-        .iter()
-        .any(|inline| matches!(inline, Inline::Image(..)))
+/// The destination of the first image among the inlines, if any.
+fn image_url(inlines: &[Inline]) -> Option<&str> {
+    inlines.iter().find_map(|inline| match inline {
+        Inline::Image(_, _, target) => Some(target.url.as_str()),
+        _ => None,
+    })
 }
 
 /// Builds cell metadata from a div's key/value attributes, skipping the named keys. Each value is
@@ -831,6 +841,45 @@ mod tests {
         assert!(notebook.contains("\"output_type\": \"error\""));
         assert!(notebook.contains("\"ename\": \"ValueError\""));
         assert!(notebook.contains("\"evalue\": \"bad\""));
+    }
+
+    #[test]
+    fn image_output_without_embedded_data_is_unrepresentable() {
+        let document = Document {
+            blocks: vec![Block::Div(
+                Attr {
+                    id: String::new(),
+                    classes: vec!["cell".to_owned(), "code".to_owned()],
+                    attributes: Vec::new(),
+                },
+                vec![
+                    Block::CodeBlock(Attr::default(), "plot()".to_owned()),
+                    Block::Div(
+                        Attr {
+                            id: String::new(),
+                            classes: vec!["output".to_owned(), "display_data".to_owned()],
+                            attributes: Vec::new(),
+                        },
+                        vec![Block::Para(vec![Inline::Image(
+                            Attr::default(),
+                            Vec::new(),
+                            carta_ast::Target {
+                                url: "plot.png".to_owned(),
+                                title: String::new(),
+                            },
+                        )])],
+                    ),
+                ],
+            )],
+            ..Document::default()
+        };
+        match IpynbWriter.write(&document, &WriterOptions::default()) {
+            Err(Error::Unrepresentable(message)) => assert!(
+                message.contains("plot.png"),
+                "message should name the file: {message}"
+            ),
+            other => panic!("expected an unrepresentable error, got {other:?}"),
+        }
     }
 
     #[test]

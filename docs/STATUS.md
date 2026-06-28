@@ -82,15 +82,19 @@ extreme-magnitude numbers may render in rounded or scientific form.
 ### `mediawiki` — 🚧
 MediaWiki wikitext: headings, paragraphs, apostrophe bold/italic emphasis, bullet/numbered/definition
 and indent lists, preformatted and `<source>`/`<syntaxhighlight>` code blocks, block quotes,
-horizontal rules, internal and external links, `<nowiki>`, HTML passthrough, entities, and inline
-`<math>`. `auto_identifiers` supplies header ids.
+horizontal rules, internal and external links, `[[File:…]]`/`[[Image:…]]` embeds, `<nowiki>`, HTML
+passthrough, entities, and inline `<math>`. `auto_identifiers` supplies header ids. A `File:`/`Image:`
+embed becomes an `Image` inline: the namespace is stripped and spaces become underscores to form the
+target, `NNpx`/`NNxNNpx` parameters set width/height attributes, placement and framing keywords
+(`thumb`, `frame`, `left`, `border`, …) and `key=value` options are consumed, and the last free
+parameter is the caption (the target name when none is given). A lone embed in a block or list item
+becomes a `Figure` with that caption (`implicit_figures`).
 Gaps: table markup (`{| … |}`) is not interpreted as a table — the region is kept verbatim as a
-raw block (a nested table is matched by depth so it does not close the outer one early); file,
-image, and media embeds are not yet implemented; `smart`
+raw block (a nested table is matched by depth so it does not close the outer one early); `smart`
 typographic substitution is not applied; block `<math display=block>` is emitted as inline math;
-namespaces other than file/image/media (Category, interwiki, leading-colon) read as ordinary
-wikilinks; a mid-paragraph `<pre>`/`<source>` falls through to HTML passthrough rather than a code
-block.
+the `Media:` namespace, leading-colon links (`[[:File:…]]`), and other namespaces (Category,
+interwiki) read as ordinary wikilinks rather than embeds or links to the media file; a mid-paragraph
+`<pre>`/`<source>` falls through to HTML passthrough rather than a code block.
 
 ### `dokuwiki` — 🚧
 DokuWiki markup: headings, paragraphs, bold/italic/underline/monospace, bullet and ordered lists,
@@ -203,9 +207,11 @@ AST → native literals.
 AST → Jupyter notebook (nbformat v4): the document is split into markdown and code cells, code cells
 carrying their outputs, with document and cell metadata serialized from attributes. Cell ids are
 derived deterministically from cell content so output stays byte-reproducible.
-Gaps: an image output's data bundle is not reconstructed (that would require reading the referenced
-file), so such an output is not yet emitted; nested metadata keys (e.g. `kernelspec`) emit in sorted
-order rather than the format's hash order; standalone (`-s`), TOC, and section numbering are no-ops.
+Gaps: an image output references its payload by file name (the document model carries no embedded
+bytes), so its base64 `data` bundle cannot be reconstructed — such an output is reported as
+unrepresentable rather than emitted as a broken bundle; nested metadata keys (e.g. `kernelspec`)
+emit in sorted order rather than the format's hash order; standalone (`-s`), TOC, and section
+numbering are no-ops.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
