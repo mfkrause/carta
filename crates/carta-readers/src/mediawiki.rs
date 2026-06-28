@@ -20,8 +20,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
-    ApiVersion, Attr, Block, Caption, Document, Format, Inline, ListAttributes, ListNumberDelim,
-    ListNumberStyle, MathType, Target, slug_gfm, to_plain_text,
+    Alignment, ApiVersion, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
+    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, TableBody,
+    TableFoot, TableHead, Target, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
@@ -67,25 +68,51 @@ enum ListKind {
     Definition,
 }
 
-/// A lexical unit of inline text: either a finished inline node or a run of apostrophes whose
-/// emphasis role is resolved once the surrounding run structure is known.
+/// A table cell collected during the line scan, before its text is parsed into blocks. A `!`-marked
+/// cell is a header cell; the spans and attributes come from the cell's leading attribute list.
+struct RawCell {
+    is_header: bool,
+    align: Alignment,
+    col_span: i32,
+    row_span: i32,
+    attr: Attr,
+    content: String,
+}
+
+/// The alignment, spans, and attributes parsed from a cell's leading attribute list.
+struct CellAttrs {
+    align: Alignment,
+    col_span: i32,
+    row_span: i32,
+    attr: Attr,
+}
+
+/// Which open construct a table continuation line extends.
+#[derive(Clone, Copy)]
+enum OpenTarget {
+    None,
+    Caption,
+    Cell,
+}
+
+/// A lexical unit of inline text: a finished inline node, a run of apostrophes whose emphasis role is
+/// resolved once the surrounding run structure is known, a block-level HTML tag that interrupts the
+/// paragraph, or a paragraph break carried by a block-level tag that leaves no output.
 enum Tok {
     Inline(Inline),
     Apostrophes(usize),
+    BlockRaw(String),
+    BlockBreak,
 }
 
-/// An open emphasis span awaiting its closing run.
-struct Frame {
-    strong: bool,
-    marker_len: usize,
-    buffer: Vec<Inline>,
-}
-
-/// How an apostrophe run toggles emphasis.
-enum Toggle {
-    Emph,
-    Strong,
-    Both,
+/// The role a recognized HTML tag plays in the inline stream.
+enum HtmlTagRole {
+    /// An inline element: its opening and closing tags pass through as raw inline HTML.
+    Inline,
+    /// A block element: its tags interrupt the paragraph and pass through as raw block HTML.
+    Block,
+    /// A paragraph-only element (`p`, `gallery`): its tags interrupt the paragraph but leave no output.
+    Break,
 }
 
 impl Parser {
@@ -95,6 +122,11 @@ impl Parser {
             link_counter: 0,
             seen_ids: BTreeSet::new(),
         }
+    }
+
+    /// Whether straight double quotes should fold into typographic quote runs.
+    fn smart(&self) -> bool {
+        self.extensions.contains(Extension::Smart)
     }
 
     fn parse_blocks(&mut self, chars: &[char]) -> Vec<Block> {
@@ -122,9 +154,8 @@ impl Parser {
                     continue;
                 }
                 if c == '{' && at(chars, pos + 1) == Some('|') {
-                    let after = table_block_end(chars, pos);
-                    let raw = collect_range(chars, pos, after);
-                    blocks.push(Block::RawBlock(format_mediawiki(), raw));
+                    let (block, after) = self.parse_table(chars, pos);
+                    blocks.push(block);
                     let (np, ls) = finish_inline_block(chars, after);
                     pos = np;
                     line_start = ls;
@@ -152,7 +183,7 @@ impl Parser {
                     line_start = true;
                     continue;
                 }
-                if matches!(c, '*' | '#' | ':' | ';') {
+                if matches!(c, '*' | '#' | ':' | ';') && list_run_uniform(chars, pos) {
                     let (list_blocks, after) = self.parse_list(chars, pos);
                     blocks.extend(list_blocks);
                     pos = after;
@@ -176,10 +207,8 @@ impl Parser {
                     continue;
                 }
             }
-            let (block, after) = self.parse_paragraph(chars, pos);
-            if let Some(block) = block {
-                blocks.push(block);
-            }
+            let (mut para_blocks, after) = self.parse_paragraph(chars, pos);
+            blocks.append(&mut para_blocks);
             pos = after;
             line_start = true;
         }
@@ -418,7 +447,7 @@ impl Parser {
         }
     }
 
-    fn parse_paragraph(&mut self, chars: &[char], pos: usize) -> (Option<Block>, usize) {
+    fn parse_paragraph(&mut self, chars: &[char], pos: usize) -> (Vec<Block>, usize) {
         let n = chars.len();
         let mut pieces: Vec<String> = Vec::new();
         let mut cur = pos;
@@ -448,15 +477,183 @@ impl Parser {
         let raw = pieces.join("\n");
         let trimmed = raw.trim();
         if trimmed.is_empty() {
-            return (None, cur);
+            return (Vec::new(), cur);
         }
-        (Some(para_or_figure(self.parse_inlines(trimmed))), cur)
+        (self.parse_block_content(trimmed), cur)
+    }
+
+    /// Parses a paragraph's text into blocks. Recognized block-level HTML tags split the run: the
+    /// text on either side becomes its own paragraph and each tag becomes a raw block, so a `<div>`
+    /// embedded in prose interrupts the paragraph exactly where it appears.
+    fn parse_block_content(&mut self, text: &str) -> Vec<Block> {
+        let chars: Vec<char> = text.chars().collect();
+        let toks = self.lex(&chars, false);
+        let smart = self.smart();
+        let mut blocks: Vec<Block> = Vec::new();
+        let mut segment: Vec<Tok> = Vec::new();
+        for tok in toks {
+            match tok {
+                Tok::BlockRaw(raw) => {
+                    flush_para_segment(&mut segment, &mut blocks, smart);
+                    blocks.push(Block::RawBlock(format_html(), raw));
+                }
+                Tok::BlockBreak => flush_para_segment(&mut segment, &mut blocks, smart),
+                other => segment.push(other),
+            }
+        }
+        flush_para_segment(&mut segment, &mut blocks, smart);
+        blocks
+    }
+
+    /// Parses a `{|`-delimited table into a [`Block::Table`], returning the index past the closing
+    /// `|}`. Table and row attribute lists are dropped; a cell's attribute list supplies its
+    /// alignment, spans, identifier, and classes. The first row becomes the header when its first
+    /// cell is a `!` header cell.
+    fn parse_table(&mut self, chars: &[char], pos: usize) -> (Block, usize) {
+        let after = table_block_end(chars, pos);
+        let region = collect_range(chars, pos, after);
+        (self.build_table(&region), after)
+    }
+
+    fn build_table(&mut self, region: &str) -> Block {
+        let (mut rows, caption_text) = scan_table_region(region);
+        // The first row may omit its leading `|-` separator, so a `|-` seen before any cell merely
+        // opens the first row rather than closing an empty one: an empty leading segment is dropped.
+        // Every later `|-` closes a row, so empty rows elsewhere are kept.
+        if rows.first().is_some_and(Vec::is_empty) {
+            rows.remove(0);
+        }
+        if rows.is_empty() {
+            // A table with no cells still yields one empty row.
+            rows.push(Vec::new());
+        }
+
+        let n_rows = rows.len();
+        // The first row fixes the column count; cells that overflow it in later rows are dropped.
+        let ncols = rows.first().map_or(0, |r| {
+            r.iter().map(|c| col_count(c.col_span)).sum::<usize>()
+        });
+        let col_specs = column_specs(&rows, ncols);
+
+        let is_header_first = rows
+            .first()
+            .and_then(|r| r.first())
+            .is_some_and(|c| c.is_header);
+
+        let ast_rows = self.lay_grid(&rows, ncols, n_rows);
+
+        let (head_rows, body_rows) = if is_header_first {
+            let mut iter = ast_rows.into_iter();
+            let head: Vec<Row> = iter.next().into_iter().collect();
+            (head, iter.collect::<Vec<Row>>())
+        } else {
+            (Vec::new(), ast_rows)
+        };
+
+        let caption = match caption_text {
+            Some(text) => {
+                let inlines = self.parse_inlines(text.trim());
+                if inlines.is_empty() {
+                    Caption::default()
+                } else {
+                    Caption {
+                        short: None,
+                        long: vec![Block::Plain(inlines)],
+                    }
+                }
+            }
+            None => Caption::default(),
+        };
+
+        Block::Table(Box::new(Table {
+            attr: Attr::default(),
+            caption,
+            col_specs,
+            head: TableHead {
+                attr: Attr::default(),
+                rows: head_rows,
+            },
+            bodies: vec![TableBody {
+                attr: Attr::default(),
+                row_head_columns: 0,
+                head: Vec::new(),
+                body: body_rows,
+            }],
+            foot: TableFoot::default(),
+        }))
+    }
+
+    /// Lays the parsed cells onto a fixed `ncols`-wide grid so spans stay in bounds: a `rowspan`
+    /// cannot reach past the last row, a `colspan` cannot reach past the last column (an overflowing
+    /// cell is dropped), a cell skips columns still covered by a `rowspan` from an earlier row, and
+    /// any column a row leaves uncovered is filled with an empty cell.
+    fn lay_grid(&mut self, rows: &[Vec<RawCell>], ncols: usize, n_rows: usize) -> Vec<Row> {
+        let mut ast_rows: Vec<Row> = Vec::new();
+        let mut occupied: Vec<i32> = vec![0; ncols];
+        for (r, raw) in rows.iter().enumerate() {
+            let available = i32::try_from(n_rows.saturating_sub(r)).unwrap_or(i32::MAX);
+            let mut cells: Vec<Cell> = Vec::new();
+            let mut col = 0usize;
+            for c in raw {
+                while col < ncols && occupied.get(col).copied().unwrap_or(0) > 0 {
+                    col += 1;
+                }
+                if col >= ncols {
+                    break;
+                }
+                let col_span = col_count(c.col_span).min(ncols - col);
+                let row_span = c.row_span.max(1).min(available);
+                let content_chars: Vec<char> = c.content.trim().chars().collect();
+                let content = self.parse_blocks(&content_chars);
+                cells.push(Cell {
+                    attr: c.attr.clone(),
+                    align: c.align.clone(),
+                    row_span,
+                    col_span: i32::try_from(col_span).unwrap_or(1),
+                    content,
+                });
+                for k in col..col + col_span {
+                    if let Some(slot) = occupied.get_mut(k) {
+                        *slot = row_span;
+                    }
+                }
+                col += col_span;
+            }
+            while col < ncols {
+                if occupied.get(col).copied().unwrap_or(0) == 0 {
+                    cells.push(empty_cell());
+                }
+                col += 1;
+            }
+            for slot in &mut occupied {
+                *slot = (*slot - 1).max(0);
+            }
+            ast_rows.push(Row {
+                attr: Attr::default(),
+                cells,
+            });
+        }
+        ast_rows
+    }
+
+    /// Parses the content of a `<ref>` note as blocks; a lone paragraph becomes a [`Block::Plain`].
+    fn note_blocks(&mut self, chars: &[char]) -> Vec<Block> {
+        let blocks = self.parse_blocks(chars);
+        match blocks.as_slice() {
+            [Block::Para(inlines)] => vec![Block::Plain(inlines.clone())],
+            _ => blocks,
+        }
     }
 
     fn parse_inlines(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
         let toks = self.lex(&chars, false);
-        coalesce(resolve_emphasis(toks))
+        let inlines = coalesce(resolve_emphasis(toks));
+        if self.smart() {
+            apply_smart_quotes(inlines)
+        } else {
+            inlines
+        }
     }
 
     /// Parses one preformatted line: markup is honored, but literal text and its exact spacing are
@@ -520,6 +717,12 @@ impl Parser {
                     i = next;
                     continue;
                 }
+                if let Some((tok, next)) = block_tag_token(chars, i) {
+                    flush_word(&mut word, &mut toks);
+                    toks.push(tok);
+                    i = next;
+                    continue;
+                }
                 word.push('<');
                 i += 1;
                 continue;
@@ -575,9 +778,11 @@ impl Parser {
         }
         match at(chars, i + 1) {
             Some('/') => {
-                let gt = find_char(chars, i, '>')?;
-                let raw = collect_range(chars, i, gt + 1);
-                return Some((vec![raw_html(raw)], gt + 1));
+                let (name, raw, after) = close_tag_parse(chars, i)?;
+                return match html_tag_role(&name) {
+                    Some(HtmlTagRole::Inline) => Some((vec![raw_html(raw)], after)),
+                    _ => None,
+                };
             }
             Some(c) if c.is_ascii_alphabetic() => {}
             _ => return None,
@@ -592,8 +797,8 @@ impl Parser {
                 match close_tag(chars, after_open, "ref") {
                     Some((inner_end, after)) => {
                         let inner = collect_range(chars, after_open, inner_end);
-                        let inlines = self.parse_inlines(&inner);
-                        Some((vec![Inline::Note(vec![Block::Plain(inlines)])], after))
+                        let inner_chars: Vec<char> = inner.chars().collect();
+                        Some((vec![Inline::Note(self.note_blocks(&inner_chars))], after))
                     }
                     None => Some((vec![raw_html(raw_open)], after_open)),
                 }
@@ -670,22 +875,27 @@ impl Parser {
             )),
             "kbd" => Some(self.span(chars, "kbd", after_open, &raw_open, self_closing, "kbd")),
             "mark" => Some(self.span(chars, "mark", after_open, &raw_open, self_closing, "mark")),
-            _ => {
-                if self_closing {
-                    return Some((vec![raw_html(raw_open)], after_open));
-                }
-                match close_tag(chars, after_open, &name) {
-                    Some((inner_end, after)) => {
-                        let inner = collect_range(chars, after_open, inner_end);
-                        let close_raw = collect_range(chars, inner_end, after);
-                        let mut out = vec![raw_html(raw_open)];
-                        out.extend(self.parse_inlines(&inner));
-                        out.push(raw_html(close_raw));
-                        Some((out, after))
+            _ => match html_tag_role(&name) {
+                Some(HtmlTagRole::Inline) => {
+                    if self_closing {
+                        return Some((vec![raw_html(raw_open)], after_open));
                     }
-                    None => Some((vec![raw_html(raw_open)], after_open)),
+                    match close_tag(chars, after_open, &name) {
+                        Some((inner_end, after)) => {
+                            let inner = collect_range(chars, after_open, inner_end);
+                            let close_raw = collect_range(chars, inner_end, after);
+                            let mut out = vec![raw_html(raw_open)];
+                            out.extend(self.parse_inlines(&inner));
+                            out.push(raw_html(close_raw));
+                            Some((out, after))
+                        }
+                        None => Some((vec![raw_html(raw_open)], after_open)),
+                    }
                 }
-            }
+                // Block-level and unrecognized tags are not inline output: a recognized block tag
+                // becomes a raw block at the paragraph level, an unrecognized tag stays literal.
+                _ => None,
+            },
         }
     }
 
@@ -794,7 +1004,7 @@ impl Parser {
             Some(l) => self.parse_inlines(l),
             None => self.parse_inlines(&target),
         };
-        let title = to_plain_text(&label);
+        let title = title_text(&label);
         if !trail.is_empty() {
             label.push(Inline::Str(trail));
             label = coalesce(label);
@@ -838,7 +1048,7 @@ impl Parser {
         }
         let caption = caption.unwrap_or_else(|| url.clone());
         let alt = self.parse_inlines(&caption);
-        let title = to_plain_text(&alt);
+        let title = title_text(&alt);
         let attr = Attr {
             id: String::new(),
             classes: Vec::new(),
@@ -918,7 +1128,13 @@ fn strip_comments(input: &str) -> String {
                         } else {
                             comment_end
                         };
+                    } else if preceded || followed {
+                        // Adjacent to a line boundary, the comment leaves nothing behind, so the
+                        // line neither gains a leading space (which would make it preformatted) nor
+                        // a trailing one.
+                        i = comment_end;
                     } else {
+                        // Between text, the comment collapses to a single space.
                         out.push(' ');
                         i = comment_end;
                     }
@@ -955,104 +1171,271 @@ fn verbatim_region_end(chars: &[char], i: usize) -> Option<usize> {
 
 // --- emphasis resolution ------------------------------------------------------------------------
 
+/// A unit of the stream emphasis resolution works over: one apostrophe of a run, or a finished node.
+enum Unit {
+    Apostrophe,
+    Node(Inline),
+}
+
+/// Resolves apostrophe emphasis. Runs of two apostrophes open and close `Emph`, three open and close
+/// `Strong`. The structure is found by recursive descent with backtracking: at each run the parser
+/// tries to open the span whose width fits, parses its content up to a matching closing run, and
+/// falls back to a literal apostrophe when no span can be formed. A span is never reopened by its
+/// immediate parent of the same kind, and a span's content has its outer whitespace removed.
 fn resolve_emphasis(toks: Vec<Tok>) -> Vec<Inline> {
-    let mut root: Vec<Inline> = Vec::new();
-    let mut stack: Vec<Frame> = Vec::new();
+    let mut units: Vec<Unit> = Vec::new();
     for tok in toks {
         match tok {
-            Tok::Inline(inline) => push_inline(&mut root, &mut stack, inline),
-            Tok::Apostrophes(len) => apply_run(&mut root, &mut stack, len),
+            Tok::Inline(inline) => units.push(Unit::Node(inline)),
+            Tok::Apostrophes(n) => units.extend((0..n).map(|_| Unit::Apostrophe)),
+            Tok::BlockRaw(raw) => units.push(Unit::Node(raw_html(raw))),
+            Tok::BlockBreak => {}
         }
     }
-    while let Some(frame) = stack.pop() {
-        push_inline(
-            &mut root,
-            &mut stack,
-            Inline::Str("'".repeat(frame.marker_len)),
-        );
-        for inline in frame.buffer {
-            push_inline(&mut root, &mut stack, inline);
-        }
-    }
-    root
+    let runs = apostrophe_runs(&units);
+    // Bound the backtracking work so adversarial apostrophe-dense input cannot blow up.
+    let mut budget = units
+        .len()
+        .saturating_mul(8)
+        .saturating_add(64)
+        .min(200_000);
+    let (nodes, _, _) = parse_runs(&units, &runs, 0, None, &mut budget);
+    nodes
 }
 
-fn push_inline(root: &mut Vec<Inline>, stack: &mut [Frame], inline: Inline) {
-    match stack.last_mut() {
-        Some(frame) => frame.buffer.push(inline),
-        None => root.push(inline),
-    }
-}
-
-fn is_open(stack: &[Frame], strong: bool) -> bool {
-    stack.iter().any(|f| f.strong == strong)
-}
-
-fn open_kind(stack: &mut Vec<Frame>, strong: bool) {
-    stack.push(Frame {
-        strong,
-        marker_len: if strong { 3 } else { 2 },
-        buffer: Vec::new(),
-    });
-}
-
-fn close_kind(root: &mut Vec<Inline>, stack: &mut Vec<Frame>, strong: bool) {
-    let Some(open_at) = stack.iter().rposition(|f| f.strong == strong) else {
-        return;
-    };
-    while stack.len() > open_at {
-        if let Some(frame) = stack.pop() {
-            let wrapped = if frame.strong {
-                Inline::Strong(frame.buffer)
-            } else {
-                Inline::Emph(frame.buffer)
-            };
-            push_inline(root, stack, wrapped);
-        } else {
-            break;
-        }
-    }
-}
-
-fn apply_run(root: &mut Vec<Inline>, stack: &mut Vec<Frame>, len: usize) {
-    let (toggle, literal) = decompose_run(len);
-    match toggle {
-        Toggle::Emph => toggle_one(root, stack, false, literal),
-        Toggle::Strong => toggle_one(root, stack, true, literal),
-        Toggle::Both => {
-            if is_open(stack, false) && is_open(stack, true) {
-                close_kind(root, stack, false);
-                close_kind(root, stack, true);
-            } else {
-                open_kind(stack, true);
-                open_kind(stack, false);
-            }
-            if literal > 0 {
-                push_inline(root, stack, Inline::Str("'".repeat(literal)));
+/// For each position, the length of the apostrophe run starting there (zero at a non-apostrophe).
+fn apostrophe_runs(units: &[Unit]) -> Vec<usize> {
+    let mut runs = vec![0usize; units.len()];
+    for i in (0..units.len()).rev() {
+        if matches!(units.get(i), Some(Unit::Apostrophe)) {
+            let next = runs.get(i + 1).copied().unwrap_or(0);
+            if let Some(slot) = runs.get_mut(i) {
+                *slot = 1 + next;
             }
         }
     }
+    runs
 }
 
-fn toggle_one(root: &mut Vec<Inline>, stack: &mut Vec<Frame>, strong: bool, literal: usize) {
-    if is_open(stack, strong) {
-        close_kind(root, stack, strong);
+/// The apostrophe width an emphasis kind consumes: three for `Strong`, two for `Emph`.
+fn emphasis_width(strong: bool) -> usize {
+    if strong { 3 } else { 2 }
+}
+
+/// Tries to open an emphasis span at the apostrophe run starting at `i`, given the kind of the
+/// immediately enclosing span. Returns the span node and the index just past its closing run.
+fn open_emphasis(
+    units: &[Unit],
+    runs: &[usize],
+    i: usize,
+    parent: Option<bool>,
+    budget: &mut usize,
+) -> Option<(Inline, usize)> {
+    if *budget == 0 {
+        return None;
+    }
+    *budget -= 1;
+    let run = runs.get(i).copied().unwrap_or(0);
+    if run < 2 {
+        return None;
+    }
+    // Short runs prefer the wider span; longer runs prefer the narrower one.
+    let order = if run <= 5 {
+        [true, false]
     } else {
-        open_kind(stack, strong);
+        [false, true]
+    };
+    for strong in order {
+        let width = emphasis_width(strong);
+        if run < width || parent == Some(strong) {
+            continue;
+        }
+        let (body, next, closed) = parse_runs(units, runs, i + width, Some(strong), budget);
+        if !closed || body.is_empty() {
+            continue;
+        }
+        let body = strip_outer_whitespace(body);
+        return Some((
+            if strong {
+                Inline::Strong(body)
+            } else {
+                Inline::Emph(body)
+            },
+            next,
+        ));
     }
-    if literal > 0 {
-        push_inline(root, stack, Inline::Str("'".repeat(literal)));
+    None
+}
+
+/// Parses content until the run that closes `closer` (or end of input when `closer` is `None`).
+/// Returns the collected nodes, the index reached, and whether a closer was found.
+fn parse_runs(
+    units: &[Unit],
+    runs: &[usize],
+    start: usize,
+    closer: Option<bool>,
+    budget: &mut usize,
+) -> (Vec<Inline>, usize, bool) {
+    let mut nodes: Vec<Inline> = Vec::new();
+    let mut pos = start;
+    while let Some(unit) = units.get(pos) {
+        match unit {
+            Unit::Node(inline) => {
+                nodes.push(inline.clone());
+                pos += 1;
+            }
+            Unit::Apostrophe => {
+                if let Some((span, next)) = open_emphasis(units, runs, pos, closer, budget) {
+                    nodes.push(span);
+                    pos = next;
+                    continue;
+                }
+                if let Some(strong) = closer {
+                    let width = emphasis_width(strong);
+                    if runs.get(pos).copied().unwrap_or(0) >= width {
+                        return (nodes, pos + width, true);
+                    }
+                }
+                nodes.push(Inline::Str("'".to_string()));
+                pos += 1;
+            }
+        }
+    }
+    (nodes, pos, closer.is_none())
+}
+
+/// Removes leading and trailing spaces and soft breaks from a span's content.
+fn strip_outer_whitespace(mut inlines: Vec<Inline>) -> Vec<Inline> {
+    let lead = inlines
+        .iter()
+        .take_while(|x| matches!(x, Inline::Space | Inline::SoftBreak))
+        .count();
+    inlines.drain(0..lead);
+    while matches!(inlines.last(), Some(Inline::Space | Inline::SoftBreak)) {
+        inlines.pop();
+    }
+    inlines
+}
+
+/// A flattened unit used while pairing smart double quotes: a `"` awaiting a partner, an ordinary
+/// character, a whitespace inline (which cannot follow an opening quote), or an opaque inline node
+/// carried through unchanged.
+enum SmartUnit {
+    Quote,
+    Ch(char),
+    Space(Inline),
+    Node(Inline),
+}
+
+/// Folds straight double quotes into [`Inline::Quoted`] runs. A double quote followed by
+/// non-whitespace content opens a run that the next double quote closes; an unpaired quote stays a
+/// literal `"`. Single quotes, which mark emphasis, are left untouched. The fold also descends into
+/// the children of container inlines.
+fn apply_smart_quotes(inlines: Vec<Inline>) -> Vec<Inline> {
+    let recursed: Vec<Inline> = inlines.into_iter().map(smart_descend).collect();
+    let units = flatten_smart(recursed);
+    resolve_double_quotes(&units, 0, units.len())
+}
+
+/// Applies the double-quote fold to the inline children of a container, leaving leaf and opaque
+/// inlines (text, code, math, raw passthrough, notes) untouched.
+fn smart_descend(inline: Inline) -> Inline {
+    match inline {
+        Inline::Emph(v) => Inline::Emph(apply_smart_quotes(v)),
+        Inline::Underline(v) => Inline::Underline(apply_smart_quotes(v)),
+        Inline::Strong(v) => Inline::Strong(apply_smart_quotes(v)),
+        Inline::Strikeout(v) => Inline::Strikeout(apply_smart_quotes(v)),
+        Inline::Superscript(v) => Inline::Superscript(apply_smart_quotes(v)),
+        Inline::Subscript(v) => Inline::Subscript(apply_smart_quotes(v)),
+        Inline::SmallCaps(v) => Inline::SmallCaps(apply_smart_quotes(v)),
+        Inline::Quoted(quote_type, v) => Inline::Quoted(quote_type, apply_smart_quotes(v)),
+        Inline::Span(attr, v) => Inline::Span(attr, apply_smart_quotes(v)),
+        Inline::Link(attr, v, target) => Inline::Link(attr, apply_smart_quotes(v), target),
+        Inline::Image(attr, v, target) => Inline::Image(attr, apply_smart_quotes(v), target),
+        other => other,
     }
 }
 
-fn decompose_run(len: usize) -> (Toggle, usize) {
-    match len {
-        2 => (Toggle::Emph, 0),
-        3 => (Toggle::Strong, 0),
-        4 => (Toggle::Strong, 1),
-        5 => (Toggle::Both, 0),
-        _ => (Toggle::Both, len.saturating_sub(5)),
+fn flatten_smart(inlines: Vec<Inline>) -> Vec<SmartUnit> {
+    let mut units: Vec<SmartUnit> = Vec::new();
+    for inline in inlines {
+        match inline {
+            Inline::Str(text) => {
+                for c in text.chars() {
+                    if c == '"' {
+                        units.push(SmartUnit::Quote);
+                    } else {
+                        units.push(SmartUnit::Ch(c));
+                    }
+                }
+            }
+            space @ (Inline::Space | Inline::SoftBreak | Inline::LineBreak) => {
+                units.push(SmartUnit::Space(space));
+            }
+            other => units.push(SmartUnit::Node(other)),
+        }
     }
+    units
+}
+
+fn resolve_double_quotes(units: &[SmartUnit], lo: usize, hi: usize) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    let mut buf = String::new();
+    let mut i = lo;
+    while i < hi {
+        match units.get(i) {
+            Some(SmartUnit::Quote) => {
+                if smart_quote_opens(units, i, hi)
+                    && let Some(j) = next_smart_quote(units, i + 1, hi)
+                {
+                    flush_smart_buf(&mut buf, &mut out);
+                    out.push(Inline::Quoted(
+                        QuoteType::DoubleQuote,
+                        strip_outer_whitespace(resolve_double_quotes(units, i + 1, j)),
+                    ));
+                    i = j + 1;
+                } else {
+                    buf.push('"');
+                    i += 1;
+                }
+            }
+            Some(SmartUnit::Ch(c)) => {
+                buf.push(*c);
+                i += 1;
+            }
+            Some(SmartUnit::Space(inline) | SmartUnit::Node(inline)) => {
+                flush_smart_buf(&mut buf, &mut out);
+                out.push(inline.clone());
+                i += 1;
+            }
+            None => break,
+        }
+    }
+    flush_smart_buf(&mut buf, &mut out);
+    out
+}
+
+fn flush_smart_buf(buf: &mut String, out: &mut Vec<Inline>) {
+    if !buf.is_empty() {
+        out.push(Inline::Str(std::mem::take(buf)));
+    }
+}
+
+/// A double quote opens a run when the unit immediately after it, within the same span, is
+/// non-whitespace content.
+fn smart_quote_opens(units: &[SmartUnit], i: usize, hi: usize) -> bool {
+    if i + 1 >= hi {
+        return false;
+    }
+    match units.get(i + 1) {
+        Some(SmartUnit::Ch(c)) => !c.is_whitespace(),
+        Some(SmartUnit::Quote | SmartUnit::Node(_)) => true,
+        Some(SmartUnit::Space(_)) | None => false,
+    }
+}
+
+fn next_smart_quote(units: &[SmartUnit], from: usize, hi: usize) -> Option<usize> {
+    (from..hi).find(|&j| matches!(units.get(j), Some(SmartUnit::Quote)))
 }
 
 /// Merges adjacent string runs so a span never holds two consecutive [`Inline::Str`] nodes,
@@ -1319,6 +1702,47 @@ fn wikilink_url(target: &str) -> String {
     out
 }
 
+/// Flatten inline content into the plain string stored as a link or image title. Markup wrappers
+/// unwrap to their contents and breaks collapse to a space, as for any plain-text flattening, but a
+/// [`Inline::Quoted`] node renders the matching curly quote glyphs around its contents so a curled
+/// quotation survives into the title text.
+fn title_text(inlines: &[Inline]) -> String {
+    let mut out = String::new();
+    push_title_text(inlines, &mut out);
+    out
+}
+
+fn push_title_text(inlines: &[Inline], out: &mut String) {
+    for inline in inlines {
+        match inline {
+            Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => out.push_str(text),
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
+            Inline::Quoted(QuoteType::SingleQuote, xs) => {
+                out.push('\u{2018}');
+                push_title_text(xs, out);
+                out.push('\u{2019}');
+            }
+            Inline::Quoted(QuoteType::DoubleQuote, xs) => {
+                out.push('\u{201c}');
+                push_title_text(xs, out);
+                out.push('\u{201d}');
+            }
+            Inline::Emph(xs)
+            | Inline::Underline(xs)
+            | Inline::Strong(xs)
+            | Inline::Strikeout(xs)
+            | Inline::Superscript(xs)
+            | Inline::Subscript(xs)
+            | Inline::SmallCaps(xs)
+            | Inline::Cite(_, xs)
+            | Inline::Link(_, xs, _)
+            | Inline::Image(_, xs, _)
+            | Inline::Span(_, xs) => push_title_text(xs, out),
+            Inline::RawInline(..) | Inline::Note(_) => {}
+        }
+    }
+}
+
 fn namespace_of(target: &str) -> Option<String> {
     if target.starts_with(':') {
         return None;
@@ -1552,6 +1976,124 @@ fn starts_block_tag(chars: &[char], pos: usize) -> bool {
     ["pre", "source", "syntaxhighlight", "blockquote"]
         .iter()
         .any(|name| tag_name_matches(chars, pos + 1, name))
+}
+
+/// The role of a recognized HTML element, or `None` when the name is not a recognized HTML tag (in
+/// which case the surrounding `<…>` stays literal text).
+fn html_tag_role(name: &str) -> Option<HtmlTagRole> {
+    const INLINE: &[&str] = &[
+        "abbr", "b", "bdi", "bdo", "big", "cite", "data", "dfn", "em", "font", "i", "ins", "q",
+        "rb", "rt", "rtc", "ruby", "s", "small", "span", "strong", "u", "wbr",
+    ];
+    const BLOCK: &[&str] = &[
+        "caption",
+        "center",
+        "col",
+        "colgroup",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "hr",
+        "li",
+        "ol",
+        "references",
+        "rp",
+        "table",
+        "td",
+        "th",
+        "time",
+        "tr",
+        "ul",
+    ];
+    const PARAGRAPH: &[&str] = &["gallery", "p"];
+    if INLINE.contains(&name) {
+        Some(HtmlTagRole::Inline)
+    } else if BLOCK.contains(&name) {
+        Some(HtmlTagRole::Block)
+    } else if PARAGRAPH.contains(&name) {
+        Some(HtmlTagRole::Break)
+    } else {
+        None
+    }
+}
+
+/// Reads a closing tag `</name…>` at `i`, returning its lowercased name, raw text, and the index
+/// just past `>`.
+fn close_tag_parse(chars: &[char], i: usize) -> Option<(String, String, usize)> {
+    if at(chars, i) != Some('<') || at(chars, i + 1) != Some('/') {
+        return None;
+    }
+    let mut cursor = i + 2;
+    let mut name = String::new();
+    while let Some(ch) = at(chars, cursor) {
+        if ch.is_ascii_alphanumeric() {
+            name.push(ch.to_ascii_lowercase());
+            cursor += 1;
+        } else {
+            break;
+        }
+    }
+    if name.is_empty() {
+        return None;
+    }
+    let gt = find_char(chars, cursor, '>')?;
+    Some((name, collect_range(chars, i, gt + 1), gt + 1))
+}
+
+/// Reads a recognized block-level HTML tag (opening, closing, or self-closing) at `i`, returning the
+/// token it contributes to the paragraph stream and the index just past it. Inline and unrecognized
+/// tags yield `None`.
+fn block_tag_token(chars: &[char], i: usize) -> Option<(Tok, usize)> {
+    let (name, raw, after) = if at(chars, i + 1) == Some('/') {
+        close_tag_parse(chars, i)?
+    } else {
+        let (name, raw, _self_closing, after) = open_tag(chars, i)?;
+        (name, raw, after)
+    };
+    match html_tag_role(&name)? {
+        HtmlTagRole::Block => Some((Tok::BlockRaw(raw), after)),
+        HtmlTagRole::Break => Some((Tok::BlockBreak, after)),
+        HtmlTagRole::Inline => None,
+    }
+}
+
+/// Whether the list line at `pos` may begin a list: its marker run must be a single repeated marker
+/// character. A run that mixes marker characters (`*#`, `:;`, …) has no parent item to anchor its
+/// deeper level, so it is not a list.
+fn list_run_uniform(chars: &[char], pos: usize) -> bool {
+    let first = at(chars, pos);
+    let le = line_end(chars, pos);
+    let mut p = pos;
+    while p < le && at(chars, p).is_some_and(is_list_marker) {
+        if at(chars, p) != first {
+            return false;
+        }
+        p += 1;
+    }
+    true
+}
+
+/// Resolves a buffered run of inline tokens into a paragraph (or figure) block, dropping it when it
+/// holds only whitespace. Used between block-level tags while splitting a paragraph.
+fn flush_para_segment(segment: &mut Vec<Tok>, blocks: &mut Vec<Block>, smart: bool) {
+    if segment.is_empty() {
+        return;
+    }
+    let toks = std::mem::take(segment);
+    let mut inlines = coalesce(strip_outer_whitespace(resolve_emphasis(toks)));
+    if smart {
+        inlines = apply_smart_quotes(inlines);
+    }
+    if !inlines.is_empty() {
+        blocks.push(para_or_figure(inlines));
+    }
 }
 
 /// Reads the value of `key` from a raw tag string, accepting quoted or bare values.
@@ -1832,6 +2374,10 @@ fn format_mediawiki() -> Format {
     Format("mediawiki".to_string())
 }
 
+fn format_html() -> Format {
+    Format("html".to_string())
+}
+
 fn at(chars: &[char], i: usize) -> Option<char> {
     chars.get(i).copied()
 }
@@ -1869,6 +2415,294 @@ fn table_block_end(chars: &[char], pos: usize) -> usize {
         }
         line = le + 1;
     }
+}
+
+/// The number of grid columns a cell spans, never less than one.
+/// Scans the body of a `{|…|}` region into its rows of raw cells and an optional caption.
+/// Each `|-` closes the current row; nested tables are passed through verbatim as cell content.
+fn scan_table_region(region: &str) -> (Vec<Vec<RawCell>>, Option<String>) {
+    let mut caption_text: Option<String> = None;
+    let mut rows: Vec<Vec<RawCell>> = Vec::new();
+    let mut cur: Vec<RawCell> = Vec::new();
+    let mut open = OpenTarget::None;
+    let mut nest = 0i32;
+
+    let mut lines = region.lines();
+    lines.next(); // The opening `{|` line; any table attribute list it carries is dropped.
+    for line in lines {
+        let trimmed = line.trim_start();
+        if nest > 0 {
+            if trimmed.starts_with("{|") {
+                nest += 1;
+            } else if trimmed.starts_with("|}") {
+                nest -= 1;
+            }
+            append_continuation(open, &mut cur, &mut caption_text, line);
+            continue;
+        }
+        if trimmed.starts_with("|}") {
+            break;
+        }
+        if trimmed.starts_with("{|") {
+            nest += 1;
+            append_continuation(open, &mut cur, &mut caption_text, line);
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("|+") {
+            caption_text = Some(rest.to_string());
+            open = OpenTarget::Caption;
+            continue;
+        }
+        if trimmed.starts_with("|-") {
+            rows.push(std::mem::take(&mut cur));
+            open = OpenTarget::None;
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix('|') {
+            cur.extend(parse_cell_line(false, rest));
+            open = OpenTarget::Cell;
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix('!') {
+            cur.extend(parse_cell_line(true, rest));
+            open = OpenTarget::Cell;
+            continue;
+        }
+        append_continuation(open, &mut cur, &mut caption_text, line);
+    }
+    rows.push(cur);
+    (rows, caption_text)
+}
+
+/// Builds the column specifications from the first row, taking each column's alignment from the
+/// cell that opens it and defaulting every column's width.
+fn column_specs(rows: &[Vec<RawCell>], ncols: usize) -> Vec<ColSpec> {
+    let mut aligns: Vec<Alignment> = Vec::new();
+    if let Some(first) = rows.first() {
+        for cell in first {
+            for _ in 0..col_count(cell.col_span) {
+                aligns.push(cell.align.clone());
+            }
+        }
+    }
+    aligns.resize(ncols, Alignment::AlignDefault);
+    aligns
+        .into_iter()
+        .map(|align| ColSpec {
+            align,
+            width: ColWidth::ColWidthDefault,
+        })
+        .collect()
+}
+
+fn col_count(col_span: i32) -> usize {
+    usize::try_from(col_span.max(1)).unwrap_or(1)
+}
+
+/// A blank single-column cell used to fill a row that covers fewer columns than the table is wide.
+fn empty_cell() -> Cell {
+    Cell {
+        attr: Attr::default(),
+        align: Alignment::AlignDefault,
+        row_span: 1,
+        col_span: 1,
+        content: Vec::new(),
+    }
+}
+
+/// Appends a table continuation line to whichever construct is currently open.
+fn append_continuation(
+    open: OpenTarget,
+    cur: &mut [RawCell],
+    caption: &mut Option<String>,
+    line: &str,
+) {
+    match open {
+        OpenTarget::Cell => {
+            if let Some(cell) = cur.last_mut() {
+                cell.content.push('\n');
+                cell.content.push_str(line);
+            }
+        }
+        OpenTarget::Caption => {
+            if let Some(text) = caption {
+                text.push('\n');
+                text.push_str(line);
+            }
+        }
+        OpenTarget::None => {}
+    }
+}
+
+/// Splits one cell-marker line into its cells. A `|` data line separates cells with `||`; a `!`
+/// header line additionally separates them with `!!`.
+fn parse_cell_line(is_header: bool, rest: &str) -> Vec<RawCell> {
+    split_cells(rest, is_header)
+        .iter()
+        .map(|chunk| parse_cell_chunk(is_header, chunk))
+        .collect()
+}
+
+/// Splits a marker line's text into per-cell chunks at top-level `||` (and, for a header line, `!!`)
+/// separators, leaving separators inside `[…]` or `{…}` groups untouched.
+fn split_cells(s: &str, header: bool) -> Vec<String> {
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    let mut out: Vec<String> = Vec::new();
+    let mut start = 0usize;
+    let mut square = 0i32;
+    let mut curly = 0i32;
+    let mut i = 0usize;
+    while i < n {
+        match at(&chars, i) {
+            Some('[') => square += 1,
+            Some(']') => square = (square - 1).max(0),
+            Some('{') => curly += 1,
+            Some('}') => curly = (curly - 1).max(0),
+            _ => {}
+        }
+        if square == 0 && curly == 0 {
+            let pipe = at(&chars, i) == Some('|') && at(&chars, i + 1) == Some('|');
+            let bang = header && at(&chars, i) == Some('!') && at(&chars, i + 1) == Some('!');
+            if pipe || bang {
+                out.push(collect_range(&chars, start, i));
+                i += 2;
+                start = i;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out.push(collect_range(&chars, start, n));
+    out
+}
+
+/// Parses one cell chunk into a [`RawCell`], splitting a leading attribute list from the content at
+/// the first top-level `|` when the text before it is a valid attribute list.
+fn parse_cell_chunk(is_header: bool, chunk: &str) -> RawCell {
+    if let Some(idx) = find_attr_pipe(chunk)
+        && let Some(attrs) = parse_cell_attrs(chunk.get(..idx).unwrap_or(""))
+    {
+        return RawCell {
+            is_header,
+            align: attrs.align,
+            col_span: attrs.col_span,
+            row_span: attrs.row_span,
+            attr: attrs.attr,
+            content: chunk.get(idx + 1..).unwrap_or("").to_string(),
+        };
+    }
+    RawCell {
+        is_header,
+        align: Alignment::AlignDefault,
+        col_span: 1,
+        row_span: 1,
+        attr: Attr::default(),
+        content: chunk.to_string(),
+    }
+}
+
+/// Finds the byte offset of the first top-level `|` in a cell chunk — the boundary between a leading
+/// attribute list and the cell content — skipping any `|` inside `[…]` or `{…}` groups.
+fn find_attr_pipe(s: &str) -> Option<usize> {
+    let mut square = 0i32;
+    let mut curly = 0i32;
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '[' => square += 1,
+            ']' => square = (square - 1).max(0),
+            '{' => curly += 1,
+            '}' => curly = (curly - 1).max(0),
+            '|' if square == 0 && curly == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Parses a cell's leading attribute list. `align` maps to a column alignment, `colspan`/`rowspan`
+/// to spans, `id`/`class` to the cell's identifier and classes, and everything else to a key/value
+/// attribute. A bare token without a value is not a valid attribute list, so the whole text is
+/// content instead — signalled by [`None`].
+fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    let mut i = 0usize;
+    let mut id = String::new();
+    let mut classes: Vec<String> = Vec::new();
+    let mut attributes: Vec<(String, String)> = Vec::new();
+    let mut align = Alignment::AlignDefault;
+    let mut col_span = 1i32;
+    let mut row_span = 1i32;
+    let mut any = false;
+    while i < n {
+        while at(&chars, i).is_some_and(char::is_whitespace) {
+            i += 1;
+        }
+        if i >= n {
+            break;
+        }
+        let name_start = i;
+        while at(&chars, i).is_some_and(|c| !c.is_whitespace() && c != '=') {
+            i += 1;
+        }
+        let name = collect_range(&chars, name_start, i);
+        if name.is_empty() || at(&chars, i) != Some('=') {
+            return None;
+        }
+        i += 1;
+        let value = if let Some(quote @ ('"' | '\'')) = at(&chars, i) {
+            i += 1;
+            let value_start = i;
+            while at(&chars, i).is_some_and(|c| c != quote) {
+                i += 1;
+            }
+            let value = collect_range(&chars, value_start, i);
+            if at(&chars, i) == Some(quote) {
+                i += 1;
+            }
+            value
+        } else {
+            let value_start = i;
+            while at(&chars, i).is_some_and(|c| !c.is_whitespace()) {
+                i += 1;
+            }
+            collect_range(&chars, value_start, i)
+        };
+        any = true;
+        match name.to_ascii_lowercase().as_str() {
+            "id" => id = value,
+            "class" => classes.extend(value.split_whitespace().map(str::to_string)),
+            "align" => match value.to_ascii_lowercase().as_str() {
+                "left" => align = Alignment::AlignLeft,
+                "right" => align = Alignment::AlignRight,
+                "center" => align = Alignment::AlignCenter,
+                _ => attributes.push(("align".to_string(), value)),
+            },
+            "colspan" => match value.trim().parse::<i32>() {
+                Ok(v) if v >= 1 => col_span = v,
+                _ => attributes.push(("colspan".to_string(), value)),
+            },
+            "rowspan" => match value.trim().parse::<i32>() {
+                Ok(v) if v >= 1 => row_span = v,
+                _ => attributes.push(("rowspan".to_string(), value)),
+            },
+            _ => attributes.push((name, value)),
+        }
+    }
+    if !any {
+        return None;
+    }
+    Some(CellAttrs {
+        align,
+        col_span,
+        row_span,
+        attr: Attr {
+            id,
+            classes,
+            attributes,
+        },
+    })
 }
 
 fn line_end(chars: &[char], pos: usize) -> usize {
@@ -1921,12 +2755,51 @@ mod tests {
         MediawikiReader.read(input, &options).expect("read").blocks
     }
 
+    fn cell_with(content: Vec<Block>) -> Cell {
+        Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignDefault,
+            row_span: 1,
+            col_span: 1,
+            content,
+        }
+    }
+
+    fn data_cell(text: &str) -> Cell {
+        cell_with(vec![Block::Para(vec![Inline::Str(text.into())])])
+    }
+
+    fn table_row(cells: Vec<Cell>) -> Row {
+        Row {
+            attr: Attr::default(),
+            cells,
+        }
+    }
+
+    fn default_col() -> ColSpec {
+        ColSpec {
+            align: Alignment::AlignDefault,
+            width: ColWidth::ColWidthDefault,
+        }
+    }
+
     #[test]
-    fn table_markup_is_kept_as_a_raw_block() {
+    fn table_markup_becomes_a_table() {
         assert_eq!(
             parse("{|\n! Header\n|-\n| Cell\n|}\nafter"),
             vec![
-                Block::RawBlock(format_mediawiki(), "{|\n! Header\n|-\n| Cell\n|}".into()),
+                Block::Table(Box::new(Table {
+                    col_specs: vec![default_col()],
+                    head: TableHead {
+                        rows: vec![table_row(vec![data_cell("Header")])],
+                        ..Default::default()
+                    },
+                    bodies: vec![TableBody {
+                        body: vec![table_row(vec![data_cell("Cell")])],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })),
                 Block::Para(vec![Inline::Str("after".into())]),
             ]
         );
@@ -1936,16 +2809,36 @@ mod tests {
     fn unterminated_table_markup_does_not_panic() {
         assert_eq!(
             parse("{|"),
-            vec![Block::RawBlock(format_mediawiki(), "{|".into())]
+            vec![Block::Table(Box::new(Table {
+                bodies: vec![TableBody {
+                    body: vec![table_row(Vec::new())],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }))]
         );
     }
 
     #[test]
     fn nested_table_markup_closes_at_the_outer_marker() {
-        let source = "{|\n|\n{|\n| inner\n|}\n|}";
+        let inner = Block::Table(Box::new(Table {
+            col_specs: vec![default_col()],
+            bodies: vec![TableBody {
+                body: vec![table_row(vec![data_cell("inner")])],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }));
         assert_eq!(
-            parse(source),
-            vec![Block::RawBlock(format_mediawiki(), source.into())]
+            parse("{|\n|\n{|\n| inner\n|}\n|}"),
+            vec![Block::Table(Box::new(Table {
+                col_specs: vec![default_col()],
+                bodies: vec![TableBody {
+                    body: vec![table_row(vec![cell_with(vec![inner])])],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }))]
         );
     }
 
