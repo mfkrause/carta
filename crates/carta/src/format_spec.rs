@@ -38,6 +38,7 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::BacktickCodeBlocks,
             Extension::FencedCodeBlocks,
             Extension::IntrawordUnderscores,
+            Extension::ListsWithoutPrecedingBlankline,
             Extension::PipeTables,
             Extension::RawHtml,
             Extension::Strikeout,

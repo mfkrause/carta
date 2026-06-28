@@ -69,11 +69,12 @@ only `auto_identifiers` is wired — no other RST-specific extension toggles.
 
 ### `ipynb` — 🚧
 Jupyter notebooks (nbformat v4): markdown cells are parsed in the greedy Markdown dialect — a
-paragraph absorbs the lines that follow it, ordered lists collapse to a default number style, and
-bare URIs and email addresses autolink, each carrying a `uri` or `email` class (the cell preset also
-turns on `auto_identifiers`, `gfm_auto_identifiers`, `tex_math_dollars`, `pipe_tables`, `task_lists`,
-`strikeout`, `raw_html`, `autolink_bare_uris`, `fenced_code_blocks`, `backtick_code_blocks`,
-`intraword_underscores`). Code cells become code blocks carrying their stream / `execute_result` /
+paragraph absorbs the lines that follow it, except that a list-shaped line opens a fresh list or
+paragraph (the `lists_without_preceding_blankline` preset) — ordered lists collapse to a default
+number style, and bare URIs and email addresses autolink, each carrying a `uri` or `email` class (the
+cell preset also turns on `auto_identifiers`, `gfm_auto_identifiers`, `tex_math_dollars`,
+`pipe_tables`, `task_lists`, `strikeout`, `raw_html`, `autolink_bare_uris`, `fenced_code_blocks`,
+`backtick_code_blocks`, `intraword_underscores`). Code cells become code blocks carrying their stream / `execute_result` /
 `display_data` / `error` outputs. Notebook and cell metadata become attributes, with a scalar value
 quoted when a string is number- or boolean-shaped and left bare when it is an actual number or
 boolean. An image output is named by the hash of its decoded bytes (the raw payload when it is not
@@ -230,9 +231,9 @@ numbering are no-ops.
 
 ## Extensions
 
-Reader-side toggles the CommonMark engine recognizes. The enum defines 48 extensions, all of which the
+Reader-side toggles the CommonMark engine recognizes. The enum defines 49 extensions, all of which the
 reader honors. `raw_html` is always on — the engine preserves raw HTML regardless of the toggle — and
-the other 47 are branched on per toggle.
+the other 48 are branched on per toggle.
 
 **Supported:** `smart`, `strikeout`, `superscript`, `subscript`, `pipe_tables`, `footnotes`,
 `task_lists`, `autolink_bare_uris`, `tex_math_dollars`, `fenced_divs`, `bracketed_spans`,
@@ -243,7 +244,7 @@ the other 47 are branched on per toggle.
 `gfm_auto_identifiers`, `implicit_header_references`, `implicit_figures`, `raw_attribute`,
 `inline_notes`, `native_divs`, `native_spans`, `markdown_in_html_blocks`, `raw_tex`, `citations`,
 `table_attributes`, `blank_before_blockquote`, `blank_before_header`, `mark`, `emoji`, `alerts`,
-`tex_math_single_backslash`, `tex_math_double_backslash`.
+`tex_math_single_backslash`, `tex_math_double_backslash`, `lists_without_preceding_blankline`.
 
 ### Known parity gaps
 
@@ -267,7 +268,7 @@ No enum variant yet (notable, non-exhaustive): `latex_macros`, `intraword_unders
 `wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`, `mmd_header_identifiers`,
 `mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`, `old_dashes`,
 `east_asian_line_breaks`, `escaped_line_breaks`, `four_space_rule`,
-`lists_without_preceding_blankline`, `space_in_atx_header`, `literate_haskell`,
+`space_in_atx_header`, `literate_haskell`,
 `rebase_relative_paths`, `gutenberg`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)
 
