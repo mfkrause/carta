@@ -109,11 +109,15 @@ bare-URL autolinking requires an explicit `scheme://`.
 ### `jira` — 🚧
 Jira wiki markup: headings, paragraphs, the text effects (strong, emphasis, citation, deleted,
 inserted, superscript, subscript, monospace), colored and anchored spans, bullet/numbered lists, the
-`{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji.
-Gaps: the `east_asian_line_breaks` extension is not modeled (no enum variant; it is off by default);
-an adversarial run of unbalanced `--`/`---` does not reproduce nested strikeout pairing; block
-brace-macros are recognized only at the start of a line (a mid-line `{code}` after other text reads as
-paragraph text); a `|` inside an image's `!src|props!` within a table cell is not depth-protected.
+`{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji. Emphasis is
+resolved with a flanking delimiter stack (same-marker nesting up to depth two, nearest-opener
+pairing), so `*a**b*`, `**x**`, and `--x--` lower to nested spans; smart dashes fold a run hugged by a
+following space into en-/em-dashes. The `east_asian_line_breaks` extension is recognized (off by
+default).
+Gaps: an adversarial run interleaving several distinct emphasis markers does not always reproduce the
+binary's delimiter pairing; block brace-macros are recognized only at the start of a line (a mid-line
+`{code}` after other text reads as paragraph text); a `|` inside an image's `!src|props!` within a
+table cell is not depth-protected.
 
 ### `man` — 🚧
 roff man pages: section and subsection headings (`.SH`/`.SS`), paragraphs, indented and
@@ -260,7 +264,7 @@ No enum variant yet (notable, non-exhaustive): `latex_macros`, `intraword_unders
 `backtick_code_blocks`, `abbreviations`, `wikilinks_title_after_pipe`,
 `wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`, `mmd_header_identifiers`,
 `mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`, `old_dashes`,
-`east_asian_line_breaks`, `escaped_line_breaks`, `four_space_rule`,
+`escaped_line_breaks`, `four_space_rule`,
 `lists_without_preceding_blankline`, `space_in_atx_header`, `literate_haskell`,
 `rebase_relative_paths`, `gutenberg`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)
