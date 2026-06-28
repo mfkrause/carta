@@ -7,65 +7,100 @@
 //! trailing punctuation and a trailing entity reference are then dropped. A scheme URL's authority
 //! must be a usable domain (at least two dot-separated labels, none ending in `-`/`_`); a `www.` host
 //! is taken as-is. An email address is a local part of `[A-Za-z0-9._+-]` and an `@`, followed by a
-//! dotted domain, and is given a `mailto:` destination. Links are not nested, so an existing `Link`
-//! is left untouched rather than rescanned.
+//! domain, and is given a `mailto:` destination. Links are not nested, so an existing `Link` is left
+//! untouched rather than rescanned.
+//!
+//! In the Markdown dialect each produced link carries a `uri` or `email` class, an email's domain
+//! need only be a single non-empty label, and bare `www.` hosts are not linked; the strict dialect
+//! leaves the link unclassed, requires a dotted email domain, and links `www.` hosts.
 
 use carta_ast::{Attr, Inline, Target};
 
 use super::scan::matches_at;
 
+/// Whether a matched autolink is a URL or an email address; selects its dialect class.
+#[derive(Clone, Copy)]
+enum Kind {
+    Uri,
+    Email,
+}
+
+impl Kind {
+    fn class(self) -> &'static str {
+        match self {
+            Self::Uri => "uri",
+            Self::Email => "email",
+        }
+    }
+}
+
 /// Rewrite every text `Str` in `inlines`, recursing through inline containers, so that bare URIs,
 /// `www.` hosts, and email addresses become links. Code, math, and raw inlines are left untouched.
-pub(crate) fn autolink_inlines(inlines: &mut Vec<Inline>) {
+/// In the Markdown dialect (`markdown`) each link is classed and an email domain may be a single
+/// label.
+pub(crate) fn autolink_inlines(inlines: &mut Vec<Inline>, markdown: bool) {
     let taken = std::mem::take(inlines);
     let mut out = Vec::with_capacity(taken.len());
     for inline in taken {
         match inline {
-            Inline::Str(s) => split_text(&s, &mut out),
-            Inline::Emph(mut v) => out.push(Inline::Emph(recurse(&mut v))),
-            Inline::Underline(mut v) => out.push(Inline::Underline(recurse(&mut v))),
-            Inline::Strong(mut v) => out.push(Inline::Strong(recurse(&mut v))),
-            Inline::Strikeout(mut v) => out.push(Inline::Strikeout(recurse(&mut v))),
-            Inline::Superscript(mut v) => out.push(Inline::Superscript(recurse(&mut v))),
-            Inline::Subscript(mut v) => out.push(Inline::Subscript(recurse(&mut v))),
-            Inline::SmallCaps(mut v) => out.push(Inline::SmallCaps(recurse(&mut v))),
-            Inline::Quoted(q, mut v) => out.push(Inline::Quoted(q, recurse(&mut v))),
-            Inline::Span(a, mut v) => out.push(Inline::Span(a, recurse(&mut v))),
-            Inline::Image(a, mut v, t) => out.push(Inline::Image(a, recurse(&mut v), t)),
+            Inline::Str(s) => split_text(&s, markdown, &mut out),
+            Inline::Emph(mut v) => out.push(Inline::Emph(recurse(&mut v, markdown))),
+            Inline::Underline(mut v) => out.push(Inline::Underline(recurse(&mut v, markdown))),
+            Inline::Strong(mut v) => out.push(Inline::Strong(recurse(&mut v, markdown))),
+            Inline::Strikeout(mut v) => out.push(Inline::Strikeout(recurse(&mut v, markdown))),
+            Inline::Superscript(mut v) => out.push(Inline::Superscript(recurse(&mut v, markdown))),
+            Inline::Subscript(mut v) => out.push(Inline::Subscript(recurse(&mut v, markdown))),
+            Inline::SmallCaps(mut v) => out.push(Inline::SmallCaps(recurse(&mut v, markdown))),
+            Inline::Quoted(q, mut v) => out.push(Inline::Quoted(q, recurse(&mut v, markdown))),
+            Inline::Span(a, mut v) => out.push(Inline::Span(a, recurse(&mut v, markdown))),
+            Inline::Image(a, mut v, t) => out.push(Inline::Image(a, recurse(&mut v, markdown), t)),
             other => out.push(other),
         }
     }
     *inlines = out;
 }
 
-fn recurse(inlines: &mut Vec<Inline>) -> Vec<Inline> {
-    autolink_inlines(inlines);
+fn recurse(inlines: &mut Vec<Inline>, markdown: bool) -> Vec<Inline> {
+    autolink_inlines(inlines, markdown);
     std::mem::take(inlines)
 }
 
-/// A matched autolink: the half-open `start..end` span within the text and the link destination.
+/// A matched autolink: the half-open `start..end` span within the text, the link destination, and
+/// whether it is a URL or an email.
 struct Match {
     start: usize,
     end: usize,
     href: String,
+    kind: Kind,
 }
 
 /// Scan one text token, emitting `Str` for the gaps and `Link` for each autolink found.
-fn split_text(text: &str, out: &mut Vec<Inline>) {
+fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
     let mut i = 0;
     let mut emit_from = 0;
     while i < len {
+        // A bare `www.` host (no scheme) autolinks only in the strict dialect; the Markdown dialect
+        // links scheme URLs and emails alone.
         let found = match_url(&chars, i)
-            .or_else(|| match_www(&chars, i))
-            .or_else(|| match_email(&chars, i, emit_from));
+            .or_else(|| (!markdown).then(|| match_www(&chars, i)).flatten())
+            .or_else(|| match_email(&chars, i, emit_from, markdown));
         if let Some(m) = found {
             push_text(&chars, emit_from, m.start, out);
             if let Some(span) = chars.get(m.start..m.end) {
                 let label: String = span.iter().collect();
+                let attr = if markdown {
+                    Attr {
+                        id: String::new(),
+                        classes: vec![m.kind.class().to_owned()],
+                        attributes: Vec::new(),
+                    }
+                } else {
+                    Attr::default()
+                };
                 out.push(Inline::Link(
-                    Attr::default(),
+                    attr,
                     vec![Inline::Str(label)],
                     Target {
                         url: m.href,
@@ -109,6 +144,7 @@ fn match_url(chars: &[char], i: usize) -> Option<Match> {
         start: i,
         end,
         href,
+        kind: Kind::Uri,
     })
 }
 
@@ -160,14 +196,16 @@ fn match_www(chars: &[char], i: usize) -> Option<Match> {
         start: i,
         end,
         href,
+        kind: Kind::Uri,
     })
 }
 
 /// Match an email address centered on the `@` at `at`. The local part extends left over
 /// `[A-Za-z0-9._+-]` (but no earlier than `lower`, the start of the not-yet-emitted text), and the
-/// domain extends right over `[A-Za-z0-9._-]` and must hold at least one non-empty dotted label and
-/// end on an alphanumeric.
-fn match_email(chars: &[char], at: usize, lower: usize) -> Option<Match> {
+/// domain extends right over `[A-Za-z0-9._-]` and must end on an alphanumeric with no empty label.
+/// The strict dialect additionally requires the domain to be dotted; the Markdown dialect accepts a
+/// single-label domain such as `5@home`.
+fn match_email(chars: &[char], at: usize, lower: usize, markdown: bool) -> Option<Match> {
     if chars.get(at) != Some(&'@') {
         return None;
     }
@@ -190,12 +228,18 @@ fn match_email(chars: &[char], at: usize, lower: usize) -> Option<Match> {
     }
     let domain = chars.get(at + 1..end)?;
     let ends_alnum = domain.last().is_some_and(char::is_ascii_alphanumeric);
-    if !domain.contains(&'.') || !ends_alnum || domain.windows(2).any(|w| matches!(w, ['.', '.'])) {
+    let dotted_ok = markdown || domain.contains(&'.');
+    if !dotted_ok || !ends_alnum || domain.windows(2).any(|w| matches!(w, ['.', '.'])) {
         return None;
     }
     let label: String = chars.get(start..end)?.iter().collect();
     let href = format!("mailto:{label}");
-    Some(Match { start, end, href })
+    Some(Match {
+        start,
+        end,
+        href,
+        kind: Kind::Email,
+    })
 }
 
 /// Walk the URL run forward from `from`, stopping at whitespace or `<`, at an unbalanced `)`, or at a
@@ -270,14 +314,22 @@ fn is_entity_char(c: char) -> bool {
 mod tests {
     use super::*;
 
-    /// Autolink a single text token and report each produced link as `(label, href)`.
+    /// Autolink a single text token in the strict dialect, reporting each link as `(label, href)`.
     fn links(text: &str) -> Vec<(String, String)> {
+        classed_links(text, false)
+            .into_iter()
+            .map(|(label, href, _)| (label, href))
+            .collect()
+    }
+
+    /// Autolink a single text token, reporting each link as `(label, href, classes)`.
+    fn classed_links(text: &str, markdown: bool) -> Vec<(String, String, Vec<String>)> {
         let mut inlines = vec![Inline::Str(text.to_owned())];
-        autolink_inlines(&mut inlines);
+        autolink_inlines(&mut inlines, markdown);
         inlines
             .iter()
             .filter_map(|inline| match inline {
-                Inline::Link(_, label, target) => {
+                Inline::Link(attr, label, target) => {
                     let text: String = label
                         .iter()
                         .map(|i| match i {
@@ -285,7 +337,7 @@ mod tests {
                             _ => "",
                         })
                         .collect();
-                    Some((text, target.url.clone()))
+                    Some((text, target.url.clone(), attr.classes.clone()))
                 }
                 _ => None,
             })
@@ -390,7 +442,7 @@ mod tests {
             },
         );
         let mut inlines = vec![inner.clone()];
-        autolink_inlines(&mut inlines);
+        autolink_inlines(&mut inlines, false);
         assert_eq!(inlines, vec![inner]);
     }
 
@@ -398,7 +450,37 @@ mod tests {
     fn code_is_left_untouched() {
         let code = Inline::Code(Attr::default(), "http://example.com".to_owned());
         let mut inlines = vec![code.clone()];
-        autolink_inlines(&mut inlines);
+        autolink_inlines(&mut inlines, false);
         assert_eq!(inlines, vec![code]);
+    }
+
+    #[test]
+    fn markdown_dialect_classes_links_and_accepts_single_label_email() {
+        // A URL is tagged `uri`, an email `email`, and a single-label domain links in the dialect.
+        assert_eq!(
+            classed_links("see http://example.com and 5@home now", true),
+            vec![
+                (
+                    "http://example.com".to_owned(),
+                    "http://example.com".to_owned(),
+                    vec!["uri".to_owned()]
+                ),
+                (
+                    "5@home".to_owned(),
+                    "mailto:5@home".to_owned(),
+                    vec!["email".to_owned()]
+                ),
+            ]
+        );
+        // The strict dialect leaves links unclassed and never links a single-label email domain.
+        assert!(classed_links("ping 5@home now", false).is_empty());
+        assert_eq!(
+            classed_links("at www.example.com today", false),
+            vec![(
+                "www.example.com".to_owned(),
+                "http://www.example.com".to_owned(),
+                Vec::new()
+            )]
+        );
     }
 }
