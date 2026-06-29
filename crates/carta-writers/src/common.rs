@@ -1321,13 +1321,27 @@ impl RowSpanGrid {
 /// Render an [`Attr`] to an HTML attribute string (a leading space per attribute, empty when blank):
 /// `id`, then `class`, then key/value pairs, with unrecognized keys `data-` prefixed.
 pub(crate) fn render_html_attr(attr: &Attr) -> String {
-    use std::fmt::Write as _;
     let mut out = String::new();
+    for token in html_attr_tokens(attr) {
+        out.push(' ');
+        out.push_str(&token);
+    }
+    out
+}
+
+/// The HTML attribute string as individual `name="value"` tokens, in the order [`render_html_attr`]
+/// emits them. Each token is one unbreakable unit, which lets a caller fill an opening tag to a
+/// column width without splitting inside an attribute.
+pub(crate) fn html_attr_tokens(attr: &Attr) -> Vec<String> {
+    let mut tokens = Vec::new();
     if !attr.id.is_empty() {
-        let _ = write!(out, " id=\"{}\"", escape_attr(&attr.id));
+        tokens.push(format!("id=\"{}\"", escape_attr(&attr.id)));
     }
     if !attr.classes.is_empty() {
-        let _ = write!(out, " class=\"{}\"", escape_attr(&attr.classes.join(" ")));
+        tokens.push(format!(
+            "class=\"{}\"",
+            escape_attr(&attr.classes.join(" "))
+        ));
     }
     for (key, value) in &attr.attributes {
         let name = if is_known_attribute(key) {
@@ -1335,9 +1349,9 @@ pub(crate) fn render_html_attr(attr: &Attr) -> String {
         } else {
             format!("data-{key}")
         };
-        let _ = write!(out, " {name}=\"{}\"", escape_attr(value));
+        tokens.push(format!("{name}=\"{}\"", escape_attr(value)));
     }
-    out
+    tokens
 }
 
 /// Whether an attribute name is emitted verbatim in HTML output. Recognized names, the `data-`/`aria-`

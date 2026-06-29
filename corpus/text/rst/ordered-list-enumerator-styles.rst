@@ -1,0 +1,9 @@
+A single letter that is also a numeral defaults to alphabetic:
+
+c. third by letter
+d. fourth by letter
+
+The letter i alone is read as a roman numeral:
+
+i. one
+ii. two

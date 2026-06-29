@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table style="width:83%;">
+<colgroup>
+<col width="34%" />
+<col width="18%" />
+<col width="15%" />
+<col width="15%" />
+</colgroup>
+<thead>
+<tr>
+<th>Header row, column 1</th>
+<th>Header 2</th>
+<th>Header 3</th>
+<th>Header 4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>body row 1, column 1</td>
+<td>column 2</td>
+<td>column 3</td>
+<td>column 4</td>
+</tr>
+<tr>
+<td>body row 2</td>
+<td colspan="3">Cells may span columns.</td>
+</tr>
+<tr>
+<td>body row 3</td>
+<td rowspan="2">Cells may span rows.</td>
+<td colspan="2" rowspan="2"><ul>
+<li>Cells.</li>
+<li>Contain.</li>
+<li>Blocks.</li>
+</ul></td>
+</tr>
+<tr>
+<td>body row 4</td>
+</tr>
+</tbody>
+</table>

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"LineBlock","c":[[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"long"},{"t":"Space"},{"t":"Str","c":"opening"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"verse"},{"t":"Space"},{"t":"Str","c":"that"},{"t":"Space"},{"t":"Str","c":"wraps"},{"t":"Space"},{"t":"Str","c":"onto"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"second"},{"t":"Space"},{"t":"Str","c":"physical"},{"t":"Space"},{"t":"Str","c":"line"}],[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"short"},{"t":"Space"},{"t":"Str","c":"line"}],[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"final"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"that"},{"t":"Space"},{"t":"Str","c":"also"},{"t":"Space"},{"t":"Str","c":"runs"},{"t":"Space"},{"t":"Str","c":"across"},{"t":"Space"},{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"source"},{"t":"Space"},{"t":"Str","c":"lines"}]]}]}

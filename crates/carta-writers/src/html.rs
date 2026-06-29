@@ -734,7 +734,7 @@ impl State {
                 let _ = write!(
                     out,
                     "<span{BREAK}class=\"math {class}\">{open}{}{close}</span>",
-                    escape_math(text)
+                    fill_math(text)
                 );
             }
             Inline::RawInline(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
@@ -1433,4 +1433,13 @@ fn escape_attr(text: &str) -> String {
 /// formula survives intact for the math renderer.
 fn escape_math(text: &str) -> String {
     escape(text, true, true)
+}
+
+/// Escape a math span's body and turn its spaces into break points, so a long formula wraps at the
+/// fill column the way running text does rather than overflowing the line.
+fn fill_math(text: &str) -> String {
+    escape_math(text)
+        .chars()
+        .map(|ch| if ch == ' ' { BREAK } else { ch })
+        .collect()
 }

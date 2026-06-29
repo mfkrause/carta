@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"following"},{"t":"Space"},{"t":"Str","c":"block"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"quoted"},{"t":"Space"},{"t":"Str","c":"rather"},{"t":"Space"},{"t":"Str","c":"than"},{"t":"Space"},{"t":"Str","c":"indented:"}]},{"t":"CodeBlock","c":[["",[],[]],"> This is a quoted literal block.\n> Every line begins with the same marker."]}]}
