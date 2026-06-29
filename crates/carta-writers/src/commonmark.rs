@@ -14,9 +14,9 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
-    is_known_scheme, is_loose, is_percent_escaped_uri, item_separator, normalize_image_attr,
-    offset_as_i32, ordered_marker, quote_marks, render_html_attr,
+    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_hang, fill_offset,
+    indent_block, is_known_scheme, is_loose, is_percent_escaped_uri, item_separator,
+    normalize_image_attr, offset_as_i32, ordered_marker, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -31,7 +31,7 @@ impl Writer for CommonmarkWriter {
             width,
             ..State::default()
         };
-        let body = state.blocks_to_string(&document.blocks, width);
+        let body = state.blocks_to_string(&document.blocks, width, false);
         Ok(append_notes(body, &state.footnotes))
     }
 
@@ -69,12 +69,15 @@ impl State {
     /// Render a block sequence, dropping blocks that produce no output. Blocks are separated by a
     /// blank line, except that a [`Block::Plain`] is followed by a single newline and certain
     /// neighbors require an HTML-comment separator (see [`needs_separator`]). This is the layout used
-    /// for the document body, blockquotes, divs, list items, and definitions.
-    fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+    /// for the document body, blockquotes, divs, list items, and definitions. When `hang` is set the
+    /// first non-empty block keeps a space that opens it, so content laid out under a list marker or
+    /// block-quote prefix keeps the gap the source put after that prefix.
+    fn blocks_to_string(&mut self, blocks: &[Block], width: usize, hang: bool) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
+        let mut first = true;
         for block in blocks {
-            let text = self.block(block, width);
+            let text = self.block(block, width, hang && first);
             if text.is_empty() {
                 continue;
             }
@@ -89,15 +92,20 @@ impl State {
             }
             out.push_str(&text);
             previous = Some(block);
+            first = false;
         }
         out
     }
 
-    fn block(&mut self, block: &Block, width: usize) -> String {
+    fn block(&mut self, block: &Block, width: usize, hang: bool) -> String {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
                 let pieces = self.pieces(inlines, true);
-                fill(&pieces, width, self.wrap)
+                if hang {
+                    fill_hang(&pieces, width, self.wrap)
+                } else {
+                    fill(&pieces, width, self.wrap)
+                }
             }
             Block::Header(level, _, inlines) => {
                 let hashes = "#".repeat(usize::try_from((*level).max(1)).unwrap_or(1));
@@ -117,7 +125,7 @@ impl State {
                 }
             }
             Block::BlockQuote(blocks) => {
-                let body = self.blocks_to_string(blocks, width.saturating_sub(2));
+                let body = self.blocks_to_string(blocks, width.saturating_sub(2), true);
                 quote_block(&body)
             }
             Block::BulletList(items) => self.bullet_list(items, width),
@@ -125,7 +133,7 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width),
             Block::Div(attr, blocks) => {
-                let body = self.blocks_to_string(blocks, width);
+                let body = self.blocks_to_string(blocks, width, false);
                 format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
             }
             Block::LineBlock(lines) => self.line_block(lines),
@@ -149,7 +157,7 @@ impl State {
         let rendered: Vec<String> = items
             .iter()
             .map(|item| {
-                let rendered = self.blocks_to_string(item, body_width);
+                let rendered = self.blocks_to_string(item, body_width, true);
                 let body = offset_horizontal_rule(item, rendered);
                 indent_block(&body, "- ", "  ")
             })
@@ -178,7 +186,7 @@ impl State {
                 let number = attrs.start.saturating_add(offset_as_i32(offset));
                 let marker = ordered_marker(number, &ListNumberStyle::Decimal, &delim);
                 let field = (marker.chars().count() + 1).max(4);
-                let rendered = self.blocks_to_string(item, width.saturating_sub(field));
+                let rendered = self.blocks_to_string(item, width.saturating_sub(field), true);
                 let body = offset_horizontal_rule(item, rendered);
                 let first = format!("{marker:<field$}");
                 let rest = " ".repeat(field);
@@ -199,7 +207,7 @@ impl State {
                 let term_line = self.inlines_oneline(term, true);
                 let bodies: Vec<String> = definitions
                     .iter()
-                    .map(|definition| self.blocks_to_string(definition, width))
+                    .map(|definition| self.blocks_to_string(definition, width, false))
                     .collect();
                 let body = bodies.join("\n\n");
                 format!("{term_line}  \n{body}")
@@ -408,7 +416,7 @@ impl NotesHost for State {
     }
 
     fn render_block(&mut self, block: &Block, width: usize) -> String {
-        self.block(block, width)
+        self.block(block, width, false)
     }
 
     fn render_offset_paragraph(
