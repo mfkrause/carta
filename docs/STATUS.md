@@ -69,12 +69,26 @@ takes its caption from the argument, `math` emits one `Math` per equation (wrapp
 when a `:label:`/`:nowrap:` option is set), a `code` block's `:number-lines:` adds the `numberLines`
 class and a `startFrom` attribute, a `figure`'s legend paragraphs join its caption, and the
 document-level directives (`meta`, `title`, `header`, `footer`, `sectnum`, `target-notes`, …) become
-classed divisions. A substitution reference (`|name|_`) and an indirect hyperlink target resolve
-through to their destination; an internal hyperlink target carries its identifier onto the block that
-follows it. Grid/simple tables — including grid cells that span rows or columns, which merge into
-single multi-span cells — and the `csv-table` and `list-table` directives build a `Table`.
-`auto_identifiers` and `gfm_auto_identifiers` supply header slug ids, `ascii_identifiers` folds those
-ids to ASCII, and `smart` renders typographic quotes and dashes.
+classed divisions. The `image`/`figure` directives derive image attributes from their options:
+`:width:`/`:height:` carry a length whose unit decides its rendering (a pixel length truncates to a
+whole number, a percentage keeps one decimal, any other unit prints the shortest exact value),
+`:scale:` folds into the width and height as a factor, `:align:` becomes an `align-<value>` class, and
+the directive's own `:class:` list is repeated with the alignment suffix attached to the last entry;
+a `figure` keeps the outer division's classes separate from the inner image's, and its `:name:`
+becomes the image identifier. The `role` directive defines a custom interpreted role — with an
+optional base role and its own classes — and `default-role` sets the role applied to unqualified
+interpreted text, restoring the standard role when given no argument. The `include` directive splices
+a referenced file's parsed blocks in place, and the substitution directives build replacement text:
+`replace` from literal text, `image` from an image, `unicode` from `0x…`/`U+…`/decimal/escaped code
+points, and `date` from the current date rendered through an strftime-style pattern. A substitution
+reference (`|name|_`) and an indirect hyperlink target resolve through to their destination — a
+reference resolves even mid-word, and a multi-element replacement is wrapped in a span; an internal
+hyperlink target carries its identifier onto the block that follows it. Emphasis, strong,
+interpreted-text, and reference markup wrapped in matching quotes or angle brackets stays literal
+text. Grid/simple tables — including grid cells that span rows or columns, which merge into single
+multi-span cells — and the `csv-table` and `list-table` directives build a `Table`. `auto_identifiers`
+and `gfm_auto_identifiers` supply header slug ids, `ascii_identifiers` folds those ids to ASCII, and
+`smart` renders typographic quotes and dashes.
 Gaps: the `contents` (table-of-contents) directive emits nothing; the `table` directive's `:widths:`
 is not applied to the built table; a definition-list classifier (`term : classifier`) stays part of
 the term; doctest blocks (`>>>`) read as ordinary paragraphs.

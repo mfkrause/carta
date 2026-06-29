@@ -38,6 +38,9 @@ impl Reader for RstReader {
             auto_footnote: 0,
             symbol_footnote: 0,
             anonymous: 0,
+            custom_roles: BTreeMap::new(),
+            default_role: DEFAULT_ROLE.to_string(),
+            include_depth: 0,
         };
         let mut blocks = parser.blocks(&lines);
         if let Some(div) = parser.citation_block() {
@@ -660,6 +663,39 @@ enum Substitution {
     Image(String, Attr, Vec<Inline>),
 }
 
+/// A custom interpreted-text role declared by a `role` directive: an optional base role whose
+/// formatting it inherits, plus the classes it adds.
+#[derive(Clone, Default)]
+struct RoleDef {
+    base: Option<String>,
+    classes: Vec<String>,
+}
+
+/// Read and parse an included file, returning its blocks for splicing into the document. Returns
+/// `None` when the file cannot be read.
+fn included_blocks(path: &str, ext: Extensions, depth: usize) -> Option<Vec<Block>> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let lines = preprocess(&content);
+    let defs = collect_definitions(&lines);
+    let mut parser = Parser {
+        defs: &defs,
+        ext,
+        heading_styles: Vec::new(),
+        ids: IdRegistry::default(),
+        auto_footnote: 0,
+        symbol_footnote: 0,
+        anonymous: 0,
+        custom_roles: BTreeMap::new(),
+        default_role: DEFAULT_ROLE.to_string(),
+        include_depth: depth,
+    };
+    let mut blocks = parser.blocks(&lines);
+    if let Some(div) = parser.citation_block() {
+        blocks.push(div);
+    }
+    Some(blocks)
+}
+
 fn collect_definitions(lines: &[String]) -> Definitions {
     let mut defs = Definitions::default();
     let mut i = 0;
@@ -824,7 +860,8 @@ fn parse_substitution(
     match directive.as_str() {
         "replace" => Some((name, Substitution::Replace(argument))),
         "image" => {
-            let (attr, mut alt, url) = image_parts(&argument, &options);
+            let (mut attr, mut alt, url) = image_parts(&argument, &options);
+            attr.classes = image_classes(&options);
             // A substitution image with no explicit alt text falls back to the substitution name.
             if alt.is_empty() {
                 push_text(&mut alt, &name);
@@ -832,40 +869,316 @@ fn parse_substitution(
             Some((name, Substitution::Image(url, attr, alt)))
         }
         "unicode" => Some((name, Substitution::Replace(unicode_chars(&argument)))),
+        "date" => Some((name, Substitution::Replace(format_date(argument.trim())))),
         _ => Some((name, Substitution::Replace(String::new()))),
     }
 }
 
-/// Decode the code points of a `unicode::` substitution argument into their characters.
+/// Decode the tokens of a `unicode::` substitution argument. A token written as a hexadecimal code
+/// point (`0x`, `x`, `u`, `\x`, `\u`, `U+`, or an `&#x…;` character reference) becomes its
+/// character; any other token, including a bare decimal number, stays as written. Tokens are joined
+/// with a single space, and a standalone `..` ends the text.
 fn unicode_chars(argument: &str) -> String {
-    let mut out = String::new();
+    let mut tokens = Vec::new();
     for token in argument.split_whitespace() {
-        // A standalone `..` introduces a trailing comment that is not part of the text.
         if token == ".." {
             break;
         }
-        let hex = token
-            .strip_prefix("0x")
-            .or_else(|| token.strip_prefix("0X"))
-            .or_else(|| token.strip_prefix("U+"))
-            .or_else(|| token.strip_prefix("u+"))
-            .or_else(|| token.strip_prefix('x'));
-        if let Some(code) = hex.and_then(|h| u32::from_str_radix(h, 16).ok()) {
-            if let Some(ch) = char::from_u32(code) {
-                out.push(ch);
+        tokens.push(decode_unicode_token(token));
+    }
+    tokens.join(" ")
+}
+
+fn decode_unicode_token(token: &str) -> String {
+    if let Some(rest) = token.strip_prefix("&#x")
+        && let Some(hex) = rest.strip_suffix(';')
+        && let Some(ch) = code_point(hex)
+    {
+        return ch.to_string();
+    }
+    let hex = token
+        .strip_prefix("U+")
+        .or_else(|| token.strip_prefix("0x"))
+        .or_else(|| token.strip_prefix("\\u"))
+        .or_else(|| token.strip_prefix("\\x"))
+        .or_else(|| token.strip_prefix('x'))
+        .or_else(|| token.strip_prefix('u'));
+    if let Some(hex) = hex
+        && let Some(ch) = code_point(hex)
+    {
+        return ch.to_string();
+    }
+    token.to_string()
+}
+
+/// Parse a non-empty run of hexadecimal digits into its character, or `None` for empty or
+/// out-of-range input.
+fn code_point(hex: &str) -> Option<char> {
+    if hex.is_empty() || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
+}
+
+/// Render the current date with a strftime-style format string, defaulting to `%Y-%m-%d`. The date
+/// is taken in UTC.
+fn format_date(format: &str) -> String {
+    let format = if format.is_empty() {
+        "%Y-%m-%d"
+    } else {
+        format
+    };
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_secs()).ok())
+        .unwrap_or(0);
+    render_date(secs, format)
+}
+
+const MONTH_NAMES: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+const WEEKDAY_NAMES: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
+
+/// Expand a strftime-style format against the civil date and time of day at `secs` seconds past the
+/// epoch (UTC). Unrecognized `%`-codes are emitted verbatim; `%%` yields a single percent.
+fn render_date(secs: i64, format: &str) -> String {
+    let parts = DateParts::from_secs(secs);
+    let mut out = String::new();
+    let mut chars = format.chars();
+    while let Some(c) = chars.next() {
+        if c != '%' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some(spec) => {
+                if let Some(value) = parts.field(spec) {
+                    out.push_str(&value);
+                } else {
+                    out.push('%');
+                    if spec != '%' {
+                        out.push(spec);
+                    }
+                }
             }
-        } else if let Ok(code) = token.parse::<u32>() {
-            if let Some(ch) = char::from_u32(code) {
-                out.push(ch);
-            }
-        } else {
-            out.push_str(token);
+            None => out.push('%'),
         }
     }
     out
 }
 
+fn pad2(n: i64) -> String {
+    format!("{n:02}")
+}
+
+fn pad3(n: i64) -> String {
+    format!("{n:03}")
+}
+
+fn space2(n: i64) -> String {
+    format!("{n:2}")
+}
+
+/// `53` for ISO long years (those whose 1 January is a Thursday, or whose previous year's 1 January
+/// is a Wednesday), `52` otherwise.
+fn iso_weeks_in_year(year: i64) -> i64 {
+    let dominical =
+        |y: i64| (y + y.div_euclid(4) - y.div_euclid(100) + y.div_euclid(400)).rem_euclid(7);
+    if dominical(year) == 4 || dominical(year - 1) == 3 {
+        53
+    } else {
+        52
+    }
+}
+
+/// The decomposed civil date and time of day for a moment, in UTC.
+struct DateParts {
+    year: i64,
+    /// 1-12.
+    month: i64,
+    /// 1-31.
+    day: i64,
+    hour: i64,
+    minute: i64,
+    second: i64,
+    /// 0 = Sunday … 6 = Saturday.
+    weekday: i64,
+    /// Day of the year, 1-366.
+    yday: i64,
+}
+
+impl DateParts {
+    fn from_secs(secs: i64) -> Self {
+        let days = secs.div_euclid(86_400);
+        let day_secs = secs.rem_euclid(86_400);
+        let (year, month, day) = civil_from_days(days);
+        Self {
+            year,
+            month,
+            day,
+            hour: day_secs / 3600,
+            minute: day_secs / 60 % 60,
+            second: day_secs % 60,
+            // 1970-01-01 was a Thursday (index 4).
+            weekday: (days.rem_euclid(7) + 4).rem_euclid(7),
+            yday: days - days_from_civil(year, 1, 1) + 1,
+        }
+    }
+
+    /// ISO 8601 weekday: 1 = Monday … 7 = Sunday.
+    fn iso_weekday(&self) -> i64 {
+        if self.weekday == 0 { 7 } else { self.weekday }
+    }
+
+    /// Hour on a 12-hour clock, 1-12.
+    fn hour12(&self) -> i64 {
+        let h = self.hour % 12;
+        if h == 0 { 12 } else { h }
+    }
+
+    fn meridiem(&self, upper: bool) -> &'static str {
+        match (self.hour < 12, upper) {
+            (true, true) => "AM",
+            (true, false) => "am",
+            (false, true) => "PM",
+            (false, false) => "pm",
+        }
+    }
+
+    /// Week of the year counting from the first Sunday (`%U`), 00-53.
+    fn week_from_sunday(&self) -> i64 {
+        (self.yday - 1 + 7 - self.weekday) / 7
+    }
+
+    /// Week of the year counting from the first Monday (`%W`), 00-53.
+    fn week_from_monday(&self) -> i64 {
+        (self.yday - 1 + 7 - (self.weekday + 6) % 7) / 7
+    }
+
+    /// ISO 8601 (week-numbering-year, week-of-year), the latter 01-53.
+    fn iso_week(&self) -> (i64, i64) {
+        let week = (self.yday + 10 - self.iso_weekday()) / 7;
+        if week < 1 {
+            (self.year - 1, iso_weeks_in_year(self.year - 1))
+        } else if week > iso_weeks_in_year(self.year) {
+            (self.year + 1, 1)
+        } else {
+            (self.year, week)
+        }
+    }
+
+    /// The rendering of one strftime field, or `None` for an unrecognized code.
+    fn field(&self, spec: char) -> Option<String> {
+        let month_name = MONTH_NAMES
+            .get(usize::try_from(self.month - 1).unwrap_or(0))
+            .copied()
+            .unwrap_or("");
+        let weekday_name = WEEKDAY_NAMES
+            .get(usize::try_from(self.weekday).unwrap_or(0))
+            .copied()
+            .unwrap_or("");
+        Some(match spec {
+            'Y' => self.year.to_string(),
+            'y' => pad2(self.year.rem_euclid(100)),
+            'C' => pad2(self.year.div_euclid(100)),
+            'm' => pad2(self.month),
+            'd' => pad2(self.day),
+            'e' => space2(self.day),
+            'H' => pad2(self.hour),
+            'k' => space2(self.hour),
+            'I' => pad2(self.hour12()),
+            'l' => space2(self.hour12()),
+            'M' => pad2(self.minute),
+            'S' => pad2(self.second),
+            'j' => pad3(self.yday),
+            'p' => self.meridiem(true).to_string(),
+            'P' => self.meridiem(false).to_string(),
+            'u' => self.iso_weekday().to_string(),
+            'w' => self.weekday.to_string(),
+            'U' => pad2(self.week_from_sunday()),
+            'W' => pad2(self.week_from_monday()),
+            'V' => pad2(self.iso_week().1),
+            'G' => self.iso_week().0.to_string(),
+            'g' => pad2(self.iso_week().0.rem_euclid(100)),
+            'B' => month_name.to_string(),
+            'b' | 'h' => month_name.get(..3).unwrap_or(month_name).to_string(),
+            'A' => weekday_name.to_string(),
+            'a' => weekday_name.get(..3).unwrap_or(weekday_name).to_string(),
+            'D' => format!(
+                "{:02}/{:02}/{:02}",
+                self.month,
+                self.day,
+                self.year.rem_euclid(100)
+            ),
+            'F' => format!("{}-{:02}-{:02}", self.year, self.month, self.day),
+            'R' => format!("{:02}:{:02}", self.hour, self.minute),
+            'T' => format!("{:02}:{:02}:{:02}", self.hour, self.minute, self.second),
+            'r' => format!(
+                "{:02}:{:02}:{:02} {}",
+                self.hour12(),
+                self.minute,
+                self.second,
+                self.meridiem(true)
+            ),
+            'n' => "\n".to_string(),
+            't' => "\t".to_string(),
+            _ => return None,
+        })
+    }
+}
+
+/// The civil (year, month, day) of a day count measured from the epoch, by the standard
+/// days-to-civil conversion. `month` is 1-12 and `day` is 1-31.
+fn civil_from_days(days: i64) -> (i64, i64, i64) {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    (if month <= 2 { year + 1 } else { year }, month, day)
+}
+
+/// The day count from the epoch of a civil date, the inverse of `civil_from_days`.
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = if month > 2 { month - 3 } else { month + 9 };
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
 // --- block parsing (pass two) ------------------------------------------------------------------
+
+/// The role applied to interpreted text written without an explicit role, until a `default-role`
+/// directive selects another.
+const DEFAULT_ROLE: &str = "title-reference";
 
 struct Parser<'a> {
     defs: &'a Definitions,
@@ -875,7 +1188,17 @@ struct Parser<'a> {
     auto_footnote: usize,
     symbol_footnote: usize,
     anonymous: usize,
+    /// Roles declared by `role` directives, keyed by role name.
+    custom_roles: BTreeMap<String, RoleDef>,
+    /// The role applied to interpreted text with no explicit role.
+    default_role: String,
+    /// How many nested `include` directives deep this parser is, bounding include recursion.
+    include_depth: usize,
 }
+
+/// The deepest chain of nested `include` directives that is followed before further includes are
+/// ignored, guarding against a cycle of files including one another.
+const MAX_INCLUDE_DEPTH: usize = 64;
 
 impl Parser<'_> {
     fn blocks(&mut self, lines: &[String]) -> Vec<Block> {
@@ -1101,12 +1424,12 @@ impl Parser<'_> {
         if literal && let Some((code, next)) = Self::literal_block(lines, i) {
             let trimmed = minimize_colons(&text);
             if !trimmed.is_empty() {
-                out.push(Block::Para(self.inlines(&trimmed)));
+                out.push(Block::Para(splice_lone_span(self.inlines(&trimmed))));
             }
             out.push(code);
             return next;
         }
-        out.push(Block::Para(self.inlines(&text)));
+        out.push(Block::Para(splice_lone_span(self.inlines(&text))));
         i
     }
 
@@ -1473,7 +1796,8 @@ impl Parser<'_> {
                 out.push(Block::Para(inlines));
             }
             "image" => {
-                let (attr, mut alt, url) = image_parts(&argument, &options);
+                let (mut attr, mut alt, url) = image_parts(&argument, &options);
+                attr.classes = image_classes(&options);
                 if alt.is_empty() {
                     alt = vec![Inline::Str("image".to_string())];
                 }
@@ -1551,7 +1875,25 @@ impl Parser<'_> {
             "line-block" => out.push(self.line_block_directive(&content)),
             "table" => self.table_directive(&argument, &options, &content, out),
             // A role definition configures inline interpretation; it produces no block of its own.
-            "role" | "default-role" => {}
+            "role" => self.register_role(&argument, &options),
+            "default-role" => {
+                let selected = argument.trim();
+                self.default_role = if selected.is_empty() {
+                    DEFAULT_ROLE.to_string()
+                } else {
+                    selected.to_string()
+                };
+            }
+            // An include directive splices the parsed content of an external file in place. A file
+            // that cannot be read contributes nothing.
+            "include" => {
+                if self.include_depth < MAX_INCLUDE_DEPTH
+                    && let Some(blocks) =
+                        included_blocks(argument.trim(), self.ext, self.include_depth + 1)
+                {
+                    out.extend(blocks);
+                }
+            }
             _ => {
                 let mut blocks = Vec::new();
                 if !argument.trim().is_empty() {
@@ -1561,6 +1903,26 @@ impl Parser<'_> {
                 out.push(options_div(name, &options, blocks));
             }
         }
+    }
+
+    /// Record a `role` directive: an `name(base)` argument names the role and the base role it
+    /// inherits, while a `:class:` option supplies the classes a no-base role applies.
+    fn register_role(&mut self, argument: &str, options: &[(String, String)]) {
+        let argument = argument.trim();
+        let (name, base) = match argument.split_once('(') {
+            Some((name, rest)) => (
+                name.trim(),
+                Some(rest.trim_end_matches(')').trim().to_string()),
+            ),
+            None => (argument, None),
+        };
+        if name.is_empty() {
+            return;
+        }
+        let base = base.filter(|b| !b.is_empty());
+        let classes = class_list(options, "class");
+        self.custom_roles
+            .insert(name.to_string(), RoleDef { base, classes });
     }
 
     fn wrap_target(image: Inline, options: &[(String, String)]) -> Inline {
@@ -2361,12 +2723,18 @@ impl Parser<'_> {
                 return None;
             }
             let (inner, end) = Self::scan_strong(chars, pos)?;
+            if quote_suppresses(prev, chars.get(end).copied()) {
+                return None;
+            }
             return Some((vec![Inline::Strong(inner)], false, end));
         }
         if chars.get(pos + 1).is_none_or(|c| c.is_whitespace()) {
             return None;
         }
         let (inner, end) = Self::scan_emphasis(chars, pos)?;
+        if quote_suppresses(prev, chars.get(end).copied()) {
+            return None;
+        }
         Some((vec![Inline::Emph(inner)], false, end))
     }
 
@@ -2462,20 +2830,26 @@ impl Parser<'_> {
         if chars.get(end) == Some(&'_') {
             let anonymous = chars.get(end + 1) == Some(&'_');
             end += if anonymous { 2 } else { 1 };
+            if quote_suppresses(prev, chars.get(end).copied()) {
+                return None;
+            }
             return Some((vec![self.phrase_reference(&content, anonymous)], false, end));
         }
         // A trailing role applies to the interpreted text.
         if chars.get(end) == Some(&':')
             && let Some((role, role_end)) = parse_role(chars, end)
         {
+            if quote_suppresses(prev, chars.get(role_end).copied()) {
+                return None;
+            }
             let inline = self.apply_role(&role, &content);
             return Some((vec![inline], false, role_end));
         }
-        Some((
-            vec![self.apply_role("title-reference", &content)],
-            false,
-            end,
-        ))
+        if quote_suppresses(prev, chars.get(end).copied()) {
+            return None;
+        }
+        let role = self.default_role.clone();
+        Some((vec![self.apply_role(&role, &content)], false, end))
     }
 
     fn role_prefix(
@@ -2511,6 +2885,29 @@ impl Parser<'_> {
                 },
                 self.inlines(content),
             ),
+            // A role declared by a `role` directive: a base role supplies the formatting, otherwise
+            // the content becomes a span carrying the role's classes (its own name when none are
+            // given).
+            other if self.custom_roles.contains_key(other) => {
+                let def = self.custom_roles.get(other).cloned().unwrap_or_default();
+                if let Some(base) = def.base {
+                    self.apply_role(&base, content)
+                } else {
+                    let classes = if def.classes.is_empty() {
+                        vec![other.to_string()]
+                    } else {
+                        def.classes
+                    };
+                    Inline::Span(
+                        Attr {
+                            id: String::new(),
+                            classes,
+                            attributes: Vec::new(),
+                        },
+                        self.inlines(content),
+                    )
+                }
+            }
             // An unrecognized role keeps its content verbatim, tagged with the role name so the
             // information survives a round-trip.
             other => Inline::Code(
@@ -2528,11 +2925,8 @@ impl Parser<'_> {
         &mut self,
         chars: &[char],
         pos: usize,
-        prev: Option<char>,
+        _prev: Option<char>,
     ) -> Option<(Vec<Inline>, bool, usize)> {
-        if !inline_start_ok(prev) {
-            return None;
-        }
         if chars.get(pos + 1).is_some_and(|c| c.is_whitespace()) {
             return None;
         }
@@ -2692,6 +3086,12 @@ impl Parser<'_> {
             .take_while(|c| c.is_alphanumeric() || matches!(c, '-' | '.' | '+'))
             .collect();
         if trailing.is_empty() {
+            return None;
+        }
+        // A reference wrapped in matching quotes is suppressed: the quotes and underscore stay
+        // literal text.
+        let before_name = pending.chars().rev().nth(trailing.chars().count());
+        if quote_suppresses(before_name, chars.get(after).copied()) {
             return None;
         }
         let name: String = trailing.chars().rev().collect();
@@ -2957,48 +3357,172 @@ fn code_attr(argument: &str, options: &[(String, String)]) -> Attr {
 }
 
 /// Build the attributes, description, and destination of an image from its URI argument and options.
+/// The returned classes are the plain `:class:` list; callers that render a standalone image fold
+/// the alignment into them with [`image_classes`].
 fn image_parts(argument: &str, options: &[(String, String)]) -> (Attr, Vec<Inline>, String) {
     let url = argument.split_whitespace().collect::<Vec<_>>().join("");
     let mut id = String::new();
-    let mut classes = Vec::new();
-    let mut attributes = Vec::new();
     let mut description = Vec::new();
     for (key, value) in options {
         match key.as_str() {
             "alt" => description = vec![Inline::Str(value.clone())],
             "name" => id.clone_from(value),
-            "class" => classes.extend(value.split_whitespace().map(str::to_string)),
-            "width" => attributes.push(("width".to_string(), value.clone())),
-            "height" => attributes.push(("height".to_string(), value.clone())),
             _ => {}
         }
     }
     (
         Attr {
             id,
-            classes,
-            attributes,
+            classes: class_list(options, "class"),
+            attributes: image_dimensions(options),
         },
         description,
         url,
     )
 }
 
-/// Build the attributes of a figure from its options.
+/// The classes of a standalone image: the `:class:` list, repeated, with the alignment appended to
+/// the last entry (or standing alone when there are no classes).
+fn image_classes(options: &[(String, String)]) -> Vec<String> {
+    let classes = class_list(options, "class");
+    aligned_classes(classes.clone(), classes, &align_suffix(options))
+}
+
+/// Build the attributes of a figure from its options: its `:figclass:` and `:class:` lists with the
+/// alignment folded in. The figure's `:name:` identifies its image, not the figure itself.
 fn figure_attr(options: &[(String, String)]) -> Attr {
-    let mut id = String::new();
-    let mut classes = Vec::new();
-    for (key, value) in options {
-        match key.as_str() {
-            "name" => id.clone_from(value),
-            "figclass" | "class" => classes.extend(value.split_whitespace().map(str::to_string)),
-            _ => {}
+    Attr {
+        id: String::new(),
+        classes: aligned_classes(
+            class_list(options, "figclass"),
+            class_list(options, "class"),
+            &align_suffix(options),
+        ),
+        attributes: Vec::new(),
+    }
+}
+
+/// The values of every option named `key`, split on whitespace, in source order.
+fn class_list(options: &[(String, String)], key: &str) -> Vec<String> {
+    options
+        .iter()
+        .filter(|(k, _)| k == key)
+        .flat_map(|(_, v)| v.split_whitespace().map(str::to_string))
+        .collect()
+}
+
+/// The class an `:align:` option contributes (`align-<value>`), or empty when there is none.
+fn align_suffix(options: &[(String, String)]) -> String {
+    options
+        .iter()
+        .find(|(k, _)| k == "align")
+        .map(|(_, v)| v.trim())
+        .filter(|v| !v.is_empty())
+        .map_or_else(String::new, |v| format!("align-{v}"))
+}
+
+/// Combine two class lists with an optional alignment class. With no alignment the lists are
+/// concatenated; otherwise the alignment is appended to the last class of the second list, or stands
+/// alone when that list is empty.
+fn aligned_classes(first: Vec<String>, second: Vec<String>, align: &str) -> Vec<String> {
+    let mut classes = first;
+    if align.is_empty() {
+        classes.extend(second);
+    } else if second.is_empty() {
+        classes.push(align.to_string());
+    } else {
+        let last = second.len() - 1;
+        for (index, mut class) in second.into_iter().enumerate() {
+            if index == last {
+                class.push_str(align);
+            }
+            classes.push(class);
         }
     }
-    Attr {
-        id,
-        classes,
-        attributes: Vec::new(),
+    classes
+}
+
+/// The `width`/`height` attributes of an image, each normalized and scaled by an `:scale:` option.
+fn image_dimensions(options: &[(String, String)]) -> Vec<(String, String)> {
+    let scale = options
+        .iter()
+        .find(|(k, _)| k == "scale")
+        .and_then(|(_, v)| parse_scale(v));
+    let mut attributes = Vec::new();
+    for (key, value) in options {
+        if key == "width" || key == "height" {
+            attributes.push((key.clone(), normalize_dimension(value, scale)));
+        }
+    }
+    attributes
+}
+
+/// A length with the unit categories the output distinguishes: integral pixels, a percentage, or a
+/// value in some other unit.
+enum Dimension {
+    Pixel(f64),
+    Percent(f64),
+    Other(f64, String),
+}
+
+/// Parse a `:scale:` value into its factor and whether it was written as a percentage. A bare number
+/// scales directly; a trailing `%` divides by a hundred.
+fn parse_scale(value: &str) -> Option<(f64, bool)> {
+    let value = value.trim();
+    let percent = value.contains('%');
+    let digits: String = value
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    digits.parse::<f64>().ok().map(|factor| (factor, percent))
+}
+
+/// Normalize a dimension and apply a scale factor: pixels round to the nearest integer (ties to
+/// even), percentages always carry a fractional part, and other units keep their shortest form.
+fn normalize_dimension(value: &str, scale: Option<(f64, bool)>) -> String {
+    let Some(dimension) = parse_dimension(value) else {
+        return value.to_string();
+    };
+    let dimension = scale_dimension(dimension, scale);
+    match dimension {
+        Dimension::Pixel(pixels) => format!("{}px", pixels.round_ties_even()),
+        Dimension::Percent(percent) => {
+            let text = format!("{percent}");
+            if text.contains('.') {
+                format!("{text}%")
+            } else {
+                format!("{text}.0%")
+            }
+        }
+        Dimension::Other(magnitude, unit) => format!("{magnitude}{unit}"),
+    }
+}
+
+fn parse_dimension(value: &str) -> Option<Dimension> {
+    let value = value.trim();
+    let split = value
+        .char_indices()
+        .find(|(_, c)| !(c.is_ascii_digit() || *c == '.'))
+        .map_or(value.len(), |(index, _)| index);
+    let magnitude: f64 = value.get(..split)?.parse().ok()?;
+    let unit = value.get(split..).unwrap_or("").trim();
+    Some(match unit {
+        "" | "px" => Dimension::Pixel(magnitude.trunc()),
+        "%" => Dimension::Percent(magnitude),
+        other => Dimension::Other(magnitude, other.to_string()),
+    })
+}
+
+fn scale_dimension(dimension: Dimension, scale: Option<(f64, bool)>) -> Dimension {
+    let Some((factor, percent)) = scale else {
+        return dimension;
+    };
+    let divisor = if percent { 100.0 } else { 1.0 };
+    let apply = |value: f64| value * factor / divisor;
+    match dimension {
+        Dimension::Pixel(value) => Dimension::Pixel(apply(value)),
+        Dimension::Percent(value) => Dimension::Percent(apply(value)),
+        Dimension::Other(value, unit) => Dimension::Other(apply(value), unit),
     }
 }
 
@@ -3011,6 +3535,20 @@ fn class_div(classes: Vec<String>, blocks: Vec<Block>) -> Block {
         },
         blocks,
     )
+}
+
+/// When a paragraph's only content is an attribute-free span — the shape a multi-inline substitution
+/// expands to — the span dissolves into the paragraph, which carries its inlines directly.
+fn splice_lone_span(mut inlines: Vec<Inline>) -> Vec<Inline> {
+    let lone_plain_span = matches!(
+        inlines.as_slice(),
+        [Inline::Span(attr, _)]
+            if attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty()
+    );
+    if lone_plain_span && let Some(Inline::Span(_, inner)) = inlines.pop() {
+        return inner;
+    }
+    inlines
 }
 
 /// Attach internal-target identifiers to the block they precede. A single target immediately before
@@ -3216,7 +3754,7 @@ fn push_text(out: &mut Vec<Inline>, text: &str) {
                 out.push(Inline::Str(std::mem::take(&mut word)));
             }
             out.push(Inline::SoftBreak);
-        } else if ch == ' ' {
+        } else if ch == ' ' || ch == '\t' {
             if !word.is_empty() {
                 out.push(Inline::Str(std::mem::take(&mut word)));
             }
@@ -3260,6 +3798,15 @@ fn literal_text(text: &str) -> Vec<Inline> {
     push_text(&mut out, &resolved);
     trim_inline_ends(&mut out);
     out
+}
+
+/// Whether markup is suppressed because it is wrapped in a matching pair of quoting characters: a
+/// run opened by `"`, `'`, or `<` and closed by its partner keeps its contents as literal text.
+fn quote_suppresses(before: Option<char>, after: Option<char>) -> bool {
+    matches!(
+        (before, after),
+        (Some('"'), Some('"')) | (Some('\''), Some('\'')) | (Some('<'), Some('>'))
+    )
 }
 
 /// Whether the character before a markup start string allows it to begin markup: a boundary, a
@@ -4328,5 +4875,207 @@ mod tests {
             Some(Block::Header(_, attr, _)) => assert!(attr.id.is_empty()),
             other => panic!("expected header, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn date_renders_strftime_fields_for_fixed_timestamps() {
+        // Expected values follow the Gregorian calendar in UTC; each timestamp is seconds past the
+        // epoch. The `date` directive's live form draws on the wall clock, so it is exercised here
+        // against frozen moments to keep the assertions reproducible.
+        let cases: &[(i64, &str, &str)] = &[
+            // 2026-06-29 14:50:50 UTC, a Monday.
+            (1_782_744_650, "%Y-%m-%d", "2026-06-29"),
+            (1_782_744_650, "%j", "180"),
+            (1_782_744_650, "%A %a", "Monday Mon"),
+            (1_782_744_650, "%B %b %h", "June Jun Jun"),
+            (1_782_744_650, "%u %w", "1 1"),
+            (1_782_744_650, "%U %W", "26 26"),
+            (1_782_744_650, "%V %G %g", "27 2026 26"),
+            (1_782_744_650, "%I %l %p %P", "02  2 PM pm"),
+            (1_782_744_650, "%C %y", "20 26"),
+            (1_782_744_650, "%D", "06/29/26"),
+            (1_782_744_650, "%F %T", "2026-06-29 14:50:50"),
+            (1_782_744_650, "%R %k", "14:50 14"),
+            (1_782_744_650, "%r", "02:50:50 PM"),
+            (1_782_744_650, "%e", "29"),
+            // 2024-02-29 00:00:00 UTC, a leap day on a Thursday.
+            (1_709_164_800, "%Y-%m-%d", "2024-02-29"),
+            (1_709_164_800, "%j", "060"),
+            (1_709_164_800, "%A", "Thursday"),
+            (1_709_164_800, "%U %W", "08 09"),
+            (1_709_164_800, "%V %G %g", "09 2024 24"),
+            (1_709_164_800, "%I %p", "12 AM"),
+            (1_709_164_800, "%e", "29"),
+            // 1970-01-01 00:00:00 UTC, the epoch, a Thursday.
+            (0, "%Y-%m-%d", "1970-01-01"),
+            (0, "%j", "001"),
+            (0, "%A", "Thursday"),
+            (0, "%U %W", "00 00"),
+            (0, "%V %G %g", "01 1970 70"),
+            (0, "%e", " 1"),
+            // 2027-01-01 12:00:00 UTC: an ISO week that rolls back into the previous year.
+            (1_798_804_800, "%V %G %g", "53 2026 26"),
+            (1_798_804_800, "%A", "Friday"),
+            (1_798_804_800, "%r", "12:00:00 PM"),
+            // A literal percent, and an unrecognized code emitted verbatim.
+            (0, "before %% after", "before % after"),
+            (0, "%Q", "%Q"),
+        ];
+        for (secs, format, expected) in cases {
+            assert_eq!(
+                &render_date(*secs, format),
+                expected,
+                "render_date({secs}, {format:?})"
+            );
+        }
+        // The empty format string falls back to an ISO date, whatever today happens to be.
+        let today = format_date("");
+        assert_eq!(today.len(), 10);
+        assert_eq!(today.matches('-').count(), 2);
+    }
+
+    #[test]
+    fn include_directive_splices_referenced_file() {
+        let path =
+            std::env::temp_dir().join(format!("carta_rst_include_{}.rst", std::process::id()));
+        std::fs::write(&path, "Pulled in **bold** text.\n").expect("write temp include");
+        let source = format!("Before.\n\n.. include:: {}\n\nAfter.\n", path.display());
+        let blocks = parse(&source);
+        std::fs::remove_file(&path).ok();
+
+        let paragraphs: Vec<&Vec<Inline>> = blocks
+            .iter()
+            .filter_map(|block| match block {
+                Block::Para(inlines) => Some(inlines),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(paragraphs.len(), 3);
+        let included = paragraphs.get(1).expect("the spliced include paragraph");
+        assert!(
+            included
+                .iter()
+                .any(|inline| matches!(inline, Inline::Strong(_)))
+        );
+    }
+
+    /// The attributes of the first image found in a paragraph or plain block.
+    fn first_image_attr(blocks: &[Block]) -> Option<Attr> {
+        for block in blocks {
+            let (Block::Para(inlines) | Block::Plain(inlines)) = block else {
+                continue;
+            };
+            for inline in inlines {
+                if let Inline::Image(attr, _, _) = inline {
+                    return Some(attr.clone());
+                }
+            }
+        }
+        None
+    }
+
+    fn image_width(source: &str) -> Option<String> {
+        first_image_attr(&parse(source))?
+            .attributes
+            .into_iter()
+            .find(|(key, _)| key == "width")
+            .map(|(_, value)| value)
+    }
+
+    #[test]
+    fn image_directive_resolves_width_and_scale() {
+        // A pixel width is truncated to an integer at parse time and rounds to even at the boundary
+        // once a scale is applied.
+        assert_eq!(
+            image_width(".. image:: a.png\n   :width: 200px\n   :scale: 50%\n"),
+            Some("100px".into())
+        );
+        assert_eq!(
+            image_width(".. image:: a.png\n   :width: 201px\n   :scale: 50%\n"),
+            Some("100px".into())
+        );
+        assert_eq!(
+            image_width(".. image:: a.png\n   :width: 100.7px\n"),
+            Some("100px".into())
+        );
+        // A percentage width keeps a single fractional digit.
+        assert_eq!(
+            image_width(".. image:: a.png\n   :width: 100%\n   :scale: 33\n"),
+            Some("3300.0%".into())
+        );
+        // A physical unit scales and renders in the shortest form.
+        assert_eq!(
+            image_width(".. image:: a.png\n   :width: 2.5in\n   :scale: 50%\n"),
+            Some("1.25in".into())
+        );
+        assert_eq!(
+            image_width(".. image:: a.png\n   :width: 3cm\n"),
+            Some("3cm".into())
+        );
+    }
+
+    #[test]
+    fn image_directive_doubles_classes_and_appends_alignment() {
+        let classes = |source: &str| first_image_attr(&parse(source)).expect("an image").classes;
+        // Alignment alone becomes an `align-<value>` class.
+        assert_eq!(
+            classes(".. image:: a.png\n   :align: center\n"),
+            vec!["align-center".to_string()]
+        );
+        // An explicit class list is doubled, with the alignment fused onto the final entry.
+        assert_eq!(
+            classes(".. image:: a.png\n   :class: foo\n   :align: center\n"),
+            vec!["foo".to_string(), "fooalign-center".to_string()]
+        );
+        assert_eq!(
+            classes(".. image:: a.png\n   :class: foo bar\n"),
+            vec![
+                "foo".to_string(),
+                "bar".to_string(),
+                "foo".to_string(),
+                "bar".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn substitution_image_carries_options() {
+        let badge = parse("|i|\n\n.. |i| image:: a.png\n   :class: foo\n   :align: middle\n");
+        assert_eq!(
+            first_image_attr(&badge).expect("an image").classes,
+            vec!["foo".to_string(), "fooalign-middle".to_string()]
+        );
+        assert_eq!(
+            image_width("|i|\n\n.. |i| image:: a.png\n   :width: 200px\n   :scale: 50%\n"),
+            Some("100px".into())
+        );
+    }
+
+    #[test]
+    fn figure_directive_separates_figure_and_image_attributes() {
+        // `:name:` identifies the inner image, `:align:` classes the figure; the figure id is empty.
+        let blocks = parse(".. figure:: a.png\n   :name: first\n   :align: center\n\n   Cap\n");
+        let (outer, body) = match blocks.first() {
+            Some(Block::Figure(attr, _, body)) => (attr.clone(), body.clone()),
+            other => panic!("expected a figure, got {other:?}"),
+        };
+        assert!(outer.id.is_empty());
+        assert_eq!(outer.classes, vec!["align-center".to_string()]);
+        let inner = first_image_attr(&body).expect("an inner image");
+        assert_eq!(inner.id.as_str(), "first");
+        assert!(inner.classes.is_empty());
+
+        // `:figclass:` and `:class:` both class the figure; only `:class:` reaches the inner image.
+        let blocks = parse(".. figure:: a.png\n   :figclass: frame\n   :class: photo\n\n   Cap\n");
+        let (outer, body) = match blocks.first() {
+            Some(Block::Figure(attr, _, body)) => (attr.clone(), body.clone()),
+            other => panic!("expected a figure, got {other:?}"),
+        };
+        assert_eq!(
+            outer.classes,
+            vec!["frame".to_string(), "photo".to_string()]
+        );
+        let inner = first_image_attr(&body).expect("an inner image");
+        assert_eq!(inner.classes, vec!["photo".to_string()]);
     }
 }
