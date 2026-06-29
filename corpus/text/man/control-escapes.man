@@ -1,0 +1,7 @@
+.TH T 1
+.SH ESCAPES
+Color \m[red]changes\m[] and \M[blue]fills\M[] carry no text.
+.PP
+A font family \F[CR]name\F[] and a register \g[reg] and an environment \V[HOME] value are dropped.
+.PP
+A macro string \Y[mac] leaves nothing, a break \p and a leader \a vanish, and a named glyph \C'rs' resolves.

@@ -1,0 +1,5 @@
+.TH STR 1
+.SH STRINGS
+.ds GREET Hello
+.ds EMPH \fBstrong\fP
+\*[GREET], \*(lq quoted \*(rq world, \*R \*(Tm and \*[EMPH] text.

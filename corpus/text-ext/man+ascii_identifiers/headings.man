@@ -1,0 +1,3 @@
+.TH AI 1
+.SH Caf\('e R\(:esum\('e Section
+body under an accented heading.
