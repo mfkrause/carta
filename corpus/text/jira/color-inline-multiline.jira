@@ -1,0 +1,4 @@
+{color:red}a
+b{color} keeps the span inline when the close is not alone.
+
+A {color:123456}bare hex{color} span stays inline too.
