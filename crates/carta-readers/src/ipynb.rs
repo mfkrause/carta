@@ -104,8 +104,10 @@ fn build_meta(notebook: &Value, nbformat: i64, nbformat_minor: i64) -> BTreeMap<
 }
 
 /// Convert a JSON value to a metadata value. Scalars become strings (a null becomes the empty
-/// string, a boolean a `MetaBool`); arrays and objects recurse. A number is rendered without a
-/// redundant fractional part, so an integer-valued float reads as an integer.
+/// string, a boolean a `MetaBool`); arrays and objects recurse. A number that is integer-valued —
+/// whether written as an integer or as a float like `3.0` — reads as a plain integer; a fractional
+/// number keeps the general decimal form, falling to scientific notation for very small or very
+/// large magnitudes.
 fn meta_value(value: &Value) -> MetaValue {
     match value {
         Value::Null => MetaValue::MetaString(String::new()),
@@ -121,17 +123,145 @@ fn meta_value(value: &Value) -> MetaValue {
     }
 }
 
-/// Render a number for metadata: an integer-valued float drops its trailing `.0` so it reads as an
-/// integer, while a fractional value keeps its decimals.
+/// Render a number for notebook-level metadata: an integer-valued number reads as a plain integer,
+/// while a fractional value is rendered in the general decimal form (scientific notation outside the
+/// magnitude range `[0.1, 10^7)`).
 fn meta_number(number: &serde_json::Number) -> String {
-    if number.is_f64() {
-        let rendered = number.to_string();
-        match rendered.strip_suffix(".0") {
-            Some(integer) => integer.to_owned(),
-            None => rendered,
-        }
+    if let Some(integer) = number.as_i64() {
+        return integer.to_string();
+    }
+    if let Some(integer) = number.as_u64() {
+        return integer.to_string();
+    }
+    match number.as_f64() {
+        Some(value) if value.is_finite() && value.fract() == 0.0 => integer_string(value),
+        Some(value) => general_decimal(value),
+        None => number.to_string(),
+    }
+}
+
+/// Render a number as a JSON scalar would appear in a serialized bundle: an integer keeps its exact
+/// digits, while a fractional number takes the general decimal form. Unlike [`meta_number`], a value
+/// written with a fractional part such as `3.0` keeps that part (it is not folded to an integer).
+fn json_number(number: &serde_json::Number) -> String {
+    if let Some(integer) = number.as_i64() {
+        return integer.to_string();
+    }
+    if let Some(integer) = number.as_u64() {
+        return integer.to_string();
+    }
+    match number.as_f64() {
+        Some(value) => general_decimal(value),
+        None => number.to_string(),
+    }
+}
+
+/// Render an integer-valued floating-point number as a bare integer (no fractional part, no
+/// exponent). Negative zero renders as `0`.
+fn integer_string(value: f64) -> String {
+    if value == 0.0 {
+        return "0".to_owned();
+    }
+    format!("{value}")
+}
+
+/// Render a floating-point number in the general decimal form: fixed-point notation when the
+/// magnitude lies in `[0.1, 10^7)` and scientific notation otherwise, always carrying at least one
+/// fractional digit (`1.0`, never `1`). Zero renders as `0.0`.
+fn general_decimal(value: f64) -> String {
+    if value == 0.0 {
+        return "0.0".to_owned();
+    }
+    let (digits, exponent) = shortest_digits(value.abs());
+    let body = if (-1..=6).contains(&exponent) {
+        fixed_notation(&digits, exponent)
     } else {
-        number.to_string()
+        scientific_notation(&digits, exponent)
+    };
+    if value.is_sign_negative() {
+        format!("-{body}")
+    } else {
+        body
+    }
+}
+
+/// The shortest decimal digit run of a positive, finite magnitude together with the power of ten of
+/// its leading digit: the value equals `d.ddd… × 10^exponent`. For `0.05` this is (`"5"`, `-2`); for
+/// `1234.5`, (`"12345"`, `3`).
+fn shortest_digits(magnitude: f64) -> (String, i32) {
+    let formatted = format!("{magnitude:e}");
+    let (mantissa, exponent) = match formatted.split_once('e') {
+        Some((mantissa, exponent)) => (mantissa, exponent.parse::<i32>().unwrap_or(0)),
+        None => (formatted.as_str(), 0),
+    };
+    let digits = mantissa.chars().filter(char::is_ascii_digit).collect();
+    (digits, exponent)
+}
+
+/// Lay out a digit run in fixed-point notation given the leading digit's power of ten. Called only
+/// for an exponent in `-1..=6`, so a value below one places its single leading digit just after the
+/// point.
+fn fixed_notation(digits: &str, exponent: i32) -> String {
+    if exponent < 0 {
+        let leading_zeros = usize::try_from((-exponent - 1).max(0)).unwrap_or(0);
+        return format!("0.{}{digits}", "0".repeat(leading_zeros));
+    }
+    let integer_len = usize::try_from(exponent).unwrap_or(0) + 1;
+    if digits.len() <= integer_len {
+        let trailing_zeros = integer_len - digits.len();
+        format!("{digits}{}.0", "0".repeat(trailing_zeros))
+    } else {
+        let (integer_part, fraction) = digits.split_at(integer_len);
+        format!("{integer_part}.{fraction}")
+    }
+}
+
+/// Lay out a digit run in scientific notation: one digit before the point, the rest after (`0` when
+/// there are none), then the exponent (no `+` sign for a non-negative exponent).
+fn scientific_notation(digits: &str, exponent: i32) -> String {
+    let (first, rest) = digits.split_at(1.min(digits.len()));
+    let mantissa = if rest.is_empty() {
+        format!("{first}.0")
+    } else {
+        format!("{first}.{rest}")
+    };
+    format!("{mantissa}e{exponent}")
+}
+
+/// Serialize a JSON value to compact text, rendering numbers as [`json_number`] does. Object keys are
+/// emitted in sorted order (the parser stores them sorted), so the output is deterministic.
+fn json_render(value: &Value) -> String {
+    let mut out = String::new();
+    json_write(value, &mut out);
+    out
+}
+
+fn json_write(value: &Value, out: &mut String) {
+    match value {
+        Value::Number(number) => out.push_str(&json_number(number)),
+        Value::Array(items) => {
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index != 0 {
+                    out.push(',');
+                }
+                json_write(item, out);
+            }
+            out.push(']');
+        }
+        Value::Object(map) => {
+            out.push('{');
+            for (index, (key, item)) in map.iter().enumerate() {
+                if index != 0 {
+                    out.push(',');
+                }
+                out.push_str(&Value::String(key.clone()).to_string());
+                out.push(':');
+                json_write(item, out);
+            }
+            out.push('}');
+        }
+        other => out.push_str(&other.to_string()),
     }
 }
 
@@ -177,17 +307,20 @@ fn cell_attr(cell: &Value, kind: &str) -> Attr {
     }
 }
 
-/// Render a JSON value as an attribute string. A non-string takes its compact JSON form. A string
-/// keeps its own text, except that one which would otherwise read back as a number or boolean — an
-/// all-digit run such as `007`, or the literal `true`/`false` — is wrapped in double quotes so the
-/// distinction between the string and the scalar survives the round trip.
+/// Render a JSON value as an attribute string. A non-string takes its compact JSON form, with numbers
+/// rendered as [`json_number`] does. A string keeps its own text, except that one which would
+/// otherwise read back as a number, a boolean, or the empty attribute — an all-digit run such as
+/// `007`, the literal `true`/`false`, or `""` — is wrapped in double quotes so the distinction
+/// between the string and the scalar survives the round trip.
 fn attribute_value(value: &Value) -> String {
     match value {
-        Value::String(text) if is_integer_literal(text) || text == "true" || text == "false" => {
+        Value::String(text)
+            if text.is_empty() || is_integer_literal(text) || text == "true" || text == "false" =>
+        {
             format!("\"{text}\"")
         }
         Value::String(text) => text.clone(),
-        other => other.to_string(),
+        other => json_render(other),
     }
 }
 
@@ -371,7 +504,7 @@ fn non_image_block(mime: &str, value: &Value) -> Block {
                 classes: vec!["json".to_owned()],
                 attributes: Vec::new(),
             },
-            value.to_string(),
+            json_render(value),
         );
     }
     match mime {
@@ -462,6 +595,7 @@ fn format_from_mime(mime: &str) -> String {
         "text/latex" | "application/pdf" => "latex",
         "text/markdown" => "markdown",
         "text/restructuredtext" | "text/x-rst" => "rst",
+        "text/asciidoc" => "asciidoc",
         other => other,
     }
     .to_owned()

@@ -556,8 +556,14 @@ pub(crate) fn unescape_string(text: &str) -> String {
 }
 
 /// Parse a leading link reference definition from `text`. Returns the normalized label, the
-/// resolved definition, and the unconsumed remainder of `text`.
-pub(crate) fn parse_link_reference_definition(text: &str) -> Option<(String, LinkDef, &str)> {
+/// resolved definition, and the unconsumed remainder of `text`. In the markdown dialect
+/// (`markdown`), an unbracketed destination may carry internal spaces (each whitespace run joining
+/// its words with a single space) and may be empty; the bare `CommonMark` form ends a destination at
+/// the first space and requires a non-empty unbracketed destination.
+pub(crate) fn parse_link_reference_definition(
+    text: &str,
+    markdown: bool,
+) -> Option<(String, LinkDef, &str)> {
     let chars: Vec<char> = text.chars().collect();
     let mut index = 0;
     skip_spaces_up_to_three(&chars, &mut index);
@@ -597,51 +603,28 @@ pub(crate) fn parse_link_reference_definition(text: &str) -> Option<(String, Lin
     index += 1;
     skip_inline_whitespace_no_double_newline(&chars, &mut index)?;
     let angle = chars.get(index).copied() == Some('<');
-    let (url, next) = scan_destination(&chars, index)?;
-    // A bare (non-angle) destination must be non-empty; `<>` is a valid empty destination.
-    if url.is_empty() && !angle {
-        return None;
-    }
-    index = next;
 
-    // Optional title, separated from the destination by whitespace and at most one newline. If the
-    // title is absent or malformed, the definition still stands as long as the destination's line
-    // ends after it; non-whitespace following the destination invalidates the whole definition.
-    let after_dest = index;
-    let mut probe = index;
-    let mut newlines = 0;
-    while let Some(ch) = chars.get(probe).copied() {
-        match ch {
-            ' ' | '\t' => probe += 1,
-            '\n' if newlines == 0 => {
-                newlines += 1;
-                probe += 1;
-            }
-            _ => break,
+    let (url, title) = if markdown && !angle {
+        let (url, same_line_title, line_end) = scan_markdown_reference_body(&chars, index)?;
+        index = line_end;
+        if let Some(title) = same_line_title {
+            (url, title)
+        } else {
+            let (title, end) = scan_following_title(&chars, index)?;
+            index = end;
+            (url, title)
         }
-    }
-    let separated = probe > after_dest;
-    let mut title = String::new();
-    let mut has_title = false;
-    if separated
-        && matches!(chars.get(probe).copied(), Some('"' | '\'' | '('))
-        && let Some((parsed, after)) = scan_title(&chars, probe)
-    {
-        let mut tail = after;
-        skip_blanks_to_line_end(&chars, &mut tail);
-        if at_line_end(&chars, tail) {
-            title = parsed;
-            has_title = true;
-            index = tail;
-        }
-    }
-    if !has_title {
-        index = after_dest;
-        skip_blanks_to_line_end(&chars, &mut index);
-        if !at_line_end(&chars, index) {
+    } else {
+        let (url, next) = scan_destination(&chars, index)?;
+        // A bare (non-angle) destination must be non-empty; `<>` is a valid empty destination.
+        if url.is_empty() && !angle {
             return None;
         }
-    }
+        let (title, end) = scan_following_title(&chars, next)?;
+        index = end;
+        (url, title)
+    };
+
     // Consume the trailing newline.
     if chars.get(index).copied() == Some('\n') {
         index += 1;
@@ -660,6 +643,160 @@ pub(crate) fn parse_link_reference_definition(text: &str) -> Option<(String, Lin
         .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
     let rest = text.get(consumed_bytes..).unwrap_or("");
     Some((normalized, def, rest))
+}
+
+/// After a destination ending at `after_dest`, scan an optional title separated from it by
+/// whitespace and at most one newline. Returns the title (empty when absent) together with the
+/// index at the end of the definition's last line. Returns `None` when non-whitespace other than a
+/// well-formed title follows the destination, which invalidates the whole definition.
+fn scan_following_title(chars: &[char], after_dest: usize) -> Option<(String, usize)> {
+    let mut probe = after_dest;
+    let mut newlines = 0;
+    while let Some(ch) = chars.get(probe).copied() {
+        match ch {
+            ' ' | '\t' => probe += 1,
+            '\n' if newlines == 0 => {
+                newlines += 1;
+                probe += 1;
+            }
+            _ => break,
+        }
+    }
+    let separated = probe > after_dest;
+    if separated
+        && matches!(chars.get(probe).copied(), Some('"' | '\'' | '('))
+        && let Some((parsed, after)) = scan_title(chars, probe)
+    {
+        let mut tail = after;
+        skip_blanks_to_line_end(chars, &mut tail);
+        if at_line_end(chars, tail) {
+            return Some((parsed, tail));
+        }
+    }
+    let mut index = after_dest;
+    skip_blanks_to_line_end(chars, &mut index);
+    if !at_line_end(chars, index) {
+        return None;
+    }
+    Some((String::new(), index))
+}
+
+/// The outcome of testing whether a title begins at a given position in a markdown reference body.
+enum TitleScan {
+    /// A title that occupies the rest of the line. Carries the raw title and the index at line end.
+    Title(String, usize),
+    /// A parenthesized title that parses but is not the line's last element — invalid here.
+    Reject,
+    /// A title delimiter that does not form a line-ending title; its characters are literal text.
+    Literal,
+    /// No title delimiter at this position.
+    Absent,
+}
+
+/// Test whether a `"..."`, `'...'`, or `(...)` title begins at `at` and ends the line. A title token
+/// requires its closing delimiter to be followed by whitespace or the line's end; with trailing
+/// non-whitespace after that, the definition is invalid. A quote whose closing delimiter abuts more
+/// text is not a title token at all and reverts to literal destination text, whereas a parenthesized
+/// run in that position still invalidates the definition.
+fn try_reference_title(chars: &[char], at: usize) -> TitleScan {
+    let Some(opener @ ('"' | '\'' | '(')) = chars.get(at).copied() else {
+        return TitleScan::Absent;
+    };
+    match scan_title(chars, at) {
+        Some((parsed, after)) => {
+            if at_line_end(chars, after) || matches!(chars.get(after).copied(), Some(' ' | '\t')) {
+                let mut tail = after;
+                skip_blanks_to_line_end(chars, &mut tail);
+                if at_line_end(chars, tail) {
+                    TitleScan::Title(parsed, tail)
+                } else {
+                    TitleScan::Reject
+                }
+            } else if opener == '(' {
+                TitleScan::Reject
+            } else {
+                TitleScan::Literal
+            }
+        }
+        None => TitleScan::Literal,
+    }
+}
+
+/// Scan a markdown-dialect unbracketed reference destination starting at `start`, where the
+/// destination may hold spaces and balanced parentheses. The destination runs to the end of the
+/// line, save for a trailing `"..."`, `'...'`, or `(...)` title separated by whitespace (or one at
+/// the very start, which leaves the destination empty). Returns the raw destination, a same-line
+/// title when one ends the line, and the index at line end. Returns `None` when the line cannot form
+/// a valid definition (a parenthesized title not at the line's end).
+fn scan_markdown_reference_body(
+    chars: &[char],
+    start: usize,
+) -> Option<(String, Option<String>, usize)> {
+    let mut index = start;
+    match try_reference_title(chars, index) {
+        TitleScan::Title(parsed, end) => return Some((String::new(), Some(parsed), end)),
+        TitleScan::Reject => return None,
+        TitleScan::Literal | TitleScan::Absent => {}
+    }
+    let mut url = String::new();
+    let mut depth: usize = 0;
+    loop {
+        match chars.get(index).copied() {
+            None | Some('\n') => break,
+            Some('(') => {
+                depth += 1;
+                url.push('(');
+                index += 1;
+            }
+            Some(')') => {
+                depth = depth.saturating_sub(1);
+                url.push(')');
+                index += 1;
+            }
+            Some('\\') if matches!(chars.get(index + 1).copied(), Some(' ' | '\t')) => {
+                url.push(' ');
+                index += 2;
+            }
+            Some('\\')
+                if chars
+                    .get(index + 1)
+                    .copied()
+                    .is_some_and(is_ascii_punctuation) =>
+            {
+                url.push('\\');
+                if let Some(&next) = chars.get(index + 1) {
+                    url.push(next);
+                }
+                index += 2;
+            }
+            Some(' ' | '\t') => {
+                let mut after = index;
+                skip_blanks_to_line_end(chars, &mut after);
+                if at_line_end(chars, after) {
+                    index = after;
+                    break;
+                }
+                if depth == 0 {
+                    match try_reference_title(chars, after) {
+                        TitleScan::Title(parsed, end) => return Some((url, Some(parsed), end)),
+                        TitleScan::Reject => return None,
+                        TitleScan::Literal | TitleScan::Absent => {
+                            url.push(' ');
+                            index = after;
+                        }
+                    }
+                } else {
+                    url.push(' ');
+                    index = after;
+                }
+            }
+            Some(ch) => {
+                url.push(ch);
+                index += 1;
+            }
+        }
+    }
+    Some((url, None, index))
 }
 
 fn skip_spaces_up_to_three(chars: &[char], index: &mut usize) {

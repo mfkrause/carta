@@ -125,6 +125,48 @@ define_extensions! {
     // A list may begin directly after a paragraph line with no intervening blank line, interrupting
     // it; without it a list marker on the line after a paragraph folds into that paragraph.
     ListsWithoutPrecedingBlankline => "lists_without_preceding_blankline",
+    // `*[SHY]: Soft hyphen` abbreviation definitions, applied to later occurrences of the term.
+    Abbreviations => "abbreviations",
+    // A backslash escapes any symbol, not only the ASCII-punctuation subset.
+    AllSymbolsEscapable => "all_symbols_escapable",
+    // A backslash before `<` or `>` escapes the angle bracket.
+    AngleBracketsEscapable => "angle_brackets_escapable",
+    // Derived header identifiers are transliterated to ASCII.
+    AsciiIdentifiers => "ascii_identifiers",
+    // Line breaks between East Asian wide characters carry no width and are dropped.
+    EastAsianLineBreaks => "east_asian_line_breaks",
+    // An indented code block requires four spaces of indentation rather than one tab stop.
+    FourSpaceRule => "four_space_rule",
+    // Typographic conventions of the Project Gutenberg style for plain-text output.
+    Gutenberg => "gutenberg",
+    // Soft line breaks within a paragraph are discarded rather than kept as spaces.
+    IgnoreLineBreaks => "ignore_line_breaks",
+    // User-defined LaTeX macros are expanded in math and raw TeX.
+    LatexMacros => "latex_macros",
+    // Bird-track (`> `) literate-program code sections.
+    LiterateHaskell => "literate_haskell",
+    // An attribute block following a link or image in the MultiMarkdown position.
+    MmdLinkAttributes => "mmd_link_attributes",
+    // A MultiMarkdown metadata block at the top of the document.
+    MmdTitleBlock => "mmd_title_block",
+    // `-` and `--` map to en/em dashes under the older dash convention.
+    OldDashes => "old_dashes",
+    // A raw block or inline may be written directly as Markdown for round-tripping.
+    RawMarkdown => "raw_markdown",
+    // Relative paths in links and images are rebased onto the source file's location.
+    RebaseRelativePaths => "rebase_relative_paths",
+    // `~x` / `^x` subscript and superscript bind only the single following character.
+    ShortSubsuperscripts => "short_subsuperscripts",
+    // A defined label may be referenced by `[label]` alone, with no following `[]` or `(…)`.
+    ShortcutReferenceLinks => "shortcut_reference_links",
+    // An ATX header requires a space between the opening `#` run and the heading text.
+    SpaceInAtxHeader => "space_in_atx_header",
+    // A reference link's label and its following `[id]` may be separated by whitespace.
+    SpacedReferenceLinks => "spaced_reference_links",
+    // `[[target|title]]` wiki links, with the title following the pipe.
+    WikilinksTitleAfterPipe => "wikilinks_title_after_pipe",
+    // `[[title|target]]` wiki links, with the title preceding the pipe.
+    WikilinksTitleBeforePipe => "wikilinks_title_before_pipe",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;

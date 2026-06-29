@@ -1595,36 +1595,43 @@ impl Parser {
                 return Some(list);
             }
             // Under `lists_without_preceding_blankline` a line that has a list-marker shape ends a
-            // greedy paragraph even when no enabled enumerator style opens a list there (e.g. a
-            // parenthesized or alphabetic marker while fancy lists are off): it starts a fresh
-            // paragraph rather than folding into the open one. The shape is judged with every
-            // enumerator style allowed, so the test is independent of which styles actually form a
-            // list here. A decimal enumerator closed by a single `)` (`2)`) is the one exception —
-            // too easily ordinary prose — so it neither breaks the paragraph nor opens a list.
+            // greedy paragraph even when no enabled construct opens there: it starts a fresh
+            // paragraph rather than folding into the open one. Three shapes break the paragraph:
+            //   - a definition marker (`:`/`~`) when no definition list opens here;
+            //   - an example-list marker (`(@)`, `(@label)`) when example lists are off;
+            //   - any other enumerator shape carrying content on its line — judged with every
+            //     enumerator style allowed, so independent of which styles actually form a list.
+            // A decimal enumerator closed by a single `)` (`2)`) is the one exception for that last
+            // shape — too easily ordinary prose — so it neither breaks the paragraph nor opens a
+            // list. The first two shapes break regardless of any trailing content.
             if in_paragraph
                 && self
                     .extensions
                     .contains(Extension::ListsWithoutPrecedingBlankline)
-                && cursor
-                    .list_marker_at(
-                        true,
-                        self.extensions.contains(Extension::ExampleLists),
-                        false,
-                    )
-                    .is_some_and(|marker| {
-                        !marker.blank_after
-                            && !(matches!(marker.style, ListNumberStyle::Decimal)
-                                && matches!(marker.delim, ListNumberDelim::OneParen))
-                    })
             {
-                if let Some(paragraph) = self
-                    .last_open_child(container)
-                    .filter(|&child| matches!(self.kind(child), Some(Kind::Paragraph)))
-                {
-                    self.close(paragraph);
+                let definition_shape = cursor.definition_marker_at().is_some();
+                let example_shape = matches!(
+                    cursor.list_marker_at(true, true, false),
+                    Some(marker) if matches!(marker.style, ListNumberStyle::Example)
+                );
+                let enumerator_shape =
+                    cursor
+                        .list_marker_at(true, false, false)
+                        .is_some_and(|marker| {
+                            !(marker.blank_after
+                                || matches!(marker.style, ListNumberStyle::Decimal)
+                                    && matches!(marker.delim, ListNumberDelim::OneParen))
+                        });
+                if definition_shape || example_shape || enumerator_shape {
+                    if let Some(paragraph) = self
+                        .last_open_child(container)
+                        .filter(|&child| matches!(self.kind(child), Some(Kind::Paragraph)))
+                    {
+                        self.close(paragraph);
+                    }
+                    let parent = self.place(container, &Kind::Paragraph);
+                    return Some(self.append_child(parent, Node::new(Kind::Paragraph)));
                 }
-                let parent = self.place(container, &Kind::Paragraph);
-                return Some(self.append_child(parent, Node::new(Kind::Paragraph)));
             }
         }
         None
@@ -2069,7 +2076,9 @@ impl Parser {
 
     fn extract_refs(&mut self, text: &str) -> String {
         let mut remaining = text;
-        while let Some((label, def, rest)) = scan::parse_link_reference_definition(remaining) {
+        while let Some((label, def, rest)) =
+            scan::parse_link_reference_definition(remaining, self.greedy_paragraphs)
+        {
             self.refs.entry(label).or_insert(def);
             remaining = rest;
         }

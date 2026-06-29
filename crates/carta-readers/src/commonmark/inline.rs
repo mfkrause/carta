@@ -105,7 +105,7 @@ pub(crate) fn resolve_document(
         cite_count: &body_count,
     };
     let mut blocks = resolve_blocks(ir, &refs, top, ext);
-    super::identifiers::assign_header_identifiers(&mut blocks, ext);
+    super::identifiers::assign_header_identifiers(&mut blocks, ext, markdown);
     blocks
 }
 
@@ -120,7 +120,7 @@ fn register_header_references(
     notes: RefContext,
     ext: Extensions,
 ) {
-    let mut numbering = HeaderNumbering::new(ext);
+    let mut numbering = HeaderNumbering::new(ext, notes.markdown);
     gather_headers(ir, refs, notes, ext, &mut numbering);
 }
 
@@ -193,10 +193,17 @@ fn resolve_block(
         }
         IrBlock::CodeBlock(attr, text) => out.push(Block::CodeBlock(attr.clone(), text.clone())),
         IrBlock::RawHtml(text) => {
-            out.push(Block::RawBlock(
-                carta_ast::Format("html".to_owned()),
-                text.clone(),
-            ));
+            // In the Markdown dialect with `raw_html` off an HTML block degrades to an ordinary
+            // paragraph of its literal text; the inline pass keeps the tags as text. The bare
+            // CommonMark engine always emits a raw HTML block.
+            if notes.markdown && !ext.contains(Extension::RawHtml) {
+                out.push(Block::Para(parse_inlines(text, refs, notes, ext)));
+            } else {
+                out.push(Block::RawBlock(
+                    carta_ast::Format("html".to_owned()),
+                    text.clone(),
+                ));
+            }
         }
         IrBlock::RawBlock(format, text) => {
             out.push(Block::RawBlock(format.clone(), text.clone()));
@@ -921,6 +928,14 @@ impl InlineParser<'_> {
         }
         self.pos += 1;
         match self.peek() {
+            // In the broad Markdown dialect a backslash before a line ending is a hard break only
+            // when `escaped_line_breaks` is on; with it off the backslash is literal and the line
+            // ending is an ordinary soft break. The bare CommonMark engine always hard-breaks here.
+            Some('\n')
+                if self.notes.markdown && !self.ext.contains(Extension::EscapedLineBreaks) =>
+            {
+                self.push_text('\\');
+            }
             Some('\n') => {
                 self.pos += 1;
                 while matches!(self.peek(), Some(' ' | '\t')) {
@@ -1264,10 +1279,17 @@ impl InlineParser<'_> {
         }
         if let Some((html, next)) = scan_html_tag(self.chars, self.pos) {
             self.pos = next;
-            self.nodes.push(Node::Inline(Inline::RawInline(
-                carta_ast::Format("html".to_owned()),
-                html,
-            )));
+            // In the Markdown dialect with `raw_html` off the tag is still recognized as a unit but
+            // kept as literal text rather than a passthrough span. The bare CommonMark engine always
+            // emits raw HTML, since HTML is part of its core grammar.
+            if self.notes.markdown && !self.ext.contains(Extension::RawHtml) {
+                self.push_str(&html);
+            } else {
+                self.nodes.push(Node::Inline(Inline::RawInline(
+                    carta_ast::Format("html".to_owned()),
+                    html,
+                )));
+            }
             return;
         }
         self.pos += 1;
@@ -1319,7 +1341,12 @@ impl InlineParser<'_> {
             self.chars.get(start - 1).copied()
         };
         let after = self.peek();
-        let (can_open, can_close) = run_flanking(ch, before, after);
+        // With `intraword_underscores` off in the Markdown dialect, a `_` run pairs like `*`,
+        // emphasizing even between word characters; otherwise the CommonMark `_` rule keeps an
+        // intraword run inert.
+        let relax_underscore =
+            self.notes.markdown && !self.ext.contains(Extension::IntrawordUnderscores);
+        let (can_open, can_close) = run_flanking(ch, before, after, relax_underscore);
         self.nodes.push(Node::Delimiter(Delimiter {
             ch,
             count,
@@ -2415,9 +2442,17 @@ fn is_quote(ch: u8) -> bool {
 
 /// Open/close eligibility for a delimiter run, dispatching to the smart-quote rule for `'`/`"` and
 /// to the emphasis rule for everything else.
-fn run_flanking(ch: u8, before: Option<char>, after: Option<char>) -> (bool, bool) {
+fn run_flanking(
+    ch: u8,
+    before: Option<char>,
+    after: Option<char>,
+    relax_underscore: bool,
+) -> (bool, bool) {
     if is_quote(ch) {
         quote_flanking(ch, before, after)
+    } else if ch == b'_' && relax_underscore {
+        // Pair underscores by the same boundary rule as `*`, which permits intraword emphasis.
+        flanking(b'*', before, after)
     } else {
         flanking(ch, before, after)
     }

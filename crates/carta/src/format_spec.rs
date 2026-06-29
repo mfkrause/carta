@@ -189,4 +189,50 @@ mod tests {
         let err = parse_format_spec("html+bogus").unwrap_err();
         assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
     }
+
+    #[test]
+    fn recognized_dialect_toggle_names_parse_without_error() {
+        // These extension names are part of the markdown-family vocabulary a format spec may toggle.
+        // Each must be recognized so that toggling it on a base format succeeds rather than aborting,
+        // and each toggle must round-trip: `+name` then `-name` returns to the default membership.
+        let names = [
+            "abbreviations",
+            "all_symbols_escapable",
+            "angle_brackets_escapable",
+            "ascii_identifiers",
+            "east_asian_line_breaks",
+            "four_space_rule",
+            "gutenberg",
+            "ignore_line_breaks",
+            "latex_macros",
+            "literate_haskell",
+            "mmd_link_attributes",
+            "mmd_title_block",
+            "old_dashes",
+            "raw_markdown",
+            "rebase_relative_paths",
+            "short_subsuperscripts",
+            "shortcut_reference_links",
+            "space_in_atx_header",
+            "spaced_reference_links",
+            "wikilinks_title_after_pipe",
+            "wikilinks_title_before_pipe",
+        ];
+        let (_, default) = parse_format_spec("ipynb").unwrap();
+        for name in names {
+            let (_, enabled) = parse_format_spec(&format!("ipynb+{name}"))
+                .unwrap_or_else(|err| panic!("ipynb+{name} should parse: {err:?}"));
+            let extension =
+                Extension::from_name(name).unwrap_or_else(|| panic!("{name} should be a variant"));
+            assert!(enabled.contains(extension), "+{name} should enable it");
+
+            let (_, disabled) = parse_format_spec(&format!("ipynb+{name}-{name}"))
+                .unwrap_or_else(|err| panic!("ipynb+{name}-{name} should parse: {err:?}"));
+            assert_eq!(
+                disabled.contains(extension),
+                default.contains(extension),
+                "+{name}-{name} should return to the default membership"
+            );
+        }
+    }
 }

@@ -102,7 +102,7 @@ struct HeadingIds {
 impl HeadingIds {
     fn new(extensions: Extensions) -> Self {
         Self {
-            scheme: IdScheme::select(extensions),
+            scheme: IdScheme::select(extensions, false),
             registry: IdRegistry::default(),
         }
     }

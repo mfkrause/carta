@@ -75,12 +75,14 @@ number style, and bare URIs and email addresses autolink, each carrying a `uri` 
 cell preset also turns on `auto_identifiers`, `gfm_auto_identifiers`, `tex_math_dollars`,
 `pipe_tables`, `task_lists`, `strikeout`, `raw_html`, `autolink_bare_uris`, `fenced_code_blocks`,
 `backtick_code_blocks`, `intraword_underscores`). Code cells become code blocks carrying their stream / `execute_result` /
-`display_data` / `error` outputs. Notebook and cell metadata become attributes, with a scalar value
+`display_data` / `error` outputs; an `application/json` output bundle becomes a `json`-classed code
+block whose payload is re-serialized in canonical numeric form. Notebook and cell metadata become attributes, with a scalar value
 quoted when a string is number- or boolean-shaped and left bare when it is an actual number or
 boolean. An image output is named by the hash of its decoded bytes (the raw payload when it is not
 valid base64) and carries its `metadata` entries as sorted image attributes; a raw cell's target
-format is taken from its `raw_mimetype`, falling back to `format`. `attachment:` image references
-and base64 image payloads are decoded.
+format is taken from its `raw_mimetype`, falling back to `format`. A markdown-cell link reference
+definition whose unbracketed destination carries internal spaces is accepted, with each space
+percent-encoded. `attachment:` image references and base64 image payloads are decoded.
 Gaps: nbformat v3 (worksheets) is reported as an unsupported format rather than read; the reader is lenient where the format is
 strict (a stream output with no `name`, a null `execution_count`, or a missing top-level `nbformat`
 are accepted rather than rejected); unknown cell and output kinds are silently dropped;
@@ -212,7 +214,9 @@ AST → native literals.
 
 ### `ipynb` — 🚧
 AST → Jupyter notebook (nbformat v4): the document is split into markdown and code cells, code cells
-carrying their outputs, with document and cell metadata serialized from attributes. Cell ids are
+carrying their outputs, with document and cell metadata serialized from attributes. A raw cell (a
+`[cell, raw]` div wrapping a raw block) emits a `raw_mimetype` derived from the raw block's format,
+including `asciidoc` → `text/asciidoc`, so a raw cell round-trips through the reader. Cell ids are
 derived deterministically from cell content so output stays byte-reproducible.
 Gaps: an image output references its payload by file name (the document model carries no embedded
 bytes), so its base64 `data` bundle cannot be reconstructed — such an output is reported as
@@ -231,9 +235,13 @@ numbering are no-ops.
 
 ## Extensions
 
-Reader-side toggles the CommonMark engine recognizes. The enum defines 49 extensions, all of which the
-reader honors. `raw_html` is always on — the engine preserves raw HTML regardless of the toggle — and
-the other 48 are branched on per toggle.
+Reader-side toggles the CommonMark engine recognizes. The enum defines 77 extension names. The reader
+branches on the behavioral set listed under **Supported**; every other name is still accepted as a
+toggle, so a format spec naming one parses and records it rather than aborting, even where the
+construct's behavior is not yet modeled (see **Recognized, behavior not yet modeled**). In the bare
+CommonMark engine `raw_html` is always honored — raw HTML is part of the core grammar — whereas in the
+Markdown dialect the toggle is live: with it off, an HTML block degrades to a paragraph of its literal
+text and an inline tag is kept as ordinary text.
 
 **Supported:** `smart`, `strikeout`, `superscript`, `subscript`, `pipe_tables`, `footnotes`,
 `task_lists`, `autolink_bare_uris`, `tex_math_dollars`, `fenced_divs`, `bracketed_spans`,
@@ -244,7 +252,16 @@ the other 48 are branched on per toggle.
 `gfm_auto_identifiers`, `implicit_header_references`, `implicit_figures`, `raw_attribute`,
 `inline_notes`, `native_divs`, `native_spans`, `markdown_in_html_blocks`, `raw_tex`, `citations`,
 `table_attributes`, `blank_before_blockquote`, `blank_before_header`, `mark`, `emoji`, `alerts`,
-`tex_math_single_backslash`, `tex_math_double_backslash`, `lists_without_preceding_blankline`.
+`tex_math_single_backslash`, `tex_math_double_backslash`, `lists_without_preceding_blankline`,
+`intraword_underscores`, `backtick_code_blocks`, `fenced_code_blocks`, `escaped_line_breaks`.
+
+In the Markdown dialect `escaped_line_breaks` is off by default: a backslash before a line ending is
+literal text and the break is soft. With it on, that backslash makes a hard line break. `auto_identifiers`
+is the master switch for header numbering — with it off, a header keeps an empty identifier even when
+`gfm_auto_identifiers` is on (the latter only selects the slug algorithm). Under
+`lists_without_preceding_blankline`, a definition marker (`:`/`~`) or an example marker (`(@)`) on the
+line after a paragraph opens a fresh block even when `definition_lists` / `example_lists` are off, so
+the greedy paragraph ends there.
 
 ### Known parity gaps
 
@@ -262,15 +279,15 @@ is verified against the pinned oracle and tracked for a follow-up.
 | `attributes` | An attribute spec `{…}` containing a backslash escape is void in the dialect — it stays literal text — whereas carta accepts the backslash into the id, class, or value. |
 | `alerts` | An alert marker indented two or more columns inside its blockquote (e.g. `>  [!NOTE]`) is still read as an alert; the dialect treats only a marker at column 0 or 1 as one. |
 
-### Not modeled
+### Recognized, behavior not yet modeled
 
-No enum variant yet (notable, non-exhaustive): `latex_macros`, `intraword_underscores`,
-`backtick_code_blocks`, `abbreviations`, `wikilinks_title_after_pipe`,
-`wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`, `mmd_header_identifiers`,
-`mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`, `old_dashes`,
-`east_asian_line_breaks`, `escaped_line_breaks`, `four_space_rule`,
-`space_in_atx_header`, `literate_haskell`,
-`rebase_relative_paths`, `gutenberg`.
+These names have an enum variant, so a format spec may toggle them and the toggle is recorded, but the
+reader does not yet branch on the construct (notable, non-exhaustive): `latex_macros`, `abbreviations`,
+`wikilinks_title_after_pipe`, `wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`,
+`mmd_header_identifiers`, `mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`,
+`old_dashes`, `east_asian_line_breaks`, `four_space_rule`, `space_in_atx_header`, `literate_haskell`,
+`rebase_relative_paths`, `gutenberg`, `all_symbols_escapable`, `angle_brackets_escapable`,
+`ignore_line_breaks`, `raw_markdown`, `spaced_reference_links`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)
 
 ---
