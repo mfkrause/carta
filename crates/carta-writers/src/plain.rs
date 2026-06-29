@@ -197,7 +197,11 @@ impl State {
                     let loose = is_loose_definition(definition);
                     let body = self.blocks_at(definition, width.saturating_sub(2), loose);
                     let indented = indent_block(&body, "  ", "  ");
-                    group.push_str(if loose { "\n\n" } else { "\n" });
+                    // An empty term contributes no line, so the first body opens the group with no
+                    // leading separator; otherwise each body is set off from what precedes it.
+                    if !group.is_empty() {
+                        group.push_str(if loose { "\n\n" } else { "\n" });
+                    }
                     group.push_str(&indented);
                 }
                 group

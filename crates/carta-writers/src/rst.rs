@@ -378,18 +378,30 @@ impl State {
     ) -> String {
         let mut groups = Vec::new();
         for (term, definitions) in items {
-            let term_line = self.flat(term);
+            let term_line = self.flat_lines(term);
             let mut def_units = Vec::new();
             for definition in definitions {
                 let simple = matches!(definition.as_slice(), [Block::Plain(_)]);
                 let body = self.blocks_to_string(definition, width.saturating_sub(3), false);
                 let body = lead_quote_fence(definition, body);
-                def_units.push((simple, indent_block(&body, "   ", "   ")));
+                let indented = if body.is_empty() {
+                    String::new()
+                } else {
+                    indent_block(&body, "   ", "   ")
+                };
+                def_units.push((simple, indented));
             }
             let group_simple = definitions
                 .iter()
                 .all(|definition| matches!(definition.as_slice(), [Block::Plain(_)]));
-            let group = format!("{term_line}\n{}", join_loose_items(def_units));
+            let bodies = join_loose_items(def_units);
+            let group = if term_line.is_empty() {
+                bodies
+            } else if bodies.is_empty() {
+                term_line
+            } else {
+                format!("{term_line}\n{bodies}")
+            };
             groups.push((group_simple, group));
         }
         join_loose_items(groups)
@@ -448,6 +460,23 @@ impl State {
     /// one line (headers, definition terms, and the inside of inline markup).
     fn flat(&mut self, inlines: &[Inline]) -> String {
         self.flat_nested(inlines, false)
+    }
+
+    /// Flatten inlines to one logical line per forced break: each [`Inline::LineBreak`] starts a new
+    /// physical line, while breakable whitespace stays collapsed within a line.
+    fn flat_lines(&mut self, inlines: &[Inline]) -> String {
+        if inlines
+            .iter()
+            .any(|inline| matches!(inline, Inline::LineBreak))
+        {
+            split_at(inlines, |inline| matches!(inline, Inline::LineBreak))
+                .iter()
+                .map(|segment| self.flat(segment))
+                .collect::<Vec<_>>()
+                .join("\n")
+        } else {
+            self.flat(inlines)
+        }
     }
 
     fn flat_nested(&mut self, inlines: &[Inline], in_emphasis: bool) -> String {

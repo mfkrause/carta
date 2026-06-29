@@ -196,20 +196,39 @@ impl State {
         let groups: Vec<String> = items
             .iter()
             .map(|(term, definitions)| {
-                let term_line = self.inlines_oneline(term, true);
+                let term_line = self.inlines_term(term);
                 let bodies: Vec<String> = definitions
                     .iter()
                     .map(|definition| self.blocks_to_string(definition, width))
                     .collect();
                 let body = bodies.join("\n\n");
-                format!("{term_line}  \n{body}")
+                if body.is_empty() {
+                    format!("{term_line}  ")
+                } else {
+                    format!("{term_line}  \n{body}")
+                }
             })
             .collect();
         groups.join("\n\n")
     }
 
+    /// Render a definition term, collapsing breakable whitespace but keeping each forced break as a
+    /// real line break so a multi-line term stays on separate lines.
+    fn inlines_term(&mut self, inlines: &[Inline]) -> String {
+        let pieces = self.pieces(inlines, true);
+        let mut out = String::new();
+        for piece in &pieces {
+            match piece {
+                Piece::Text(text) => out.push_str(text),
+                Piece::Space | Piece::Soft => out.push(' '),
+                Piece::Hard => out.push('\n'),
+            }
+        }
+        out
+    }
+
     /// Render an inline sequence to a single line, collapsing breakable and forced breaks to spaces.
-    /// Used where a construct cannot span lines (headers, line-block lines, definition terms).
+    /// Used where a construct cannot span lines (headers, line-block lines).
     fn inlines_oneline(&mut self, inlines: &[Inline], line_start: bool) -> String {
         let pieces = self.pieces(inlines, line_start);
         let mut out = String::new();
@@ -343,6 +362,9 @@ impl State {
     }
 
     fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if inlines.is_empty() {
+            return;
+        }
         out.push(Piece::Text(marker.to_owned()));
         self.extend_pieces(inlines, out, false);
         out.push(Piece::Text(marker.to_owned()));

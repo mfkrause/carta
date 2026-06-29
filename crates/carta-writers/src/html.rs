@@ -314,13 +314,22 @@ struct State {
 const SEMANTIC_SPAN_TAGS: [&str; 3] = ["mark", "kbd", "dfn"];
 
 impl State {
-    /// Render a block sequence into `out`, one block per line.
+    /// Render a block sequence into `out`, one block per line. A block that renders to nothing (such
+    /// as an empty paragraph) contributes neither output nor a separating newline.
     fn blocks(&mut self, out: &mut String, blocks: &[Block]) {
-        for (index, block) in blocks.iter().enumerate() {
-            if index > 0 {
+        let mut wrote_any = false;
+        for block in blocks {
+            let checkpoint = out.len();
+            if wrote_any {
                 out.push('\n');
             }
+            let body_start = out.len();
             self.block(out, block);
+            if out.len() == body_start {
+                out.truncate(checkpoint);
+            } else {
+                wrote_any = true;
+            }
         }
     }
 
@@ -328,6 +337,9 @@ impl State {
         match block {
             Block::Plain(inlines) => self.inlines(out, inlines),
             Block::Para(inlines) => {
+                if inlines.is_empty() {
+                    return;
+                }
                 out.push_str("<p>");
                 self.inlines(out, inlines);
                 out.push_str("</p>");
