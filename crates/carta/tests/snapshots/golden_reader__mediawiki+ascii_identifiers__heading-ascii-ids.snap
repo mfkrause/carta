@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[2,["cafe_munch_test",[],[]],[{"t":"Str","c":"Café"},{"t":"Space"},{"t":"Str","c":"Münch_test"}]]},{"t":"Header","c":[2,["a_o_u__cafe",[],[]],[{"t":"Str","c":"Ä"},{"t":"Space"},{"t":"Str","c":"Ö"},{"t":"Space"},{"t":"Str","c":"Ü"},{"t":"Space"},{"t":"Str","c":"ß"},{"t":"Space"},{"t":"Str","c":"café"}]]},{"t":"Header","c":[2,["uvre_resume",[],[]],[{"t":"Str","c":"Œuvre"},{"t":"Space"},{"t":"Str","c":"résumé"}]]}]}

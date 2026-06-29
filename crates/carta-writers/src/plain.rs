@@ -13,8 +13,8 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
     block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_bare_uri_text, is_loose, is_uri,
-    item_separator, join_loose, lay_row, measure_pieces, offset_as_i32, ordered_marker,
+    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_uri, item_separator,
+    join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i32, ordered_marker,
     pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
@@ -129,35 +129,47 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width),
             Block::Table(table) => self.table(table, width),
-            Block::Figure(_, caption, body) => match simple_figure_url(body) {
-                // A simple figure (one image standing alone) collapses to that image with the
-                // caption taking the place of its description: `[caption]`, bracketed like any
-                // image. The description is dropped — leaving `[]` — when it is empty or merely
-                // repeats the image URL.
-                Some(url) => {
-                    let mut inner = Vec::new();
-                    let mut started = false;
-                    for block in &caption.long {
-                        if let Block::Plain(inlines) | Block::Para(inlines) = block {
-                            if started {
-                                inner.push(Piece::Hard);
-                            }
-                            self.extend_pieces(inlines, &mut inner);
-                            started = true;
-                        }
-                    }
-                    let mut pieces = vec![Piece::Text("[".to_owned())];
-                    if join_pieces(&inner, ' ') != url {
-                        pieces.append(&mut inner);
-                    }
-                    pieces.push(Piece::Text("]".to_owned()));
-                    fill(&pieces, width, self.wrap)
+            Block::Figure(attr, caption, blocks) => {
+                match self.simple_figure(attr, &caption.long, blocks) {
+                    Some(rendered) => rendered,
+                    None => self.blocks_to_string(blocks, width),
                 }
-                None => self.blocks_to_string(body, width),
-            },
+            }
             Block::Div(_, blocks) => self.blocks_to_string(blocks, width),
             Block::LineBlock(lines) => self.line_block(lines),
         }
+    }
+
+    /// A figure with no attributes whose body is a single bare image (a `Plain` holding one image
+    /// that itself carries no identifier or classes) renders as that image with the caption text in
+    /// place of its alternate text: `[caption]`. Any richer figure returns `None` so the caller
+    /// renders the body blocks instead.
+    fn simple_figure(
+        &mut self,
+        attr: &Attr,
+        caption_long: &[Block],
+        blocks: &[Block],
+    ) -> Option<String> {
+        if !attr.id.is_empty() || !attr.classes.is_empty() || !attr.attributes.is_empty() {
+            return None;
+        }
+        let [Block::Plain(inlines)] = blocks else {
+            return None;
+        };
+        let [Inline::Image(image_attr, _, target)] = inlines.as_slice() else {
+            return None;
+        };
+        if !image_attr.id.is_empty()
+            || !image_attr.classes.is_empty()
+            || !image_attr.attributes.is_empty()
+        {
+            return None;
+        }
+        let caption_inlines = figure_caption_inlines(caption_long)?;
+        let image = Inline::Image(image_attr.clone(), caption_inlines, target.clone());
+        let mut out = Vec::new();
+        self.inline(&image, &mut out);
+        Some(pieces_to_string(&out))
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
@@ -598,8 +610,13 @@ impl State {
             | Inline::Underline(inlines)
             | Inline::Cite(_, inlines)
             | Inline::Span(_, inlines) => self.extend_pieces(inlines, out),
+            // A bare URL — its single-`Str` text being the visible form of the target — is the
+            // address itself, encoded; any other link contributes only its visible text.
             Inline::Link(_, inlines, target) => {
-                if is_bare_uri_text(inlines, &target.url) && is_uri(&target.url) {
+                if let [Inline::Str(text)] = inlines.as_slice()
+                    && is_uri(&target.url)
+                    && label_matches_url(text, &target.url)
+                {
                     out.push(Piece::Text(target.url.clone()));
                 } else {
                     self.extend_pieces(inlines, out);
@@ -648,9 +665,12 @@ impl State {
                     out.push(Piece::Text(text.clone()));
                 }
             }
-            Inline::Image(_, inlines, _) => {
+            Inline::Image(_, inlines, target) => {
                 out.push(Piece::Text("[".to_owned()));
-                self.extend_pieces(inlines, out);
+                // Alternate text that merely repeats the source URL conveys nothing, so it is dropped.
+                if carta_ast::to_plain_text(inlines) != target.url {
+                    self.extend_pieces(inlines, out);
+                }
                 out.push(Piece::Text("]".to_owned()));
             }
             Inline::Note(blocks) => {
@@ -751,28 +771,6 @@ fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
     }
 }
 
-/// Flatten inline pieces to a single string without line filling: breakable spaces become one
-/// space, while forced breaks become `hard`. Used where content is not wrapped
-/// (line-block lines and the inner text of sub/superscripts use a newline; see [`header_text`]).
-/// The image URL of a *simple figure* — a body of exactly one [`Block::Plain`] holding a single,
-/// attribute-free [`Inline::Image`] and nothing else — or `None` for any other body shape. A simple
-/// figure renders inline as its image with the caption standing in for the description; a richer body
-/// (multiple blocks, surrounding text, or an image carrying its own width/height or other attributes)
-/// is rendered as ordinary blocks instead.
-fn simple_figure_url(body: &[Block]) -> Option<&str> {
-    match body {
-        [Block::Plain(inlines)] => match inlines.as_slice() {
-            [Inline::Image(attr, _, target)]
-                if attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty() =>
-            {
-                Some(target.url.as_str())
-            }
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 fn join_pieces(pieces: &[Piece], hard: char) -> String {
     let mut out = String::new();
     for piece in pieces {
@@ -787,6 +785,23 @@ fn join_pieces(pieces: &[Piece], hard: char) -> String {
 
 fn pieces_to_string(pieces: &[Piece]) -> String {
     join_pieces(pieces, '\n')
+}
+
+/// Flatten a figure caption's blocks into one inline sequence, joining successive paragraphs with a
+/// line break. An empty caption yields an empty sequence; a caption holding anything other than
+/// paragraphs yields `None`.
+fn figure_caption_inlines(blocks: &[Block]) -> Option<Vec<Inline>> {
+    let mut inlines = Vec::new();
+    for (index, block) in blocks.iter().enumerate() {
+        let (Block::Plain(paragraph) | Block::Para(paragraph)) = block else {
+            return None;
+        };
+        if index > 0 {
+            inlines.push(Inline::LineBreak);
+        }
+        inlines.extend(paragraph.iter().cloned());
+    }
+    Some(inlines)
 }
 
 /// Flatten a header's inline pieces to a single line: a forced break renders as a space, keeping a

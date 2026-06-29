@@ -1,0 +1,4 @@
+{|
+| * first line literal
+* second line list
+|}

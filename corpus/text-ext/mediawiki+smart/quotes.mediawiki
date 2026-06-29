@@ -1,0 +1,7 @@
+He said "hello there" to me.
+
+A "quote with ''emphasis'' inside" stays paired.
+
+An "unpaired quote and 'apostrophes' don't curl.
+
+The link [[Page|"titled"]] curls in both places.

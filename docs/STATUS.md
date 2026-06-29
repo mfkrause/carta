@@ -125,20 +125,44 @@ extreme-magnitude numbers may render in rounded or scientific form.
 
 ### `mediawiki` — 🚧
 MediaWiki wikitext: headings, paragraphs, apostrophe bold/italic emphasis, bullet/numbered/definition
-and indent lists, preformatted and `<source>`/`<syntaxhighlight>` code blocks, block quotes,
-horizontal rules, internal and external links, `[[File:…]]`/`[[Image:…]]` embeds, `<nowiki>`, HTML
-passthrough, entities, and inline `<math>`. `auto_identifiers` supplies header ids. A `File:`/`Image:`
+and indent lists, HTML `<ul>`/`<ol>` lists, preformatted and `<source>`/`<syntaxhighlight>` code
+blocks, block quotes, horizontal rules, tables (`{| … |}`), internal and external links,
+`[[File:…]]`/`[[Image:…]]` embeds, `[[Category:…]]` links, `<ref>` notes, behavior switches,
+`<nowiki>`, HTML passthrough, entities, and inline `<math>`. `auto_identifiers` supplies header ids
+(lowercased, with punctuation dropped); `gfm_auto_identifiers` switches to the GitHub slug with
+hyphen separators, where each emoji contributes its shortname (`🎉` → `tada`); `ascii_identifiers`
+reduces the finished id to pure ASCII, stripping accents (`é` → `e`) and dropping non-Latin letters
+(`ß`, `Œ`) while leaving the separators around a dropped letter intact. `smart` curls quotation
+marks; `east_asian_line_breaks` drops a soft line break that falls between two East Asian wide
+characters. A behavior switch (`__NOTOC__`, `__FORCETOC__`, `__NOEDITSECTION__`, …) is recorded as a
+boolean document-metadata entry and removed from the text; one that begins a line is removed with the
+spaces that follow it so the line is not mistaken for preformatted text, and one inside `<nowiki>`
+stays literal. A `[[Category:…]]` link is gathered and rendered as a trailing paragraph of category
+links in document order, while a leading-colon `[[:Category:…]]` is an ordinary inline wikilink. A
+bare URL autolinks when its scheme is one of the registered URI schemes. A `<ref>` becomes a `Note`
+whose body is captured whole even when it spans a blank line or block markup. A `File:`/`Image:`
 embed becomes an `Image` inline: the namespace is stripped and spaces become underscores to form the
 target, `NNpx`/`NNxNNpx` parameters set width/height attributes, placement and framing keywords
 (`thumb`, `frame`, `left`, `border`, …) and `key=value` options are consumed, and the last free
-parameter is the caption (the target name when none is given). A lone embed in a block or list item
-becomes a `Figure` with that caption (`implicit_figures`).
-Gaps: table markup (`{| … |}`) is not interpreted as a table — the region is kept verbatim as a
-raw block (a nested table is matched by depth so it does not close the outer one early); `smart`
-typographic substitution is not applied; block `<math display=block>` is emitted as inline math;
-the `Media:` namespace, leading-colon links (`[[:File:…]]`), and other namespaces (Category,
-interwiki) read as ordinary wikilinks rather than embeds or links to the media file; a mid-paragraph
-`<pre>`/`<source>` falls through to HTML passthrough rather than a code block.
+parameter is the caption (the target name when none is given); an option the embed syntax does not
+define (a `thumbtime` value, an `upright=` value) makes the embed fall back to an ordinary wikilink.
+A lone embed in a block or list item becomes a `Figure` with that caption (`implicit_figures`).
+Tables read as a `Table`: rows are separated by `|-`, data cells split on `||`, and header cells
+(`!`, split on `!!`) make up the head when the first row begins with a header. A `|+` line is the
+caption. A cell's leading attribute list is honored — `align` sets the cell alignment, `colspan`/
+`rowspan` set the spans, `id`/`class` populate the cell id and classes, and any other `name="value"`
+pair is kept as a cell attribute; a quoted attribute value may contain a `|` without ending the
+cell. The table's own and each row's attribute lists are dropped. The
+first row fixes the column count: a cell that would overflow it is dropped, a span is clamped to the
+remaining columns and rows, a column still covered by a `rowspan` is skipped, and a short row is
+padded with empty cells. A nested table is matched by depth so it does not close the outer one early.
+Under `smart`, a pair of straight double quotes becomes curly quotation marks (single quotes and
+apostrophes are left straight, since `''`/`'''` already mark emphasis).
+Gaps: block `<math display=block>` is emitted as inline math;
+the `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary
+wikilinks rather than links to the media file or remote wiki; a mid-paragraph `<pre>`/`<source>`
+falls through to HTML passthrough rather than a code block; block structures nested past a fixed
+depth degrade to flat text to bound recursion.
 
 ### `dokuwiki` — 🚧
 DokuWiki markup: headings, paragraphs, bold/italic/underline/monospace, bullet and ordered lists,
@@ -154,7 +178,7 @@ bare-URL autolinking requires an explicit `scheme://`.
 Jira wiki markup: headings, paragraphs, the text effects (strong, emphasis, citation, deleted,
 inserted, superscript, subscript, monospace), colored and anchored spans, bullet/numbered lists, the
 `{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji.
-Gaps: the `east_asian_line_breaks` extension is not modeled (no enum variant; it is off by default);
+Gaps: the `east_asian_line_breaks` extension (off by default) is not honored by this reader;
 an adversarial run of unbalanced `--`/`---` does not reproduce nested strikeout pairing; block
 brace-macros are recognized only at the start of a line (a mid-line `{code}` after other text reads as
 paragraph text); a `|` inside an image's `!src|props!` within a table cell is not depth-protected.
