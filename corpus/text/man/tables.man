@@ -16,3 +16,20 @@ c c.
 Left@Right
 one@two
 .TE
+.PP
+A table with a multi-line text block follows.
+.TS
+l l.
+Name	T{
+A long
+description
+T}
+Left	Right
+.TE
+.PP
+A table with a horizontal span follows.
+.TS
+l s l.
+Wide span		End
+one	two	three
+.TE

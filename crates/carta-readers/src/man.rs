@@ -11,7 +11,7 @@
 //! The title macro `.TH` populates document metadata (`title`, `section`, `date`, `footer`,
 //! `header`); everything else becomes the block sequence.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
@@ -29,6 +29,10 @@ type Strings = BTreeMap<String, String>;
 
 /// The deepest a `\*` interpolation may recurse, bounding self-referential string definitions.
 const MAX_STRING_DEPTH: usize = 8;
+
+/// The most lines a single macro invocation may expand to, bounding self- and mutually-referential
+/// macro definitions so an invocation cannot loop forever.
+const MAX_MACRO_EXPANSION_LINES: usize = 100_000;
 
 /// The named strings groff defines before any input is read, keyed as the `\*` escape spells them:
 /// `\*R`, `\*(Tm`, `\*(lq`, `\*(rq`.
@@ -90,26 +94,59 @@ fn logical_lines(input: &str) -> Vec<String> {
 }
 
 /// The active typeface for a run of text. `\f(BI` and the `.BI`/`.IB` macros render bold-italic as
-/// emphasis wrapping strong.
+/// emphasis wrapping strong. The constant-width faces (`\f(CW`, `\fC`, `.CW`) render as inline code,
+/// with a bold or italic constant-width face wrapping that code in the corresponding markup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Font {
     Regular,
     Bold,
     Italic,
     BoldItalic,
+    Mono,
+    MonoBold,
+    MonoItalic,
 }
 
 impl Font {
     /// Wraps already-built inline content in the markup for this font; roman content is unwrapped.
+    /// A constant-width face collapses its content to a single inline-code span.
     fn wrap(self, inlines: Vec<Inline>) -> Vec<Inline> {
         if inlines.is_empty() {
             return Vec::new();
         }
+        self.wrap_forced(inlines)
+    }
+
+    /// Wraps the inlines in this font's markup unconditionally — even when they are empty. A
+    /// single-font macro called with an explicit argument keeps its styled wrapper around empty
+    /// content, whereas a font run that produces nothing collapses (see [`wrap`]).
+    fn wrap_forced(self, inlines: Vec<Inline>) -> Vec<Inline> {
         match self {
             Font::Regular => inlines,
             Font::Bold => vec![Inline::Strong(inlines)],
             Font::Italic => vec![Inline::Emph(inlines)],
             Font::BoldItalic => vec![Inline::Emph(vec![Inline::Strong(inlines)])],
+            Font::Mono => vec![code_inline(&inlines)],
+            Font::MonoBold => vec![Inline::Strong(vec![code_inline(&inlines)])],
+            Font::MonoItalic => vec![Inline::Emph(vec![code_inline(&inlines)])],
+        }
+    }
+}
+
+/// Collapses a run of inline content into a single inline-code span, recovering its literal text.
+fn code_inline(inlines: &[Inline]) -> Inline {
+    let mut text = String::new();
+    collect_code_text(inlines, &mut text);
+    Inline::Code(Attr::default(), text)
+}
+
+fn collect_code_text(inlines: &[Inline], out: &mut String) {
+    for inline in inlines {
+        match inline {
+            Inline::Str(s) => out.push_str(s),
+            Inline::Space => out.push(' '),
+            Inline::Strong(xs) | Inline::Emph(xs) => collect_code_text(xs, out),
+            _ => {}
         }
     }
 }
@@ -161,16 +198,27 @@ impl HeadingIds {
             return String::new();
         };
         let text = to_plain_text(inlines);
-        let text = if self.ascii {
-            fold_to_ascii(&text)
-        } else {
-            text
-        };
         // The slug shape follows the active extension, but a manual page always disambiguates
         // natively: an empty slug becomes `section` and repeats increment until unused.
         let base = match scheme {
             IdScheme::Plain => slug(&text),
             IdScheme::Gfm => slug_gfm(&text),
+        };
+        // ASCII folding transliterates the finished slug, so a separator left by a word whose
+        // letters all lack an ASCII base is preserved. The plain shape then re-drops its leading
+        // run up to the first letter, which folding away a leading word can expose; the gfm shape
+        // never strips a leading run.
+        let base = if self.ascii {
+            let folded = fold_to_ascii(&base);
+            match scheme {
+                IdScheme::Plain => folded
+                    .chars()
+                    .skip_while(|c| !c.is_ascii_alphabetic())
+                    .collect(),
+                IdScheme::Gfm => folded,
+            }
+        } else {
+            base
         };
         self.registry.assign_native(base)
     }
@@ -183,6 +231,8 @@ struct Parser {
     headings: HeadingIds,
     /// Named strings interpolated by `\*`: the predefined groff set, extended by `.ds`.
     strings: Strings,
+    /// User-defined macros (`.de`/`.de1`), keyed by name; the value is the macro body's lines.
+    macros: BTreeMap<String, Vec<String>>,
     /// Set when the most recent `.ie` condition was false, so the following `.el` takes its branch.
     else_branch: bool,
 }
@@ -195,6 +245,7 @@ impl Parser {
             meta: BTreeMap::new(),
             headings: HeadingIds::new(extensions),
             strings: predefined_strings(),
+            macros: BTreeMap::new(),
             else_branch: false,
         }
     }
@@ -238,10 +289,11 @@ impl Parser {
         }
     }
 
-    /// Consumes the body of a `.de`/`.de1` macro definition up to and including the line whose
-    /// request name is `end` (the default end is `..`, whose request name is a single `.`), or to
-    /// end of input. The body never reaches the document.
-    fn skip_macro_definition(&mut self, end: &str) {
+    /// Consumes the body of a `.de`/`.de1` macro definition up to (but not including) the line whose
+    /// request name is `end` (the default end is `..`, whose request name is a single `.`), or to end
+    /// of input, and returns the collected body lines. The terminator line is consumed.
+    fn collect_macro_definition(&mut self, end: &str) -> Vec<String> {
+        let mut body = Vec::new();
         while let Some(line) = self.peek().map(str::to_owned) {
             self.advance();
             let is_end =
@@ -249,7 +301,55 @@ impl Parser {
             if is_end {
                 break;
             }
+            body.push(reduce_copy_mode(&line));
         }
+        body
+    }
+
+    /// Expands a macro invocation into a flat list of lines, substituting the call's arguments for
+    /// `\$N` references and inlining any nested macro calls. Re-entrant calls and a per-invocation
+    /// line budget bound the expansion so a self- or mutually-referential macro cannot loop forever.
+    fn expand_macro_call(&self, name: &str, args: &[String]) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut active = BTreeSet::new();
+        self.expand_macro_into(name, args, &mut active, &mut out);
+        out
+    }
+
+    fn expand_macro_into(
+        &self,
+        name: &str,
+        args: &[String],
+        active: &mut BTreeSet<String>,
+        out: &mut Vec<String>,
+    ) {
+        if out.len() >= MAX_MACRO_EXPANSION_LINES || active.contains(name) {
+            return;
+        }
+        let Some(body) = self.macros.get(name) else {
+            return;
+        };
+        active.insert(name.to_owned());
+        for raw in body {
+            if out.len() >= MAX_MACRO_EXPANSION_LINES {
+                break;
+            }
+            match control_parts(raw) {
+                Some((inner, inner_rest))
+                    if !is_comment(raw) && self.macros.contains_key(inner) =>
+                {
+                    // A nested call to a user macro receives the substituted arguments.
+                    let inner_args = split_args(&substitute_macro_args(inner_rest, args));
+                    self.expand_macro_into(inner, &inner_args, active, out);
+                }
+                // A request line is emitted verbatim; argument references in a request's own
+                // arguments are left for ordinary escape processing, which yields nothing.
+                Some(_) => out.push(raw.clone()),
+                // A text line has its argument references substituted.
+                None => out.push(substitute_macro_args(raw, args)),
+            }
+        }
+        active.remove(name);
     }
 
     /// Parses a sequence of blocks until the context's terminator (or end of input). A terminator
@@ -370,12 +470,14 @@ impl Parser {
                 "B" | "I" => {
                     self.advance();
                     let font = single_font(name);
-                    let text = if rest.is_empty() {
-                        self.take_line().unwrap_or_default()
+                    let inlines = if rest.is_empty() {
+                        let text = self.take_line().unwrap_or_default();
+                        font.wrap(tokenize(&text, Font::Regular, &self.strings))
                     } else {
-                        split_args(rest).join(" ")
+                        let text = split_args(rest).join(" ");
+                        font.wrap_forced(tokenize(&text, Font::Regular, &self.strings))
                     };
-                    append_text(&mut fill, font_macro(font, &text, &self.strings));
+                    append_text(&mut fill, inlines);
                     started = true;
                 }
                 "BR" | "RB" | "BI" | "IB" | "RI" | "IR" => {
@@ -390,6 +492,24 @@ impl Parser {
                         alternating(&rest, fonts_for(name), &self.strings),
                     );
                     started = true;
+                }
+                "SY" => {
+                    self.advance();
+                    let text = if rest.is_empty() {
+                        self.take_line().unwrap_or_default()
+                    } else {
+                        split_args(rest).join(" ")
+                    };
+                    append_text(&mut fill, font_macro(Font::Bold, &text, &self.strings));
+                    started = true;
+                }
+                "OP" => {
+                    self.advance();
+                    append_text(&mut fill, option_synopsis(rest, &self.strings));
+                    started = true;
+                }
+                "YS" => {
+                    self.advance();
                 }
                 "UR" | "MT" => {
                     self.advance();
@@ -413,7 +533,10 @@ impl Parser {
                     self.advance();
                     let args = split_args(rest);
                     let end = args.get(1).map_or(".", String::as_str).to_owned();
-                    self.skip_macro_definition(&end);
+                    let body = self.collect_macro_definition(&end);
+                    if let Some(name) = args.into_iter().next() {
+                        self.macros.insert(name, body);
+                    }
                 }
                 "if" => {
                     let (cond, branch) = split_condition(rest);
@@ -440,6 +563,15 @@ impl Parser {
                     } else {
                         self.advance();
                     }
+                }
+                // A call to a user-defined macro splices its expanded body in at the current
+                // position so the spliced lines are parsed in place.
+                _ if self.macros.contains_key(name) => {
+                    self.advance();
+                    let args = split_args(rest);
+                    let expansion = self.expand_macro_call(name, &args);
+                    let at = self.pos;
+                    self.lines.splice(at..at, expansion);
                 }
                 // An empty request (a bare control character) or one named only with control
                 // characters (`.`, `..`, `'`) is a no-op that leaves the open paragraph filling.
@@ -603,9 +735,9 @@ impl Parser {
                 "IP" => {
                     self.advance();
                     let args = split_args(rest);
-                    let mark = args.first().map_or("", String::as_str);
-                    match classify_mark(mark) {
-                        Mark::None => {
+                    match args.first() {
+                        // No designator at all: an unmarked inset.
+                        None => {
                             flush_pending(&mut pending, &mut out);
                             let body = self.parse_blocks(Ctx::ITEM);
                             // An unmarked inset with no body contributes nothing.
@@ -613,18 +745,25 @@ impl Parser {
                                 out.push(Block::BlockQuote(body));
                             }
                         }
-                        Mark::Bullet => {
-                            let body = self.item_body();
-                            push_bullet(&mut pending, &mut out, body);
-                        }
-                        Mark::Ordered(attrs) => {
-                            let body = self.item_body();
-                            push_ordered(&mut pending, &mut out, attrs, body);
-                        }
-                        Mark::Text => {
-                            let term = tokenize(mark, Font::Regular, &self.strings);
-                            let body = self.item_body();
-                            push_definition(&mut pending, &mut out, term, body);
+                        Some(mark_raw) => {
+                            let mark = flatten(mark_raw, &self.strings);
+                            match classify_mark(&mark) {
+                                Mark::Bullet => {
+                                    let body = self.item_body();
+                                    push_bullet(&mut pending, &mut out, body);
+                                }
+                                Mark::Ordered(attrs) => {
+                                    let body = self.item_body();
+                                    push_ordered(&mut pending, &mut out, attrs, body);
+                                }
+                                // A present designator that is neither a bullet nor an enumerator —
+                                // including one that reduces to nothing — is a definition term.
+                                Mark::None | Mark::Text => {
+                                    let term = inlines_from_plain(&mark);
+                                    let body = self.item_body();
+                                    push_definition(&mut pending, &mut out, term, body);
+                                }
+                            }
                         }
                     }
                 }
@@ -751,12 +890,14 @@ impl Parser {
                 "B" | "I" => {
                     self.advance();
                     let font = single_font(name);
-                    let text = if rest.is_empty() {
-                        self.take_line().unwrap_or_default()
+                    let inlines = if rest.is_empty() {
+                        let text = self.take_line().unwrap_or_default();
+                        font.wrap(tokenize(&text, Font::Regular, &self.strings))
                     } else {
-                        split_args(rest).join(" ")
+                        let text = split_args(rest).join(" ");
+                        font.wrap_forced(tokenize(&text, Font::Regular, &self.strings))
                     };
-                    append_text(&mut fill, font_macro(font, &text, &self.strings));
+                    append_text(&mut fill, inlines);
                 }
                 "BR" | "RB" | "BI" | "IB" | "RI" | "IR" => {
                     self.advance();
@@ -821,6 +962,25 @@ fn alternating(rest: &str, fonts: [Font; 2], strings: &Strings) -> Vec<Inline> {
     out
 }
 
+/// Renders a `.OP` command-option synopsis: the option name (the first argument) is set bold and an
+/// optional argument (the rest) roman, the whole bracketed as optional — `[ -name argument ]`.
+fn option_synopsis(rest: &str, strings: &Strings) -> Vec<Inline> {
+    let args = split_args(rest);
+    let mut out = vec![Inline::Str("[".to_owned())];
+    if let Some(name) = args.first() {
+        out.push(Inline::Space);
+        out.extend(font_macro(Font::Bold, name, strings));
+    }
+    let argument = args.get(1..).unwrap_or(&[]).join(" ");
+    if !argument.is_empty() {
+        out.push(Inline::Space);
+        out.extend(tokenize(&argument, Font::Regular, strings));
+    }
+    out.push(Inline::Space);
+    out.push(Inline::Str("]".to_owned()));
+    out
+}
+
 /// What kind of list a `.IP` marker introduces.
 enum Mark {
     None,
@@ -829,13 +989,26 @@ enum Mark {
     Text,
 }
 
-/// Classifies a `.IP` marker: a bullet glyph, an enumerator (decimal, alphabetic, or roman), or
-/// arbitrary text that becomes a definition term.
+/// Builds inline content from plain text, splitting on whitespace into words separated by single
+/// spaces.
+fn inlines_from_plain(text: &str) -> Vec<Inline> {
+    let mut out = Vec::new();
+    for word in text.split_whitespace() {
+        if !out.is_empty() {
+            out.push(Inline::Space);
+        }
+        out.push(Inline::Str(word.to_owned()));
+    }
+    out
+}
+
+/// Classifies a `.IP` marker, already reduced to plain text: a bullet glyph, an enumerator (decimal,
+/// alphabetic, or roman), or arbitrary text that becomes a definition term.
 fn classify_mark(mark: &str) -> Mark {
     if mark.is_empty() {
         return Mark::None;
     }
-    if mark == "*" || mark == "\u{2022}" || mark == "\u{00b7}" || mark == "\\(bu" {
+    if matches!(mark, "*" | "\u{2022}" | "\u{00b7}" | "-" | "+") {
         return Mark::Bullet;
     }
     if let Some(attrs) = parse_enumerator(mark) {
@@ -844,9 +1017,12 @@ fn classify_mark(mark: &str) -> Mark {
     Mark::Text
 }
 
-/// Parses an ordered-list enumerator (`1.`, `a)`, `iv.`, a bare letter, …) into its list
+/// Parses an ordered-list enumerator (`1.`, `a)`, `(iv)`, a bare letter, …) into its list
 /// attributes, or returns `None` when the marker is not an enumerator.
 fn parse_enumerator(mark: &str) -> Option<ListAttributes> {
+    if let Some(inner) = mark.strip_prefix('(').and_then(|m| m.strip_suffix(')')) {
+        return enumerator_body(inner, ListNumberDelim::TwoParens);
+    }
     let (body, delim) = match mark.strip_suffix('.') {
         Some(body) => (body, ListNumberDelim::Period),
         None => match mark.strip_suffix(')') {
@@ -854,6 +1030,12 @@ fn parse_enumerator(mark: &str) -> Option<ListAttributes> {
             None => (mark, ListNumberDelim::DefaultDelim),
         },
     };
+    enumerator_body(body, delim)
+}
+
+/// Parses the numeric/alphabetic/roman body of an enumerator, with its delimiter already determined,
+/// into list attributes, or returns `None` when the body is not an enumerator.
+fn enumerator_body(body: &str, delim: ListNumberDelim) -> Option<ListAttributes> {
     if body.is_empty() {
         return None;
     }
@@ -1099,10 +1281,82 @@ fn split_args(input: &str) -> Vec<String> {
     args
 }
 
-/// A scanned character together with the font in effect, or an inter-word separator.
+/// Substitutes a macro call's arguments for `\$N` references in one body line. `\$1`..`\$9` expand to
+/// the corresponding argument (an absent one to nothing) and `\$0` to nothing; a doubled backslash
+/// before the reference (`\\$N`, how a reference is written so it survives definition-time copying) is
+/// treated the same. Every other backslash sequence is left untouched.
+/// Applies copy-mode reduction to a line as it is stored in a macro body: an escaped backslash
+/// `\\` collapses to a single `\`. This defers the remaining escapes — argument references `\$N`
+/// among them — to the moment the macro is invoked, so a body written with `\\$1` and one written
+/// with `\$1` resolve identically when the macro runs.
+fn reduce_copy_mode(line: &str) -> String {
+    if !line.contains('\\') {
+        return line.to_owned();
+    }
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' && chars.peek() == Some(&'\\') {
+            chars.next();
+        }
+        out.push(c);
+    }
+    out
+}
+
+fn substitute_macro_args(line: &str, args: &[String]) -> String {
+    if !line.contains("\\$") {
+        return line.to_owned();
+    }
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.peek() {
+            Some('$') => {
+                chars.next();
+                push_macro_arg(&mut chars, args, &mut out);
+            }
+            // Preserve an escaped backslash intact; consuming one here would let a following
+            // `$` be misread as an argument reference.
+            Some('\\') => {
+                chars.next();
+                out.push('\\');
+                out.push('\\');
+            }
+            _ => out.push('\\'),
+        }
+    }
+    out
+}
+
+/// After a `\$` reference, reads the one-digit argument index and appends the corresponding call
+/// argument (nothing for `\$0` or an out-of-range index).
+fn push_macro_arg(
+    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
+    args: &[String],
+    out: &mut String,
+) {
+    if let Some(&digit) = chars.peek()
+        && let Some(index) = digit.to_digit(10)
+    {
+        chars.next();
+        if index >= 1
+            && let Some(arg) = args.get((index - 1) as usize)
+        {
+            out.push_str(arg);
+        }
+    }
+}
+
+/// A scanned character together with the font in effect, or an inter-word separator carrying the
+/// literal whitespace character it stands for (so a verbatim region can preserve a tab).
 enum Atom {
     Char(Font, char),
-    Space,
+    Space(char),
 }
 
 /// Tokenizes a line of `man` text into inlines: words become [`Inline::Str`], runs of whitespace a
@@ -1161,7 +1415,7 @@ fn tokenize(text: &str, start_font: Font, strings: &Strings) -> Vec<Inline> {
                 }
                 word.push(c);
             }
-            Atom::Space => {
+            Atom::Space(_) => {
                 commit_word(
                     &mut word,
                     word_font,
@@ -1206,8 +1460,7 @@ fn flatten(text: &str, strings: &Strings) -> String {
     let mut out = String::new();
     for atom in scan(text, Font::Regular, strings) {
         match atom {
-            Atom::Char(_, c) => out.push(c),
-            Atom::Space => out.push(' '),
+            Atom::Char(_, c) | Atom::Space(c) => out.push(c),
         }
     }
     out
@@ -1239,7 +1492,7 @@ fn scan_into(
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
         if c == ' ' || c == '\t' {
-            atoms.push(Atom::Space);
+            atoms.push(Atom::Space(c));
             continue;
         }
         if c != '\\' {
@@ -1268,10 +1521,15 @@ fn scan_into(
                 chars.next();
                 atoms.push(Atom::Char(*font, '.'));
             }
-            // A literal tab and an unpaddable space both reduce to an inter-word space.
-            ' ' | 't' => {
+            // An unpaddable space and a tab are inter-word separators; the tab keeps its own
+            // character so a verbatim region preserves it.
+            ' ' => {
                 chars.next();
-                atoms.push(Atom::Space);
+                atoms.push(Atom::Space(' '));
+            }
+            't' => {
+                chars.next();
+                atoms.push(Atom::Space('\t'));
             }
             '~' => {
                 chars.next();
@@ -1444,7 +1702,10 @@ fn apply_font(name: &str, font: &mut Font, previous: &mut Font) {
         "B" => Font::Bold,
         "I" => Font::Italic,
         "BI" | "IB" => Font::BoldItalic,
-        "R" | "CW" => Font::Regular,
+        "C" | "CW" | "CR" => Font::Mono,
+        "CB" => Font::MonoBold,
+        "CI" => Font::MonoItalic,
+        "R" => Font::Regular,
         "P" | "" => {
             std::mem::swap(font, previous);
             return;
@@ -1467,8 +1728,10 @@ fn bracket_char(name: &str) -> Option<char> {
 /// excluded). The region is the preprocessor's: an optional options line ending in `;` (carrying the
 /// cell separator in its `tab(X)` option), one or more format lines the last of which ends in `.`
 /// (the first fixes the column count and alignments), then the data rows. A rule line (`_`/`=`) just
-/// below the first data row promotes that row to the table head. Returns `None` for a region with no
-/// format line, where there is no table to build.
+/// below the first data row promotes that row to the table head. A `T{`…`T}` text block spanning
+/// several input lines collapses into one filled cell. A format declaring a horizontal span, which
+/// the table model cannot express, renders as a placeholder paragraph. Returns `None` for a region
+/// with no format line, where there is no table to build.
 fn build_tbl(region: &[String]) -> Option<Block> {
     let mut index = 0;
     let mut separator = "\t".to_owned();
@@ -1493,13 +1756,26 @@ fn build_tbl(region: &[String]) -> Option<Block> {
             break;
         }
     }
-    let data = region.get(data_start?..).unwrap_or(&[]);
+    let data_start = data_start?;
+
+    // A column that horizontally spans its neighbor has no representation in the table model, so a
+    // region whose format declares one is rendered as a placeholder paragraph instead.
+    if region
+        .get(index..data_start)
+        .unwrap_or(&[])
+        .iter()
+        .any(|line| format_has_span(line))
+    {
+        return Some(Block::Para(vec![Inline::Str("TABLE".to_owned())]));
+    }
+
+    let data = collapse_text_blocks(region.get(data_start..).unwrap_or(&[]), &separator);
 
     let (head_lines, body_lines): (&[String], &[String]) =
         if data.get(1).is_some_and(|line| is_rule(line)) {
             (data.get(..1).unwrap_or(&[]), data.get(2..).unwrap_or(&[]))
         } else {
-            (&[], data)
+            (&[], &data)
         };
 
     let col_specs = aligns
@@ -1587,6 +1863,89 @@ fn parse_col_aligns(spec: &str) -> Vec<Alignment> {
         }
     }
     aligns
+}
+
+/// Whether a tbl format line declares a horizontal span (an `s`/`S` key), skipping the font and width
+/// modifiers whose own arguments could otherwise contain that letter.
+fn format_has_span(spec: &str) -> bool {
+    let mut chars = spec.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c.to_ascii_lowercase() {
+            's' => return true,
+            'f' => match chars.peek() {
+                Some('(') => {
+                    chars.next();
+                    chars.next();
+                    chars.next();
+                }
+                Some('[') => {
+                    chars.next();
+                    read_delimited(&mut chars, ']');
+                }
+                Some(_) => {
+                    chars.next();
+                }
+                None => {}
+            },
+            'w' | 'p' | 'v' | 'm' => {
+                if chars.peek() == Some(&'(') {
+                    chars.next();
+                    for d in chars.by_ref() {
+                        if d == ')' {
+                            break;
+                        }
+                    }
+                } else {
+                    while matches!(chars.peek(), Some(d) if d.is_ascii_digit()) {
+                        chars.next();
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Collapses tbl text blocks into single data lines. A field of `T{` begins a block whose content is
+/// the following lines up to a line starting with `T}`; those lines join with single spaces into the
+/// field, and any fields after `T}` on its line continue the row.
+fn collapse_text_blocks(data: &[String], separator: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut index = 0;
+    while let Some(line) = data.get(index) {
+        index += 1;
+        if !line.split(separator).any(|field| field.trim() == "T{") {
+            out.push(line.clone());
+            continue;
+        }
+        let mut fields: Vec<String> = Vec::new();
+        for field in line.split(separator) {
+            if field.trim() != "T{" {
+                fields.push(field.to_owned());
+                continue;
+            }
+            let mut block: Vec<String> = Vec::new();
+            let mut terminated = false;
+            while let Some(block_line) = data.get(index) {
+                index += 1;
+                if block_line.trim_start().starts_with("T}") {
+                    let mut tail = block_line.split(separator);
+                    tail.next();
+                    fields.push(block.join(" "));
+                    fields.extend(tail.map(str::to_owned));
+                    terminated = true;
+                    break;
+                }
+                block.push(block_line.clone());
+            }
+            if !terminated {
+                fields.push(block.join(" "));
+            }
+        }
+        out.push(fields.join(separator));
+    }
+    out
 }
 
 /// Whether a tbl line is a horizontal rule: a non-empty line of only `_` or `=` characters.
@@ -2572,6 +2931,137 @@ mod tests {
             doc.blocks.first(),
             Some(Block::Header(1, attr, _)) if attr.id == "cafe"
         ));
+    }
+
+    #[test]
+    fn constant_width_font_escape_becomes_code() {
+        let doc = read(".TH T 1\nplain \\f(CWmono\\fP back\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("plain".into()),
+                Inline::Space,
+                Inline::Code(Attr::default(), "mono".into()),
+                Inline::Space,
+                Inline::Str("back".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn constant_width_bold_font_wraps_code_in_strong() {
+        let doc = read(".TH T 1\n\\f(CBmono\\fP\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![Inline::Strong(vec![Inline::Code(
+                Attr::default(),
+                "mono".into()
+            )])]))
+        );
+    }
+
+    #[test]
+    fn user_macro_substitutes_call_arguments() {
+        let doc = read(".TH T 1\n.de GREET\nHello \\$1 and \\$2.\n..\n.GREET Alice Bob\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("Hello".into()),
+                Inline::Space,
+                Inline::Str("Alice".into()),
+                Inline::Space,
+                Inline::Str("and".into()),
+                Inline::Space,
+                Inline::Str("Bob.".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn doubled_backslash_argument_reference_reduces_like_a_single_one() {
+        let single = read(".TH T 1\n.de M\nvalue \\$1\n..\n.M x\n");
+        let doubled = read(".TH T 1\n.de M\nvalue \\\\$1\n..\n.M x\n");
+        assert_eq!(single.blocks, doubled.blocks);
+        assert_eq!(
+            single.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("value".into()),
+                Inline::Space,
+                Inline::Str("x".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn copy_mode_reduces_an_escaped_backslash_before_an_escape() {
+        assert_eq!(reduce_copy_mode("x\\\\(buy"), "x\\(buy");
+        assert_eq!(reduce_copy_mode("plain text"), "plain text");
+    }
+
+    #[test]
+    fn font_macro_with_an_explicit_empty_argument_keeps_its_wrapper() {
+        let doc = read(".TH T 1\nbefore\n.B \"\"\nafter\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("before".into()),
+                Inline::Space,
+                Inline::Strong(Vec::new()),
+                Inline::Space,
+                Inline::Str("after".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn font_macro_with_no_argument_takes_the_next_line() {
+        let doc = read(".TH T 1\nbefore\n.I\nafter\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("before".into()),
+                Inline::Space,
+                Inline::Emph(vec![Inline::Str("after".into())]),
+            ]))
+        );
+    }
+
+    #[test]
+    fn option_synopsis_brackets_a_bold_option_name() {
+        let doc = read(".TH T 1\n.OP \\-o file\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("[".into()),
+                Inline::Space,
+                Inline::Strong(vec![Inline::Str("-o".into())]),
+                Inline::Space,
+                Inline::Str("file".into()),
+                Inline::Space,
+                Inline::Str("]".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn table_with_a_horizontal_span_degrades_to_a_placeholder() {
+        let doc = read(".TH T 1\n.TS\nl s l.\nWide\t\tEnd\none\ttwo\tthree\n.TE\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![Inline::Str("TABLE".into())]))
+        );
+    }
+
+    #[test]
+    fn table_text_block_joins_its_lines() {
+        let doc = read(".TH T 1\n.TS\nl l.\nName\tT{\nA long\ndescription\nT}\nLeft\tRight\n.TE\n");
+        let Some(Block::Table(table)) = doc.blocks.first() else {
+            panic!("expected a table");
+        };
+        // The two source lines of the `T{ … T}` block join into a single cell.
+        let cell_text = format!("{table:?}");
+        assert!(cell_text.contains("long"));
+        assert!(cell_text.contains("description"));
     }
 
     #[test]

@@ -86,6 +86,56 @@ fn ascii_base(c: char) -> Option<char> {
         'Ŵ' | 'ŵ' => 'w',
         'Ý' | 'ý' | 'ÿ' | 'Ŷ' | 'ŷ' | 'Ÿ' | 'Ȳ' | 'ȳ' => 'y',
         'Ź' | 'ź' | 'Ż' | 'ż' | 'Ž' | 'ž' => 'z',
+        '\u{1e00}' | '\u{1e01}' | '\u{1ea0}' | '\u{1ea1}' | '\u{1ea2}' | '\u{1ea3}'
+        | '\u{1ea4}' | '\u{1ea5}' | '\u{1ea6}' | '\u{1ea7}' | '\u{1ea8}' | '\u{1ea9}'
+        | '\u{1eaa}' | '\u{1eab}' | '\u{1eac}' | '\u{1ead}' | '\u{1eae}' | '\u{1eaf}'
+        | '\u{1eb0}' | '\u{1eb1}' | '\u{1eb2}' | '\u{1eb3}' | '\u{1eb4}' | '\u{1eb5}'
+        | '\u{1eb6}' | '\u{1eb7}' => 'a',
+        '\u{1e02}' | '\u{1e03}' | '\u{1e04}' | '\u{1e05}' | '\u{1e06}' | '\u{1e07}' => 'b',
+        '\u{1e08}' | '\u{1e09}' => 'c',
+        '\u{1e0a}' | '\u{1e0b}' | '\u{1e0c}' | '\u{1e0d}' | '\u{1e0e}' | '\u{1e0f}'
+        | '\u{1e10}' | '\u{1e11}' | '\u{1e12}' | '\u{1e13}' => 'd',
+        '\u{1e14}' | '\u{1e15}' | '\u{1e16}' | '\u{1e17}' | '\u{1e18}' | '\u{1e19}'
+        | '\u{1e1a}' | '\u{1e1b}' | '\u{1e1c}' | '\u{1e1d}' | '\u{1eb8}' | '\u{1eb9}'
+        | '\u{1eba}' | '\u{1ebb}' | '\u{1ebc}' | '\u{1ebd}' | '\u{1ebe}' | '\u{1ebf}'
+        | '\u{1ec0}' | '\u{1ec1}' | '\u{1ec2}' | '\u{1ec3}' | '\u{1ec4}' | '\u{1ec5}'
+        | '\u{1ec6}' | '\u{1ec7}' => 'e',
+        '\u{1e1e}' | '\u{1e1f}' => 'f',
+        '\u{1e20}' | '\u{1e21}' => 'g',
+        '\u{1e22}' | '\u{1e23}' | '\u{1e24}' | '\u{1e25}' | '\u{1e26}' | '\u{1e27}'
+        | '\u{1e28}' | '\u{1e29}' | '\u{1e2a}' | '\u{1e2b}' | '\u{1e96}' => 'h',
+        '\u{1e2c}' | '\u{1e2d}' | '\u{1e2e}' | '\u{1e2f}' | '\u{1ec8}' | '\u{1ec9}'
+        | '\u{1eca}' | '\u{1ecb}' => 'i',
+        '\u{1e30}' | '\u{1e31}' | '\u{1e32}' | '\u{1e33}' | '\u{1e34}' | '\u{1e35}' => 'k',
+        '\u{1e36}' | '\u{1e37}' | '\u{1e38}' | '\u{1e39}' | '\u{1e3a}' | '\u{1e3b}'
+        | '\u{1e3c}' | '\u{1e3d}' => 'l',
+        '\u{1e3e}' | '\u{1e3f}' | '\u{1e40}' | '\u{1e41}' | '\u{1e42}' | '\u{1e43}' => 'm',
+        '\u{1e44}' | '\u{1e45}' | '\u{1e46}' | '\u{1e47}' | '\u{1e48}' | '\u{1e49}'
+        | '\u{1e4a}' | '\u{1e4b}' => 'n',
+        '\u{1e4c}' | '\u{1e4d}' | '\u{1e4e}' | '\u{1e4f}' | '\u{1e50}' | '\u{1e51}'
+        | '\u{1e52}' | '\u{1e53}' | '\u{1ecc}' | '\u{1ecd}' | '\u{1ece}' | '\u{1ecf}'
+        | '\u{1ed0}' | '\u{1ed1}' | '\u{1ed2}' | '\u{1ed3}' | '\u{1ed4}' | '\u{1ed5}'
+        | '\u{1ed6}' | '\u{1ed7}' | '\u{1ed8}' | '\u{1ed9}' | '\u{1eda}' | '\u{1edb}'
+        | '\u{1edc}' | '\u{1edd}' | '\u{1ede}' | '\u{1edf}' | '\u{1ee0}' | '\u{1ee1}'
+        | '\u{1ee2}' | '\u{1ee3}' => 'o',
+        '\u{1e54}' | '\u{1e55}' | '\u{1e56}' | '\u{1e57}' => 'p',
+        '\u{1e58}' | '\u{1e59}' | '\u{1e5a}' | '\u{1e5b}' | '\u{1e5c}' | '\u{1e5d}'
+        | '\u{1e5e}' | '\u{1e5f}' => 'r',
+        '\u{1e60}' | '\u{1e61}' | '\u{1e62}' | '\u{1e63}' | '\u{1e64}' | '\u{1e65}'
+        | '\u{1e66}' | '\u{1e67}' | '\u{1e68}' | '\u{1e69}' => 's',
+        '\u{1e6a}' | '\u{1e6b}' | '\u{1e6c}' | '\u{1e6d}' | '\u{1e6e}' | '\u{1e6f}'
+        | '\u{1e70}' | '\u{1e71}' | '\u{1e97}' => 't',
+        '\u{1e72}' | '\u{1e73}' | '\u{1e74}' | '\u{1e75}' | '\u{1e76}' | '\u{1e77}'
+        | '\u{1e78}' | '\u{1e79}' | '\u{1e7a}' | '\u{1e7b}' | '\u{1ee4}' | '\u{1ee5}'
+        | '\u{1ee6}' | '\u{1ee7}' | '\u{1ee8}' | '\u{1ee9}' | '\u{1eea}' | '\u{1eeb}'
+        | '\u{1eec}' | '\u{1eed}' | '\u{1eee}' | '\u{1eef}' | '\u{1ef0}' | '\u{1ef1}' => 'u',
+        '\u{1e7c}' | '\u{1e7d}' | '\u{1e7e}' | '\u{1e7f}' => 'v',
+        '\u{1e80}' | '\u{1e81}' | '\u{1e82}' | '\u{1e83}' | '\u{1e84}' | '\u{1e85}'
+        | '\u{1e86}' | '\u{1e87}' | '\u{1e88}' | '\u{1e89}' | '\u{1e98}' => 'w',
+        '\u{1e8a}' | '\u{1e8b}' | '\u{1e8c}' | '\u{1e8d}' => 'x',
+        '\u{1e8e}' | '\u{1e8f}' | '\u{1e99}' | '\u{1ef2}' | '\u{1ef3}' | '\u{1ef4}'
+        | '\u{1ef5}' | '\u{1ef6}' | '\u{1ef7}' | '\u{1ef8}' | '\u{1ef9}' => 'y',
+        '\u{1e90}' | '\u{1e91}' | '\u{1e92}' | '\u{1e93}' | '\u{1e94}' | '\u{1e95}' => 'z',
         _ => return None,
     };
     Some(base)
@@ -204,5 +254,10 @@ mod tests {
         assert_eq!(fold_to_ascii("Straße"), "Strae");
         // A non-Latin script leaves nothing behind.
         assert_eq!(fold_to_ascii("Λόγος"), "");
+        // Latin Extended Additional letters fold to their base; an accented letter folds to the
+        // lowercase base (bare ASCII keeps its case), so the dotted capitals here become h and z.
+        assert_eq!(fold_to_ascii("Việt Ḩ Ẓ"), "Viet h z");
+        // A letter in that block with no single-ASCII base is dropped.
+        assert_eq!(fold_to_ascii("ẞ"), "");
     }
 }

@@ -9,5 +9,7 @@ A base identifier.
 A repeat gains a numeric suffix.
 .SH Foo 1
 A title that already carries the suffix is disambiguated further.
-.SH İ here
+.SH \[u0130] here
 A dotted capital I lowercases to a letter plus a combining mark that the identifier drops.
+.SH Word\[u0345]End
+A letter-like combining mark is not a letter and is dropped from the identifier.

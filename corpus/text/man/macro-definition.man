@@ -10,3 +10,18 @@ Text after the first definition is kept.
 this body ends at a custom terminator
 .END
 Text after the second definition is kept.
+.SH MACRO INVOCATION
+.de GREET
+Hello \$1 and \$2.
+..
+.GREET Alice Bob
+.PP
+.de VALUE
+The stored value is \\$1 today.
+..
+.VALUE 42
+.PP
+.de EMPH
+.I \$1
+..
+.EMPH ignored
