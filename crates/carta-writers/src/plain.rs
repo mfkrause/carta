@@ -13,9 +13,9 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
     block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose,
-    lay_row, measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks,
-    table_form,
+    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_uri, item_separator,
+    join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i32, ordered_marker,
+    pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
 
@@ -609,8 +609,19 @@ impl State {
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
             | Inline::Cite(_, inlines)
-            | Inline::Link(_, inlines, _)
             | Inline::Span(_, inlines) => self.extend_pieces(inlines, out),
+            // A bare URL — its single-`Str` text being the visible form of the target — is the
+            // address itself, encoded; any other link contributes only its visible text.
+            Inline::Link(_, inlines, target) => {
+                if let [Inline::Str(text)] = inlines.as_slice()
+                    && is_uri(&target.url)
+                    && label_matches_url(text, &target.url)
+                {
+                    out.push(Piece::Text(target.url.clone()));
+                } else {
+                    self.extend_pieces(inlines, out);
+                }
+            }
             Inline::Strikeout(inlines) => {
                 out.push(Piece::Text("~~".to_owned()));
                 self.extend_pieces(inlines, out);
