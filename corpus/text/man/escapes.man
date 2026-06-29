@@ -1,0 +1,7 @@
+.TH ESC 1
+.SH ESCAPES
+tab\there and drop\c
+joined with up\udown\d then mark\kx and zero\zQwidth.
+.PP
+first line ends with a continuation\
+and keeps going with no space.

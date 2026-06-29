@@ -1,0 +1,27 @@
+.TH T 1
+.SH MACRO DEFINITIONS
+.de FOO
+this body is part of the macro and never reaches the document
+.PP
+neither does this
+..
+Text after the first definition is kept.
+.de1 BAR END
+this body ends at a custom terminator
+.END
+Text after the second definition is kept.
+.SH MACRO INVOCATION
+.de GREET
+Hello \$1 and \$2.
+..
+.GREET Alice Bob
+.PP
+.de VALUE
+The stored value is \\$1 today.
+..
+.VALUE 42
+.PP
+.de EMPH
+.I \$1
+..
+.EMPH ignored

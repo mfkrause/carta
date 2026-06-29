@@ -421,12 +421,24 @@ impl State {
                 let simple = matches!(definition.as_slice(), [Block::Plain(_)]);
                 let body = self.blocks_to_string(definition, width.saturating_sub(3), false);
                 let body = lead_quote_fence(definition, body);
-                def_units.push((simple, indent_block(&body, "   ", "   ")));
+                let indented = if body.is_empty() {
+                    String::new()
+                } else {
+                    indent_block(&body, "   ", "   ")
+                };
+                def_units.push((simple, indented));
             }
             let group_simple = definitions
                 .iter()
                 .all(|definition| matches!(definition.as_slice(), [Block::Plain(_)]));
-            let group = format!("{term_line}\n{}", join_loose_items(def_units));
+            let bodies = join_loose_items(def_units);
+            let group = if term_line.is_empty() {
+                bodies
+            } else if bodies.is_empty() {
+                term_line
+            } else {
+                format!("{term_line}\n{bodies}")
+            };
             groups.push((group_simple, group));
         }
         join_loose_items(groups)

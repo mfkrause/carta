@@ -1,0 +1,5 @@
+.TH AI 1
+.SH Vi\[u1EC7]t H\[u1E28] Z\[u1E92]
+Latin Extended Additional letters fold to their base ASCII letters.
+.SH Gr\[u00F6]\[u1E9E]e
+A capital sharp S has no ASCII base and is dropped.

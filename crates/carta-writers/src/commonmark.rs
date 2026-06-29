@@ -220,7 +220,11 @@ impl State {
                     .map(|definition| self.blocks_to_string(definition, width))
                     .collect();
                 let body = bodies.join("\n\n");
-                format!("{term_line}  \n{body}")
+                if body.is_empty() {
+                    format!("{term_line}  ")
+                } else {
+                    format!("{term_line}  \n{body}")
+                }
             })
             .collect();
         groups.join("\n\n")
@@ -389,6 +393,9 @@ impl State {
     }
 
     fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if inlines.is_empty() {
+            return;
+        }
         out.push(Piece::Text(marker.to_owned()));
         self.extend_pieces(inlines, out, false);
         out.push(Piece::Text(marker.to_owned()));

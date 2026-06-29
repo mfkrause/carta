@@ -184,7 +184,7 @@ impl State {
             let rendered_term = self.inlines(term);
             self.in_term = false;
             self.single_line = false;
-            lines.push(format!("; {rendered_term}"));
+            lines.push(marked_line(";", &rendered_term));
             for definition in definitions {
                 self.single_line = true;
                 let body = self.blocks(definition);
@@ -225,14 +225,14 @@ impl State {
                         self.single_line = true;
                         let text = self.inlines(inlines);
                         self.single_line = false;
-                        lines.push(format!("{prefix} {text}"));
+                        lines.push(marked_line(&prefix, &text));
                         item_has_marker = true;
                     }
                     Block::Para(inlines) => {
                         self.single_line = true;
                         let text = guarded_paragraph(self.inlines(inlines));
                         self.single_line = false;
-                        lines.push(format!("{prefix} {text}"));
+                        lines.push(marked_line(&prefix, &text));
                         item_has_marker = true;
                     }
                     Block::BulletList(sub) | Block::OrderedList(_, sub) => {
@@ -589,6 +589,16 @@ fn needs_trailing_blank(block: &Block) -> bool {
             | Block::OrderedList(..)
             | Block::DefinitionList(_)
     )
+}
+
+/// A compact-list line: the marker run, then the item text after a separating space. An item that
+/// renders to nothing carries the bare marker with no trailing space.
+fn marked_line(prefix: &str, text: &str) -> String {
+    if text.is_empty() {
+        prefix.to_owned()
+    } else {
+        format!("{prefix} {text}")
+    }
 }
 
 /// Guard a bare paragraph whose text would otherwise be read as block markup at the start of a line:

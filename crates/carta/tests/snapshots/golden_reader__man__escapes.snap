@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"section":{"t":"MetaInlines","c":[{"t":"Str","c":"1"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"ESC"}]}},"blocks":[{"t":"Header","c":[1,["escapes",[],[]],[{"t":"Str","c":"ESCAPES"}]]},{"t":"Para","c":[{"t":"Str","c":"tab"},{"t":"Space"},{"t":"Str","c":"here"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"drop"},{"t":"Space"},{"t":"Str","c":"joined"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"updown"},{"t":"Space"},{"t":"Str","c":"then"},{"t":"Space"},{"t":"Str","c":"mark"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"zerowidth."}]},{"t":"Para","c":[{"t":"Str","c":"first"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"ends"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"continuationand"},{"t":"Space"},{"t":"Str","c":"keeps"},{"t":"Space"},{"t":"Str","c":"going"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"no"},{"t":"Space"},{"t":"Str","c":"space."}]}]}

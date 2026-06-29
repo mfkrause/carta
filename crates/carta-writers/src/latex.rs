@@ -537,11 +537,10 @@ fn list_item(
         wrap,
         smart,
     );
-    let content = indent_block(&body, "  ", "  ");
-    if content.is_empty() {
+    if body.is_empty() {
         "\\item".to_owned()
     } else {
-        format!("\\item\n{content}")
+        format!("\\item\n{}", indent_block(&body, "  ", "  "))
     }
 }
 
