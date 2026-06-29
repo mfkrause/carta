@@ -1,0 +1,5 @@
+{|
+| style="background:red|orange" | cell with a pipe inside the attribute
+|-
+| colspan="2" | spanning cell
+|}

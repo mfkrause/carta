@@ -122,6 +122,12 @@ define_extensions! {
     // An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
     // without it every `_` is escaped so the strict reader cannot start emphasis mid-word.
     IntrawordUnderscores => "intraword_underscores",
+    // Non-ASCII characters in an auto identifier are transliterated to their ASCII base, dropping any
+    // character that has no ASCII form.
+    AsciiIdentifiers => "ascii_identifiers",
+    // A soft line break between two East Asian wide characters is dropped, so wrapped CJK text joins
+    // without an intervening space.
+    EastAsianLineBreaks => "east_asian_line_breaks",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;
