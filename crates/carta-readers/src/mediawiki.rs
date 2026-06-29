@@ -21,8 +21,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
     Alignment, ApiVersion, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
-    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, TableBody,
-    TableFoot, TableHead, Target, slug_gfm, to_plain_text,
+    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table,
+    TableBody, TableFoot, TableHead, Target, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
@@ -35,13 +35,30 @@ pub struct MediawikiReader;
 
 impl Reader for MediawikiReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let source = strip_comments(&expand_tabs(input));
+        let stripped = strip_comments(&expand_tabs(input));
+        let (source, behavior_switches) = extract_behavior_switches(&stripped);
         let chars: Vec<char> = source.chars().collect();
         let mut parser = Parser::new(options);
-        let blocks = parser.parse_blocks(&chars);
+        let mut blocks = parser.parse_blocks(&chars);
+        // Category memberships are pulled out of the inline flow as they are encountered and gathered
+        // into a single trailing paragraph, one link per category in document order.
+        if !parser.categories.is_empty() {
+            let mut inlines: Vec<Inline> = Vec::new();
+            for (index, category) in parser.categories.drain(..).enumerate() {
+                if index > 0 {
+                    inlines.push(Inline::Space);
+                }
+                inlines.push(category);
+            }
+            blocks.push(Block::Para(inlines));
+        }
+        let mut meta: BTreeMap<String, MetaValue> = BTreeMap::new();
+        for switch in behavior_switches {
+            meta.insert(switch, MetaValue::MetaBool(true));
+        }
         Ok(Document {
             api_version: ApiVersion::default(),
-            meta: BTreeMap::new(),
+            meta,
             blocks,
         })
     }
@@ -53,7 +70,16 @@ struct Parser {
     extensions: Extensions,
     link_counter: usize,
     seen_ids: BTreeSet<String>,
+    /// Category links pulled out of the inline flow, to be emitted as one trailing paragraph.
+    categories: Vec<Inline>,
+    /// Current block-nesting depth, capped to keep adversarially deep input from exhausting the stack.
+    depth: usize,
 }
+
+/// Block-nesting depth past which parsing stops descending: deeply stacked blockquotes, list levels,
+/// notes, and table cells degrade to flat content rather than recursing without bound. The cap sits
+/// far below the point where either parsing or serialization would overflow the stack.
+const MAX_BLOCK_DEPTH: usize = 64;
 
 /// One line of list markup: its leading marker run and the trimmed text that follows.
 struct ListItem {
@@ -125,6 +151,8 @@ impl Parser {
             extensions: options.extensions,
             link_counter: 0,
             seen_ids: BTreeSet::new(),
+            categories: Vec::new(),
+            depth: 0,
         }
     }
 
@@ -134,6 +162,17 @@ impl Parser {
     }
 
     fn parse_blocks(&mut self, chars: &[char]) -> Vec<Block> {
+        self.depth += 1;
+        if self.depth > MAX_BLOCK_DEPTH {
+            self.depth -= 1;
+            return degraded_blocks(chars);
+        }
+        let blocks = self.parse_blocks_inner(chars);
+        self.depth -= 1;
+        blocks
+    }
+
+    fn parse_blocks_inner(&mut self, chars: &[char]) -> Vec<Block> {
         let mut blocks: Vec<Block> = Vec::new();
         let mut pos = 0;
         let mut line_start = true;
@@ -148,6 +187,7 @@ impl Parser {
                 let c = at(chars, pos).unwrap_or(' ');
                 if c == '{'
                     && at(chars, pos + 1) == Some('{')
+                    && template_opens(chars, pos)
                     && let Some(after) = balanced_braces(chars, pos)
                 {
                     let raw = collect_range(chars, pos, after);
@@ -265,6 +305,18 @@ impl Parser {
     }
 
     fn build_lists(&mut self, items: &[ListItem], level: usize) -> Vec<Block> {
+        if level >= MAX_BLOCK_DEPTH {
+            // Past the nesting cap, each item's text becomes a flat plain block with no deeper list
+            // structure, so adversarially deep marker runs cannot exhaust the stack.
+            let mut out: Vec<Block> = Vec::new();
+            for item in items {
+                let inlines = self.parse_inlines(&item.content);
+                if !inlines.is_empty() {
+                    out.push(Block::Plain(inlines));
+                }
+            }
+            return out;
+        }
         let mut out: Vec<Block> = Vec::new();
         let mut i = 0;
         while i < items.len() {
@@ -460,8 +512,80 @@ impl Parser {
                 };
                 Some((Block::CodeBlock(attr, trim_code(&inner)), after))
             }
+            "ul" => Some(self.parse_html_list(chars, after_open, false, &raw_open, self_closing)),
+            "ol" => Some(self.parse_html_list(chars, after_open, true, &raw_open, self_closing)),
             _ => None,
         }
+    }
+
+    /// Parses an HTML `<ul>`/`<ol>` list into a native list block. Each `<li>` becomes one item whose
+    /// content is parsed as blocks, with a leading paragraph rendered as plain text; nested `<ul>`/
+    /// `<ol>` lists nest. For an ordered list, a `start` attribute sets the first number while `type`
+    /// and any per-item `value` are ignored. Whitespace between items is skipped; the first stray
+    /// (non-`<li>`) content ends the list, leaving the remainder to be parsed as ordinary blocks.
+    fn parse_html_list(
+        &mut self,
+        chars: &[char],
+        start: usize,
+        ordered: bool,
+        raw_open: &str,
+        self_closing: bool,
+    ) -> (Block, usize) {
+        let mut items: Vec<Vec<Block>> = Vec::new();
+        let mut i = start;
+        let close_name = if ordered { "ol" } else { "ul" };
+        if !self_closing {
+            loop {
+                while at(chars, i).is_some_and(char::is_whitespace) {
+                    i += 1;
+                }
+                if at(chars, i) == Some('<')
+                    && at(chars, i + 1) == Some('/')
+                    && tag_name_matches(chars, i + 2, close_name)
+                    && let Some((_, _, after)) = close_tag_parse(chars, i)
+                {
+                    i = after;
+                    break;
+                }
+                if at(chars, i) == Some('<')
+                    && at(chars, i + 1) != Some('/')
+                    && tag_name_matches(chars, i + 1, "li")
+                    && let Some((_, _, _self_closing, after_li)) = open_tag(chars, i)
+                {
+                    let (content_end, next) = html_li_content_bounds(chars, after_li);
+                    let content: Vec<char> = collect_range(chars, after_li, content_end)
+                        .chars()
+                        .collect();
+                    let mut blocks = self.parse_blocks(&content);
+                    if let Some(Block::Para(inlines)) = blocks.first() {
+                        let inlines = inlines.clone();
+                        if let Some(first) = blocks.first_mut() {
+                            *first = Block::Plain(inlines);
+                        }
+                    }
+                    items.push(blocks);
+                    i = next;
+                    continue;
+                }
+                break;
+            }
+        }
+        let block = if ordered {
+            let start_num = tag_attribute(raw_open, "start")
+                .and_then(|value| value.trim().parse::<i32>().ok())
+                .unwrap_or(1);
+            Block::OrderedList(
+                ListAttributes {
+                    start: start_num,
+                    style: ListNumberStyle::DefaultStyle,
+                    delim: ListNumberDelim::DefaultDelim,
+                },
+                items,
+            )
+        } else {
+            Block::BulletList(items)
+        };
+        (block, i)
     }
 
     fn parse_paragraph(&mut self, chars: &[char], pos: usize) -> (Vec<Block>, usize) {
@@ -480,12 +604,26 @@ impl Parser {
                 cur = next;
                 break;
             }
+            // A `<ref>` whose `</ref>` has not yet been seen keeps the paragraph open across a blank
+            // line so the note's body — including any internal paragraph breaks — is captured whole.
+            // A line that would otherwise begin a block only stays attached when the open note reads
+            // as block content (its body began on a fresh line); a note opened with text on the same
+            // line reads inline and ends at such a line instead.
+            let ref_open = open_ref_depth(chars, pos, next) > 0;
             let next_end = line_end(chars, next);
             if is_blank(chars, next, next_end) {
+                if ref_open {
+                    cur = next;
+                    continue;
+                }
                 cur = if next_end < n { next_end + 1 } else { next_end };
                 break;
             }
             if line_starts_block(chars, next) {
+                if ref_open && open_ref_block_bodied(chars, pos, next) {
+                    cur = next;
+                    continue;
+                }
                 cur = next;
                 break;
             }
@@ -506,23 +644,24 @@ impl Parser {
         let chars: Vec<char> = text.chars().collect();
         let toks = self.lex(&chars, false, true);
         let smart = self.smart();
+        let east_asian = self.extensions.contains(Extension::EastAsianLineBreaks);
         let mut blocks: Vec<Block> = Vec::new();
         let mut segment: Vec<Tok> = Vec::new();
         for tok in toks {
             match tok {
                 Tok::BlockRaw(raw) => {
-                    flush_para_segment(&mut segment, &mut blocks, smart);
+                    flush_para_segment(&mut segment, &mut blocks, smart, east_asian);
                     blocks.push(Block::RawBlock(format_html(), raw));
                 }
                 Tok::Block(block) => {
-                    flush_para_segment(&mut segment, &mut blocks, smart);
+                    flush_para_segment(&mut segment, &mut blocks, smart, east_asian);
                     blocks.push(block);
                 }
-                Tok::BlockBreak => flush_para_segment(&mut segment, &mut blocks, smart),
+                Tok::BlockBreak => flush_para_segment(&mut segment, &mut blocks, smart, east_asian),
                 other => segment.push(other),
             }
         }
-        flush_para_segment(&mut segment, &mut blocks, smart);
+        flush_para_segment(&mut segment, &mut blocks, smart, east_asian);
         blocks
     }
 
@@ -687,12 +826,14 @@ impl Parser {
     fn parse_inlines(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
         let toks = self.lex(&chars, false, false);
-        let inlines = coalesce(resolve_emphasis(toks));
-        if self.smart() {
-            apply_smart_quotes(inlines)
-        } else {
-            inlines
+        let mut inlines = coalesce(resolve_emphasis(toks));
+        if self.extensions.contains(Extension::EastAsianLineBreaks) {
+            inlines = drop_east_asian_breaks(inlines);
         }
+        if self.smart() {
+            inlines = apply_smart_quotes(inlines);
+        }
+        inlines
     }
 
     /// Parses one preformatted line: markup is honored, but literal text and its exact spacing are
@@ -777,7 +918,9 @@ impl Parser {
                 continue;
             }
             if c == '{' && at(chars, i + 1) == Some('{') {
-                if let Some(after) = balanced_braces(chars, i) {
+                if template_opens(chars, i)
+                    && let Some(after) = balanced_braces(chars, i)
+                {
                     flush_word(&mut word, &mut toks);
                     let raw = collect_range(chars, i, after);
                     toks.push(Tok::Inline(Inline::RawInline(format_mediawiki(), raw)));
@@ -1056,12 +1199,36 @@ impl Parser {
             (None, target_end)
         };
 
-        if let Some(ns) = namespace_of(&target)
-            && matches!(ns.as_str(), "file" | "image")
-            && !strip_namespace(&target).is_empty()
-        {
-            let image = self.image_embed(&target, label_content.as_deref());
-            return Some((vec![image], close + 2));
+        if let Some(ns) = namespace_of(&target) {
+            if ns == "category" {
+                let text = match &label_content {
+                    Some(label) if !label.trim().is_empty() => self.parse_inlines(label),
+                    _ => self.parse_inlines(&target),
+                };
+                let title = title_text(&text);
+                let attr = Attr {
+                    id: String::new(),
+                    classes: vec!["wikilink".to_string()],
+                    attributes: Vec::new(),
+                };
+                self.categories.push(Inline::Link(
+                    attr,
+                    text,
+                    Target {
+                        url: wikilink_url(&target),
+                        title,
+                    },
+                ));
+                return Some((Vec::new(), close + 2));
+            }
+            // A file or image embed may decline (a parameter it cannot represent as an image); when it
+            // does, the markup falls through to the ordinary wikilink path below.
+            if matches!(ns.as_str(), "file" | "image")
+                && !strip_namespace(&target).is_empty()
+                && let Some(image) = self.image_embed(&target, label_content.as_deref())
+            {
+                return Some((vec![image], close + 2));
+            }
         }
         let mut after = close + 2;
         let mut trail = String::new();
@@ -1111,13 +1278,16 @@ impl Parser {
     /// placement and option keywords are dropped; the last remaining parameter is the caption,
     /// defaulting to the file name. A lone embed in its own paragraph later becomes a figure
     /// (see [`lone_image_figure`]).
-    fn image_embed(&mut self, target: &str, params: Option<&str>) -> Inline {
+    fn image_embed(&mut self, target: &str, params: Option<&str>) -> Option<Inline> {
         let url = wikilink_url(strip_namespace(target));
         let mut attributes: Vec<(String, String)> = Vec::new();
         let mut caption: Option<String> = None;
         if let Some(params) = params {
             for part in params.split('|') {
                 let option = part.trim();
+                if image_param_declines(option) {
+                    return None;
+                }
                 if let Some((width, height)) = image_size(option) {
                     attributes.retain(|(key, _)| key != "width" && key != "height");
                     attributes.push(("width".to_string(), width));
@@ -1140,29 +1310,35 @@ impl Parser {
             classes: Vec::new(),
             attributes,
         };
-        Inline::Image(attr, alt, Target { url, title })
+        Some(Inline::Image(attr, alt, Target { url, title }))
     }
 
     fn make_id(&mut self, inlines: &[Inline]) -> String {
         let plain = to_plain_text(inlines);
         if self.extensions.contains(Extension::GfmAutoIdentifiers) {
-            let base = slug_gfm(&emoji_to_aliases(&plain));
-            let base = if base.is_empty() {
-                "section".to_string()
-            } else {
-                base
-            };
+            let base = self.finish_id(slug_gfm, &emoji_to_aliases(&plain));
             self.dedup(base, '-')
         } else if self.extensions.contains(Extension::AutoIdentifiers) {
-            let base = mediawiki_slug(&plain);
-            let base = if base.is_empty() {
-                "section".to_string()
-            } else {
-                base
-            };
+            let base = self.finish_id(mediawiki_slug, &plain);
             self.dedup(base, '_')
         } else {
             String::new()
+        }
+    }
+
+    /// Builds an identifier with `slug`, then — when `ascii_identifiers` is on — folds the finished
+    /// slug to pure ASCII (accents stripped, non-Latin letters dropped) and re-slugs it, so a dropped
+    /// letter leaves its separators intact while a now-leading separator is trimmed. An empty result
+    /// becomes a placeholder.
+    fn finish_id(&self, slug: fn(&str) -> String, source: &str) -> String {
+        let mut base = slug(source);
+        if self.extensions.contains(Extension::AsciiIdentifiers) {
+            base = slug(&transliterate_ascii(&base));
+        }
+        if base.is_empty() {
+            "section".to_string()
+        } else {
+            base
         }
     }
 
@@ -1286,6 +1462,94 @@ fn verbatim_region_end(chars: &[char], i: usize) -> Option<usize> {
         Some((_, after)) => Some(after),
         None => Some(chars.len()),
     }
+}
+
+/// Behavior switches recognized in `__WORD__` form. A matched switch is removed from the text and
+/// recorded as a boolean metadata entry under its lowercased name; the comparison is case-sensitive,
+/// so only the uppercase spelling is a switch.
+const BEHAVIOR_SWITCHES: &[&str] = &[
+    "ARCHIVEDTALK",
+    "DISAMBIG",
+    "EXPECTUNUSEDCATEGORY",
+    "EXPECTUNUSEDTEMPLATE",
+    "FORCETOC",
+    "HIDDENCAT",
+    "INDEX",
+    "NEWSECTIONLINK",
+    "NOCC",
+    "NOCONTENTCONVERT",
+    "NOEDITSECTION",
+    "NOGALLERY",
+    "NOGLOBAL",
+    "NOINDEX",
+    "NONEWSECTIONLINK",
+    "NOTC",
+    "NOTITLECONVERT",
+    "NOTOC",
+    "STATICREDIRECT",
+    "TOC",
+];
+
+/// Removes every recognized `__WORD__` behavior switch from the text, returning the cleaned text and
+/// the lowercased names of the switches found in document order. Switches inside verbatim regions
+/// (`<nowiki>`, `<pre>`, …) are left untouched as literal text.
+fn extract_behavior_switches(input: &str) -> (String, Vec<String>) {
+    let chars: Vec<char> = input.chars().collect();
+    let n = chars.len();
+    let mut out = String::new();
+    let mut found: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < n {
+        if at(&chars, i) == Some('<')
+            && let Some(after) = verbatim_region_end(&chars, i)
+        {
+            out.push_str(&collect_range(&chars, i, after));
+            i = after;
+            continue;
+        }
+        if at(&chars, i) == Some('_')
+            && at(&chars, i + 1) == Some('_')
+            && let Some((word, after)) = behavior_switch_at(&chars, i)
+        {
+            let key = word.to_ascii_lowercase();
+            if !found.contains(&key) {
+                found.push(key);
+            }
+            i = after;
+            // A switch that begins a line is removed together with the spaces and tabs that follow
+            // it on that line, so the line does not gain a leading space that would mark it as
+            // preformatted text; the line break itself is left in place.
+            if out.is_empty() || out.ends_with('\n') {
+                while matches!(at(&chars, i), Some(' ' | '\t')) {
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        if let Some(c) = at(&chars, i) {
+            out.push(c);
+        }
+        i += 1;
+    }
+    (out, found)
+}
+
+/// Reads a `__WORD__` behavior switch at `i`, returning the uppercase word and the index past it.
+fn behavior_switch_at(chars: &[char], i: usize) -> Option<(String, usize)> {
+    let start = i + 2;
+    let mut j = start;
+    while at(chars, j).is_some_and(|c| c.is_ascii_uppercase()) {
+        j += 1;
+    }
+    let word = collect_range(chars, start, j);
+    if word.is_empty()
+        || at(chars, j) != Some('_')
+        || at(chars, j + 1) != Some('_')
+        || !BEHAVIOR_SWITCHES.contains(&word.as_str())
+    {
+        return None;
+    }
+    Some((word, j + 2))
 }
 
 // --- emphasis resolution ------------------------------------------------------------------------
@@ -1573,13 +1837,113 @@ fn coalesce(inlines: Vec<Inline>) -> Vec<Inline> {
             Inline::Span(attr, xs) => Inline::Span(attr, coalesce(xs)),
             other => other,
         };
-        if let (Some(Inline::Str(prev)), Inline::Str(next)) = (out.last_mut(), &inline) {
-            prev.push_str(next);
-        } else {
-            out.push(inline);
+        match (out.last_mut(), &inline) {
+            (Some(Inline::Str(prev)), Inline::Str(next)) => prev.push_str(next),
+            // Two whitespace tokens land next to each other only where a zero-width construct (a
+            // category, an empty element) was removed between them; collapse them to one, keeping a
+            // soft break if either side carried one.
+            (
+                Some(slot @ (Inline::Space | Inline::SoftBreak)),
+                Inline::Space | Inline::SoftBreak,
+            ) => {
+                if matches!(inline, Inline::SoftBreak) {
+                    *slot = Inline::SoftBreak;
+                }
+            }
+            _ => out.push(inline),
         }
     }
     out
+}
+
+/// Removes a soft line break that falls between two East Asian wide characters, so wrapped CJK text
+/// rejoins with no intervening space. A break next to a non-wide character, or an explicit space, is
+/// left as is.
+fn drop_east_asian_breaks(inlines: Vec<Inline>) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::with_capacity(inlines.len());
+    let mut iter = inlines.into_iter().peekable();
+    while let Some(inline) = iter.next() {
+        if matches!(inline, Inline::SoftBreak) {
+            let prev_wide = out.last().and_then(trailing_char).is_some_and(is_wide_char);
+            let next_wide = iter.peek().and_then(leading_char).is_some_and(is_wide_char);
+            if prev_wide && next_wide {
+                continue;
+            }
+        }
+        out.push(inline);
+    }
+    out
+}
+
+/// The last rendered character of an inline, descending into wrapper inlines, or `None` for one that
+/// renders no character at the boundary (a break, image, or note).
+fn trailing_char(inline: &Inline) -> Option<char> {
+    match inline {
+        Inline::Str(s) | Inline::Code(_, s) | Inline::Math(_, s) | Inline::RawInline(_, s) => {
+            s.chars().next_back()
+        }
+        Inline::Emph(xs)
+        | Inline::Underline(xs)
+        | Inline::Strong(xs)
+        | Inline::Strikeout(xs)
+        | Inline::Superscript(xs)
+        | Inline::Subscript(xs)
+        | Inline::SmallCaps(xs)
+        | Inline::Quoted(_, xs)
+        | Inline::Span(_, xs)
+        | Inline::Link(_, xs, _)
+        | Inline::Cite(_, xs) => xs.iter().rev().find_map(trailing_char),
+        _ => None,
+    }
+}
+
+/// The first rendered character of an inline, descending into wrapper inlines, or `None` for one
+/// that renders no character at the boundary.
+fn leading_char(inline: &Inline) -> Option<char> {
+    match inline {
+        Inline::Str(s) | Inline::Code(_, s) | Inline::Math(_, s) | Inline::RawInline(_, s) => {
+            s.chars().next()
+        }
+        Inline::Emph(xs)
+        | Inline::Underline(xs)
+        | Inline::Strong(xs)
+        | Inline::Strikeout(xs)
+        | Inline::Superscript(xs)
+        | Inline::Subscript(xs)
+        | Inline::SmallCaps(xs)
+        | Inline::Quoted(_, xs)
+        | Inline::Span(_, xs)
+        | Inline::Link(_, xs, _)
+        | Inline::Cite(_, xs) => xs.iter().find_map(leading_char),
+        _ => None,
+    }
+}
+
+/// Whether `c` is an East Asian wide or fullwidth character, the class of characters that wrap
+/// without a separating space.
+fn is_wide_char(c: char) -> bool {
+    let cp = c as u32;
+    matches!(cp,
+        0x1100..=0x115F
+        | 0x2329 | 0x232A
+        | 0x2E80..=0x303E
+        | 0x3041..=0x33FF
+        | 0x3400..=0x4DBF
+        | 0x4E00..=0x9FFF
+        | 0xA000..=0xA4CF
+        | 0xA960..=0xA97F
+        | 0xAC00..=0xD7A3
+        | 0xF900..=0xFAFF
+        | 0xFE10..=0xFE19
+        | 0xFE30..=0xFE6F
+        | 0xFF00..=0xFF60
+        | 0xFFE0..=0xFFE6
+        | 0x1B000..=0x1B2FF
+        | 0x1F200..=0x1F2FF
+        | 0x1F300..=0x1F64F
+        | 0x1F900..=0x1F9FF
+        | 0x20000..=0x3FFFD
+    )
 }
 
 // --- preformatted text --------------------------------------------------------------------------
@@ -1734,31 +2098,306 @@ fn read_entity(chars: &[char], i: usize) -> Option<(String, usize)> {
 
 // --- bare URLs & namespaces ---------------------------------------------------------------------
 
+/// URL schemes recognized for autolinking, kept sorted for binary search and drawn from the IANA URI
+/// scheme registry. A bare URL is one of these scheme names followed by a colon; the `//` authority
+/// prefix is optional, so both `http://example.org` and `mailto:user@host` autolink.
 const URL_SCHEMES: &[&str] = &[
-    "https://",
-    "http://",
-    "ftps://",
-    "ftp://",
-    "ircs://",
-    "irc://",
-    "gopher://",
-    "telnet://",
-    "nntp://",
-    "mailto:",
-    "news:",
-    "tel:",
+    "aaa",
+    "aaas",
+    "about",
+    "acap",
+    "acct",
+    "acr",
+    "adiumxtra",
+    "afp",
+    "afs",
+    "aim",
+    "apt",
+    "attachment",
+    "aw",
+    "barion",
+    "beshare",
+    "bitcoin",
+    "blob",
+    "bolo",
+    "browserext",
+    "callto",
+    "cap",
+    "chrome",
+    "chrome-extension",
+    "cid",
+    "coap",
+    "coaps",
+    "com-eventbrite-attendee",
+    "content",
+    "crid",
+    "cvs",
+    "data",
+    "dav",
+    "dict",
+    "dlna-playcontainer",
+    "dlna-playsingle",
+    "dns",
+    "dntp",
+    "doi",
+    "dtn",
+    "dvb",
+    "ed2k",
+    "example",
+    "facetime",
+    "fax",
+    "feed",
+    "feedready",
+    "file",
+    "filesystem",
+    "finger",
+    "fish",
+    "ftp",
+    "geo",
+    "gg",
+    "git",
+    "gizmoproject",
+    "go",
+    "gopher",
+    "gtalk",
+    "h323",
+    "ham",
+    "hcp",
+    "http",
+    "https",
+    "hxxp",
+    "hxxps",
+    "iax",
+    "icap",
+    "icon",
+    "im",
+    "imap",
+    "info",
+    "iotdisco",
+    "ipn",
+    "ipp",
+    "ipps",
+    "irc",
+    "irc6",
+    "ircs",
+    "iris",
+    "isostore",
+    "itms",
+    "jabber",
+    "jar",
+    "javascript",
+    "jms",
+    "keyparc",
+    "lastfm",
+    "ldap",
+    "ldaps",
+    "lvlt",
+    "magnet",
+    "mailserver",
+    "mailto",
+    "maps",
+    "market",
+    "message",
+    "mid",
+    "mms",
+    "modem",
+    "mongodb",
+    "moz",
+    "ms-access",
+    "ms-browser-extension",
+    "ms-drive-to",
+    "ms-enrollment",
+    "ms-excel",
+    "ms-gamebarservices",
+    "ms-getoffice",
+    "ms-help",
+    "ms-infopath",
+    "ms-media-stream-id",
+    "ms-officeapp",
+    "ms-powerpoint",
+    "ms-project",
+    "ms-publisher",
+    "ms-search-repair",
+    "ms-secondary-screen-controller",
+    "ms-secondary-screen-setup",
+    "ms-settings",
+    "ms-settings-airplanemode",
+    "ms-settings-bluetooth",
+    "ms-settings-camera",
+    "ms-settings-cellular",
+    "ms-settings-cloudstorage",
+    "ms-settings-connectabledevices",
+    "ms-settings-displays-topology",
+    "ms-settings-emailandaccounts",
+    "ms-settings-language",
+    "ms-settings-location",
+    "ms-settings-lock",
+    "ms-settings-nfctransactions",
+    "ms-settings-notifications",
+    "ms-settings-power",
+    "ms-settings-privacy",
+    "ms-settings-proximity",
+    "ms-settings-screenrotation",
+    "ms-settings-wifi",
+    "ms-settings-workplace",
+    "ms-spd",
+    "ms-sttoverlay",
+    "ms-transit-to",
+    "ms-virtualtouchpad",
+    "ms-visio",
+    "ms-walk-to",
+    "ms-whiteboard",
+    "ms-whiteboard-cmd",
+    "ms-word",
+    "msnim",
+    "msrp",
+    "msrps",
+    "mtqp",
+    "mumble",
+    "mupdate",
+    "mvn",
+    "news",
+    "nfs",
+    "ni",
+    "nih",
+    "nntp",
+    "notes",
+    "ocf",
+    "oid",
+    "onenote",
+    "onenote-cmd",
+    "opaquelocktoken",
+    "pack",
+    "palm",
+    "paparazzi",
+    "pkcs11",
+    "platform",
+    "pop",
+    "pres",
+    "prospero",
+    "proxy",
+    "psyc",
+    "pwid",
+    "qb",
+    "query",
+    "redis",
+    "rediss",
+    "reload",
+    "res",
+    "resource",
+    "rmi",
+    "rsync",
+    "rtmfp",
+    "rtmp",
+    "rtsp",
+    "rtsps",
+    "rtspu",
+    "secondlife",
+    "service",
+    "session",
+    "sftp",
+    "sgn",
+    "shttp",
+    "sieve",
+    "sip",
+    "sips",
+    "skype",
+    "smb",
+    "sms",
+    "smtp",
+    "snews",
+    "snmp",
+    "soap.beep",
+    "soap.beeps",
+    "soldat",
+    "spotify",
+    "ssh",
+    "steam",
+    "stun",
+    "stuns",
+    "submit",
+    "svn",
+    "tag",
+    "teamspeak",
+    "tel",
+    "teliaeid",
+    "telnet",
+    "tftp",
+    "things",
+    "thismessage",
+    "tip",
+    "tn3270",
+    "tool",
+    "turn",
+    "turns",
+    "tv",
+    "udp",
+    "unreal",
+    "urn",
+    "ut2004",
+    "v-event",
+    "vemmi",
+    "view-source",
+    "vnc",
+    "wais",
+    "webcal",
+    "wpid",
+    "ws",
+    "wss",
+    "wtai",
+    "wyciwyg",
+    "xcon",
+    "xcon-userid",
+    "xfire",
+    "xmlrpc.beep",
+    "xmlrpc.beeps",
+    "xmpp",
+    "xri",
+    "ymsgr",
+    "z39.50",
+    "z39.50r",
+    "z39.50s",
 ];
 
-fn is_url(text: &str) -> bool {
-    let lower = text.to_lowercase();
-    URL_SCHEMES.iter().any(|scheme| lower.starts_with(scheme))
+/// Whether `name` (compared case-insensitively) is a recognized URL scheme.
+fn is_scheme(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    URL_SCHEMES.binary_search(&lower.as_str()).is_ok()
 }
 
+/// Whether `text` begins with a recognized scheme followed by a colon — the test a bracketed
+/// `[url label]` target must pass to be a link.
+fn is_url(text: &str) -> bool {
+    match text.split_once(':') {
+        Some((scheme, _)) => {
+            !scheme.is_empty()
+                && scheme
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+                && is_scheme(scheme)
+        }
+        None => false,
+    }
+}
+
+/// The length of a `scheme:` prefix at `i` (the scheme name plus its colon) when the name is a
+/// recognized scheme, else `None`. The scheme name is the run of letters, digits, `+`, `-`, and `.`
+/// before the colon.
 fn url_scheme_len(chars: &[char], i: usize) -> Option<usize> {
-    URL_SCHEMES
-        .iter()
-        .find(|scheme| matches_prefix_ci(chars, i, scheme))
-        .map(|scheme| scheme.chars().count())
+    let mut j = i;
+    let mut name = String::new();
+    while let Some(c) = at(chars, j) {
+        if c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.') {
+            name.push(c);
+            j += 1;
+        } else {
+            break;
+        }
+    }
+    if name.is_empty() || at(chars, j) != Some(':') || !is_scheme(&name) {
+        return None;
+    }
+    Some(j - i + 1)
 }
 
 /// Reads a bare URL beginning at a word boundary. The URL runs to the next space or angle bracket,
@@ -1939,6 +2578,20 @@ fn image_size(param: &str) -> Option<(String, Option<String>)> {
     }
 }
 
+/// Whether an image parameter forces the embed to decline, so the markup becomes an ordinary
+/// wikilink instead of an image. A `thumbtime` parameter (with or without a value) and an `upright`
+/// parameter that carries an explicit value have no image representation; a bare `upright` keyword
+/// is a normal sizing hint and does not decline.
+fn image_param_declines(param: &str) -> bool {
+    match param.split_once('=') {
+        Some((key, _)) => {
+            let key = key.trim().to_ascii_lowercase();
+            key == "thumbtime" || key == "upright"
+        }
+        None => param.trim().eq_ignore_ascii_case("thumbtime"),
+    }
+}
+
 /// Whether an image parameter is a recognized `key=value` attribute (`alt`, `link`, `class`,
 /// `page`) that is consumed without contributing caption text. Any other `key=value` becomes
 /// caption text.
@@ -2072,6 +2725,520 @@ fn mediawiki_slug(text: &str) -> String {
     out.chars().skip_while(|c| !c.is_alphabetic()).collect()
 }
 
+/// Transliterates text to ASCII for `ascii_identifiers`: an ASCII character is kept as is, a
+/// character whose canonical decomposition begins with an ASCII letter or digit folds to that
+/// character (so `é` becomes `e`), and any other non-ASCII character is dropped (so `Œ`, `ß`, and
+/// `½` vanish). The result is then slugged like any other identifier.
+fn transliterate_ascii(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if ch.is_ascii() {
+            out.push(ch);
+        } else if let Ok(index) = ASCII_FOLD.binary_search_by(|&(cp, _)| cp.cmp(&(ch as u32)))
+            && let Some(&(_, byte)) = ASCII_FOLD.get(index)
+        {
+            out.push(byte as char);
+        }
+    }
+    out
+}
+
+/// The ASCII fold for `ascii_identifiers`, keyed by Unicode code point and kept sorted for binary
+/// search. Each entry maps a precomposed character to the ASCII letter or digit its canonical
+/// decomposition begins with; characters with no ASCII base are absent and are dropped instead.
+const ASCII_FOLD: &[(u32, u8)] = &[
+    (0x00C0, b'a'),
+    (0x00C1, b'a'),
+    (0x00C2, b'a'),
+    (0x00C3, b'a'),
+    (0x00C4, b'a'),
+    (0x00C5, b'a'),
+    (0x00C7, b'c'),
+    (0x00C8, b'e'),
+    (0x00C9, b'e'),
+    (0x00CA, b'e'),
+    (0x00CB, b'e'),
+    (0x00CC, b'i'),
+    (0x00CD, b'i'),
+    (0x00CE, b'i'),
+    (0x00CF, b'i'),
+    (0x00D1, b'n'),
+    (0x00D2, b'o'),
+    (0x00D3, b'o'),
+    (0x00D4, b'o'),
+    (0x00D5, b'o'),
+    (0x00D6, b'o'),
+    (0x00D9, b'u'),
+    (0x00DA, b'u'),
+    (0x00DB, b'u'),
+    (0x00DC, b'u'),
+    (0x00DD, b'y'),
+    (0x00E0, b'a'),
+    (0x00E1, b'a'),
+    (0x00E2, b'a'),
+    (0x00E3, b'a'),
+    (0x00E4, b'a'),
+    (0x00E5, b'a'),
+    (0x00E7, b'c'),
+    (0x00E8, b'e'),
+    (0x00E9, b'e'),
+    (0x00EA, b'e'),
+    (0x00EB, b'e'),
+    (0x00EC, b'i'),
+    (0x00ED, b'i'),
+    (0x00EE, b'i'),
+    (0x00EF, b'i'),
+    (0x00F1, b'n'),
+    (0x00F2, b'o'),
+    (0x00F3, b'o'),
+    (0x00F4, b'o'),
+    (0x00F5, b'o'),
+    (0x00F6, b'o'),
+    (0x00F9, b'u'),
+    (0x00FA, b'u'),
+    (0x00FB, b'u'),
+    (0x00FC, b'u'),
+    (0x00FD, b'y'),
+    (0x00FF, b'y'),
+    (0x0100, b'a'),
+    (0x0101, b'a'),
+    (0x0102, b'a'),
+    (0x0103, b'a'),
+    (0x0104, b'a'),
+    (0x0105, b'a'),
+    (0x0106, b'c'),
+    (0x0107, b'c'),
+    (0x0108, b'c'),
+    (0x0109, b'c'),
+    (0x010A, b'c'),
+    (0x010B, b'c'),
+    (0x010C, b'c'),
+    (0x010D, b'c'),
+    (0x010E, b'd'),
+    (0x010F, b'd'),
+    (0x0112, b'e'),
+    (0x0113, b'e'),
+    (0x0114, b'e'),
+    (0x0115, b'e'),
+    (0x0116, b'e'),
+    (0x0117, b'e'),
+    (0x0118, b'e'),
+    (0x0119, b'e'),
+    (0x011A, b'e'),
+    (0x011B, b'e'),
+    (0x011C, b'g'),
+    (0x011D, b'g'),
+    (0x011E, b'g'),
+    (0x011F, b'g'),
+    (0x0120, b'g'),
+    (0x0121, b'g'),
+    (0x0122, b'g'),
+    (0x0123, b'g'),
+    (0x0124, b'h'),
+    (0x0125, b'h'),
+    (0x0128, b'i'),
+    (0x0129, b'i'),
+    (0x012A, b'i'),
+    (0x012B, b'i'),
+    (0x012C, b'i'),
+    (0x012D, b'i'),
+    (0x012E, b'i'),
+    (0x012F, b'i'),
+    (0x0130, b'i'),
+    (0x0134, b'j'),
+    (0x0135, b'j'),
+    (0x0136, b'k'),
+    (0x0137, b'k'),
+    (0x0139, b'l'),
+    (0x013A, b'l'),
+    (0x013B, b'l'),
+    (0x013C, b'l'),
+    (0x013D, b'l'),
+    (0x013E, b'l'),
+    (0x0143, b'n'),
+    (0x0144, b'n'),
+    (0x0145, b'n'),
+    (0x0146, b'n'),
+    (0x0147, b'n'),
+    (0x0148, b'n'),
+    (0x014C, b'o'),
+    (0x014D, b'o'),
+    (0x014E, b'o'),
+    (0x014F, b'o'),
+    (0x0150, b'o'),
+    (0x0151, b'o'),
+    (0x0154, b'r'),
+    (0x0155, b'r'),
+    (0x0156, b'r'),
+    (0x0157, b'r'),
+    (0x0158, b'r'),
+    (0x0159, b'r'),
+    (0x015A, b's'),
+    (0x015B, b's'),
+    (0x015C, b's'),
+    (0x015D, b's'),
+    (0x015E, b's'),
+    (0x015F, b's'),
+    (0x0160, b's'),
+    (0x0161, b's'),
+    (0x0162, b't'),
+    (0x0163, b't'),
+    (0x0164, b't'),
+    (0x0165, b't'),
+    (0x0168, b'u'),
+    (0x0169, b'u'),
+    (0x016A, b'u'),
+    (0x016B, b'u'),
+    (0x016C, b'u'),
+    (0x016D, b'u'),
+    (0x016E, b'u'),
+    (0x016F, b'u'),
+    (0x0170, b'u'),
+    (0x0171, b'u'),
+    (0x0172, b'u'),
+    (0x0173, b'u'),
+    (0x0174, b'w'),
+    (0x0175, b'w'),
+    (0x0176, b'y'),
+    (0x0177, b'y'),
+    (0x0178, b'y'),
+    (0x0179, b'z'),
+    (0x017A, b'z'),
+    (0x017B, b'z'),
+    (0x017C, b'z'),
+    (0x017D, b'z'),
+    (0x017E, b'z'),
+    (0x01A0, b'o'),
+    (0x01A1, b'o'),
+    (0x01AF, b'u'),
+    (0x01B0, b'u'),
+    (0x01CD, b'a'),
+    (0x01CE, b'a'),
+    (0x01CF, b'i'),
+    (0x01D0, b'i'),
+    (0x01D1, b'o'),
+    (0x01D2, b'o'),
+    (0x01D3, b'u'),
+    (0x01D4, b'u'),
+    (0x01D5, b'u'),
+    (0x01D6, b'u'),
+    (0x01D7, b'u'),
+    (0x01D8, b'u'),
+    (0x01D9, b'u'),
+    (0x01DA, b'u'),
+    (0x01DB, b'u'),
+    (0x01DC, b'u'),
+    (0x01DE, b'a'),
+    (0x01DF, b'a'),
+    (0x01E0, b'a'),
+    (0x01E1, b'a'),
+    (0x01E6, b'g'),
+    (0x01E7, b'g'),
+    (0x01E8, b'k'),
+    (0x01E9, b'k'),
+    (0x01EA, b'o'),
+    (0x01EB, b'o'),
+    (0x01EC, b'o'),
+    (0x01ED, b'o'),
+    (0x01F0, b'j'),
+    (0x01F4, b'g'),
+    (0x01F5, b'g'),
+    (0x01F8, b'n'),
+    (0x01F9, b'n'),
+    (0x01FA, b'a'),
+    (0x01FB, b'a'),
+    (0x0200, b'a'),
+    (0x0201, b'a'),
+    (0x0202, b'a'),
+    (0x0203, b'a'),
+    (0x0204, b'e'),
+    (0x0205, b'e'),
+    (0x0206, b'e'),
+    (0x0207, b'e'),
+    (0x0208, b'i'),
+    (0x0209, b'i'),
+    (0x020A, b'i'),
+    (0x020B, b'i'),
+    (0x020C, b'o'),
+    (0x020D, b'o'),
+    (0x020E, b'o'),
+    (0x020F, b'o'),
+    (0x0210, b'r'),
+    (0x0211, b'r'),
+    (0x0212, b'r'),
+    (0x0213, b'r'),
+    (0x0214, b'u'),
+    (0x0215, b'u'),
+    (0x0216, b'u'),
+    (0x0217, b'u'),
+    (0x0218, b's'),
+    (0x0219, b's'),
+    (0x021A, b't'),
+    (0x021B, b't'),
+    (0x021E, b'h'),
+    (0x021F, b'h'),
+    (0x0226, b'a'),
+    (0x0227, b'a'),
+    (0x0228, b'e'),
+    (0x0229, b'e'),
+    (0x022A, b'o'),
+    (0x022B, b'o'),
+    (0x022C, b'o'),
+    (0x022D, b'o'),
+    (0x022E, b'o'),
+    (0x022F, b'o'),
+    (0x0230, b'o'),
+    (0x0231, b'o'),
+    (0x0232, b'y'),
+    (0x0233, b'y'),
+    (0x1E00, b'a'),
+    (0x1E01, b'a'),
+    (0x1E02, b'b'),
+    (0x1E03, b'b'),
+    (0x1E04, b'b'),
+    (0x1E05, b'b'),
+    (0x1E06, b'b'),
+    (0x1E07, b'b'),
+    (0x1E08, b'c'),
+    (0x1E09, b'c'),
+    (0x1E0A, b'd'),
+    (0x1E0B, b'd'),
+    (0x1E0C, b'd'),
+    (0x1E0D, b'd'),
+    (0x1E0E, b'd'),
+    (0x1E0F, b'd'),
+    (0x1E10, b'd'),
+    (0x1E11, b'd'),
+    (0x1E12, b'd'),
+    (0x1E13, b'd'),
+    (0x1E14, b'e'),
+    (0x1E15, b'e'),
+    (0x1E16, b'e'),
+    (0x1E17, b'e'),
+    (0x1E18, b'e'),
+    (0x1E19, b'e'),
+    (0x1E1A, b'e'),
+    (0x1E1B, b'e'),
+    (0x1E1C, b'e'),
+    (0x1E1D, b'e'),
+    (0x1E1E, b'f'),
+    (0x1E1F, b'f'),
+    (0x1E20, b'g'),
+    (0x1E21, b'g'),
+    (0x1E22, b'h'),
+    (0x1E23, b'h'),
+    (0x1E24, b'h'),
+    (0x1E25, b'h'),
+    (0x1E26, b'h'),
+    (0x1E27, b'h'),
+    (0x1E28, b'h'),
+    (0x1E29, b'h'),
+    (0x1E2A, b'h'),
+    (0x1E2B, b'h'),
+    (0x1E2C, b'i'),
+    (0x1E2D, b'i'),
+    (0x1E2E, b'i'),
+    (0x1E2F, b'i'),
+    (0x1E30, b'k'),
+    (0x1E31, b'k'),
+    (0x1E32, b'k'),
+    (0x1E33, b'k'),
+    (0x1E34, b'k'),
+    (0x1E35, b'k'),
+    (0x1E36, b'l'),
+    (0x1E37, b'l'),
+    (0x1E38, b'l'),
+    (0x1E39, b'l'),
+    (0x1E3A, b'l'),
+    (0x1E3B, b'l'),
+    (0x1E3C, b'l'),
+    (0x1E3D, b'l'),
+    (0x1E3E, b'm'),
+    (0x1E3F, b'm'),
+    (0x1E40, b'm'),
+    (0x1E41, b'm'),
+    (0x1E42, b'm'),
+    (0x1E43, b'm'),
+    (0x1E44, b'n'),
+    (0x1E45, b'n'),
+    (0x1E46, b'n'),
+    (0x1E47, b'n'),
+    (0x1E48, b'n'),
+    (0x1E49, b'n'),
+    (0x1E4A, b'n'),
+    (0x1E4B, b'n'),
+    (0x1E4C, b'o'),
+    (0x1E4D, b'o'),
+    (0x1E4E, b'o'),
+    (0x1E4F, b'o'),
+    (0x1E50, b'o'),
+    (0x1E51, b'o'),
+    (0x1E52, b'o'),
+    (0x1E53, b'o'),
+    (0x1E54, b'p'),
+    (0x1E55, b'p'),
+    (0x1E56, b'p'),
+    (0x1E57, b'p'),
+    (0x1E58, b'r'),
+    (0x1E59, b'r'),
+    (0x1E5A, b'r'),
+    (0x1E5B, b'r'),
+    (0x1E5C, b'r'),
+    (0x1E5D, b'r'),
+    (0x1E5E, b'r'),
+    (0x1E5F, b'r'),
+    (0x1E60, b's'),
+    (0x1E61, b's'),
+    (0x1E62, b's'),
+    (0x1E63, b's'),
+    (0x1E64, b's'),
+    (0x1E65, b's'),
+    (0x1E66, b's'),
+    (0x1E67, b's'),
+    (0x1E68, b's'),
+    (0x1E69, b's'),
+    (0x1E6A, b't'),
+    (0x1E6B, b't'),
+    (0x1E6C, b't'),
+    (0x1E6D, b't'),
+    (0x1E6E, b't'),
+    (0x1E6F, b't'),
+    (0x1E70, b't'),
+    (0x1E71, b't'),
+    (0x1E72, b'u'),
+    (0x1E73, b'u'),
+    (0x1E74, b'u'),
+    (0x1E75, b'u'),
+    (0x1E76, b'u'),
+    (0x1E77, b'u'),
+    (0x1E78, b'u'),
+    (0x1E79, b'u'),
+    (0x1E7A, b'u'),
+    (0x1E7B, b'u'),
+    (0x1E7C, b'v'),
+    (0x1E7D, b'v'),
+    (0x1E7E, b'v'),
+    (0x1E7F, b'v'),
+    (0x1E80, b'w'),
+    (0x1E81, b'w'),
+    (0x1E82, b'w'),
+    (0x1E83, b'w'),
+    (0x1E84, b'w'),
+    (0x1E85, b'w'),
+    (0x1E86, b'w'),
+    (0x1E87, b'w'),
+    (0x1E88, b'w'),
+    (0x1E89, b'w'),
+    (0x1E8A, b'x'),
+    (0x1E8B, b'x'),
+    (0x1E8C, b'x'),
+    (0x1E8D, b'x'),
+    (0x1E8E, b'y'),
+    (0x1E8F, b'y'),
+    (0x1E90, b'z'),
+    (0x1E91, b'z'),
+    (0x1E92, b'z'),
+    (0x1E93, b'z'),
+    (0x1E94, b'z'),
+    (0x1E95, b'z'),
+    (0x1E96, b'h'),
+    (0x1E97, b't'),
+    (0x1E98, b'w'),
+    (0x1E99, b'y'),
+    (0x1EA0, b'a'),
+    (0x1EA1, b'a'),
+    (0x1EA2, b'a'),
+    (0x1EA3, b'a'),
+    (0x1EA4, b'a'),
+    (0x1EA5, b'a'),
+    (0x1EA6, b'a'),
+    (0x1EA7, b'a'),
+    (0x1EA8, b'a'),
+    (0x1EA9, b'a'),
+    (0x1EAA, b'a'),
+    (0x1EAB, b'a'),
+    (0x1EAC, b'a'),
+    (0x1EAD, b'a'),
+    (0x1EAE, b'a'),
+    (0x1EAF, b'a'),
+    (0x1EB0, b'a'),
+    (0x1EB1, b'a'),
+    (0x1EB2, b'a'),
+    (0x1EB3, b'a'),
+    (0x1EB4, b'a'),
+    (0x1EB5, b'a'),
+    (0x1EB6, b'a'),
+    (0x1EB7, b'a'),
+    (0x1EB8, b'e'),
+    (0x1EB9, b'e'),
+    (0x1EBA, b'e'),
+    (0x1EBB, b'e'),
+    (0x1EBC, b'e'),
+    (0x1EBD, b'e'),
+    (0x1EBE, b'e'),
+    (0x1EBF, b'e'),
+    (0x1EC0, b'e'),
+    (0x1EC1, b'e'),
+    (0x1EC2, b'e'),
+    (0x1EC3, b'e'),
+    (0x1EC4, b'e'),
+    (0x1EC5, b'e'),
+    (0x1EC6, b'e'),
+    (0x1EC7, b'e'),
+    (0x1EC8, b'i'),
+    (0x1EC9, b'i'),
+    (0x1ECA, b'i'),
+    (0x1ECB, b'i'),
+    (0x1ECC, b'o'),
+    (0x1ECD, b'o'),
+    (0x1ECE, b'o'),
+    (0x1ECF, b'o'),
+    (0x1ED0, b'o'),
+    (0x1ED1, b'o'),
+    (0x1ED2, b'o'),
+    (0x1ED3, b'o'),
+    (0x1ED4, b'o'),
+    (0x1ED5, b'o'),
+    (0x1ED6, b'o'),
+    (0x1ED7, b'o'),
+    (0x1ED8, b'o'),
+    (0x1ED9, b'o'),
+    (0x1EDA, b'o'),
+    (0x1EDB, b'o'),
+    (0x1EDC, b'o'),
+    (0x1EDD, b'o'),
+    (0x1EDE, b'o'),
+    (0x1EDF, b'o'),
+    (0x1EE0, b'o'),
+    (0x1EE1, b'o'),
+    (0x1EE2, b'o'),
+    (0x1EE3, b'o'),
+    (0x1EE4, b'u'),
+    (0x1EE5, b'u'),
+    (0x1EE6, b'u'),
+    (0x1EE7, b'u'),
+    (0x1EE8, b'u'),
+    (0x1EE9, b'u'),
+    (0x1EEA, b'u'),
+    (0x1EEB, b'u'),
+    (0x1EEC, b'u'),
+    (0x1EED, b'u'),
+    (0x1EEE, b'u'),
+    (0x1EEF, b'u'),
+    (0x1EF0, b'u'),
+    (0x1EF1, b'u'),
+    (0x1EF2, b'y'),
+    (0x1EF3, b'y'),
+    (0x1EF4, b'y'),
+    (0x1EF5, b'y'),
+    (0x1EF6, b'y'),
+    (0x1EF7, b'y'),
+    (0x1EF8, b'y'),
+    (0x1EF9, b'y'),
+    (0x212A, b'k'),
+    (0x212B, b'a'),
+];
+
 // --- tag scanning -------------------------------------------------------------------------------
 
 /// Reads an opening tag at `chars[i]`, returning its lowercased name, the raw `<…>` text, whether it
@@ -2173,9 +3340,76 @@ fn starts_block_tag(chars: &[char], pos: usize) -> bool {
     if at(chars, pos) != Some('<') {
         return false;
     }
-    ["pre", "source", "syntaxhighlight", "blockquote"]
+    ["pre", "source", "syntaxhighlight", "blockquote", "ul", "ol"]
         .iter()
         .any(|name| tag_name_matches(chars, pos + 1, name))
+}
+
+/// The count of `<ref>` tags opened but not yet closed within `chars[start..end]`. A self-closing
+/// `<ref … />` opens nothing; verbatim regions are stepped over so a `<ref>` inside `<nowiki>` does
+/// not count. Used to keep a paragraph open until a `<ref>` note's body is complete.
+fn open_ref_depth(chars: &[char], start: usize, end: usize) -> i32 {
+    let mut depth = 0i32;
+    let mut i = start;
+    while i < end {
+        if at(chars, i) == Some('<') {
+            if let Some(after) = verbatim_region_end(chars, i) {
+                i = after;
+                continue;
+            }
+            if at(chars, i + 1) == Some('/') {
+                if tag_name_matches(chars, i + 2, "ref") {
+                    depth = (depth - 1).max(0);
+                }
+            } else if tag_name_matches(chars, i + 1, "ref")
+                && let Some((_, _, self_closing, after)) = open_tag(chars, i)
+            {
+                if !self_closing {
+                    depth += 1;
+                }
+                i = after;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    depth
+}
+
+/// Whether the innermost `<ref>` still open at `end` has a body that begins on a fresh line — its
+/// open tag is the last non-blank thing on its line. Such a note is read as block content, so its
+/// body may hold lists and other block constructs; a note opened with text on the same line reads as
+/// inline content and a following block-level line ends it instead of joining it.
+fn open_ref_block_bodied(chars: &[char], start: usize, end: usize) -> bool {
+    let mut stack: Vec<bool> = Vec::new();
+    let mut i = start;
+    while i < end {
+        if at(chars, i) == Some('<') {
+            if let Some(after) = verbatim_region_end(chars, i) {
+                i = after;
+                continue;
+            }
+            if at(chars, i + 1) == Some('/') {
+                if tag_name_matches(chars, i + 2, "ref") {
+                    stack.pop();
+                }
+            } else if tag_name_matches(chars, i + 1, "ref")
+                && let Some((_, _, self_closing, after)) = open_tag(chars, i)
+            {
+                if !self_closing {
+                    let mut j = after;
+                    while matches!(at(chars, j), Some(' ' | '\t')) {
+                        j += 1;
+                    }
+                    stack.push(matches!(at(chars, j), None | Some('\n')));
+                }
+                i = after;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    stack.last().copied().unwrap_or(false)
 }
 
 /// The role of a recognized HTML element, or `None` when the name is not a recognized HTML tag (in
@@ -2247,6 +3481,50 @@ fn close_tag_parse(chars: &[char], i: usize) -> Option<(String, String, usize)> 
     Some((name, collect_range(chars, i, gt + 1), gt + 1))
 }
 
+/// Finds where one `<li>` item's content ends, given the index just past its `<li>` open tag.
+/// Returns the index where the content ends and the index to resume the enclosing list scan from.
+/// The item ends at its own `</li>` (consumed), at a sibling `<li>` (left in place), or at the
+/// enclosing list's `</ul>`/`</ol>` (left in place); nested `<ul>`/`<ol>` lists are stepped over so
+/// their markers do not end the item.
+fn html_li_content_bounds(chars: &[char], start: usize) -> (usize, usize) {
+    let n = chars.len();
+    let mut list_depth = 0i32;
+    let mut j = start;
+    while j < n {
+        if at(chars, j) == Some('<') {
+            if at(chars, j + 1) == Some('/') {
+                if tag_name_matches(chars, j + 2, "ul") || tag_name_matches(chars, j + 2, "ol") {
+                    if list_depth == 0 {
+                        return (j, j);
+                    }
+                    list_depth -= 1;
+                    if let Some((_, _, after)) = close_tag_parse(chars, j) {
+                        j = after;
+                        continue;
+                    }
+                } else if list_depth == 0
+                    && tag_name_matches(chars, j + 2, "li")
+                    && let Some((_, _, after)) = close_tag_parse(chars, j)
+                {
+                    return (j, after);
+                }
+            } else if tag_name_matches(chars, j + 1, "ul") || tag_name_matches(chars, j + 1, "ol") {
+                if let Some((_, _, self_closing, after)) = open_tag(chars, j) {
+                    if !self_closing {
+                        list_depth += 1;
+                    }
+                    j = after;
+                    continue;
+                }
+            } else if list_depth == 0 && tag_name_matches(chars, j + 1, "li") {
+                return (j, j);
+            }
+        }
+        j += 1;
+    }
+    (n, n)
+}
+
 /// Reads a recognized block-level HTML tag (opening, closing, or self-closing) at `i`, returning the
 /// token it contributes to the paragraph stream and the index just past it. Inline and unrecognized
 /// tags yield `None`.
@@ -2282,12 +3560,20 @@ fn list_run_uniform(chars: &[char], pos: usize) -> bool {
 
 /// Resolves a buffered run of inline tokens into a paragraph (or figure) block, dropping it when it
 /// holds only whitespace. Used between block-level tags while splitting a paragraph.
-fn flush_para_segment(segment: &mut Vec<Tok>, blocks: &mut Vec<Block>, smart: bool) {
+fn flush_para_segment(
+    segment: &mut Vec<Tok>,
+    blocks: &mut Vec<Block>,
+    smart: bool,
+    east_asian: bool,
+) {
     if segment.is_empty() {
         return;
     }
     let toks = std::mem::take(segment);
     let mut inlines = coalesce(strip_outer_whitespace(resolve_emphasis(toks)));
+    if east_asian {
+        inlines = drop_east_asian_breaks(inlines);
+    }
     if smart {
         inlines = apply_smart_quotes(inlines);
     }
@@ -2494,6 +3780,13 @@ fn skip_construct(chars: &[char], i: usize) -> Option<usize> {
 }
 
 /// The index just past the `}}` that balances the `{{` at `i`, accounting for nesting.
+/// Whether the `{{` at `i` opens a template transclusion. A template name begins with a letter, a
+/// digit, or a `:` (a leading-colon main-namespace reference); a `{{` followed by anything else —
+/// whitespace, a parser-function `#`, a pipe, or `}}` — is literal braces, not a template.
+fn template_opens(chars: &[char], i: usize) -> bool {
+    matches!(at(chars, i + 2), Some(c) if c.is_alphanumeric() || c == ':')
+}
+
 fn balanced_braces(chars: &[char], i: usize) -> Option<usize> {
     let mut depth = 0i32;
     let mut j = i;
@@ -2519,6 +3812,19 @@ fn balanced_braces(chars: &[char], i: usize) -> Option<usize> {
 
 fn is_list_marker(c: char) -> bool {
     matches!(c, '*' | '#' | ':' | ';')
+}
+
+/// Flat fallback used when block nesting reaches [`MAX_BLOCK_DEPTH`]: the remaining text becomes a
+/// single paragraph of its literal content, with no further block structure parsed, so deeply
+/// stacked constructs cannot exhaust the stack during parsing or serialization.
+fn degraded_blocks(chars: &[char]) -> Vec<Block> {
+    let text = collect_range(chars, 0, chars.len());
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        Vec::new()
+    } else {
+        vec![Block::Para(vec![Inline::Str(trimmed.to_string())])]
+    }
 }
 
 /// Consumes the whitespace run beginning at `from`, returning a single break token (soft when the
@@ -2856,8 +4162,16 @@ fn parse_cell_chunk(is_header: bool, chunk: &str) -> RawCell {
 fn find_attr_pipe(s: &str) -> Option<usize> {
     let mut square = 0i32;
     let mut curly = 0i32;
+    let mut in_quote = false;
     for (i, ch) in s.char_indices() {
+        if in_quote {
+            if ch == '"' {
+                in_quote = false;
+            }
+            continue;
+        }
         match ch {
+            '"' => in_quote = true,
             '[' => square += 1,
             ']' => square = (square - 1).max(0),
             '{' => curly += 1,
@@ -2900,14 +4214,14 @@ fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
             return None;
         }
         i += 1;
-        let value = if let Some(quote @ ('"' | '\'')) = at(&chars, i) {
+        let value = if at(&chars, i) == Some('"') {
             i += 1;
             let value_start = i;
-            while at(&chars, i).is_some_and(|c| c != quote) {
+            while at(&chars, i).is_some_and(|c| c != '"') {
                 i += 1;
             }
             let value = collect_range(&chars, value_start, i);
-            if at(&chars, i) == Some(quote) {
+            if at(&chars, i) == Some('"') {
                 i += 1;
             }
             value
@@ -3586,5 +4900,43 @@ mod tests {
                 Block::Para(vec![Inline::Str("trailing".into())]),
             ]
         );
+    }
+
+    /// Reads with the default option set and reports only whether the read completed without error,
+    /// so a deeply nested input can be checked for graceful (non-panicking) handling.
+    fn reads_ok(input: &str) -> bool {
+        MediawikiReader
+            .read(input, &ReaderOptions::default())
+            .is_ok()
+    }
+
+    #[test]
+    fn adversarially_nested_wiki_list_does_not_panic() {
+        let mut input = String::new();
+        for n in 1..4000 {
+            input.push_str(&"*".repeat(n));
+            input.push_str(" item\n");
+        }
+        assert!(reads_ok(&input));
+        let single = format!("{} item", "*".repeat(20_000));
+        assert!(reads_ok(&single));
+    }
+
+    #[test]
+    fn adversarially_nested_tables_do_not_panic() {
+        let input = format!("{}| x\n{}", "{|\n".repeat(4000), "|}\n".repeat(4000));
+        assert!(reads_ok(&input));
+    }
+
+    #[test]
+    fn adversarially_nested_html_list_does_not_panic() {
+        let input = format!("{}x{}", "<ul><li>".repeat(4000), "</li></ul>".repeat(4000));
+        assert!(reads_ok(&input));
+    }
+
+    #[test]
+    fn adversarially_nested_refs_do_not_panic() {
+        let input = format!("{}x{}", "a<ref>".repeat(4000), "</ref>".repeat(4000));
+        assert!(reads_ok(&input));
     }
 }

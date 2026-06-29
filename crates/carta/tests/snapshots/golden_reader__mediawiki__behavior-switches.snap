@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"noeditsection":{"t":"MetaBool","c":true},"notoc":{"t":"MetaBool","c":true},"toc":{"t":"MetaBool","c":true}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Lead"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"switches."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"sentence"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Str","c":"switch"},{"t":"Space"},{"t":"Str","c":"removed."}]},{"t":"Para","c":[{"t":"Str","c":"__NOTOC__"},{"t":"Space"},{"t":"Str","c":"stays"},{"t":"Space"},{"t":"Str","c":"literal"},{"t":"Space"},{"t":"Str","c":"here."}]}]}
