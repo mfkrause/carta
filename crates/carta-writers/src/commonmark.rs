@@ -14,9 +14,9 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
-    is_known_scheme, is_loose, is_percent_escaped_uri, item_separator, normalize_image_attr,
-    offset_as_i32, ordered_marker, quote_marks, render_html_attr,
+    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, html_attr_tokens,
+    indent_block, is_known_scheme, is_loose, is_percent_escaped_uri, item_separator,
+    normalize_image_attr, offset_as_i32, ordered_marker, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -126,13 +126,39 @@ impl State {
             Block::HorizontalRule => "-".repeat(width),
             Block::Div(attr, blocks) => {
                 let body = self.blocks_to_string(blocks, width);
-                format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
+                let open = self.open_tag("div", attr, width);
+                if body.is_empty() {
+                    format!("{open}\n\n</div>")
+                } else {
+                    format!("{open}\n\n{body}\n\n</div>")
+                }
             }
             Block::LineBlock(lines) => self.line_block(lines),
             Block::Figure(..) | Block::Table(_) => collapse_html_block(
                 &crate::html::render_fragment(std::slice::from_ref(block), self.wrap),
             ),
         }
+    }
+
+    /// Build a block-level HTML opening tag, filling its attributes to the active wrap column. The tag
+    /// name and each `name="value"` attribute are unbreakable units; only the spaces between them are
+    /// wrap points, so a value's own spaces never split a line.
+    fn open_tag(&self, name: &str, attr: &Attr, width: usize) -> String {
+        let mut pieces = vec![Piece::Text(format!("<{name}"))];
+        let mut tokens = html_attr_tokens(attr);
+        match tokens.last_mut() {
+            Some(last) => last.push('>'),
+            None => {
+                if let Some(Piece::Text(tag)) = pieces.first_mut() {
+                    tag.push('>');
+                }
+            }
+        }
+        for token in tokens {
+            pieces.push(Piece::Space);
+            pieces.push(Piece::Text(token));
+        }
+        fill(&pieces, width, self.wrap)
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
