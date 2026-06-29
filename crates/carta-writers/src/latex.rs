@@ -577,6 +577,11 @@ fn definition_list(
     lines.join("\n")
 }
 
+/// Render a line block, breaking each line with `\\`. An empty line needs a placeholder so the break
+/// has content to act on: while only empty lines have been seen it is `\hfill\break` (which both fills
+/// the line and breaks it, so no `\\` follows); once real content has appeared it is `\strut`, which
+/// gives the otherwise-blank line its height ahead of the `\\`. A trailing empty line contributes
+/// nothing beyond the break already closing the previous line.
 fn line_block(
     lines: &[Vec<Inline>],
     width: usize,
@@ -584,11 +589,27 @@ fn line_block(
     wrap: WrapMode,
     smart: bool,
 ) -> String {
-    lines
-        .iter()
-        .map(|line| inlines_to_string(line, width, dialect, wrap, smart))
-        .collect::<Vec<_>>()
-        .join("\\\\\n")
+    let mut out = String::new();
+    let mut only_empty_so_far = true;
+    for (index, line) in lines.iter().enumerate() {
+        let is_last = index + 1 == lines.len();
+        let mut breaks = true;
+        if !line.is_empty() {
+            out.push_str(&inlines_to_string(line, width, dialect, wrap, smart));
+            only_empty_so_far = false;
+        } else if is_last {
+            // The break ending the previous line already stands in for this one.
+        } else if only_empty_so_far {
+            out.push_str("\\hfill\\break");
+            breaks = false;
+        } else {
+            out.push_str("\\strut ");
+        }
+        if !is_last {
+            out.push_str(if breaks { "\\\\\n" } else { "\n" });
+        }
+    }
+    out
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -607,31 +628,39 @@ fn figure(
         "\\centering".to_owned(),
         render_blocks(blocks, width, enum_depth, dialect, wrap, smart),
     ];
-    let caption_inlines = caption_text(caption);
-    if !caption_inlines.is_empty() || !attr.id.is_empty() {
+    let caption_body = caption_body(caption, width, dialect, wrap, smart);
+    if !caption_body.is_empty() || !attr.id.is_empty() {
         let label = if attr.id.is_empty() {
             String::new()
         } else {
             format!("\\label{{{}}}", attr.id)
         };
-        parts.push(format!(
-            "\\caption{{{}}}{label}",
-            inlines_to_string(&caption_inlines, width, dialect, wrap, smart)
-        ));
+        parts.push(format!("\\caption{{{caption_body}}}{label}"));
     }
     parts.push("\\end{figure}".to_owned());
     parts.join("\n")
 }
 
-/// Collect a caption's inline content from its block-level body.
-fn caption_text(caption: &Caption) -> Vec<Inline> {
-    let mut out = Vec::new();
-    for block in &caption.long {
-        if let Block::Plain(inlines) | Block::Para(inlines) = block {
-            out.extend(inlines.iter().cloned());
-        }
-    }
-    out
+/// Render a caption's block body to the content of a `\caption{…}`. Each leaf block becomes its own
+/// line, separated by `\\` breaks, so a multi-paragraph legend keeps its paragraph boundaries.
+fn caption_body(
+    caption: &Caption,
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+    smart: bool,
+) -> String {
+    caption
+        .long
+        .iter()
+        .filter_map(|block| match block {
+            Block::Plain(inlines) | Block::Para(inlines) => {
+                Some(inlines_to_string(inlines, width, dialect, wrap, smart))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\\\\\n")
 }
 
 /// Render a table as a `longtable` environment. A captionless table is wrapped so its float

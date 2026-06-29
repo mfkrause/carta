@@ -248,16 +248,10 @@ impl State {
     /// display math is split around each formula into separate paragraphs and `.. math::` directives;
     /// otherwise its inlines are filled to `width`.
     fn para(&mut self, inlines: &[Inline], width: usize) -> String {
-        let mut has_break = false;
-        let mut has_display_math = false;
-        for inline in inlines {
-            match inline {
-                Inline::LineBreak => has_break = true,
-                Inline::Math(MathType::DisplayMath, _) => has_display_math = true,
-                _ => {}
-            }
-        }
-        if has_break {
+        if inlines
+            .iter()
+            .any(|inline| matches!(inline, Inline::LineBreak))
+        {
             let lines = split_at(inlines, |inline| matches!(inline, Inline::LineBreak));
             let rendered: Vec<String> = lines
                 .iter()
@@ -265,35 +259,68 @@ impl State {
                 .collect();
             return rendered.join("\n");
         }
-        if has_display_math {
-            return self.para_with_math(inlines, width);
+        if contains_display_math(inlines) {
+            let flattened = unwrap_transparent(inlines);
+            return self.para_with_math(&flattened, width);
         }
         self.lay(inlines, width)
     }
 
+    /// Render a paragraph that carries display math, splitting it into `.. math::` directives around
+    /// the surrounding inline runs. A run adjacent to a directive keeps an escaped-space marker on the
+    /// touching side so the inline flow survives the block break; two abutting directives are parted by
+    /// a standalone escaped space.
     fn para_with_math(&mut self, inlines: &[Inline], width: usize) -> String {
-        let mut parts: Vec<String> = Vec::new();
+        enum Piece {
+            Math(String),
+            Text(String),
+        }
+        let mut pieces: Vec<Piece> = Vec::new();
         let mut start = 0;
         for (index, inline) in inlines.iter().enumerate() {
             if let Inline::Math(MathType::DisplayMath, tex) = inline {
-                if let Some(segment) = inlines.get(start..index)
-                    && !segment.is_empty()
-                {
+                if let Some(segment) = inlines.get(start..index) {
                     let text = self.lay(segment, width);
                     if !text.is_empty() {
-                        parts.push(text);
+                        pieces.push(Piece::Text(text));
                     }
                 }
-                parts.push(format!(".. math:: {}", tex.trim()));
+                pieces.push(Piece::Math(tex.trim().to_owned()));
                 start = index + 1;
             }
         }
-        if let Some(segment) = inlines.get(start..)
-            && !segment.is_empty()
-        {
+        if let Some(segment) = inlines.get(start..) {
             let text = self.lay(segment, width);
             if !text.is_empty() {
-                parts.push(text);
+                pieces.push(Piece::Text(text));
+            }
+        }
+
+        const MARKER: &str = "\\ ";
+        let mut parts: Vec<String> = Vec::new();
+        for (index, piece) in pieces.iter().enumerate() {
+            let prev_math = index
+                .checked_sub(1)
+                .is_some_and(|prev| matches!(pieces.get(prev), Some(Piece::Math(_))));
+            let next_math = matches!(pieces.get(index + 1), Some(Piece::Math(_)));
+            match piece {
+                Piece::Math(tex) => {
+                    if prev_math {
+                        parts.push(MARKER.to_owned());
+                    }
+                    parts.push(format!(".. math:: {tex}"));
+                }
+                Piece::Text(text) => {
+                    let mut line = String::new();
+                    if prev_math {
+                        line.push_str(MARKER);
+                    }
+                    line.push_str(text);
+                    if next_math {
+                        line.push_str(MARKER);
+                    }
+                    parts.push(line);
+                }
             }
         }
         parts.join("\n\n")
@@ -438,9 +465,11 @@ impl State {
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
+        if is_bare_title(attr) {
+            return String::new();
+        }
         let body = self.blocks_to_string(blocks, width.saturating_sub(3), false);
         let body = lead_quote_fence(blocks, body);
-        let indented = indent_block(&body, "   ", "   ");
         let mut directive = match attr.classes.first() {
             Some(class) if is_admonition(class) => format!(".. {class}::"),
             _ if attr.classes.is_empty() => ".. container::".to_owned(),
@@ -450,6 +479,10 @@ impl State {
             directive.push_str("\n   :name: ");
             directive.push_str(&attr.id);
         }
+        if body.is_empty() {
+            return directive;
+        }
+        let indented = indent_block(&body, "   ", "   ");
         format!("{directive}\n\n{indented}")
     }
 
@@ -1624,6 +1657,41 @@ fn is_admonition(name: &str) -> bool {
     )
 }
 
+/// Whether any inline is display math, looking through the transparent wrappers (spans and citations)
+/// that the writer renders without their own markup.
+fn contains_display_math(inlines: &[Inline]) -> bool {
+    inlines.iter().any(|inline| match inline {
+        Inline::Math(MathType::DisplayMath, _) => true,
+        Inline::Span(_, inner) | Inline::Cite(_, inner) => contains_display_math(inner),
+        _ => false,
+    })
+}
+
+/// Lift the children of transparent wrappers (spans and citations) to the top level so any display
+/// math they enclose drives the paragraph's `.. math::` directives directly.
+fn unwrap_transparent(inlines: &[Inline]) -> Vec<Inline> {
+    let mut out = Vec::new();
+    for inline in inlines {
+        match inline {
+            Inline::Span(_, inner) | Inline::Cite(_, inner) => {
+                out.extend(unwrap_transparent(inner));
+            }
+            other => out.push(other.clone()),
+        }
+    }
+    out
+}
+
+/// Whether a `Div` is a bare title wrapper: its only attribute is the single class `title`. Such a
+/// wrapper carries a title implied by its surrounding directive, so reStructuredText leaves it
+/// unwritten.
+fn is_bare_title(attr: &Attr) -> bool {
+    attr.id.is_empty()
+        && attr.attributes.is_empty()
+        && attr.classes.len() == 1
+        && attr.classes.first().map(String::as_str) == Some("title")
+}
+
 /// The language argument of a code block: its first class that is not the line-numbering flag.
 fn code_language(attr: &Attr) -> Option<&str> {
     attr.classes
@@ -1638,12 +1706,24 @@ fn code_block(attr: &Attr, text: &str) -> String {
             let mut head = format!(".. code:: {language}");
             if attr.classes.iter().any(|class| class == "numberLines") {
                 head.push_str("\n   :number-lines:");
+                if let Some(start) = start_from(attr) {
+                    head.push(' ');
+                    head.push_str(start);
+                }
             }
             head
         }
         None => "::".to_owned(),
     };
     literal_directive(&head, text)
+}
+
+/// The line-numbering start value carried by a code block's `startFrom` attribute, if any.
+fn start_from(attr: &Attr) -> Option<&str> {
+    attr.attributes
+        .iter()
+        .find(|(key, _)| key == "startFrom")
+        .map(|(_, value)| value.as_str())
 }
 
 /// Render a raw block: content whose format is `rst` passes through verbatim; any other format is
