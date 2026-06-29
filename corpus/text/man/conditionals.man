@@ -1,0 +1,10 @@
+.TH T 1
+.SH CONDITIONALS
+.if n nroff-only text is kept
+.if t troff-only text is dropped
+.if 1 a true constant is kept
+.if 0 a false constant is dropped
+.ie n the if-else true branch is kept
+.el the if-else false branch is dropped
+.ie t this true branch is dropped
+.el this else branch is kept

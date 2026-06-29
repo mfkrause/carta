@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"section":{"t":"MetaInlines","c":[{"t":"Str","c":"1"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"TQ"}]}},"blocks":[{"t":"Header","c":[1,["options",[],[]],[{"t":"Str","c":"OPTIONS"}]]},{"t":"DefinitionList","c":[[[{"t":"Strong","c":[{"t":"Str","c":"-a"}]},{"t":"LineBreak"},{"t":"Strong","c":[{"t":"Str","c":"--all"}]}],[[{"t":"Para","c":[{"t":"Str","c":"Describe"},{"t":"Space"},{"t":"Str","c":"both"},{"t":"Space"},{"t":"Str","c":"spellings"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"option."}]}]]],[[{"t":"Strong","c":[{"t":"Str","c":"-v"}]}],[[{"t":"Para","c":[{"t":"Str","c":"Verbose"},{"t":"Space"},{"t":"Str","c":"output."}]}]]]]}]}

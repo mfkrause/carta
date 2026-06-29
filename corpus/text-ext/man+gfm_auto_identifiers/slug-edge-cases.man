@@ -1,0 +1,11 @@
+.TH T 1
+.SH !!!
+A heading that slugs to nothing falls back to a reserved identifier.
+.SH ???
+Another empty slug is disambiguated against the fallback.
+.SH Foo
+A base identifier.
+.SH Foo
+A repeat gains a numeric suffix.
+.SH İ here
+A dotted capital I lowercases to a letter plus a combining mark the identifier keeps.

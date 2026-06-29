@@ -1,0 +1,16 @@
+.TH T 1
+.SH DASH AND PLUS
+.IP -
+Dash bullet.
+.IP +
+Plus bullet.
+.SH PARENTHESIZED
+.IP (1) 4
+First parenthesized.
+.IP (2) 4
+Second parenthesized.
+.SH FONT MARKUP AND EMPTY
+.IP \fBterm\fR 4
+A designator whose font markup is reduced to plain text.
+.IP ""
+An empty designator yields an empty term.

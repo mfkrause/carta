@@ -1,0 +1,5 @@
+.TH T 1
+.SH FONTS
+plain \f(CWmono\fP and \f(CBmonobold\fP and \f(CImonoital\fP back.
+.PP
+bracket \f[CR]mono\f[] and single \fCmono\fR end.

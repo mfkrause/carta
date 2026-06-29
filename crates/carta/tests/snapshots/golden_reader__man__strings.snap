@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"section":{"t":"MetaInlines","c":[{"t":"Str","c":"1"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"STR"}]}},"blocks":[{"t":"Header","c":[1,["strings",[],[]],[{"t":"Str","c":"STRINGS"}]]},{"t":"Para","c":[{"t":"Str","c":"Hello,"},{"t":"Space"},{"t":"Str","c":"“"},{"t":"Space"},{"t":"Str","c":"quoted"},{"t":"Space"},{"t":"Str","c":"”"},{"t":"Space"},{"t":"Str","c":"world,"},{"t":"Space"},{"t":"Str","c":"®"},{"t":"Space"},{"t":"Str","c":"™"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"strong"}]},{"t":"Space"},{"t":"Str","c":"text."}]}]}

@@ -178,21 +178,33 @@ bare-URL autolinking requires an explicit `scheme://`.
 Jira wiki markup: headings, paragraphs, the text effects (strong, emphasis, citation, deleted,
 inserted, superscript, subscript, monospace), colored and anchored spans, bullet/numbered lists, the
 `{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji.
-Gaps: the `east_asian_line_breaks` extension (off by default) is not honored by this reader;
-an adversarial run of unbalanced `--`/`---` does not reproduce nested strikeout pairing; block
+Gaps: the `east_asian_line_breaks` extension has no effect here (it is off by default and the reader
+does not act on it); an adversarial run of unbalanced `--`/`---` does not reproduce nested strikeout
+pairing; block
 brace-macros are recognized only at the start of a line (a mid-line `{code}` after other text reads as
 paragraph text); a `|` inside an image's `!src|props!` within a table cell is not depth-protected.
 
 ### `man` — 🚧
 roff man pages: section and subsection headings (`.SH`/`.SS`), paragraphs, indented and
-tagged-paragraph lists (`.IP`/`.TP`) folded into bullet/ordered/definition lists, font macros
-(`\fB`, `.B`, `.BR`, …) mapped to strong/emphasis/code, `.nf`/`.EX` verbatim regions as code blocks,
-hyperlinks (`.UR`/`.MT`), and `.RS`/`.RE` nesting. `auto_identifiers` supplies header ids.
-Gaps: `tbl` tables (`.TS`/`.TE`) are not interpreted as tables — the region's literal cell text is
-kept verbatim as a code block; a single ambiguous list-marker letter
-(`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than lower-alpha; `.TQ` ends the list rather
-than attaching a second term; `.MR`/`.SM`/`.SB` are dropped; verbatim regions flatten embedded font
-macros and normalize tabs to a single space.
+tagged-paragraph lists (`.IP`/`.TP`, with `.TQ` attaching further terms to one item) folded into
+bullet/ordered/definition lists, font macros (`\fB`, `.B`, `.BR`, …) mapped to strong/emphasis with
+constant-width families (`\f(CW`, `\f(CB`, …) becoming inline code, `.SY`/`.OP`/`.YS` command
+synopses, `.nf`/`.EX` verbatim regions as code blocks, `tbl` tables (`.TS`/`.TE`) including
+`T{ … T}` multi-line cells, hyperlinks (`.UR`/`.MT`), and `.RS`/`.RE` nesting. String definitions
+(`.ds`) interpolate through `\*`, alongside the predefined strings and a broad set of composite and
+accented special characters (`\(:a`, `\('e`, `\(ss`, `\(la`, …). User macros (`.de`/`.de1`) are
+expanded on each call, substituting `\$N` arguments and reducing copy-mode `\\` escapes;
+conditionals (`.if`/`.ie`/`.el`) keep the branch whose condition matches the nroff target (`n`) or
+the constant `1` and discard the rest; and a no-op control line (a bare control character, `.`, `..`,
+or `'`) passes through without breaking fill. Escape handling covers tab, zero-width, and half-line
+motion escapes, odd-trailing-backslash line continuation, color/font-family/register/environment
+escapes (whose name is discarded), `\C'…'` named glyphs, and the no-output `\p`/`\a`.
+`auto_identifiers` supplies header ids; `ascii_identifiers` folds them to ASCII (Latin-1 through
+Latin Extended Additional), and `east_asian_line_breaks` is accepted.
+Gaps: a single ambiguous list-marker letter (`i.`/`c.`/`v.`/…) classifies as a roman numeral rather
+than lower-alpha; `.MR`/`.SM`/`.SB` are dropped; verbatim regions flatten embedded font macros
+(though literal tabs are preserved); and a `tbl` table using row or column spans degrades to a
+placeholder paragraph.
 
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
 `docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `latex`, `markdown_strict`, `markdown_mmd`,

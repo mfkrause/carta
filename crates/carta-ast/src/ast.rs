@@ -328,37 +328,57 @@ pub fn single_block_inlines(blocks: &[Block]) -> &[Inline] {
     }
 }
 
+/// Whether a character is a Unicode combining mark (general category `Mn`, `Mc`, or `Me`).
+fn is_combining_mark(ch: char) -> bool {
+    use unicode_general_category::GeneralCategory::{EnclosingMark, NonspacingMark, SpacingMark};
+    matches!(
+        unicode_general_category::get_general_category(ch),
+        NonspacingMark | SpacingMark | EnclosingMark
+    )
+}
+
+/// Whether a character is a Unicode letter — general category `Lu`, `Ll`, `Lt`, `Lm`, or `Lo`. This
+/// is narrower than [`char::is_alphabetic`], which also admits the `Other_Alphabetic` property
+/// (letter-like marks and symbols) that does not count toward a heading identifier.
+fn is_letter(ch: char) -> bool {
+    use unicode_general_category::GeneralCategory::{
+        LowercaseLetter, ModifierLetter, OtherLetter, TitlecaseLetter, UppercaseLetter,
+    };
+    matches!(
+        unicode_general_category::get_general_category(ch),
+        UppercaseLetter | LowercaseLetter | TitlecaseLetter | ModifierLetter | OtherLetter
+    )
+}
+
 /// Derive a heading identifier from plain text: a non-breaking space is treated as an ordinary
-/// space, only alphanumerics, whitespace, and `_`, `-`, `.` are kept, the result is lowercased,
-/// whitespace runs collapse to single hyphens, and any leading non-letter characters are dropped.
-/// The result is empty when no alphabetic character survives.
+/// space, the text is lowercased, only Unicode letters and numbers (by general category), whitespace,
+/// and `_`, `-`, `.` are kept, whitespace runs collapse to single hyphens, and the leading run up to
+/// the first letter is dropped. The result is empty when no letter survives. Lowercasing precedes
+/// filtering, so a combining mark produced by case-folding a precomposed letter is removed.
 #[must_use]
 pub fn slug(text: &str) -> String {
     let mut filtered = String::new();
-    for ch in text.chars() {
+    for ch in text.chars().flat_map(char::to_lowercase) {
         let ch = if ch == '\u{a0}' { ' ' } else { ch };
-        if ch.is_alphanumeric() || ch.is_whitespace() || matches!(ch, '_' | '-' | '.') {
-            filtered.extend(ch.to_lowercase());
+        if is_letter(ch) || ch.is_numeric() || ch.is_whitespace() || matches!(ch, '_' | '-' | '.') {
+            filtered.push(ch);
         }
     }
     let joined = filtered.split_whitespace().collect::<Vec<_>>().join("-");
-    joined
-        .chars()
-        .skip_while(|ch| !ch.is_alphabetic())
-        .collect()
+    joined.chars().skip_while(|ch| !is_letter(*ch)).collect()
 }
 
 /// Derive a heading identifier in the `gfm_auto_identifiers` style: full-Unicode lowercasing, keep
-/// only alphanumerics, `_`, and `-`, turn each whitespace character into a single `-`, and drop
-/// everything else (including `.`). Unlike [`slug`], whitespace runs are not collapsed and no
-/// leading characters are stripped, so punctuation removed between words leaves its surrounding
-/// separators in place.
+/// alphanumerics, combining marks, `_`, and `-`, turn each whitespace character into a single `-`,
+/// and drop everything else (including `.`). Unlike [`slug`], whitespace runs are not collapsed and
+/// no leading characters are stripped, so punctuation removed between words leaves its surrounding
+/// separators in place, and combining marks (including any introduced by case-folding) are retained.
 #[must_use]
 pub fn slug_gfm(text: &str) -> String {
     text.chars()
         .flat_map(char::to_lowercase)
         .filter_map(|ch| {
-            if ch.is_alphanumeric() || matches!(ch, '_' | '-') {
+            if ch.is_alphanumeric() || is_combining_mark(ch) || matches!(ch, '_' | '-') {
                 Some(ch)
             } else if ch.is_whitespace() {
                 Some('-')
