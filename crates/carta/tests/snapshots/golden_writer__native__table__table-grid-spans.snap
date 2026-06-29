@@ -1,0 +1,171 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidth 0.3472222222222222 )
+    , ( AlignDefault , ColWidth 0.18055555555555555 )
+    , ( AlignDefault , ColWidth 0.1527777777777778 )
+    , ( AlignDefault , ColWidth 0.1527777777777778 )
+    ]
+    (TableHead
+       ( "" , [] , [] )
+       [ Row
+           ( "" , [] , [] )
+           [ Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain
+                   [ Str "Header"
+                   , Space
+                   , Str "row,"
+                   , Space
+                   , Str "column"
+                   , Space
+                   , Str "1"
+                   ]
+               ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Header" , Space , Str "2" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Header" , Space , Str "3" ] ]
+           , Cell
+               ( "" , [] , [] )
+               AlignDefault
+               (RowSpan 1)
+               (ColSpan 1)
+               [ Plain [ Str "Header" , Space , Str "4" ] ]
+           ]
+       ])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "body"
+                    , Space
+                    , Str "row"
+                    , Space
+                    , Str "1,"
+                    , Space
+                    , Str "column"
+                    , Space
+                    , Str "1"
+                    ]
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "column" , Space , Str "2" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "column" , Space , Str "3" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "column" , Space , Str "4" ] ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "body" , Space , Str "row" , Space , Str "2" ]
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 3)
+                [ Plain
+                    [ Str "Cells"
+                    , Space
+                    , Str "may"
+                    , Space
+                    , Str "span"
+                    , Space
+                    , Str "columns."
+                    ]
+                ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "body" , Space , Str "row" , Space , Str "3" ]
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 2)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "Cells"
+                    , Space
+                    , Str "may"
+                    , SoftBreak
+                    , Str "span"
+                    , Space
+                    , Str "rows."
+                    ]
+                ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 2)
+                (ColSpan 2)
+                [ BulletList
+                    [ [ Plain [ Str "Cells." ] ]
+                    , [ Plain [ Str "Contain." ] ]
+                    , [ Plain [ Str "Blocks." ] ]
+                    ]
+                ]
+            ]
+        , Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain
+                    [ Str "body" , Space , Str "row" , Space , Str "4" ]
+                ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

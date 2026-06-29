@@ -482,10 +482,14 @@ pub(crate) fn grid_content_widths(
     widths
 }
 
-/// The minimum width each column spanned by a multi-column cell must hold so the merged field can
-/// carry the combined fractional width of the columns it covers.
-// Layout arithmetic over small bounded widths: the signed intermediates are clamped by `max(0)`
-// before converting back, and column counts never approach `i64`/`usize` limits.
+/// The common width every column spanned by a multi-column cell is widened to.
+///
+/// A multi-column cell lays its columns out at one shared width. From the combined fractional share
+/// of the covered columns, `merged = floor(fraction * total)` gives the character budget for the
+/// span; that budget is split evenly, `floor(merged / span)`, with the `merged % span` leftover
+/// characters folded back in, and one character per column is held back for the cell's own padding.
+// Layout arithmetic over small bounded widths: the signed intermediate is clamped by `max(0)` before
+// converting back, and column counts never approach `i64`/`usize` limits.
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
@@ -499,10 +503,9 @@ fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize, width: usiz
             _ => None,
         })
         .sum();
-    let required = ((span_fraction * width as f64).floor() as i64 - 1).max(0);
-    let interior = span.saturating_sub(1) as i64;
+    let merged = (span_fraction * width as f64).floor() as i64;
     let span = span.max(1) as i64;
-    ((required - interior + span - 1) / span).max(0) as usize
+    (merged / span + merged % span - 1).max(0) as usize
 }
 
 /// Distribute the available width across columns: a column narrower than its fair share keeps its
@@ -1029,5 +1032,50 @@ mod tests {
         );
         let widths: Vec<usize> = output.lines().map(display_width).collect();
         assert!(widths.iter().all(|&w| w == 6 + 3 + 5 + 4), "{output}");
+    }
+
+    fn sized(fraction: f64) -> ColSpec {
+        ColSpec {
+            align: Alignment::AlignDefault,
+            width: ColWidth::ColWidth(fraction),
+        }
+    }
+
+    #[test]
+    fn colspan_width_floor_folds_the_remainder_back_into_each_column() {
+        // A three-column span whose fractions sum to a 35-character budget (k = 13, 11, 11 of 72)
+        // splits to floor(35/3) = 11, then folds the 35 % 3 = 2 leftover back in and reserves one
+        // padding column: every covered column settles at 12.
+        let three = [sized(13.0 / 72.0), sized(11.0 / 72.0), sized(11.0 / 72.0)];
+        assert_eq!(colspan_width_floor(&three, 0, 3, 72), 12);
+
+        // A two-column span summing to a 22-character budget divides evenly with no remainder,
+        // leaving floor(22/2) - 1 = 10.
+        let two = [sized(11.0 / 72.0), sized(11.0 / 72.0)];
+        assert_eq!(colspan_width_floor(&two, 0, 2, 72), 10);
+    }
+
+    #[test]
+    fn explicit_grid_widths_widen_spanned_columns_to_the_shared_floor() {
+        let specs = [
+            sized(25.0 / 72.0),
+            sized(13.0 / 72.0),
+            sized(11.0 / 72.0),
+            sized(11.0 / 72.0),
+        ];
+        let natural = [1, 1, 1, 1];
+        let minword = [1, 1, 1, 1];
+        // A span over the last three columns (floor 12) and a span over the last two (floor 10);
+        // the wider floor wins on the overlap.
+        let widths = grid_content_widths(
+            &specs,
+            &natural,
+            &minword,
+            &[(1, 3), (2, 2)],
+            4,
+            72,
+            WrapMode::Auto,
+        );
+        assert_eq!(widths, vec![22, 12, 12, 12]);
     }
 }

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"OrderedList","c":[[1,{"t":"UpperAlpha"},{"t":"Period"}],[[{"t":"Plain","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"genuine"},{"t":"Space"},{"t":"Str","c":"first"},{"t":"Space"},{"t":"Str","c":"item."}]}]]]},{"t":"Para","c":[{"t":"Str","c":"B."},{"t":"Space"},{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"second"},{"t":"Space"},{"t":"Str","c":"item"},{"t":"Space"},{"t":"Str","c":"whose"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"wraps"},{"t":"SoftBreak"},{"t":"Str","c":"onto"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"following"},{"t":"Space"},{"t":"Str","c":"line."}]}]}

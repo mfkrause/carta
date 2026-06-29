@@ -59,13 +59,48 @@ As `csv`, tab-delimited.
 ### `rst` — 🚧
 reStructuredText blocks and inlines: sections, bullet/enumerated/definition/field lists, literal and
 line blocks, block quotes, footnotes and citations, hyperlink targets and substitutions, interpreted
-roles, the common directives (admonitions, image/figure, code, raw, role), and grid/simple tables.
-`auto_identifiers` supplies header slug ids.
-Gaps: grid-table cells that span rows or columns are emitted as separate single-span cells rather
-than merged; the `csv-table` and `list-table` directives fall through to a generic `Div` instead of a
-`Table`; the `contents` (table-of-contents) directive emits nothing; a definition-list classifier
-(`term : classifier`) stays part of the term; doctest blocks (`>>>`) read as ordinary paragraphs;
-only `auto_identifiers` is wired — no other RST-specific extension toggles.
+roles, and the common directives. A bullet list runs through a change of bullet character; an
+enumerated list disambiguates an ambiguous single-letter enumerator (a lone roman-numeral letter
+continues a roman list, otherwise it is alphabetic, and a lone `i` opens a roman list), and a
+two-line item whose second line is an under-indented run-on reads as a paragraph rather than a list.
+Directives carry their common options: `:name:` becomes the identifier, `:class:` adds classes, and
+any remaining options become attributes; the `line-block` directive builds a `LineBlock`, `table`
+takes its caption from the argument, `math` emits one `Math` per equation (wrapped in a labelled span
+when a `:label:`/`:nowrap:` option is set), a `code` block's `:number-lines:` adds the `numberLines`
+class and a `startFrom` attribute, a `figure`'s legend paragraphs join its caption, and the
+document-level directives (`meta`, `title`, `header`, `footer`, `sectnum`, `target-notes`, …) become
+classed divisions. The `image`/`figure` directives derive image attributes from their options:
+`:width:`/`:height:` carry a length whose unit decides its rendering (a pixel length truncates to a
+whole number, a percentage keeps one decimal, any other unit prints the shortest exact value),
+`:scale:` folds into the width and height as a factor, `:align:` becomes an `align-<value>` class, and
+the directive's own `:class:` list is repeated with the alignment suffix attached to the last entry;
+a `figure` keeps the outer division's classes separate from the inner image's, and its `:name:`
+becomes the image identifier. The `role` directive defines a custom interpreted role — with an
+optional base role, its own classes, and the `:format:` a `raw` base emits under or the `:language:`
+a `code` base highlights as; a chain of custom roles accumulates the classes each link contributes —
+and `default-role` sets the role applied to unqualified interpreted text, restoring the standard role
+when given no argument. The `include` directive splices
+a referenced file's parsed blocks in place, and the substitution directives build replacement text:
+`replace` from literal text, `image` from an image, `unicode` from `0x…`/`U+…`/decimal/escaped code
+points, and `date` from the current date rendered through an strftime-style pattern. A substitution
+reference (`|name|_`), a phrase or simple hyperlink reference, and an indirect hyperlink target
+resolve through to their destination in a final pass, so a reference to a name defined later in the
+document still resolves and the last definition of a repeated name wins; a reference resolves even
+mid-word, a multi-element replacement is wrapped in a span, and a destination URL is percent-encoded.
+Every section title is an implicit target referenceable by its text; an internal hyperlink target
+carries its identifier onto the block that follows it, a run of such targets all attaching to one
+section title with the last taking the identifier and the rest becoming empty spans; a phrase
+reference with an embedded destination also defines its label as a target; and a target name may
+hold a backslash-escaped colon. Emphasis, strong,
+interpreted-text, and reference markup wrapped in matching quotes or angle brackets stays literal
+text. Grid/simple tables — including grid cells that span rows or columns, which merge into single
+multi-span cells, and a single-column simple table opened by a too-short section overline — and the
+`csv-table` and `list-table` directives build a `Table`. `auto_identifiers`
+and `gfm_auto_identifiers` supply header slug ids, `ascii_identifiers` folds those ids to ASCII, and
+`smart` renders typographic quotes and dashes.
+Gaps: the `contents` (table-of-contents) directive emits nothing; the `table` directive's `:widths:`
+is not applied to the built table; a definition-list classifier (`term : classifier`) stays part of
+the term; doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `ipynb` — 🚧
 Jupyter notebooks (nbformat v4): markdown cells are parsed in the greedy Markdown dialect — a

@@ -129,9 +129,33 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width),
             Block::Table(table) => self.table(table, width),
-            Block::Figure(_, _, blocks) | Block::Div(_, blocks) => {
-                self.blocks_to_string(blocks, width)
-            }
+            Block::Figure(_, caption, body) => match simple_figure_url(body) {
+                // A simple figure (one image standing alone) collapses to that image with the
+                // caption taking the place of its description: `[caption]`, bracketed like any
+                // image. The description is dropped — leaving `[]` — when it is empty or merely
+                // repeats the image URL.
+                Some(url) => {
+                    let mut inner = Vec::new();
+                    let mut started = false;
+                    for block in &caption.long {
+                        if let Block::Plain(inlines) | Block::Para(inlines) = block {
+                            if started {
+                                inner.push(Piece::Hard);
+                            }
+                            self.extend_pieces(inlines, &mut inner);
+                            started = true;
+                        }
+                    }
+                    let mut pieces = vec![Piece::Text("[".to_owned())];
+                    if join_pieces(&inner, ' ') != url {
+                        pieces.append(&mut inner);
+                    }
+                    pieces.push(Piece::Text("]".to_owned()));
+                    fill(&pieces, width, self.wrap)
+                }
+                None => self.blocks_to_string(body, width),
+            },
+            Block::Div(_, blocks) => self.blocks_to_string(blocks, width),
             Block::LineBlock(lines) => self.line_block(lines),
         }
     }
@@ -642,7 +666,15 @@ impl State {
     /// wrapped in the math delimiters of its kind (`$…$` for inline, `$$…$$` for display). Inline
     /// source has its edge whitespace trimmed before wrapping (interior whitespace is kept); display
     /// source is wrapped as written.
+    ///
+    /// Display math sits on its own line: a forced break frames it, absorbing any adjacent space and
+    /// collapsing with a neighbouring display formula's break, so consecutive formulas each land on a
+    /// separate line while a lone formula gains no surrounding blank.
     fn math(&mut self, kind: &MathType, tex: &str, out: &mut Vec<Piece>) {
+        let display = matches!(kind, MathType::DisplayMath);
+        if display {
+            out.push(Piece::Hard);
+        }
         if let Some(inlines) = crate::math::to_inlines(tex) {
             for inline in &inlines {
                 self.inline(inline, out);
@@ -653,6 +685,9 @@ impl State {
                 MathType::DisplayMath => ("$$", tex),
             };
             out.push(Piece::Text(format!("{delimiter}{body}{delimiter}")));
+        }
+        if display {
+            out.push(Piece::Hard);
         }
     }
 }
@@ -719,6 +754,25 @@ fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
 /// Flatten inline pieces to a single string without line filling: breakable spaces become one
 /// space, while forced breaks become `hard`. Used where content is not wrapped
 /// (line-block lines and the inner text of sub/superscripts use a newline; see [`header_text`]).
+/// The image URL of a *simple figure* — a body of exactly one [`Block::Plain`] holding a single,
+/// attribute-free [`Inline::Image`] and nothing else — or `None` for any other body shape. A simple
+/// figure renders inline as its image with the caption standing in for the description; a richer body
+/// (multiple blocks, surrounding text, or an image carrying its own width/height or other attributes)
+/// is rendered as ordinary blocks instead.
+fn simple_figure_url(body: &[Block]) -> Option<&str> {
+    match body {
+        [Block::Plain(inlines)] => match inlines.as_slice() {
+            [Inline::Image(attr, _, target)]
+                if attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty() =>
+            {
+                Some(target.url.as_str())
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn join_pieces(pieces: &[Piece], hard: char) -> String {
     let mut out = String::new();
     for piece in pieces {

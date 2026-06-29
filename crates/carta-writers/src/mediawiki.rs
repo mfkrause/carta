@@ -122,6 +122,9 @@ impl State {
             Block::Table(table) => self.table(table),
             Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
             Block::Div(attr, blocks) => {
+                if blocks.is_empty() {
+                    return format!("<div{}>\n</div>", render_html_attr(attr));
+                }
                 let rendered = self.render_blocks(blocks, false);
                 let body = join_blocks(&rendered, false);
                 let trailing = match rendered.last() {
@@ -668,11 +671,13 @@ fn code_block(attr: &Attr, text: &str) -> String {
     if let Some(language) = attr.classes.first()
         && is_highlight_language(language)
     {
-        let numbered = if attr.classes.iter().any(|class| is_number_lines(class)) {
-            " line"
-        } else {
-            ""
-        };
+        let mut numbered = String::new();
+        if attr.classes.iter().any(|class| is_number_lines(class)) {
+            numbered.push_str(" line");
+            if let Some(start) = attribute_value(attr, "startFrom") {
+                numbered.push_str(&format!(" start=\"{}\"", escape_attr(start)));
+            }
+        }
         format!("<syntaxhighlight lang=\"{language}\"{numbered}>{text}</syntaxhighlight>")
     } else if attr.classes.is_empty() {
         format!("<pre>{}</pre>", escape_text(text))
