@@ -15,8 +15,8 @@ use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
-    display_width, fill, fill_cell, indent_block, is_known_scheme, is_uri_scheme, offset_as_i32,
-    ordered_marker, quote_marks,
+    display_width, fill, fill_cell, indent_block, is_known_scheme, is_uri_scheme,
+    label_matches_url, offset_as_i32, ordered_marker, quote_marks,
 };
 use crate::grid;
 
@@ -378,7 +378,7 @@ impl State {
     ) -> String {
         let mut groups = Vec::new();
         for (term, definitions) in items {
-            let term_line = self.flat(term);
+            let term_line = self.term_line(term);
             let mut def_units = Vec::new();
             for definition in definitions {
                 let simple = matches!(definition.as_slice(), [Block::Plain(_)]);
@@ -451,9 +451,23 @@ impl State {
 
     /// Render inlines to a single flat line: spaces and forced breaks collapse to one space, with
     /// `\ ` separators inserted between adjacent markup boundaries. Used for content that must stay on
-    /// one line (headers, definition terms, and the inside of inline markup).
+    /// one line (headers and the inside of inline markup).
     fn flat(&mut self, inlines: &[Inline]) -> String {
         self.flat_nested(inlines, false)
+    }
+
+    /// Render a definition-list term: like [`flat`](Self::flat), but a forced line break stays a real
+    /// newline so a term that spans lines is kept split across them.
+    fn term_line(&mut self, inlines: &[Inline]) -> String {
+        let mut out = String::new();
+        for piece in to_pieces(self.tokens_nested(inlines, false)) {
+            match piece {
+                Piece::Text(text) => out.push_str(&text),
+                Piece::Space | Piece::Soft => out.push(' '),
+                Piece::Hard => out.push('\n'),
+            }
+        }
+        out
     }
 
     fn flat_nested(&mut self, inlines: &[Inline], in_emphasis: bool) -> String {
@@ -697,7 +711,7 @@ impl State {
             out.push(word(plain, true));
             return;
         }
-        if plain == target.url && is_standalone_uri(&target.url) {
+        if label_matches_url(&plain, &target.url) && is_standalone_uri(&target.url) {
             out.push(word(target.url.clone(), true));
             return;
         }

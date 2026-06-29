@@ -15,7 +15,7 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     RowSpanGrid, attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
-    is_percent_escaped_uri, is_uri_scheme, quote_marks, render_html_attr,
+    is_percent_escaped_uri, is_uri_scheme, label_matches_url, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `MediaWiki` markup.
@@ -482,10 +482,11 @@ impl State {
         let label = self.inlines(inlines);
         let plain = to_plain_text(inlines);
         if is_external_uri(&target.url) {
-            if plain != target.url {
-                format!("[{} {label}]", target.url)
-            } else if is_percent_escaped_uri(&target.url, false) {
+            if is_percent_escaped_uri(&target.url, false) && label_matches_url(&plain, &target.url)
+            {
                 target.url.clone()
+            } else if plain != target.url {
+                format!("[{} {label}]", target.url)
             } else if label == target.url {
                 format!("[[{}]]", target.url)
             } else {
