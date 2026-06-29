@@ -112,12 +112,19 @@ inserted, superscript, subscript, monospace), colored and anchored spans, bullet
 `{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji. Emphasis is
 resolved with a flanking delimiter stack (same-marker nesting up to depth two, nearest-opener
 pairing), so `*a**b*`, `**x**`, and `--x--` lower to nested spans; smart dashes fold a run hugged by a
-following space into en-/em-dashes. The `east_asian_line_breaks` extension is recognized (off by
-default).
+following space into en-/em-dashes. A `{color:VALUE}` whose matching close is a line holding only
+`{color}` becomes a block-level colored division wrapping its content; otherwise it stays an inline
+colored span. A color value may be a name, a `#`-prefixed six-digit hex, or a bare six-digit hex with
+a leading decimal digit (normalized to `#`). Inline constructs — colored and monospaced spans, links,
+citations — carry across a soft line break, which renders as a line break inside them. A symbol or
+emoticon token is recognized even when it abuts a preceding word. A brace block macro that opens
+partway through a paragraph ends that paragraph and starts the macro's block. An image's bracketed
+property list disqualifies the image when it has leading whitespace or when `thumbnail` is surrounded
+by whitespace; attribute values keep their surrounding whitespace verbatim. The
+`east_asian_line_breaks` extension is recognized (off by default).
 Gaps: an adversarial run interleaving several distinct emphasis markers does not always reproduce the
-binary's delimiter pairing; block brace-macros are recognized only at the start of a line (a mid-line
-`{code}` after other text reads as paragraph text); a `|` inside an image's `!src|props!` within a
-table cell is not depth-protected.
+binary's delimiter pairing; a `|` inside an image's `!src|props!` within a table cell is not
+depth-protected.
 
 ### `man` — 🚧
 roff man pages: section and subsection headings (`.SH`/`.SS`), paragraphs, indented and
