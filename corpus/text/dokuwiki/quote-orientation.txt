@@ -1,0 +1,1 @@
+A possessive it's keeps a 'quoted' phrase from nesting inside the same kind.

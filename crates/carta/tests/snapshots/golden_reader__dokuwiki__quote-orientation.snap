@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"possessive"},{"t":"Space"},{"t":"Str","c":"it"},{"t":"Quoted","c":[{"t":"SingleQuote"},[{"t":"Str","c":"s"},{"t":"Space"},{"t":"Str","c":"keeps"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"’quoted"}]]},{"t":"Space"},{"t":"Str","c":"phrase"},{"t":"Space"},{"t":"Str","c":"from"},{"t":"Space"},{"t":"Str","c":"nesting"},{"t":"Space"},{"t":"Str","c":"inside"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"same"},{"t":"Space"},{"t":"Str","c":"kind."}]}]}

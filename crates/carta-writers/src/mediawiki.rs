@@ -507,20 +507,21 @@ impl State {
         }
         let mut parts = vec![format!("File:{}", target.url)];
         let alt = self.inlines(inlines);
-        if target.title == "fig:" {
+        let is_figure = target.title == "fig:";
+        if is_figure {
             parts.push("thumb".to_owned());
             parts.push("none".to_owned());
-            if !alt.is_empty() {
+        } else if let Some(size) = image_size(attr) {
+            parts.push(size);
+        }
+        if !attr.classes.is_empty() {
+            parts.push(format!("class={}", attr.classes.join(" ")));
+        }
+        if !alt.is_empty() {
+            if is_figure {
                 parts.push(format!("alt={alt}"));
-                parts.push(alt);
             }
-        } else {
-            if let Some(size) = image_size(attr) {
-                parts.push(size);
-            }
-            if !alt.is_empty() {
-                parts.push(alt);
-            }
+            parts.push(alt);
         }
         format!("[[{}]]", parts.join("|"))
     }

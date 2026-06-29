@@ -1284,10 +1284,36 @@ fn inline_pieces(
     smart: bool,
 ) -> Vec<Piece> {
     let mut out = Vec::new();
-    for inline in inlines {
-        push_inline(inline, &mut out, width, dialect, wrap, smart);
-    }
+    push_inlines(inlines, &mut out, width, dialect, wrap, smart);
     out
+}
+
+/// Render an inline list. After a quote span, a thin space separates its closing delimiter from a
+/// following quotation mark so the two marks do not run together into one glyph.
+fn push_inlines(
+    inlines: &[Inline],
+    out: &mut Vec<Piece>,
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+    smart: bool,
+) {
+    let mut remaining = inlines.iter().peekable();
+    while let Some(inline) = remaining.next() {
+        push_inline(inline, out, width, dialect, wrap, smart);
+        if matches!(inline, Inline::Quoted(..))
+            && let Some(Inline::Str(text)) = remaining.peek()
+            && text.chars().next().is_some_and(is_quotation_mark)
+        {
+            out.push(Piece::Text("\\,".to_owned()));
+        }
+    }
+}
+
+/// Whether a character is a quotation mark that would visually merge with a preceding quote span's
+/// closing delimiter. The grave accent is not a quotation mark and is excluded.
+fn is_quotation_mark(ch: char) -> bool {
+    matches!(ch, '\u{2018}' | '\u{2019}' | '\u{201C}' | '\u{201D}' | '\'')
 }
 
 #[allow(clippy::too_many_lines)]
@@ -1346,9 +1372,7 @@ fn push_inline(
                 EscapeMode::Text,
                 smart,
             )));
-            for inline in inlines {
-                push_inline(inline, out, width, dialect, wrap, smart);
-            }
+            push_inlines(inlines, out, width, dialect, wrap, smart);
             out.push(Piece::Text(escape_smart(
                 &close.to_string(),
                 EscapeMode::Text,
@@ -1356,9 +1380,7 @@ fn push_inline(
             )));
         }
         Inline::Cite(_, inlines) => {
-            for inline in inlines {
-                push_inline(inline, out, width, dialect, wrap, smart);
-            }
+            push_inlines(inlines, out, width, dialect, wrap, smart);
         }
         Inline::Code(_, text) => {
             out.push(Piece::Text(format!(
@@ -1398,9 +1420,7 @@ fn push_inline(
             };
             open.push('{');
             out.push(Piece::Text(open));
-            for inline in inlines {
-                push_inline(inline, out, width, dialect, wrap, smart);
-            }
+            push_inlines(inlines, out, width, dialect, wrap, smart);
             out.push(Piece::Text("}".to_owned()));
         }
         Inline::Note(blocks) => out.push(Piece::Text(note(blocks, width, dialect, wrap, smart))),
@@ -1417,9 +1437,7 @@ fn wrap_command(
     smart: bool,
 ) {
     out.push(Piece::Text(open.to_owned()));
-    for inline in inlines {
-        push_inline(inline, out, width, dialect, wrap, smart);
-    }
+    push_inlines(inlines, out, width, dialect, wrap, smart);
     out.push(Piece::Text("}".to_owned()));
 }
 
@@ -1457,18 +1475,18 @@ fn push_link(
         return;
     }
     out.push(Piece::Text(format!("\\href{{{url}}}{{")));
-    for inline in inlines {
-        push_inline(inline, out, width, dialect, wrap, smart);
-    }
+    push_inlines(inlines, out, width, dialect, wrap, smart);
     out.push(Piece::Text("}".to_owned()));
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> String {
-    let alt = to_plain_text(inlines);
-    let alt_option = if alt.is_empty() {
+    let alt_option = if inlines.is_empty() {
         String::new()
     } else {
-        format!(",alt={{{}}}", escape_smart(&alt, EscapeMode::Text, smart))
+        format!(
+            ",alt={{{}}}",
+            escape_smart(&to_plain_text(inlines), EscapeMode::Text, smart)
+        )
     };
     let url = escape_url(&target.url);
 
@@ -1629,14 +1647,38 @@ fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String {
             }
             '\u{2013}' if mode == EscapeMode::Text && smart => out.push_str("--"),
             '\u{2014}' if mode == EscapeMode::Text && smart => out.push_str("---"),
-            '\u{2018}' if mode == EscapeMode::Text && smart => out.push('`'),
-            '\u{2019}' if mode == EscapeMode::Text && smart => out.push('\''),
-            '\u{201C}' if mode == EscapeMode::Text && smart => out.push_str("``"),
-            '\u{201D}' if mode == EscapeMode::Text && smart => out.push_str("''"),
+            '\u{2018}' if mode == EscapeMode::Text && smart => {
+                out.push('`');
+                guard_quote_ligature(&mut out, next);
+            }
+            '\u{2019}' if mode == EscapeMode::Text && smart => {
+                out.push('\'');
+                guard_quote_ligature(&mut out, next);
+            }
+            '\u{201C}' if mode == EscapeMode::Text && smart => {
+                out.push_str("``");
+                guard_quote_ligature(&mut out, next);
+            }
+            '\u{201D}' if mode == EscapeMode::Text && smart => {
+                out.push_str("''");
+                guard_quote_ligature(&mut out, next);
+            }
             other => out.push(other),
         }
     }
     out
+}
+
+/// Insert a thin-space ligature guard after a smart-quote glyph when the next character also opens
+/// with a quote glyph (another smart quote, or a literal backtick). Without it, adjacent quotes such
+/// as the two apostrophes of `’’` would fuse into a single closing double quote.
+fn guard_quote_ligature(out: &mut String, next: Option<char>) {
+    if matches!(
+        next,
+        Some('\u{2018}' | '\u{2019}' | '\u{201C}' | '\u{201D}' | '`')
+    ) {
+        out.push_str("\\,");
+    }
 }
 
 /// Emit a control-word command and the separator that stops it from absorbing the following

@@ -387,11 +387,10 @@ impl State {
             out.push(Piece::Text(format!("]({})", destination(target))));
             return;
         }
-        let alt = alt_text(inlines);
-        let alt_attr = if alt.is_empty() {
+        let alt_attr = if inlines.is_empty() {
             String::new()
         } else {
-            format!(" alt=\"{}\"", escape_attr(&alt))
+            format!(" alt=\"{}\"", escape_attr(&alt_text(inlines)))
         };
         out.push(Piece::Text(format!(
             "<img src=\"{}\"{}{}{alt_attr} />",
