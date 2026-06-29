@@ -118,13 +118,17 @@ colored span. A color value may be a name, a `#`-prefixed six-digit hex, or a ba
 a leading decimal digit (normalized to `#`). Inline constructs — colored and monospaced spans, links,
 citations — carry across a soft line break, which renders as a line break inside them. A symbol or
 emoticon token is recognized even when it abuts a preceding word. A brace block macro that opens
-partway through a paragraph ends that paragraph and starts the macro's block. An image's bracketed
+partway through a paragraph ends that paragraph and starts the macro's block. A table cell carries
+block structure — bullet and numbered lists and the brace macros nest inside it, while a line whose
+prefix names a heading, blockquote, or rule stays paragraph text, and the cell's own paragraphs are
+trimmed of surrounding whitespace. A heading or blockquote line whose content holds a bare block
+macro degrades to a paragraph that the block layer then splits at the macro. An image's bracketed
 property list disqualifies the image when it has leading whitespace or when `thumbnail` is surrounded
-by whitespace; attribute values keep their surrounding whitespace verbatim. The
+by whitespace; attribute values keep their surrounding whitespace verbatim. A `|` nested inside a
+bracketed link, a brace span, or an image's property list does not split a table cell. The
 `east_asian_line_breaks` extension is recognized (off by default).
-Gaps: an adversarial run interleaving several distinct emphasis markers does not always reproduce the
-binary's delimiter pairing; a `|` inside an image's `!src|props!` within a table cell is not
-depth-protected.
+Gaps: when a `{quote}` macro's content shares the line with its fences, the leading whitespace of its
+first paragraph is kept rather than trimmed.
 
 ### `man` — 🚧
 roff man pages: section and subsection headings (`.SH`/`.SS`), paragraphs, indented and

@@ -1,0 +1,17 @@
+A line of only pipes is plain text, never a table:
+
+|
+
+||
+
+|||
+
+A table stops at a following pipe-only line:
+
+|a|
+|
+
+A pipe-only line before a table stays a paragraph:
+
+|
+|b|
