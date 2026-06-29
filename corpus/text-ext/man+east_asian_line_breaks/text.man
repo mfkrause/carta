@@ -1,0 +1,3 @@
+.TH EA 1
+.SH TEXT
+Lines of text fill into one single-spaced paragraph regardless of width.

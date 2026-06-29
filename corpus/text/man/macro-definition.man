@@ -1,0 +1,12 @@
+.TH T 1
+.SH MACRO DEFINITIONS
+.de FOO
+this body is part of the macro and never reaches the document
+.PP
+neither does this
+..
+Text after the first definition is kept.
+.de1 BAR END
+this body ends at a custom terminator
+.END
+Text after the second definition is kept.

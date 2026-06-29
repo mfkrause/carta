@@ -1,0 +1,18 @@
+.TH TBL 1
+.SH TABLES
+.TS
+allbox;
+l r.
+Name	Age
+_
+Ada	36
+Grace Hopper	85
+.TE
+.PP
+A second table without a header rule follows.
+.TS
+tab(@);
+c c.
+Left@Right
+one@two
+.TE

@@ -1,0 +1,10 @@
+.TH EB 1
+.SH EMPTY
+.IP \(bu
+.IP \(bu
+the second bullet has a body.
+.PP
+.IP label
+.PP
+.TP
+.B \-x

@@ -1,14 +1,18 @@
-//! Shared heading-identifier disambiguation for the readers that derive identifiers from header
-//! text. Two algorithms are supported; they differ in which characters survive, whitespace handling,
-//! leading-character stripping, the empty-result fallback, and how repeated slugs are disambiguated:
+//! Shared heading-identifier derivation for the readers that build identifiers from header text.
+//!
+//! Two slug shapes are available, selected by the active extension:
 //!
 //! - `auto_identifiers` — keep alphanumerics, `_`, `-`, `.`, and whitespace; collapse each
-//!   whitespace run to a single `-`; strip the leading run up to the first letter; an empty result
-//!   becomes `section`. Repeats increment a numeric suffix until the whole identifier is unused, and
-//!   explicit identifiers are reserved against that set.
-//! - `gfm_auto_identifiers` — keep alphanumerics, `_`, and `-`; turn each whitespace character into a
-//!   single `-`; drop everything else (including `.`); no leading strip; an empty result stays empty.
-//!   Repeats are disambiguated by a per-base occurrence count, which can itself produce a collision.
+//!   whitespace run to a single `-`; strip the leading run up to the first letter.
+//! - `gfm_auto_identifiers` — keep alphanumerics, combining marks, `_`, and `-`; turn each
+//!   whitespace character into a single `-`; drop everything else (including `.`); no leading strip.
+//!
+//! Two disambiguation strategies sit on top of the slug:
+//!
+//! - native — an empty slug becomes `section`; repeats increment a numeric suffix until the whole
+//!   identifier is unused against every identifier already issued or reserved.
+//! - count-suffix — repeats are disambiguated by a per-base occurrence count (which can itself
+//!   collide with a slug that already carries that suffix), and an empty slug stays empty.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -35,6 +39,58 @@ impl IdScheme {
     }
 }
 
+/// Transliterates header text to ASCII for the `ascii_identifiers` extension: each accented letter is
+/// folded to its unaccented base, plain ASCII is kept, and every other character (a letter with no
+/// ASCII base, or a non-Latin script) is dropped. The result is then slugged as usual.
+pub(crate) fn fold_to_ascii(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        if c.is_ascii() {
+            out.push(c);
+        } else if let Some(base) = ascii_base(c) {
+            out.push(base);
+        }
+    }
+    out
+}
+
+/// The unaccented ASCII letter underlying a Latin letter with a diacritic, or `None` for a character
+/// with no single-letter ASCII base (so the caller drops it).
+#[allow(clippy::match_same_arms)]
+fn ascii_base(c: char) -> Option<char> {
+    let base = match c {
+        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'Ā' | 'ā' | 'Ă'
+        | 'ă' | 'Ą' | 'ą' | 'Ǎ' | 'ǎ' | 'Ǟ' | 'ǟ' | 'Ǡ' | 'ǡ' | 'Ǻ' | 'ǻ' | 'Ȁ' | 'ȁ' | 'Ȃ'
+        | 'ȃ' | 'Ȧ' | 'ȧ' => 'a',
+        'Ç' | 'ç' | 'Ć' | 'ć' | 'Ĉ' | 'ĉ' | 'Ċ' | 'ċ' | 'Č' | 'č' => 'c',
+        'Ď' | 'ď' => 'd',
+        'È' | 'É' | 'Ê' | 'Ë' | 'è' | 'é' | 'ê' | 'ë' | 'Ē' | 'ē' | 'Ĕ' | 'ĕ' | 'Ė' | 'ė' | 'Ę'
+        | 'ę' | 'Ě' | 'ě' | 'Ȅ' | 'ȅ' | 'Ȇ' | 'ȇ' | 'Ȩ' | 'ȩ' => 'e',
+        'Ĝ' | 'ĝ' | 'Ğ' | 'ğ' | 'Ġ' | 'ġ' | 'Ģ' | 'ģ' | 'Ǧ' | 'ǧ' | 'Ǵ' | 'ǵ' => 'g',
+        'Ĥ' | 'ĥ' | 'Ȟ' | 'ȟ' => 'h',
+        'Ì' | 'Í' | 'Î' | 'Ï' | 'ì' | 'í' | 'î' | 'ï' | 'Ĩ' | 'ĩ' | 'Ī' | 'ī' | 'Ĭ' | 'ĭ' | 'Į'
+        | 'į' | 'İ' | 'ı' | 'Ǐ' | 'ǐ' | 'Ȉ' | 'ȉ' | 'Ȋ' | 'ȋ' => 'i',
+        'Ĵ' | 'ĵ' | 'ǰ' => 'j',
+        'Ķ' | 'ķ' | 'Ǩ' | 'ǩ' => 'k',
+        'Ĺ' | 'ĺ' | 'Ļ' | 'ļ' | 'Ľ' | 'ľ' => 'l',
+        'Ñ' | 'ñ' | 'Ń' | 'ń' | 'Ņ' | 'ņ' | 'Ň' | 'ň' | 'Ǹ' | 'ǹ' => 'n',
+        'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'Ō' | 'ō' | 'Ŏ' | 'ŏ' | 'Ő'
+        | 'ő' | 'Ơ' | 'ơ' | 'Ǒ' | 'ǒ' | 'Ǫ' | 'ǫ' | 'Ǭ' | 'ǭ' | 'Ȍ' | 'ȍ' | 'Ȏ' | 'ȏ' | 'Ȫ'
+        | 'ȫ' | 'Ȭ' | 'ȭ' | 'Ȯ' | 'ȯ' | 'Ȱ' | 'ȱ' => 'o',
+        'Ŕ' | 'ŕ' | 'Ŗ' | 'ŗ' | 'Ř' | 'ř' | 'Ȑ' | 'ȑ' | 'Ȓ' | 'ȓ' => 'r',
+        'Ś' | 'ś' | 'Ŝ' | 'ŝ' | 'Ş' | 'ş' | 'Š' | 'š' | 'Ș' | 'ș' => 's',
+        'Ţ' | 'ţ' | 'Ť' | 'ť' | 'Ț' | 'ț' => 't',
+        'Ù' | 'Ú' | 'Û' | 'Ü' | 'ù' | 'ú' | 'û' | 'ü' | 'Ũ' | 'ũ' | 'Ū' | 'ū' | 'Ŭ' | 'ŭ' | 'Ů'
+        | 'ů' | 'Ű' | 'ű' | 'Ų' | 'ų' | 'Ư' | 'ư' | 'Ǔ' | 'ǔ' | 'Ǖ' | 'ǖ' | 'Ǘ' | 'ǘ' | 'Ǚ'
+        | 'ǚ' | 'Ǜ' | 'ǜ' | 'Ȕ' | 'ȕ' | 'Ȗ' | 'ȗ' => 'u',
+        'Ŵ' | 'ŵ' => 'w',
+        'Ý' | 'ý' | 'ÿ' | 'Ŷ' | 'ŷ' | 'Ÿ' | 'Ȳ' | 'ȳ' => 'y',
+        'Ź' | 'ź' | 'Ż' | 'ż' | 'Ž' | 'ž' => 'z',
+        _ => return None,
+    };
+    Some(base)
+}
+
 /// Tracks identifiers already in use so repeats can be disambiguated.
 #[derive(Default)]
 pub(crate) struct IdRegistry {
@@ -49,27 +105,7 @@ impl IdRegistry {
     /// already emitted or reserved.
     pub(crate) fn assign(&mut self, scheme: IdScheme, text: &str) -> String {
         match scheme {
-            IdScheme::Plain => {
-                let base = {
-                    let slugged = slug(text);
-                    if slugged.is_empty() {
-                        "section".to_owned()
-                    } else {
-                        slugged
-                    }
-                };
-                if self.seen.insert(base.clone()) {
-                    return base;
-                }
-                let mut suffix = 1u32;
-                loop {
-                    let candidate = format!("{base}-{suffix}");
-                    if self.seen.insert(candidate.clone()) {
-                        return candidate;
-                    }
-                    suffix += 1;
-                }
-            }
+            IdScheme::Plain => self.assign_native(slug(text)),
             IdScheme::Gfm => {
                 let base = slug_gfm(text);
                 let count = self.counts.entry(base.clone()).or_insert(0);
@@ -81,6 +117,28 @@ impl IdRegistry {
                 *count += 1;
                 result
             }
+        }
+    }
+
+    /// Disambiguate an already-slugged `base` with the native strategy: an empty base becomes
+    /// `section`, and a repeated base gains a numeric suffix incremented until the whole identifier
+    /// is unused against every identifier already issued or reserved.
+    pub(crate) fn assign_native(&mut self, base: String) -> String {
+        let base = if base.is_empty() {
+            "section".to_owned()
+        } else {
+            base
+        };
+        if self.seen.insert(base.clone()) {
+            return base;
+        }
+        let mut suffix = 1u32;
+        loop {
+            let candidate = format!("{base}-{suffix}");
+            if self.seen.insert(candidate.clone()) {
+                return candidate;
+            }
+            suffix += 1;
         }
     }
 
@@ -137,5 +195,14 @@ mod tests {
         let mut registry = IdRegistry::default();
         registry.reserve(IdScheme::Gfm, "intro");
         assert_eq!(registry.assign(IdScheme::Gfm, "Intro"), "intro");
+    }
+
+    #[test]
+    fn ascii_fold_keeps_base_letters_and_drops_the_rest() {
+        assert_eq!(fold_to_ascii("Café Münch"), "Cafe Munch");
+        // A letter with no single-ASCII base is dropped, not transliterated.
+        assert_eq!(fold_to_ascii("Straße"), "Strae");
+        // A non-Latin script leaves nothing behind.
+        assert_eq!(fold_to_ascii("Λόγος"), "");
     }
 }

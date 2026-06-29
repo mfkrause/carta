@@ -1,0 +1,5 @@
+.TH WS 1
+.SH WHITESPACE
+one
+ 
+two
