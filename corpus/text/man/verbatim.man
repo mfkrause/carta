@@ -9,3 +9,7 @@ the quick brown fox
 \fBconfigure\fR \-\-prefix=/usr
 make install
 .EE
+.SH TAB-SEPARATED
+.nf
+col1	col2	col3
+.fi

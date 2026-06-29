@@ -1,0 +1,7 @@
+.TH T 1
+.SH SYNOPSIS
+.SY prog
+.OP \-v
+.OP \-o file
+.RI [ files \&...]
+.YS

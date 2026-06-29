@@ -13,3 +13,6 @@
 plain \fBbold\fR and \fIitalic\fR and \f(BIboth\fP back to plain
 .PP
 nested \fBouter \fIinner\fR still bold\fP done
+.PP
+a font macro called with an explicit empty argument keeps its wrapper:
+.B ""
