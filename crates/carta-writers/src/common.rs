@@ -76,7 +76,24 @@ pub(crate) fn fill_offset(
         WrapMode::Auto => width.max(1),
         WrapMode::None | WrapMode::Preserve => usize::MAX,
     };
-    fill_core(pieces, width, initial, matches!(wrap, WrapMode::Preserve))
+    fill_core(
+        pieces,
+        width,
+        initial,
+        matches!(wrap, WrapMode::Preserve),
+        false,
+    )
+}
+
+/// Like [`fill`], but the first line keeps a leading space rather than dropping it: the content is
+/// laid out as hanging text that a caller will prefix with a marker, so a space that opens the first
+/// block sits between the marker and the first word instead of being swallowed.
+pub(crate) fn fill_hang(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
+    let width = match wrap {
+        WrapMode::Auto => width.max(1),
+        WrapMode::None | WrapMode::Preserve => usize::MAX,
+    };
+    fill_core(pieces, width, 0, matches!(wrap, WrapMode::Preserve), true)
 }
 
 /// Lay out a table cell's inline content to a fixed-width column field. Unlike [`fill`], the field
@@ -89,17 +106,25 @@ pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
         WrapMode::None => usize::MAX,
         WrapMode::Auto | WrapMode::Preserve => width.max(1),
     };
-    fill_core(pieces, width, 0, matches!(wrap, WrapMode::Preserve))
+    fill_core(pieces, width, 0, matches!(wrap, WrapMode::Preserve), false)
 }
 
 /// The shared line-filling engine behind [`fill_offset`] and [`fill_cell`]: lay `pieces` out into
 /// lines no wider than `width` (already resolved to a sentinel when the caller wants no width wrap),
 /// starting `initial` columns into the first line, breaking on each source soft break only when
-/// `preserve_softs` is set.
-fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: bool) -> String {
+/// `preserve_softs` is set. With `keep_leading`, a space that opens the content is emitted before the
+/// first word instead of being dropped, so hanging content laid out under a marker keeps the gap the
+/// source put between the marker position and its first word.
+fn fill_core(
+    pieces: &[Piece],
+    width: usize,
+    initial: usize,
+    preserve_softs: bool,
+    keep_leading: bool,
+) -> String {
     let mut out = String::new();
     let mut column = initial;
-    let mut at_line_start = initial == 0;
+    let mut at_line_start = initial == 0 && !keep_leading;
     let mut pending_space = false;
     // Consecutive text pieces (no intervening space or break) form one unbreakable word, gathered
     // here as borrowed runs and placed only once its full width is known.
@@ -195,7 +220,7 @@ fn place_word(
     }
     if *at_line_start {
         *at_line_start = false;
-    } else if pending_space && *column + 1 + word_width > width {
+    } else if pending_space && *column > 0 && *column + 1 + word_width > width {
         out.push('\n');
         *column = 0;
         *at_line_start = false;
@@ -1310,7 +1335,10 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "accesskey",
     "action",
     "allow",
+    "allowfullscreen",
+    "allowpaymentrequest",
     "alt",
+    "as",
     "async",
     "autocapitalize",
     "autocomplete",
@@ -1320,6 +1348,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "checked",
     "cite",
     "class",
+    "color",
     "cols",
     "colspan",
     "content",
@@ -1339,6 +1368,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "draggable",
     "enctype",
     "enterkeyhint",
+    "fetchpriority",
     "for",
     "form",
     "formaction",
@@ -1352,7 +1382,10 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "high",
     "href",
     "hreflang",
+    "http-equiv",
     "id",
+    "imagesizes",
+    "imagesrcset",
     "inputmode",
     "integrity",
     "is",
@@ -1368,6 +1401,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "loading",
     "loop",
     "low",
+    "manifest",
     "max",
     "maxlength",
     "media",
@@ -1377,8 +1411,90 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "multiple",
     "muted",
     "name",
+    "nomodule",
     "nonce",
     "novalidate",
+    "onabort",
+    "onafterprint",
+    "onauxclick",
+    "onbeforeprint",
+    "onbeforeunload",
+    "onblur",
+    "oncancel",
+    "oncanplay",
+    "oncanplaythrough",
+    "onchange",
+    "onclick",
+    "onclose",
+    "oncontextmenu",
+    "oncopy",
+    "oncuechange",
+    "oncut",
+    "ondblclick",
+    "ondrag",
+    "ondragend",
+    "ondragenter",
+    "ondragexit",
+    "ondragleave",
+    "ondragover",
+    "ondragstart",
+    "ondrop",
+    "ondurationchange",
+    "onemptied",
+    "onended",
+    "onerror",
+    "onfocus",
+    "onhashchange",
+    "oninput",
+    "oninvalid",
+    "onkeydown",
+    "onkeypress",
+    "onkeyup",
+    "onlanguagechange",
+    "onload",
+    "onloadeddata",
+    "onloadedmetadata",
+    "onloadend",
+    "onloadstart",
+    "onmessage",
+    "onmessageerror",
+    "onmousedown",
+    "onmouseenter",
+    "onmouseleave",
+    "onmousemove",
+    "onmouseout",
+    "onmouseover",
+    "onmouseup",
+    "onoffline",
+    "ononline",
+    "onpagehide",
+    "onpageshow",
+    "onpaste",
+    "onpause",
+    "onplay",
+    "onplaying",
+    "onpopstate",
+    "onprogress",
+    "onratechange",
+    "onrejectionhandled",
+    "onreset",
+    "onresize",
+    "onscroll",
+    "onsecuritypolicyviolation",
+    "onseeked",
+    "onseeking",
+    "onselect",
+    "onstalled",
+    "onstorage",
+    "onsubmit",
+    "onsuspend",
+    "ontimeupdate",
+    "ontoggle",
+    "onunhandledrejection",
+    "onunload",
+    "onvolumechange",
+    "onwaiting",
+    "onwheel",
     "open",
     "optimum",
     "pattern",
@@ -1391,6 +1507,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "referrerpolicy",
     "rel",
     "required",
+    "rev",
     "reversed",
     "role",
     "rows",
@@ -1406,6 +1523,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "spellcheck",
     "src",
     "srcdoc",
+    "srclang",
     "srcset",
     "start",
     "step",
