@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["section",[],[]],[{"t":"Str","c":"..."}]]},{"t":"Para","c":[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"section"},{"t":"Space"},{"t":"Str","c":"whose"},{"t":"Space"},{"t":"Str","c":"title"},{"t":"Space"},{"t":"Str","c":"yields"},{"t":"Space"},{"t":"Str","c":"no"},{"t":"Space"},{"t":"Str","c":"identifier"},{"t":"Space"},{"t":"Str","c":"characters."}]},{"t":"Header","c":[1,["heading-one",[],[]],[{"t":"Str","c":"Heading"},{"t":"Space"},{"t":"Str","c":"One"}]]},{"t":"Para","c":[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"section"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"ordinary"},{"t":"Space"},{"t":"Str","c":"title."}]}]}

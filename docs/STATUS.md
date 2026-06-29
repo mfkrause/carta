@@ -76,17 +76,26 @@ whole number, a percentage keeps one decimal, any other unit prints the shortest
 the directive's own `:class:` list is repeated with the alignment suffix attached to the last entry;
 a `figure` keeps the outer division's classes separate from the inner image's, and its `:name:`
 becomes the image identifier. The `role` directive defines a custom interpreted role — with an
-optional base role and its own classes — and `default-role` sets the role applied to unqualified
-interpreted text, restoring the standard role when given no argument. The `include` directive splices
+optional base role, its own classes, and the `:format:` a `raw` base emits under or the `:language:`
+a `code` base highlights as; a chain of custom roles accumulates the classes each link contributes —
+and `default-role` sets the role applied to unqualified interpreted text, restoring the standard role
+when given no argument. The `include` directive splices
 a referenced file's parsed blocks in place, and the substitution directives build replacement text:
 `replace` from literal text, `image` from an image, `unicode` from `0x…`/`U+…`/decimal/escaped code
 points, and `date` from the current date rendered through an strftime-style pattern. A substitution
-reference (`|name|_`) and an indirect hyperlink target resolve through to their destination — a
-reference resolves even mid-word, and a multi-element replacement is wrapped in a span; an internal
-hyperlink target carries its identifier onto the block that follows it. Emphasis, strong,
+reference (`|name|_`), a phrase or simple hyperlink reference, and an indirect hyperlink target
+resolve through to their destination in a final pass, so a reference to a name defined later in the
+document still resolves and the last definition of a repeated name wins; a reference resolves even
+mid-word, a multi-element replacement is wrapped in a span, and a destination URL is percent-encoded.
+Every section title is an implicit target referenceable by its text; an internal hyperlink target
+carries its identifier onto the block that follows it, a run of such targets all attaching to one
+section title with the last taking the identifier and the rest becoming empty spans; a phrase
+reference with an embedded destination also defines its label as a target; and a target name may
+hold a backslash-escaped colon. Emphasis, strong,
 interpreted-text, and reference markup wrapped in matching quotes or angle brackets stays literal
 text. Grid/simple tables — including grid cells that span rows or columns, which merge into single
-multi-span cells — and the `csv-table` and `list-table` directives build a `Table`. `auto_identifiers`
+multi-span cells, and a single-column simple table opened by a too-short section overline — and the
+`csv-table` and `list-table` directives build a `Table`. `auto_identifiers`
 and `gfm_auto_identifiers` supply header slug ids, `ascii_identifiers` folds those ids to ASCII, and
 `smart` renders typographic quotes and dashes.
 Gaps: the `contents` (table-of-contents) directive emits nothing; the `table` directive's `:widths:`

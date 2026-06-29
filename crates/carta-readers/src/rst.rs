@@ -41,11 +41,13 @@ impl Reader for RstReader {
             custom_roles: BTreeMap::new(),
             default_role: DEFAULT_ROLE.to_string(),
             include_depth: 0,
+            deferred: BTreeMap::new(),
         };
         let mut blocks = parser.blocks(&lines);
         if let Some(div) = parser.citation_block() {
             blocks.push(div);
         }
+        parser.resolve_deferred(&mut blocks);
         Ok(Document {
             blocks,
             ..Document::default()
@@ -61,6 +63,66 @@ const TAB_STOP: usize = 8;
 /// directive's classes apply to the next sibling block. Carries a NUL so it cannot collide with a
 /// class name drawn from the input.
 const PENDING_CLASS: &str = "\u{0}pending-class";
+
+/// Prefix marking a link destination that names an unresolved reference rather than a concrete URL.
+/// A reference may point at a target or section that appears later in the document, so the link is
+/// emitted carrying this marker plus the normalized name and resolved in a final pass once every
+/// definition is known. The leading NUL keeps it from colliding with any real destination.
+const REF_SENTINEL: &str = "\u{0}ref\u{0}";
+
+/// Mark a normalized reference name as an unresolved link destination, to be filled in once every
+/// definition in the document has been seen. A name's destination cannot be known at the reference
+/// site because it may be defined later (a forward reference) or redefined (the last definition
+/// wins); the marker carries the name through tree construction so a final pass can resolve it.
+fn defer_reference(name: &str) -> String {
+    format!("{REF_SENTINEL}{}", normalize_name(name))
+}
+
+/// The target name an indirect destination points at, if any. An indirect target's destination is
+/// the name of another target written with a trailing underscore (`other_` or `` `other name`_ ``);
+/// the underscore, surrounding whitespace, and backtick quoting are stripped to recover the name. A
+/// doubled trailing underscore is an anonymous reference, not an indirect name, and yields `None`.
+fn indirect_referent(url: &str) -> Option<String> {
+    let referent = url.strip_suffix('_')?;
+    if referent.ends_with('_') {
+        return None;
+    }
+    Some(referent.trim().trim_matches('`').trim().to_string())
+}
+
+/// Percent-encode the characters a URL may not carry literally: whitespace and the delimiter set
+/// `<>|"{}[]^` plus the backtick. Each such character's UTF-8 bytes become `%XX` with uppercase
+/// hexadecimal digits; every other character passes through unchanged.
+fn escape_uri(url: &str) -> String {
+    let mut out = String::with_capacity(url.len());
+    for ch in url.chars() {
+        if ch.is_whitespace()
+            || matches!(
+                ch,
+                '<' | '>' | '|' | '"' | '{' | '}' | '[' | ']' | '^' | '`'
+            )
+        {
+            let mut buf = [0u8; 4];
+            for &byte in ch.encode_utf8(&mut buf).as_bytes() {
+                out.push('%');
+                out.push(hex_digit(byte >> 4));
+                out.push(hex_digit(byte & 0x0f));
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// The uppercase hexadecimal digit for a nibble (`0..=15`); values above `15` are not produced by
+/// the callers.
+fn hex_digit(nibble: u8) -> char {
+    match nibble {
+        0..=9 => (b'0' + nibble) as char,
+        _ => (b'A' + (nibble - 10)) as char,
+    }
+}
 
 /// Normalize line endings, expand tabs to spaces on an eight-column grid, and split into lines with
 /// trailing whitespace removed.
@@ -641,8 +703,6 @@ fn directive_name(rest: &str) -> Option<String> {
 
 #[derive(Default)]
 struct Definitions {
-    /// Normalized hyperlink-target name to destination URL.
-    targets: BTreeMap<String, String>,
     /// Anonymous-target destinations, in document order.
     anonymous: Vec<String>,
     /// Normalized substitution name to its definition.
@@ -664,11 +724,25 @@ enum Substitution {
 }
 
 /// A custom interpreted-text role declared by a `role` directive: an optional base role whose
-/// formatting it inherits, plus the classes it adds.
+/// formatting it inherits, the classes it adds, and the format or language its base needs (a `raw`
+/// base takes a `:format:`, a `code` base a `:language:`).
 #[derive(Clone, Default)]
 struct RoleDef {
     base: Option<String>,
     classes: Vec<String>,
+    format: Option<String>,
+    language: Option<String>,
+}
+
+/// The result of following a custom-role chain to the builtin role that renders it: the builtin
+/// role name (empty for a plain baseless role), the classes accumulated along the chain, and the
+/// format and language the chain declares.
+#[derive(Default)]
+struct RoleChain {
+    base: String,
+    classes: Vec<String>,
+    format: Option<String>,
+    language: Option<String>,
 }
 
 /// Read and parse an included file, returning its blocks for splicing into the document. Returns
@@ -688,11 +762,13 @@ fn included_blocks(path: &str, ext: Extensions, depth: usize) -> Option<Vec<Bloc
         custom_roles: BTreeMap::new(),
         default_role: DEFAULT_ROLE.to_string(),
         include_depth: depth,
+        deferred: BTreeMap::new(),
     };
     let mut blocks = parser.blocks(&lines);
     if let Some(div) = parser.citation_block() {
         blocks.push(div);
     }
+    parser.resolve_deferred(&mut blocks);
     Some(blocks)
 }
 
@@ -728,18 +804,6 @@ fn record_definition(
 ) {
     let first = line_at(lines, start).trim_start();
     match kind {
-        Explicit::Target => {
-            if let Some((name, url)) = parse_target(first, lines, start, end, indent) {
-                // A target with no destination is internal: a reference to it points at the
-                // identifier the target will carry onto its block.
-                let url = if url.trim().is_empty() {
-                    format!("#{}", name.trim())
-                } else {
-                    url
-                };
-                defs.targets.insert(normalize_name(&name), url);
-            }
-        }
         Explicit::AnonymousTarget => {
             let url = parse_anonymous(first, lines, start, end, indent);
             defs.anonymous.push(url);
@@ -763,7 +827,10 @@ fn record_definition(
                 defs.substitutions.insert(normalize_name(&name), subst);
             }
         }
-        Explicit::Directive(_) | Explicit::Comment => {}
+        // Named hyperlink targets are registered in document order during tree construction so the
+        // last definition of a name wins; directives and comments define no reference. None of these
+        // contribute to the first pass.
+        Explicit::Target | Explicit::Directive(_) | Explicit::Comment => {}
     }
 }
 
@@ -798,16 +865,40 @@ fn split_target_name(rest: &str) -> Option<(String, String)> {
         let tail = tail.strip_prefix(':')?;
         return Some((name.to_string(), tail.to_string()));
     }
-    let colon = rest.find(": ").or_else(|| {
-        if rest.ends_with(':') {
-            Some(rest.len() - 1)
-        } else {
-            None
-        }
-    })?;
+    // The name runs up to the first colon that is unescaped and followed by a space or the end of
+    // the line; a backslash-escaped colon is part of the name.
+    let (colon, after_colon) = unescaped_terminator(rest)?;
     let name = rest.get(..colon)?.replace("\\:", ":");
-    let after = rest.get(colon + 1..).unwrap_or("");
+    let after = rest.get(after_colon..).unwrap_or("");
     Some((name, after.to_string()))
+}
+
+/// Find the colon that terminates a target name: the first `:` that is not backslash-escaped and is
+/// followed by a space or the end of the line. Returns the colon's byte offset and the offset just
+/// past it.
+fn unescaped_terminator(rest: &str) -> Option<(usize, usize)> {
+    let mut escaped = false;
+    for (offset, ch) in rest.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' => escaped = true,
+            ':' => {
+                let after = offset + ch.len_utf8();
+                if rest
+                    .get(after..)
+                    .and_then(|t| t.chars().next())
+                    .is_none_or(|c| c == ' ')
+                {
+                    return Some((offset, after));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn parse_anonymous(
@@ -827,7 +918,11 @@ fn parse_anonymous(
             url.push_str(line.trim());
         }
     }
-    url
+    if indirect_referent(&url).is_some() {
+        url
+    } else {
+        escape_uri(&url)
+    }
 }
 
 /// The body region of a footnote or citation: the text after the `.. [label]` marker, plus the
@@ -1194,6 +1289,12 @@ struct Parser<'a> {
     default_role: String,
     /// How many nested `include` directives deep this parser is, bounding include recursion.
     include_depth: usize,
+    /// Every hyperlink-target name discovered while building the tree — explicit targets, internal
+    /// targets, section titles, and the labels of phrase references with an embedded destination —
+    /// mapped to its destination. Filled in document order so a later definition supersedes an
+    /// earlier one, and consulted by the final pass that resolves the references left deferred
+    /// during tree construction.
+    deferred: BTreeMap<String, String>,
 }
 
 /// The deepest chain of nested `include` directives that is followed before further includes are
@@ -1212,15 +1313,27 @@ impl Parser<'_> {
                 i += 1;
                 continue;
             }
-            // An internal hyperlink target (a `.. _name:` with no destination) carries its
-            // identifier onto the block that follows it.
+            // A hyperlink target registers its destination in document order. A target with no
+            // destination is internal: a reference to it points at the identifier the target carries
+            // onto the block that follows it. A destination naming another target (a trailing
+            // underscore) is indirect and kept verbatim so the chain can be followed; any other
+            // destination is a URL and is percent-encoded.
             if matches!(classify_explicit(line), Some(Explicit::Target)) {
                 let indent = indent_of(line);
                 let end = explicit_extent(lines, i, indent);
-                if let Some((name, url)) = parse_target(line.trim_start(), lines, i, end, indent)
-                    && url.trim().is_empty()
-                {
-                    pending_targets.push(name.trim().to_string());
+                if let Some((name, url)) = parse_target(line.trim_start(), lines, i, end, indent) {
+                    if url.trim().is_empty() {
+                        self.deferred
+                            .insert(normalize_name(&name), format!("#{}", name.trim()));
+                        pending_targets.push(name.trim().to_string());
+                    } else {
+                        let destination = if indirect_referent(&url).is_some() {
+                            url
+                        } else {
+                            escape_uri(&url)
+                        };
+                        self.deferred.insert(normalize_name(&name), destination);
+                    }
                     i = end;
                     continue;
                 }
@@ -1264,11 +1377,17 @@ impl Parser<'_> {
         }
 
         if let Some(c) = adornment_char(line) {
-            // Overline section header.
+            // Overline section header: the overline and underline must be the same character and
+            // length, and at least as long as the title between them. A shorter or mismatched run is
+            // not a header and falls through (a single-column simple table opens the same way).
             let title = line_at(lines, i + 1);
+            let under = line_at(lines, i + 2);
+            let overline_len = line.trim().chars().count();
             if !is_blank(title)
                 && adornment_char(title).is_none()
-                && adornment_char(line_at(lines, i + 2)) == Some(c)
+                && adornment_char(under) == Some(c)
+                && overline_len == under.trim().chars().count()
+                && overline_len >= title.trim().chars().count()
             {
                 out.push(self.header(title.trim(), c, true));
                 return i + 3;
@@ -1339,18 +1458,31 @@ impl Parser<'_> {
     fn header(&mut self, title: &str, adornment: char, overline: bool) -> Block {
         let level = self.heading_level(adornment, overline);
         let inlines = self.inlines(title);
+        let plain = carta_ast::to_plain_text(&inlines);
         let id = match IdScheme::select(self.ext) {
             Some(scheme) => {
-                let plain = carta_ast::to_plain_text(&inlines);
                 let text = if self.ext.contains(Extension::AsciiIdentifiers) {
                     asciify(&plain)
                 } else {
-                    plain
+                    plain.clone()
                 };
-                self.ids.assign(scheme, &text)
+                // A title whose characters all drop out under the count-suffix scheme takes the
+                // fallback identifier `section`, disambiguated like any other repeat.
+                if matches!(scheme, IdScheme::Gfm) && carta_ast::slug_gfm(&text).is_empty() {
+                    self.ids.assign(scheme, "section")
+                } else {
+                    self.ids.assign(scheme, &text)
+                }
             }
             None => String::new(),
         };
+        // Every section title is an implicit hyperlink target, referenceable by its text and
+        // resolving to the section's identifier. A later section with the same title supersedes an
+        // earlier one.
+        if !plain.trim().is_empty() {
+            self.deferred
+                .insert(normalize_name(&plain), format!("#{id}"));
+        }
         Block::Header(
             level,
             Attr {
@@ -1837,12 +1969,20 @@ impl Parser<'_> {
             "topic" | "sidebar" => {
                 let mut blocks = Vec::new();
                 if !argument.trim().is_empty() {
-                    blocks.push(Block::Para(vec![Inline::Strong(
-                        self.inlines(argument.trim()),
-                    )]));
+                    // A sidebar's subtitle joins its title, separated by a colon; for a topic the
+                    // title stands alone. Either way the subtitle is also kept as an attribute by
+                    // the surrounding division.
+                    let subtitle = options.iter().find(|(k, _)| k == "subtitle");
+                    let title = match (name, subtitle) {
+                        ("sidebar", Some((_, subtitle))) => {
+                            format!("{}: {}", argument.trim(), subtitle.trim())
+                        }
+                        _ => argument.trim().to_string(),
+                    };
+                    blocks.push(Block::Para(vec![Inline::Strong(self.inlines(&title))]));
                 }
                 blocks.extend(self.blocks(&content));
-                out.push(class_div(vec![name.to_string()], blocks));
+                out.push(options_div(name, &options, blocks));
             }
             "rubric" => {
                 out.push(Block::Para(vec![Inline::Strong(
@@ -1906,7 +2046,8 @@ impl Parser<'_> {
     }
 
     /// Record a `role` directive: an `name(base)` argument names the role and the base role it
-    /// inherits, while a `:class:` option supplies the classes a no-base role applies.
+    /// inherits, while options supply the classes (`:class:`), the raw output format (`:format:`),
+    /// and the highlighting language (`:language:`) the role carries.
     fn register_role(&mut self, argument: &str, options: &[(String, String)]) {
         let argument = argument.trim();
         let (name, base) = match argument.split_once('(') {
@@ -1921,8 +2062,22 @@ impl Parser<'_> {
         }
         let base = base.filter(|b| !b.is_empty());
         let classes = class_list(options, "class");
-        self.custom_roles
-            .insert(name.to_string(), RoleDef { base, classes });
+        let option_value = |key: &str| {
+            options
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+        };
+        self.custom_roles.insert(
+            name.to_string(),
+            RoleDef {
+                base,
+                classes,
+                format: option_value("format"),
+                language: option_value("language"),
+            },
+        );
     }
 
     fn wrap_target(image: Inline, options: &[(String, String)]) -> Inline {
@@ -2537,6 +2692,14 @@ impl Parser<'_> {
     // --- inline parsing ---
 
     fn inlines(&mut self, text: &str) -> Vec<Inline> {
+        let mut out = self.inlines_no_trim(text);
+        trim_inline_ends(&mut out);
+        out
+    }
+
+    /// Parse inline markup without trimming the leading and trailing whitespace nodes. Interpreted
+    /// text keeps the spacing around its content, so role content is parsed through this entry.
+    fn inlines_no_trim(&mut self, text: &str) -> Vec<Inline> {
         let chars: Vec<char> = text.chars().collect();
         let smart = self.ext.contains(Extension::Smart);
         let mut out = Vec::new();
@@ -2638,7 +2801,6 @@ impl Parser<'_> {
             pos += 1;
         }
         push_text(&mut out, &pending);
-        trim_inline_ends(&mut out);
         out
     }
 
@@ -2820,7 +2982,14 @@ impl Parser<'_> {
         // backtick constructs require a boundary before their opening delimiter.
         if chars.get(pos + 1) == Some(&'`') {
             let (content, end) = find_close_literal(chars, pos + 2, "``")?;
-            return Some((vec![Inline::Code(Attr::default(), content)], false, end));
+            return Some((
+                vec![Inline::Code(
+                    Attr::default(),
+                    normalize_inline_literal(&content),
+                )],
+                false,
+                end,
+            ));
         }
         if !inline_start_ok(prev) {
             return None;
@@ -2870,44 +3039,35 @@ impl Parser<'_> {
     }
 
     fn apply_role(&mut self, role: &str, content: &str) -> Inline {
-        match role {
-            "emphasis" => Inline::Emph(self.inlines(content)),
-            "strong" => Inline::Strong(self.inlines(content)),
-            "subscript" | "sub" => Inline::Subscript(self.inlines(content)),
-            "superscript" | "sup" => Inline::Superscript(self.inlines(content)),
-            "literal" | "code" => Inline::Code(Attr::default(), content.to_string()),
+        let chain = self.resolve_role(role);
+        match chain.base.as_str() {
+            "emphasis" => Inline::Emph(self.inlines_no_trim(content)),
+            "strong" => Inline::Strong(self.inlines_no_trim(content)),
+            "subscript" | "sub" => Inline::Subscript(self.inlines_no_trim(content)),
+            "superscript" | "sup" => Inline::Superscript(self.inlines_no_trim(content)),
             "math" => Inline::Math(MathType::InlineMath, content.to_string()),
-            "title-reference" | "title" | "t" => Inline::Span(
-                Attr {
-                    id: String::new(),
-                    classes: vec!["title-ref".to_string()],
-                    attributes: Vec::new(),
-                },
-                self.inlines(content),
+            // A raw role emits its content verbatim under the format its chain declares (empty when
+            // none is given); the accumulated classes do not apply to raw inlines.
+            "raw" => Inline::RawInline(
+                Format(chain.format.unwrap_or_default()),
+                content.to_string(),
             ),
-            // A role declared by a `role` directive: a base role supplies the formatting, otherwise
-            // the content becomes a span carrying the role's classes (its own name when none are
-            // given).
-            other if self.custom_roles.contains_key(other) => {
-                let def = self.custom_roles.get(other).cloned().unwrap_or_default();
-                if let Some(base) = def.base {
-                    self.apply_role(&base, content)
-                } else {
-                    let classes = if def.classes.is_empty() {
-                        vec![other.to_string()]
-                    } else {
-                        def.classes
-                    };
-                    Inline::Span(
-                        Attr {
-                            id: String::new(),
-                            classes,
-                            attributes: Vec::new(),
-                        },
-                        self.inlines(content),
-                    )
+            // A code/literal role's content is verbatim; a chain's classes lead, then the language.
+            "literal" | "code" => {
+                let mut classes = chain.classes;
+                if let Some(language) = chain.language {
+                    classes.push(language);
                 }
+                Inline::Code(class_attr(classes), content.to_string())
             }
+            "title-reference" | "title" | "t" => {
+                let mut classes = chain.classes;
+                classes.push("title-ref".to_string());
+                Inline::Span(class_attr(classes), self.inlines_no_trim(content))
+            }
+            // A chain that bottoms out in no base role (a plain custom role) wraps the content in a
+            // span carrying its accumulated classes.
+            "" => Inline::Span(class_attr(chain.classes), self.inlines_no_trim(content)),
             // An unrecognized role keeps its content verbatim, tagged with the role name so the
             // information survives a round-trip.
             other => Inline::Code(
@@ -2918,6 +3078,40 @@ impl Parser<'_> {
                 },
                 content.to_string(),
             ),
+        }
+    }
+
+    /// Follow a custom-role chain to the builtin role that supplies its rendering, accumulating the
+    /// classes each role in the chain contributes (its `:class:` list, or its own name when it sets
+    /// none) outermost-first, along with the first `:format:` and `:language:` the chain declares.
+    /// `base` is the builtin role name, an unknown role name, or empty for a plain (baseless) role.
+    fn resolve_role(&self, role: &str) -> RoleChain {
+        let mut chain = RoleChain::default();
+        let mut current = role.to_string();
+        let mut seen = std::collections::BTreeSet::new();
+        loop {
+            if !seen.insert(current.clone()) {
+                return chain;
+            }
+            let Some(def) = self.custom_roles.get(&current) else {
+                chain.base = current;
+                return chain;
+            };
+            if def.classes.is_empty() {
+                chain.classes.push(current.clone());
+            } else {
+                chain.classes.extend(def.classes.iter().cloned());
+            }
+            if chain.format.is_none() {
+                chain.format.clone_from(&def.format);
+            }
+            if chain.language.is_none() {
+                chain.language.clone_from(&def.language);
+            }
+            match &def.base {
+                Some(base) => current.clone_from(base),
+                None => return chain,
+            }
         }
     }
 
@@ -2978,7 +3172,7 @@ impl Parser<'_> {
                 Attr::default(),
                 expansion,
                 Target {
-                    url: self.resolve_target(&name),
+                    url: defer_reference(&name),
                     title: String::new(),
                 },
             )]
@@ -3052,10 +3246,20 @@ impl Parser<'_> {
             label.clone()
         };
         let target = match url {
-            Some(url) => url,
+            // An embedded destination may itself name another target (`<other_>`); such an indirect
+            // destination is resolved through the reference table, otherwise it is a concrete URL.
+            Some(url) => match indirect_referent(&url) {
+                Some(referent) => defer_reference(&referent),
+                None => url,
+            },
             None if anonymous => self.next_anonymous(),
-            None => self.resolve_target(&label),
+            None => defer_reference(&label),
         };
+        // A named phrase reference with an embedded destination also defines the label as a target,
+        // so that bare references to the same name resolve to it.
+        if !anonymous && !label.trim().is_empty() && !target.starts_with(REF_SENTINEL) {
+            self.deferred.insert(normalize_name(&label), target.clone());
+        }
         Inline::Link(
             Attr::default(),
             self.inlines(&display),
@@ -3080,27 +3284,23 @@ impl Parser<'_> {
         if !inline_end_ok(chars.get(after).copied()) {
             return None;
         }
-        let trailing: String = pending
-            .chars()
-            .rev()
-            .take_while(|c| c.is_alphanumeric() || matches!(c, '-' | '.' | '+'))
-            .collect();
-        if trailing.is_empty() {
+        let (name, before_name) = trailing_reference_name(pending)?;
+        // The reference name must begin at a word boundary; a name butting up against other text
+        // (the trailing run of `__init__`, or the `b` in `a __b__ c`) is not a reference.
+        if !inline_start_ok(before_name) {
             return None;
         }
         // A reference wrapped in matching quotes is suppressed: the quotes and underscore stay
         // literal text.
-        let before_name = pending.chars().rev().nth(trailing.chars().count());
         if quote_suppresses(before_name, chars.get(after).copied()) {
             return None;
         }
-        let name: String = trailing.chars().rev().collect();
         let keep = pending.len().saturating_sub(name.len());
         pending.truncate(keep);
         let url = if anonymous {
             self.next_anonymous()
         } else {
-            self.resolve_target(&name)
+            defer_reference(&name)
         };
         let link = Inline::Link(
             Attr::default(),
@@ -3113,26 +3313,115 @@ impl Parser<'_> {
         Some((link, after))
     }
 
-    fn resolve_target(&self, name: &str) -> String {
-        // An indirect target's destination is itself another target's name (`name_`); follow the
-        // chain to its concrete destination, stopping on an unknown name or a reference cycle.
-        let mut current = normalize_name(name);
+    /// Resolve a normalized reference name to its destination, following an indirect chain (a target
+    /// whose destination is another target's name) to a concrete URL. Returns an empty string when
+    /// the name is undefined or the chain forms a cycle.
+    fn lookup_url(&self, name: &str) -> String {
+        let mut current = name.to_string();
         let mut seen = std::collections::BTreeSet::new();
         while seen.insert(current.clone()) {
-            let Some(url) = self.defs.targets.get(&current) else {
+            let Some(url) = self.deferred.get(&current) else {
                 return String::new();
             };
-            let referent = url
-                .strip_suffix('_')
-                .filter(|r| !r.ends_with('_'))
-                .map(|r| normalize_name(r.trim().trim_matches('`')))
-                .filter(|key| self.defs.targets.contains_key(key));
+            let referent = indirect_referent(url)
+                .map(|r| normalize_name(&r))
+                .filter(|key| self.deferred.contains_key(key));
             match referent {
                 Some(next) => current = next,
                 None => return url.clone(),
             }
         }
         String::new()
+    }
+
+    /// Fill in every link and image destination left deferred during tree construction, now that all
+    /// targets, sections, and phrase-reference labels have been registered.
+    fn resolve_deferred(&self, blocks: &mut [Block]) {
+        for block in blocks {
+            self.resolve_block(block);
+        }
+    }
+
+    fn resolve_block(&self, block: &mut Block) {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
+                self.resolve_inlines(inlines);
+            }
+            Block::LineBlock(lines) => {
+                for line in lines {
+                    self.resolve_inlines(line);
+                }
+            }
+            Block::BlockQuote(children)
+            | Block::Div(_, children)
+            | Block::Figure(_, _, children) => self.resolve_deferred(children),
+            Block::BulletList(items) | Block::OrderedList(_, items) => {
+                for item in items {
+                    self.resolve_deferred(item);
+                }
+            }
+            Block::DefinitionList(items) => {
+                for (term, definitions) in items {
+                    self.resolve_inlines(term);
+                    for definition in definitions {
+                        self.resolve_deferred(definition);
+                    }
+                }
+            }
+            Block::Table(table) => self.resolve_table(table),
+            _ => {}
+        }
+    }
+
+    fn resolve_table(&self, table: &mut carta_ast::Table) {
+        self.resolve_caption(&mut table.caption);
+        let body_rows = table
+            .bodies
+            .iter_mut()
+            .flat_map(|body| body.head.iter_mut().chain(body.body.iter_mut()));
+        let rows = table
+            .head
+            .rows
+            .iter_mut()
+            .chain(body_rows)
+            .chain(table.foot.rows.iter_mut());
+        for row in rows {
+            for cell in &mut row.cells {
+                self.resolve_deferred(&mut cell.content);
+            }
+        }
+    }
+
+    fn resolve_caption(&self, caption: &mut carta_ast::Caption) {
+        if let Some(short) = &mut caption.short {
+            self.resolve_inlines(short);
+        }
+        self.resolve_deferred(&mut caption.long);
+    }
+
+    fn resolve_inlines(&self, inlines: &mut [Inline]) {
+        for inline in inlines {
+            match inline {
+                Inline::Link(_, children, target) | Inline::Image(_, children, target) => {
+                    if let Some(name) = target.url.strip_prefix(REF_SENTINEL) {
+                        target.url = self.lookup_url(name);
+                    }
+                    self.resolve_inlines(children);
+                }
+                Inline::Emph(children)
+                | Inline::Underline(children)
+                | Inline::Strong(children)
+                | Inline::Strikeout(children)
+                | Inline::Superscript(children)
+                | Inline::Subscript(children)
+                | Inline::SmallCaps(children)
+                | Inline::Quoted(_, children)
+                | Inline::Cite(_, children)
+                | Inline::Span(_, children) => self.resolve_inlines(children),
+                Inline::Note(blocks) => self.resolve_deferred(blocks),
+                _ => {}
+            }
+        }
     }
 
     fn next_anonymous(&mut self) -> String {
@@ -3554,11 +3843,39 @@ fn splice_lone_span(mut inlines: Vec<Inline>) -> Vec<Inline> {
 /// Attach internal-target identifiers to the block they precede. A single target immediately before
 /// a section heading supplies the heading's identifier; otherwise each target wraps the block in a
 /// division carrying its identifier, the last target sitting innermost.
+/// Normalize the text of an inline literal: a line break within it folds to a single space, interior
+/// spacing is otherwise preserved, and leading and trailing whitespace is removed.
+fn normalize_inline_literal(content: &str) -> String {
+    content.replace('\n', " ").trim().to_string()
+}
+
+/// An attribute set carrying only classes, with no identifier or key-value attributes.
+fn class_attr(classes: Vec<String>) -> Attr {
+    Attr {
+        id: String::new(),
+        classes,
+        attributes: Vec::new(),
+    }
+}
+
 fn attach_targets(mut blocks: Vec<Block>, mut targets: Vec<String>) -> Vec<Block> {
-    if targets.len() == 1
-        && let [Block::Header(_, attr, _)] = blocks.as_mut_slice()
+    // A run of internal targets in front of a section title all attach to that title: the last takes
+    // the title's identifier, and the rest become empty spans appended to the title in reverse, each
+    // carrying its name so it can still be linked to.
+    if let [Block::Header(_, attr, inlines)] = blocks.as_mut_slice()
+        && let Some(last) = targets.pop()
     {
-        attr.id = targets.remove(0);
+        attr.id = last;
+        for name in targets.into_iter().rev() {
+            inlines.push(Inline::Span(
+                Attr {
+                    id: name,
+                    classes: Vec::new(),
+                    attributes: Vec::new(),
+                },
+                Vec::new(),
+            ));
+        }
         return blocks;
     }
     for name in targets.into_iter().rev() {
@@ -3758,7 +4075,9 @@ fn push_text(out: &mut Vec<Inline>, text: &str) {
             if !word.is_empty() {
                 out.push(Inline::Str(std::mem::take(&mut word)));
             }
-            if !matches!(out.last(), None | Some(Inline::Space | Inline::SoftBreak)) {
+            // Collapse a run of spaces to one node, but keep a leading space: callers that must not
+            // begin or end with one trim their result, while interpreted-text content keeps it.
+            if !matches!(out.last(), Some(Inline::Space | Inline::SoftBreak)) {
                 out.push(Inline::Space);
             }
         } else {
@@ -3807,6 +4126,45 @@ fn quote_suppresses(before: Option<char>, after: Option<char>) -> bool {
         (before, after),
         (Some('"'), Some('"')) | (Some('\''), Some('\'')) | (Some('<'), Some('>'))
     )
+}
+
+/// The trailing simple-reference name in accumulated text, with the character that precedes it. A
+/// simple reference name is a run of alphanumerics joined by isolated internal punctuation drawn
+/// from `-_.:+` (no two adjacent, none leading or trailing), so the name both starts and ends with
+/// an alphanumeric. Returns `None` when the text does not end in such a name. The returned name is a
+/// suffix of `pending`.
+fn trailing_reference_name(pending: &str) -> Option<(String, Option<char>)> {
+    let chars: Vec<char> = pending.chars().collect();
+    let last = chars.last()?;
+    if !last.is_alphanumeric() {
+        return None;
+    }
+    let mut start = chars.len() - 1;
+    loop {
+        if start == 0 {
+            break;
+        }
+        let prev = chars.get(start - 1).copied();
+        if prev.is_some_and(char::is_alphanumeric) {
+            start -= 1;
+            continue;
+        }
+        // An internal punctuation character extends the name only when an alphanumeric precedes it,
+        // so it stays isolated and never leads the name.
+        if prev.is_some_and(|c| matches!(c, '-' | '_' | '.' | ':' | '+'))
+            && chars
+                .get(start - 2)
+                .copied()
+                .is_some_and(char::is_alphanumeric)
+        {
+            start -= 2;
+            continue;
+        }
+        break;
+    }
+    let name: String = chars.get(start..)?.iter().collect();
+    let before = start.checked_sub(1).and_then(|i| chars.get(i)).copied();
+    Some((name, before))
 }
 
 /// Whether the character before a markup start string allows it to begin markup: a boundary, a
@@ -3958,7 +4316,18 @@ fn try_uri_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
         return None;
     }
     let url: String = chars.get(pos..end)?.iter().collect();
-    Some((link_to(url), end))
+    // The link text shows the URL as written; the destination is percent-encoded.
+    Some((
+        Inline::Link(
+            Attr::default(),
+            vec![Inline::Str(url.clone())],
+            Target {
+                url: escape_uri(&url),
+                title: String::new(),
+            },
+        ),
+        end,
+    ))
 }
 
 /// Match a bare email address `local@domain`, returning a `mailto:` link and the end index.
@@ -4015,18 +4384,6 @@ fn try_email_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     ))
 }
 
-/// A link whose visible text and destination are the same URL.
-fn link_to(url: String) -> Inline {
-    Inline::Link(
-        Attr::default(),
-        vec![Inline::Str(url.clone())],
-        Target {
-            url,
-            title: String::new(),
-        },
-    )
-}
-
 /// Whether a character may appear in an email address's local part.
 fn is_email_local(c: char) -> bool {
     c.is_ascii_alphanumeric()
@@ -4054,32 +4411,46 @@ fn is_email_local(c: char) -> bool {
         )
 }
 
-/// Walk a URL run forward, stopping at whitespace or `<`, balancing parentheses, and ending at an
-/// unbalanced `)` or a `]` outside any parenthesis.
+/// Walk a URL run forward to its raw extent, stopping only at whitespace or an angle bracket
+/// (`<` or `>`). Brackets are taken in; whether a trailing one belongs to the URL is decided by
+/// [`trim_trailing`] from the run's bracket balance.
 fn forward_scan(chars: &[char], from: usize) -> usize {
-    let mut depth: i32 = 0;
     let mut j = from;
     while let Some(&c) = chars.get(j) {
-        if c.is_whitespace() || c == '<' {
+        if c.is_whitespace() || matches!(c, '<' | '>') {
             break;
-        }
-        match c {
-            '(' => depth += 1,
-            ')' | ']' if depth == 0 => break,
-            ')' => depth -= 1,
-            _ => {}
         }
         j += 1;
     }
     j
 }
 
+/// The number of occurrences of `target` in `chars[min..end]`.
+fn count_char(chars: &[char], min: usize, end: usize, target: char) -> usize {
+    chars
+        .get(min..end)
+        .map_or(0, |run| run.iter().filter(|&&c| c == target).count())
+}
+
 /// Drop trailing punctuation from a URL run, never below `min`. A trailing `;` takes a preceding
-/// `&entity;` with it.
+/// `&entity;` with it. A trailing closing bracket is dropped only when it is unbalanced within the
+/// run — there are more of it than its matching opener — so a bracketed path stays whole.
 fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
     while end > min {
         match chars.get(end - 1) {
             Some('!' | '"' | '\'' | '*' | ',' | '.' | ':' | '?' | '_' | '~') => end -= 1,
+            Some(&close @ (')' | ']' | '}')) => {
+                let open = match close {
+                    ')' => '(',
+                    ']' => '[',
+                    _ => '{',
+                };
+                if count_char(chars, min, end, close) > count_char(chars, min, end, open) {
+                    end -= 1;
+                } else {
+                    break;
+                }
+            }
             Some(';') => {
                 let mut j = end - 1;
                 while j > min
@@ -4591,15 +4962,13 @@ fn scan_cell_close(
 /// Whether a line is a simple-table ruler: two or more space-separated runs of `=`.
 fn is_simple_table_ruler(line: &str) -> bool {
     let trimmed = line.trim();
-    !trimmed.is_empty()
-        && trimmed.starts_with('=')
-        && trimmed.chars().all(|c| c == '=' || c == ' ')
-        && trimmed.contains(' ')
+    !trimmed.is_empty() && trimmed.starts_with('=') && trimmed.chars().all(|c| c == '=' || c == ' ')
 }
 
 /// The inclusive-exclusive character ranges of a simple table's columns, from the `=` runs of its
-/// top border. `None` unless the border is made solely of `=` runs and spaces and has at least two
-/// columns (the minimum that distinguishes a table from a section adornment).
+/// top border. `None` unless the border is made solely of `=` runs and spaces. A single column is
+/// allowed: a lone `=` run is rejected as a section adornment or transition before the table parser
+/// is reached, and the parser still requires a closing border to confirm a table.
 fn simple_columns(border: &str) -> Option<Vec<(usize, usize)>> {
     let chars: Vec<char> = border.chars().collect();
     let mut columns = Vec::new();
@@ -4617,7 +4986,7 @@ fn simple_columns(border: &str) -> Option<Vec<(usize, usize)>> {
             _ => return None,
         }
     }
-    (columns.len() >= 2).then_some(columns)
+    (!columns.is_empty()).then_some(columns)
 }
 
 /// Whether a line is a `=` border: a non-empty run of `=` and spaces with no other content.
