@@ -101,17 +101,29 @@ DokuWiki markup: headings (any content after the closing `=` run is re-parsed as
 block), paragraphs, bold/italic/underline/monospace, bullet and ordered lists, code and file blocks,
 quotes, tables, internal/external/interwiki links, media embeds, footnotes (`((…))`),
 `<nowiki>`/`%%` escapes, smart quotes, and entities. Tabs expand to four-column tab stops, so a
-tab-indented line reads as indented code. A monospace `''…''` run requires non-blank content flanked
-by its markers; an empty or blank `''`, an empty `[[…]]`/`{{…}}`/`((…))`, and a `----` carrying any
-trailing character all stay literal. Extensions: `smart` (default on); `tex_math_dollars` (`$…$`
-inline and `$$…$$` display math); the heading-identifier family
-`auto_identifiers`/`gfm_auto_identifiers` with the `ascii_identifiers` fold; and
-`east_asian_line_breaks` (a soft break between two wide characters is dropped).
-Gaps: `<code>`/`<file>`/`<HTML>`/`<PHP>` tags are recognized only at the start of a line — a
-mid-paragraph occurrence stays literal inline text instead of splitting the paragraph around a
-code/raw block; a footnote closes at the first `))`, so nested parentheses are unbalanced; bare-URL
-autolinking requires an explicit `scheme://`; an empty `<sub>`/`<sup>`/`<del>` tag pair and a lone
-`|` line are not yet handled, and a few straight-quote orientation edge cases differ.
+tab-indented line reads as indented code. List depth follows the indent as `floor(columns/2)`, so a
+two- and three-column marker share a level; a first item indented four or more columns, and a line
+that jumps more than one level past its predecessor, read as indented code instead. A `<code>` or
+`<file>` region occurring mid-paragraph splits the paragraph around a code block (an inline `<HTML>` /
+`<PHP>` fragment does not); an unclosed `<code>`/`<file>`/`<HTML>`/`<PHP>` at the start of a line
+stays literal text. A monospace `''…''` run requires non-blank content flanked by its markers, and
+under smart typography its interior folds straight quotes to curly glyphs when paired, while an
+unpaired apostrophe makes the run parse as a quote span. Entities decode in running text, monospace,
+and `<sub>`/`<sup>`/`<del>` spans, but stay literal inside link labels, `<nowiki>`, and verbatim
+code/file blocks. Overlapping emphasis markers (`**a //b** c//`) pair greedily from the outside, and
+a smart quote does not open a second quote of the same kind while one is already open. An empty or
+blank `''`, an empty `[[…]]`/`{{…}}`/`((…))`, an empty or whitespace-only `<sub>`/`<sup>`/`<del>`, a
+lone `|`/`^` line (a table needs at least one cell), and a `----` carrying any trailing character all
+stay literal; an explicit but empty link or media label (`[[page|]]`, `{{img.png|}}`) falls back to
+the automatic display text. The reader admits exactly its documented extension set
+(`smart`, `tex_math_dollars`, `auto_identifiers`, `gfm_auto_identifiers`, `ascii_identifiers`,
+`east_asian_line_breaks`, `raw_html`) and rejects any other toggle. Extensions: `smart` (default on);
+`tex_math_dollars` (`$…$` inline and `$$…$$` display math, with a backslash-escaped `\$` kept
+literal); the heading-identifier family `auto_identifiers`/`gfm_auto_identifiers` with the
+`ascii_identifiers` fold; and `east_asian_line_breaks` (a soft break between two wide characters is
+dropped).
+Gaps: a footnote closes at the first `))`, so nested parentheses are unbalanced; bare-URL autolinking
+requires an explicit `scheme://`.
 
 ### `jira` — 🚧
 Jira wiki markup: headings, paragraphs, the text effects (strong, emphasis, citation, deleted,

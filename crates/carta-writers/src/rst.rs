@@ -169,6 +169,25 @@ fn is_word_token(token: &Token) -> bool {
     matches!(token, Token::Word { .. })
 }
 
+/// Whether an inline sequence yields any visible output. An empty string and a breaking space
+/// render to nothing, as does a formatting wrapper around blank content; anything else — a
+/// non-empty string, a hard break, code, math, media, or a nested link — is content. A link or
+/// image whose target and title are empty is dropped entirely when its label is blank, since there
+/// is then nothing to anchor a reference to.
+fn renders_visible(inlines: &[Inline]) -> bool {
+    inlines.iter().any(|inline| match inline {
+        Inline::Str(text) => !text.is_empty(),
+        Inline::Space | Inline::SoftBreak => false,
+        Inline::Emph(children)
+        | Inline::Underline(children)
+        | Inline::Strong(children)
+        | Inline::SmallCaps(children)
+        | Inline::Span(_, children)
+        | Inline::Cite(_, children) => renders_visible(children),
+        _ => true,
+    })
+}
+
 impl State {
     /// Render a block sequence into the document's default layout. Consecutive blocks are separated
     /// by a blank line, except that a [`Block::Plain`] is followed by a single newline when the next
@@ -680,7 +699,7 @@ impl State {
 
     fn link(&mut self, label: &[Inline], target: &Target, out: &mut Vec<Token>) {
         let plain = to_plain_text(label);
-        if target.url.is_empty() && label.is_empty() {
+        if target.url.is_empty() && target.title.is_empty() && !renders_visible(label) {
             return;
         }
         if let [Inline::Image(attr, alt, image_target)] = label {
@@ -762,6 +781,13 @@ impl State {
         link: Option<&str>,
         out: &mut Vec<Token>,
     ) {
+        if link.is_none()
+            && target.url.is_empty()
+            && target.title.is_empty()
+            && !renders_visible(alt)
+        {
+            return;
+        }
         let breakouts: Vec<usize> = alt
             .iter()
             .enumerate()

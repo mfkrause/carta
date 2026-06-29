@@ -48,6 +48,26 @@ fn default_extensions(base: &str) -> Extensions {
     }
 }
 
+/// The fixed set of extensions a base format accepts, when it declares one.
+///
+/// `Some(set)` means the format admits exactly these extensions: a `+`/`-` toggle naming anything
+/// outside the set is rejected, and only members appear in `--list-extensions`. `None` means the
+/// format declares no fixed set, so any modeled extension may be toggled.
+pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
+    match base {
+        "dokuwiki" => Some(Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::GfmAutoIdentifiers,
+            Extension::RawHtml,
+            Extension::Smart,
+            Extension::TexMathDollars,
+        ])),
+        _ => None,
+    }
+}
+
 /// Splits a format specifier into its base name and the [`Extensions`] it selects.
 ///
 /// The base is the text up to the first `+` or `-`; the remainder is a run of `+name`/`-name`
@@ -59,6 +79,7 @@ pub fn parse_format_spec(spec: &str) -> Result<(String, Extensions)> {
     let base_end = spec.find(['+', '-']).unwrap_or(spec.len());
     let (base, mut rest) = spec.split_at(base_end);
     let mut extensions = default_extensions(base);
+    let supported = supported_extensions(base);
 
     while !rest.is_empty() {
         let (enable, after_sign) = match rest.strip_prefix('+') {
@@ -73,8 +94,19 @@ pub fn parse_format_spec(spec: &str) -> Result<(String, Extensions)> {
         let (name, remainder) = after_sign.split_at(token_end);
         rest = remainder;
 
-        let extension =
-            Extension::from_name(name).ok_or_else(|| Error::UnknownExtension(name.to_owned()))?;
+        // A format that declares a fixed extension set admits only its members; anything else —
+        // including a name no extension answers to — is unsupported for that format. A format
+        // without a declared set accepts any modeled extension and rejects only unknown names.
+        let extension = match &supported {
+            Some(set) => Extension::from_name(name)
+                .filter(|ext| set.contains(*ext))
+                .ok_or_else(|| Error::UnsupportedExtension {
+                    extension: name.to_owned(),
+                    format: base.to_owned(),
+                })?,
+            None => Extension::from_name(name)
+                .ok_or_else(|| Error::UnknownExtension(name.to_owned()))?,
+        };
         if enable {
             extensions.insert(extension);
         } else {
@@ -187,5 +219,45 @@ mod tests {
     fn html_unknown_extension_is_an_error() {
         let err = parse_format_spec("html+bogus").unwrap_err();
         assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
+    }
+
+    #[test]
+    fn dokuwiki_defaults_to_smart_only() {
+        let (base, ext) = parse_format_spec("dokuwiki").unwrap();
+        assert_eq!(base, "dokuwiki");
+        assert!(ext.contains(Extension::Smart));
+        assert!(!ext.contains(Extension::TexMathDollars));
+    }
+
+    #[test]
+    fn dokuwiki_admits_its_declared_extensions() {
+        let (_, ext) = parse_format_spec("dokuwiki+tex_math_dollars-smart").unwrap();
+        assert!(ext.contains(Extension::TexMathDollars));
+        assert!(!ext.contains(Extension::Smart));
+    }
+
+    #[test]
+    fn dokuwiki_rejects_an_extension_outside_its_set() {
+        // `pipe_tables` is a modeled extension, but not one dokuwiki accepts.
+        let err = parse_format_spec("dokuwiki+pipe_tables").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, format }
+                if extension == "pipe_tables" && format == "dokuwiki"
+        ));
+        // An unknown name is reported the same way: unsupported for this format.
+        let err = parse_format_spec("dokuwiki+bogus").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, .. } if extension == "bogus"
+        ));
+    }
+
+    #[test]
+    fn supported_set_is_only_declared_for_listed_formats() {
+        use super::supported_extensions;
+        assert!(supported_extensions("dokuwiki").is_some());
+        assert!(supported_extensions("commonmark").is_none());
+        assert!(supported_extensions("html").is_none());
     }
 }

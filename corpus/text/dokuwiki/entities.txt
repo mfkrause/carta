@@ -1,0 +1,11 @@
+A plain &copy; sign decodes in running text.
+
+Monospace ''&amp;'' decodes, as do a <sub>&copy;</sub> subscript, a
+<sup>&reg;</sup> superscript, and a <del>&copy;</del> deletion.
+
+A link label [[start|&copy;]] keeps the entity literal, and so does a
+<nowiki>&copy;</nowiki> span and a verbatim block:
+
+<code>
+&copy;
+</code>

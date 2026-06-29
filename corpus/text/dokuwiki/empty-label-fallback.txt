@@ -1,0 +1,2 @@
+A link with an empty explicit label [[start|]] falls back to its target,
+and a media reference with an empty caption {{wiki:img.png|}} does the same.
