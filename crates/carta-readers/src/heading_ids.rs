@@ -24,7 +24,15 @@ pub(crate) enum IdScheme {
 
 impl IdScheme {
     /// The scheme the active extensions select, or `None` when no auto-identifier extension is on.
-    pub(crate) fn select(extensions: Extensions) -> Option<Self> {
+    ///
+    /// In the broad Markdown dialect, `auto_identifiers` is the master switch: with it off, no header
+    /// is numbered even if `gfm_auto_identifiers` is on (the latter only chooses the slug algorithm).
+    /// The bare `CommonMark` engine has no such master switch — there `gfm_auto_identifiers` alone
+    /// drives numbering.
+    pub(crate) fn select(extensions: Extensions, markdown: bool) -> Option<Self> {
+        if markdown && !extensions.contains(Extension::AutoIdentifiers) {
+            return None;
+        }
         if extensions.contains(Extension::GfmAutoIdentifiers) {
             Some(Self::Gfm)
         } else if extensions.contains(Extension::AutoIdentifiers) {

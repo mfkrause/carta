@@ -11,9 +11,10 @@ use carta_core::Extensions;
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 
-/// Fill in empty header identifiers across the document in reading order.
-pub(crate) fn assign_header_identifiers(blocks: &mut [Block], ext: Extensions) {
-    let mut numbering = HeaderNumbering::new(ext);
+/// Fill in empty header identifiers across the document in reading order. `markdown` selects the
+/// broad Markdown dialect, where `auto_identifiers` is the master switch over numbering.
+pub(crate) fn assign_header_identifiers(blocks: &mut [Block], ext: Extensions, markdown: bool) {
+    let mut numbering = HeaderNumbering::new(ext, markdown);
     if numbering.scheme.is_none() {
         return;
     }
@@ -30,9 +31,9 @@ pub(crate) struct HeaderNumbering {
 }
 
 impl HeaderNumbering {
-    pub(crate) fn new(ext: Extensions) -> Self {
+    pub(crate) fn new(ext: Extensions, markdown: bool) -> Self {
         Self {
-            scheme: IdScheme::select(ext),
+            scheme: IdScheme::select(ext, markdown),
             registry: IdRegistry::default(),
         }
     }

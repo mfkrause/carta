@@ -15,8 +15,8 @@ use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
-    display_width, fill, fill_cell, indent_block, is_known_scheme, is_uri_scheme, offset_as_i32,
-    ordered_marker, quote_marks,
+    display_width, escape_uri, fill, fill_cell, indent_block, is_known_scheme, is_uri_scheme,
+    offset_as_i32, ordered_marker, quote_marks,
 };
 use crate::grid;
 
@@ -691,7 +691,7 @@ impl State {
             out.push(word(plain, true));
             return;
         }
-        if plain == target.url && is_standalone_uri(&target.url) {
+        if escape_uri(&plain) == target.url && is_standalone_uri(&target.url) {
             out.push(word(target.url.clone(), true));
             return;
         }

@@ -15,8 +15,8 @@ use carta_ast::{
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, display_width, fill, indent_block, list_is_tight, numeral,
-    wrap_delim,
+    FILL_COLUMN, Piece, attribute_value, display_width, escape_uri, fill, indent_block,
+    list_is_tight, numeral, wrap_delim,
 };
 use crate::grid;
 
@@ -1439,7 +1439,7 @@ fn push_link(
     }
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
-        && *text == target.url
+        && (*text == target.url || escape_uri(text) == target.url)
     {
         out.push(Piece::Text(format!("\\url{{{url}}}")));
         return;

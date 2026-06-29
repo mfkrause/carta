@@ -13,9 +13,9 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
     block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose,
-    lay_row, measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks,
-    table_form,
+    fill_offset, filled_cells, indent_block, indent_lines, is_bare_uri_text, is_loose, is_uri,
+    item_separator, join_loose, lay_row, measure_pieces, offset_as_i32, ordered_marker,
+    pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
 
@@ -573,8 +573,14 @@ impl State {
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
             | Inline::Cite(_, inlines)
-            | Inline::Link(_, inlines, _)
             | Inline::Span(_, inlines) => self.extend_pieces(inlines, out),
+            Inline::Link(_, inlines, target) => {
+                if is_bare_uri_text(inlines, &target.url) && is_uri(&target.url) {
+                    out.push(Piece::Text(target.url.clone()));
+                } else {
+                    self.extend_pieces(inlines, out);
+                }
+            }
             Inline::Strikeout(inlines) => {
                 out.push(Piece::Text("~~".to_owned()));
                 self.extend_pieces(inlines, out);

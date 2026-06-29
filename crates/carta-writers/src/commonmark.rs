@@ -15,8 +15,8 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
-    is_known_scheme, is_loose, is_percent_escaped_uri, item_separator, normalize_image_attr,
-    offset_as_i32, ordered_marker, quote_marks, render_html_attr,
+    is_bare_uri_text, is_loose, is_uri, item_separator, normalize_image_attr, offset_as_i32,
+    ordered_marker, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -125,8 +125,17 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width),
             Block::Div(attr, blocks) => {
+                let open = fill(
+                    &html_tag_pieces(&format!("<div{}>", render_html_attr(attr))),
+                    width,
+                    self.wrap,
+                );
                 let body = self.blocks_to_string(blocks, width);
-                format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
+                if body.is_empty() {
+                    format!("{open}\n\n</div>")
+                } else {
+                    format!("{open}\n\n{body}\n\n</div>")
+                }
             }
             Block::LineBlock(lines) => self.line_block(lines),
             Block::Figure(..) | Block::Table(_) => collapse_html_block(
@@ -393,7 +402,7 @@ impl State {
         } else {
             format!(" alt=\"{}\"", escape_attr(&alt))
         };
-        out.push(Piece::Text(format!(
+        out.extend(html_tag_pieces(&format!(
             "<img src=\"{}\"{}{}{alt_attr} />",
             escape_attr(&target.url),
             title_attr(&target.title),
@@ -424,6 +433,34 @@ impl NotesHost for State {
     fn base_width(&self) -> usize {
         self.width
     }
+}
+
+/// Split a synthesized HTML tag into fill pieces breakable only at the spaces that separate its
+/// attributes, never inside a quoted value. Used in place of a single text run so the line filler can
+/// wrap a long opening tag at the fill column the way running text wraps.
+fn html_tag_pieces(tag: &str) -> Vec<Piece> {
+    let mut pieces = Vec::new();
+    let mut word = String::new();
+    let mut in_value = false;
+    for ch in tag.chars() {
+        match ch {
+            '"' => {
+                in_value = !in_value;
+                word.push(ch);
+            }
+            ' ' if !in_value => {
+                if !word.is_empty() {
+                    pieces.push(Piece::Text(std::mem::take(&mut word)));
+                }
+                pieces.push(Piece::Space);
+            }
+            _ => word.push(ch),
+        }
+    }
+    if !word.is_empty() {
+        pieces.push(Piece::Text(word));
+    }
+    pieces
 }
 
 /// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
@@ -580,22 +617,13 @@ fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
     let [Inline::Str(text)] = inlines else {
         return None;
     };
-    if &target.url == text && is_uri(text) {
-        return Some(format!("<{text}>"));
+    if is_bare_uri_text(inlines, &target.url) && is_uri(&target.url) {
+        return Some(format!("<{}>", target.url));
     }
     if target.url == format!("mailto:{text}") {
         return Some(format!("<{text}>"));
     }
     None
-}
-
-/// Whether a string is a bare URI eligible to stand as an angle-bracket autolink: it opens with a
-/// recognized scheme and every character is valid in a URI.
-fn is_uri(text: &str) -> bool {
-    let Some(colon) = text.find(':') else {
-        return false;
-    };
-    text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
 }
 
 fn attr_is_empty(attr: &Attr) -> bool {
@@ -638,6 +666,11 @@ fn escape_str(text: &str, line_start: bool) -> String {
     } else {
         None
     };
+    let paren_close = if line_start {
+        paren_marker_close(text)
+    } else {
+        None
+    };
     let mut out = String::with_capacity(text.len());
     let mut prev: Option<char> = None;
     let mut iter = text.char_indices().peekable();
@@ -651,6 +684,8 @@ fn escape_str(text: &str, line_start: bool) -> String {
         let next = iter.peek().map(|&(_, following)| following);
         let tail = || text.get(offset..).unwrap_or_default();
         match ch {
+            '(' if offset == 0 && paren_close.is_some() => out.push_str("\\("),
+            ')' if Some(offset) == paren_close => out.push_str("\\)"),
             '#' if offset == 0 => out.push_str("\\#"),
             '!' if next == Some('[') => out.push_str("\\!"),
             '[' if prev == Some('!') => out.push('['),
@@ -755,6 +790,29 @@ fn leading_escape(text: &str) -> Option<usize> {
     }
 }
 
+/// The byte offset of the `)` that closes a leading ordered-list marker in parenthesized form — `(`
+/// then a run of decimal digits then `)` — when that `)` falls within the first ten columns and is
+/// followed by whitespace or the end of the text. Both parentheses are escaped so the run is not
+/// re-read as a list item. `None` when the text does not open with such a marker. The offset always
+/// falls inside an ASCII prefix, so it doubles as a character index.
+fn paren_marker_close(text: &str) -> Option<usize> {
+    let mut chars = text.char_indices();
+    if chars.next()?.1 != '(' {
+        return None;
+    }
+    if !chars.next()?.1.is_ascii_digit() {
+        return None;
+    }
+    let (delim_offset, delim) = chars.by_ref().find(|(_, ch)| !ch.is_ascii_digit())?;
+    if delim_offset > 9 || delim != ')' {
+        return None;
+    }
+    chars
+        .next()
+        .is_none_or(|(_, ch)| ch.is_whitespace())
+        .then_some(delim_offset)
+}
+
 /// Whether an `_` with the given neighbors sits at a word boundary: at least one neighbor (treating
 /// the ends of the run as boundaries) is not alphanumeric, so the `_` could flank emphasis.
 fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
@@ -847,9 +905,9 @@ mod tests {
         assert!(is_uri("http://example.com"));
         assert!(!is_uri("noscheme"));
         assert!(!is_uri("bogusscheme:rest"));
-        assert!(is_known_scheme("HTTP"));
-        assert!(is_known_scheme("mailto"));
-        assert!(!is_known_scheme("nope"));
+        assert!(crate::common::is_known_scheme("HTTP"));
+        assert!(crate::common::is_known_scheme("mailto"));
+        assert!(!crate::common::is_known_scheme("nope"));
     }
 
     #[test]
@@ -1011,6 +1069,61 @@ mod tests {
     }
 
     #[test]
+    fn long_div_opening_tag_wraps_at_fill_column() {
+        let a = "a".repeat(28);
+        let b = "b".repeat(28);
+        let div = Block::Div(
+            Attr {
+                attributes: vec![
+                    ("data-one".into(), a.clone()),
+                    ("data-two".into(), b.clone()),
+                ],
+                ..Attr::default()
+            },
+            vec![para(str_inlines("body"))],
+        );
+        assert_eq!(
+            render(vec![div]),
+            format!("<div data-one=\"{a}\"\ndata-two=\"{b}\">\n\nbody\n\n</div>")
+        );
+    }
+
+    #[test]
+    fn long_image_tag_wraps_at_fill_column() {
+        let url = format!("{}.png", "x".repeat(46));
+        let image = Inline::Image(
+            Attr {
+                attributes: vec![
+                    ("width".into(), "320".into()),
+                    ("height".into(), "240".into()),
+                ],
+                ..Attr::default()
+            },
+            vec![],
+            Target {
+                url: url.clone(),
+                title: String::new(),
+            },
+        );
+        assert_eq!(
+            render(vec![para(vec![image])]),
+            format!("<img src=\"{url}\"\nwidth=\"320\" height=\"240\" />")
+        );
+    }
+
+    #[test]
+    fn div_holding_only_a_dropped_raw_block_emits_no_surplus_blank_lines() {
+        let div = Block::Div(
+            Attr {
+                id: "embed".into(),
+                ..Attr::default()
+            },
+            vec![Block::RawBlock(Format("latex".into()), "\\x".into())],
+        );
+        assert_eq!(render(vec![div]), "<div id=\"embed\">\n\n</div>");
+    }
+
+    #[test]
     fn code_span_pads_only_when_backtick_bearing() {
         // Backtick-free content is wrapped with no padding, whatever its spacing.
         assert_eq!(code_span(""), "``");
@@ -1089,6 +1202,24 @@ mod tests {
         assert_eq!(leading_escape("12.x"), None);
         assert_eq!(leading_escape("1234567890. x"), None);
         assert_eq!(leading_escape("abc"), None);
+    }
+
+    #[test]
+    fn paren_marker_close_finds_decimal_paren_markers() {
+        assert_eq!(paren_marker_close("(1) x"), Some(2));
+        assert_eq!(paren_marker_close("(12) x"), Some(3));
+        assert_eq!(paren_marker_close("(1)"), Some(2));
+        assert_eq!(paren_marker_close("(1)x"), None);
+        assert_eq!(paren_marker_close("(a) x"), None);
+        assert_eq!(paren_marker_close("1) x"), None);
+        assert_eq!(paren_marker_close("(1234567890) x"), None);
+    }
+
+    #[test]
+    fn escape_str_escapes_decimal_paren_markers_only_at_line_start() {
+        assert_eq!(escape_str("(1) item", true), "\\(1\\) item");
+        assert_eq!(escape_str("(1) item", false), "(1) item");
+        assert_eq!(escape_str("(a) item", true), "(a) item");
     }
 
     #[test]

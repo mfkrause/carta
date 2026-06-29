@@ -1532,6 +1532,38 @@ mod tests {
     }
 
     #[test]
+    fn definition_and_example_markers_end_a_greedy_paragraph() {
+        // Under `lists_without_preceding_blankline`, a definition marker (`:`/`~`) with definition
+        // lists off, and an example marker (`(@)`, `(@label)`) with example lists off, each end a
+        // greedy paragraph and start a fresh one rather than folding in — even though no list opens.
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        for line in [": def", "~ def", "(@) item", "(@label) item"] {
+            let input = format!("text\n{line}\n");
+            assert!(
+                matches!(
+                    greedy_blocks(&input, ext).as_slice(),
+                    [Block::Para(_), Block::Para(_)]
+                ),
+                "expected two paragraphs for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_definition_marker_opens_a_list_when_definition_lists_are_on() {
+        // With definition lists enabled the same marker instead turns the paragraph into a term and
+        // opens a definition list, so it does not split into two plain paragraphs.
+        let ext = &[
+            Extension::ListsWithoutPrecedingBlankline,
+            Extension::DefinitionLists,
+        ];
+        assert!(matches!(
+            greedy_blocks("text\n: def\n", ext).as_slice(),
+            [Block::DefinitionList(_)]
+        ));
+    }
+
+    #[test]
     fn a_decimal_marker_closed_by_one_paren_stays_prose() {
         // `2)` is too easily ordinary prose, so it neither opens a list nor ends the paragraph; the
         // two lines fold into a single paragraph.

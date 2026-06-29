@@ -278,6 +278,19 @@ const SOFT: char = '\u{2}';
 /// [`BREAK_TAG`] for the [`SOFT`] sentinel.
 const SOFT_TAG: char = '2';
 
+/// Zero-width sentinel ending the breakable chunk that a preceding break point measures. It is never
+/// rendered and never becomes a space or newline: [`reflow`] drops it. It guards a preformatted
+/// region — a `<pre><code>` body — so the verbatim text after it cannot lengthen the chunk weighed
+/// when deciding whether the enclosing start tag wraps. A start tag therefore wraps on its own width,
+/// independent of however long the preformatted body that follows runs. As with the other sentinels,
+/// a literal `U+0003` from document content is protected by [`protect_char`] and decoded by
+/// [`restore`].
+const FLUSH: char = '\u{3}';
+
+/// Tag following an [`ESCAPE`] introducer that stands for one content `U+0003`, the counterpart of
+/// [`BREAK_TAG`] for the [`FLUSH`] sentinel.
+const FLUSH_TAG: char = '3';
+
 /// Where an attribute set is being rendered, which selects the field order. Most elements emit
 /// `id`, then `class`, then key/value pairs; headers emit `class`, then key/value pairs, then `id`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -349,7 +362,7 @@ impl State {
             Block::CodeBlock(attr, text) => {
                 let _ = write!(
                     out,
-                    "<pre{}><code>{}</code></pre>",
+                    "<pre{}><code>{FLUSH}{}</code></pre>",
                     render_attr(attr, AttrOrder::Standard, self.flavor),
                     escape_attr(text)
                 );
@@ -1253,6 +1266,7 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
                 out.push('\n');
                 column = 0;
             }
+            FLUSH => {}
             BREAK | SOFT => match wrap {
                 // A run of break points is a single reflow decision: the line breaks only when the
                 // next chunk (the literal text up to the following break point or hard newline)
@@ -1263,7 +1277,11 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
                     }
                     let mut chunk = 0usize;
                     for following in chars.clone() {
-                        if following == BREAK || following == SOFT || following == '\n' {
+                        if following == BREAK
+                            || following == SOFT
+                            || following == '\n'
+                            || following == FLUSH
+                        {
                             break;
                         }
                         chunk += char_width(following);
@@ -1358,6 +1376,10 @@ fn protect_char(ch: char, out: &mut String) {
             out.push(ESCAPE);
             out.push(SOFT_TAG);
         }
+        FLUSH => {
+            out.push(ESCAPE);
+            out.push(FLUSH_TAG);
+        }
         other => out.push(other),
     }
 }
@@ -1386,6 +1408,7 @@ fn restore(text: &str) -> String {
             Some(ESCAPE) | None => out.push(ESCAPE),
             Some(BREAK_TAG) => out.push(BREAK),
             Some(SOFT_TAG) => out.push(SOFT),
+            Some(FLUSH_TAG) => out.push(FLUSH),
             Some(other) => {
                 out.push(ESCAPE);
                 out.push(other);

@@ -14,8 +14,8 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    RowSpanGrid, attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
-    is_percent_escaped_uri, is_uri_scheme, quote_marks, render_html_attr,
+    RowSpanGrid, attribute_value, escape_attr, escape_uri, escape_xml, is_known_attribute,
+    is_known_scheme, is_percent_escaped_uri, is_uri_scheme, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `MediaWiki` markup.
@@ -70,23 +70,20 @@ impl State {
     /// text and blocks are joined per the top-level spacing. Blocks that render to nothing are
     /// dropped.
     fn block_seq(&mut self, blocks: &[Block], html: bool) -> String {
-        let rendered: Vec<(&Block, String)> = blocks
+        let rendered = self.render_blocks(blocks, html);
+        join_blocks(&rendered, html)
+    }
+
+    /// Render each block in context, dropping those that produce no output, and pair every surviving
+    /// string with its source block so a caller can both join them and inspect the final one.
+    fn render_blocks<'b>(&mut self, blocks: &'b [Block], html: bool) -> Vec<(&'b Block, String)> {
+        blocks
             .iter()
             .filter_map(|block| {
                 let core = self.block_ctx(block, html);
                 (!core.is_empty()).then_some((block, core))
             })
-            .collect();
-        let mut out = String::new();
-        for (index, (block, core)) in rendered.iter().enumerate() {
-            match rendered.get(index.wrapping_sub(1)) {
-                Some((prev, _)) if index > 0 => out.push_str(separator(prev, block, html)),
-                _ if html && matches!(block, Block::HorizontalRule) => out.push_str("\n\n"),
-                _ => {}
-            }
-            out.push_str(core);
-        }
-        out
+            .collect()
     }
 
     fn block(&mut self, block: &Block) -> String {
@@ -125,15 +122,17 @@ impl State {
             Block::Table(table) => self.table(table),
             Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
             Block::Div(attr, blocks) => {
-                let body = self.blocks(blocks);
-                let trailing = match blocks.last() {
-                    Some(block)
+                let rendered = self.render_blocks(blocks, false);
+                let body = join_blocks(&rendered, false);
+                let trailing = match rendered.last() {
+                    Some((block, _))
                         if matches!(block, Block::Para(_) | Block::Div(..))
                             || needs_trailing_blank(block) =>
                     {
                         "\n\n"
                     }
-                    _ => "\n",
+                    Some(_) => "\n",
+                    None => "",
                 };
                 format!("<div{}>\n{body}{trailing}</div>", render_html_attr(attr))
             }
@@ -482,7 +481,7 @@ impl State {
         let label = self.inlines(inlines);
         let plain = to_plain_text(inlines);
         if is_external_uri(&target.url) {
-            if plain != target.url {
+            if plain != target.url && escape_uri(&plain) != target.url {
                 format!("[{} {label}]", target.url)
             } else if is_percent_escaped_uri(&target.url, false) {
                 target.url.clone()
@@ -530,6 +529,21 @@ impl State {
         let body = self.blocks(blocks);
         format!("<ref>{}</ref>", body.trim_end_matches('\n'))
     }
+}
+
+/// Join already-rendered blocks with the spacing each consecutive pair calls for, mirroring the
+/// leading-rule special case of the HTML-list context.
+fn join_blocks(rendered: &[(&Block, String)], html: bool) -> String {
+    let mut out = String::new();
+    for (index, (block, core)) in rendered.iter().enumerate() {
+        match rendered.get(index.wrapping_sub(1)) {
+            Some((prev, _)) if index > 0 => out.push_str(separator(prev, block, html)),
+            _ if html && matches!(block, Block::HorizontalRule) => out.push_str("\n\n"),
+            _ => {}
+        }
+        out.push_str(core);
+    }
+    out
 }
 
 /// The separator between two consecutive rendered blocks. Inside an HTML list item a blank line

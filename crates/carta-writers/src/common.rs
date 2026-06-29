@@ -1135,6 +1135,54 @@ fn is_uri_char(ch: char, allow_non_ascii: bool) -> bool {
         )
 }
 
+/// Percent-encode the characters a link destination cannot carry literally: ASCII whitespace and the
+/// delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes through unchanged —
+/// including a literal `%`, so an existing `%XX` sequence is preserved rather than doubled — as does
+/// all non-ASCII text. The transform is idempotent: applying it twice yields the same result.
+pub(crate) fn escape_uri(url: &str) -> String {
+    fn hex(nibble: u8) -> char {
+        char::from_digit(u32::from(nibble), 16)
+            .unwrap_or('0')
+            .to_ascii_uppercase()
+    }
+    let mut out = String::with_capacity(url.len());
+    for ch in url.chars() {
+        if ch.is_ascii_whitespace()
+            || matches!(
+                ch,
+                '<' | '>' | '|' | '"' | '{' | '}' | '[' | ']' | '^' | '`'
+            )
+        {
+            let byte = ch as u8;
+            out.push('%');
+            out.push(hex(byte >> 4));
+            out.push(hex(byte & 0x0f));
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Whether a string is a bare URI eligible to stand alone (as an angle-bracket autolink in
+/// `CommonMark`, a bare run in plain text or MediaWiki): it opens with a recognized scheme and every
+/// character is valid in a percent-escaped URI.
+pub(crate) fn is_uri(text: &str) -> bool {
+    let Some(colon) = text.find(':') else {
+        return false;
+    };
+    text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
+}
+
+/// Whether a link's visible content is a single string that, once URI-escaped, is exactly the link's
+/// destination — the shape of a link the reader produced by autolinking a bare address, where the
+/// destination is the percent-escaped form of the text shown. The destination-equality test alone
+/// does not gate the bare rendering; each writer additionally requires the address to be a usable URI
+/// (a recognized scheme and valid characters).
+pub(crate) fn is_bare_uri_text(inlines: &[Inline], url: &str) -> bool {
+    matches!(inlines, [Inline::Str(text)] if escape_uri(text) == url)
+}
+
 /// Escape the XML/HTML metacharacters `&`, `<`, and `>` to their entities, and additionally `"` when
 /// `escape_quotes` is set (as in an attribute value).
 pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
@@ -1721,6 +1769,55 @@ mod tests {
         assert!(!is_percent_escaped_uri("a b", false));
         assert!(!is_percent_escaped_uri("café", false));
         assert!(is_percent_escaped_uri("café", true));
+    }
+
+    #[test]
+    fn escape_uri_hexes_only_unsafe_ascii() {
+        assert_eq!(escape_uri("http://e.com/a b"), "http://e.com/a%20b");
+        assert_eq!(escape_uri("a^b|c"), "a%5Eb%7Cc");
+        assert_eq!(escape_uri("<>[]{}\"`"), "%3C%3E%5B%5D%7B%7D%22%60");
+        // Sub-delims, percent, backslash, tilde and all non-ASCII pass through unchanged.
+        assert_eq!(
+            escape_uri("a+b@c:d/e#f?g&h%20~café"),
+            "a+b@c:d/e#f?g&h%20~café"
+        );
+        // Idempotent: a second pass leaves an already-escaped string alone.
+        assert_eq!(escape_uri(&escape_uri("a b^c")), escape_uri("a b^c"));
+    }
+
+    #[test]
+    fn is_uri_requires_scheme_and_valid_charset() {
+        assert!(is_uri("https://example.com/path"));
+        assert!(is_uri("mailto:user@example.com"));
+        assert!(!is_uri("example.com")); // no scheme
+        assert!(!is_uri("notascheme:value")); // scheme not recognized
+        assert!(!is_uri("http://e.com/a b")); // unescaped space
+        assert!(is_uri("http://e.com/café")); // non-ASCII is permitted
+    }
+
+    #[test]
+    fn is_bare_uri_text_matches_escaped_single_string() {
+        let url = "http://e.com/a%20b";
+        assert!(is_bare_uri_text(
+            &[Inline::Str("http://e.com/a b".into())],
+            url
+        ));
+        assert!(is_bare_uri_text(
+            &[Inline::Str("http://e.com/a%20b".into())],
+            url
+        ));
+        // Two inlines, or text whose escaped form differs from the destination, do not match.
+        assert!(!is_bare_uri_text(
+            &[
+                Inline::Str("http://e.com".into()),
+                Inline::Str("/a b".into())
+            ],
+            url
+        ));
+        assert!(!is_bare_uri_text(
+            &[Inline::Str("http://other".into())],
+            url
+        ));
     }
 
     #[test]

@@ -409,6 +409,7 @@ fn format_to_mime(format: &str) -> String {
         "latex" => "text/latex",
         "markdown" => "text/markdown",
         "rst" => "text/restructuredtext",
+        "asciidoc" => "text/asciidoc",
         other => other,
     }
     .to_owned()
@@ -799,6 +800,23 @@ mod tests {
         assert!(notebook.contains("\"cell_type\": \"raw\""));
         assert!(notebook.contains("\"raw_mimetype\": \"text/html\""));
         assert!(notebook.contains("\"<b>x</b>\""));
+    }
+
+    #[test]
+    fn raw_cell_maps_asciidoc_mime() {
+        let notebook = write(vec![Block::Div(
+            Attr {
+                id: String::new(),
+                classes: vec!["cell".to_owned(), "raw".to_owned()],
+                attributes: Vec::new(),
+            },
+            vec![Block::RawBlock(
+                Format("asciidoc".to_owned()),
+                "[NOTE]\n====\nbody\n====".to_owned(),
+            )],
+        )]);
+        assert!(notebook.contains("\"cell_type\": \"raw\""));
+        assert!(notebook.contains("\"raw_mimetype\": \"text/asciidoc\""));
     }
 
     #[test]
