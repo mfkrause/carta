@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Intro"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"mentions"},{"t":"Space"},{"t":"Str","c":"inline."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Link","c":[["",["wikilink"],[]],[{"t":"Str","c":"normal"},{"t":"Space"},{"t":"Str","c":"link"}],[":Category:Linked","normal link"]]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Link","c":[["",["wikilink"],[]],[{"t":"Str","c":"Category:Physics"}],["Category:Physics","Category:Physics"]]},{"t":"Space"},{"t":"Link","c":[["",["wikilink"],[]],[{"t":"Str","c":"sort"},{"t":"Space"},{"t":"Str","c":"key"}],["Category:Science","sort key"]]}]}]}

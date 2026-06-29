@@ -15,7 +15,7 @@ use carta_ast::{
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, display_width, escape_uri, fill, indent_block,
+    FILL_COLUMN, Piece, attribute_value, display_width, fill, indent_block, label_matches_url,
     list_is_tight, numeral, wrap_delim,
 };
 use crate::grid;
@@ -1491,7 +1491,7 @@ fn push_link(
     }
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
-        && (*text == target.url || escape_uri(text) == target.url)
+        && label_matches_url(text, &target.url)
     {
         out.push(Piece::Text(format!("\\url{{{url}}}")));
         return;
@@ -1516,20 +1516,21 @@ fn push_link(
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> String {
+    let svg = is_svg(&target.url);
+    // The SVG include command carries no alternate-text key.
     let alt = to_plain_text(inlines);
-    let alt_option = if alt.is_empty() {
+    let alt_option = if svg || alt.is_empty() {
         String::new()
     } else {
         format!(",alt={{{}}}", escape_smart(&alt, EscapeMode::Text, smart))
     };
+    let command = if svg { "includesvg" } else { "includegraphics" };
     let url = escape_url(&target.url);
 
     let width = attribute_value(attr, "width").and_then(Dimension::parse);
     let height = attribute_value(attr, "height").and_then(Dimension::parse);
     if width.is_none() && height.is_none() {
-        return format!(
-            "\\pandocbounded{{\\includegraphics[keepaspectratio{alt_option}]{{{url}}}}}"
-        );
+        return format!("\\pandocbounded{{\\{command}[keepaspectratio{alt_option}]{{{url}}}}}");
     }
 
     let width_option = match &width {
@@ -1545,9 +1546,15 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> Strin
     } else {
         ",keepaspectratio"
     };
-    format!(
-        "\\includegraphics[width={width_option},height={height_option}{aspect}{alt_option}]{{{url}}}"
-    )
+    format!("\\{command}[width={width_option},height={height_option}{aspect}{alt_option}]{{{url}}}")
+}
+
+/// Whether an image URL names an SVG file, i.e. its path's final extension is `svg`. The extension
+/// is the text after the last `.` in the last `/`-delimited segment, so a trailing query string
+/// (which is part of the extension under this rule) means the URL is not treated as an SVG.
+fn is_svg(url: &str) -> bool {
+    let segment = url.rsplit('/').next().unwrap_or(url);
+    matches!(segment.rsplit_once('.'), Some((_, ext)) if ext.eq_ignore_ascii_case("svg"))
 }
 
 /// A parsed image dimension. A pixel or bare number is expressed in inches at 96 pixels per inch; a
