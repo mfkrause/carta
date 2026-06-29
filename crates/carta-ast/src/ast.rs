@@ -328,17 +328,27 @@ pub fn single_block_inlines(blocks: &[Block]) -> &[Inline] {
     }
 }
 
+/// Whether a character is a Unicode combining mark (general category `Mn`, `Mc`, or `Me`).
+fn is_combining_mark(ch: char) -> bool {
+    use unicode_general_category::GeneralCategory::{EnclosingMark, NonspacingMark, SpacingMark};
+    matches!(
+        unicode_general_category::get_general_category(ch),
+        NonspacingMark | SpacingMark | EnclosingMark
+    )
+}
+
 /// Derive a heading identifier from plain text: a non-breaking space is treated as an ordinary
-/// space, only alphanumerics, whitespace, and `_`, `-`, `.` are kept, the result is lowercased,
+/// space, the text is lowercased, only alphanumerics, whitespace, and `_`, `-`, `.` are kept,
 /// whitespace runs collapse to single hyphens, and any leading non-letter characters are dropped.
-/// The result is empty when no alphabetic character survives.
+/// The result is empty when no alphabetic character survives. Lowercasing precedes filtering, so a
+/// combining mark produced by case-folding a precomposed letter is removed.
 #[must_use]
 pub fn slug(text: &str) -> String {
     let mut filtered = String::new();
-    for ch in text.chars() {
+    for ch in text.chars().flat_map(char::to_lowercase) {
         let ch = if ch == '\u{a0}' { ' ' } else { ch };
         if ch.is_alphanumeric() || ch.is_whitespace() || matches!(ch, '_' | '-' | '.') {
-            filtered.extend(ch.to_lowercase());
+            filtered.push(ch);
         }
     }
     let joined = filtered.split_whitespace().collect::<Vec<_>>().join("-");
@@ -349,16 +359,16 @@ pub fn slug(text: &str) -> String {
 }
 
 /// Derive a heading identifier in the `gfm_auto_identifiers` style: full-Unicode lowercasing, keep
-/// only alphanumerics, `_`, and `-`, turn each whitespace character into a single `-`, and drop
-/// everything else (including `.`). Unlike [`slug`], whitespace runs are not collapsed and no
-/// leading characters are stripped, so punctuation removed between words leaves its surrounding
-/// separators in place.
+/// alphanumerics, combining marks, `_`, and `-`, turn each whitespace character into a single `-`,
+/// and drop everything else (including `.`). Unlike [`slug`], whitespace runs are not collapsed and
+/// no leading characters are stripped, so punctuation removed between words leaves its surrounding
+/// separators in place, and combining marks (including any introduced by case-folding) are retained.
 #[must_use]
 pub fn slug_gfm(text: &str) -> String {
     text.chars()
         .flat_map(char::to_lowercase)
         .filter_map(|ch| {
-            if ch.is_alphanumeric() || matches!(ch, '_' | '-') {
+            if ch.is_alphanumeric() || is_combining_mark(ch) || matches!(ch, '_' | '-') {
                 Some(ch)
             } else if ch.is_whitespace() {
                 Some('-')
