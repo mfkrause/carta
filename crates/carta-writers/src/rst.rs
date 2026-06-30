@@ -307,6 +307,7 @@ impl State {
             Math(String),
             Text(String),
         }
+        const MARKER: &str = "\\ ";
         let mut pieces: Vec<Piece> = Vec::new();
         let mut start = 0;
         for (index, inline) in inlines.iter().enumerate() {
@@ -328,7 +329,6 @@ impl State {
             }
         }
 
-        const MARKER: &str = "\\ ";
         let mut parts: Vec<String> = Vec::new();
         for (index, piece) in pieces.iter().enumerate() {
             let prev_math = index
@@ -423,7 +423,7 @@ impl State {
                     "#.".to_string()
                 } else {
                     let number = attrs.start.saturating_add(offset_as_i32(offset));
-                    ordered_marker(number, &attrs.style, &attrs.delim)
+                    ordered_marker(number, attrs.style, attrs.delim)
                 }
             })
             .collect();

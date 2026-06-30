@@ -1241,8 +1241,8 @@ fn label_definition(attrs: &ListAttributes, counter: &str) -> Option<String> {
     {
         return None;
     }
-    let numeral = numeral_command(&attrs.style, counter);
-    let label = wrap_delim(&numeral, &attrs.delim);
+    let numeral = numeral_command(attrs.style, counter);
+    let label = wrap_delim(&numeral, attrs.delim);
     Some(format!("\\def\\label{counter}{{{label}}}"))
 }
 
@@ -1258,11 +1258,11 @@ fn label_template(attrs: &ListAttributes) -> Option<String> {
     if is_default || is_plain_decimal {
         return None;
     }
-    let first = numeral(1, &attrs.style);
-    Some(format!("[{}]", wrap_delim(&first, &attrs.delim)))
+    let first = numeral(1, attrs.style);
+    Some(format!("[{}]", wrap_delim(&first, attrs.delim)))
 }
 
-fn numeral_command(style: &ListNumberStyle, counter: &str) -> String {
+fn numeral_command(style: ListNumberStyle, counter: &str) -> String {
     let command = match style {
         ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
             "arabic"

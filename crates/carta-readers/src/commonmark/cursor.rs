@@ -513,7 +513,7 @@ impl<'a> Cursor<'a> {
         {
             return None;
         }
-        let single_letter = single_letter(&style, len);
+        let single_letter = single_letter(style, len);
         Some(ListMarkerParse {
             bullet: false,
             marker: delim_byte.unwrap_or(b'.'),
@@ -545,7 +545,7 @@ impl<'a> Cursor<'a> {
         if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
             return None;
         }
-        let single_letter = single_letter(&style, len);
+        let single_letter = single_letter(style, len);
         Some(ListMarkerParse {
             bullet: false,
             marker: b'(',
@@ -653,7 +653,7 @@ fn parse_example_label(bytes: &[u8], start: usize) -> (String, usize) {
 }
 
 /// Whether an enumerator of `len` bytes in `style` is a single alphabetic/roman letter.
-fn single_letter(style: &ListNumberStyle, len: usize) -> bool {
+fn single_letter(style: ListNumberStyle, len: usize) -> bool {
     len == 1 && !matches!(style, ListNumberStyle::Decimal)
 }
 

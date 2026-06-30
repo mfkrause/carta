@@ -754,7 +754,7 @@ impl State {
             .enumerate()
             .map(|(offset, item)| {
                 let number = start.saturating_add(offset_as_i32(offset));
-                let marker = ordered_marker(number, &style, &delim);
+                let marker = ordered_marker(number, style, delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let body = self.blocks_to_string(item, width.saturating_sub(field));
                 let body = offset_horizontal_rule(item, body);
@@ -772,7 +772,7 @@ impl State {
     /// no rich-list syntax at all and collapse every list to a decimal period (`1.`).
     fn ordered_marks(&self, attrs: &ListAttributes) -> (ListNumberStyle, ListNumberDelim) {
         if self.config.has(Extension::FancyLists) {
-            return (attrs.style.clone(), attrs.delim.clone());
+            return (attrs.style, attrs.delim);
         }
         if self.config.cmark {
             let delim = match attrs.delim {

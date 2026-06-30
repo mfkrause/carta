@@ -348,6 +348,10 @@ impl Parser {
         }
     }
 
+    // The per-line state machine runs its container-matching and block-opening phases in sequence
+    // over one shared cursor; splitting the phases into helpers would only thread that cursor through
+    // extra signatures.
+    #[allow(clippy::too_many_lines)]
     fn process_line(&mut self, line: &str, following: &[&str]) {
         let mut cursor = Cursor::new(line);
 
@@ -1326,7 +1330,7 @@ impl Parser {
         }
     }
 
-    /// Whether a scanned code fence actually opens a fenced code block. Pure CommonMark always
+    /// Whether a scanned code fence actually opens a fenced code block. Pure `CommonMark` always
     /// recognizes a fence. The Markdown dialect instead gates each fence character on its own
     /// extension — a backtick fence on `backtick_code_blocks`, a tilde fence on `fenced_code_blocks`
     /// — and, lacking any extension that gives a richer info string meaning, requires the info string
@@ -1363,7 +1367,7 @@ impl Parser {
     /// Whether an opening code fence has a matching closing fence ahead, within the same container.
     /// In the Markdown dialect a fenced code block must be closed: an unclosed fence — one that would
     /// run to the container's end — does not open, and its lines fold into a paragraph instead. Pure
-    /// CommonMark lets an unclosed fence run to the end, so there a fence always opens.
+    /// `CommonMark` lets an unclosed fence run to the end, so there a fence always opens.
     ///
     /// The closing fence is judged at the fence's own container level, so each look-ahead line first
     /// replays the open containers' continuation markers; a line that breaks the chain (a block quote
@@ -1896,7 +1900,7 @@ impl Parser {
         }
         // Ordered lists group by delimiter and by whether this marker reads as a continuation of the
         // list's established number style.
-        info.delim == parsed.delim && continues_ordered(&info.style, parsed)
+        info.delim == parsed.delim && continues_ordered(info.style, parsed)
     }
 
     fn add_line(&mut self, container: usize, started_new: bool, blank: bool, cursor: &mut Cursor) {
@@ -2355,7 +2359,7 @@ impl Parser {
                 if self.greedy_paragraphs && !self.extensions.contains(Extension::FancyLists) {
                     (ListNumberStyle::DefaultStyle, ListNumberDelim::DefaultDelim)
                 } else {
-                    (info.style.clone(), info.delim.clone())
+                    (info.style, info.delim)
                 };
             let attrs = ListAttributes {
                 start,
@@ -2648,8 +2652,8 @@ fn list_info(parsed: &ListMarkerParse) -> ListInfo {
     ListInfo {
         bullet: parsed.bullet,
         marker: parsed.marker,
-        style: parsed.style.clone(),
-        delim: parsed.delim.clone(),
+        style: parsed.style,
+        delim: parsed.delim,
         start: parsed.start,
     }
 }
@@ -2678,7 +2682,7 @@ fn demote_lone_roman(info: ListInfo) -> ListInfo {
 ///   the ninth letter);
 /// - a roman list takes any roman numeral of its case, plus the single letters whose position is a
 ///   roman value (`a`, `e`, `j`) — the same letters a roman sequence can reach.
-fn continues_ordered(list_style: &ListNumberStyle, marker: &ListMarkerParse) -> bool {
+fn continues_ordered(list_style: ListNumberStyle, marker: &ListMarkerParse) -> bool {
     use ListNumberStyle::{Decimal, LowerAlpha, LowerRoman, UpperAlpha, UpperRoman};
     let lower = matches!(marker.style, LowerAlpha | LowerRoman);
     let upper = matches!(marker.style, UpperAlpha | UpperRoman);
@@ -4022,9 +4026,7 @@ mod dialect_tests {
     /// The (start, style, delim) of a single ordered list, or `None` for anything else.
     fn ordered_attrs(blocks: &[IrBlock]) -> Option<(i32, ListNumberStyle, ListNumberDelim)> {
         match blocks {
-            [IrBlock::OrderedList(attrs, _)] => {
-                Some((attrs.start, attrs.style.clone(), attrs.delim.clone()))
-            }
+            [IrBlock::OrderedList(attrs, _)] => Some((attrs.start, attrs.style, attrs.delim)),
             _ => None,
         }
     }

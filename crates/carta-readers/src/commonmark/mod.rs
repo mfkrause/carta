@@ -1140,12 +1140,7 @@ mod tests {
         ) {
             for block in blocks {
                 if let Block::OrderedList(attrs, items) = block {
-                    out.push((
-                        attrs.start,
-                        attrs.style.clone(),
-                        attrs.delim.clone(),
-                        items.len(),
-                    ));
+                    out.push((attrs.start, attrs.style, attrs.delim, items.len()));
                     for item in items {
                         collect(item, out);
                     }
@@ -1292,12 +1287,7 @@ mod tests {
             for block in blocks {
                 match block {
                     Block::OrderedList(attrs, items) => {
-                        out.push((
-                            attrs.start,
-                            attrs.style.clone(),
-                            attrs.delim.clone(),
-                            items.len(),
-                        ));
+                        out.push((attrs.start, attrs.style, attrs.delim, items.len()));
                         for item in items {
                             collect(item, out);
                         }

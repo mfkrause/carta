@@ -574,7 +574,7 @@ pub(crate) fn join_loose(rendered: Vec<(bool, String)>) -> String {
 }
 
 /// Wrap an ordered-list numeral in its delimiter: `n.`, `n)`, or `(n)`.
-pub(crate) fn wrap_delim(numeral: &str, delim: &ListNumberDelim) -> String {
+pub(crate) fn wrap_delim(numeral: &str, delim: ListNumberDelim) -> String {
     match delim {
         ListNumberDelim::DefaultDelim | ListNumberDelim::Period => format!("{numeral}."),
         ListNumberDelim::OneParen => format!("{numeral})"),
@@ -664,14 +664,14 @@ pub(crate) fn offset_as_i32(offset: usize) -> i32 {
 /// the list's delimiter.
 pub(crate) fn ordered_marker(
     number: i32,
-    style: &ListNumberStyle,
-    delim: &ListNumberDelim,
+    style: ListNumberStyle,
+    delim: ListNumberDelim,
 ) -> String {
     wrap_delim(&numeral(number, style), delim)
 }
 
 /// Render a number in a list's numeral style.
-pub(crate) fn numeral(number: i32, style: &ListNumberStyle) -> String {
+pub(crate) fn numeral(number: i32, style: ListNumberStyle) -> String {
     match style {
         ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
             number.to_string()
@@ -2161,16 +2161,16 @@ mod tests {
 
     #[test]
     fn numeral_renders_every_style() {
-        assert_eq!(numeral(5, &ListNumberStyle::Decimal), "5");
-        assert_eq!(numeral(5, &ListNumberStyle::DefaultStyle), "5");
-        assert_eq!(numeral(5, &ListNumberStyle::Example), "5");
-        assert_eq!(numeral(1, &ListNumberStyle::LowerAlpha), "a");
-        assert_eq!(numeral(27, &ListNumberStyle::LowerAlpha), "aa");
-        assert_eq!(numeral(1, &ListNumberStyle::UpperAlpha), "A");
-        assert_eq!(numeral(28, &ListNumberStyle::UpperAlpha), "AB");
-        assert_eq!(numeral(4, &ListNumberStyle::LowerRoman), "iv");
-        assert_eq!(numeral(9, &ListNumberStyle::LowerRoman), "ix");
-        assert_eq!(numeral(2024, &ListNumberStyle::UpperRoman), "MMXXIV");
+        assert_eq!(numeral(5, ListNumberStyle::Decimal), "5");
+        assert_eq!(numeral(5, ListNumberStyle::DefaultStyle), "5");
+        assert_eq!(numeral(5, ListNumberStyle::Example), "5");
+        assert_eq!(numeral(1, ListNumberStyle::LowerAlpha), "a");
+        assert_eq!(numeral(27, ListNumberStyle::LowerAlpha), "aa");
+        assert_eq!(numeral(1, ListNumberStyle::UpperAlpha), "A");
+        assert_eq!(numeral(28, ListNumberStyle::UpperAlpha), "AB");
+        assert_eq!(numeral(4, ListNumberStyle::LowerRoman), "iv");
+        assert_eq!(numeral(9, ListNumberStyle::LowerRoman), "ix");
+        assert_eq!(numeral(2024, ListNumberStyle::UpperRoman), "MMXXIV");
     }
 
     #[test]
@@ -2183,12 +2183,12 @@ mod tests {
 
     #[test]
     fn wrap_delim_and_marker() {
-        assert_eq!(wrap_delim("3", &ListNumberDelim::Period), "3.");
-        assert_eq!(wrap_delim("3", &ListNumberDelim::DefaultDelim), "3.");
-        assert_eq!(wrap_delim("3", &ListNumberDelim::OneParen), "3)");
-        assert_eq!(wrap_delim("3", &ListNumberDelim::TwoParens), "(3)");
+        assert_eq!(wrap_delim("3", ListNumberDelim::Period), "3.");
+        assert_eq!(wrap_delim("3", ListNumberDelim::DefaultDelim), "3.");
+        assert_eq!(wrap_delim("3", ListNumberDelim::OneParen), "3)");
+        assert_eq!(wrap_delim("3", ListNumberDelim::TwoParens), "(3)");
         assert_eq!(
-            ordered_marker(2, &ListNumberStyle::LowerRoman, &ListNumberDelim::OneParen),
+            ordered_marker(2, ListNumberStyle::LowerRoman, ListNumberDelim::OneParen),
             "ii)"
         );
     }

@@ -224,7 +224,7 @@ impl State {
             .enumerate()
             .map(|(offset, item)| {
                 let number = attrs.start.saturating_add(offset_as_i32(offset));
-                let marker = ordered_marker(number, &attrs.style, &attrs.delim);
+                let marker = ordered_marker(number, attrs.style, attrs.delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let body = self.blocks_at(item, width.saturating_sub(field), loose, true);
                 let first = format!("{marker:<field$}");

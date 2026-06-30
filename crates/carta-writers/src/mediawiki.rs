@@ -642,14 +642,14 @@ fn ordered_open_tag(attrs: &ListAttributes) -> String {
         let _ = write!(
             tag,
             " style=\"list-style-type: {};\"",
-            list_style_type(&attrs.style)
+            list_style_type(attrs.style)
         );
     }
     tag.push('>');
     tag
 }
 
-fn list_style_type(style: &ListNumberStyle) -> &'static str {
+fn list_style_type(style: ListNumberStyle) -> &'static str {
     match style {
         ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal => "decimal",
         ListNumberStyle::LowerAlpha => "lower-alpha",
@@ -697,7 +697,7 @@ fn code_block(attr: &Attr, text: &str) -> String {
         if attr.classes.iter().any(|class| is_number_lines(class)) {
             numbered.push_str(" line");
             if let Some(start) = attribute_value(attr, "startFrom") {
-                numbered.push_str(&format!(" start=\"{}\"", escape_attr(start)));
+                let _ = write!(numbered, " start=\"{}\"", escape_attr(start));
             }
         }
         format!("<syntaxhighlight lang=\"{language}\"{numbered}>{text}</syntaxhighlight>")
