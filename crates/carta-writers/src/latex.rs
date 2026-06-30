@@ -226,9 +226,13 @@ fn header(
     };
     let unnumbered = attr.classes.iter().any(|class| class == "unnumbered");
     let star = if unnumbered { "*" } else { "" };
-    let inner = inline_pieces(inlines, width, dialect, wrap, smart);
+    let inner = inline_pieces_in(inlines, width, dialect, wrap, smart, true);
 
-    let mut content = vec![Piece::Text(format!("\\{command}{star}{{"))];
+    let mut content = vec![Piece::Text(format!("\\{command}{star}"))];
+    if let Some(short) = short_title(inlines, width, dialect, wrap, smart) {
+        content.push(Piece::Text(format!("[{short}]")));
+    }
+    content.push(Piece::Text("{".to_owned()));
     if needs_texorpdfstring(inlines) {
         content.push(Piece::Text("\\texorpdfstring{".to_owned()));
         content.extend(inner.iter().cloned());
@@ -239,7 +243,7 @@ fn header(
     }
     content.push(Piece::Text("}".to_owned()));
     if !attr.id.is_empty() {
-        content.push(Piece::Text(format!("\\label{{{}}}", attr.id)));
+        content.push(Piece::Text(format!("\\label{{{}}}", to_label(&attr.id))));
     }
     let heading = fill(&content, width, wrap);
 
@@ -406,9 +410,31 @@ fn code_block_env(attr: &Attr, text: &str, environment: &str) -> String {
     }
 }
 
-/// The anchor markup emitted for an element carrying an identifier.
+/// The anchor markup emitted for an element carrying an identifier outside a movable argument.
 fn phantom_label(id: &str) -> String {
-    format!("\\protect\\phantomsection\\label{{{id}}}")
+    format!("\\protect\\phantomsection\\label{{{}}}", to_label(id))
+}
+
+/// The anchor markup for an identifier inside a heading. A `\label` placed in a section's movable
+/// argument can resolve to the wrong location, so an empty `\hypertarget` names the spot instead.
+fn header_anchor(id: &str) -> String {
+    format!("\\protect\\hypertarget{{{}}}{{}}", to_label(id))
+}
+
+/// Rewrite an identifier into a single token safe as a `\label`/`\hypertarget` name: ASCII
+/// alphanumerics and `_-+=:;.` are kept, every other character becomes `ux` followed by its
+/// lowercase hexadecimal code point.
+fn to_label(id: &str) -> String {
+    let mut label = String::with_capacity(id.len());
+    for ch in id.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '+' | '=' | ':' | ';' | '.') {
+            label.push(ch);
+        } else {
+            label.push_str("ux");
+            let _ = write!(label, "{:x}", ch as u32);
+        }
+    }
+    label
 }
 
 /// The overlay specification appended to a list environment: `[<+->]` inside an incremental slide
@@ -632,7 +658,7 @@ fn figure(
         let label = if attr.id.is_empty() {
             String::new()
         } else {
-            format!("\\label{{{}}}", attr.id)
+            format!("\\label{{{}}}", to_label(&attr.id))
         };
         parts.push(format!("\\caption{{{caption_body}}}{label}"));
     }
@@ -1226,7 +1252,7 @@ fn table_caption(
     }
     let mut close = String::from("}");
     if !attr.id.is_empty() {
-        let _ = write!(close, "\\label{{{}}}", attr.id);
+        let _ = write!(close, "\\label{{{}}}", to_label(&attr.id));
     }
     close.push_str("\\tabularnewline");
     pieces.push(Piece::Text(close));
@@ -1300,6 +1326,50 @@ fn needs_texorpdfstring(inlines: &[Inline]) -> bool {
         .any(|inline| !matches!(inline, Inline::Str(_) | Inline::Space | Inline::SoftBreak))
 }
 
+/// The optional running-head argument for a heading. When the heading carries an inline that cannot
+/// survive a section's movable argument — a footnote, an image, or an element with an identifier
+/// anchor — those inlines are dropped and the remainder rendered as a short title. `None` when the
+/// heading carries no such inline and so needs no short title.
+fn short_title(
+    inlines: &[Inline],
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+    smart: bool,
+) -> Option<String> {
+    let visible: Vec<Inline> = inlines
+        .iter()
+        .filter(|inline| !contains_fragile(inline))
+        .cloned()
+        .collect();
+    if visible.len() == inlines.len() || visible.is_empty() {
+        return None;
+    }
+    Some(flatten_pieces(&inline_pieces(
+        &visible, width, dialect, wrap, smart,
+    )))
+}
+
+/// Whether an inline expands to a construct invalid in a heading's movable short-title argument: a
+/// footnote, an image, or an element (itself or a descendant) carrying an identifier anchor.
+fn contains_fragile(inline: &Inline) -> bool {
+    match inline {
+        Inline::Note(_) | Inline::Image(..) => true,
+        Inline::Span(attr, inlines) => !attr.id.is_empty() || inlines.iter().any(contains_fragile),
+        Inline::Emph(inlines)
+        | Inline::Strong(inlines)
+        | Inline::Underline(inlines)
+        | Inline::Strikeout(inlines)
+        | Inline::Superscript(inlines)
+        | Inline::Subscript(inlines)
+        | Inline::SmallCaps(inlines)
+        | Inline::Quoted(_, inlines)
+        | Inline::Cite(_, inlines)
+        | Inline::Link(_, inlines, _) => inlines.iter().any(contains_fragile),
+        _ => false,
+    }
+}
+
 fn inlines_to_string(
     inlines: &[Inline],
     width: usize,
@@ -1321,8 +1391,21 @@ fn inline_pieces(
     wrap: WrapMode,
     smart: bool,
 ) -> Vec<Piece> {
+    inline_pieces_in(inlines, width, dialect, wrap, smart, false)
+}
+
+/// Render an inline list to pieces. `in_header` is set while rendering a heading's content, where an
+/// identifier anchor is emitted as a `\hypertarget` rather than a `\phantomsection\label`.
+fn inline_pieces_in(
+    inlines: &[Inline],
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+    smart: bool,
+    in_header: bool,
+) -> Vec<Piece> {
     let mut out = Vec::new();
-    push_inlines(inlines, &mut out, width, dialect, wrap, smart);
+    push_inlines(inlines, &mut out, width, dialect, wrap, smart, in_header);
     out
 }
 
@@ -1335,10 +1418,11 @@ fn push_inlines(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    in_header: bool,
 ) {
     let mut remaining = inlines.iter().peekable();
     while let Some(inline) = remaining.next() {
-        push_inline(inline, out, width, dialect, wrap, smart);
+        push_inline(inline, out, width, dialect, wrap, smart, in_header);
         if matches!(inline, Inline::Quoted(..))
             && let Some(Inline::Str(text)) = remaining.peek()
             && text.chars().next().is_some_and(is_quotation_mark)
@@ -1354,7 +1438,7 @@ fn is_quotation_mark(ch: char) -> bool {
     matches!(ch, '\u{2018}' | '\u{2019}' | '\u{201C}' | '\u{201D}' | '\'')
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 fn push_inline(
     inline: &Inline,
     out: &mut Vec<Piece>,
@@ -1362,18 +1446,36 @@ fn push_inline(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    in_header: bool,
 ) {
     match inline {
         Inline::Str(text) => out.push(Piece::Text(escape_smart(text, EscapeMode::Text, smart))),
-        Inline::Emph(inlines) => wrap_command("\\emph{", inlines, out, width, dialect, wrap, smart),
+        Inline::Emph(inlines) => {
+            wrap_command(
+                "\\emph{", inlines, out, width, dialect, wrap, smart, in_header,
+            );
+        }
         Inline::Strong(inlines) => {
-            wrap_command("\\textbf{", inlines, out, width, dialect, wrap, smart);
+            wrap_command(
+                "\\textbf{",
+                inlines,
+                out,
+                width,
+                dialect,
+                wrap,
+                smart,
+                in_header,
+            );
         }
         Inline::Underline(inlines) => {
-            wrap_command("\\ul{", inlines, out, width, dialect, wrap, smart);
+            wrap_command(
+                "\\ul{", inlines, out, width, dialect, wrap, smart, in_header,
+            );
         }
         Inline::Strikeout(inlines) => {
-            wrap_command("\\st{", inlines, out, width, dialect, wrap, smart);
+            wrap_command(
+                "\\st{", inlines, out, width, dialect, wrap, smart, in_header,
+            );
         }
         Inline::Superscript(inlines) => {
             wrap_command(
@@ -1384,6 +1486,7 @@ fn push_inline(
                 dialect,
                 wrap,
                 smart,
+                in_header,
             );
         }
         Inline::Subscript(inlines) => {
@@ -1395,10 +1498,20 @@ fn push_inline(
                 dialect,
                 wrap,
                 smart,
+                in_header,
             );
         }
         Inline::SmallCaps(inlines) => {
-            wrap_command("\\textsc{", inlines, out, width, dialect, wrap, smart);
+            wrap_command(
+                "\\textsc{",
+                inlines,
+                out,
+                width,
+                dialect,
+                wrap,
+                smart,
+                in_header,
+            );
         }
         Inline::Quoted(kind, inlines) => {
             let (open, close) = match kind {
@@ -1410,7 +1523,7 @@ fn push_inline(
                 EscapeMode::Text,
                 smart,
             )));
-            push_inlines(inlines, out, width, dialect, wrap, smart);
+            push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
             out.push(Piece::Text(escape_smart(
                 &close.to_string(),
                 EscapeMode::Text,
@@ -1418,7 +1531,7 @@ fn push_inline(
             )));
         }
         Inline::Cite(_, inlines) => {
-            push_inlines(inlines, out, width, dialect, wrap, smart);
+            push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
         }
         Inline::Code(_, text) => {
             out.push(Piece::Text(format!(
@@ -1445,7 +1558,9 @@ fn push_inline(
             }
         }
         Inline::Link(attr, inlines, target) => {
-            push_link(attr, inlines, target, out, width, dialect, wrap, smart);
+            push_link(
+                attr, inlines, target, out, width, dialect, wrap, smart, in_header,
+            );
         }
         Inline::Image(attr, inlines, target) => {
             out.push(Piece::Text(image(attr, inlines, target, smart)));
@@ -1453,18 +1568,21 @@ fn push_inline(
         Inline::Span(attr, inlines) => {
             let mut open = if attr.id.is_empty() {
                 String::new()
+            } else if in_header {
+                header_anchor(&attr.id)
             } else {
                 phantom_label(&attr.id)
             };
             open.push('{');
             out.push(Piece::Text(open));
-            push_inlines(inlines, out, width, dialect, wrap, smart);
+            push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
             out.push(Piece::Text("}".to_owned()));
         }
         Inline::Note(blocks) => out.push(Piece::Text(note(blocks, width, dialect, wrap, smart))),
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn wrap_command(
     open: &str,
     inlines: &[Inline],
@@ -1473,9 +1591,10 @@ fn wrap_command(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    in_header: bool,
 ) {
     out.push(Piece::Text(open.to_owned()));
-    push_inlines(inlines, out, width, dialect, wrap, smart);
+    push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
     out.push(Piece::Text("}".to_owned()));
 }
 
@@ -1489,9 +1608,14 @@ fn push_link(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    in_header: bool,
 ) {
     if !attr.id.is_empty() {
-        out.push(Piece::Text(phantom_label(&attr.id)));
+        out.push(Piece::Text(if in_header {
+            header_anchor(&attr.id)
+        } else {
+            phantom_label(&attr.id)
+        }));
     }
     // A target into the document itself is a cross-reference, not an external location: the
     // fragment names a label and the link resolves through `\hyperref` rather than `\href`.
@@ -1501,7 +1625,7 @@ fn push_link(
             cross_reference_label(reference)
         )));
         for inline in inlines {
-            push_inline(inline, out, width, dialect, wrap, smart);
+            push_inline(inline, out, width, dialect, wrap, smart, in_header);
         }
         out.push(Piece::Text("}".to_owned()));
         return;
@@ -1526,15 +1650,15 @@ fn push_link(
         return;
     }
     out.push(Piece::Text(format!("\\href{{{url}}}{{")));
-    push_inlines(inlines, out, width, dialect, wrap, smart);
+    push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
     out.push(Piece::Text("}".to_owned()));
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> String {
     let svg = is_svg(&target.url);
-    // The SVG include command carries no alternate-text key.
-    let alt = to_plain_text(inlines);
-    let alt_option = if svg || alt.is_empty() {
+    // The SVG include command carries no alternate-text key; for every other image the alt key is
+    // emitted whenever a description is present, even one that renders to empty text.
+    let alt_option = if svg || inlines.is_empty() {
         String::new()
     } else {
         format!(
@@ -1785,9 +1909,7 @@ fn escape_url(url: &str) -> String {
 }
 
 /// The label naming an internal cross-reference, derived from a link's fragment. The fragment is
-/// first escaped as a URL, then every character outside the set of ASCII alphanumerics and
-/// `_-+=:;.` is rewritten as `ux` followed by its lowercase hexadecimal code point, so the result
-/// is a single token that is safe as the argument to `\hyperref`.
+/// first escaped as a URL, then reduced to a single `\hyperref`-safe token by [`to_label`].
 fn cross_reference_label(reference: &str) -> String {
     let mut escaped = String::with_capacity(reference.len());
     for ch in reference.chars() {
@@ -1799,16 +1921,7 @@ fn cross_reference_label(reference: &str) -> String {
             other => escaped.push(other),
         }
     }
-    let mut label = String::with_capacity(escaped.len());
-    for ch in escaped.chars() {
-        if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '+' | '=' | ':' | ';' | '.') {
-            label.push(ch);
-        } else {
-            label.push_str("ux");
-            let _ = write!(label, "{:x}", ch as u32);
-        }
-    }
-    label
+    to_label(&escaped)
 }
 
 fn percent_encode(ch: char, out: &mut String) {
