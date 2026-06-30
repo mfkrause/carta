@@ -50,6 +50,7 @@ impl IdScheme {
 /// Transliterates header text to ASCII for the `ascii_identifiers` extension: each accented letter is
 /// folded to its unaccented base, plain ASCII is kept, and every other character (a letter with no
 /// ASCII base, or a non-Latin script) is dropped. The result is then slugged as usual.
+#[cfg(feature = "man")]
 pub(crate) fn fold_to_ascii(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -64,6 +65,7 @@ pub(crate) fn fold_to_ascii(text: &str) -> String {
 
 /// The unaccented ASCII letter underlying a Latin letter with a diacritic, or `None` for a character
 /// with no single-letter ASCII base (so the caller drops it).
+#[cfg(feature = "man")]
 #[allow(clippy::match_same_arms)]
 fn ascii_base(c: char) -> Option<char> {
     let base = match c {
@@ -255,6 +257,7 @@ mod tests {
         assert_eq!(registry.assign(IdScheme::Gfm, "Intro"), "intro");
     }
 
+    #[cfg(feature = "man")]
     #[test]
     fn ascii_fold_keeps_base_letters_and_drops_the_rest() {
         assert_eq!(fold_to_ascii("Café Münch"), "Cafe Munch");
