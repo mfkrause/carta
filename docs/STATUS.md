@@ -196,12 +196,26 @@ requires an explicit `scheme://`.
 ### `jira` — 🚧
 Jira wiki markup: headings, paragraphs, the text effects (strong, emphasis, citation, deleted,
 inserted, superscript, subscript, monospace), colored and anchored spans, bullet/numbered lists, the
-`{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji.
-Gaps: the `east_asian_line_breaks` extension has no effect here (it is off by default and the reader
-does not act on it); an adversarial run of unbalanced `--`/`---` does not reproduce nested strikeout
-pairing; block
-brace-macros are recognized only at the start of a line (a mid-line `{code}` after other text reads as
-paragraph text); a `|` inside an image's `!src|props!` within a table cell is not depth-protected.
+`{code}`/`{noformat}`/`{quote}`/`{panel}` block macros, tables, links, images, and emoji. Emphasis is
+resolved with a flanking delimiter stack (same-marker nesting up to depth two, nearest-opener
+pairing), so `*a**b*`, `**x**`, and `--x--` lower to nested spans; smart dashes fold a run hugged by a
+following space into en-/em-dashes. A `{color:VALUE}` whose matching close is a line holding only
+`{color}` becomes a block-level colored division wrapping its content; otherwise it stays an inline
+colored span. A color value may be a name, a `#`-prefixed six-digit hex, or a bare six-digit hex with
+a leading decimal digit (normalized to `#`). Inline constructs — colored and monospaced spans, links,
+citations — carry across a soft line break, which renders as a line break inside them. A symbol or
+emoticon token is recognized even when it abuts a preceding word. A brace block macro that opens
+partway through a paragraph ends that paragraph and starts the macro's block. A table cell carries
+block structure — bullet and numbered lists and the brace macros nest inside it, while a line whose
+prefix names a heading, blockquote, or rule stays paragraph text, and the cell's own paragraphs are
+trimmed of surrounding whitespace. A heading or blockquote line whose content holds a bare block
+macro degrades to a paragraph that the block layer then splits at the macro. An image's bracketed
+property list disqualifies the image when it has leading whitespace or when `thumbnail` is surrounded
+by whitespace; attribute values keep their surrounding whitespace verbatim. A `|` nested inside a
+bracketed link, a brace span, or an image's property list does not split a table cell. The
+`east_asian_line_breaks` extension is recognized (off by default).
+Gaps: when a `{quote}` macro's content shares the line with its fences, the leading whitespace of its
+first paragraph is kept rather than trimmed.
 
 ### `man` — 🚧
 roff man pages: section and subsection headings (`.SH`/`.SS`), paragraphs, indented and

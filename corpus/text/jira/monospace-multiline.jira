@@ -1,0 +1,4 @@
+{{a
+b}} joins the monospaced text across a break.
+
+Nested {{a {{b}} c}} stays one monospaced span.

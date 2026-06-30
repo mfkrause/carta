@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"leading"},{"t":"Space"},{"t":"Str","c":"space"},{"t":"Space"},{"t":"Str","c":"!pic.png|"},{"t":"Space"},{"t":"Str","c":"width=100!"},{"t":"Space"},{"t":"Str","c":"stays"},{"t":"Space"},{"t":"Str","c":"literal."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"kept"},{"t":"Space"},{"t":"Str","c":"trailing"},{"t":"Space"},{"t":"Str","c":"space"},{"t":"Space"},{"t":"Image","c":[["",[],[["align","right "]]],[],["pic.png",""]]},{"t":"Space"},{"t":"Str","c":"makes"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"image."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"spaced"},{"t":"Space"},{"t":"Str","c":"!pic.png|thumbnail"},{"t":"Space"},{"t":"Str","c":"!"},{"t":"Space"},{"t":"Str","c":"stays"},{"t":"Space"},{"t":"Str","c":"literal."}]}]}

@@ -30,10 +30,52 @@ impl Reader for JiraReader {
 // ---------------------------------------------------------------------------
 
 fn parse_blocks_from_str(input: &str) -> Vec<Block> {
-    let chars: Vec<char> = input.chars().collect();
+    blocks_from_str(input, true, true)
+}
+
+/// Parses the content of a single list item as blocks. A list item carries full block structure —
+/// headings, rules, tables, blockquotes, and brace macros — but the stand-alone colour Div is not a
+/// list-item construct, so its marker lines stay literal text there.
+fn parse_list_item_blocks(input: &str) -> Vec<Block> {
+    blocks_from_str(input, false, true)
+}
+
+/// Parses the content of a single table cell as blocks. Lists and brace macros carry block
+/// structure, but a line whose prefix names a heading, blockquote, or horizontal rule stays
+/// paragraph text, and the stand-alone colour Div is not a cell construct.
+fn parse_table_cell(input: &str) -> Vec<Block> {
+    let mut blocks = blocks_from_str(input, false, false);
+    // A cell's own paragraphs carry no surrounding whitespace — so the text that resumes after a
+    // brace macro on the same line loses its leading space. The trim does not recurse: paragraphs
+    // nested inside a list or blockquote keep their own leading whitespace.
+    for block in &mut blocks {
+        if let Block::Para(inlines) = block {
+            trim_edge_whitespace(inlines);
+        }
+    }
+    blocks
+}
+
+/// Drops leading and trailing whitespace inlines (spaces and line breaks) from `inlines`.
+fn trim_edge_whitespace(inlines: &mut Vec<Inline>) {
+    let is_ws = |inline: &Inline| matches!(inline, Inline::Space | Inline::LineBreak);
+    while inlines.first().is_some_and(is_ws) {
+        inlines.remove(0);
+    }
+    while inlines.last().is_some_and(is_ws) {
+        inlines.pop();
+    }
+}
+
+fn blocks_from_str(input: &str, color_block: bool, line_prefix_blocks: bool) -> Vec<Block> {
+    // A carriage return is never a line separator or whitespace here: a `\r\n` pair collapses to a
+    // single line break and a lone `\r` is dropped, so every carriage return is removed up front.
+    let chars: Vec<char> = input.chars().filter(|&c| c != '\r').collect();
     BlockParser {
         chars: &chars,
         pos: 0,
+        color_block,
+        line_prefix_blocks,
     }
     .parse_blocks()
 }
@@ -49,6 +91,13 @@ enum MacroKind {
 struct BlockParser<'a> {
     chars: &'a [char],
     pos: usize,
+    /// Whether a stand-alone `{color:…}`/`{color}` pair forms a block-level coloured `Div`. Disabled
+    /// while parsing a list item's content, where those lines stay literal text.
+    color_block: bool,
+    /// Whether a line whose prefix names a block — a heading (`hN.`), a blockquote (`bq.`), or a
+    /// horizontal rule (`----`) — is recognised as that block. Disabled inside a table cell, where
+    /// only lists and brace macros carry block structure and such lines stay paragraph text.
+    line_prefix_blocks: bool,
 }
 
 impl BlockParser<'_> {
@@ -74,7 +123,7 @@ impl BlockParser<'_> {
     }
 
     fn is_blank(&self, start: usize, end: usize) -> bool {
-        (start..end).all(|k| self.chars.get(k).is_some_and(|c| c.is_whitespace()))
+        (start..end).all(|k| self.chars.get(k).is_some_and(|&c| is_space(c)))
     }
 
     fn advance_line(&mut self) {
@@ -104,17 +153,25 @@ impl BlockParser<'_> {
                 blocks.extend(macro_blocks);
                 continue;
             }
-            if let Some(block) = self.try_heading() {
+            if self.color_block
+                && let Some(block) = self.try_color_block()
+            {
                 blocks.push(block);
                 continue;
             }
-            if let Some(block) = self.try_horizontal_rule() {
-                blocks.push(block);
-                continue;
-            }
-            if let Some(block) = self.try_blockquote() {
-                blocks.push(block);
-                continue;
+            if self.line_prefix_blocks {
+                if let Some(block) = self.try_heading() {
+                    blocks.push(block);
+                    continue;
+                }
+                if let Some(block) = self.try_horizontal_rule() {
+                    blocks.push(block);
+                    continue;
+                }
+                if let Some(block) = self.try_blockquote() {
+                    blocks.push(block);
+                    continue;
+                }
             }
             if self.table_here() {
                 blocks.push(self.parse_table());
@@ -159,29 +216,49 @@ impl BlockParser<'_> {
     }
 
     fn horizontal_rule_here(&self) -> bool {
-        let (s, e) = trim(self.chars, self.pos, self.line_end());
-        e - s == 4 && (s..e).all(|k| self.chars.get(k) == Some(&'-'))
+        // A rule is exactly four hyphens at the line start; only trailing whitespace is allowed, so
+        // any leading indentation makes the line an ordinary paragraph instead.
+        let e = trim_end(self.chars, self.pos, self.line_end());
+        e - self.pos == 4 && (self.pos..e).all(|k| self.chars.get(k) == Some(&'-'))
     }
 
     fn blockquote_here(&self) -> bool {
         matches_at(self.chars, self.pos, "bq.")
     }
 
-    fn table_here(&self) -> bool {
-        self.chars.get(self.pos) == Some(&'|')
+    /// A line beginning with a colour marker — an opening `{color:…}` or a closing `{color}` — starts
+    /// a new block, so it ends any paragraph that runs into it.
+    fn color_marker_line_here(&self) -> bool {
+        matches_at(self.chars, self.pos, "{color:") || matches_at(self.chars, self.pos, "{color}")
     }
 
-    /// A run of one or more list-marker characters at the line start, followed by a space.
+    fn table_here(&self) -> bool {
+        // A line of only delimiters carries no cells, so it is ordinary text rather than a row.
+        self.chars.get(self.pos) == Some(&'|')
+            && !parse_table_row(self.chars, self.pos, self.line_end()).is_empty()
+    }
+
+    /// A run of one or more list-marker characters, optionally indented, followed by a space and at
+    /// least one non-space character of item text. A marker with no content after it is ordinary text.
     fn list_here(&self) -> bool {
         let mut k = self.pos;
+        while matches!(self.chars.get(k), Some(' ' | '\t')) {
+            k += 1;
+        }
+        let marker_start = k;
         while matches!(self.chars.get(k), Some('*' | '-' | '#')) {
             k += 1;
         }
-        k > self.pos && self.chars.get(k) == Some(&' ')
+        if k == marker_start || self.chars.get(k) != Some(&' ') {
+            return false;
+        }
+        let content_start = k + 1;
+        trim_end(self.chars, content_start, self.line_end()) > content_start
     }
 
     fn line_starts_block(&self) -> bool {
         self.macro_here().is_some()
+            || self.color_marker_line_here()
             || self.heading_here().is_some()
             || self.horizontal_rule_here()
             || self.blockquote_here()
@@ -194,8 +271,13 @@ impl BlockParser<'_> {
     fn try_heading(&mut self) -> Option<Block> {
         let level = self.heading_here()?;
         let e = self.line_end();
+        // A bare block macro in the content makes the line a paragraph that the block layer then
+        // splits at the macro, rather than a heading carrying the macro as literal text.
+        if self.first_block_macro(self.pos + 3, e).is_some() {
+            return None;
+        }
         let (ts, te) = trim(self.chars, self.pos + 3, e);
-        let inlines = parse_inlines(self.chars, ts, te);
+        let inlines = drop_trailing_break(parse_inlines(self.chars, ts, te));
         self.advance_line();
         Some(Block::Header(level, Attr::default(), inlines))
     }
@@ -213,18 +295,24 @@ impl BlockParser<'_> {
             return None;
         }
         let e = self.line_end();
+        // A bare block macro in the content makes the line a paragraph that the block layer then
+        // splits at the macro, rather than a blockquote carrying the macro as literal text.
+        if self.first_block_macro(self.pos + 3, e).is_some() {
+            return None;
+        }
         let (ts, te) = trim(self.chars, self.pos + 3, e);
-        let inlines = parse_inlines(self.chars, ts, te);
+        let inlines = drop_trailing_break(parse_inlines(self.chars, ts, te));
         self.advance_line();
         Some(Block::BlockQuote(vec![Block::Para(inlines)]))
     }
 
     fn parse_paragraph(&mut self) -> Block {
-        let mut lines: Vec<Vec<Inline>> = Vec::new();
-        // The first line is always part of the paragraph; this guarantees forward progress.
-        let e = self.line_end();
-        let (ts, te) = trim(self.chars, self.pos, e);
-        lines.push(parse_inlines(self.chars, ts, te));
+        let para_start = self.pos;
+        // The first line is always part of the paragraph; this guarantees forward progress. Its
+        // leading whitespace is kept (it collapses to a single leading space). Continuation lines
+        // join across the newline, which the inline layer renders as a soft line break, absorbing
+        // the whitespace around it.
+        let mut content_end = self.line_end();
         self.advance_line();
         loop {
             if self.at_end() {
@@ -234,11 +322,92 @@ impl BlockParser<'_> {
             if self.is_blank(self.pos, e) || self.line_starts_block() {
                 break;
             }
-            let (ts, te) = trim(self.chars, self.pos, e);
-            lines.push(parse_inlines(self.chars, ts, te));
+            content_end = e;
             self.advance_line();
         }
-        Block::Para(join_lines(lines))
+        // A bare block macro that opens partway through the text ends the paragraph at that point;
+        // the block layer processes the macro on the next pass.
+        if let Some(macro_pos) = self.first_block_macro(para_start, content_end) {
+            self.pos = macro_pos;
+            content_end = macro_pos;
+        }
+        let para_end = trim_end(self.chars, para_start, content_end);
+        Block::Para(drop_trailing_break(parse_inlines(
+            self.chars, para_start, para_end,
+        )))
+    }
+
+    /// Index of the first bare block macro (`{code}`, `{noformat}`, `{quote}`, `{panel}`) in
+    /// `lo..hi`, skipping a token whose `{` is escaped by a preceding backslash. The parameterised
+    /// forms (`{code:…}` and friends) are recognised only at the start of a block, so they are not
+    /// reported here.
+    fn first_block_macro(&self, lo: usize, hi: usize) -> Option<usize> {
+        let mut k = lo;
+        while k < hi {
+            if self.chars.get(k) == Some(&'\\') {
+                k += 2;
+                continue;
+            }
+            if bare_block_macro_at(self.chars, k) {
+                return Some(k);
+            }
+            k += 1;
+        }
+        None
+    }
+
+    /// A block-level colour span: an opening `{color:VALUE}` whose matching close is a line holding
+    /// only `{color}`. The text between is parsed as blocks and wrapped in a `Div` carrying the
+    /// colour. An unrecognised value, an absent or non-standalone close, a nested block construct, or
+    /// empty content all leave the markup for the inline layer or as literal text.
+    fn try_color_block(&mut self) -> Option<Block> {
+        if !matches_at(self.chars, self.pos, "{color:") {
+            return None;
+        }
+        let value_start = self.pos + "{color:".len();
+        let open_line_end = self.line_end();
+        let brace = (value_start..open_line_end).find(|&k| self.chars.get(k) == Some(&'}'))?;
+        let value = color_value(&slice_to_string(self.chars, value_start, brace))?;
+        let content_start = brace + 1;
+
+        let mut ls = next_line_start(open_line_end, self.len());
+        let close_line_start = loop {
+            if ls >= self.len() {
+                return None;
+            }
+            let le = self.line_end_from(ls);
+            if matches_at(self.chars, ls, "{color}") && self.is_blank(ls + "{color}".len(), le) {
+                break ls;
+            }
+            let probe = BlockParser {
+                chars: self.chars,
+                pos: ls,
+                color_block: self.color_block,
+                line_prefix_blocks: self.line_prefix_blocks,
+            };
+            if !self.is_blank(ls, le) && probe.line_starts_block() {
+                return None;
+            }
+            ls = next_line_start(le, self.len());
+        };
+
+        let inner = parse_color_block_inner(self.chars.get(content_start..close_line_start)?);
+        // Content that begins with a blank line yields no leading paragraph, so the markup does not
+        // form a block.
+        match inner.first() {
+            None => return None,
+            Some(Block::Para(inlines)) if inlines.is_empty() => return None,
+            _ => {}
+        }
+
+        let close_line_end = self.line_end_from(close_line_start);
+        self.pos = next_line_start(close_line_end, self.len());
+        let attr = Attr {
+            id: String::new(),
+            classes: Vec::new(),
+            attributes: vec![("color".to_string(), value)],
+        };
+        Some(Block::Div(attr, inner))
     }
 
     // --- tables ------------------------------------------------------------
@@ -250,7 +419,12 @@ impl BlockParser<'_> {
             if self.is_blank(self.pos, e) || self.chars.get(self.pos) != Some(&'|') {
                 break;
             }
-            rows.push(parse_table_row(self.chars, self.pos, e));
+            let cells = parse_table_row(self.chars, self.pos, e);
+            if cells.is_empty() {
+                // A delimiter-only line has no cells; it ends the table and reparses as text.
+                break;
+            }
+            rows.push(cells);
             self.advance_line();
         }
 
@@ -306,26 +480,34 @@ impl BlockParser<'_> {
                 break;
             }
             let e = self.line_end();
-            if self.is_blank(self.pos, e) {
+            // A blank line and a horizontal rule both close the list; everything else that is not a
+            // new marker is item content (a continuation line), so headings, tables, blockquotes, and
+            // brace macros that follow an item are absorbed into it rather than ending the list.
+            if self.is_blank(self.pos, e) || self.horizontal_rule_here() {
                 break;
             }
             if self.list_here() {
                 let mut k = self.pos;
+                while matches!(self.chars.get(k), Some(' ' | '\t')) {
+                    k += 1;
+                }
+                let marker_start = k;
                 while matches!(self.chars.get(k), Some('*' | '-' | '#')) {
                     k += 1;
                 }
-                let marker: String = slice_to_string(self.chars, self.pos, k);
-                let (ts, te) = trim(self.chars, k, e);
+                let marker = slice_to_string(self.chars, marker_start, k);
+                // Exactly one space separates the marker from the item text; any further leading
+                // whitespace is part of the content.
+                let content_start = k + 1;
                 items.push(ListItem {
                     marker,
-                    lines: vec![parse_inlines(self.chars, ts, te)],
+                    text: slice_to_string(self.chars, content_start, e),
                 });
                 self.advance_line();
-            } else if self.line_starts_block() {
-                break;
             } else if let Some(last) = items.last_mut() {
-                let (ts, te) = trim(self.chars, self.pos, e);
-                last.lines.push(parse_inlines(self.chars, ts, te));
+                last.text.push('\n');
+                last.text
+                    .push_str(&slice_to_string(self.chars, self.pos, e));
                 self.advance_line();
             } else {
                 break;
@@ -341,63 +523,121 @@ impl BlockParser<'_> {
         let fence_end = (self.pos..self.len()).find(|&k| self.chars.get(k) == Some(&'}'))?;
         let inside = slice_to_string(self.chars, self.pos + 1, fence_end);
         let params = inside.split_once(':').map(|(_, p)| p.to_string());
+        let has_params = params.is_some();
+        let open_line_end = self.line_end_from(fence_end);
+        let open_trailing_blank = self.is_blank(fence_end + 1, open_line_end);
         match kind {
-            MacroKind::Code | MacroKind::Noformat => {
-                Some(self.parse_verbatim_macro(kind, params.as_deref(), fence_end))
-            }
+            MacroKind::Code => self.parse_code(
+                params.as_deref(),
+                open_line_end,
+                has_params,
+                open_trailing_blank,
+            ),
+            MacroKind::Noformat => Some(self.parse_noformat(
+                params.as_deref(),
+                fence_end,
+                open_line_end,
+                open_trailing_blank,
+            )),
             MacroKind::Quote => Some(self.parse_quote(fence_end)),
-            MacroKind::Panel => Some(self.parse_panel(params.as_deref(), fence_end)),
+            MacroKind::Panel => self.parse_panel(
+                params.as_deref(),
+                fence_end,
+                has_params,
+                open_trailing_blank,
+            ),
         }
     }
 
-    fn parse_verbatim_macro(
+    /// Parses a `{code}` block. Its open fence must be alone on its line: any non-blank content
+    /// after the closing brace disqualifies the block. With parameters present such an open line is
+    /// not a code block at all (it reverts to text); a bare `{code}` with trailing content instead
+    /// consumes the remainder of the input. The content begins on the next line and runs to a close
+    /// line that ends with `{code}` (any text before the close on that line is kept).
+    fn parse_code(
         &mut self,
-        kind: MacroKind,
         params: Option<&str>,
-        fence_end: usize,
-    ) -> Vec<Block> {
-        let close_token = if matches!(kind, MacroKind::Code) {
-            "{code}"
+        open_line_end: usize,
+        has_params: bool,
+        open_trailing_blank: bool,
+    ) -> Option<Vec<Block>> {
+        if !open_trailing_blank {
+            if has_params {
+                return None;
+            }
+            self.pos = self.len();
+            return Some(Vec::new());
+        }
+        let content_start = next_line_start(open_line_end, self.len());
+        let (classes, attributes) = verbatim_params(MacroKind::Code, params);
+        let attr = Attr {
+            id: String::new(),
+            classes,
+            attributes,
+        };
+        if let Some((content, resume)) = self.scan_code_content(content_start) {
+            self.pos = resume;
+            Some(vec![Block::CodeBlock(attr, content)])
         } else {
-            "{noformat}"
-        };
-        let open_newline = (fence_end..self.len()).find(|&k| self.chars.get(k) == Some(&'\n'));
-        let mut cur = match open_newline {
-            Some(nl) => nl + 1,
-            None => self.len(),
-        };
+            self.pos = self.len();
+            Some(Vec::new())
+        }
+    }
 
+    /// Collects the lines from `start` up to a `{code}` close. A close is a line that ends with the
+    /// token once trailing whitespace is ignored; text before the token on that line is content, and
+    /// parsing resumes on the following line. Returns the content and resume index, or `None` when no
+    /// close is found.
+    fn scan_code_content(&self, start: usize) -> Option<(String, usize)> {
+        const CLOSE: &str = "{code}";
+        let close_len = CLOSE.chars().count();
         let mut content = String::new();
-        let mut closed = false;
+        let mut cur = start;
         while cur < self.len() {
             let le = self.line_end_from(cur);
-            let (ts, _) = trim(self.chars, cur, le);
-            if matches_at(self.chars, ts, close_token) {
-                cur = if le < self.len() { le + 1 } else { le };
-                closed = true;
-                break;
+            let te = trim_end(self.chars, cur, le);
+            if te >= cur + close_len && matches_at(self.chars, te - close_len, CLOSE) {
+                content.push_str(&slice_to_string(self.chars, cur, te - close_len));
+                return Some((content, next_line_start(le, self.len())));
             }
             content.push_str(&slice_to_string(self.chars, cur, le));
             content.push('\n');
-            cur = if le < self.len() { le + 1 } else { le };
+            cur = next_line_start(le, self.len());
         }
+        None
+    }
 
-        if !closed {
-            // An unterminated verbatim macro consumes the rest of the input and yields no block.
+    /// Parses a `{noformat}` block. Unlike `{code}`, content may begin on the open line: when the
+    /// rest of that line is blank the content starts on the next line, otherwise it starts right
+    /// after the closing brace. The block ends at the first `{noformat}`; any text after the close on
+    /// its line continues as following content.
+    fn parse_noformat(
+        &mut self,
+        params: Option<&str>,
+        fence_end: usize,
+        open_line_end: usize,
+        open_trailing_blank: bool,
+    ) -> Vec<Block> {
+        const CLOSE: &str = "{noformat}";
+        let content_start = if open_trailing_blank {
+            next_line_start(open_line_end, self.len())
+        } else {
+            fence_end + 1
+        };
+        let (classes, attributes) = verbatim_params(MacroKind::Noformat, params);
+        let attr = Attr {
+            id: String::new(),
+            classes,
+            attributes,
+        };
+        if let Some(close) = find_token(self.chars, content_start, CLOSE) {
+            let content = slice_to_string(self.chars, content_start, close);
+            self.pos = close + CLOSE.chars().count();
+            vec![Block::CodeBlock(attr, content)]
+        } else {
             self.pos = self.len();
-            return Vec::new();
+            Vec::new()
         }
-        self.pos = cur;
-
-        let (classes, attributes) = verbatim_params(kind, params);
-        vec![Block::CodeBlock(
-            Attr {
-                id: String::new(),
-                classes,
-                attributes,
-            },
-            content,
-        )]
     }
 
     /// Consume the text between the current fence and its closing `close_token`, advancing past the
@@ -424,9 +664,25 @@ impl BlockParser<'_> {
         vec![Block::BlockQuote(parse_blocks_from_str(&content))]
     }
 
-    fn parse_panel(&mut self, params: Option<&str>, fence_end: usize) -> Vec<Block> {
+    /// Parses a `{panel}` block. Like `{code}`, its open fence must stand alone on its line: a
+    /// parameterised open line with trailing content reverts to text, while a bare `{panel}` with
+    /// trailing content consumes the remainder of the input.
+    fn parse_panel(
+        &mut self,
+        params: Option<&str>,
+        fence_end: usize,
+        has_params: bool,
+        open_trailing_blank: bool,
+    ) -> Option<Vec<Block>> {
+        if !open_trailing_blank {
+            if has_params {
+                return None;
+            }
+            self.pos = self.len();
+            return Some(Vec::new());
+        }
         let Some(content) = self.take_fenced(fence_end, "{panel}") else {
-            return Vec::new();
+            return Some(Vec::new());
         };
         let (title, attributes) = panel_params(params);
         let mut inner = Vec::new();
@@ -441,26 +697,61 @@ impl BlockParser<'_> {
             ));
         }
         inner.extend(parse_blocks_from_str(&content));
-        vec![Block::Div(
+        Some(vec![Block::Div(
             Attr {
                 id: String::new(),
                 classes: vec!["panel".to_string()],
                 attributes,
             },
             inner,
-        )]
+        )])
     }
+}
+
+/// The start of the line after the one ending at `line_end`, or `len` when that line ends the input.
+fn next_line_start(line_end: usize, len: usize) -> usize {
+    if line_end < len {
+        line_end + 1
+    } else {
+        line_end
+    }
+}
+
+/// Parses the body of a block-level colour span. The newline that follows the opening marker leads
+/// the first paragraph as a line break; blank lines beyond it separate the body into paragraphs.
+fn parse_color_block_inner(content: &[char]) -> Vec<Block> {
+    let mut parser = BlockParser {
+        chars: content,
+        pos: 0,
+        color_block: true,
+        line_prefix_blocks: true,
+    };
+    let mut blocks = Vec::new();
+    let mut first = true;
+    loop {
+        if first {
+            first = false;
+        } else {
+            parser.skip_blank_lines();
+        }
+        if parser.at_end() {
+            break;
+        }
+        blocks.push(parser.parse_paragraph());
+    }
+    blocks
 }
 
 struct ListItem {
     marker: String,
-    lines: Vec<Vec<Inline>>,
+    text: String,
 }
 
 /// Builds the nested list blocks for `items` at the given (1-based) depth, appending sibling lists
-/// to `out`. Items are grouped by the exact marker character at this depth: a different character
-/// starts a separate sibling list, and a longer marker sharing this depth's character nests as a
-/// child of the preceding item.
+/// to `out`. A marker's length is its nesting depth: items are grouped by the marker character at
+/// this depth, a different character starts a separate sibling list, and any item whose marker is
+/// longer than this depth nests inside the current item — so a lone `*** x` produces three nested
+/// lists even with no shallower item preceding it.
 fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
     let mut idx = 0;
     while idx < items.len() {
@@ -469,21 +760,26 @@ fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
             continue;
         };
         let mut list_items: Vec<Vec<Block>> = Vec::new();
-        while idx < items.len() {
-            if marker_char(items, idx, depth) != Some(group_char) {
-                break;
-            }
-            let mut item_blocks = item_content(items.get(idx));
-            let mut child_end = idx + 1;
-            while child_end < items.len()
-                && items
-                    .get(child_end)
-                    .is_some_and(|it| it.marker.chars().count() > depth)
+        while marker_char(items, idx, depth) == Some(group_char) {
+            let mut item_blocks = Vec::new();
+            // An item whose marker length is exactly this depth owns the text; a longer marker is an
+            // implicit parent that carries only its nested child list.
+            let owns_content = marker_len(items, idx) == depth;
+            let child_start = if owns_content {
+                if let Some(item) = items.get(idx) {
+                    item_blocks.extend(parse_list_item_blocks(&item.text));
+                }
+                idx + 1
+            } else {
+                idx
+            };
+            let mut child_end = child_start;
+            while marker_len(items, child_end) > depth
                 && marker_char(items, child_end, depth) == Some(group_char)
             {
                 child_end += 1;
             }
-            if let Some(children) = items.get(idx + 1..child_end) {
+            if let Some(children) = items.get(child_start..child_end) {
                 build_lists(children, depth + 1, &mut item_blocks);
             }
             list_items.push(item_blocks);
@@ -510,22 +806,17 @@ fn marker_char(items: &[ListItem], idx: usize, depth: usize) -> Option<char> {
         .and_then(|it| it.marker.chars().nth(depth - 1))
 }
 
-fn item_content(item: Option<&ListItem>) -> Vec<Block> {
-    match item {
-        Some(item) => vec![Block::Para(join_lines(item.lines.clone()))],
-        None => Vec::new(),
-    }
+fn marker_len(items: &[ListItem], idx: usize) -> usize {
+    items.get(idx).map_or(0, |it| it.marker.chars().count())
 }
 
-fn join_lines(lines: Vec<Vec<Inline>>) -> Vec<Inline> {
-    let mut out = Vec::new();
-    for (idx, line) in lines.into_iter().enumerate() {
-        if idx > 0 {
-            out.push(Inline::LineBreak);
-        }
-        out.extend(line);
+/// Removes a forced line break that ends a block's inline content. A line break with nothing after
+/// it has no following line to separate, so it is dropped.
+fn drop_trailing_break(mut inlines: Vec<Inline>) -> Vec<Inline> {
+    while matches!(inlines.last(), Some(Inline::LineBreak)) {
+        inlines.pop();
     }
-    out
+    inlines
 }
 
 fn parse_table_row(chars: &[char], start: usize, end: usize) -> Vec<(bool, String)> {
@@ -542,17 +833,26 @@ fn parse_table_row(chars: &[char], start: usize, end: usize) -> Vec<(bool, Strin
         }
         let is_header = run >= 2;
         // Scan the cell content up to the next delimiter, ignoring pipes nested inside a bracketed
-        // link or a brace span so a link's own `|` does not split the cell.
+        // link, a brace span, or an image's property list so an inner `|` does not split the cell.
         let cell_start = i;
         let mut depth = 0i32;
         while i < end {
             match chars.get(i) {
-                Some('[' | '{') => depth += 1,
-                Some(']' | '}') => depth = depth.saturating_sub(1),
+                Some('[' | '{') => {
+                    depth += 1;
+                    i += 1;
+                }
+                Some(']' | '}') => {
+                    depth = depth.saturating_sub(1);
+                    i += 1;
+                }
+                Some('!') if depth == 0 => match parse_image(chars, i, end) {
+                    Some((_, next)) => i = next,
+                    None => i += 1,
+                },
                 Some('|') if depth == 0 => break,
-                _ => {}
+                _ => i += 1,
             }
-            i += 1;
         }
         let (ts, te) = trim(chars, cell_start, i);
         let content = slice_to_string(chars, ts, te);
@@ -569,7 +869,7 @@ fn build_table_row(cells: &[(bool, String)], col_count: usize) -> Row {
     let mut out_cells = Vec::with_capacity(col_count);
     for col in 0..col_count {
         let content = match cells.get(col) {
-            Some((_, text)) if !text.is_empty() => vec![Block::Para(inlines_of(text))],
+            Some((_, text)) if !text.is_empty() => parse_table_cell(text),
             _ => Vec::new(),
         };
         out_cells.push(Cell {
@@ -678,11 +978,6 @@ const EMOTICONS: &[(&str, char)] = &[
     (";)", '\u{1F609}'),
 ];
 
-fn inlines_of(text: &str) -> Vec<Inline> {
-    let chars: Vec<char> = text.chars().collect();
-    parse_inlines(&chars, 0, chars.len())
-}
-
 /// Tokenises `text` into inlines without interpreting markup: whitespace runs become
 /// [`Inline::Space`] and every other run becomes an [`Inline::Str`]. Used for a panel title, whose
 /// text is rendered verbatim inside its header.
@@ -690,7 +985,7 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
     let mut out = Vec::new();
     let mut word = String::new();
     for ch in text.chars() {
-        if ch.is_whitespace() {
+        if is_space(ch) {
             if !word.is_empty() {
                 out.push(Inline::Str(std::mem::take(&mut word)));
             }
@@ -707,11 +1002,45 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
     out
 }
 
-/// Parses the character range `lo..hi` into inline nodes. Flanking decisions consult the real
-/// neighbouring characters via absolute indices, so a range bounded to a single line will not let
-/// markup escape that line.
+/// A unit of scanned inline content, before text-effect delimiters are paired up.
+enum Tok {
+    /// A run of literal text.
+    Text(String),
+    /// A single flanking delimiter that may open and/or close a text-effect span.
+    Delim {
+        marker: char,
+        open: bool,
+        close: bool,
+    },
+    /// A fully formed inline node — link, image, span, monospace, line break, or space.
+    Atom(Inline),
+}
+
+/// Parses the character range `lo..hi` into inline nodes: it scans the text into tokens, pairs the
+/// flanking delimiters into spans, and folds the result into a flat list of inlines. Flanking
+/// decisions consult the real neighbouring characters via absolute indices, so a range bounded to a
+/// single line will not let markup escape that line.
 fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
-    let mut out: Vec<Inline> = Vec::new();
+    inlines_with(chars, lo, hi, true)
+}
+
+/// Parses inlines with control over bare-URL autolinking. A link label cannot contain another link,
+/// so the text of one is parsed with `autolink` cleared.
+fn inlines_with(chars: &[char], lo: usize, hi: usize, autolink: bool) -> Vec<Inline> {
+    finalize(resolve(scan_tokens(chars, lo, hi, autolink)))
+}
+
+fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
+    if !pending.is_empty() {
+        toks.push(Tok::Text(std::mem::take(pending)));
+    }
+}
+
+/// Scans `lo..hi` left to right into tokens: literal runs accumulate into [`Tok::Text`], a flanking
+/// delimiter becomes a [`Tok::Delim`], and a self-contained construct (link, image, brace span,
+/// citation, autolink, symbol) becomes a [`Tok::Atom`].
+fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool) -> Vec<Tok> {
+    let mut toks: Vec<Tok> = Vec::new();
     let mut pending = String::new();
     let mut i = lo;
 
@@ -720,70 +1049,63 @@ fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
             break;
         };
 
-        if c.is_whitespace() {
-            flush(&mut pending, &mut out);
-            out.push(Inline::Space);
-            i += 1;
-            while i < hi && chars.get(i).is_some_and(|c| c.is_whitespace()) {
-                i += 1;
-            }
+        if is_space(c) {
+            push_text(&mut pending, &mut toks);
+            i = scan_whitespace_run(chars, i, hi, &mut toks);
             continue;
         }
 
-        let prev_alnum = char_at(chars, i.wrapping_sub(1))
-            .filter(|_| i > 0)
-            .is_some_and(char::is_alphanumeric);
+        let prev_alnum = i > 0 && chars.get(i - 1).is_some_and(|c| c.is_alphanumeric());
 
-        if !prev_alnum && let Some(end) = match_bare_url(chars, i, hi) {
-            flush(&mut pending, &mut out);
+        if autolink
+            && !prev_alnum
+            && let Some(end) = match_bare_url(chars, i, hi)
+        {
+            push_text(&mut pending, &mut toks);
             let url = slice_to_string(chars, i, end);
-            out.push(Inline::Link(
+            toks.push(Tok::Atom(Inline::Link(
                 Attr::default(),
                 vec![Inline::Str(url.clone())],
                 Target {
                     url,
                     title: String::new(),
                 },
-            ));
+            )));
             i = end;
             continue;
         }
 
         match c {
             '\\' => {
-                if i + 1 < hi && chars.get(i + 1) == Some(&'\\') {
-                    flush(&mut pending, &mut out);
-                    // A forced break absorbs the whitespace on either side of it.
-                    if out.last() == Some(&Inline::Space) {
-                        out.pop();
-                    }
-                    out.push(Inline::LineBreak);
-                    i += 2;
-                    while i < hi && chars.get(i).is_some_and(|c| c.is_whitespace()) {
-                        i += 1;
-                    }
-                } else if let Some(&next) = chars.get(i + 1).filter(|_| i + 1 < hi) {
-                    pending.push(next);
-                    i += 2;
+                i = scan_backslash(chars, i, hi, &mut pending, &mut toks);
+            }
+            '&' => {
+                if let Some((text, next)) = read_entity(chars, i, hi) {
+                    pending.push_str(&text);
+                    i = next;
                 } else {
-                    pending.push('\\');
+                    pending.push('&');
                     i += 1;
                 }
             }
             '?' => {
-                if let Some((next, inner)) = parse_citation(chars, i, hi) {
-                    flush(&mut pending, &mut out);
-                    out.push(Inline::Str("\u{2014}".to_string()));
-                    out.push(Inline::Space);
-                    out.push(Inline::Emph(inner));
+                if let Some((next, inner)) = parse_citation(chars, i, hi, autolink) {
+                    pending.push('\u{2014}');
+                    push_text(&mut pending, &mut toks);
+                    toks.push(Tok::Atom(Inline::Space));
+                    toks.push(Tok::Atom(Inline::Emph(inner)));
                     i = next;
                 } else {
                     pending.push('?');
                     i += 1;
                 }
             }
+            '*' | '_' | '+' | '^' | '~' => {
+                push_delimiter(c, chars, i, &mut pending, &mut toks);
+                i += 1;
+            }
             '-' => {
-                i = parse_dash(chars, i, hi, &mut pending, &mut out);
+                i = scan_dash(chars, i, hi, &mut pending, &mut toks);
             }
             '(' => {
                 if let Some((glyph, len)) = match_token_symbol(chars, i, PAREN_SYMBOLS) {
@@ -803,44 +1125,366 @@ fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
                     i += 1;
                 }
             }
-            _ => {
-                if let Some((node, next)) = parse_structured(chars, i, hi, c) {
-                    flush(&mut pending, &mut out);
-                    out.push(node);
+            '[' | '!' | '{' => {
+                if let Some((node, next)) = scan_construct(c, chars, i, hi, autolink) {
+                    push_text(&mut pending, &mut toks);
+                    toks.push(Tok::Atom(node));
                     i = next;
                 } else {
                     pending.push(c);
                     i += 1;
                 }
             }
+            _ => {
+                pending.push(c);
+                i += 1;
+            }
         }
     }
 
-    flush(&mut pending, &mut out);
-    out
+    push_text(&mut pending, &mut toks);
+    toks
 }
 
-fn flush(pending: &mut String, out: &mut Vec<Inline>) {
-    if !pending.is_empty() {
-        out.push(Inline::Str(std::mem::take(pending)));
+/// Consumes the whitespace run beginning at `start`, pushing the single token it collapses to: a
+/// line break when the run crosses a newline, otherwise a space. The spaces around a soft break are
+/// absorbed into it. Returns the index just past the run.
+fn scan_whitespace_run(chars: &[char], start: usize, hi: usize, toks: &mut Vec<Tok>) -> usize {
+    let mut has_newline = chars.get(start) == Some(&'\n');
+    let mut i = start + 1;
+    while i < hi && chars.get(i).is_some_and(|&c| is_space(c)) {
+        has_newline |= chars.get(i) == Some(&'\n');
+        i += 1;
+    }
+    toks.push(Tok::Atom(if has_newline {
+        Inline::LineBreak
+    } else {
+        Inline::Space
+    }));
+    i
+}
+
+/// The punctuation a backslash removes itself before, leaving the character as literal text. Any
+/// character outside this set keeps its backslash.
+fn is_escapable(c: char) -> bool {
+    matches!(
+        c,
+        '!' | '"'
+            | '#'
+            | '%'
+            | '&'
+            | '\''
+            | '('
+            | ')'
+            | '*'
+            | ','
+            | '-'
+            | '.'
+            | '/'
+            | ':'
+            | ';'
+            | '?'
+            | '@'
+            | '['
+            | ']'
+            | '_'
+            | '{'
+            | '}'
+    )
+}
+
+/// Reads a character reference at `i` (which holds `&`). A named reference or a decimal numeric
+/// reference resolves to its replacement text; a hexadecimal reference is not recognised and stays
+/// literal. Returns the decoded text and the index just past the closing `;`.
+fn read_entity(chars: &[char], i: usize, hi: usize) -> Option<(String, usize)> {
+    if chars.get(i + 1) == Some(&'#') {
+        let start = i + 2;
+        let mut k = start;
+        while k < hi && chars.get(k).is_some_and(char::is_ascii_digit) {
+            k += 1;
+        }
+        if k > start && chars.get(k) == Some(&';') {
+            let digits = slice_to_string(chars, start, k);
+            if let Ok(code) = digits.parse::<u32>() {
+                return Some((crate::entities::code_point(code).to_string(), k + 1));
+            }
+        }
+        return None;
+    }
+    let start = i + 1;
+    let mut k = start;
+    while k < hi && chars.get(k).is_some_and(char::is_ascii_alphanumeric) {
+        k += 1;
+    }
+    if k > start && chars.get(k) == Some(&';') {
+        let name = slice_to_string(chars, start, k);
+        if let Some(text) = crate::entities::lookup_named(&name) {
+            return Some((text.to_string(), k + 1));
+        }
+    }
+    None
+}
+
+/// Emits a flanking-delimiter token for one of the emphasis markers at `i`, or buffers the marker as
+/// literal text when it can neither open nor close a span.
+fn push_delimiter(
+    marker: char,
+    chars: &[char],
+    i: usize,
+    pending: &mut String,
+    toks: &mut Vec<Tok>,
+) {
+    let open = can_open(chars, i);
+    let close = can_close(chars, i);
+    if open || close {
+        push_text(pending, toks);
+        toks.push(Tok::Delim {
+            marker,
+            open,
+            close,
+        });
+    } else {
+        pending.push(marker);
     }
 }
 
-/// Attempts a delimited inline construct opening at `i`: a bracketed link, an image, a brace span
-/// (monospace, colour, or anchor), or a flanking text effect. Returns the node and the position
-/// just past it, or `None` when `c` opens nothing parseable here.
-fn parse_structured(chars: &[char], i: usize, hi: usize, c: char) -> Option<(Inline, usize)> {
+/// Parses a self-contained construct introduced by `c` at `i`: `[` starts a link, `!` an image, and
+/// `{` a brace span. Returns the resulting node and the index just past it, or `None` when the text
+/// does not form that construct.
+fn scan_construct(
+    c: char,
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    autolink: bool,
+) -> Option<(Inline, usize)> {
     match c {
         '[' => parse_link(chars, i, hi),
         '!' => parse_image(chars, i, hi),
-        '{' => parse_brace_inline(chars, i, hi),
-        '*' | '_' | '+' | '^' | '~' => parse_wrap(chars, i, hi, c),
-        _ => None,
+        _ => parse_brace_inline(chars, i, hi, autolink),
     }
 }
 
-fn char_at(chars: &[char], i: usize) -> Option<char> {
-    chars.get(i).copied()
+/// Handles a backslash at `i`. A backslash pair `\\` is a forced line break that absorbs the
+/// whitespace around it — unless a third backslash follows, in which case the pair is an escaped
+/// backslash producing one literal `\` and the scan continues at the third. A backslash before one
+/// of a fixed set of punctuation marks escapes that mark to a literal; before anything else the
+/// backslash itself stays literal. Returns the next position.
+fn scan_backslash(
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    pending: &mut String,
+    toks: &mut Vec<Tok>,
+) -> usize {
+    if i + 1 < hi && chars.get(i + 1) == Some(&'\\') {
+        if i + 2 < hi && chars.get(i + 2) == Some(&'\\') {
+            pending.push('\\');
+            return i + 2;
+        }
+        push_text(pending, toks);
+        if matches!(toks.last(), Some(Tok::Atom(Inline::Space))) {
+            toks.pop();
+        }
+        toks.push(Tok::Atom(Inline::LineBreak));
+        let mut j = i + 2;
+        while j < hi && chars.get(j).is_some_and(|&c| is_space(c)) {
+            j += 1;
+        }
+        return j;
+    }
+    if let Some(&next) = chars.get(i + 1).filter(|_| i + 1 < hi)
+        && is_escapable(next)
+    {
+        pending.push(next);
+        return i + 2;
+    }
+    pending.push('\\');
+    i + 1
+}
+
+/// Handles a run of `-` at `i`. A run of two or more hyphens followed by a space or tab folds into
+/// typographic dashes: a word character on its left keeps the first hyphen attached to that word,
+/// then the remaining hyphens fold — two into an en dash, three or more into an em dash preceded by
+/// the surplus hyphens. Otherwise a single `-` is scanned as a strikeout delimiter (or literal text).
+/// Returns the next scan position. The character following the run is read from the full input rather
+/// than the line-content bound, so a hyphen run that ends a line still sees the space trimmed from it.
+fn scan_dash(
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    pending: &mut String,
+    toks: &mut Vec<Tok>,
+) -> usize {
+    let mut run = 0;
+    while i + run < hi && chars.get(i + run) == Some(&'-') {
+        run += 1;
+    }
+    let left_word = i > 0 && chars.get(i - 1).is_some_and(|c| c.is_alphanumeric());
+    let right_space = matches!(chars.get(i + run), Some(' ' | '\t'));
+    // A word on the left keeps its first hyphen attached, so only the remainder folds.
+    let fold_run = if left_word {
+        run.saturating_sub(1)
+    } else {
+        run
+    };
+    // Fold only when at least two hyphens remain to fold into a typographic dash. A lone leftover
+    // hyphen would render identically to literal text, so it is left as a strikeout delimiter instead
+    // — that way a `--…--` pair whose closing run is followed by a space can still form a span.
+    if right_space && fold_run >= 2 {
+        if left_word {
+            pending.push('-');
+        }
+        if fold_run == 2 {
+            pending.push('\u{2013}');
+        } else {
+            for _ in 0..fold_run.saturating_sub(3) {
+                pending.push('-');
+            }
+            pending.push('\u{2014}');
+        }
+        return i + run;
+    }
+
+    let open = can_open(chars, i);
+    let close = can_close(chars, i);
+    if open || close {
+        push_text(pending, toks);
+        toks.push(Tok::Delim {
+            marker: '-',
+            open,
+            close,
+        });
+    } else {
+        pending.push('-');
+    }
+    i + 1
+}
+
+/// Index of the innermost open delimiter still awaiting a close, regardless of its marker.
+fn top_opener(acc: &[Tok]) -> Option<usize> {
+    acc.iter()
+        .rposition(|t| matches!(t, Tok::Delim { open: true, .. }))
+}
+
+/// Pairs flanking delimiters into spans. A closing delimiter binds only to the innermost open
+/// delimiter; it forms a span when that opener carries the same marker and they enclose non-empty
+/// content, and is otherwise left literal. Binding only to the innermost opener keeps spans strictly
+/// nested, so two different markers that interleave cannot both form a span. Same-marker spans nest
+/// at most two deep.
+fn resolve(toks: Vec<Tok>) -> Vec<Tok> {
+    let mut acc: Vec<Tok> = Vec::new();
+    for tok in toks {
+        let Tok::Delim {
+            marker,
+            open,
+            close,
+        } = tok
+        else {
+            acc.push(tok);
+            continue;
+        };
+        if close
+            && let Some(open_idx) = top_opener(&acc)
+            && matches!(acc.get(open_idx), Some(Tok::Delim { marker: m, .. }) if *m == marker)
+            && acc.len() > open_idx + 1
+        {
+            let inner = finalize(acc.split_off(open_idx + 1));
+            if same_marker_depth(&inner, marker) < 2 {
+                acc.pop();
+                acc.push(Tok::Atom(make_span(marker, inner)));
+                continue;
+            }
+            // The nesting cap is reached: the opener stays unmatched and its already-resolved
+            // content returns to the stack.
+            acc.extend(inner.into_iter().map(Tok::Atom));
+        }
+        acc.push(Tok::Delim {
+            marker,
+            open,
+            close,
+        });
+    }
+    acc
+}
+
+/// Lowers resolved tokens into inlines: an unmatched delimiter becomes its literal marker character,
+/// adjacent text merges into one string, and adjacent spans of the same kind merge into one.
+fn finalize(toks: Vec<Tok>) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    for tok in toks {
+        let inline = match tok {
+            Tok::Text(s) => Inline::Str(s),
+            Tok::Delim { marker, .. } => Inline::Str(marker.to_string()),
+            Tok::Atom(node) => node,
+        };
+        let inline = match out.last_mut() {
+            Some(last) => match merge_adjacent(last, inline) {
+                None => continue,
+                Some(unmerged) => unmerged,
+            },
+            None => inline,
+        };
+        out.push(inline);
+    }
+    out
+}
+
+/// Merges `next` into `last` when they are two strings or two spans of the same kind, returning
+/// `None` on success and `Some(next)` when they do not combine.
+fn merge_adjacent(last: &mut Inline, next: Inline) -> Option<Inline> {
+    match (last, next) {
+        (Inline::Str(a), Inline::Str(b)) => {
+            a.push_str(&b);
+            None
+        }
+        (Inline::Strong(a), Inline::Strong(b))
+        | (Inline::Emph(a), Inline::Emph(b))
+        | (Inline::Underline(a), Inline::Underline(b))
+        | (Inline::Superscript(a), Inline::Superscript(b))
+        | (Inline::Subscript(a), Inline::Subscript(b))
+        | (Inline::Strikeout(a), Inline::Strikeout(b)) => {
+            a.extend(b);
+            None
+        }
+        (_, other) => Some(other),
+    }
+}
+
+fn make_span(marker: char, inner: Vec<Inline>) -> Inline {
+    match marker {
+        '*' => Inline::Strong(inner),
+        '_' => Inline::Emph(inner),
+        '+' => Inline::Underline(inner),
+        '^' => Inline::Superscript(inner),
+        '~' => Inline::Subscript(inner),
+        _ => Inline::Strikeout(inner),
+    }
+}
+
+/// The deepest nesting of spans carrying `marker` anywhere within `nodes`.
+fn same_marker_depth(nodes: &[Inline], marker: char) -> usize {
+    nodes
+        .iter()
+        .map(|n| node_marker_depth(n, marker))
+        .max()
+        .unwrap_or(0)
+}
+
+fn node_marker_depth(node: &Inline, marker: char) -> usize {
+    let (is_match, children) = match node {
+        Inline::Strong(k) => (marker == '*', Some(k)),
+        Inline::Emph(k) => (marker == '_', Some(k)),
+        Inline::Underline(k) => (marker == '+', Some(k)),
+        Inline::Superscript(k) => (marker == '^', Some(k)),
+        Inline::Subscript(k) => (marker == '~', Some(k)),
+        Inline::Strikeout(k) => (marker == '-', Some(k)),
+        _ => (false, None),
+    };
+    match children {
+        Some(k) => same_marker_depth(k, marker) + usize::from(is_match),
+        None => 0,
+    }
 }
 
 /// True when the character at `i` is absent (start/end of input) or not alphanumeric.
@@ -849,7 +1493,7 @@ fn boundary(chars: &[char], i: usize) -> bool {
 }
 
 fn non_space(chars: &[char], i: usize) -> bool {
-    chars.get(i).is_some_and(|c| !c.is_whitespace())
+    chars.get(i).is_some_and(|&c| !is_space(c))
 }
 
 /// A delimiter at `i` may open a span when its left neighbour is a boundary and the next character
@@ -865,29 +1509,12 @@ fn can_close(chars: &[char], j: usize) -> bool {
     j > 0 && non_space(chars, j - 1) && boundary(chars, j + 1)
 }
 
-fn parse_wrap(chars: &[char], i: usize, hi: usize, marker: char) -> Option<(Inline, usize)> {
-    if !can_open(chars, i) {
-        return None;
-    }
-    let mut j = i + 1;
-    while j < hi {
-        if chars.get(j) == Some(&marker) && j > i + 1 && can_close(chars, j) {
-            let inner = parse_inlines(chars, i + 1, j);
-            let node = match marker {
-                '*' => Inline::Strong(inner),
-                '_' => Inline::Emph(inner),
-                '+' => Inline::Underline(inner),
-                '^' => Inline::Superscript(inner),
-                _ => Inline::Subscript(inner),
-            };
-            return Some((node, j + 1));
-        }
-        j += 1;
-    }
-    None
-}
-
-fn parse_citation(chars: &[char], i: usize, hi: usize) -> Option<(usize, Vec<Inline>)> {
+fn parse_citation(
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    autolink: bool,
+) -> Option<(usize, Vec<Inline>)> {
     if chars.get(i + 1) != Some(&'?') {
         return None;
     }
@@ -903,105 +1530,75 @@ fn parse_citation(chars: &[char], i: usize, hi: usize) -> Option<(usize, Vec<Inl
             && non_space(chars, j - 1)
             && boundary(chars, j + 2)
         {
-            return Some((j + 2, parse_inlines(chars, i + 2, j)));
+            return Some((j + 2, inlines_with(chars, i + 2, j, autolink)));
         }
         j += 1;
     }
     None
 }
 
-/// Handles a `-` run: a whitespace-flanked run of two or three folds to an en or em dash; otherwise
-/// a single `-` may open a struck-through span. Returns the next scan position.
-fn parse_dash(
+/// A monospaced span opens at `i` (which holds the first `{` of `{{`) when its left neighbour is a
+/// boundary and the character after `{{` is not whitespace.
+fn can_open_monospace(chars: &[char], i: usize) -> bool {
+    let left_boundary = i == 0 || boundary(chars, i - 1);
+    left_boundary && non_space(chars, i + 2)
+}
+
+/// A monospaced span closes at `j` (holding the first `}` of `}}`) when the close is non-empty, its
+/// left neighbour is not whitespace, and the character after `}}` is a boundary.
+fn closes_monospace(chars: &[char], open: usize, j: usize) -> bool {
+    j > open + 2 && non_space(chars, j - 1) && boundary(chars, j + 2)
+}
+
+/// Finds the `}}` that closes the monospaced span opened at `i`, scanning across nested `{{ … }}`
+/// pairs so an inner span does not end the outer one. Returns the index of the closing `}}`, or
+/// `None` when the span is never closed.
+fn match_monospace_close(chars: &[char], i: usize, hi: usize) -> Option<usize> {
+    let mut j = i + 2;
+    while j < hi {
+        if chars.get(j) == Some(&'{')
+            && chars.get(j + 1) == Some(&'{')
+            && can_open_monospace(chars, j)
+            && let Some(nested) = match_monospace_close(chars, j, hi)
+        {
+            j = nested + 2;
+            continue;
+        }
+        if chars.get(j) == Some(&'}')
+            && chars.get(j + 1) == Some(&'}')
+            && closes_monospace(chars, i, j)
+        {
+            return Some(j);
+        }
+        j += 1;
+    }
+    None
+}
+
+fn parse_brace_inline(
     chars: &[char],
     i: usize,
     hi: usize,
-    pending: &mut String,
-    out: &mut Vec<Inline>,
-) -> usize {
-    let mut run = 0;
-    while i + run < hi && chars.get(i + run) == Some(&'-') {
-        run += 1;
-    }
-    let left_ws = char_at(chars, i.wrapping_sub(1))
-        .filter(|_| i > 0)
-        .is_none_or(char::is_whitespace);
-    let right_ws = if i + run < hi {
-        char_at(chars, i + run).is_none_or(char::is_whitespace)
-    } else {
-        true
-    };
-    if left_ws && right_ws && run == 2 {
-        pending.push('\u{2013}');
-        return i + 2;
-    }
-    if left_ws && right_ws && run == 3 {
-        pending.push('\u{2014}');
-        return i + 3;
-    }
-    // A run of two or more dashes that did not fold into a dash glyph stays literal as a whole; only
-    // a lone `-` is a strikeout delimiter, so the run's final dash must not open a span.
-    if run >= 2 {
-        for _ in 0..run {
-            pending.push('-');
-        }
-        return i + run;
-    }
-
-    let left_boundary = i == 0 || boundary(chars, i - 1);
-    let opens = left_boundary
-        && chars
-            .get(i + 1)
-            .is_some_and(|c| !c.is_whitespace() && *c != '-');
-    if opens {
-        let mut j = i + 1;
-        while j < hi {
-            if chars.get(j) == Some(&'-')
-                && j > i + 1
-                && non_space(chars, j - 1)
-                && boundary(chars, j + 1)
-            {
-                flush(pending, out);
-                out.push(Inline::Strikeout(parse_inlines(chars, i + 1, j)));
-                return j + 1;
-            }
-            j += 1;
-        }
-    }
-    pending.push('-');
-    i + 1
-}
-
-fn parse_brace_inline(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
+    autolink: bool,
+) -> Option<(Inline, usize)> {
     if chars.get(i + 1) == Some(&'{') {
-        // Monospaced span: `{{ … }}`.
-        let left_boundary = i == 0 || boundary(chars, i - 1);
-        if !left_boundary || !non_space(chars, i + 2) {
+        // Monospaced span: `{{ … }}`. The close is the `}}` that balances this open, so a nested
+        // `{{ … }}` inside is skipped over rather than ending the span early.
+        if !can_open_monospace(chars, i) {
             return None;
         }
-        let mut j = i + 2;
-        while j < hi {
-            if chars.get(j) == Some(&'}')
-                && chars.get(j + 1) == Some(&'}')
-                && j > i + 2
-                && non_space(chars, j - 1)
-                && boundary(chars, j + 2)
-            {
-                let inner = parse_inlines(chars, i + 2, j);
-                let text = carta_ast::to_plain_text(&inner);
-                return Some((Inline::Code(Attr::default(), text), j + 2));
-            }
-            j += 1;
-        }
-        return None;
+        let close = match_monospace_close(chars, i, hi)?;
+        let inner = inlines_with(chars, i + 2, close, autolink);
+        let text = carta_ast::to_plain_text(&inner);
+        return Some((Inline::Code(Attr::default(), text), close + 2));
     }
 
     if matches_at(chars, i, "{color:") {
         let value_start = i + "{color:".len();
         let value_end = (value_start..hi).find(|&k| chars.get(k) == Some(&'}'))?;
-        let value = slice_to_string(chars, value_start, value_end);
-        let close = find_token(chars.get(..hi).unwrap_or(chars), value_end + 1, "{color}")?;
-        let inner = parse_inlines(chars, value_end + 1, close);
+        let value = color_value(&slice_to_string(chars, value_start, value_end))?;
+        let close = match_color_close(chars, value_end + 1, hi)?;
+        let inner = inlines_with(chars, value_end + 1, close, autolink);
         let attr = Attr {
             id: String::new(),
             classes: Vec::new(),
@@ -1013,7 +1610,12 @@ fn parse_brace_inline(chars: &[char], i: usize, hi: usize) -> Option<(Inline, us
     if matches_at(chars, i, "{anchor:") {
         let name_start = i + "{anchor:".len();
         let name_end = (name_start..hi).find(|&k| chars.get(k) == Some(&'}'))?;
-        let name = slice_to_string(chars, name_start, name_end);
+        let name: String = chars
+            .get(name_start..name_end)
+            .unwrap_or_default()
+            .iter()
+            .filter(|c| !is_space(**c))
+            .collect();
         let attr = Attr {
             id: name,
             classes: Vec::new(),
@@ -1025,30 +1627,83 @@ fn parse_brace_inline(chars: &[char], i: usize, hi: usize) -> Option<(Inline, us
     None
 }
 
+/// Validates and normalises a colour value. A recognised value is one of: a name of letters (any
+/// Unicode letters, not only ASCII); a `#` followed by exactly six hexadecimal digits; or six
+/// hexadecimal digits with a leading decimal digit, which is normalised by prepending `#`. Anything
+/// else leaves the `{color:…}` markup as literal text.
+fn color_value(value: &str) -> Option<String> {
+    if let Some(hex) = value.strip_prefix('#') {
+        return (hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+            .then(|| value.to_string());
+    }
+    if !value.is_empty() && value.chars().all(char::is_alphabetic) {
+        return Some(value.to_string());
+    }
+    if value.len() == 6
+        && value.bytes().all(|b| b.is_ascii_hexdigit())
+        && value.bytes().next().is_some_and(|b| b.is_ascii_digit())
+    {
+        return Some(format!("#{value}"));
+    }
+    None
+}
+
+/// Finds the `{color}` that closes the inline colour span whose content begins at `from`, balancing
+/// nested `{color:…}` opens so an inner close does not end the outer span early. Returns the index of
+/// the closing token, or `None` when the span is never closed within `from..hi`.
+fn match_color_close(chars: &[char], from: usize, hi: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut k = from;
+    while k < hi {
+        if matches_at(chars, k, "{color:") {
+            depth += 1;
+            k += "{color:".len();
+        } else if matches_at(chars, k, "{color}") {
+            depth -= 1;
+            if depth == 0 {
+                return Some(k);
+            }
+            k += "{color}".len();
+        } else {
+            k += 1;
+        }
+    }
+    None
+}
+
 fn parse_link(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
     let close = (i + 1..hi).find(|&k| chars.get(k) == Some(&']'))?;
     let pipes: Vec<usize> = (i + 1..close)
         .filter(|&k| chars.get(k) == Some(&'|'))
         .collect();
-    if pipes.len() > 1 {
-        return None;
-    }
-    let (label_range, target_start) = match pipes.first() {
-        Some(&p) => (Some((i + 1, p)), p + 1),
-        None => (None, i + 1),
+    // A third `|`-segment is allowed only when it names a smart-link style, which becomes a class on
+    // the link; any other third segment, or a fourth, is not a link.
+    let (label_range, target_start, target_end, smart_class) = match pipes.as_slice() {
+        [] => (None, i + 1, close, None),
+        [p] => (Some((i + 1, *p)), p + 1, close, None),
+        [p1, p2] => {
+            let third = slice_to_string(chars, p2 + 1, close);
+            if third != "smart-link" && third != "smart-card" {
+                return None;
+            }
+            (Some((i + 1, *p1)), p1 + 1, *p2, Some(third))
+        }
+        _ => return None,
     };
     let has_pipe = label_range.is_some();
-    let target = slice_to_string(chars, target_start, close);
+    let target = slice_to_string(chars, target_start, target_end);
 
     let (url, class, default_label) = classify_link_target(&target, has_pipe)?;
 
     let label = match label_range {
-        Some((ls, le)) if le > ls => parse_inlines(chars, ls, le),
+        Some((ls, le)) if le > ls => inlines_with(chars, ls, le, false),
         _ => vec![Inline::Str(default_label)],
     };
+    let mut classes: Vec<String> = class.into_iter().map(str::to_string).collect();
+    classes.extend(smart_class);
     let attr = Attr {
         id: String::new(),
-        classes: class.into_iter().map(str::to_string).collect(),
+        classes,
         attributes: Vec::new(),
     };
     Some((
@@ -1104,73 +1759,99 @@ fn parse_image(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
         return None;
     }
 
-    let mut classes = Vec::new();
-    let mut attributes = Vec::new();
-    if let Some(props) = props {
-        let parts: Vec<&str> = props.split(',').map(str::trim).collect();
-        if parts == ["thumbnail"] {
-            classes.push("thumbnail".to_string());
-        } else if !parts.is_empty() && parts.iter().all(|p| p.contains('=')) {
-            for part in parts {
-                if let Some((key, value)) = part.split_once('=') {
-                    attributes.push((key.trim().to_string(), value.trim().to_string()));
-                }
-            }
-        } else {
-            return None;
-        }
-    }
-
-    let attr = Attr {
-        id: String::new(),
-        classes,
-        attributes,
+    let (attr, title) = match props {
+        Some(props) => image_properties(&props)?,
+        None => (Attr::default(), String::new()),
     };
     Some((
-        Inline::Image(
-            attr,
-            Vec::new(),
-            Target {
-                url: src,
-                title: String::new(),
-            },
-        ),
+        Inline::Image(attr, Vec::new(), Target { url: src, title }),
         close + 1,
     ))
 }
 
-/// If a bare autolink starts at `i`, returns the index just past its URL run. The run extends to
-/// the first whitespace or one of `|`, `]`, `}`.
+/// Parses the property list that follows the `|` in an image, returning its attributes and title, or
+/// `None` when the list is malformed (which disqualifies the image). Leading whitespace on the whole
+/// list disqualifies it; `thumbnail` is accepted only as the sole property and only with no
+/// surrounding whitespace. Otherwise every property is `key=value`: a key carries no whitespace and
+/// loses only the whitespace introduced after a separating comma, while a value is kept verbatim so
+/// its surrounding whitespace is preserved. A `title` property is the image's title rather than an
+/// attribute.
+fn image_properties(props: &str) -> Option<(Attr, String)> {
+    if props.starts_with(is_space) {
+        return None;
+    }
+    if props == "thumbnail" {
+        return Some((
+            Attr {
+                id: String::new(),
+                classes: vec!["thumbnail".to_string()],
+                attributes: Vec::new(),
+            },
+            String::new(),
+        ));
+    }
+    let mut attributes = Vec::new();
+    let mut title = String::new();
+    for (idx, raw) in props.split(',').enumerate() {
+        let part = if idx == 0 {
+            raw
+        } else {
+            raw.trim_start_matches(is_space)
+        };
+        let (key, value) = part.split_once('=')?;
+        if key.is_empty() || key.contains(is_space) {
+            return None;
+        }
+        if key == "title" {
+            title = value.to_string();
+        } else {
+            attributes.push((key.to_string(), value.to_string()));
+        }
+    }
+    Some((
+        Attr {
+            id: String::new(),
+            classes: Vec::new(),
+            attributes,
+        },
+        title,
+    ))
+}
+
+/// If a bare autolink starts at `i`, returns the index just past its URL run. A scheme matches
+/// only in lower case. The run extends to the first whitespace or URL terminator.
 fn match_bare_url(chars: &[char], i: usize, hi: usize) -> Option<usize> {
-    if !BARE_URL_PREFIXES.iter().any(|p| matches_at_ci(chars, i, p)) {
+    if !BARE_URL_PREFIXES.iter().any(|p| matches_at(chars, i, p)) {
         return None;
     }
     let mut end = i;
     while end < hi
         && chars
             .get(end)
-            .is_some_and(|c| !c.is_whitespace() && !matches!(c, '|' | ']' | '}'))
+            .is_some_and(|&c| !is_space(c) && !is_url_terminator(c))
     {
         end += 1;
     }
     Some(end)
 }
 
-/// Whether `s` begins with one of `prefixes`, ignoring ASCII case.
-fn has_url_prefix(s: &str, prefixes: &[&str]) -> bool {
-    prefixes.iter().any(|p| {
-        s.get(..p.len())
-            .is_some_and(|head| head.eq_ignore_ascii_case(p))
-    })
+/// Characters that end a bare autolink run.
+fn is_url_terminator(c: char) -> bool {
+    matches!(c, '|' | ']' | '}' | '<' | '>' | '"' | '[' | '{' | '`')
 }
 
+/// Whether `s` begins with one of `prefixes`. A scheme matches only in lower case.
+fn has_url_prefix(s: &str, prefixes: &[&str]) -> bool {
+    prefixes.iter().any(|p| s.starts_with(p))
+}
+
+/// Matches a symbol or emoticon token at `i`. The token is recognised wherever the character that
+/// follows it is a boundary (end of input or a non-alphanumeric character); the character before it
+/// is irrelevant, so a symbol may abut the end of a preceding word.
 fn match_token_symbol(chars: &[char], i: usize, table: &[(&str, char)]) -> Option<(char, usize)> {
     for (token, glyph) in table {
         let len = token.chars().count();
-        if matches_at(chars, i, token)
-            && (i == 0 || boundary(chars, i - 1))
-            && boundary(chars, i + len)
-        {
+        if matches_at(chars, i, token) && boundary(chars, i + len) {
             return Some((*glyph, len));
         }
     }
@@ -1181,6 +1862,13 @@ fn match_token_symbol(chars: &[char], i: usize, table: &[(&str, char)]) -> Optio
 // Shared helpers
 // ---------------------------------------------------------------------------
 
+/// The separators this format recognises: ASCII space, tab, and line feed. Code points that Unicode
+/// classes as whitespace — a no-break space, em space, form feed, vertical tab, and the like — are
+/// ordinary characters here, kept inside the surrounding word rather than splitting it.
+fn is_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n')
+}
+
 fn matches_at(chars: &[char], pos: usize, needle: &str) -> bool {
     needle
         .chars()
@@ -1188,12 +1876,13 @@ fn matches_at(chars: &[char], pos: usize, needle: &str) -> bool {
         .all(|(k, ch)| chars.get(pos + k) == Some(&ch))
 }
 
-fn matches_at_ci(chars: &[char], pos: usize, needle: &str) -> bool {
-    needle.chars().enumerate().all(|(k, ch)| {
-        chars
-            .get(pos + k)
-            .is_some_and(|c| c.eq_ignore_ascii_case(&ch))
-    })
+/// Whether a parameterless block macro begins at `pos`. These tokens introduce a block wherever they
+/// occur, so they end any paragraph that runs into them.
+fn bare_block_macro_at(chars: &[char], pos: usize) -> bool {
+    matches_at(chars, pos, "{code}")
+        || matches_at(chars, pos, "{noformat}")
+        || matches_at(chars, pos, "{quote}")
+        || matches_at(chars, pos, "{panel}")
 }
 
 fn find_token(chars: &[char], from: usize, token: &str) -> Option<usize> {
@@ -1209,14 +1898,23 @@ fn slice_to_string(chars: &[char], start: usize, end: usize) -> String {
 /// Trims leading and trailing whitespace from `start..end`, returning the narrowed range.
 fn trim(chars: &[char], start: usize, end: usize) -> (usize, usize) {
     let mut s = start;
-    while s < end && chars.get(s).is_some_and(|c| c.is_whitespace()) {
+    while s < end && chars.get(s).is_some_and(|&c| is_space(c)) {
         s += 1;
     }
     let mut e = end;
-    while e > s && chars.get(e - 1).is_some_and(|c| c.is_whitespace()) {
+    while e > s && chars.get(e - 1).is_some_and(|&c| is_space(c)) {
         e -= 1;
     }
     (s, e)
+}
+
+/// The end of `start..end` with trailing whitespace removed, leaving any leading whitespace in place.
+fn trim_end(chars: &[char], start: usize, end: usize) -> usize {
+    let mut e = end;
+    while e > start && chars.get(e - 1).is_some_and(|&c| is_space(c)) {
+        e -= 1;
+    }
+    e
 }
 
 #[cfg(test)]
@@ -1308,6 +2006,27 @@ mod tests {
                 vec![str_node("x")],
             )]
         );
+    }
+
+    #[test]
+    fn color_block_wraps_in_div() {
+        let attr = Attr {
+            id: String::new(),
+            classes: Vec::new(),
+            attributes: vec![("color".to_string(), "red".to_string())],
+        };
+        assert_eq!(
+            blocks("{color:red}\nstuff\n{color}"),
+            vec![Block::Div(
+                attr,
+                vec![Block::Para(vec![Inline::LineBreak, str_node("stuff")])],
+            )]
+        );
+        // A close that is not alone on its line keeps the colour inline.
+        assert!(matches!(
+            blocks("{color:red}a\nb{color}").as_slice(),
+            [Block::Para(_)]
+        ));
     }
 
     #[test]
@@ -1527,8 +2246,8 @@ mod tests {
         assert_eq!(para("(!)"), vec![str_node("\u{2757}")]);
         assert_eq!(para("(y)"), vec![str_node("\u{1F44D}")]);
         assert_eq!(para(":)"), vec![str_node("\u{1F642}")]);
-        // A symbol abutting a word is literal text.
-        assert_eq!(para("a(!)"), vec![str_node("a(!)")]);
+        // A symbol is recognised even when it abuts a preceding word.
+        assert_eq!(para("a(!)"), vec![str_node("a\u{2757}")]);
     }
 
     #[test]
@@ -1670,6 +2389,113 @@ mod tests {
                 Block::Para(vec![str_node("one")]),
                 Block::Para(vec![str_node("two")]),
             ]
+        );
+    }
+
+    #[test]
+    fn leading_space_opens_paragraph() {
+        assert_eq!(para(" hello"), vec![Inline::Space, str_node("hello")]);
+        assert_eq!(
+            para("   indented"),
+            vec![Inline::Space, str_node("indented")]
+        );
+    }
+
+    #[test]
+    fn backslash_before_non_escapable_stays_literal() {
+        assert_eq!(para("a\\1b"), vec![str_node("a\\1b")]);
+    }
+
+    #[test]
+    fn named_and_decimal_entities_decode_but_hex_does_not() {
+        assert_eq!(
+            para("&copy; &#169; &#x41;"),
+            vec![
+                str_node("\u{a9}"),
+                Inline::Space,
+                str_node("\u{a9}"),
+                Inline::Space,
+                str_node("&#x41;"),
+            ]
+        );
+    }
+
+    #[test]
+    fn empty_color_macro_is_literal() {
+        assert_eq!(para("{color:}x"), vec![str_node("{color:}x")]);
+    }
+
+    #[test]
+    fn four_dash_run_folds_to_hyphen_and_em_dash() {
+        assert_eq!(
+            para("a ---- b"),
+            vec![
+                str_node("a"),
+                Inline::Space,
+                str_node("-\u{2014}"),
+                Inline::Space,
+                str_node("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn dash_run_at_line_end_stays_literal() {
+        assert_eq!(
+            para("x --"),
+            vec![str_node("x"), Inline::Space, str_node("--")]
+        );
+    }
+
+    #[test]
+    fn repeated_markers_nest_bullet_lists() {
+        assert_eq!(
+            blocks("*** x"),
+            vec![Block::BulletList(vec![vec![Block::BulletList(vec![
+                vec![Block::BulletList(vec![vec![Block::Para(vec![str_node(
+                    "x"
+                )])]]),]
+            ])]])]
+        );
+    }
+
+    #[test]
+    fn indented_marker_still_opens_list() {
+        assert_eq!(
+            blocks(" * x"),
+            vec![Block::BulletList(vec![vec![Block::Para(vec![str_node(
+                "x"
+            )])]])]
+        );
+    }
+
+    #[test]
+    fn indented_dash_run_is_paragraph_not_rule() {
+        assert_eq!(
+            blocks("  ----"),
+            vec![Block::Para(vec![Inline::Space, str_node("----")])]
+        );
+    }
+
+    #[test]
+    fn same_marker_nesting_caps_at_two() {
+        assert_eq!(
+            para("*a**b*"),
+            vec![Inline::Strong(vec![str_node("a"), str_node("b")])]
+        );
+        assert_eq!(
+            para("**x**"),
+            vec![Inline::Strong(vec![Inline::Strong(vec![str_node("x")])])]
+        );
+    }
+
+    #[test]
+    fn strikeout_nests() {
+        assert_eq!(
+            para("--x--"),
+            vec![Inline::Strikeout(vec![Inline::Strikeout(vec![str_node(
+                "x"
+            )])])]
         );
     }
 }
