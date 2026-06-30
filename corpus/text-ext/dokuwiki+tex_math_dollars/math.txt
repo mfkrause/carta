@@ -1,0 +1,3 @@
+inline $x^2$ math
+
+$$a+b$$

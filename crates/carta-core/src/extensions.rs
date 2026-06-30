@@ -73,6 +73,8 @@ define_extensions! {
     // Header identifiers and the references they enable.
     AutoIdentifiers => "auto_identifiers",
     GfmAutoIdentifiers => "gfm_auto_identifiers",
+    // Fold a derived identifier down to ASCII, dropping diacritics before the slug is formed.
+    AsciiIdentifiers => "ascii_identifiers",
     // A header's explicit identifier is written in MultiMarkdown's trailing `[id]` form rather than
     // the `{#id}` attribute block.
     MmdHeaderIdentifiers => "mmd_header_identifiers",
@@ -131,8 +133,6 @@ define_extensions! {
     AllSymbolsEscapable => "all_symbols_escapable",
     // A backslash before `<` or `>` escapes the angle bracket.
     AngleBracketsEscapable => "angle_brackets_escapable",
-    // Derived header identifiers are transliterated to ASCII.
-    AsciiIdentifiers => "ascii_identifiers",
     // Line breaks between East Asian wide characters carry no width and are dropped.
     EastAsianLineBreaks => "east_asian_line_breaks",
     // An indented code block requires four spaces of indentation rather than one tab stop.

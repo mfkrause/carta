@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Str","c":"first"},{"t":"Space"},{"t":"Str","c":"item"},{"t":"Space"},{"t":"Str","c":"at"},{"t":"Space"},{"t":"Str","c":"indent"},{"t":"Space"},{"t":"Str","c":"two"}]}],[{"t":"Plain","c":[{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"sibling"},{"t":"Space"},{"t":"Str","c":"at"},{"t":"Space"},{"t":"Str","c":"indent"},{"t":"Space"},{"t":"Str","c":"three"},{"t":"Space"},{"t":"Str","c":"sits"},{"t":"Space"},{"t":"Str","c":"on"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"same"},{"t":"Space"},{"t":"Str","c":"level"}]}]]}]}

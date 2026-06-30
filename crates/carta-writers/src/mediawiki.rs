@@ -510,17 +510,22 @@ impl State {
         }
         let mut parts = vec![format!("File:{}", target.url)];
         let alt = self.inlines(inlines);
-        if target.title == "fig:" {
+        let is_figure = target.title == "fig:";
+        if is_figure {
             parts.push("thumb".to_owned());
             parts.push("none".to_owned());
+        } else if let Some(size) = image_size(attr) {
+            parts.push(size);
+        }
+        if !attr.classes.is_empty() {
+            parts.push(format!("class={}", attr.classes.join(" ")));
+        }
+        if is_figure {
             if !alt.is_empty() {
                 parts.push(format!("alt={alt}"));
                 parts.push(alt);
             }
         } else {
-            if let Some(size) = image_size(attr) {
-                parts.push(size);
-            }
             // The caption is the alternate text, falling back to the title.
             let caption = if alt.is_empty() {
                 target.title.clone()

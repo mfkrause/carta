@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"inline"}]},{"t":"CodeBlock","c":[["",[],[]],"embedded\n"]},{"t":"Para","c":[{"t":"Str","c":"region"},{"t":"Space"},{"t":"Str","c":"splits"},{"t":"Space"},{"t":"Str","c":"around"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"code"},{"t":"Space"},{"t":"Str","c":"block,"},{"t":"Space"},{"t":"Str","c":"but"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"<HTML>raw</HTML>"},{"t":"Space"},{"t":"Str","c":"fragment"},{"t":"Space"},{"t":"Str","c":"does"},{"t":"Space"},{"t":"Str","c":"not."}]}]}

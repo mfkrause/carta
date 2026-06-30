@@ -944,11 +944,10 @@ impl State {
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> String {
-    let alt = to_plain_text(inlines);
-    let alt_attr = if alt.is_empty() {
+    let alt_attr = if inlines.is_empty() {
         String::new()
     } else {
-        format!("{BREAK}alt=\"{}\"", escape_attr(&alt))
+        format!("{BREAK}alt=\"{}\"", escape_attr(&to_plain_text(inlines)))
     };
     let source = match flavor {
         Flavor::Slides => "data-src",

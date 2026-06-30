@@ -1,0 +1,3 @@
+A paragraph with an inline <code>
+embedded
+</code> region splits around the code block, but a <HTML>raw</HTML> fragment does not.

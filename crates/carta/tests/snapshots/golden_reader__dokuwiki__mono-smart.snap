@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Monospace"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"paired"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"say “hi” now"]},{"t":"Space"},{"t":"Str","c":"double"},{"t":"Space"},{"t":"Str","c":"quote"},{"t":"Space"},{"t":"Str","c":"folds"},{"t":"Space"},{"t":"Str","c":"inside"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"code,"},{"t":"SoftBreak"},{"t":"Str","c":"while"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"unpaired"},{"t":"Space"},{"t":"Quoted","c":[{"t":"SingleQuote"},[{"t":"Str","c":"’it’s"},{"t":"Space"},{"t":"Str","c":"here"}]]},{"t":"Str","c":"’"},{"t":"Space"},{"t":"Str","c":"apostrophe"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"read"},{"t":"Space"},{"t":"Str","c":"as"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"quote"},{"t":"Space"},{"t":"Str","c":"span"},{"t":"Space"},{"t":"Str","c":"instead."}]}]}
