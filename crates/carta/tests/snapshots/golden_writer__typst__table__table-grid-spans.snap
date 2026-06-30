@@ -11,7 +11,8 @@ expression: output
     table.hline(),
     [body row 1, column 1], [column 2], [column 3], [column 4],
     [body row 2], table.cell(colspan: 3)[Cells may span columns.],
-    [body row 3], table.cell(rowspan: 2)[Cells may span rows.], table.cell(colspan: 2, rowspan: 2)[- Cells.
+    [body row 3], table.cell(rowspan: 2)[Cells may span
+    rows.], table.cell(rowspan: 2, colspan: 2)[- Cells.
     - Contain.
     - Blocks.
 
