@@ -1339,7 +1339,11 @@ impl Parser<'_> {
                 }
             }
             let before = out.len();
+            let scanned_from = i;
             i = self.block_at(lines, i, &mut out);
+            // Every block parser consumes at least the line it opens on; force progress so a
+            // construct that yields nothing can never stall the scan on a single line.
+            i = i.max(scanned_from + 1);
             // A preceding empty `class` directive wraps the block just produced.
             if let Some(classes) = pending_classes.take()
                 && out.len() > before
@@ -1439,7 +1443,12 @@ impl Parser<'_> {
             return self.explicit(lines, i, out);
         }
 
-        if line.trim_start().starts_with('|') && matches!(line.chars().nth(1), Some(' ') | None) {
+        // A line block opens with `|` followed by a space or the end of the line, examined after any
+        // leading indentation is dropped. The character after the pipe — not the line's second
+        // character — decides this, so an indented or non-space-led pipe is not mistaken for one.
+        if let Some(after_pipe) = line.trim_start().strip_prefix('|')
+            && matches!(after_pipe.chars().next(), Some(' ') | None)
+        {
             return self.line_block(lines, i, out);
         }
 
@@ -5086,6 +5095,16 @@ mod tests {
         let _ = parse("_C_\n");
         let _ = parse("_C");
         let _ = parse(":a");
+    }
+
+    #[test]
+    fn pipe_not_followed_by_space_does_not_stall_the_scan() {
+        // A `|` not followed by a space or end of line does not open a line block. An indented or
+        // otherwise non-conforming pipe must fall through to ordinary block parsing, and the scan
+        // must advance past its line rather than re-examine it without end.
+        let _ = parse("\u{0b}\t|\u{0}");
+        let _ = parse("   |x");
+        let _ = parse("|x\n");
     }
 
     #[test]
