@@ -471,7 +471,7 @@ impl State {
                 title_attr(&target.title),
                 render_html_attr(&normalize_image_attr(attr)),
             ),
-            self.in_anchor,
+            true,
         );
     }
 }
