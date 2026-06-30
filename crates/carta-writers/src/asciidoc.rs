@@ -790,18 +790,35 @@ fn table_options_line(table: &Table, has_header: bool, has_footer: bool) -> Stri
     if total > 0.0 {
         attrs.push(format!("width=\"{}%\"", percent_truncated(total)));
     }
+    let mut percents: Vec<Option<f64>> = widths
+        .iter()
+        .map(|width| {
+            if total > 0.0 && *width > 0.0 {
+                Some((width / total * 100.0).floor().max(0.0))
+            } else {
+                None
+            }
+        })
+        .collect();
+    // The truncated per-column percentages fall short of 100; the first sized column takes up the
+    // shortfall so the widths sum to a whole.
+    let assigned: f64 = percents.iter().flatten().sum();
+    if assigned > 0.0
+        && let Some(first) = percents.iter_mut().flatten().next()
+    {
+        *first += 100.0 - assigned;
+    }
     let cols: Vec<String> = table
         .col_specs
         .iter()
-        .zip(&widths)
-        .map(|(spec, width)| {
+        .zip(&percents)
+        .map(|(spec, percent)| {
             let operator = alignment_operator(&spec.align)
                 .map(|op| op.to_string())
                 .unwrap_or_default();
-            if total > 0.0 && *width > 0.0 {
-                format!("{operator}{}%", percent_rounded(width / total))
-            } else {
-                operator
+            match percent {
+                Some(percent) => format!("{operator}{percent:.0}%"),
+                None => operator,
             }
         })
         .collect();
@@ -862,11 +879,6 @@ fn trim_surrounding_space(inlines: &[Inline]) -> &[Inline] {
 /// A fraction in `0.0..=1.0` as a whole-number percentage string, truncated toward zero.
 fn percent_truncated(fraction: f64) -> String {
     format!("{:.0}", (fraction * 100.0).floor().max(0.0))
-}
-
-/// A fraction in `0.0..=1.0` as a whole-number percentage string, rounded to nearest.
-fn percent_rounded(fraction: f64) -> String {
-    format!("{:.0}", (fraction * 100.0).round().max(0.0))
 }
 
 /// The span prefix for a table cell: a colspan, a rowspan (`.n`), or both (`c.r`). Empty when the
