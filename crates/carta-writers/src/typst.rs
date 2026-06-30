@@ -358,7 +358,7 @@ fn render_table(table: &Table, width: usize, wrap: WrapMode, smart: bool) -> Str
         let _ = writeln!(
             grid,
             "    table.header({},),",
-            render_row(&cells, "    table.header(", 6, width, wrap, smart)
+            render_row(&cells, "    table.header(", ",),", 6, width, wrap, smart)
         );
         grid.push_str("    table.hline(),\n");
     }
@@ -379,7 +379,7 @@ fn render_table(table: &Table, width: usize, wrap: WrapMode, smart: bool) -> Str
         let _ = writeln!(
             grid,
             "    table.footer({},),",
-            render_row(&cells, "    table.footer(", 6, width, wrap, smart)
+            render_row(&cells, "    table.footer(", ",),", 6, width, wrap, smart)
         );
     }
 
@@ -417,7 +417,7 @@ fn emit_rows(grid: &mut String, rows: &[Vec<&Cell>], width: usize, wrap: WrapMod
         let _ = writeln!(
             grid,
             "    {},",
-            render_row(row, "    ", 4, width, wrap, smart)
+            render_row(row, "    ", ",", 4, width, wrap, smart)
         );
     }
 }
@@ -428,6 +428,7 @@ fn emit_rows(grid: &mut String, rows: &[Vec<&Cell>], width: usize, wrap: WrapMod
 fn render_row(
     row: &[&Cell],
     prefix: &str,
+    suffix: &str,
     indent: usize,
     width: usize,
     wrap: WrapMode,
@@ -440,7 +441,8 @@ fn render_row(
             out.push_str(", ");
             column += 2;
         }
-        let rendered = table_cell(cell, column, indent, width, wrap, smart);
+        let glue = trailing_glue_width(row, index, suffix, width, wrap, smart);
+        let rendered = table_cell(cell, column, indent, width, wrap, smart, glue);
         match rendered.rfind('\n') {
             Some(position) => column = display_width(&rendered[position + 1..]),
             None => column += display_width(&rendered),
@@ -448,6 +450,77 @@ fn render_row(
         out.push_str(&rendered);
     }
     out
+}
+
+/// The non-breaking text glued after cell `index`'s inline content: its closing bracket, then for each
+/// following cell its separator, prefix, opening bracket, and leading run, until a content break point
+/// (a space or line break) is reached. After the last cell the row's `suffix` closes the run. A cell's
+/// last word and this run share a physical line, so the run's width enters that word's wrap decision.
+fn trailing_glue_width(
+    row: &[&Cell],
+    index: usize,
+    suffix: &str,
+    width: usize,
+    wrap: WrapMode,
+    smart: bool,
+) -> usize {
+    let mut total = 1; // the cell's own closing `]`
+    let mut next = index + 1;
+    loop {
+        let Some(cell) = row.get(next) else {
+            total += display_width(suffix);
+            return total;
+        };
+        total += 2 + display_width(&cell_prefix(cell)) + 1; // `, ` + prefix + `[`
+        let (run, breaks) = content_leading_run(cell, width, wrap, smart);
+        total += run;
+        if breaks {
+            return total;
+        }
+        total += 1; // this cell is fully glued; close its `]` and continue
+        next += 1;
+    }
+}
+
+/// A cell's leading content run: the width up to its first break point and whether one exists. Inline
+/// content runs to its first space or line break; block content runs to the end of its first physical
+/// line. When no break exists the run glues onward into the following cell.
+fn content_leading_run(cell: &Cell, width: usize, wrap: WrapMode, smart: bool) -> (usize, bool) {
+    match cell.content.as_slice() {
+        [] => (0, false),
+        [Block::Plain(inlines) | Block::Para(inlines)] => {
+            let mut run = 0;
+            for fragment in fragments(inlines, width, wrap, smart) {
+                match fragment {
+                    Fragment::Text(text) | Fragment::Atom(text) => run += display_width(&text),
+                    Fragment::Space | Fragment::Soft | Fragment::LineBreak => return (run, true),
+                }
+            }
+            (run, false)
+        }
+        other => {
+            let body = blocks(other, width, wrap, smart);
+            let first_line = body.split('\n').next().unwrap_or("");
+            (display_width(first_line), body.contains('\n'))
+        }
+    }
+}
+
+/// The `table.cell(..)` wrapper opening a spanning cell, or empty for a plain one. Row spans precede
+/// column spans in the argument list.
+fn cell_prefix(cell: &Cell) -> String {
+    let mut spans = Vec::new();
+    if cell.row_span != 1 {
+        spans.push(format!("rowspan: {}", cell.row_span));
+    }
+    if cell.col_span != 1 {
+        spans.push(format!("colspan: {}", cell.col_span));
+    }
+    if spans.is_empty() {
+        String::new()
+    } else {
+        format!("table.cell({})", spans.join(", "))
+    }
 }
 
 fn collect_rows(rows: &[carta_ast::Row]) -> Vec<Vec<&Cell>> {
@@ -502,22 +575,21 @@ fn table_cell(
     width: usize,
     wrap: WrapMode,
     smart: bool,
+    glue: usize,
 ) -> String {
-    let mut spans = Vec::new();
-    if cell.col_span != 1 {
-        spans.push(format!("colspan: {}", cell.col_span));
-    }
-    if cell.row_span != 1 {
-        spans.push(format!("rowspan: {}", cell.row_span));
-    }
-    let mut prefix = String::new();
-    if !spans.is_empty() {
-        prefix = format!("table.cell({})", spans.join(", "));
-    }
+    let prefix = cell_prefix(cell);
     let bracket_column = column + display_width(&prefix);
     format!(
         "{prefix}{}",
-        cell_content(&cell.content, bracket_column, indent, width, wrap, smart)
+        cell_content(
+            &cell.content,
+            bracket_column,
+            indent,
+            width,
+            wrap,
+            smart,
+            glue
+        )
     )
 }
 
@@ -531,6 +603,7 @@ fn cell_content(
     width: usize,
     wrap: WrapMode,
     smart: bool,
+    glue: usize,
 ) -> String {
     let pad = " ".repeat(indent);
     match content {
@@ -541,6 +614,7 @@ fn cell_content(
                 indent,
                 width,
                 wrap,
+                glue,
             );
             format!("[{}]", indent_continuation(&filled, &pad))
         }
@@ -744,7 +818,14 @@ fn fill(fragments: &[Fragment], width: usize, wrap: WrapMode) -> String {
     } else {
         usize::MAX
     };
-    fill_with(fragments, width, 0, 0, matches!(wrap, WrapMode::Preserve))
+    fill_with(
+        fragments,
+        width,
+        0,
+        0,
+        matches!(wrap, WrapMode::Preserve),
+        0,
+    )
 }
 
 /// Fill fragments for a table cell whose first line begins at `first` columns in (after the opening
@@ -758,6 +839,7 @@ fn fill_cell(
     indent: usize,
     width: usize,
     wrap: WrapMode,
+    glue: usize,
 ) -> String {
     let width = if matches!(wrap, WrapMode::Auto) {
         width
@@ -770,6 +852,7 @@ fn fill_cell(
         first,
         indent,
         matches!(wrap, WrapMode::Preserve),
+        glue,
     )
 }
 
@@ -777,20 +860,26 @@ fn fill_cell(
 /// wrap is wanted). The first line is laid out as if `first` columns are already consumed; each
 /// continuation line reserves `indent` columns. A line-opening `- + = /` is escaped only when it
 /// begins a true physical line (`first == 0`). A source soft break forces a fresh physical line when
-/// `preserve_softs` is set, and is otherwise inter-word space.
+/// `preserve_softs` is set, and is otherwise inter-word space. `glue` is the width of the non-breaking
+/// text that follows the last word on its physical line, so that word's wrap decision keeps it with
+/// the trailing run rather than overflowing the line.
 fn fill_with(
     fragments: &[Fragment],
     width: usize,
     first: usize,
     indent: usize,
     preserve_softs: bool,
+    glue: usize,
 ) -> String {
+    let last_word = fragments
+        .iter()
+        .rposition(|fragment| matches!(fragment, Fragment::Text(_) | Fragment::Atom(_)));
     let mut out = String::new();
     let mut column = first;
     let mut at_line_start = first == 0;
     let mut physical_line_start = first == 0;
     let mut pending_space = false;
-    for fragment in fragments {
+    for (position, fragment) in fragments.iter().enumerate() {
         match fragment {
             Fragment::Soft if preserve_softs => {
                 out.push('\n');
@@ -810,11 +899,12 @@ fn fill_with(
             Fragment::Text(text) | Fragment::Atom(text) => {
                 let escapable = matches!(fragment, Fragment::Text(_));
                 let word_width = display_width(text);
+                let trailing = if Some(position) == last_word { glue } else { 0 };
                 if at_line_start {
                     push_word(&mut out, text, escapable, physical_line_start);
                     column += word_width;
                     at_line_start = false;
-                } else if pending_space && column + 1 + word_width > width {
+                } else if pending_space && column + 1 + word_width + trailing > width {
                     out.push('\n');
                     push_word(&mut out, text, escapable, true);
                     column = indent + word_width;
