@@ -4162,8 +4162,9 @@ fn trailing_reference_name(pending: &str) -> Option<(String, Option<char>)> {
         // An internal punctuation character extends the name only when an alphanumeric precedes it,
         // so it stays isolated and never leads the name.
         if prev.is_some_and(|c| matches!(c, '-' | '_' | '.' | ':' | '+'))
-            && chars
-                .get(start - 2)
+            && start
+                .checked_sub(2)
+                .and_then(|i| chars.get(i))
                 .copied()
                 .is_some_and(char::is_alphanumeric)
         {
@@ -5075,6 +5076,16 @@ mod tests {
         let mut extensions = Extensions::default();
         extensions.insert(Extension::AutoIdentifiers);
         extensions
+    }
+
+    #[test]
+    fn leading_punctuation_before_name_does_not_underflow() {
+        // Scanning a trailing reference name backwards must stop at the buffer start: a punctuation
+        // character with nothing before it cannot extend the name, and the scan must not look past
+        // index zero.
+        let _ = parse("_C_\n");
+        let _ = parse("_C");
+        let _ = parse(":a");
     }
 
     #[test]
