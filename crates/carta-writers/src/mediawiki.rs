@@ -383,8 +383,20 @@ impl State {
     }
 
     fn inlines(&mut self, inlines: &[Inline]) -> String {
+        self.render_inlines(inlines, false)
+    }
+
+    /// Render an inline run, keeping any leading and trailing whitespace. Used for content nested in a
+    /// formatting wrapper (a span, emphasis, …), where an edge space sits inside the markup and is
+    /// significant, unlike a block boundary where edge whitespace is dropped.
+    fn inlines_keep_edges(&mut self, inlines: &[Inline]) -> String {
+        self.render_inlines(inlines, true)
+    }
+
+    fn render_inlines(&mut self, inlines: &[Inline], keep_edges: bool) -> String {
         let mut out = String::new();
         let mut pending_space = false;
+        let mut wrote = false;
         for inline in inlines {
             // A preserved soft break is a real line break; it stands in for any pending space.
             if matches!(inline, Inline::SoftBreak)
@@ -405,7 +417,7 @@ impl State {
             if rendered.is_empty() {
                 continue;
             }
-            if pending_space && !out.is_empty() {
+            if pending_space && (keep_edges || wrote) {
                 out.push(' ');
             }
             pending_space = false;
@@ -415,6 +427,10 @@ impl State {
                 out.push_str("<nowiki/>");
             }
             out.push_str(&rendered);
+            wrote = true;
+        }
+        if keep_edges && pending_space && wrote {
+            out.push(' ');
         }
         out
     }
@@ -425,16 +441,20 @@ impl State {
                 escape_text(text).replace(':', "<nowiki>:</nowiki>")
             }
             Inline::Str(text) => escape_text(text),
-            Inline::Emph(inlines) => format!("''{}''", self.inlines(inlines)),
-            Inline::Strong(inlines) => format!("'''{}'''", self.inlines(inlines)),
-            Inline::Strikeout(inlines) => format!("<s>{}</s>", self.inlines(inlines)),
-            Inline::Superscript(inlines) => format!("<sup>{}</sup>", self.inlines(inlines)),
-            Inline::Subscript(inlines) => format!("<sub>{}</sub>", self.inlines(inlines)),
-            Inline::Underline(inlines) => format!("<u>{}</u>", self.inlines(inlines)),
+            Inline::Emph(inlines) => format!("''{}''", self.inlines_keep_edges(inlines)),
+            Inline::Strong(inlines) => format!("'''{}'''", self.inlines_keep_edges(inlines)),
+            Inline::Strikeout(inlines) => format!("<s>{}</s>", self.inlines_keep_edges(inlines)),
+            Inline::Superscript(inlines) => {
+                format!("<sup>{}</sup>", self.inlines_keep_edges(inlines))
+            }
+            Inline::Subscript(inlines) => {
+                format!("<sub>{}</sub>", self.inlines_keep_edges(inlines))
+            }
+            Inline::Underline(inlines) => format!("<u>{}</u>", self.inlines_keep_edges(inlines)),
             Inline::SmallCaps(inlines) | Inline::Cite(_, inlines) => self.inlines(inlines),
             Inline::Quoted(kind, inlines) => {
                 let (open, close) = quote_marks(kind);
-                format!("{open}{}{close}", self.inlines(inlines))
+                format!("{open}{}{close}", self.inlines_keep_edges(inlines))
             }
             Inline::Code(_, text) => format!("<code>{}</code>", escape_text(text)),
             // A soft break stays a line break only when the source's own breaks are preserved and the
@@ -459,7 +479,7 @@ impl State {
                 format!(
                     "<span{}>{}</span>",
                     render_html_attr(attr),
-                    self.inlines(inlines)
+                    self.inlines_keep_edges(inlines)
                 )
             }
             Inline::Note(blocks) => self.note(blocks),
@@ -471,7 +491,7 @@ impl State {
             return format!(
                 "<span{}>{}</span>",
                 render_html_attr(attr),
-                self.inlines(inlines)
+                self.inlines_keep_edges(inlines)
             );
         }
         self.in_link = true;
