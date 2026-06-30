@@ -1,0 +1,9 @@
+Spaced -- en and --- em dashes appear mid-line.
+
+A word hugging three word--- folds to a hyphen and en dash.
+
+A word hugging four word---- folds to a hyphen and em dash.
+
+Two hyphens word-- stay literal before a space.
+
+A trailing run sits at the very end --

@@ -15,7 +15,7 @@ use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
-    display_width, fill, fill_cell, indent_block, is_known_scheme, is_uri_scheme,
+    display_width, fill, fill_cell, fill_hang, indent_block, is_known_scheme, is_uri_scheme,
     label_matches_url, offset_as_i32, ordered_marker, quote_marks,
 };
 use crate::grid;
@@ -204,10 +204,18 @@ impl State {
     /// block can sit directly beneath it (see [`tight_after_plain`]). Blocks that render empty are
     /// dropped.
     fn blocks_to_string(&mut self, blocks: &[Block], width: usize, top: bool) -> String {
+        self.blocks_laid(blocks, width, top, false)
+    }
+
+    /// Render a block sequence as [`Self::blocks_to_string`], but when `hang` is set the first
+    /// non-empty block keeps a space that opens it, so a list item's text keeps the gap the source
+    /// put after the marker rather than collapsing it against the marker.
+    fn blocks_laid(&mut self, blocks: &[Block], width: usize, top: bool, hang: bool) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
+        let mut first = true;
         for block in blocks {
-            let text = self.block(block, width, top);
+            let text = self.block_laid(block, width, top, hang && first);
             if text.is_empty() {
                 continue;
             }
@@ -216,25 +224,29 @@ impl State {
             }
             out.push_str(&text);
             previous = Some(block);
+            first = false;
         }
         out
     }
 
     /// Fill inline content to `width` under the active wrap mode. Inside a table cell the field
-    /// reflows to its column width even when the document is not auto-wrapped.
-    fn lay(&mut self, inlines: &[Inline], width: usize) -> String {
+    /// reflows to its column width even when the document is not auto-wrapped. With `hang`, a space
+    /// that opens the content is kept rather than dropped.
+    fn lay(&mut self, inlines: &[Inline], width: usize, hang: bool) -> String {
         let pieces = to_pieces(self.tokens(inlines));
         if self.in_cell {
             fill_cell(&pieces, width, self.wrap)
+        } else if hang {
+            fill_hang(&pieces, width, self.wrap)
         } else {
             fill(&pieces, width, self.wrap)
         }
     }
 
-    fn block(&mut self, block: &Block, width: usize, top: bool) -> String {
+    fn block_laid(&mut self, block: &Block, width: usize, top: bool, hang: bool) -> String {
         match block {
-            Block::Plain(inlines) => self.lay(inlines, width),
-            Block::Para(inlines) => self.para(inlines, width),
+            Block::Plain(inlines) => self.lay(inlines, width, hang),
+            Block::Para(inlines) => self.para(inlines, width, hang),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines, top),
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => raw_block(format, text),
@@ -265,8 +277,9 @@ impl State {
 
     /// Render a paragraph. A paragraph holding a forced line break becomes a line block; one holding
     /// display math is split around each formula into separate paragraphs and `.. math::` directives;
-    /// otherwise its inlines are filled to `width`.
-    fn para(&mut self, inlines: &[Inline], width: usize) -> String {
+    /// otherwise its inlines are filled to `width`. With `hang`, a space that opens the paragraph is
+    /// kept (see [`Self::lay`]).
+    fn para(&mut self, inlines: &[Inline], width: usize, hang: bool) -> String {
         if inlines
             .iter()
             .any(|inline| matches!(inline, Inline::LineBreak))
@@ -282,7 +295,7 @@ impl State {
             let flattened = unwrap_transparent(inlines);
             return self.para_with_math(&flattened, width);
         }
-        self.lay(inlines, width)
+        self.lay(inlines, width, hang)
     }
 
     /// Render a paragraph that carries display math, splitting it into `.. math::` directives around
@@ -299,7 +312,7 @@ impl State {
         for (index, inline) in inlines.iter().enumerate() {
             if let Inline::Math(MathType::DisplayMath, tex) = inline {
                 if let Some(segment) = inlines.get(start..index) {
-                    let text = self.lay(segment, width);
+                    let text = self.lay(segment, width, false);
                     if !text.is_empty() {
                         pieces.push(Piece::Text(text));
                     }
@@ -309,7 +322,7 @@ impl State {
             }
         }
         if let Some(segment) = inlines.get(start..) {
-            let text = self.lay(segment, width);
+            let text = self.lay(segment, width, false);
             if !text.is_empty() {
                 pieces.push(Piece::Text(text));
             }
@@ -348,7 +361,7 @@ impl State {
     /// Render one line-block line: its inlines filled to the body width, then prefixed with `| ` and
     /// continuation lines indented to match.
     fn render_line(&mut self, line: &[Inline], width: usize) -> String {
-        let body = self.lay(line, width.saturating_sub(2));
+        let body = self.lay(line, width.saturating_sub(2), false);
         indent_block(&body, "| ", "  ")
     }
 
@@ -375,7 +388,7 @@ impl State {
     }
 
     fn item_body(&mut self, item: &[Block], width: usize) -> String {
-        let body = self.blocks_to_string(item, width, false);
+        let body = self.blocks_laid(item, width, false, true);
         if !body.is_empty() && item.first().is_some_and(marker_stands_alone) {
             format!("\n\n{body}")
         } else {

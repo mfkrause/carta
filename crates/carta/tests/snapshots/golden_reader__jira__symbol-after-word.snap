@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Done👍"},{"t":"Space"},{"t":"Str","c":"ships"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"cool🙂"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"cool😛"},{"t":"Space"},{"t":"Str","c":"stay"},{"t":"Space"},{"t":"Str","c":"glued."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"symbol"},{"t":"Space"},{"t":"Str","c":"a❗"},{"t":"Space"},{"t":"Str","c":"abuts"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"word"},{"t":"Space"},{"t":"Str","c":"before"},{"t":"Space"},{"t":"Str","c":"it."}]}]}

@@ -1,0 +1,5 @@
+Adjacent runs *a**b* merge into one strong span.
+
+Doubled markers **x** nest two strong spans.
+
+Doubled dashes --x-- nest two strikeout spans.

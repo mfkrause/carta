@@ -1,0 +1,5 @@
+A leading space !pic.png| width=100! stays literal.
+
+A kept trailing space !pic.png|align=right ! makes an image.
+
+A spaced !pic.png|thumbnail ! stays literal.

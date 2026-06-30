@@ -1698,6 +1698,14 @@ fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String {
             '|' => push_control_word(&mut out, "\\textbar", next, mode),
             '\'' => push_control_word(&mut out, "\\textquotesingle", next, mode),
             '-' if next == Some('-') => out.push_str("-\\/"),
+            // A literal hyphen abutting a smart en/em dash would merge with the dash's leading
+            // hyphens into a longer ligature; the same guard keeps the hyphen distinct.
+            '-' if mode == EscapeMode::Text
+                && smart
+                && matches!(next, Some('\u{2013}' | '\u{2014}')) =>
+            {
+                out.push_str("-\\/");
+            }
             ' ' if mode == EscapeMode::Code => out.push_str("\\ "),
             '`' if mode == EscapeMode::Code => out.push_str("\\textasciigrave{}"),
             '\u{a0}' => out.push('~'),
@@ -1924,6 +1932,11 @@ mod tests {
         assert_eq!(escape("\u{a0}", EscapeMode::Text), "~");
         assert_eq!(escape("\u{2026}", EscapeMode::Text), "\\ldots{}");
         assert_eq!(escape("\u{2013}\u{2014}", EscapeMode::Text), "-----");
+        // A literal hyphen before a smart en/em dash is guarded so the run is not read as one
+        // longer ligature; a dash that itself renders to hyphens needs no such guard after it.
+        assert_eq!(escape("-\u{2013}", EscapeMode::Text), "-\\/--");
+        assert_eq!(escape("-\u{2014}", EscapeMode::Text), "-\\/---");
+        assert_eq!(escape("\u{2013}-", EscapeMode::Text), "---");
         assert_eq!(escape("\u{2018}x\u{2019}", EscapeMode::Text), "`x'");
         assert_eq!(escape("\u{201C}x\u{201D}", EscapeMode::Text), "``x''");
     }
