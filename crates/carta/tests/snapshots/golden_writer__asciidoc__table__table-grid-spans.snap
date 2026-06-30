@@ -2,7 +2,7 @@
 source: crates/carta/tests/golden_writer.rs
 expression: output
 ---
-[width="83%",cols="42%,22%,18%,18%",options="header",]
+[width="83%",cols="43%,21%,18%,18%",options="header",]
 |===
 |Header row, column 1 |Header 2 |Header 3 |Header 4
 |body row 1, column 1 |column 2 |column 3 |column 4
