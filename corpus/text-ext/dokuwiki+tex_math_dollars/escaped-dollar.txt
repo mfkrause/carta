@@ -1,0 +1,1 @@
+A backslash-escaped \$5 stays literal text, not a math delimiter.

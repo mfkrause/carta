@@ -23,7 +23,7 @@ opml = ["commonmark", "html"]
 rst = []
 ipynb = ["commonmark"]
 mediawiki = ["html"]
-dokuwiki = []
+dokuwiki = ["dep:unicode-normalization"]
 jira = []
 man = []
 
@@ -31,6 +31,7 @@ man = []
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
 unicode-general-category = { workspace = true, optional = true }
+unicode-normalization = { workspace = true, optional = true }
 caseless = { workspace = true, optional = true }
 # Parses JSON metadata files; YAML files go through the in-crate parser.
 serde_json = { workspace = true, optional = true }

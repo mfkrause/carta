@@ -113,8 +113,18 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("carta: {error}");
-            ExitCode::FAILURE
+            exit_code(&error)
         }
+    }
+}
+
+/// Maps a conversion error to a process exit status. A toggle naming an extension the format does
+/// not accept gets its own status, distinct from the generic failure code, so callers can tell an
+/// unsupported-extension request apart from other errors.
+fn exit_code(error: &Error) -> ExitCode {
+    match error {
+        Error::UnsupportedExtension { .. } => ExitCode::from(23),
+        _ => ExitCode::FAILURE,
     }
 }
 

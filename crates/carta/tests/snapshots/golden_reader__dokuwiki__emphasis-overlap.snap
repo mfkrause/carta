@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Overlapping"},{"t":"Space"},{"t":"Str","c":"markers"},{"t":"Space"},{"t":"Str","c":"as"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"**a"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"b**"},{"t":"Space"},{"t":"Str","c":"c"}]},{"t":"Space"},{"t":"Str","c":"pair"},{"t":"Space"},{"t":"Str","c":"greedily"},{"t":"Space"},{"t":"Str","c":"from"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"outside."}]}]}

@@ -14,12 +14,43 @@
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
-    ListAttributes, ListNumberDelim, ListNumberStyle, QuoteType, Row, Table, TableBody, TableFoot,
-    TableHead, Target, to_plain_text,
+    ListAttributes, ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, TableBody,
+    TableFoot, TableHead, Target, to_plain_text,
 };
 use carta_core::{Extension, Reader, ReaderOptions, Result};
+use unicode_normalization::UnicodeNormalization;
 
+use crate::entities;
+use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
+
+/// The inline-syntax toggles that the scanner threads through every level of parsing.
+#[derive(Debug, Clone, Copy)]
+struct Ctx {
+    /// Straight quotes, dashes, and ellipses fold into their typographic forms.
+    smart: bool,
+    /// `$…$` and `$$…$$` spans are read as inline and display math.
+    math: bool,
+}
+
+/// What ends an inline scan started by an enclosing construct.
+#[derive(Debug, Clone, Copy)]
+enum Closer {
+    /// A curly-quote run, closed by the matching straight quote character.
+    Quote(char),
+    /// A two-character emphasis run (`**`, `//`, `__`), closed by a repeat of the given character.
+    Delim(char),
+    /// A `''…''` monospace run, closed by `''`.
+    Mono,
+}
+
+/// Which quote kinds already enclose the current scan. A quote of a kind already open does not open
+/// again; the straight quote folds to its apostrophe or curly glyph instead.
+#[derive(Debug, Clone, Copy, Default)]
+struct QuoteCtx {
+    in_single: bool,
+    in_double: bool,
+}
 
 /// Parses `DokuWiki` markup into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -27,11 +58,26 @@ pub struct DokuwikiReader;
 
 impl Reader for DokuwikiReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
-        let smart = options.extensions.contains(Extension::Smart);
+        let ctx = Ctx {
+            smart: options.extensions.contains(Extension::Smart),
+            math: options.extensions.contains(Extension::TexMathDollars),
+        };
         let text = normalize_newlines(input);
         let lines: Vec<&str> = text.split('\n').collect();
         let mut index = 0;
-        let blocks = parse_blocks(&lines, &mut index, smart, 0);
+        let mut blocks = parse_blocks(&lines, &mut index, ctx, 0);
+        if options.extensions.contains(Extension::EastAsianLineBreaks) {
+            strip_wide_line_breaks(&mut blocks);
+        }
+        // Identifiers are derived only when `auto_identifiers` is on; the gfm variant and the
+        // ASCII fold only select the algorithm, they do not enable derivation on their own.
+        if options.extensions.contains(Extension::AutoIdentifiers)
+            && let Some(scheme) = IdScheme::select(options.extensions, false)
+        {
+            let ascii = options.extensions.contains(Extension::AsciiIdentifiers);
+            let mut registry = IdRegistry::default();
+            assign_heading_ids(&mut blocks, scheme, ascii, &mut registry);
+        }
         Ok(Document {
             blocks,
             ..Default::default()
@@ -62,12 +108,49 @@ fn leading_spaces(line: &str) -> usize {
     line.chars().take_while(|&c| c == ' ').count()
 }
 
+/// The width of one tab stop, in columns. A tab advances to the next multiple of this width.
+const TAB_STOP: usize = 4;
+
+/// Expand every tab in `line` to spaces, advancing to the next tab stop. Each non-tab character
+/// counts as one column.
+fn expand_tabs(line: &str) -> String {
+    let mut out = String::new();
+    let mut col = 0;
+    for c in line.chars() {
+        if c == '\t' {
+            let next = (col / TAB_STOP + 1) * TAB_STOP;
+            for _ in col..next {
+                out.push(' ');
+            }
+            col = next;
+        } else {
+            out.push(c);
+            col += 1;
+        }
+    }
+    out
+}
+
+/// The column at which a line's first non-whitespace character sits, counting a tab as the width to
+/// the next tab stop.
+fn leading_columns(line: &str) -> usize {
+    let mut col = 0;
+    for c in line.chars() {
+        match c {
+            '\t' => col = (col / TAB_STOP + 1) * TAB_STOP,
+            ' ' => col += 1,
+            _ => break,
+        }
+    }
+    col
+}
+
 // ===================================================================================================
 // Block level
 // ===================================================================================================
 
 /// Parse a run of lines into blocks, advancing `index` past the consumed lines.
-fn parse_blocks(lines: &[&str], index: &mut usize, smart: bool, depth: usize) -> Vec<Block> {
+fn parse_blocks(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Vec<Block> {
     let mut blocks = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -75,13 +158,19 @@ fn parse_blocks(lines: &[&str], index: &mut usize, smart: bool, depth: usize) ->
             *index += 1;
             continue;
         }
-        if let Some((level, title)) = header_parts(line) {
+        if let Some((level, title, trailing)) = header_split(line) {
             blocks.push(Block::Header(
                 level,
                 Attr::default(),
-                inline_content(&title, smart),
+                inline_content(&title, ctx),
             ));
             *index += 1;
+            // Content after the closing run is re-parsed as a fresh block of its own.
+            if !trailing.trim().is_empty() && depth < MAX_DEPTH {
+                let tail = [trailing.as_str()];
+                let mut tail_index = 0;
+                blocks.append(&mut parse_blocks(&tail, &mut tail_index, ctx, depth + 1));
+            }
             continue;
         }
         if let Some(block) = parse_code_or_raw(lines, index) {
@@ -89,11 +178,11 @@ fn parse_blocks(lines: &[&str], index: &mut usize, smart: bool, depth: usize) ->
             continue;
         }
         if is_table_line(line) {
-            blocks.push(parse_table(lines, index, smart));
+            blocks.push(parse_table(lines, index, ctx));
             continue;
         }
-        if list_marker(line).is_some() {
-            blocks.push(parse_list(lines, index, smart, depth));
+        if opens_list(line) {
+            blocks.push(parse_list(lines, index, ctx, depth));
             continue;
         }
         if is_indented_code(line) {
@@ -106,10 +195,10 @@ fn parse_blocks(lines: &[&str], index: &mut usize, smart: bool, depth: usize) ->
             continue;
         }
         if quote_depth(line).is_some() {
-            blocks.push(parse_quote(lines, index, smart, depth));
+            blocks.push(parse_quote(lines, index, ctx, depth));
             continue;
         }
-        blocks.push(parse_paragraph(lines, index, smart));
+        blocks.append(&mut parse_paragraph(lines, index, ctx, depth));
     }
     blocks
 }
@@ -118,17 +207,19 @@ fn parse_blocks(lines: &[&str], index: &mut usize, smart: bool, depth: usize) ->
 /// interrupt the paragraph.
 fn interrupts_paragraph(line: &str) -> bool {
     line.trim().is_empty()
-        || header_parts(line).is_some()
+        || header_split(line).is_some()
         || is_block_tag(line)
         || is_table_line(line)
-        || list_marker(line).is_some()
+        || opens_list(line)
         || is_indented_code(line)
         || is_thematic_break(line)
         || quote_depth(line).is_some()
 }
 
-/// Gather consecutive non-interrupting lines into one paragraph.
-fn parse_paragraph(lines: &[&str], index: &mut usize, smart: bool) -> Block {
+/// Gather consecutive non-interrupting lines into a paragraph. An embedded `<code>` or `<file>`
+/// region, even mid-line, breaks the run into the text before it, the region as its own block, and
+/// the text after it.
+fn parse_paragraph(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Vec<Block> {
     let mut buffer = String::new();
     let mut first = true;
     while *index < lines.len() {
@@ -143,30 +234,93 @@ fn parse_paragraph(lines: &[&str], index: &mut usize, smart: bool) -> Block {
         first = false;
         *index += 1;
     }
-    Block::Para(inline_content(buffer.trim(), smart))
+    split_on_embedded_code(&buffer, ctx, depth)
 }
 
-/// The level (1–5) and title text of a heading line, or `None` when the line is not a heading. A
-/// heading opens with two to six `=`, closes with at least two `=`, and carries no leading
-/// whitespace; the level is six minus one for each opening `=` beyond the first.
-fn header_parts(line: &str) -> Option<(i32, String)> {
+/// Split a paragraph's text on the first embedded `<code>`/`<file>` region that has a closing tag:
+/// the text before becomes a paragraph, the region its own code block, and the remainder is split
+/// again. Text with no such region is a single paragraph (or nothing, when blank).
+fn split_on_embedded_code(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
+    let chars: Vec<char> = text.chars().collect();
+    if depth < MAX_DEPTH
+        && let Some((start, block, end)) = find_embedded_code(&chars)
+    {
+        let mut out = Vec::new();
+        let before: String = chars.get(..start).unwrap_or(&[]).iter().collect();
+        if !before.trim().is_empty() {
+            out.push(Block::Para(inline_content(before.trim(), ctx)));
+        }
+        out.push(block);
+        let after: String = chars.get(end..).unwrap_or(&[]).iter().collect();
+        if !after.trim().is_empty() {
+            out.append(&mut split_on_embedded_code(&after, ctx, depth + 1));
+        }
+        out
+    } else if text.trim().is_empty() {
+        Vec::new()
+    } else {
+        vec![Block::Para(inline_content(text.trim(), ctx))]
+    }
+}
+
+/// The first `<code>`/`<file>` region in `chars` that carries a closing tag, as its start index, the
+/// parsed code block, and the index just past the closing tag.
+fn find_embedded_code(chars: &[char]) -> Option<(usize, Block, usize)> {
+    let mut i = 0;
+    while i < chars.len() {
+        if chars.get(i) == Some(&'<')
+            && (named_tag_at(chars, i, "code") || named_tag_at(chars, i, "file"))
+            && let Some((block, end)) = parse_raw_region(chars, i)
+        {
+            return Some((i, block, end));
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Whether `chars` at `start` opens with `<name` followed by `>` or whitespace.
+fn named_tag_at(chars: &[char], start: usize, name: &str) -> bool {
+    if chars.get(start) != Some(&'<') {
+        return false;
+    }
+    let after = start + 1 + name.chars().count();
+    if !matches_at(chars, start + 1, name) {
+        return false;
+    }
+    matches!(chars.get(after), Some('>')) || chars.get(after).is_some_and(|c| c.is_whitespace())
+}
+
+/// A heading line split into its level, title text, and any trailing content after the closing run.
+/// A heading opens with two to six `=` and carries no leading whitespace; it closes at the first run
+/// of at least two `=` that follows the opening run, and the level is six minus one for each opening
+/// `=` beyond the first. Whatever follows the closing run is returned verbatim as trailing content.
+/// `None` when the line does not open or never closes a heading.
+fn header_split(line: &str) -> Option<(i32, String, String)> {
     if line.starts_with(' ') || line.starts_with('\t') {
         return None;
     }
-    let trimmed = line.trim_end();
-    let chars: Vec<char> = trimmed.chars().collect();
-    let leading = chars.iter().take_while(|&&c| c == '=').count();
-    let trailing = chars.iter().rev().take_while(|&&c| c == '=').count();
-    if !(2..=6).contains(&leading) || trailing < 2 || leading + trailing > chars.len() {
+    let chars: Vec<char> = line.chars().collect();
+    let open = chars.iter().take_while(|&&c| c == '=').count();
+    if !(2..=6).contains(&open) {
         return None;
     }
-    let title: String = chars
-        .get(leading..chars.len() - trailing)
-        .unwrap_or(&[])
-        .iter()
-        .collect();
-    let level = i32::try_from(7 - leading).unwrap_or(1);
-    Some((level, title.trim().to_string()))
+    let mut at = open;
+    while at < chars.len() {
+        if chars.get(at) == Some(&'=') {
+            let run = run_length(&chars, at, '=');
+            if run >= 2 {
+                let title: String = chars.get(open..at).unwrap_or(&[]).iter().collect();
+                let trailing: String = chars.get(at + run..).unwrap_or(&[]).iter().collect();
+                let level = i32::try_from(7 - open).unwrap_or(1);
+                return Some((level, title.trim().to_string(), trailing));
+            }
+            at += run;
+        } else {
+            at += 1;
+        }
+    }
+    None
 }
 
 /// Whether the line, at column zero, opens a code, file, or raw passthrough region.
@@ -185,20 +339,21 @@ fn starts_named_tag(line: &str, name: &str) -> bool {
     matches!(rest.chars().next(), Some('>')) || rest.starts_with(|c: char| c.is_whitespace())
 }
 
-/// Whether the line opens a table row.
+/// Whether the line opens a table row: it begins with a cell delimiter and yields at least one cell.
+/// A lone delimiter with nothing to delimit is ordinary text, not a degenerate one-row table.
 fn is_table_line(line: &str) -> bool {
-    line.starts_with('|') || line.starts_with('^')
+    (line.starts_with('|') || line.starts_with('^')) && !split_row(line).is_empty()
 }
 
-/// Whether the line is an indented code line: at least two leading spaces and some content.
+/// Whether the line is an indented code line: indented at least two columns and carrying content.
 fn is_indented_code(line: &str) -> bool {
-    leading_spaces(line) >= 2 && !line.trim().is_empty()
+    leading_columns(line) >= 2 && !line.trim().is_empty()
 }
 
-/// Whether the line is a thematic break: four or more `-`, nothing else, no leading whitespace.
+/// Whether the line is a thematic break: four or more `-` and nothing else. Any other character,
+/// including a trailing space, disqualifies it.
 fn is_thematic_break(line: &str) -> bool {
-    let trimmed = line.trim_end();
-    !line.starts_with(' ') && trimmed.len() >= 4 && trimmed.chars().all(|c| c == '-')
+    line.len() >= 4 && line.chars().all(|c| c == '-')
 }
 
 /// The list marker on a line: its indentation and whether it is ordered (`-`) rather than a bullet
@@ -220,6 +375,18 @@ fn list_marker(line: &str) -> Option<(usize, bool)> {
     } else {
         None
     }
+}
+
+/// The nesting level of a list line: one level for every two columns of indentation, so indents of
+/// two and three columns share level one, four and five share level two, and so on.
+fn list_level(indent: usize) -> usize {
+    indent / 2
+}
+
+/// Whether a line opens a list: it carries a list marker that sits at the top level (level one).
+/// A marker indented deeper than that does not begin a list and is left to become indented code.
+fn opens_list(line: &str) -> bool {
+    list_marker(line).is_some_and(|(indent, _)| list_level(indent) == 1)
 }
 
 /// The blockquote nesting depth of a line (its run of leading `>`), or `None` when the line is not a
@@ -246,51 +413,58 @@ enum RawKind {
 
 /// Parse a code, file, or raw passthrough region beginning at the current line. The opening tag may
 /// carry content on its own line after `>`, and the region runs to its closing tag, possibly several
-/// lines below.
+/// lines below. A region that is never closed is not a block here; it stays as ordinary text.
 fn parse_code_or_raw(lines: &[&str], index: &mut usize) -> Option<Block> {
     let line = lines.get(*index).copied().unwrap_or("");
-    let (kind, close) = if starts_named_tag(line, "code") || starts_named_tag(line, "file") {
-        (RawKind::Code, "</code>")
-    } else if line.starts_with("<HTML>") {
-        (RawKind::Html, "</HTML>")
-    } else if line.starts_with("<PHP>") {
-        (RawKind::Php, "</PHP>")
-    } else {
+    if !is_block_tag(line) {
         return None;
-    };
-    let close = if matches!(kind, RawKind::Code) && starts_named_tag(line, "file") {
-        "</file>"
-    } else {
-        close
-    };
-
+    }
     let joined: String = lines.get(*index..).unwrap_or(&[]).join("\n");
     let chars: Vec<char> = joined.chars().collect();
-    let open_end = chars.iter().position(|&c| c == '>')?;
-    let attr_text: String = chars.get(1..open_end).unwrap_or(&[]).iter().collect();
-
-    let content_start = open_end + 1;
-    let (content_chars, after) = match find_subsequence(&chars, content_start, close) {
-        Some(at) => (
-            chars.get(content_start..at).unwrap_or(&[]),
-            at + close.chars().count(),
-        ),
-        None => (chars.get(content_start..).unwrap_or(&[]), chars.len()),
-    };
-    let mut content: String = content_chars.iter().collect();
-    if let Some(stripped) = content.strip_prefix('\n') {
-        content = stripped.to_string();
-    }
-
+    let (block, end) = parse_raw_region(&chars, 0)?;
     let consumed = chars
-        .get(..after)
+        .get(..end)
         .unwrap_or(&[])
         .iter()
         .filter(|&&c| c == '\n')
         .count();
     *index += consumed + 1;
+    Some(block)
+}
 
-    Some(match kind {
+/// Parse a `<code>`/`<file>`/`<HTML>`/`<PHP>` passthrough region beginning at `start`, returning the
+/// block and the index just past its closing tag. `None` when no such opener sits at `start` or the
+/// region has no closing tag.
+fn parse_raw_region(chars: &[char], start: usize) -> Option<(Block, usize)> {
+    let (kind, close) = if named_tag_at(chars, start, "code") {
+        (RawKind::Code, "</code>")
+    } else if named_tag_at(chars, start, "file") {
+        (RawKind::Code, "</file>")
+    } else if matches_at(chars, start, "<HTML>") {
+        (RawKind::Html, "</HTML>")
+    } else if matches_at(chars, start, "<PHP>") {
+        (RawKind::Php, "</PHP>")
+    } else {
+        return None;
+    };
+    let open_end = (start..chars.len()).find(|&i| chars.get(i) == Some(&'>'))?;
+    let attr_text: String = chars
+        .get(start + 1..open_end)
+        .unwrap_or(&[])
+        .iter()
+        .collect();
+    let content_start = open_end + 1;
+    let close_at = find_subsequence(chars, content_start, close)?;
+    let mut content: String = chars
+        .get(content_start..close_at)
+        .unwrap_or(&[])
+        .iter()
+        .collect();
+    if let Some(stripped) = content.strip_prefix('\n') {
+        content = stripped.to_string();
+    }
+    let end = close_at + close.chars().count();
+    let block = match kind {
         RawKind::Code => {
             let class = code_language(&attr_text);
             let attr = Attr {
@@ -301,7 +475,8 @@ fn parse_code_or_raw(lines: &[&str], index: &mut usize) -> Option<Block> {
         }
         RawKind::Html => Block::RawBlock(Format("html".to_string()), content),
         RawKind::Php => Block::RawBlock(Format("html".to_string()), format!("<?php {content} ?>")),
-    })
+    };
+    Some((block, end))
 }
 
 /// The language class of a code or file region: its first attribute word, unless that word is `-`
@@ -327,7 +502,8 @@ fn find_subsequence(chars: &[char], from: usize, needle: &str) -> Option<usize> 
     (from..=chars.len().saturating_sub(len)).find(|&i| matches_at(chars, i, needle))
 }
 
-/// Parse a run of indented code lines, stripping the common two-space indent from each.
+/// Parse a run of indented code lines. Tabs are expanded to spaces, then the common two-column indent
+/// is stripped from each line.
 fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
     let mut out = String::new();
     while *index < lines.len() {
@@ -335,7 +511,8 @@ fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
         if !is_indented_code(line) {
             break;
         }
-        let body = line.get(2..).unwrap_or("");
+        let expanded = expand_tabs(line);
+        let body = expanded.get(2..).unwrap_or("");
         out.push_str(body);
         out.push('\n');
         *index += 1;
@@ -344,7 +521,8 @@ fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
 }
 
 /// Parse a thematically grouped run of list lines into one bullet or ordered list.
-fn parse_list(lines: &[&str], index: &mut usize, smart: bool, depth: usize) -> Block {
+fn parse_list(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Block {
+    let start = *index;
     let mut items = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -352,45 +530,60 @@ fn parse_list(lines: &[&str], index: &mut usize, smart: bool, depth: usize) -> B
             break;
         };
         let text: String = line.chars().skip(indent + 2).collect();
-        items.push((indent, ordered, text));
+        items.push((list_level(indent), ordered, text));
         *index += 1;
     }
+    // A line whose level jumps more than one above the line before it does not belong to the list;
+    // it (and everything after) is left to be parsed afresh — an over-indented marker becomes
+    // indented code.
+    let cutoff = list_cutoff(&items);
+    let consumed = items.get(..cutoff).unwrap_or(&[]);
     let mut pos = 0;
-    let list = build_list(&items, &mut pos, smart, depth);
-    // A marker-type switch or a dedent below the opening indent ends this list; rewind so the
-    // remaining marker lines are parsed as a sibling list on the next pass.
-    *index -= items.len() - pos;
+    let list = build_list(consumed, &mut pos, ctx, depth);
+    // A marker-type switch or a dedent below the opening level also ends this list; rewind so the
+    // remaining lines are parsed fresh on the next pass.
+    *index = start + pos;
     list
 }
 
+/// The number of leading items that form one list: the run ends at the first item whose level rises
+/// more than one above the item before it.
+fn list_cutoff(items: &[(usize, bool, String)]) -> usize {
+    let mut previous = None;
+    for (i, (level, _, _)) in items.iter().enumerate() {
+        if let Some(prev) = previous
+            && *level > prev + 1
+        {
+            return i;
+        }
+        previous = Some(*level);
+    }
+    items.len()
+}
+
 /// Build one list (and its nested sublists) from the collected items, advancing `pos`. A deeper
-/// indent opens a child list; the same indent with the other marker ends this list.
-fn build_list(
-    items: &[(usize, bool, String)],
-    pos: &mut usize,
-    smart: bool,
-    depth: usize,
-) -> Block {
-    let (base_indent, ordered) = items
+/// level opens a child list; the same level with the other marker ends this list.
+fn build_list(items: &[(usize, bool, String)], pos: &mut usize, ctx: Ctx, depth: usize) -> Block {
+    let (base_level, ordered) = items
         .get(*pos)
-        .map_or((0, false), |(indent, ordered, _)| (*indent, *ordered));
+        .map_or((0, false), |(level, ordered, _)| (*level, *ordered));
     let mut entries: Vec<Vec<Block>> = Vec::new();
-    while let Some((indent, item_ordered, text)) = items.get(*pos) {
-        if *indent < base_indent {
+    while let Some((level, item_ordered, text)) = items.get(*pos) {
+        if *level < base_level {
             break;
         }
-        if *indent == base_indent {
+        if *level == base_level {
             if *item_ordered != ordered {
                 break;
             }
-            let mut blocks = vec![Block::Plain(inline_content(text, smart))];
+            let mut blocks = vec![Block::Plain(inline_content(text, ctx))];
             *pos += 1;
-            if depth < MAX_DEPTH && items.get(*pos).is_some_and(|(i, _, _)| *i > base_indent) {
-                blocks.push(build_list(items, pos, smart, depth + 1));
+            if depth < MAX_DEPTH && items.get(*pos).is_some_and(|(l, _, _)| *l > base_level) {
+                blocks.push(build_list(items, pos, ctx, depth + 1));
             }
             entries.push(blocks);
         } else if depth < MAX_DEPTH {
-            let child = build_list(items, pos, smart, depth + 1);
+            let child = build_list(items, pos, ctx, depth + 1);
             match entries.last_mut() {
                 Some(last) => last.push(child),
                 None => entries.push(vec![child]),
@@ -414,7 +607,7 @@ fn build_list(
 }
 
 /// Parse a run of blockquote lines, nesting by `>` depth.
-fn parse_quote(lines: &[&str], index: &mut usize, smart: bool, depth: usize) -> Block {
+fn parse_quote(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Block {
     let mut items = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -427,7 +620,7 @@ fn parse_quote(lines: &[&str], index: &mut usize, smart: bool, depth: usize) -> 
         *index += 1;
     }
     let mut pos = 0;
-    Block::BlockQuote(build_quote(&items, &mut pos, 1, smart, depth))
+    Block::BlockQuote(build_quote(&items, &mut pos, 1, ctx, depth))
 }
 
 /// Build the blocks of a blockquote at nesting `level`, recursing into deeper runs.
@@ -435,7 +628,7 @@ fn build_quote(
     items: &[(usize, String)],
     pos: &mut usize,
     level: usize,
-    smart: bool,
+    ctx: Ctx,
     depth: usize,
 ) -> Vec<Block> {
     let mut blocks = Vec::new();
@@ -452,7 +645,7 @@ fn build_quote(
                 if !inlines.is_empty() {
                     inlines.push(Inline::LineBreak);
                 }
-                inlines.extend(inline_content(text, smart));
+                inlines.extend(inline_content(text, ctx));
                 *pos += 1;
             }
             blocks.push(Block::Plain(inlines));
@@ -461,7 +654,7 @@ fn build_quote(
                 items,
                 pos,
                 level + 1,
-                smart,
+                ctx,
                 depth + 1,
             )));
         } else {
@@ -472,22 +665,201 @@ fn build_quote(
 }
 
 // ===================================================================================================
+// Heading identifiers
+// ===================================================================================================
+
+/// Assign a derived identifier to every heading in document order, descending through block
+/// containers. The slug is formed from the heading's plain text — folded to ASCII first when `ascii`
+/// is set — and made unique within the document by the registry.
+fn assign_heading_ids(
+    blocks: &mut [Block],
+    scheme: IdScheme,
+    ascii: bool,
+    registry: &mut IdRegistry,
+) {
+    for block in blocks {
+        match block {
+            Block::Header(_, attr, inlines) => {
+                let text = to_plain_text(inlines);
+                let text = if ascii { asciify(&text) } else { text };
+                attr.id = registry.assign(scheme, &text);
+            }
+            Block::BlockQuote(children)
+            | Block::Div(_, children)
+            | Block::Figure(_, _, children) => {
+                assign_heading_ids(children, scheme, ascii, registry);
+            }
+            Block::BulletList(items) | Block::OrderedList(_, items) => {
+                for item in items {
+                    assign_heading_ids(item, scheme, ascii, registry);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Fold text to ASCII by canonical decomposition, dropping every character that is not ASCII so a
+/// letter carrying a diacritic keeps its base letter.
+fn asciify(text: &str) -> String {
+    text.nfd().filter(char::is_ascii).collect()
+}
+
+// ===================================================================================================
+// East Asian line breaks
+// ===================================================================================================
+
+/// Drop soft line breaks that fall between two wide East Asian characters, where the break carries no
+/// visual width. The surrounding text runs are left separate rather than merged.
+fn strip_wide_line_breaks(blocks: &mut [Block]) {
+    for block in blocks {
+        match block {
+            Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => {
+                strip_wide_in_inlines(inlines);
+            }
+            Block::BlockQuote(children)
+            | Block::Div(_, children)
+            | Block::Figure(_, _, children) => {
+                strip_wide_line_breaks(children);
+            }
+            Block::BulletList(items) | Block::OrderedList(_, items) => {
+                for item in items {
+                    strip_wide_line_breaks(item);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Drop width-free soft breaks within one inline sequence, recursing into nested inline containers.
+fn strip_wide_in_inlines(inlines: &mut Vec<Inline>) {
+    for inline in inlines.iter_mut() {
+        match inline {
+            Inline::Emph(children)
+            | Inline::Underline(children)
+            | Inline::Strong(children)
+            | Inline::Strikeout(children)
+            | Inline::Superscript(children)
+            | Inline::Subscript(children)
+            | Inline::SmallCaps(children)
+            | Inline::Quoted(_, children)
+            | Inline::Cite(_, children)
+            | Inline::Link(_, children, _)
+            | Inline::Image(_, children, _)
+            | Inline::Span(_, children) => strip_wide_in_inlines(children),
+            Inline::Note(blocks) => strip_wide_line_breaks(blocks),
+            _ => {}
+        }
+    }
+    let mut i = 0;
+    while i < inlines.len() {
+        if matches!(inlines.get(i), Some(Inline::SoftBreak)) {
+            let prev_wide = i
+                .checked_sub(1)
+                .and_then(|p| inlines.get(p))
+                .and_then(last_char)
+                .is_some_and(is_east_asian_wide);
+            let next_wide = inlines
+                .get(i + 1)
+                .and_then(first_char)
+                .is_some_and(is_east_asian_wide);
+            if prev_wide && next_wide {
+                inlines.remove(i);
+                continue;
+            }
+        }
+        i += 1;
+    }
+}
+
+/// The last character of an inline's textual content, descending into nested containers.
+fn last_char(inline: &Inline) -> Option<char> {
+    match inline {
+        Inline::Str(s) | Inline::Code(_, s) | Inline::Math(_, s) | Inline::RawInline(_, s) => {
+            s.chars().last()
+        }
+        Inline::Emph(children)
+        | Inline::Underline(children)
+        | Inline::Strong(children)
+        | Inline::Strikeout(children)
+        | Inline::Superscript(children)
+        | Inline::Subscript(children)
+        | Inline::SmallCaps(children)
+        | Inline::Quoted(_, children)
+        | Inline::Cite(_, children)
+        | Inline::Link(_, children, _)
+        | Inline::Image(_, children, _)
+        | Inline::Span(_, children) => children.iter().rev().find_map(last_char),
+        _ => None,
+    }
+}
+
+/// The first character of an inline's textual content, descending into nested containers.
+fn first_char(inline: &Inline) -> Option<char> {
+    match inline {
+        Inline::Str(s) | Inline::Code(_, s) | Inline::Math(_, s) | Inline::RawInline(_, s) => {
+            s.chars().next()
+        }
+        Inline::Emph(children)
+        | Inline::Underline(children)
+        | Inline::Strong(children)
+        | Inline::Strikeout(children)
+        | Inline::Superscript(children)
+        | Inline::Subscript(children)
+        | Inline::SmallCaps(children)
+        | Inline::Quoted(_, children)
+        | Inline::Cite(_, children)
+        | Inline::Link(_, children, _)
+        | Inline::Image(_, children, _)
+        | Inline::Span(_, children) => children.iter().find_map(first_char),
+        _ => None,
+    }
+}
+
+/// Whether a character occupies a wide cell in East Asian text (Unicode East Asian Width Wide or
+/// Fullwidth). Halfwidth and Ambiguous-width characters are excluded.
+fn is_east_asian_wide(c: char) -> bool {
+    matches!(c as u32,
+        0x1100..=0x115F
+        | 0x2E80..=0x2EFF
+        | 0x2F00..=0x2FDF
+        | 0x2FF0..=0x2FFF
+        | 0x3000..=0x303E
+        | 0x3041..=0x33FF
+        | 0x3400..=0x4DBF
+        | 0x4E00..=0x9FFF
+        | 0xA000..=0xA4CF
+        | 0xA960..=0xA97F
+        | 0xAC00..=0xD7A3
+        | 0xF900..=0xFAFF
+        | 0xFE10..=0xFE19
+        | 0xFE30..=0xFE6F
+        | 0xFF00..=0xFF60
+        | 0xFFE0..=0xFFE6
+        | 0x1B000..=0x1B16F
+        | 0x1F200..=0x1F2FF
+        | 0x20000..=0x2FFFD
+        | 0x30000..=0x3FFFD)
+}
+
+// ===================================================================================================
 // Inline level
 // ===================================================================================================
 
 /// Parse a block's inline content: scan it, then drop leading and trailing whitespace.
-fn inline_content(text: &str, smart: bool) -> Vec<Inline> {
+fn inline_content(text: &str, ctx: Ctx) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut pos = 0;
-    let (mut inlines, _) = scan(&chars, &mut pos, None, smart, 0);
+    let (mut inlines, _) = scan(&chars, &mut pos, None, ctx, QuoteCtx::default(), 0);
     trim_inline_ends(&mut inlines);
     inlines
 }
 
 /// Scan a slice of characters as inline content with no surrounding-quote context.
-fn scan_slice(chars: &[char], smart: bool, depth: usize) -> Vec<Inline> {
+fn scan_slice(chars: &[char], ctx: Ctx, depth: usize) -> Vec<Inline> {
     let mut pos = 0;
-    let (inlines, _) = scan(chars, &mut pos, None, smart, depth);
+    let (inlines, _) = scan(chars, &mut pos, None, ctx, QuoteCtx::default(), depth);
     inlines
 }
 
@@ -498,25 +870,26 @@ fn flush(pending: &mut String, out: &mut Vec<Inline>) {
     }
 }
 
-/// Scan characters into inlines from `*pos`. When `end_quote` is set, the scan stops and reports
-/// `true` on the matching closing quote; otherwise it runs to the end and reports `false`.
+/// Scan characters into inlines from `*pos`. When `end` is set, the scan stops and reports `true` on
+/// the matching closing delimiter; otherwise it runs to the end and reports `false`.
 #[allow(clippy::too_many_lines)]
 fn scan(
     chars: &[char],
     pos: &mut usize,
-    end_quote: Option<char>,
-    smart: bool,
+    end: Option<Closer>,
+    ctx: Ctx,
+    qctx: QuoteCtx,
     depth: usize,
 ) -> (Vec<Inline>, bool) {
+    let start = *pos;
     let mut out: Vec<Inline> = Vec::new();
     let mut pending = String::new();
     while let Some(&c) = chars.get(*pos) {
-        if let Some(quote) = end_quote
-            && c == quote
-            && can_close_quote(chars, *pos, quote)
+        if let Some(closer) = end
+            && at_closer(chars, *pos, start, closer)
         {
             flush(&mut pending, &mut out);
-            *pos += 1;
+            *pos += closer_width(closer);
             return (coalesce(out), true);
         }
         if c.is_ascii_alphabetic()
@@ -530,15 +903,31 @@ fn scan(
         }
         match c {
             ' ' | '\t' | '\n' => scan_whitespace_run(chars, pos, &mut pending, &mut out),
+            '&' => {
+                if let Some((decoded, next)) = read_entity(chars, *pos) {
+                    pending.push_str(&decoded);
+                    *pos = next;
+                } else {
+                    pending.push('&');
+                    *pos += 1;
+                }
+            }
             '\\' if chars.get(*pos + 1) == Some(&'\\') => {
                 scan_hard_break(chars, pos, &mut pending, &mut out);
+            }
+            '\\' if ctx.math && chars.get(*pos + 1) == Some(&'$') => {
+                // A backslash-escaped dollar is literal text, not a math delimiter.
+                pending.push('\\');
+                pending.push('$');
+                *pos += 2;
             }
             '*' if chars.get(*pos + 1) == Some(&'*') && depth < MAX_DEPTH => {
                 handle_delim(
                     chars,
                     pos,
                     '*',
-                    smart,
+                    ctx,
+                    qctx,
                     depth,
                     &mut pending,
                     &mut out,
@@ -550,7 +939,8 @@ fn scan(
                     chars,
                     pos,
                     '/',
-                    smart,
+                    ctx,
+                    qctx,
                     depth,
                     &mut pending,
                     &mut out,
@@ -562,7 +952,8 @@ fn scan(
                     chars,
                     pos,
                     '_',
-                    smart,
+                    ctx,
+                    qctx,
                     depth,
                     &mut pending,
                     &mut out,
@@ -570,38 +961,41 @@ fn scan(
                 );
             }
             '\'' if chars.get(*pos + 1) == Some(&'\'') => {
-                handle_construct(chars, pos, c, smart, depth, &mut pending, &mut out);
+                handle_mono_or_quote(chars, pos, ctx, qctx, depth, &mut pending, &mut out);
             }
-            '\'' | '"' if smart => {
-                handle_quote(chars, pos, c, smart, depth, &mut pending, &mut out);
+            '\'' | '"' if ctx.smart => {
+                handle_quote(chars, pos, c, ctx, qctx, depth, &mut pending, &mut out);
             }
-            '-' if smart => {
+            '$' if ctx.math => {
+                handle_math(chars, pos, &mut pending, &mut out);
+            }
+            '-' if ctx.smart => {
                 let run = run_length(chars, *pos, '-');
                 pending.push_str(&fold_dashes(run));
                 *pos += run;
             }
-            '.' if smart => {
+            '.' if ctx.smart => {
                 let run = run_length(chars, *pos, '.');
                 pending.push_str(&fold_ellipsis(run));
                 *pos += run;
             }
             '[' if chars.get(*pos + 1) == Some(&'[') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, smart, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
             }
             '{' if chars.get(*pos + 1) == Some(&'{') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, smart, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
             }
             '(' if chars.get(*pos + 1) == Some(&'(') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, smart, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
             }
             '%' if chars.get(*pos + 1) == Some(&'%') => {
-                handle_construct(chars, pos, c, smart, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
             }
             '<' if depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, smart, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
             }
             '~' if chars.get(*pos + 1) == Some(&'~') => {
-                handle_construct(chars, pos, c, smart, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
             }
             other => {
                 pending.push(other);
@@ -610,7 +1004,103 @@ fn scan(
         }
     }
     flush(&mut pending, &mut out);
-    (coalesce(out), end_quote.is_none())
+    (coalesce(out), end.is_none())
+}
+
+/// Whether the scan's closing delimiter sits at `pos`. The two-character closers must follow at least
+/// one character of content and lean against non-whitespace on their left.
+fn at_closer(chars: &[char], pos: usize, start: usize, closer: Closer) -> bool {
+    match closer {
+        Closer::Quote(quote) => {
+            chars.get(pos) == Some(&quote) && can_close_quote(chars, pos, quote)
+        }
+        Closer::Delim(delim) => {
+            chars.get(pos) == Some(&delim)
+                && chars.get(pos + 1) == Some(&delim)
+                && pos > start
+                && chars.get(pos - 1).is_some_and(|c| !c.is_whitespace())
+        }
+        Closer::Mono => {
+            chars.get(pos) == Some(&'\'')
+                && chars.get(pos + 1) == Some(&'\'')
+                && pos > start
+                && chars.get(pos - 1).is_some_and(|c| !c.is_whitespace())
+        }
+    }
+}
+
+/// The number of characters a closing delimiter occupies.
+fn closer_width(closer: Closer) -> usize {
+    match closer {
+        Closer::Quote(_) => 1,
+        Closer::Delim(_) | Closer::Mono => 2,
+    }
+}
+
+/// Read one HTML entity reference starting at the `&` in `chars[i]`, returning its decoded text and
+/// the index just past the closing `;`. Named, decimal (`&#NN;`), and hexadecimal (`&#xNN;`) forms
+/// are recognized; anything else is not an entity.
+fn read_entity(chars: &[char], i: usize) -> Option<(String, usize)> {
+    let mut j = i + 1;
+    if chars.get(j) == Some(&'#') {
+        j += 1;
+        let hex = matches!(chars.get(j), Some('x' | 'X'));
+        if hex {
+            j += 1;
+        }
+        let begin = j;
+        while chars.get(j).is_some_and(|c| {
+            if hex {
+                c.is_ascii_hexdigit()
+            } else {
+                c.is_ascii_digit()
+            }
+        }) {
+            j += 1;
+        }
+        if j == begin || chars.get(j) != Some(&';') {
+            return None;
+        }
+        let digits: String = chars.get(begin..j).unwrap_or(&[]).iter().collect();
+        let code = u32::from_str_radix(&digits, if hex { 16 } else { 10 }).ok()?;
+        Some((entities::code_point(code).to_string(), j + 1))
+    } else {
+        let begin = j;
+        while chars.get(j).is_some_and(char::is_ascii_alphanumeric) {
+            j += 1;
+        }
+        if j == begin || chars.get(j) != Some(&';') {
+            return None;
+        }
+        let name: String = chars.get(begin..j).unwrap_or(&[]).iter().collect();
+        Some((entities::lookup_named(&name)?.to_string(), j + 1))
+    }
+}
+
+/// Handle a `''` opener: a monospace run when both delimiters flank non-whitespace content,
+/// otherwise — under smart typography — the two quotes fold individually, and otherwise the opener
+/// stays literal.
+fn handle_mono_or_quote(
+    chars: &[char],
+    pos: &mut usize,
+    ctx: Ctx,
+    qctx: QuoteCtx,
+    depth: usize,
+    pending: &mut String,
+    out: &mut Vec<Inline>,
+) {
+    if depth < MAX_DEPTH
+        && let Some((node, end)) = parse_mono(chars, *pos, ctx, depth)
+    {
+        flush(pending, out);
+        out.push(node);
+        *pos = end;
+    } else if ctx.smart {
+        handle_quote(chars, pos, '\'', ctx, qctx, depth, pending, out);
+    } else {
+        pending.push('\'');
+        *pos += 1;
+    }
 }
 
 /// Consume a run of spaces, tabs, and newlines at `*pos`, emitting a single break: a soft break
@@ -658,25 +1148,22 @@ fn scan_hard_break(chars: &[char], pos: &mut usize, pending: &mut String, out: &
     }
 }
 
-/// Try to parse the inline construct introduced by `c` at `pos`: monospace (`''`), a link (`[[`),
-/// media (`{{`), a footnote (`((`), a verbatim span (`%%`), an angle-bracket construct (`<`), or a
-/// dropped macro (`~~`). Returns the produced nodes and the index past the construct.
+/// Try to parse the inline construct introduced by `c` at `pos`: a link (`[[`), media (`{{`), a
+/// footnote (`((`), a verbatim span (`%%`), an angle-bracket construct (`<`), or a dropped macro
+/// (`~~`). Returns the produced nodes and the index past the construct.
 fn scan_construct(
     chars: &[char],
     pos: usize,
     c: char,
-    smart: bool,
+    ctx: Ctx,
     depth: usize,
 ) -> Option<(Vec<Inline>, usize)> {
     match c {
-        '\'' if depth < MAX_DEPTH => {
-            parse_mono(chars, pos, smart, depth).map(|(node, end)| (vec![node], end))
-        }
         '[' => parse_link(chars, pos).map(|(node, end)| (vec![node], end)),
         '{' => parse_media(chars, pos).map(|(node, end)| (vec![node], end)),
-        '(' => parse_footnote(chars, pos, smart, depth).map(|(node, end)| (vec![node], end)),
+        '(' => parse_footnote(chars, pos, ctx, depth).map(|(node, end)| (vec![node], end)),
         '%' => parse_nowiki_pct(chars, pos),
-        '<' => parse_angle(chars, pos, smart, depth),
+        '<' => parse_angle(chars, pos, ctx, depth),
         '~' => parse_macro(chars, pos).map(|end| (Vec::new(), end)),
         _ => None,
     }
@@ -690,12 +1177,12 @@ fn handle_construct(
     chars: &[char],
     pos: &mut usize,
     c: char,
-    smart: bool,
+    ctx: Ctx,
     depth: usize,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
-    if let Some((mut nodes, end)) = scan_construct(chars, *pos, c, smart, depth) {
+    if let Some((mut nodes, end)) = scan_construct(chars, *pos, c, ctx, depth) {
         flush(pending, out);
         out.append(&mut nodes);
         *pos = end;
@@ -706,73 +1193,77 @@ fn handle_construct(
 }
 
 /// Wrap a generic two-character emphasis run, or, when no valid closer exists, emit the opener
-/// literally.
+/// literally and resume scanning right after it. The run's content is scanned recursively, so a
+/// would-be inner marker that cannot close is taken as text and an outer marker that the inner run
+/// consumed past never pairs.
 #[allow(clippy::too_many_arguments)]
 fn handle_delim(
     chars: &[char],
     pos: &mut usize,
     delim: char,
-    smart: bool,
+    ctx: Ctx,
+    qctx: QuoteCtx,
     depth: usize,
     pending: &mut String,
     out: &mut Vec<Inline>,
     wrap: fn(Vec<Inline>) -> Inline,
 ) {
-    if let Some((inner, end)) = delim_span(chars, *pos, delim, smart, depth) {
-        flush(pending, out);
-        out.push(wrap(inner));
-        *pos = end;
-    } else {
-        pending.push(delim);
-        pending.push(delim);
-        *pos += 2;
-    }
-}
-
-/// The contents and end index of a `delim`-delimited emphasis run starting at `start`, or `None`
-/// when the run does not open (whitespace right after the marker) or has no valid closer (a marker
-/// with non-whitespace before it).
-fn delim_span(
-    chars: &[char],
-    begin: usize,
-    delim: char,
-    smart: bool,
-    depth: usize,
-) -> Option<(Vec<Inline>, usize)> {
-    if chars.get(begin + 2).is_none_or(|c| c.is_whitespace()) {
-        return None;
-    }
-    let mut j = begin + 2;
-    while j < chars.len() {
-        if chars.get(j) == Some(&delim)
-            && chars.get(j + 1) == Some(&delim)
-            && j > begin + 2
-            && chars.get(j - 1).is_some_and(|c| !c.is_whitespace())
-        {
-            let content = chars.get(begin + 2..j).unwrap_or(&[]);
-            return Some((scan_slice(content, smart, depth + 1), j + 2));
+    let begin = *pos;
+    // The opener must lean against following non-whitespace content.
+    if !is_ws_opt(chars.get(begin + 2).copied()) {
+        let mut scan_pos = begin + 2;
+        let (inner, closed) = scan(
+            chars,
+            &mut scan_pos,
+            Some(Closer::Delim(delim)),
+            ctx,
+            qctx,
+            depth + 1,
+        );
+        if closed {
+            flush(pending, out);
+            out.push(wrap(inner));
+            *pos = scan_pos;
+            return;
         }
-        j += 1;
     }
-    None
+    pending.push(delim);
+    pending.push(delim);
+    *pos = begin + 2;
 }
 
 /// Try to open a curly-quote run at `*pos`; on a missing closer, leave the opener as the apt quote
-/// glyph and let the scan reprocess what follows.
+/// glyph and let the scan reprocess what follows. An empty run is kept for double quotes but folds to
+/// apostrophes for single quotes.
+#[allow(clippy::too_many_arguments)]
 fn handle_quote(
     chars: &[char],
     pos: &mut usize,
     quote: char,
-    smart: bool,
+    ctx: Ctx,
+    qctx: QuoteCtx,
     depth: usize,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
     let begin = *pos;
-    if can_open_quote(chars, begin) && depth < MAX_DEPTH {
+    if can_open_quote(chars, begin, quote, qctx) && depth < MAX_DEPTH {
         *pos = begin + 1;
-        let (inner, closed) = scan(chars, pos, Some(quote), smart, depth + 1);
-        if closed {
+        let mut inner_qctx = qctx;
+        if quote == '\'' {
+            inner_qctx.in_single = true;
+        } else {
+            inner_qctx.in_double = true;
+        }
+        let (inner, closed) = scan(
+            chars,
+            pos,
+            Some(Closer::Quote(quote)),
+            ctx,
+            inner_qctx,
+            depth + 1,
+        );
+        if closed && (quote == '"' || !inner.is_empty()) {
             flush(pending, out);
             out.push(Inline::Quoted(quote_type(quote), inner));
             return;
@@ -798,22 +1289,140 @@ fn quote_type(quote: char) -> QuoteType {
 fn quote_glyph(chars: &[char], pos: usize, quote: char) -> char {
     if quote == '\'' {
         '\u{2019}'
-    } else if can_open_quote(chars, pos) {
+    } else if left_flanking(chars, pos) {
         '\u{201c}'
     } else {
         '\u{201d}'
     }
 }
 
-/// Monospace run `''…''`: its interior is parsed and then flattened to plain text.
-fn parse_mono(chars: &[char], begin: usize, smart: bool, depth: usize) -> Option<(Inline, usize)> {
+/// Monospace run `''…''`: its interior is parsed and then flattened to text. The run forms only when
+/// the opener is followed by a non-space, the closer preceded by a non-space, and the interior is
+/// non-empty; otherwise the opener is not a monospace marker.
+///
+/// Under smart typography the interior is scanned with quote folding active: any typographic quotes
+/// that pair within the run are rendered as their glyphs, but if a straight quote inside disrupts the
+/// closing `''` so the run never closes, the opener is not a monospace marker after all.
+fn parse_mono(chars: &[char], begin: usize, ctx: Ctx, depth: usize) -> Option<(Inline, usize)> {
+    if is_ws_opt(chars.get(begin + 2).copied()) {
+        return None;
+    }
+    if ctx.smart {
+        let mut pos = begin + 2;
+        let (inner, closed) = scan(
+            chars,
+            &mut pos,
+            Some(Closer::Mono),
+            ctx,
+            QuoteCtx::default(),
+            depth + 1,
+        );
+        if !closed {
+            return None;
+        }
+        return Some((Inline::Code(Attr::default(), flatten_mono(&inner)), pos));
+    }
     let close = find_subsequence(chars, begin + 2, "''")?;
+    if close <= begin + 2 || is_ws_opt(chars.get(close - 1).copied()) {
+        return None;
+    }
     let content = chars.get(begin + 2..close).unwrap_or(&[]);
-    let inner = scan_slice(content, smart, depth + 1);
+    let inner = scan_slice(content, ctx, depth + 1);
     Some((
         Inline::Code(Attr::default(), to_plain_text(&inner)),
         close + 2,
     ))
+}
+
+/// Flatten monospace interior inlines to text, rendering a quoted run as its curly quote glyphs so
+/// folded quotation survives inside the code span.
+fn flatten_mono(inlines: &[Inline]) -> String {
+    let mut out = String::new();
+    push_mono_text(inlines, &mut out);
+    out
+}
+
+fn push_mono_text(inlines: &[Inline], out: &mut String) {
+    for inline in inlines {
+        match inline {
+            Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => out.push_str(text),
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
+            Inline::Quoted(QuoteType::SingleQuote, xs) => {
+                out.push('\u{2018}');
+                push_mono_text(xs, out);
+                out.push('\u{2019}');
+            }
+            Inline::Quoted(QuoteType::DoubleQuote, xs) => {
+                out.push('\u{201c}');
+                push_mono_text(xs, out);
+                out.push('\u{201d}');
+            }
+            Inline::Emph(xs)
+            | Inline::Underline(xs)
+            | Inline::Strong(xs)
+            | Inline::Strikeout(xs)
+            | Inline::Superscript(xs)
+            | Inline::Subscript(xs)
+            | Inline::SmallCaps(xs)
+            | Inline::Cite(_, xs)
+            | Inline::Link(_, xs, _)
+            | Inline::Image(_, xs, _)
+            | Inline::Span(_, xs) => push_mono_text(xs, out),
+            Inline::RawInline(..) | Inline::Note(_) => {}
+        }
+    }
+}
+
+/// Handle a `$` opener under dollar-math: a `$$…$$` display span when the next character is also `$`,
+/// otherwise a `$…$` inline span. A failed attempt emits a single literal `$` and resumes scanning at
+/// the following character, so an unmatched dollar is taken as text.
+fn handle_math(chars: &[char], pos: &mut usize, pending: &mut String, out: &mut Vec<Inline>) {
+    let begin = *pos;
+    let parsed = if chars.get(begin + 1) == Some(&'$') {
+        parse_display_math(chars, begin)
+    } else {
+        parse_inline_math(chars, begin)
+    };
+    if let Some((node, end)) = parsed {
+        flush(pending, out);
+        out.push(node);
+        *pos = end;
+    } else {
+        pending.push('$');
+        *pos = begin + 1;
+    }
+}
+
+/// A `$$…$$` display-math span: its interior is taken verbatim. `None` when the span has no closer or
+/// encloses nothing.
+fn parse_display_math(chars: &[char], begin: usize) -> Option<(Inline, usize)> {
+    let close = find_subsequence(chars, begin + 2, "$$")?;
+    if close <= begin + 2 {
+        return None;
+    }
+    let content: String = chars.get(begin + 2..close).unwrap_or(&[]).iter().collect();
+    Some((Inline::Math(MathType::DisplayMath, content), close + 2))
+}
+
+/// A `$…$` inline-math span: the opener must be followed by a non-space, the closer preceded by a
+/// non-space and not followed by a digit. Its interior is taken verbatim.
+fn parse_inline_math(chars: &[char], begin: usize) -> Option<(Inline, usize)> {
+    if is_ws_opt(chars.get(begin + 1).copied()) {
+        return None;
+    }
+    let mut j = begin + 1;
+    while j < chars.len() {
+        if chars.get(j) == Some(&'$')
+            && j > begin + 1
+            && chars.get(j - 1).is_some_and(|c| !c.is_whitespace())
+            && !chars.get(j + 1).is_some_and(char::is_ascii_digit)
+        {
+            let content: String = chars.get(begin + 1..j).unwrap_or(&[]).iter().collect();
+            return Some((Inline::Math(MathType::InlineMath, content), j + 1));
+        }
+        j += 1;
+    }
+    None
 }
 
 /// The number of consecutive `ch` at `pos`.
@@ -857,6 +1466,11 @@ fn is_ws_opt(opt: Option<char>) -> bool {
     opt.is_none_or(char::is_whitespace)
 }
 
+/// Whether a character slice is empty or all whitespace.
+fn is_blank(chars: &[char]) -> bool {
+    chars.iter().all(|c| c.is_whitespace())
+}
+
 /// Whether an optional character is punctuation, treating a missing character as not punctuation.
 fn is_punct_opt(opt: Option<char>) -> bool {
     opt.is_some_and(is_punct)
@@ -882,8 +1496,12 @@ fn right_flanking(chars: &[char], pos: usize) -> bool {
     !is_ws_opt(before) && (!is_punct_opt(before) || is_ws_opt(after) || is_punct_opt(after))
 }
 
-/// Whether a straight quote at `pos` may open a quoted run.
-fn can_open_quote(chars: &[char], pos: usize) -> bool {
+/// Whether a straight quote at `pos` may open a quoted run. A quote whose kind already encloses the
+/// position may not open again, so nested same-kind quotation never forms.
+fn can_open_quote(chars: &[char], pos: usize, quote: char, qctx: QuoteCtx) -> bool {
+    if (quote == '\'' && qctx.in_single) || (quote == '"' && qctx.in_double) {
+        return false;
+    }
     left_flanking(chars, pos)
 }
 
@@ -1051,18 +1669,25 @@ fn tokenize_text(text: &str) -> Vec<Inline> {
 
 // --- links and media ---
 
-/// Parse a `[[target|label]]` link, returning the link node and its end index.
+/// Parse a `[[target|label]]` link, returning the link node and its end index. A bracket pair whose
+/// target side (the text before the first `|`) is entirely empty is not a link; the opener stays
+/// literal.
 fn parse_link(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     let close = find_subsequence(chars, start + 2, "]]")?;
     let inner: String = chars.get(start + 2..close).unwrap_or(&[]).iter().collect();
-    let (target, label) = match inner.split_once('|') {
-        Some((t, l)) => (t.trim().to_string(), Some(l.to_string())),
-        None => (inner.trim().to_string(), None),
+    let (raw_target, label) = match inner.split_once('|') {
+        Some((t, l)) => (t, Some(l.to_string())),
+        None => (inner.as_str(), None),
     };
+    if raw_target.is_empty() {
+        return None;
+    }
+    let target = raw_target.trim().to_string();
     let (url, display) = classify_link_target(&target);
+    // An explicit but empty label falls back to the target's auto-display text.
     let label_inlines = match label {
-        Some(text) => tokenize_text(text.trim()),
-        None => vec![Inline::Str(display)],
+        Some(text) if !text.trim().is_empty() => tokenize_text(text.trim()),
+        _ => vec![Inline::Str(display)],
     };
     Some((
         Inline::Link(
@@ -1100,6 +1725,10 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
         Some((s, c)) => (s, Some(c)),
         None => (inner.as_str(), None),
     };
+    // A brace pair whose source side (before the first `|`) is empty is not a media reference.
+    if spec.is_empty() {
+        return None;
+    }
     let trailing_space = spec.ends_with(char::is_whitespace);
     let mut classes = Vec::new();
     if let Some(class) = media_align(leading_space, trailing_space) {
@@ -1116,10 +1745,11 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     } else {
         resolve_id(id)
     };
+    // An explicit but empty caption falls back to the source's auto-display text.
     let alt = match caption {
-        Some(text) => tokenize_text(text.trim()),
-        None if is_external(id) => vec![Inline::Str(id.to_string())],
-        None => vec![Inline::Str(display_id(id))],
+        Some(text) if !text.trim().is_empty() => tokenize_text(text.trim()),
+        _ if is_external(id) => vec![Inline::Str(id.to_string())],
+        _ => vec![Inline::Str(display_id(id))],
     };
     let target = Target {
         url,
@@ -1271,17 +1901,16 @@ fn interwiki_url(prefix: &str, rest: &str) -> String {
 
 // --- footnotes, nowiki, angle tags, macros ---
 
-/// Parse a `((…))` footnote into a note holding the block content of its body.
-fn parse_footnote(
-    chars: &[char],
-    begin: usize,
-    smart: bool,
-    depth: usize,
-) -> Option<(Inline, usize)> {
+/// Parse a `((…))` footnote into a note holding the block content of its body. A body that is empty
+/// or only whitespace is not a footnote, so the opener stays literal.
+fn parse_footnote(chars: &[char], begin: usize, ctx: Ctx, depth: usize) -> Option<(Inline, usize)> {
     let close = find_subsequence(chars, begin + 2, "))")?;
     let inner: String = chars.get(begin + 2..close).unwrap_or(&[]).iter().collect();
+    if inner.trim().is_empty() {
+        return None;
+    }
     Some((
-        Inline::Note(parse_blocks_str(&inner, smart, depth + 1)),
+        Inline::Note(parse_blocks_str(&inner, ctx, depth + 1)),
         close + 2,
     ))
 }
@@ -1313,24 +1942,31 @@ fn parse_nowiki_pct(chars: &[char], begin: usize) -> Option<(Vec<Inline>, usize)
 fn parse_angle(
     chars: &[char],
     begin: usize,
-    smart: bool,
+    ctx: Ctx,
     depth: usize,
 ) -> Option<(Vec<Inline>, usize)> {
-    if let Some((inner, end)) = tag_region(chars, begin, "<sub>", "</sub>") {
+    // A span tag with a blank interior is not markup; the opener stays literal text.
+    if let Some((inner, end)) = tag_region(chars, begin, "<sub>", "</sub>")
+        && !is_blank(&inner)
+    {
         return Some((
-            vec![Inline::Subscript(scan_slice(&inner, smart, depth + 1))],
+            vec![Inline::Subscript(scan_slice(&inner, ctx, depth + 1))],
             end,
         ));
     }
-    if let Some((inner, end)) = tag_region(chars, begin, "<sup>", "</sup>") {
+    if let Some((inner, end)) = tag_region(chars, begin, "<sup>", "</sup>")
+        && !is_blank(&inner)
+    {
         return Some((
-            vec![Inline::Superscript(scan_slice(&inner, smart, depth + 1))],
+            vec![Inline::Superscript(scan_slice(&inner, ctx, depth + 1))],
             end,
         ));
     }
-    if let Some((inner, end)) = tag_region(chars, begin, "<del>", "</del>") {
+    if let Some((inner, end)) = tag_region(chars, begin, "<del>", "</del>")
+        && !is_blank(&inner)
+    {
         return Some((
-            vec![Inline::Strikeout(scan_slice(&inner, smart, depth + 1))],
+            vec![Inline::Strikeout(scan_slice(&inner, ctx, depth + 1))],
             end,
         ));
     }
@@ -1418,10 +2054,10 @@ fn parse_macro(chars: &[char], start: usize) -> Option<usize> {
 }
 
 /// Split text into lines and parse them as blocks.
-fn parse_blocks_str(text: &str, smart: bool, depth: usize) -> Vec<Block> {
+fn parse_blocks_str(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
     let lines: Vec<&str> = text.split('\n').collect();
     let mut index = 0;
-    parse_blocks(&lines, &mut index, smart, depth)
+    parse_blocks(&lines, &mut index, ctx, depth)
 }
 
 /// URL schemes recognised for bare-URL autolinking and external-link detection.
@@ -1687,7 +2323,7 @@ const SCHEMES: &[&str] = &[
 
 /// Parse a run of table rows. The first row sets the column count and per-column alignment, and is
 /// the header row when it opens with `^`; all remaining rows form the single body.
-fn parse_table(lines: &[&str], index: &mut usize, smart: bool) -> Block {
+fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx) -> Block {
     let mut rows: Vec<(bool, Vec<String>)> = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -1715,7 +2351,7 @@ fn parse_table(lines: &[&str], index: &mut usize, smart: bool) -> Block {
     let mut head_rows = Vec::new();
     let mut body_rows = Vec::new();
     for (i, (header, cells)) in rows.iter().enumerate() {
-        let row = build_row(cells, col_count, smart);
+        let row = build_row(cells, col_count, ctx);
         if i == 0 && *header {
             head_rows.push(row);
         } else {
@@ -1742,14 +2378,14 @@ fn parse_table(lines: &[&str], index: &mut usize, smart: bool) -> Block {
 }
 
 /// Build a table row, fitting it to `col_count` by truncating extra cells and padding short rows.
-fn build_row(cells: &[String], col_count: usize, smart: bool) -> Row {
+fn build_row(cells: &[String], col_count: usize, ctx: Ctx) -> Row {
     let mut out = Vec::with_capacity(col_count);
     for i in 0..col_count {
         let trimmed = cells.get(i).map_or("", |c| c.trim());
         let content = if trimmed.is_empty() {
             Vec::new()
         } else {
-            vec![Block::Plain(inline_content(trimmed, smart))]
+            vec![Block::Plain(inline_content(trimmed, ctx))]
         };
         out.push(Cell {
             attr: Attr::default(),
