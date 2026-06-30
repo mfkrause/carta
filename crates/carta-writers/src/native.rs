@@ -406,8 +406,8 @@ fn caption_argument(value: &Caption) -> Doc {
 fn list_attributes(value: &ListAttributes) -> Doc {
     tuple(vec![
         integer(i64::from(value.start), NumberPos::Standalone),
-        atom(number_style(&value.style)),
-        atom(number_delim(&value.delim)),
+        atom(number_style(value.style)),
+        atom(number_delim(value.delim)),
     ])
 }
 
@@ -635,7 +635,7 @@ fn citation_mode(value: &CitationMode) -> &'static str {
     }
 }
 
-fn number_style(value: &ListNumberStyle) -> &'static str {
+fn number_style(value: ListNumberStyle) -> &'static str {
     match value {
         ListNumberStyle::DefaultStyle => "DefaultStyle",
         ListNumberStyle::Example => "Example",
@@ -647,7 +647,7 @@ fn number_style(value: &ListNumberStyle) -> &'static str {
     }
 }
 
-fn number_delim(value: &ListNumberDelim) -> &'static str {
+fn number_delim(value: ListNumberDelim) -> &'static str {
     match value {
         ListNumberDelim::DefaultDelim => "DefaultDelim",
         ListNumberDelim::Period => "Period",

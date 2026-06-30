@@ -198,7 +198,7 @@ impl State {
             .enumerate()
             .map(|(offset, item)| {
                 let number = attrs.start.saturating_add(offset_as_i32(offset));
-                let marker = ordered_marker(number, &ListNumberStyle::Decimal, &delim);
+                let marker = ordered_marker(number, ListNumberStyle::Decimal, delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let rendered = self.blocks_to_string(item, width.saturating_sub(field), true);
                 let body = offset_horizontal_rule(item, rendered);

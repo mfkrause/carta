@@ -424,12 +424,12 @@ impl State {
         }
         match self.flavor {
             Flavor::Html5 | Flavor::Slides => {
-                if let Some(kind) = ordered_list_type(&attrs.style) {
+                if let Some(kind) = ordered_list_type(attrs.style) {
                     let _ = write!(out, " type=\"{kind}\"");
                 }
             }
             Flavor::Html4 => {
-                if let Some(name) = list_style_type(&attrs.style) {
+                if let Some(name) = list_style_type(attrs.style) {
                     let _ = write!(out, " style=\"list-style-type: {name}\"");
                 }
             }
@@ -1064,7 +1064,7 @@ fn header_tag(level: i32) -> String {
     format!("h{clamped}")
 }
 
-fn ordered_list_type(style: &ListNumberStyle) -> Option<&'static str> {
+fn ordered_list_type(style: ListNumberStyle) -> Option<&'static str> {
     match style {
         ListNumberStyle::DefaultStyle => None,
         ListNumberStyle::Decimal | ListNumberStyle::Example => Some("1"),
@@ -1077,7 +1077,7 @@ fn ordered_list_type(style: &ListNumberStyle) -> Option<&'static str> {
 
 /// The CSS `list-style-type` name for an ordered list's numbering, or `None` for the default style
 /// (which carries no explicit list-style declaration).
-fn list_style_type(style: &ListNumberStyle) -> Option<&'static str> {
+fn list_style_type(style: ListNumberStyle) -> Option<&'static str> {
     match style {
         ListNumberStyle::DefaultStyle => None,
         ListNumberStyle::Decimal | ListNumberStyle::Example => Some("decimal"),

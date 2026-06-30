@@ -1620,7 +1620,7 @@ impl Parser<'_> {
         let mut i = start;
         let mut text_lines: Vec<String> = Vec::new();
         while let Some(line) = lines.get(i) {
-            if is_blank(line) || line.chars().next() != Some(quote) {
+            if is_blank(line) || !line.starts_with(quote) {
                 break;
             }
             text_lines.push(line.clone());
@@ -2236,7 +2236,7 @@ impl Parser<'_> {
             .map(|r| self.csv_row(r, num_cols))
             .collect();
         let body_rows = records.iter().map(|r| self.csv_row(r, num_cols)).collect();
-        out.push(self.make_table(argument, widths, head_rows, body_rows, num_cols));
+        out.push(self.make_table(argument, widths.as_deref(), head_rows, body_rows, num_cols));
     }
 
     fn csv_row(&mut self, fields: &[String], num_cols: usize) -> Vec<Cell> {
@@ -2292,7 +2292,7 @@ impl Parser<'_> {
             .map(|r| list_row(r, num_cols))
             .collect();
         let body_rows = rows.into_iter().map(|r| list_row(r, num_cols)).collect();
-        out.push(self.make_table(argument, widths, head_rows, body_rows, num_cols));
+        out.push(self.make_table(argument, widths.as_deref(), head_rows, body_rows, num_cols));
     }
 
     /// Assemble a table from already-built header and body cell rows, a caption drawn from the
@@ -2300,7 +2300,7 @@ impl Parser<'_> {
     fn make_table(
         &mut self,
         caption: &str,
-        widths: Option<Vec<f64>>,
+        widths: Option<&[f64]>,
         head_rows: Vec<Vec<Cell>>,
         body_rows: Vec<Vec<Cell>>,
         num_cols: usize,
@@ -2316,7 +2316,7 @@ impl Parser<'_> {
         let col_specs = (0..num_cols)
             .map(|i| ColSpec {
                 align: Alignment::AlignDefault,
-                width: match &widths {
+                width: match widths {
                     Some(w) if w.len() == num_cols => w
                         .get(i)
                         .copied()
@@ -2347,6 +2347,9 @@ impl Parser<'_> {
 
     // Column widths are small character spans, far inside f64's exact-integer range.
     #[allow(clippy::cast_precision_loss)]
+    // The grid parser walks the character matrix in one pass; splitting it would scatter the shared
+    // cursor state across helpers without making the logic clearer.
+    #[allow(clippy::too_many_lines)]
     fn grid_table(
         &mut self,
         lines: &[String],
@@ -2804,8 +2807,8 @@ impl Parser<'_> {
         out
     }
 
-    /// An inline internal hyperlink target `_`name``: a span whose identifier is the slug of its
-    /// text, marking a location elsewhere markup can link to.
+    /// An inline internal hyperlink target (written `` _`name` `` in source): a span whose
+    /// identifier is the slug of its text, marking a location elsewhere markup can link to.
     fn inline_target(&mut self, chars: &[char], pos: usize) -> Option<(Inline, usize)> {
         let (name, end) = find_close_literal(chars, pos + 2, "`")?;
         if name.trim().is_empty() {
@@ -3591,6 +3594,9 @@ fn parse_csv(text: &str) -> Vec<Vec<String>> {
             }
         }
         record.push(field.trim().to_string());
+        // A field separator and the end of input both just advance the cursor; spelling the comma
+        // out keeps the three field terminators (separator, record break, end) side by side.
+        #[allow(clippy::match_same_arms)]
         match chars.get(i) {
             Some(',') => i += 1,
             Some('\n') => {
@@ -3969,6 +3975,10 @@ fn asciify(text: &str) -> String {
 
 /// The base ASCII letter an accented Latin letter reduces to, or `None` when the character has no
 /// such base (ligatures, stroked letters, and non-Latin scripts are dropped).
+// Laid out as parallel uppercase and lowercase blocks, each alphabetical by base letter, so the
+// mapping stays auditable; an uppercase and a lowercase accent reducing to the same base letter are
+// kept on separate lines rather than merged.
+#[allow(clippy::match_same_arms)]
 fn ascii_base(ch: char) -> Option<char> {
     let base = match ch {
         'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'Ā' | 'Ă' | 'Ą' => 'a',
@@ -4556,7 +4566,7 @@ fn can_close_quote(chars: &[char], pos: usize, quote: char) -> bool {
         return false;
     }
     if quote == '\'' {
-        !after.is_some_and(|c| c.is_alphanumeric())
+        !after.is_some_and(char::is_alphanumeric)
     } else {
         true
     }
