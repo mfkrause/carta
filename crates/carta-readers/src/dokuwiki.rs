@@ -847,11 +847,28 @@ fn is_east_asian_wide(c: char) -> bool {
 // Inline level
 // ===================================================================================================
 
+/// The number of speculative delimiter openings an inline scan will attempt before it treats the
+/// rest of its input as literal text. Each opener whose closer must be searched for costs one unit,
+/// so this bounds the backtracking work an adversarial delimiter-dense run can provoke while staying
+/// far above what any genuine document consumes.
+fn inline_budget(len: usize) -> usize {
+    len.saturating_mul(8).saturating_add(64).min(200_000)
+}
+
 /// Parse a block's inline content: scan it, then drop leading and trailing whitespace.
 fn inline_content(text: &str, ctx: Ctx) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut pos = 0;
-    let (mut inlines, _) = scan(&chars, &mut pos, None, ctx, QuoteCtx::default(), 0);
+    let mut budget = inline_budget(chars.len());
+    let (mut inlines, _) = scan(
+        &chars,
+        &mut pos,
+        None,
+        ctx,
+        QuoteCtx::default(),
+        0,
+        &mut budget,
+    );
     trim_inline_ends(&mut inlines);
     inlines
 }
@@ -859,7 +876,16 @@ fn inline_content(text: &str, ctx: Ctx) -> Vec<Inline> {
 /// Scan a slice of characters as inline content with no surrounding-quote context.
 fn scan_slice(chars: &[char], ctx: Ctx, depth: usize) -> Vec<Inline> {
     let mut pos = 0;
-    let (inlines, _) = scan(chars, &mut pos, None, ctx, QuoteCtx::default(), depth);
+    let mut budget = inline_budget(chars.len());
+    let (inlines, _) = scan(
+        chars,
+        &mut pos,
+        None,
+        ctx,
+        QuoteCtx::default(),
+        depth,
+        &mut budget,
+    );
     inlines
 }
 
@@ -880,6 +906,7 @@ fn scan(
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
+    budget: &mut usize,
 ) -> (Vec<Inline>, bool) {
     let start = *pos;
     let mut out: Vec<Inline> = Vec::new();
@@ -929,6 +956,7 @@ fn scan(
                     ctx,
                     qctx,
                     depth,
+                    budget,
                     &mut pending,
                     &mut out,
                     Inline::Strong,
@@ -942,6 +970,7 @@ fn scan(
                     ctx,
                     qctx,
                     depth,
+                    budget,
                     &mut pending,
                     &mut out,
                     Inline::Emph,
@@ -955,16 +984,27 @@ fn scan(
                     ctx,
                     qctx,
                     depth,
+                    budget,
                     &mut pending,
                     &mut out,
                     Inline::Underline,
                 );
             }
             '\'' if chars.get(*pos + 1) == Some(&'\'') => {
-                handle_mono_or_quote(chars, pos, ctx, qctx, depth, &mut pending, &mut out);
+                handle_mono_or_quote(chars, pos, ctx, qctx, depth, budget, &mut pending, &mut out);
             }
             '\'' | '"' if ctx.smart => {
-                handle_quote(chars, pos, c, ctx, qctx, depth, &mut pending, &mut out);
+                handle_quote(
+                    chars,
+                    pos,
+                    c,
+                    ctx,
+                    qctx,
+                    depth,
+                    budget,
+                    &mut pending,
+                    &mut out,
+                );
             }
             '$' if ctx.math => {
                 handle_math(chars, pos, &mut pending, &mut out);
@@ -1080,23 +1120,25 @@ fn read_entity(chars: &[char], i: usize) -> Option<(String, usize)> {
 /// Handle a `''` opener: a monospace run when both delimiters flank non-whitespace content,
 /// otherwise — under smart typography — the two quotes fold individually, and otherwise the opener
 /// stays literal.
+#[allow(clippy::too_many_arguments)]
 fn handle_mono_or_quote(
     chars: &[char],
     pos: &mut usize,
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
+    budget: &mut usize,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
     if depth < MAX_DEPTH
-        && let Some((node, end)) = parse_mono(chars, *pos, ctx, depth)
+        && let Some((node, end)) = parse_mono(chars, *pos, ctx, depth, budget)
     {
         flush(pending, out);
         out.push(node);
         *pos = end;
     } else if ctx.smart {
-        handle_quote(chars, pos, '\'', ctx, qctx, depth, pending, out);
+        handle_quote(chars, pos, '\'', ctx, qctx, depth, budget, pending, out);
     } else {
         pending.push('\'');
         *pos += 1;
@@ -1204,13 +1246,16 @@ fn handle_delim(
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
+    budget: &mut usize,
     pending: &mut String,
     out: &mut Vec<Inline>,
     wrap: fn(Vec<Inline>) -> Inline,
 ) {
     let begin = *pos;
-    // The opener must lean against following non-whitespace content.
-    if !is_ws_opt(chars.get(begin + 2).copied()) {
+    // The opener must lean against following non-whitespace content, and searching for its closer
+    // must stay within the backtracking budget.
+    if !is_ws_opt(chars.get(begin + 2).copied()) && *budget > 0 {
+        *budget -= 1;
         let mut scan_pos = begin + 2;
         let (inner, closed) = scan(
             chars,
@@ -1219,6 +1264,7 @@ fn handle_delim(
             ctx,
             qctx,
             depth + 1,
+            budget,
         );
         if closed {
             flush(pending, out);
@@ -1243,11 +1289,13 @@ fn handle_quote(
     ctx: Ctx,
     qctx: QuoteCtx,
     depth: usize,
+    budget: &mut usize,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
     let begin = *pos;
-    if can_open_quote(chars, begin, quote, qctx) && depth < MAX_DEPTH {
+    if can_open_quote(chars, begin, quote, qctx) && depth < MAX_DEPTH && *budget > 0 {
+        *budget -= 1;
         *pos = begin + 1;
         let mut inner_qctx = qctx;
         if quote == '\'' {
@@ -1262,6 +1310,7 @@ fn handle_quote(
             ctx,
             inner_qctx,
             depth + 1,
+            budget,
         );
         if closed && (quote == '"' || !inner.is_empty()) {
             flush(pending, out);
@@ -1303,11 +1352,21 @@ fn quote_glyph(chars: &[char], pos: usize, quote: char) -> char {
 /// Under smart typography the interior is scanned with quote folding active: any typographic quotes
 /// that pair within the run are rendered as their glyphs, but if a straight quote inside disrupts the
 /// closing `''` so the run never closes, the opener is not a monospace marker after all.
-fn parse_mono(chars: &[char], begin: usize, ctx: Ctx, depth: usize) -> Option<(Inline, usize)> {
+fn parse_mono(
+    chars: &[char],
+    begin: usize,
+    ctx: Ctx,
+    depth: usize,
+    budget: &mut usize,
+) -> Option<(Inline, usize)> {
     if is_ws_opt(chars.get(begin + 2).copied()) {
         return None;
     }
     if ctx.smart {
+        if *budget == 0 {
+            return None;
+        }
+        *budget -= 1;
         let mut pos = begin + 2;
         let (inner, closed) = scan(
             chars,
@@ -1316,6 +1375,7 @@ fn parse_mono(chars: &[char], begin: usize, ctx: Ctx, depth: usize) -> Option<(I
             ctx,
             QuoteCtx::default(),
             depth + 1,
+            budget,
         );
         if !closed {
             return None;
