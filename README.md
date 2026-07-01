@@ -15,7 +15,7 @@ A universal document converter written in Rust that reads a markup format and re
 
 This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](docs/STATUS.md) for a detailed per-format breakdown including extension coverage, and the full feature backlog.
 
-✅ complete · 🚧 in progress · ❌ not started · ➖ not applicable (pandoc has no such direction)
+✅ usable — basically done; any remaining parity gaps are minor and unlikely to affect regular use · 🚧 in development — large parity gaps or breaking issues (e.g. panics), not recommended for use yet · ❌ not started · ➖ not applicable (pandoc has no such direction)
 
 **Markdown family**
 
@@ -24,7 +24,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | CommonMark (`commonmark`) | ✅ | ✅ |
 | CommonMark-X (`commonmark_x`) | ✅ | ✅ |
 | GitHub-Flavored Markdown (`gfm`) | ✅ | ✅ |
-| Pandoc Markdown (`markdown`) | 🚧 | 🚧 |
+| Pandoc Markdown (`markdown`) | ✅ | ✅ |
 | Markdown strict (`markdown_strict`) | ❌ | ✅ |
 | MultiMarkdown (`markdown_mmd`) | ❌ | ✅ |
 | PHP Markdown Extra (`markdown_phpextra`) | ❌ | ✅ |
@@ -60,7 +60,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| reStructuredText (`rst`) | 🚧 | ✅ |
+| reStructuredText (`rst`) | ✅ | ✅ |
 | AsciiDoc (`asciidoc`) | ❌ | ✅ |
 | AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ❌ |
 | Asciidoctor (`asciidoctor`) | ➖ | ❌ |
@@ -75,9 +75,9 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| MediaWiki (`mediawiki`) | 🚧 | ✅ |
-| DokuWiki (`dokuwiki`) | 🚧 | ✅ |
-| Jira (`jira`) | 🚧 | ✅ |
+| MediaWiki (`mediawiki`) | ✅ | ✅ |
+| DokuWiki (`dokuwiki`) | ✅ | ✅ |
+| Jira (`jira`) | ✅ | ✅ |
 | Creole (`creole`) | ❌ | ➖ |
 | TikiWiki (`tikiwiki`) | ❌ | ➖ |
 | TWiki (`twiki`) | ❌ | ➖ |
@@ -89,7 +89,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| man (`man`) | 🚧 | ✅ |
+| man (`man`) | ✅ | ✅ |
 | mdoc (`mdoc`) | ❌ | ➖ |
 | ms (`ms`) | ➖ | ❌ |
 | vimdoc (`vimdoc`) | ➖ | ❌ |
@@ -102,7 +102,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | OpenDocument Text (`odt`) | ❌ | ❌ |
 | OpenDocument (`opendocument`) | ➖ | ❌ |
 | EPUB (`epub`, `epub2`, `epub3`) | ❌ | ❌ |
-| Jupyter Notebook (`ipynb`) | 🚧 | 🚧 |
+| Jupyter Notebook (`ipynb`) | ✅ | 🚧 |
 | FictionBook2 (`fb2`) | ❌ | ❌ |
 | InDesign ICML (`icml`) | ➖ | ❌ |
 | Rich Text Format (`rtf`) | ❌ | ❌ |
