@@ -43,7 +43,7 @@ jobs:
         with:
           tool: cargo-fuzz
       - name: Restore evolved corpus
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: fuzz/corpus/${{ matrix.target }}
           # A fresh key every run so each night writes back the grown corpus; restore-keys pulls
