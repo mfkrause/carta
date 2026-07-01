@@ -1,8 +1,8 @@
 //! Generates a sorted set of valid named-character-reference names from the vendored WHATWG
 //! `entities.json`. The `CommonMark` writer consults it to decide when a literal `&` must be escaped
 //! so running text is not re-read as a character reference. Only the semicolon-terminated names are
-//! recognized, stored without the leading `&` or trailing `;`. The data file is shared with the
-//! readers crate, which is the single workspace copy of the WHATWG table.
+//! recognized, stored without the leading `&` or trailing `;`. The data file lives inside this crate
+//! so it builds in isolation; a test keeps it byte-identical to the readers crate's copy.
 
 // A failed build script should abort the build loudly; panicking is the intended behavior here.
 #![allow(clippy::expect_used)]
@@ -13,7 +13,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
-const ENTITIES_JSON: &str = "../carta-readers/data/entities.json";
+const ENTITIES_JSON: &str = "data/entities.json";
 
 fn main() {
     println!("cargo:rerun-if-changed={ENTITIES_JSON}");
