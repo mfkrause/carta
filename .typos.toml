@@ -12,6 +12,7 @@ extend-exclude = [
   "target/",
   "*.lock",
   "crates/carta-readers/data/entities.json",
+  "crates/carta-writers/data/entities.json",
   "vendor/",
   "corpus/ast/",
   "corpus/text/",

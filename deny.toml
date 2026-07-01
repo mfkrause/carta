@@ -23,6 +23,16 @@ allow = [
   "CC0-1.0",
   "MPL-2.0",
 ]
+# The workspace's own crates carry the project license, AGPL-3.0-only. Allow it for these
+# first-party crates only — copyleft dependencies stay disallowed.
+exceptions = [
+  { allow = ["AGPL-3.0-only"], name = "carta" },
+  { allow = ["AGPL-3.0-only"], name = "carta-ast" },
+  { allow = ["AGPL-3.0-only"], name = "carta-core" },
+  { allow = ["AGPL-3.0-only"], name = "carta-readers" },
+  { allow = ["AGPL-3.0-only"], name = "carta-writers" },
+  { allow = ["AGPL-3.0-only"], name = "carta-cli" },
+]
 
 [bans]
 multiple-versions = "warn"
