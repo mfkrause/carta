@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a new format, extension, or capability.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a look at the status table in the [README](https://github.com/mfkrause/carta#status)
+        and [`docs/STATUS.md`](https://github.com/mfkrause/carta/blob/main/docs/STATUS.md)
+        first — the feature may already be planned or in progress.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of request is this?
+      options:
+        - New input format (reader)
+        - New output format (writer)
+        - New extension for an existing format
+        - CLI or library capability
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What would you like carta to do?
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What are you trying to accomplish? Concrete examples help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to a format specification, examples, or related discussion.
+    validations:
+      required: false

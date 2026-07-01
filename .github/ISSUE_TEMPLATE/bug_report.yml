@@ -1,0 +1,81 @@
+name: Bug report
+description: Report incorrect output, a crash, or a hang.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! A minimal reproducer — the smallest input
+        and exact command that shows the problem — is the single most useful thing you can
+        provide.
+  - type: input
+    id: version
+    attributes:
+      label: carta version
+      description: Output of `carta --version`, or the commit hash if you built from source.
+      placeholder: "carta 0.0.0 (abc1234)"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install carta?
+      options:
+        - Built from source
+        - Prebuilt binary
+        - cargo install
+        - Other (describe below)
+    validations:
+      required: true
+  - type: input
+    id: source-format
+    attributes:
+      label: Input format (`-f`/`--from`)
+      placeholder: commonmark
+    validations:
+      required: true
+  - type: input
+    id: target-format
+    attributes:
+      label: Output format (`-t`/`--to`)
+      placeholder: html
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command (or library call) you ran.
+      render: shell
+      placeholder: carta -f commonmark -t html input.md
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: A minimal input that reproduces the problem.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected output
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual output
+      description: The output you got, or the full error / panic / crash message.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Operating system, anything else that might help.
+    validations:
+      required: false
