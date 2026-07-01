@@ -143,13 +143,33 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 ## Installation
 
-No releases yet. You can build from source with Rust 1.93+.
+### Prebuilt binaries
+
+Download the archive for your platform from the [latest release][latest-release], extract it, and
+put the `carta` executable on your `PATH`. Each archive ships a SHA-256 checksum and the license.
+Builds are provided for Linux (x86-64 gnu and static musl, arm64), macOS (Intel and Apple Silicon),
+and Windows (x86-64).
+
+### From crates.io
+
+With a Rust 1.93+ toolchain:
 
 ```sh
+cargo install carta-cli
+```
+
+This installs the `carta` binary.
+
+### From source
+
+```sh
+git clone https://github.com/mfkrause/carta
 cd carta
 cargo build --release
 # binary at target/release/carta
 ```
+
+[latest-release]: https://github.com/mfkrause/carta/releases/latest
 
 ## Usage
 
