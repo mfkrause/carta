@@ -1,6 +1,6 @@
 //! Slide-deck writer: renders the document model to frames of a LaTeX presentation.
 //!
-//! The block sequence is split into slides at a computed slide level (see [`crate::slides`]):
+//! The block sequence is split into slides at a computed slide level (see `crate::slides`):
 //! headers above it become sectioning commands, headers at it open titled frames, and the rest
 //! gathers into frame bodies. Frame content reuses the LaTeX block and inline rendering in its
 //! slide dialect. A frame holding any code is marked fragile; a header's recognized presentation

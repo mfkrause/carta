@@ -1,6 +1,6 @@
 //! Slide-deck writer: renders the document model to an html5 presentation of nested `<section>`s.
 //!
-//! The block sequence is split into slides at a computed slide level (see [`crate::slides`]):
+//! The block sequence is split into slides at a computed slide level (see `crate::slides`):
 //! headers above it are sectioning markers, the header at it (or a bare content run, or a horizontal
 //! rule) opens a frame, and the rest gathers into frame bodies. A frame is a `<section>` holding the
 //! slide's title heading and its html5-rendered body. Sectioning markers shallower than the slide
