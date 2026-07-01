@@ -1,0 +1,11 @@
+# Normalize line endings to LF on checkout across all platforms, so the byte-exact
+# reader and snapshot tests behave identically on Windows, macOS, and Linux.
+* text=auto eol=lf
+
+# Fixtures whose exact bytes ARE the test input must never be normalized.
+corpus/text/csv/crlf.csv               -text
+corpus/text/jira/carriage-return.jira  -text
+
+# Fuzz inputs are arbitrary bytes; keep them exact.
+fuzz/seeds/**   -text
+fuzz/corpus/**  -text
