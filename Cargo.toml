@@ -24,7 +24,7 @@ unicode-general-category = "1"
 unicode-normalization = "0.1"
 caseless = "0.2"
 insta = "1"
-criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 
 # Internal crates
 carta = { path = "crates/carta" }
