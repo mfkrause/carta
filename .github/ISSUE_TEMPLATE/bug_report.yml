@@ -9,6 +9,13 @@ body:
         Thanks for taking the time to file a bug! A minimal reproducer — the smallest input
         and exact command that shows the problem — is the single most useful thing you can
         provide.
+  - type: textarea
+    id: context
+    attributes:
+      label: Summary
+      description: A short summary of the bug you're experiencing.
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
@@ -28,20 +35,6 @@ body:
         - Other (describe below)
     validations:
       required: true
-  - type: input
-    id: source-format
-    attributes:
-      label: Input format (`-f`/`--from`)
-      placeholder: commonmark
-    validations:
-      required: true
-  - type: input
-    id: target-format
-    attributes:
-      label: Output format (`-t`/`--to`)
-      placeholder: html
-    validations:
-      required: true
   - type: textarea
     id: command
     attributes:
@@ -50,7 +43,7 @@ body:
       render: shell
       placeholder: carta -f commonmark -t html input.md
     validations:
-      required: true
+      required: false
   - type: textarea
     id: input
     attributes:
@@ -58,20 +51,20 @@ body:
       description: A minimal input that reproduces the problem.
       render: markdown
     validations:
-      required: true
+      required: false
   - type: textarea
     id: expected
     attributes:
       label: Expected output
     validations:
-      required: true
+      required: false
   - type: textarea
     id: actual
     attributes:
       label: Actual output
       description: The output you got, or the full error / panic / crash message.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: context
     attributes:
