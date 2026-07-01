@@ -13,6 +13,10 @@ keywords = ["markup", "markdown", "document", "converter", "commonmark"]
 categories = ["text-processing", "parser-implementations"]
 publish.workspace = true
 
+# docs.rs builds default features only; enable all so every reader/writer is documented.
+[package.metadata.docs.rs]
+all-features = true
+
 [lints]
 workspace = true
 
@@ -63,9 +67,10 @@ write-ipynb = ["dep:carta-writers", "carta-writers/ipynb"]
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
 # Referenced by path (not the workspace table) so this crate can own their feature selection:
-# `default-features = false` cannot override an inherited workspace dependency.
-carta-readers = { path = "../carta-readers", default-features = false, optional = true }
-carta-writers = { path = "../carta-writers", default-features = false, optional = true }
+# `default-features = false` cannot override an inherited workspace dependency. The `version` makes
+# the published package depend on the registry release; the path is used for in-workspace builds.
+carta-readers = { path = "../carta-readers", version = "0.0.1", default-features = false, optional = true }
+carta-writers = { path = "../carta-writers", version = "0.0.1", default-features = false, optional = true }
 # `meta-json`: serializes the rendered metadata into the standalone template context.
 serde_json = { workspace = true, optional = true }
 
