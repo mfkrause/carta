@@ -6,6 +6,11 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords = ["ast", "document", "markup", "serialization"]
+categories = ["text-processing", "data-structures"]
 publish.workspace = true
 
 [lints]

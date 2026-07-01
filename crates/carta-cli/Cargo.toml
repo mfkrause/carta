@@ -6,6 +6,11 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords = ["markup", "markdown", "document", "converter", "cli"]
+categories = ["command-line-utilities", "text-processing"]
 publish.workspace = true
 
 [[bin]]

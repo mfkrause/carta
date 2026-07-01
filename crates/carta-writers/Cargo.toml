@@ -6,6 +6,11 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords = ["markup", "markdown", "html", "latex", "converter"]
+categories = ["text-processing"]
 publish.workspace = true
 
 [lints]
