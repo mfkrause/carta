@@ -1016,18 +1016,32 @@ enum Tok {
     Atom(Inline),
 }
 
+/// Inline-nesting depth past which parsing stops descending. Monospace, colour, link-label and
+/// citation spans each re-enter inline parsing on their inner text; a hard cap keeps adversarially
+/// deep nesting off the call stack. It is far beyond any nesting real text uses.
+const MAX_INLINE_DEPTH: usize = 32;
+
 /// Parses the character range `lo..hi` into inline nodes: it scans the text into tokens, pairs the
 /// flanking delimiters into spans, and folds the result into a flat list of inlines. Flanking
 /// decisions consult the real neighbouring characters via absolute indices, so a range bounded to a
 /// single line will not let markup escape that line.
 fn parse_inlines(chars: &[char], lo: usize, hi: usize) -> Vec<Inline> {
-    inlines_with(chars, lo, hi, true)
+    inlines_with(chars, lo, hi, true, 0)
 }
 
 /// Parses inlines with control over bare-URL autolinking. A link label cannot contain another link,
-/// so the text of one is parsed with `autolink` cleared.
-fn inlines_with(chars: &[char], lo: usize, hi: usize, autolink: bool) -> Vec<Inline> {
-    finalize(resolve(scan_tokens(chars, lo, hi, autolink)))
+/// so the text of one is parsed with `autolink` cleared. `depth` tracks how many nested spans deep
+/// this call is; past the cap the remaining span is emitted as literal text without descending.
+fn inlines_with(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usize) -> Vec<Inline> {
+    if depth > MAX_INLINE_DEPTH {
+        let text = slice_to_string(chars, lo, hi);
+        return if text.is_empty() {
+            Vec::new()
+        } else {
+            vec![Inline::Str(text)]
+        };
+    }
+    finalize(resolve(scan_tokens(chars, lo, hi, autolink, depth)))
 }
 
 fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
@@ -1039,7 +1053,7 @@ fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
 /// Scans `lo..hi` left to right into tokens: literal runs accumulate into [`Tok::Text`], a flanking
 /// delimiter becomes a [`Tok::Delim`], and a self-contained construct (link, image, brace span,
 /// citation, autolink, symbol) becomes a [`Tok::Atom`].
-fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool) -> Vec<Tok> {
+fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usize) -> Vec<Tok> {
     let mut toks: Vec<Tok> = Vec::new();
     let mut pending = String::new();
     let mut i = lo;
@@ -1089,7 +1103,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool) -> Vec<Tok>
                 }
             }
             '?' => {
-                if let Some((next, inner)) = parse_citation(chars, i, hi, autolink) {
+                if let Some((next, inner)) = parse_citation(chars, i, hi, autolink, depth) {
                     pending.push('\u{2014}');
                     push_text(&mut pending, &mut toks);
                     toks.push(Tok::Atom(Inline::Space));
@@ -1126,7 +1140,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool) -> Vec<Tok>
                 }
             }
             '[' | '!' | '{' => {
-                if let Some((node, next)) = scan_construct(c, chars, i, hi, autolink) {
+                if let Some((node, next)) = scan_construct(c, chars, i, hi, autolink, depth) {
                     push_text(&mut pending, &mut toks);
                     toks.push(Tok::Atom(node));
                     i = next;
@@ -1257,11 +1271,12 @@ fn scan_construct(
     i: usize,
     hi: usize,
     autolink: bool,
+    depth: usize,
 ) -> Option<(Inline, usize)> {
     match c {
-        '[' => parse_link(chars, i, hi),
+        '[' => parse_link(chars, i, hi, depth),
         '!' => parse_image(chars, i, hi),
-        _ => parse_brace_inline(chars, i, hi, autolink),
+        _ => parse_brace_inline(chars, i, hi, autolink, depth),
     }
 }
 
@@ -1514,6 +1529,7 @@ fn parse_citation(
     i: usize,
     hi: usize,
     autolink: bool,
+    depth: usize,
 ) -> Option<(usize, Vec<Inline>)> {
     if chars.get(i + 1) != Some(&'?') {
         return None;
@@ -1530,7 +1546,7 @@ fn parse_citation(
             && non_space(chars, j - 1)
             && boundary(chars, j + 2)
         {
-            return Some((j + 2, inlines_with(chars, i + 2, j, autolink)));
+            return Some((j + 2, inlines_with(chars, i + 2, j, autolink, depth + 1)));
         }
         j += 1;
     }
@@ -1554,12 +1570,39 @@ fn closes_monospace(chars: &[char], open: usize, j: usize) -> bool {
 /// pairs so an inner span does not end the outer one. Returns the index of the closing `}}`, or
 /// `None` when the span is never closed.
 fn match_monospace_close(chars: &[char], i: usize, hi: usize) -> Option<usize> {
+    // A dense run of unbalanced `{` would otherwise make each failed nested open re-scan the whole
+    // suffix, so the search cost grows exponentially. A step budget proportional to the span keeps
+    // it linear per span: it is far above what any genuine span needs, so a real close is always
+    // found, while a pathological run gives up and leaves the braces as literal text.
+    let mut budget = hi
+        .saturating_sub(i)
+        .saturating_mul(8)
+        .saturating_add(64)
+        .min(200_000);
+    match_monospace_close_within(chars, i, hi, &mut budget, 0)
+}
+
+fn match_monospace_close_within(
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    budget: &mut usize,
+    depth: usize,
+) -> Option<usize> {
+    // Each nested `{{` recurses, so cap the nesting to keep deeply stacked braces off the call stack.
+    if depth > MAX_INLINE_DEPTH {
+        return None;
+    }
     let mut j = i + 2;
     while j < hi {
+        if *budget == 0 {
+            return None;
+        }
+        *budget -= 1;
         if chars.get(j) == Some(&'{')
             && chars.get(j + 1) == Some(&'{')
             && can_open_monospace(chars, j)
-            && let Some(nested) = match_monospace_close(chars, j, hi)
+            && let Some(nested) = match_monospace_close_within(chars, j, hi, budget, depth + 1)
         {
             j = nested + 2;
             continue;
@@ -1580,6 +1623,7 @@ fn parse_brace_inline(
     i: usize,
     hi: usize,
     autolink: bool,
+    depth: usize,
 ) -> Option<(Inline, usize)> {
     if chars.get(i + 1) == Some(&'{') {
         // Monospaced span: `{{ … }}`. The close is the `}}` that balances this open, so a nested
@@ -1588,7 +1632,7 @@ fn parse_brace_inline(
             return None;
         }
         let close = match_monospace_close(chars, i, hi)?;
-        let inner = inlines_with(chars, i + 2, close, autolink);
+        let inner = inlines_with(chars, i + 2, close, autolink, depth + 1);
         let text = carta_ast::to_plain_text(&inner);
         return Some((Inline::Code(Attr::default(), text), close + 2));
     }
@@ -1598,7 +1642,7 @@ fn parse_brace_inline(
         let value_end = (value_start..hi).find(|&k| chars.get(k) == Some(&'}'))?;
         let value = color_value(&slice_to_string(chars, value_start, value_end))?;
         let close = match_color_close(chars, value_end + 1, hi)?;
-        let inner = inlines_with(chars, value_end + 1, close, autolink);
+        let inner = inlines_with(chars, value_end + 1, close, autolink, depth + 1);
         let attr = Attr {
             id: String::new(),
             classes: Vec::new(),
@@ -1671,7 +1715,7 @@ fn match_color_close(chars: &[char], from: usize, hi: usize) -> Option<usize> {
     None
 }
 
-fn parse_link(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
+fn parse_link(chars: &[char], i: usize, hi: usize, depth: usize) -> Option<(Inline, usize)> {
     let close = (i + 1..hi).find(|&k| chars.get(k) == Some(&']'))?;
     let pipes: Vec<usize> = (i + 1..close)
         .filter(|&k| chars.get(k) == Some(&'|'))
@@ -1696,7 +1740,7 @@ fn parse_link(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
     let (url, class, default_label) = classify_link_target(&target, has_pipe)?;
 
     let label = match label_range {
-        Some((ls, le)) if le > ls => inlines_with(chars, ls, le, false),
+        Some((ls, le)) if le > ls => inlines_with(chars, ls, le, false, depth + 1),
         _ => vec![Inline::Str(default_label)],
     };
     let mut classes: Vec<String> = class.into_iter().map(str::to_string).collect();
