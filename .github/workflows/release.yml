@@ -1,0 +1,56 @@
+name: release binaries
+
+# Builds prebuilt `carta` executables and attaches them to the GitHub release that release-plz
+# publishes. Each target builds on a native runner where possible to avoid cross-compilation; the
+# archives ship the license and README alongside the binary.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # upload archives as release assets
+
+concurrency:
+  group: release-binaries-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Install toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build and upload carta
+        uses: taiki-e/upload-rust-binary-action@f0d45ae91ee7b8ee928de7a9d04d893a08bcbec6 # v1.30.2
+        with:
+          bin: carta
+          target: ${{ matrix.target }}
+          archive: $bin-$target
+          include: LICENSE,README.md
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}
