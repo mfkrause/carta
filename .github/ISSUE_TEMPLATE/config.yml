@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & ideas
+    url: https://github.com/mfkrause/carta/discussions
+    about: Ask a question or discuss an idea before filing an issue.
+  - name: Report a security vulnerability
+    url: https://github.com/mfkrause/carta/security/policy
+    about: Please report security issues privately — do not open a public issue.
