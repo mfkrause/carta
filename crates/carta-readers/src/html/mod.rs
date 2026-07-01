@@ -1,8 +1,8 @@
 //! HTML reader.
 //!
-//! Parsing runs in three stages: a tokenizer ([`tokenize`]) turns the source into a flat stream of
-//! start tags, end tags and text; a tree builder ([`tree::build_tree`]) assembles that stream into a
-//! node tree, applying void-element and implied-end-tag rules; and a [`convert::Converter`] walks the
+//! Parsing runs in three stages: a tokenizer (`tokenize`) turns the source into a flat stream of
+//! start tags, end tags and text; a tree builder (`tree::build_tree`) assembles that stream into a
+//! node tree, applying void-element and implied-end-tag rules; and a `convert::Converter` walks the
 //! tree into a [`Document`]. Document metadata is read from a `<head>` element when present.
 
 mod classify;

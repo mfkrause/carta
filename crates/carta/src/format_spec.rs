@@ -72,7 +72,7 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
 /// Splits a format specifier into its base name and the [`Extensions`] it selects.
 ///
 /// The base is the text up to the first `+` or `-`; the remainder is a run of `+name`/`-name`
-/// toggles applied onto [`default_extensions`].
+/// toggles applied onto `default_extensions`.
 ///
 /// # Errors
 /// [`Error::UnknownExtension`] if a toggle names an extension this build does not recognize.
