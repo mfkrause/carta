@@ -3,7 +3,7 @@
 Per-format detail behind the [README support matrix](README.md#status); the README grid is the
 at-a-glance roster. Measured against pinned pandoc **3.10** (`pandoc-api-version 1.23.1`).
 
-✅ supported · 🚧 partial · ❌ not started · ➖ not applicable (pandoc has no such direction)
+✅ usable — basically done; any remaining parity gaps are minor and unlikely to affect regular use · 🚧 in development — large parity gaps or breaking issues (e.g. panics), not recommended for use yet · ❌ not started · ➖ not applicable (pandoc has no such direction)
 
 Each entry lists only what is still missing or known to diverge. An entry with no list has no tracked
 gap.
@@ -16,7 +16,7 @@ gap.
 ### `commonmark_x` — ✅
 ### `gfm` — ✅
 
-### `markdown` — 🚧
+### `markdown` — ✅
 - `latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.
 - Narrow per-extension divergences — see [known parity gaps](#known-parity-gaps).
 
@@ -27,35 +27,35 @@ gap.
 ### `csv` — ✅
 ### `tsv` — ✅
 
-### `rst` — 🚧
+### `rst` — ✅
 - The `contents` (table-of-contents) directive emits nothing.
 - The `table` directive's `:widths:` is not applied to the built table.
 - A definition-list classifier (`term : classifier`) stays part of the term.
 - Doctest blocks (`>>>`) read as ordinary paragraphs.
 
-### `ipynb` — 🚧
+### `ipynb` — ✅
 - nbformat v3 (worksheets) is reported as an unsupported format rather than read.
 - Lenient where the format is strict: a stream output with no `name`, a null `execution_count`, or a
   missing top-level `nbformat` are accepted rather than rejected.
 - Unknown cell and output kinds are silently dropped.
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
-### `mediawiki` — 🚧
+### `mediawiki` — ✅
 - Block `<math display=block>` is emitted as inline math.
 - The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary
   wikilinks rather than links to the media file or remote wiki.
 - A mid-paragraph `<pre>`/`<source>` falls through to HTML passthrough rather than a code block.
 - Block structures nested past a fixed depth degrade to flat text to bound recursion.
 
-### `dokuwiki` — 🚧
+### `dokuwiki` — ✅
 - A footnote closes at the first `))`, so nested parentheses are unbalanced.
 - Bare-URL autolinking requires an explicit `scheme://`.
 
-### `jira` — 🚧
+### `jira` — ✅
 - When a `{quote}` macro's content shares the line with its fences, the leading whitespace of its
   first paragraph is kept rather than trimmed.
 
-### `man` — 🚧
+### `man` — ✅
 - A single ambiguous list-marker letter (`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than
   lower-alpha.
 - `.MR`/`.SM`/`.SB` are dropped.
@@ -82,7 +82,7 @@ gap.
 ### `gfm` — ✅
 ### `commonmark` — ✅
 
-### `markdown` — 🚧
+### `markdown` — ✅
 - The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
 
 ### `rst` — ✅
