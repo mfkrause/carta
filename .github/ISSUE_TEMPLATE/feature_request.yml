@@ -8,7 +8,7 @@ body:
       value: |
         Have a look at the status table in the [README](https://github.com/mfkrause/carta#status)
         and [`docs/STATUS.md`](https://github.com/mfkrause/carta/blob/main/docs/STATUS.md)
-        first — the feature may already be planned or in progress.
+        first. The feature may already be planned or in progress.
   - type: dropdown
     id: kind
     attributes:
@@ -34,7 +34,7 @@ body:
       label: Use case
       description: What are you trying to accomplish? Concrete examples help a lot.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: references
     attributes:
