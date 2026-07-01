@@ -1,5 +1,5 @@
 //! A small string-template engine: variables, conditionals, loops, pipes, and partials over a
-//! [`Value`] context. The language uses `$`-delimited directives; see [`parse`] for the grammar and
+//! [`Value`] context. The language uses `$`-delimited directives; see `parse` for the grammar and
 //! the surrounding module docs for whitespace handling.
 //!
 //! The engine is format-agnostic and does no I/O: partial inclusion is delegated to a caller-supplied

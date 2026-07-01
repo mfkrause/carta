@@ -4,7 +4,7 @@
 //! their arguments, with strings, tuples, lists, and records written in a small constructor-
 //! application value syntax (`Para [ Str "x" ]`, `("id", ["class"], [("k","v")])`). Parsing has two
 //! stages: a
-//! lexer ([`tokenize`]) splits the source into [`Token`]s, and a recursive-descent [`Parser`]
+//! lexer (`tokenize`) splits the source into `Token`s, and a recursive-descent `Parser`
 //! consumes them type-directedly — each AST shape has a dedicated method, so the same `(…, …, …)`
 //! tuple is read as the type the position calls for.
 //!

@@ -1,6 +1,6 @@
 //! Markdown writer engine: renders the document model to a markdown family text format.
 //!
-//! Every markdown-family dialect shares this engine, parameterized by the [`MarkdownConfig`] it runs
+//! Every markdown-family dialect shares this engine, parameterized by the `MarkdownConfig` it runs
 //! with — chiefly the active [`Extensions`] set. Each construct consults the set to choose its
 //! surface: an attribute block on a header, link, image, or span versus a bare or HTML rendering;
 //! native subscript/superscript/strikeout versus an HTML tag; fenced versus indented code; fenced
