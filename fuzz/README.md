@@ -72,5 +72,10 @@ from then on.
 Both pass `-timeout=10 -rss_limit_mb=2048`: `-max_total_time` is only checked between units, so
 these bound a single hanging or memory-hungry input instead of letting it stall the runner.
 
+Adding a reader means wiring four places — a target in `fuzz_targets/`, a `[[bin]]` in
+`Cargo.toml`, a seed under `seeds/`, and both workflow matrices. The offline test
+`crates/carta/tests/fuzz_wiring.rs` asserts they stay in agreement, so a missing piece fails at
+PR time with a message naming what to add.
+
 [`cargo-fuzz`]: https://github.com/rust-fuzz/cargo-fuzz
 [libFuzzer]: https://llvm.org/docs/LibFuzzer.html
