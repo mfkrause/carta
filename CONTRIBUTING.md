@@ -3,10 +3,6 @@
 Thanks for your interest in improving carta! This guide covers the mechanics of
 contributing.
 
-> **Before you write any code, read [`AGENTS.md`](AGENTS.md) in full.** It defines the
-> project's coding standards and contribution rules — including one rule that overrides
-> everything else. Changes that do not follow it cannot be merged.
-
 ## Getting set up
 
 The Rust toolchain is pinned in [`rust-toolchain.toml`](rust-toolchain.toml); `rustup`
@@ -60,10 +56,9 @@ CI rejects stale or unreferenced snapshots, so keep them tidy.
   [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `docs`,
   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, …); the `commit-msg` hook enforces
   the format.
-- **Keep output deterministic** and **avoid panics in library paths** — see the code-style
-  section of [`AGENTS.md`](AGENTS.md) for the specifics (both are lint-enforced).
-- When you add, extend, or change support for a format or extension, update **both**
-  [`README.md`](README.md) (the status table) and [`docs/STATUS.md`](docs/STATUS.md) in
+- **Keep output deterministic** and **avoid panics in library paths** (both are lint-enforced).
+- When you add, extend, or change support for a format or extension, update
+  [`README.md`](README.md) (the status table) and/or [`docs/STATUS.md`](docs/STATUS.md) in
   the same change.
 - Make sure `cargo fmt`, `cargo clippy`, and the test suite are green before opening a PR.
 
