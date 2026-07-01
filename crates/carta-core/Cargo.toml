@@ -13,6 +13,10 @@ keywords = ["markup", "document", "converter", "template"]
 categories = ["text-processing"]
 publish.workspace = true
 
+# docs.rs builds default features only; enable all so the template engine is documented.
+[package.metadata.docs.rs]
+all-features = true
+
 [lints]
 workspace = true
 
