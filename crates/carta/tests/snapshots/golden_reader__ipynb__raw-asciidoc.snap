@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"jupyter":{"t":"MetaMap","c":{"kernelspec":{"t":"MetaMap","c":{"display_name":{"t":"MetaString","c":"Python 3"},"language":{"t":"MetaString","c":"python"},"name":{"t":"MetaString","c":"python3"}}},"nbformat":{"t":"MetaString","c":"4"},"nbformat_minor":{"t":"MetaString","c":"5"}}}},"blocks":[{"t":"Div","c":[["embed",["cell","raw"],[["raw_mimetype","text/asciidoc"]]],[{"t":"RawBlock","c":["asciidoc","[NOTE]\n====\nadmonition body\n===="]}]]}]}

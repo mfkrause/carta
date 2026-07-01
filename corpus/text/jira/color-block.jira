@@ -1,0 +1,6 @@
+{color:red}red text spanning
+a block
+{color}
+
+{color:123456}a bare hexadecimal value
+{color}

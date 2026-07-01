@@ -124,6 +124,13 @@ impl<'a> Cursor<'a> {
         self.indent_mark = self.indent();
     }
 
+    /// The indentation recorded by the most recent [`Cursor::note_indent`], in visual columns. Unlike
+    /// [`Cursor::indent`] it survives a later `skip_indent`, so a block opened after the indent was
+    /// consumed can still learn the column its line began at.
+    pub(super) fn noted_indent(&self) -> usize {
+        self.indent_mark
+    }
+
     pub(super) fn is_blank(&self) -> bool {
         self.bytes
             .get(self.offset..)
@@ -401,8 +408,15 @@ impl<'a> Cursor<'a> {
 
     /// If the cursor sits at a list marker, return its parse. With `fancy` set, ordered enumerators
     /// also recognize alphabetic and roman styles and the `(x)` parenthesized delimiter; otherwise
-    /// only decimal `n.`/`n)` enumerators count.
-    pub(super) fn list_marker_at(&self, fancy: bool, example: bool) -> Option<ListMarkerParse> {
+    /// only decimal `n.`/`n)` enumerators count. With `hash_placeholder` set, the `#` auto-number
+    /// placeholder is recognized too — the greedy Markdown dialect honors `#.` independently of the
+    /// fancy alphabetic and roman enumerators.
+    pub(super) fn list_marker_at(
+        &self,
+        fancy: bool,
+        example: bool,
+        hash_placeholder: bool,
+    ) -> Option<ListMarkerParse> {
         let byte = self.peek()?;
         match byte {
             b'-' | b'+' | b'*' => {
@@ -435,7 +449,7 @@ impl<'a> Cursor<'a> {
                 self.example_marker_paren()
             }
             b'a'..=b'z' | b'A'..=b'Z' if fancy => self.enumerator_at(self.offset),
-            b'#' if fancy => self.hash_marker_at(),
+            b'#' if fancy || hash_placeholder => self.hash_marker_at(),
             b'(' if fancy => self.paren_enumerator_at(),
             _ => None,
         }
@@ -499,7 +513,7 @@ impl<'a> Cursor<'a> {
         {
             return None;
         }
-        let single_letter = single_letter(&style, len);
+        let single_letter = single_letter(style, len);
         Some(ListMarkerParse {
             bullet: false,
             marker: delim_byte.unwrap_or(b'.'),
@@ -531,7 +545,7 @@ impl<'a> Cursor<'a> {
         if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
             return None;
         }
-        let single_letter = single_letter(&style, len);
+        let single_letter = single_letter(style, len);
         Some(ListMarkerParse {
             bullet: false,
             marker: b'(',
@@ -639,7 +653,7 @@ fn parse_example_label(bytes: &[u8], start: usize) -> (String, usize) {
 }
 
 /// Whether an enumerator of `len` bytes in `style` is a single alphabetic/roman letter.
-fn single_letter(style: &ListNumberStyle, len: usize) -> bool {
+fn single_letter(style: ListNumberStyle, len: usize) -> bool {
     len == 1 && !matches!(style, ListNumberStyle::Decimal)
 }
 

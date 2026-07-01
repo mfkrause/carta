@@ -1,0 +1,73 @@
+name: fuzz (nightly discovery)
+
+# Random-seeded, mutation-based fuzzing — the actual bug hunt. It is deliberately NOT a PR gate:
+# a discovery run is non-deterministic (random seed, evolving corpus, wall-clock budget), so
+# gating merges on it would let an unrelated PR be blocked by a latent bug it did not introduce,
+# and a re-run could flip red/green. Findings surface here instead — uploaded as crash
+# reproducers — and become a committed seed under fuzz/seeds/<target>/ once fixed, which the
+# per-PR regression replay in ci.yml then guards forever.
+
+on:
+  schedule:
+    - cron: "17 4 * * *" # daily at 04:17 UTC (off the hour to dodge the scheduler's peak)
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds of fuzzing per target (-max_total_time)
+        default: "300"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with the replay matrix in ci.yml and the targets in fuzz/Cargo.toml.
+        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Restore evolved corpus
+        uses: actions/cache@v5
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          # A fresh key every run so each night writes back the grown corpus; restore-keys pulls
+          # the most recent prior corpus, so coverage compounds across nights instead of starting
+          # cold each time.
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+      - name: Fuzz ${{ matrix.target }}
+        # The first corpus dir is writable — new interesting inputs land there and are cached for
+        # the next night; the committed seeds are added read-only. -timeout / -rss_limit_mb turn a
+        # hang or runaway allocation into a reported crash instead of a silently stuck runner.
+        # Pin the gnu target: musl links libc statically and the sanitizer cannot instrument it.
+        run: |
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            --target x86_64-unknown-linux-gnu \
+            fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} \
+            -- -max_total_time=${{ github.event.inputs.seconds || '300' }} \
+               -timeout=10 -rss_limit_mb=2048
+      - name: Upload crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore

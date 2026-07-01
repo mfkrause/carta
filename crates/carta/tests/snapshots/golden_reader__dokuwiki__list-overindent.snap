@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Str","c":"parent"},{"t":"Space"},{"t":"Str","c":"item"},{"t":"Space"},{"t":"Str","c":"at"},{"t":"Space"},{"t":"Str","c":"indent"},{"t":"Space"},{"t":"Str","c":"two"}]}]]},{"t":"CodeBlock","c":[["",[],[]],"    * a jump of more than one level closes the list and indents as code\n"]}]}

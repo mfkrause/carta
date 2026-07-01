@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"dash"},{"t":"Space"},{"t":"Str","c":"—"},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"decimal"},{"t":"Space"},{"t":"Str","c":"8212"},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"sign"},{"t":"Space"},{"t":"Str","c":"©"},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"pair"},{"t":"Space"},{"t":"Span","c":[["",[],[]],[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"B"}]]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"escape"},{"t":"Space"},{"t":"Str","c":"—"},{"t":"Str","c":"."}]}]}

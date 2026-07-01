@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"中文文本第一行"},{"t":"Str","c":"日本語のテキスト"}]},{"t":"Para","c":[{"t":"Str","c":"mixed"},{"t":"Space"},{"t":"Str","c":"word"},{"t":"Space"},{"t":"Str","c":"中文"},{"t":"Str","c":"日本語"},{"t":"Space"},{"t":"Str","c":"word"}]}]}

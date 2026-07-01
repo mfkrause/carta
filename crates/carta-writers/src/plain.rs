@@ -13,9 +13,9 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
     block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_loose, item_separator, join_loose,
-    lay_row, measure_pieces, offset_as_i32, ordered_marker, pieces_nonempty, quote_marks,
-    table_form,
+    fill_hang, fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_uri,
+    item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i32,
+    ordered_marker, pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
 
@@ -32,7 +32,7 @@ impl Writer for PlainWriter {
             smart: options.extensions.contains(Extension::Smart),
             ..State::default()
         };
-        let body = state.blocks_to_string(&document.blocks, width);
+        let body = state.blocks_to_string(&document.blocks, width, false);
         Ok(append_notes(body, &state.footnotes))
     }
 
@@ -71,40 +71,56 @@ impl Default for State {
 impl State {
     /// Render a block sequence with a blank line between blocks, dropping those that produce no
     /// output. This is the default layout (document body, block quotes, divs, figures, loose list
-    /// items, loose definitions). See [`join_loose`] for the [`Block::Plain`] spacing quirk.
-    fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
-        let rendered = blocks
-            .iter()
-            .map(|block| (matches!(block, Block::Plain(_)), self.block(block, width)))
-            .collect();
+    /// items, loose definitions). See [`join_loose`] for the [`Block::Plain`] spacing quirk. When
+    /// `hang` is set the first non-empty block keeps a space that opens it, so content laid out under
+    /// a list marker or block-quote indent keeps the gap the source put after that prefix.
+    fn blocks_to_string(&mut self, blocks: &[Block], width: usize, hang: bool) -> String {
+        let mut rendered = Vec::with_capacity(blocks.len());
+        let mut first = true;
+        for block in blocks {
+            let text = self.block(block, width, hang && first);
+            if !text.is_empty() {
+                first = false;
+            }
+            rendered.push((matches!(block, Block::Plain(_)), text));
+        }
         join_loose(rendered)
     }
 
     /// Render a block sequence with a single newline between blocks: the compact layout used inside a
-    /// tight list's items and tight definitions.
-    fn blocks_tight(&mut self, blocks: &[Block], width: usize) -> String {
-        let parts: Vec<String> = blocks
-            .iter()
-            .map(|block| self.block(block, width))
-            .filter(|rendered| !rendered.is_empty())
-            .collect();
+    /// tight list's items and tight definitions. `hang` behaves as in [`Self::blocks_to_string`].
+    fn blocks_tight(&mut self, blocks: &[Block], width: usize, hang: bool) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        let mut first = true;
+        for block in blocks {
+            let text = self.block(block, width, hang && first);
+            if text.is_empty() {
+                continue;
+            }
+            first = false;
+            parts.push(text);
+        }
         parts.join("\n")
     }
 
     /// Render a block sequence at the given layout density.
-    fn blocks_at(&mut self, blocks: &[Block], width: usize, loose: bool) -> String {
+    fn blocks_at(&mut self, blocks: &[Block], width: usize, loose: bool, hang: bool) -> String {
         if loose {
-            self.blocks_to_string(blocks, width)
+            self.blocks_to_string(blocks, width, hang)
         } else {
-            self.blocks_tight(blocks, width)
+            self.blocks_tight(blocks, width, hang)
         }
     }
 
-    fn block(&mut self, block: &Block, width: usize) -> String {
+    fn block(&mut self, block: &Block, width: usize, hang: bool) -> String {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
                 let pieces = self.pieces(inlines);
-                fill(&pieces, width, self.wrap)
+                if hang {
+                    fill_hang(&pieces, width, self.wrap)
+                } else {
+                    fill(&pieces, width, self.wrap)
+                }
             }
             Block::Header(_, _, inlines) => {
                 let pieces = self.pieces(inlines);
@@ -121,7 +137,7 @@ impl State {
                 }
             }
             Block::BlockQuote(blocks) => {
-                let body = self.blocks_to_string(blocks, width.saturating_sub(2));
+                let body = self.blocks_to_string(blocks, width.saturating_sub(2), true);
                 indent_block(&body, "  ", "  ")
             }
             Block::BulletList(items) => self.bullet_list(items, width),
@@ -129,11 +145,47 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width),
             Block::Table(table) => self.table(table, width),
-            Block::Figure(_, _, blocks) | Block::Div(_, blocks) => {
-                self.blocks_to_string(blocks, width)
+            Block::Figure(attr, caption, blocks) => {
+                match self.simple_figure(attr, &caption.long, blocks) {
+                    Some(rendered) => rendered,
+                    None => self.blocks_to_string(blocks, width, false),
+                }
             }
+            Block::Div(_, blocks) => self.blocks_to_string(blocks, width, false),
             Block::LineBlock(lines) => self.line_block(lines),
         }
+    }
+
+    /// A figure with no attributes whose body is a single bare image (a `Plain` holding one image
+    /// that itself carries no identifier or classes) renders as that image with the caption text in
+    /// place of its alternate text: `[caption]`. Any richer figure returns `None` so the caller
+    /// renders the body blocks instead.
+    fn simple_figure(
+        &mut self,
+        attr: &Attr,
+        caption_long: &[Block],
+        blocks: &[Block],
+    ) -> Option<String> {
+        if !attr.id.is_empty() || !attr.classes.is_empty() || !attr.attributes.is_empty() {
+            return None;
+        }
+        let [Block::Plain(inlines)] = blocks else {
+            return None;
+        };
+        let [Inline::Image(image_attr, _, target)] = inlines.as_slice() else {
+            return None;
+        };
+        if !image_attr.id.is_empty()
+            || !image_attr.classes.is_empty()
+            || !image_attr.attributes.is_empty()
+        {
+            return None;
+        }
+        let caption_inlines = figure_caption_inlines(caption_long)?;
+        let image = Inline::Image(image_attr.clone(), caption_inlines, target.clone());
+        let mut out = Vec::new();
+        self.inline(&image, &mut out);
+        Some(pieces_to_string(&out))
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {
@@ -153,7 +205,7 @@ impl State {
         let rendered: Vec<String> = items
             .iter()
             .map(|item| {
-                let body = self.blocks_at(item, body_width, loose);
+                let body = self.blocks_at(item, body_width, loose, true);
                 indent_block(&body, "- ", "  ")
             })
             .collect();
@@ -172,9 +224,9 @@ impl State {
             .enumerate()
             .map(|(offset, item)| {
                 let number = attrs.start.saturating_add(offset_as_i32(offset));
-                let marker = ordered_marker(number, &attrs.style, &attrs.delim);
+                let marker = ordered_marker(number, attrs.style, attrs.delim);
                 let field = (marker.chars().count() + 1).max(4);
-                let body = self.blocks_at(item, width.saturating_sub(field), loose);
+                let body = self.blocks_at(item, width.saturating_sub(field), loose, true);
                 let first = format!("{marker:<field$}");
                 let rest = " ".repeat(field);
                 indent_block(&body, &first, &rest)
@@ -195,9 +247,13 @@ impl State {
                 let mut group = fill(&term_pieces, width, self.wrap);
                 for definition in definitions {
                     let loose = is_loose_definition(definition);
-                    let body = self.blocks_at(definition, width.saturating_sub(2), loose);
+                    let body = self.blocks_at(definition, width.saturating_sub(2), loose, true);
                     let indented = indent_block(&body, "  ", "  ");
-                    group.push_str(if loose { "\n\n" } else { "\n" });
+                    // An empty term contributes no line, so the first body opens the group with no
+                    // leading separator; otherwise each body is set off from what precedes it.
+                    if !group.is_empty() {
+                        group.push_str(if loose { "\n\n" } else { "\n" });
+                    }
                     group.push_str(&indented);
                 }
                 group
@@ -500,7 +556,7 @@ impl State {
 
     /// Render a cell's block content to lines at the given width.
     fn cell_lines(&mut self, content: &[Block], width: usize) -> Vec<String> {
-        let text = self.blocks_to_string(content, width);
+        let text = self.blocks_to_string(content, width, false);
         if text.is_empty() {
             Vec::new()
         } else {
@@ -573,8 +629,19 @@ impl State {
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
             | Inline::Cite(_, inlines)
-            | Inline::Link(_, inlines, _)
             | Inline::Span(_, inlines) => self.extend_pieces(inlines, out),
+            // A bare URL — its single-`Str` text being the visible form of the target — is the
+            // address itself, encoded; any other link contributes only its visible text.
+            Inline::Link(_, inlines, target) => {
+                if let [Inline::Str(text)] = inlines.as_slice()
+                    && is_uri(&target.url)
+                    && label_matches_url(text, &target.url)
+                {
+                    out.push(Piece::Text(target.url.clone()));
+                } else {
+                    self.extend_pieces(inlines, out);
+                }
+            }
             Inline::Strikeout(inlines) => {
                 out.push(Piece::Text("~~".to_owned()));
                 self.extend_pieces(inlines, out);
@@ -618,9 +685,12 @@ impl State {
                     out.push(Piece::Text(text.clone()));
                 }
             }
-            Inline::Image(_, inlines, _) => {
+            Inline::Image(_, inlines, target) => {
                 out.push(Piece::Text("[".to_owned()));
-                self.extend_pieces(inlines, out);
+                // Alternate text that merely repeats the source URL conveys nothing, so it is dropped.
+                if carta_ast::to_plain_text(inlines) != target.url {
+                    self.extend_pieces(inlines, out);
+                }
                 out.push(Piece::Text("]".to_owned()));
             }
             Inline::Note(blocks) => {
@@ -636,7 +706,15 @@ impl State {
     /// wrapped in the math delimiters of its kind (`$…$` for inline, `$$…$$` for display). Inline
     /// source has its edge whitespace trimmed before wrapping (interior whitespace is kept); display
     /// source is wrapped as written.
+    ///
+    /// Display math sits on its own line: a forced break frames it, absorbing any adjacent space and
+    /// collapsing with a neighbouring display formula's break, so consecutive formulas each land on a
+    /// separate line while a lone formula gains no surrounding blank.
     fn math(&mut self, kind: &MathType, tex: &str, out: &mut Vec<Piece>) {
+        let display = matches!(kind, MathType::DisplayMath);
+        if display {
+            out.push(Piece::Hard);
+        }
         if let Some(inlines) = crate::math::to_inlines(tex) {
             for inline in &inlines {
                 self.inline(inline, out);
@@ -648,6 +726,9 @@ impl State {
             };
             out.push(Piece::Text(format!("{delimiter}{body}{delimiter}")));
         }
+        if display {
+            out.push(Piece::Hard);
+        }
     }
 }
 
@@ -657,7 +738,7 @@ impl NotesHost for State {
     }
 
     fn render_block(&mut self, block: &Block, width: usize) -> String {
-        self.block(block, width)
+        self.block(block, width, false)
     }
 
     fn render_offset_paragraph(
@@ -710,9 +791,6 @@ fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
     }
 }
 
-/// Flatten inline pieces to a single string without line filling: breakable spaces become one
-/// space, while forced breaks become `hard`. Used where content is not wrapped
-/// (line-block lines and the inner text of sub/superscripts use a newline; see [`header_text`]).
 fn join_pieces(pieces: &[Piece], hard: char) -> String {
     let mut out = String::new();
     for piece in pieces {
@@ -727,6 +805,23 @@ fn join_pieces(pieces: &[Piece], hard: char) -> String {
 
 fn pieces_to_string(pieces: &[Piece]) -> String {
     join_pieces(pieces, '\n')
+}
+
+/// Flatten a figure caption's blocks into one inline sequence, joining successive paragraphs with a
+/// line break. An empty caption yields an empty sequence; a caption holding anything other than
+/// paragraphs yields `None`.
+fn figure_caption_inlines(blocks: &[Block]) -> Option<Vec<Inline>> {
+    let mut inlines = Vec::new();
+    for (index, block) in blocks.iter().enumerate() {
+        let (Block::Plain(paragraph) | Block::Para(paragraph)) = block else {
+            return None;
+        };
+        if index > 0 {
+            inlines.push(Inline::LineBreak);
+        }
+        inlines.extend(paragraph.iter().cloned());
+    }
+    Some(inlines)
 }
 
 /// Flatten a header's inline pieces to a single line: a forced break renders as a space, keeping a

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"introductory"},{"t":"Space"},{"t":"Str","c":"paragraph."}]},{"t":"BlockQuote","c":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"block"},{"t":"Space"},{"t":"Str","c":"quote"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"set"},{"t":"Space"},{"t":"Str","c":"off"},{"t":"Space"},{"t":"Str","c":"by"},{"t":"Space"},{"t":"Str","c":"indentation"},{"t":"SoftBreak"},{"t":"Str","c":"relative"},{"t":"Space"},{"t":"Str","c":"to"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"surrounding"},{"t":"Space"},{"t":"Str","c":"text."}]},{"t":"Para","c":[{"t":"Str","c":"--"},{"t":"Space"},{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"Attribution"}]}]}]}

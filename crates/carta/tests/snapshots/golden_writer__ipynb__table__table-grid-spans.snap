@@ -1,0 +1,58 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<table style=\"width:83%;\">\n",
+    "<colgroup>\n",
+    "<col style=\"width: 34%\" />\n",
+    "<col style=\"width: 18%\" />\n",
+    "<col style=\"width: 15%\" />\n",
+    "<col style=\"width: 15%\" />\n",
+    "</colgroup>\n",
+    "<thead>\n",
+    "<tr>\n",
+    "<th>Header row, column 1</th>\n",
+    "<th>Header 2</th>\n",
+    "<th>Header 3</th>\n",
+    "<th>Header 4</th>\n",
+    "</tr>\n",
+    "</thead>\n",
+    "<tbody>\n",
+    "<tr>\n",
+    "<td>body row 1, column 1</td>\n",
+    "<td>column 2</td>\n",
+    "<td>column 3</td>\n",
+    "<td>column 4</td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td>body row 2</td>\n",
+    "<td colspan=\"3\">Cells may span columns.</td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td>body row 3</td>\n",
+    "<td rowspan=\"2\">Cells may span rows.</td>\n",
+    "<td colspan=\"2\" rowspan=\"2\"><ul>\n",
+    "<li>Cells.</li>\n",
+    "<li>Contain.</li>\n",
+    "<li>Blocks.</li>\n",
+    "</ul></td>\n",
+    "</tr>\n",
+    "<tr>\n",
+    "<td>body row 4</td>\n",
+    "</tr>\n",
+    "</tbody>\n",
+    "</table>"
+   ],
+   "id": "b1963842-dc48-4fc3-aaf7-130cb00d1802"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

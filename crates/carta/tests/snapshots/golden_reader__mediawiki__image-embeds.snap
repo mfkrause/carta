@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Figure","c":[["",[],[]],[null,[{"t":"Plain","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"caption"}]}]],[{"t":"Plain","c":[{"t":"Image","c":[["",[],[]],[],["Foo.jpg","A caption"]]}]}]]},{"t":"Figure","c":[["",[],[]],[null,[{"t":"Plain","c":[{"t":"Str","c":"My_Photo.jpg"}]}]],[{"t":"Plain","c":[{"t":"Image","c":[["",[],[]],[],["My_Photo.jpg","My_Photo.jpg"]]}]}]]},{"t":"Figure","c":[["",[],[]],[null,[{"t":"Plain","c":[{"t":"Str","c":"Sized"},{"t":"Space"},{"t":"Str","c":"chart"}]}]],[{"t":"Plain","c":[{"t":"Image","c":[["",[],[["width","100"],["height","200"]]],[],["Chart.png","Sized chart"]]}]}]]},{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"icon"}],["Icon.svg","icon"]]},{"t":"Space"},{"t":"Str","c":"sits"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"this"},{"t":"Space"},{"t":"Str","c":"paragraph."}]}]}

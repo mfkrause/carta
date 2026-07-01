@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"This"},{"t":"Space"},{"t":"Str","c":"page"},{"t":"Space"},{"t":"Str","c":"suppresses"},{"t":"Space"},{"t":"Str","c":"its"},{"t":"Space"},{"t":"Str","c":"table"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"contents."}]},{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"cache"},{"t":"Space"},{"t":"Str","c":"control"},{"t":"Space"},{"t":"Str","c":"macro"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"dropped"},{"t":"Space"},{"t":"Str","c":"from"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"rendered"},{"t":"Space"},{"t":"Str","c":"text."}]}]}

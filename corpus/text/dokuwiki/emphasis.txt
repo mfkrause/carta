@@ -1,0 +1,5 @@
+This is **bold** and this is //italic// text.
+
+You can also use __underline__ and ''monospaced'' words in a line.
+
+Markers combine, as in **//bold and italic//** and //nested **strong** here//.

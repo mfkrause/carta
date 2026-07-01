@@ -1,0 +1,7 @@
+{|
+| style="color:red" | styled
+|-
+| align="right" | right aligned
+|-
+| class="note" id="x" | classy
+|}

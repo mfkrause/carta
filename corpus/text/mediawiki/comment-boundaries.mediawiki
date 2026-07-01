@@ -1,0 +1,6 @@
+one<!-- trailing -->
+two line.
+
+<!-- leading -->three line.
+
+four<!-- joined -->five.

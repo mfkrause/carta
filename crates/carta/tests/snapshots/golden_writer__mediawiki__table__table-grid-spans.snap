@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! Header row, column 1
+! Header 2
+! Header 3
+! Header 4
+|-
+| body row 1, column 1
+| column 2
+| column 3
+| column 4
+|-
+| body row 2
+| colspan="3"| Cells may span columns.
+|-
+| body row 3
+| rowspan="2"| Cells may span rows.
+| rowspan="2" colspan="2"| * Cells.
+* Contain.
+* Blocks.
+|-
+| body row 4
+|}

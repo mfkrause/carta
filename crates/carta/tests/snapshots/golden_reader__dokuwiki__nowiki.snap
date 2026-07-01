@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"span"},{"t":"Space"},{"t":"Str","c":"like"},{"t":"Space"},{"t":"Str","c":"//this//"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"shown"},{"t":"Space"},{"t":"Str","c":"verbatim"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"its"},{"t":"Space"},{"t":"Str","c":"markers"},{"t":"Space"},{"t":"Str","c":"intact."}]},{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"tag"},{"t":"Space"},{"t":"Str","c":"form"},{"t":"Space"},{"t":"Str","c":"**also**"},{"t":"Space"},{"t":"Str","c":"escapes"},{"t":"Space"},{"t":"Str","c":"formatting"},{"t":"Space"},{"t":"Str","c":"just"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"same."}]}]}

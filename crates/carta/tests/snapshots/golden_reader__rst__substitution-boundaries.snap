@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"substitution"},{"t":"Space"},{"t":"Str","c":"joins"},{"t":"Space"},{"t":"Str","c":"word"},{"t":"Str","c":"JOINED"},{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"no"},{"t":"Space"},{"t":"Str","c":"surrounding"},{"t":"Space"},{"t":"Str","c":"spaces."}]},{"t":"Para","c":[{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"words"}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"leading"},{"t":"Space"},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Span","c":[["",[],[]],[{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"words"}]]},{"t":"Space"},{"t":"Str","c":"keeps"},{"t":"Space"},{"t":"Str","c":"company"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"other"},{"t":"Space"},{"t":"Str","c":"text."}]},{"t":"Para","c":[{"t":"Str","c":"see"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"site"}],["https://example.com",""]]}]}]}

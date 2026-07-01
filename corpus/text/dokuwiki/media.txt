@@ -1,0 +1,3 @@
+An inline image {{wiki:logo.png}} sits in the text.
+
+A captioned image {{wiki:photo.jpg|A photo}} follows here.

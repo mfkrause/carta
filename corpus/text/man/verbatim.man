@@ -1,0 +1,15 @@
+.TH T 1
+.SH NO-FILL
+.nf
+the quick brown fox
+  jumps over the lazy dog
+.fi
+.SH EXAMPLE
+.EX
+\fBconfigure\fR \-\-prefix=/usr
+make install
+.EE
+.SH TAB-SEPARATED
+.nf
+col1	col2	col3
+.fi

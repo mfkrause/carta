@@ -20,8 +20,11 @@ pub(crate) fn parse(
     greedy_paragraphs: bool,
 ) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
     let mut parser = Parser::new(extensions, greedy_paragraphs);
-    for line in split_lines(input) {
-        parser.process_line(line);
+    let lines = split_lines(input);
+    for index in 0..lines.len() {
+        let line = lines.get(index).copied().unwrap_or("");
+        let following = lines.get(index + 1..).unwrap_or(&[]);
+        parser.process_line(line, following);
     }
     parser.finalize_open_text_tables();
     parser.finish()
@@ -165,6 +168,13 @@ struct Node {
     parent: usize,
     children: Vec<usize>,
     text: String,
+    /// The visual column this block's first line began at, before its leading indentation was
+    /// consumed. Recorded for paragraphs so a dash ruling on the next line can read a headed
+    /// table's column alignment against the header's true position; zero for every other block.
+    indent: usize,
+    /// Render this paragraph as `Plain` rather than `Para`. Set when a block-level HTML element
+    /// interrupts the paragraph with no blank line between, so the interrupted paragraph reads tight.
+    as_plain: bool,
     /// Whether the line that followed this block (while it was the deepest open block) was blank.
     /// Drives loose-vs-tight list classification.
     last_line_blank: bool,
@@ -178,6 +188,8 @@ impl Node {
             parent: 0,
             children: Vec::new(),
             text: String::new(),
+            indent: 0,
+            as_plain: false,
             last_line_blank: false,
         }
     }
@@ -206,6 +218,10 @@ struct Parser {
     /// When set, most block openers do not interrupt an open paragraph (see
     /// [`ReaderOptions::greedy_paragraphs`](carta_core::ReaderOptions::greedy_paragraphs)).
     greedy_paragraphs: bool,
+    /// Set while a code fence that could not open a code block (its info names no language, or it
+    /// has no closing fence) is folding into a paragraph. Until a matching closing fence or a blank
+    /// line, each following line is absorbed as paragraph text with no block opener allowed to fire.
+    fence_fold: Option<FenceInfo>,
 }
 
 impl Parser {
@@ -215,6 +231,7 @@ impl Parser {
             refs: RefMap::new(),
             extensions,
             greedy_paragraphs,
+            fence_fold: None,
         }
     }
 
@@ -331,7 +348,11 @@ impl Parser {
         }
     }
 
-    fn process_line(&mut self, line: &str) {
+    // The per-line state machine runs its container-matching and block-opening phases in sequence
+    // over one shared cursor; splitting the phases into helpers would only thread that cursor through
+    // extra signatures.
+    #[allow(clippy::too_many_lines)]
+    fn process_line(&mut self, line: &str, following: &[&str]) {
         let mut cursor = Cursor::new(line);
 
         // Phase 1: descend through open containers, matching each one's continuation marker.
@@ -380,6 +401,23 @@ impl Parser {
         }
 
         let blank = cursor.is_blank();
+
+        // A folding code fence (one that opened no code block) absorbs each following line into its
+        // paragraph verbatim — no setext underline, table, or other opener may fire — until its
+        // matching closing fence (kept as the last line) or a blank line ends the fold.
+        if let Some(fence) = self.fence_fold.clone() {
+            if all_matched
+                && !blank
+                && matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph))
+            {
+                if cursor.indent() <= 3 && cursor.is_closing_fence(fence.marker, fence.length) {
+                    self.fence_fold = None;
+                }
+                self.add_line(container, false, false, &mut cursor);
+                return;
+            }
+            self.fence_fold = None;
+        }
 
         // A setext underline converts an open paragraph (directly under the matched container,
         // so fully matched) into a heading.
@@ -456,7 +494,7 @@ impl Parser {
         if !blank {
             loop {
                 cursor.note_indent();
-                if let Some(opened) = self.try_open(container, &mut cursor) {
+                if let Some(opened) = self.try_open(container, &mut cursor, following) {
                     started_new = true;
                     container = opened;
                     // Descend into the new container to open the next block on this line — but only
@@ -693,7 +731,7 @@ impl Parser {
             self.close(index);
             let trailing = line.get(end..).unwrap_or("").to_owned();
             if !trailing.is_empty() {
-                self.process_line(&trailing);
+                self.process_line(&trailing, &[]);
             }
             return;
         }
@@ -716,10 +754,9 @@ impl Parser {
     /// The whole open tag is consumed; any same-line remainder is re-fed so its content — including a
     /// close tag on the same line — flows through the normal line handling.
     ///
-    /// Known limitation: when the element directly interrupts an open paragraph with no blank line
-    /// between, that preceding paragraph stays `Para` rather than tightening to `Plain`. The
-    /// free-standing form — a blank line before the element — is exact. A self-closing tag
-    /// (`<div/>`) is read as an ordinary open and stays open until end of input.
+    /// When the element directly interrupts an open paragraph with no blank line between, that
+    /// preceding paragraph reads tight — `Plain` rather than `Para` — under `markdown_in_html_blocks`.
+    /// A self-closing tag (`<div/>`) is read as an ordinary open and stays open until end of input.
     fn open_html_element(
         &mut self,
         container: usize,
@@ -741,6 +778,11 @@ impl Parser {
         if !as_div && !markdown_in_html {
             return None;
         }
+        // A paragraph still open here was not separated from the element by a blank line; with
+        // `markdown_in_html_blocks` the element interrupts it as a block and it reads tight.
+        if markdown_in_html {
+            self.tighten_interrupted_paragraph(container);
+        }
         let raw_open = remaining.get(..open.len).unwrap_or(remaining).to_owned();
         let trailing = remaining.get(open.len..).unwrap_or("").to_owned();
         // Consume the whole remainder so the line is fully read here; any content after the open tag
@@ -758,7 +800,7 @@ impl Parser {
         let parent = self.place(container, &kind);
         let index = self.append_child(parent, Node::new(kind));
         if !trailing.trim().is_empty() {
-            self.process_line(&trailing);
+            self.process_line(&trailing, &[]);
         }
         Some(index)
     }
@@ -797,13 +839,14 @@ impl Parser {
                 if !single_line(header) || !texttable::is_dash_line(cursor.remaining()) {
                     return false;
                 }
-                // A dash-ruled table has no cell delimiters: its columns are positional, so every
-                // line must share one left margin. The header reached here de-indented through the
-                // paragraph path, so it is re-indented to the ruling's margin before the ruling and
-                // the rows below (kept with their own leading whitespace) gather onto it.
+                // A dash-ruled table has no cell delimiters: its columns are positional, and per-column
+                // alignment is read from where the header text sits relative to the dash runs. So the
+                // header and ruling must share one coordinate. The header reached here de-indented
+                // through the paragraph path, so it is restored to the column it began at; the ruling
+                // and the rows below keep their own leading whitespace.
+                let header_indent = self.nodes.get(leaf).map_or(0, |node| node.indent);
                 let ruling = cursor.rest();
-                let indent = ruling.len() - ruling.trim_start_matches(' ').len();
-                let header = format!("{}{header}", " ".repeat(indent));
+                let header = format!("{}{header}", " ".repeat(header_indent));
                 if let Some(node) = self.nodes.get_mut(leaf) {
                     node.kind = Kind::TextTable;
                     node.text = header;
@@ -857,9 +900,7 @@ impl Parser {
                     };
                 }
                 self.close(leaf);
-                for line in rest {
-                    self.process_line(&line);
-                }
+                self.refeed_lines(&rest);
             }
             None => {
                 let first = lines.first().copied().unwrap_or("");
@@ -874,10 +915,19 @@ impl Parser {
                     }
                 }
                 self.close(leaf);
-                for line in rest {
-                    self.process_line(&line);
-                }
+                self.refeed_lines(&rest);
             }
+        }
+    }
+
+    /// Re-feed a run of buffered lines through the line handler, each seeing the ones after it as
+    /// its look-ahead so a fenced code block among them can still find its closing fence.
+    fn refeed_lines(&mut self, lines: &[String]) {
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        for index in 0..refs.len() {
+            let line = refs.get(index).copied().unwrap_or("");
+            let following = refs.get(index + 1..).unwrap_or(&[]);
+            self.process_line(line, following);
         }
     }
 
@@ -935,6 +985,17 @@ impl Parser {
             index = child;
         }
         index
+    }
+
+    /// Mark the open paragraph interrupted by a block opener under `container` so it renders tight
+    /// (`Plain`). A no-op when the deepest open block is not a paragraph.
+    fn tighten_interrupted_paragraph(&mut self, container: usize) {
+        let leaf = self.deepest_open(container);
+        if matches!(self.kind(leaf), Some(Kind::Paragraph))
+            && let Some(node) = self.nodes.get_mut(leaf)
+        {
+            node.as_plain = true;
+        }
     }
 
     /// If the current line closes an open fenced div, close that div and everything nested inside it
@@ -997,7 +1058,7 @@ impl Parser {
         let after = trimmed.get(found.end..).unwrap_or("").to_owned();
         let trails = !before.trim().is_empty();
         if trails {
-            self.process_line(before);
+            self.process_line(before, &[]);
         }
         // Whether the element's final content block tightens from `Para` to `Plain`. A native div
         // tightens only when the close tag physically trails content on its own line. A raw element
@@ -1019,7 +1080,7 @@ impl Parser {
             node.open = false;
         }
         if !after.trim().is_empty() {
-            self.process_line(&after);
+            self.process_line(&after, &[]);
         }
         true
     }
@@ -1243,19 +1304,24 @@ impl Parser {
     /// opener interrupt again. A list marker is structural: it still opens a sibling item in an open
     /// list or a sublist inside an item, and folds only where it would otherwise *start* a fresh list
     /// — when the paragraph is the container's own last child and the container is not itself a list
-    /// item or other indented item body.
+    /// item or other indented item body. The `lists_without_preceding_blankline` toggle drops that
+    /// last fold, so a fresh list interrupts the paragraph instead.
     fn greedy_gates(&self, container: usize, in_paragraph: bool) -> GreedyGates {
         if !self.greedy_paragraphs {
             return GreedyGates::default();
         }
-        let fresh_list_into_paragraph = !matches!(
-            self.kind(container),
-            Some(Kind::Item(_) | Kind::Definition { .. } | Kind::FootnoteDef(_))
-        ) && matches!(
-            self.last_open_child(container)
-                .and_then(|child| self.kind(child)),
-            Some(Kind::Paragraph)
-        );
+        let fresh_list_into_paragraph = !self
+            .extensions
+            .contains(Extension::ListsWithoutPrecedingBlankline)
+            && !matches!(
+                self.kind(container),
+                Some(Kind::Item(_) | Kind::Definition { .. } | Kind::FootnoteDef(_))
+            )
+            && matches!(
+                self.last_open_child(container)
+                    .and_then(|child| self.kind(child)),
+                Some(Kind::Paragraph)
+            );
         GreedyGates {
             foldable: in_paragraph,
             list_start: fresh_list_into_paragraph,
@@ -1264,10 +1330,139 @@ impl Parser {
         }
     }
 
+    /// Whether a scanned code fence actually opens a fenced code block. Pure `CommonMark` always
+    /// recognizes a fence. The Markdown dialect instead gates each fence character on its own
+    /// extension — a backtick fence on `backtick_code_blocks`, a tilde fence on `fenced_code_blocks`
+    /// — and, lacking any extension that gives a richer info string meaning, requires the info string
+    /// to be a single bare language token: an info string carrying inner whitespace or a brace then
+    /// names no language and the fence is left to fold into a paragraph.
+    fn fence_opener_accepted(&self, fence: &FenceInfo) -> bool {
+        if !self.greedy_paragraphs {
+            return true;
+        }
+        let marker_allowed = match fence.marker {
+            b'`' => self.extensions.contains(Extension::BacktickCodeBlocks),
+            b'~' => self.extensions.contains(Extension::FencedCodeBlocks),
+            _ => false,
+        };
+        if !marker_allowed {
+            return false;
+        }
+        // A brace-delimited attribute block, or a raw-output marker, gives a non-bare info string
+        // meaning; the finalizer then interprets it. Without any of those extensions only a bare
+        // language token is accepted.
+        if self.extensions.contains(Extension::FencedCodeAttributes)
+            || self.extensions.contains(Extension::Attributes)
+            || self.extensions.contains(Extension::RawAttribute)
+        {
+            return true;
+        }
+        !fence
+            .info
+            .trim()
+            .chars()
+            .any(|ch| ch.is_whitespace() || ch == '{' || ch == '}')
+    }
+
+    /// Whether an opening code fence has a matching closing fence ahead, within the same container.
+    /// In the Markdown dialect a fenced code block must be closed: an unclosed fence — one that would
+    /// run to the container's end — does not open, and its lines fold into a paragraph instead. Pure
+    /// `CommonMark` lets an unclosed fence run to the end, so there a fence always opens.
+    ///
+    /// The closing fence is judged at the fence's own container level, so each look-ahead line first
+    /// replays the open containers' continuation markers; a line that breaks the chain (a block quote
+    /// losing its `>`, a list item losing its indent) cannot carry the close.
+    fn fence_reaches_close(&self, container: usize, fence: &FenceInfo, following: &[&str]) -> bool {
+        if !self.greedy_paragraphs {
+            return true;
+        }
+        let path = self.container_path(container);
+        for line in following {
+            let mut cursor = Cursor::new(line);
+            if !self.strip_container_path(&path, &mut cursor) {
+                return false;
+            }
+            if cursor.indent() <= 3 && cursor.is_closing_fence(fence.marker, fence.length) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The chain of open containers from the document root down to `container`, root first.
+    fn container_path(&self, container: usize) -> Vec<usize> {
+        let mut path = Vec::new();
+        let mut index = container;
+        loop {
+            path.push(index);
+            let parent = self.parent(index);
+            if parent == index {
+                break;
+            }
+            index = parent;
+        }
+        path.reverse();
+        path
+    }
+
+    /// Replay each container in `path` against a look-ahead `cursor`, read-only, consuming its
+    /// continuation marker and leaving the cursor at the content column. Returns whether every
+    /// container still matched. A blank line keeps an indent-based container (a list item, a
+    /// definition body) open as interior content, but a block quote requires its `>` on every line.
+    fn strip_container_path(&self, path: &[usize], cursor: &mut Cursor) -> bool {
+        for &index in path {
+            match self.kind(index) {
+                Some(
+                    Kind::Document
+                    | Kind::List(_)
+                    | Kind::DefinitionList
+                    | Kind::DefinitionItem { .. }
+                    | Kind::HtmlElement(_),
+                ) => {}
+                Some(Kind::BlockQuote) => {
+                    cursor.skip_up_to_three_spaces();
+                    if cursor.peek() == Some(b'>') {
+                        cursor.advance_one();
+                        cursor.consume_optional_space();
+                    } else {
+                        return false;
+                    }
+                }
+                Some(Kind::FencedDiv(info)) => cursor.advance_columns(info.indent),
+                Some(Kind::Item(ItemInfo { indent, .. }) | Kind::Definition { indent }) => {
+                    let indent = *indent;
+                    if !cursor.is_blank() {
+                        if cursor.indent() >= indent {
+                            cursor.advance_columns(indent);
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+                Some(Kind::FootnoteDef(_)) => {
+                    if !cursor.is_blank() {
+                        if cursor.indent() >= TAB_STOP {
+                            cursor.advance_columns(TAB_STOP);
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+
     /// Try to open a new block at the current cursor position inside `container`.
     // A flat dispatch over the block openers, tried in precedence order; it reads best as one sequence.
     #[allow(clippy::too_many_lines)]
-    fn try_open(&mut self, container: usize, cursor: &mut Cursor) -> Option<usize> {
+    fn try_open(
+        &mut self,
+        container: usize,
+        cursor: &mut Cursor,
+        following: &[&str],
+    ) -> Option<usize> {
         let indent = cursor.indent();
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
         let gates = self.greedy_gates(container, in_paragraph);
@@ -1330,10 +1525,21 @@ impl Parser {
                 self.close(index);
                 return Some(index);
             }
+            let fence_checkpoint = cursor.checkpoint();
             if let Some(fence) = cursor.fenced_code_start() {
-                let kind = Kind::FencedCode(fence);
-                let parent = self.place(container, &kind);
-                return Some(self.append_child(parent, Node::new(kind)));
+                if self.fence_opener_accepted(&fence)
+                    && self.fence_reaches_close(container, &fence, following)
+                {
+                    let kind = Kind::FencedCode(fence);
+                    let parent = self.place(container, &kind);
+                    return Some(self.append_child(parent, Node::new(kind)));
+                }
+                // The fence opens no code block; its opener line folds into a paragraph and the
+                // lines up to its matching close (if any) follow as that paragraph's text.
+                if self.greedy_paragraphs {
+                    self.fence_fold = Some(fence);
+                }
+                cursor.reset_to(fence_checkpoint);
             }
             // A recognized block-level HTML element whose inner content is parsed as markdown takes
             // precedence over the raw HTML-block reading, when the governing extension is on.
@@ -1391,6 +1597,45 @@ impl Parser {
                 && let Some(list) = self.list_marker(container, indent, cursor)
             {
                 return Some(list);
+            }
+            // Under `lists_without_preceding_blankline` a line that has a list-marker shape ends a
+            // greedy paragraph even when no enabled construct opens there: it starts a fresh
+            // paragraph rather than folding into the open one. Three shapes break the paragraph:
+            //   - a definition marker (`:`/`~`) when no definition list opens here;
+            //   - an example-list marker (`(@)`, `(@label)`) when example lists are off;
+            //   - any other enumerator shape carrying content on its line — judged with every
+            //     enumerator style allowed, so independent of which styles actually form a list.
+            // A decimal enumerator closed by a single `)` (`2)`) is the one exception for that last
+            // shape — too easily ordinary prose — so it neither breaks the paragraph nor opens a
+            // list. The first two shapes break regardless of any trailing content.
+            if in_paragraph
+                && self
+                    .extensions
+                    .contains(Extension::ListsWithoutPrecedingBlankline)
+            {
+                let definition_shape = cursor.definition_marker_at().is_some();
+                let example_shape = matches!(
+                    cursor.list_marker_at(true, true, false),
+                    Some(marker) if matches!(marker.style, ListNumberStyle::Example)
+                );
+                let enumerator_shape =
+                    cursor
+                        .list_marker_at(true, false, false)
+                        .is_some_and(|marker| {
+                            !(marker.blank_after
+                                || matches!(marker.style, ListNumberStyle::Decimal)
+                                    && matches!(marker.delim, ListNumberDelim::OneParen))
+                        });
+                if definition_shape || example_shape || enumerator_shape {
+                    if let Some(paragraph) = self
+                        .last_open_child(container)
+                        .filter(|&child| matches!(self.kind(child), Some(Kind::Paragraph)))
+                    {
+                        self.close(paragraph);
+                    }
+                    let parent = self.place(container, &Kind::Paragraph);
+                    return Some(self.append_child(parent, Node::new(Kind::Paragraph)));
+                }
             }
         }
         None
@@ -1539,7 +1784,20 @@ impl Parser {
     ) -> Option<usize> {
         let fancy = self.extensions.contains(Extension::FancyLists);
         let example = self.extensions.contains(Extension::ExampleLists);
-        let parsed = cursor.list_marker_at(fancy, example)?;
+        // The greedy Markdown dialect without fancy lists still recognizes the `#.` auto-number
+        // placeholder, but its ordered lists are limited to the period delimiter: a `)`-delimited
+        // enumerator such as `1)` is left as prose.
+        let plain_ordered = self.greedy_paragraphs && !fancy;
+        let parsed = cursor.list_marker_at(fancy, example, plain_ordered)?;
+        if plain_ordered
+            && !parsed.bullet
+            && !matches!(
+                parsed.delim,
+                ListNumberDelim::DefaultDelim | ListNumberDelim::Period
+            )
+        {
+            return None;
+        }
 
         // These restrictions apply only when the marker would interrupt a *bare* paragraph (one not
         // already inside a list): an empty item cannot interrupt, and an ordered marker may only
@@ -1642,7 +1900,7 @@ impl Parser {
         }
         // Ordered lists group by delimiter and by whether this marker reads as a continuation of the
         // list's established number style.
-        info.delim == parsed.delim && continues_ordered(&info.style, parsed)
+        info.delim == parsed.delim && continues_ordered(info.style, parsed)
     }
 
     fn add_line(&mut self, container: usize, started_new: bool, blank: bool, cursor: &mut Cursor) {
@@ -1660,6 +1918,7 @@ impl Parser {
             let leaf = self.deepest_open(container);
             match self.kind(leaf).cloned() {
                 Some(Kind::Paragraph) => {
+                    self.note_paragraph_indent(leaf, cursor);
                     self.append_text(leaf, &cursor.rest());
                     self.append_text(leaf, "\n");
                 }
@@ -1679,6 +1938,7 @@ impl Parser {
                     let rest = cursor.rest();
                     if !rest.trim().is_empty() {
                         let index = self.append_child(leaf, Node::new(Kind::Paragraph));
+                        self.note_paragraph_indent(index, cursor);
                         self.append_text(index, &rest);
                         self.append_text(index, "\n");
                     }
@@ -1698,8 +1958,21 @@ impl Parser {
 
         let parent = self.place(container, &Kind::Paragraph);
         let index = self.append_child(parent, Node::new(Kind::Paragraph));
+        self.note_paragraph_indent(index, cursor);
         self.append_text(index, &cursor.rest());
         self.append_text(index, "\n");
+    }
+
+    /// Record the column a freshly opened paragraph's first line began at, so a dash ruling on the
+    /// following line can read a headed table's alignment against the header's true position. Only an
+    /// empty paragraph is its first line; a continuation must not overwrite the recorded column.
+    fn note_paragraph_indent(&mut self, index: usize, cursor: &Cursor) {
+        let indent = cursor.noted_indent();
+        if let Some(node) = self.nodes.get_mut(index)
+            && node.text.is_empty()
+        {
+            node.indent = indent;
+        }
     }
 
     fn append_text(&mut self, index: usize, text: &str) {
@@ -1807,7 +2080,9 @@ impl Parser {
 
     fn extract_refs(&mut self, text: &str) -> String {
         let mut remaining = text;
-        while let Some((label, def, rest)) = scan::parse_link_reference_definition(remaining) {
+        while let Some((label, def, rest)) =
+            scan::parse_link_reference_definition(remaining, self.greedy_paragraphs)
+        {
             self.refs.entry(label).or_insert(def);
             remaining = rest;
         }
@@ -1874,6 +2149,8 @@ impl Parser {
                         caption: None,
                         attr: Attr::default(),
                     }
+                } else if node.as_plain {
+                    IrBlock::Plain(trimmed.to_owned())
                 } else {
                     IrBlock::Para(trimmed.to_owned())
                 }
@@ -2076,10 +2353,18 @@ impl Parser {
             } else {
                 info.start
             };
+            // Without fancy lists the greedy Markdown dialect does not distinguish enumerator styles
+            // or delimiters: every ordered list carries the default style and delimiter.
+            let (style, delim) =
+                if self.greedy_paragraphs && !self.extensions.contains(Extension::FancyLists) {
+                    (ListNumberStyle::DefaultStyle, ListNumberDelim::DefaultDelim)
+                } else {
+                    (info.style, info.delim)
+                };
             let attrs = ListAttributes {
                 start,
-                style: info.style.clone(),
-                delim: info.delim.clone(),
+                style,
+                delim,
             };
             IrBlock::OrderedList(attrs, items)
         }
@@ -2367,8 +2652,8 @@ fn list_info(parsed: &ListMarkerParse) -> ListInfo {
     ListInfo {
         bullet: parsed.bullet,
         marker: parsed.marker,
-        style: parsed.style.clone(),
-        delim: parsed.delim.clone(),
+        style: parsed.style,
+        delim: parsed.delim,
         start: parsed.start,
     }
 }
@@ -2397,7 +2682,7 @@ fn demote_lone_roman(info: ListInfo) -> ListInfo {
 ///   the ninth letter);
 /// - a roman list takes any roman numeral of its case, plus the single letters whose position is a
 ///   roman value (`a`, `e`, `j`) — the same letters a roman sequence can reach.
-fn continues_ordered(list_style: &ListNumberStyle, marker: &ListMarkerParse) -> bool {
+fn continues_ordered(list_style: ListNumberStyle, marker: &ListMarkerParse) -> bool {
     use ListNumberStyle::{Decimal, LowerAlpha, LowerRoman, UpperAlpha, UpperRoman};
     let lower = matches!(marker.style, LowerAlpha | LowerRoman);
     let upper = matches!(marker.style, UpperAlpha | UpperRoman);
@@ -3741,9 +4026,7 @@ mod dialect_tests {
     /// The (start, style, delim) of a single ordered list, or `None` for anything else.
     fn ordered_attrs(blocks: &[IrBlock]) -> Option<(i32, ListNumberStyle, ListNumberDelim)> {
         match blocks {
-            [IrBlock::OrderedList(attrs, _)] => {
-                Some((attrs.start, attrs.style.clone(), attrs.delim.clone()))
-            }
+            [IrBlock::OrderedList(attrs, _)] => Some((attrs.start, attrs.style, attrs.delim)),
             _ => None,
         }
     }

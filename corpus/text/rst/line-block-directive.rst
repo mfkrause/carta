@@ -1,0 +1,6 @@
+.. line-block::
+
+   Lend us a couple of bob
+   till Thursday.
+
+   I'm short of a couple of bob.

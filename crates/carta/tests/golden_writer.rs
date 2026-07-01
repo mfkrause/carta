@@ -41,6 +41,7 @@ const TARGETS: &[&str] = &[
     "opml",
     "beamer",
     "revealjs",
+    "ipynb",
 ];
 
 #[test]

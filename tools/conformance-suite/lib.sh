@@ -40,6 +40,17 @@ require_tools() {
 # A target whose output is compared structurally as JSON rather than byte-for-byte.
 is_json_target() { [ "$1" = "json" ]; }
 
+# The comparison mode for a target: structural JSON for the AST interchange, id-canonicalized JSON
+# for notebooks (whose per-cell id carta derives deterministically while the oracle assigns it at
+# random), byte-modulo-trailing-newline text for everything else.
+compare_mode() {
+  case "$1" in
+    json) echo json ;;
+    ipynb) echo ipynb ;;
+    *) echo text ;;
+  esac
+}
+
 # 0 when the case is listed as not-yet-implemented in exclusions.tsv. An entry is
 # `target<TAB>feature` (the whole feature directory) or `target<TAB>feature/case` (one case stem).
 is_excluded() {
@@ -56,6 +67,19 @@ compare_json() {
   local a="$WORK/.cmp.oracle.json" b="$WORK/.cmp.ox.json"
   jq -S . "$1" >"$a" 2>/dev/null || { echo "oracle JSON unparsable"; return 1; }
   jq -S . "$2" >"$b" 2>/dev/null || { echo "carta JSON unparsable"; return 1; }
+  cmp -s "$a" "$b" && return 0
+  diff "$a" "$b" | head -n 8
+  return 1
+}
+
+# Compare two notebook (JSON) outputs structurally after canonicalizing each cell's `id`. The id is
+# the one field a writer is free to mint per cell; carta derives it deterministically from the cell
+# while the oracle draws a fresh random value, so it is folded to a constant on both sides before the
+# structural compare.
+compare_ipynb() {
+  local a="$WORK/.cmp.oracle.ipynb" b="$WORK/.cmp.ox.ipynb"
+  jq -S '(.cells[]?.id) |= "id"' "$1" >"$a" 2>/dev/null || { echo "oracle notebook unparsable"; return 1; }
+  jq -S '(.cells[]?.id) |= "id"' "$2" >"$b" 2>/dev/null || { echo "carta notebook unparsable"; return 1; }
   cmp -s "$a" "$b" && return 0
   diff "$a" "$b" | head -n 8
   return 1

@@ -18,17 +18,54 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_mmd" => presets::MARKDOWN_MMD,
         "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
-        // LaTeX, Beamer, and Typst default to `smart`: the writer renders quotes and dashes as TeX
-        // ligatures (or Typst's straight-quote/hyphen-run spellings) unless `-smart` asks for the
-        // literal Unicode punctuation instead.
-        "latex" | "beamer" | "typst" => Extensions::from_list(&[Extension::Smart]),
+        // These formats default to `smart`: quotes, dashes, and ellipses are folded into their
+        // typographic forms — TeX ligatures for `latex`/`beamer`, the corresponding glyphs for
+        // `typst` and `dokuwiki` — unless `-smart` asks for the literal Unicode punctuation instead.
+        "latex" | "beamer" | "typst" | "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
         "html" | "html5" | "html4" => Extensions::from_list(&[
             Extension::AutoIdentifiers,
             Extension::LineBlocks,
             Extension::NativeDivs,
             Extension::NativeSpans,
         ]),
+        "rst" | "mediawiki" | "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        // A notebook's markdown cells are parsed and rendered in a GitHub-flavored dialect with dollar
+        // math and auto identifiers on by default.
+        "ipynb" => Extensions::from_list(&[
+            Extension::AutoIdentifiers,
+            Extension::GfmAutoIdentifiers,
+            Extension::Autolink,
+            Extension::BacktickCodeBlocks,
+            Extension::FencedCodeBlocks,
+            Extension::IntrawordUnderscores,
+            Extension::ListsWithoutPrecedingBlankline,
+            Extension::PipeTables,
+            Extension::RawHtml,
+            Extension::Strikeout,
+            Extension::TaskLists,
+            Extension::TexMathDollars,
+        ]),
         _ => Extensions::empty(),
+    }
+}
+
+/// The fixed set of extensions a base format accepts, when it declares one.
+///
+/// `Some(set)` means the format admits exactly these extensions: a `+`/`-` toggle naming anything
+/// outside the set is rejected, and only members appear in `--list-extensions`. `None` means the
+/// format declares no fixed set, so any modeled extension may be toggled.
+pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
+    match base {
+        "dokuwiki" => Some(Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::GfmAutoIdentifiers,
+            Extension::RawHtml,
+            Extension::Smart,
+            Extension::TexMathDollars,
+        ])),
+        _ => None,
     }
 }
 
@@ -43,6 +80,7 @@ pub fn parse_format_spec(spec: &str) -> Result<(String, Extensions)> {
     let base_end = spec.find(['+', '-']).unwrap_or(spec.len());
     let (base, mut rest) = spec.split_at(base_end);
     let mut extensions = default_extensions(base);
+    let supported = supported_extensions(base);
 
     while !rest.is_empty() {
         let (enable, after_sign) = match rest.strip_prefix('+') {
@@ -57,8 +95,19 @@ pub fn parse_format_spec(spec: &str) -> Result<(String, Extensions)> {
         let (name, remainder) = after_sign.split_at(token_end);
         rest = remainder;
 
-        let extension =
-            Extension::from_name(name).ok_or_else(|| Error::UnknownExtension(name.to_owned()))?;
+        // A format that declares a fixed extension set admits only its members; anything else —
+        // including a name no extension answers to — is unsupported for that format. A format
+        // without a declared set accepts any modeled extension and rejects only unknown names.
+        let extension = match &supported {
+            Some(set) => Extension::from_name(name)
+                .filter(|ext| set.contains(*ext))
+                .ok_or_else(|| Error::UnsupportedExtension {
+                    extension: name.to_owned(),
+                    format: base.to_owned(),
+                })?,
+            None => Extension::from_name(name)
+                .ok_or_else(|| Error::UnknownExtension(name.to_owned()))?,
+        };
         if enable {
             extensions.insert(extension);
         } else {
@@ -171,5 +220,91 @@ mod tests {
     fn html_unknown_extension_is_an_error() {
         let err = parse_format_spec("html+bogus").unwrap_err();
         assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
+    }
+
+    #[test]
+    fn recognized_dialect_toggle_names_parse_without_error() {
+        // These extension names are part of the markdown-family vocabulary a format spec may toggle.
+        // Each must be recognized so that toggling it on a base format succeeds rather than aborting,
+        // and each toggle must round-trip: `+name` then `-name` returns to the default membership.
+        let names = [
+            "abbreviations",
+            "all_symbols_escapable",
+            "angle_brackets_escapable",
+            "ascii_identifiers",
+            "east_asian_line_breaks",
+            "four_space_rule",
+            "gutenberg",
+            "ignore_line_breaks",
+            "latex_macros",
+            "literate_haskell",
+            "mmd_link_attributes",
+            "mmd_title_block",
+            "old_dashes",
+            "raw_markdown",
+            "rebase_relative_paths",
+            "short_subsuperscripts",
+            "shortcut_reference_links",
+            "space_in_atx_header",
+            "spaced_reference_links",
+            "wikilinks_title_after_pipe",
+            "wikilinks_title_before_pipe",
+        ];
+        let (_, default) = parse_format_spec("ipynb").unwrap();
+        for name in names {
+            let (_, enabled) = parse_format_spec(&format!("ipynb+{name}"))
+                .unwrap_or_else(|err| panic!("ipynb+{name} should parse: {err:?}"));
+            let extension =
+                Extension::from_name(name).unwrap_or_else(|| panic!("{name} should be a variant"));
+            assert!(enabled.contains(extension), "+{name} should enable it");
+
+            let (_, disabled) = parse_format_spec(&format!("ipynb+{name}-{name}"))
+                .unwrap_or_else(|err| panic!("ipynb+{name}-{name} should parse: {err:?}"));
+            assert_eq!(
+                disabled.contains(extension),
+                default.contains(extension),
+                "+{name}-{name} should return to the default membership"
+            );
+        }
+    }
+
+    #[test]
+    fn dokuwiki_defaults_to_smart_only() {
+        let (base, ext) = parse_format_spec("dokuwiki").unwrap();
+        assert_eq!(base, "dokuwiki");
+        assert!(ext.contains(Extension::Smart));
+        assert!(!ext.contains(Extension::TexMathDollars));
+    }
+
+    #[test]
+    fn dokuwiki_admits_its_declared_extensions() {
+        let (_, ext) = parse_format_spec("dokuwiki+tex_math_dollars-smart").unwrap();
+        assert!(ext.contains(Extension::TexMathDollars));
+        assert!(!ext.contains(Extension::Smart));
+    }
+
+    #[test]
+    fn dokuwiki_rejects_an_extension_outside_its_set() {
+        // `pipe_tables` is a modeled extension, but not one dokuwiki accepts.
+        let err = parse_format_spec("dokuwiki+pipe_tables").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, format }
+                if extension == "pipe_tables" && format == "dokuwiki"
+        ));
+        // An unknown name is reported the same way: unsupported for this format.
+        let err = parse_format_spec("dokuwiki+bogus").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, .. } if extension == "bogus"
+        ));
+    }
+
+    #[test]
+    fn supported_set_is_only_declared_for_listed_formats() {
+        use super::supported_extensions;
+        assert!(supported_extensions("dokuwiki").is_some());
+        assert!(supported_extensions("commonmark").is_none());
+        assert!(supported_extensions("html").is_none());
     }
 }

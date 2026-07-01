@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"CodeBlock","c":[["",["python"],[]],"def f():\n    return 1"]},{"t":"CodeBlock","c":[["",[],[]],"plain preformatted\n  text block"]}]}

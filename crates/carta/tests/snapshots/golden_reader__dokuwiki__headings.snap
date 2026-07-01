@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["",[],[]],[{"t":"Str","c":"Top"},{"t":"Space"},{"t":"Str","c":"Level"}]]},{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"introductory"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"beneath"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"top"},{"t":"Space"},{"t":"Str","c":"heading."}]},{"t":"Header","c":[2,["",[],[]],[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"Level"}]]},{"t":"Header","c":[3,["",[],[]],[{"t":"Str","c":"Third"},{"t":"Space"},{"t":"Str","c":"Level"}]]},{"t":"Header","c":[4,["",[],[]],[{"t":"Str","c":"Fourth"},{"t":"Space"},{"t":"Str","c":"Level"}]]},{"t":"Header","c":[5,["",[],[]],[{"t":"Str","c":"Fifth"},{"t":"Space"},{"t":"Str","c":"Level"}]]},{"t":"Para","c":[{"t":"Str","c":"Closing"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"text."}]}]}

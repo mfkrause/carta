@@ -1,0 +1,7 @@
+.TH T 1
+.SH First Section
+Body text under a heading.
+.SS A Subsection
+Body text under a subsection.
+.SH First Section
+A repeated heading title.

@@ -1,0 +1,5 @@
+Backslash before a digit a\1b stays literal, but a\*b escapes the star.
+
+Entities &copy; and &#169; decode, yet &#x41; stays as written.
+
+Monospace decodes entities too: {{&amp; and &#169;}} inside.

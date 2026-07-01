@@ -18,10 +18,11 @@ use super::attr;
 use super::block::is_format_name_char;
 use super::identifiers::HeaderNumbering;
 use super::scan::{
-    is_ascii_punctuation, normalize_label, scan_autolink, scan_entity, scan_following_label,
-    scan_html_tag, scan_inline_target, unescape_string,
+    escape_uri, is_ascii_punctuation, normalize_label, scan_autolink, scan_entity,
+    scan_following_label, scan_html_tag, scan_inline_target, unescape_string,
 };
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
+use crate::emoji;
 use crate::inline_scan::{fold_dash_run, fold_ellipsis_run, is_unicode_whitespace};
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
@@ -105,7 +106,7 @@ pub(crate) fn resolve_document(
         cite_count: &body_count,
     };
     let mut blocks = resolve_blocks(ir, &refs, top, ext);
-    super::identifiers::assign_header_identifiers(&mut blocks, ext);
+    super::identifiers::assign_header_identifiers(&mut blocks, ext, markdown);
     blocks
 }
 
@@ -120,7 +121,7 @@ fn register_header_references(
     notes: RefContext,
     ext: Extensions,
 ) {
-    let mut numbering = HeaderNumbering::new(ext);
+    let mut numbering = HeaderNumbering::new(ext, notes.markdown);
     gather_headers(ir, refs, notes, ext, &mut numbering);
 }
 
@@ -193,10 +194,17 @@ fn resolve_block(
         }
         IrBlock::CodeBlock(attr, text) => out.push(Block::CodeBlock(attr.clone(), text.clone())),
         IrBlock::RawHtml(text) => {
-            out.push(Block::RawBlock(
-                carta_ast::Format("html".to_owned()),
-                text.clone(),
-            ));
+            // In the Markdown dialect with `raw_html` off an HTML block degrades to an ordinary
+            // paragraph of its literal text; the inline pass keeps the tags as text. The bare
+            // CommonMark engine always emits a raw HTML block.
+            if notes.markdown && !ext.contains(Extension::RawHtml) {
+                out.push(Block::Para(parse_inlines(text, refs, notes, ext)));
+            } else {
+                out.push(Block::RawBlock(
+                    carta_ast::Format("html".to_owned()),
+                    text.clone(),
+                ));
+            }
         }
         IrBlock::RawBlock(format, text) => {
             out.push(Block::RawBlock(format.clone(), text.clone()));
@@ -686,7 +694,7 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
     if ext.contains(Extension::Autolink) {
-        super::autolink::autolink_inlines(&mut inlines);
+        super::autolink::autolink_inlines(&mut inlines, notes.markdown);
     }
     if ext.contains(Extension::NativeSpans) {
         inlines = pair_native_spans(inlines);
@@ -921,6 +929,14 @@ impl InlineParser<'_> {
         }
         self.pos += 1;
         match self.peek() {
+            // In the broad Markdown dialect a backslash before a line ending is a hard break only
+            // when `escaped_line_breaks` is on; with it off the backslash is literal and the line
+            // ending is an ordinary soft break. The bare CommonMark engine always hard-breaks here.
+            Some('\n')
+                if self.notes.markdown && !self.ext.contains(Extension::EscapedLineBreaks) =>
+            {
+                self.push_text('\\');
+            }
             Some('\n') => {
                 self.pos += 1;
                 while matches!(self.peek(), Some(' ' | '\t')) {
@@ -1250,10 +1266,12 @@ impl InlineParser<'_> {
     fn left_angle(&mut self) {
         if let Some((inline, next)) = scan_autolink(self.chars, self.pos) {
             self.pos = next;
-            // The markdown dialect tags an explicit angle autolink with a `uri` or `email` class;
-            // the strict dialect leaves it unclassed.
+            // The markdown dialect tags an explicit angle autolink with a `uri` or `email` class
+            // and percent-encodes its destination; the strict dialect leaves it unclassed and
+            // verbatim. The destination is encoded after classification, which compares the shown
+            // text against the still-raw destination to tell a `uri` from an `email`.
             let inline = if self.notes.markdown {
-                classify_angle_autolink(inline)
+                escape_link_destination(classify_angle_autolink(inline))
             } else {
                 inline
             };
@@ -1262,10 +1280,17 @@ impl InlineParser<'_> {
         }
         if let Some((html, next)) = scan_html_tag(self.chars, self.pos) {
             self.pos = next;
-            self.nodes.push(Node::Inline(Inline::RawInline(
-                carta_ast::Format("html".to_owned()),
-                html,
-            )));
+            // In the Markdown dialect with `raw_html` off the tag is still recognized as a unit but
+            // kept as literal text rather than a passthrough span. The bare CommonMark engine always
+            // emits raw HTML, since HTML is part of its core grammar.
+            if self.notes.markdown && !self.ext.contains(Extension::RawHtml) {
+                self.push_str(&html);
+            } else {
+                self.nodes.push(Node::Inline(Inline::RawInline(
+                    carta_ast::Format("html".to_owned()),
+                    html,
+                )));
+            }
             return;
         }
         self.pos += 1;
@@ -1317,7 +1342,12 @@ impl InlineParser<'_> {
             self.chars.get(start - 1).copied()
         };
         let after = self.peek();
-        let (can_open, can_close) = run_flanking(ch, before, after);
+        // With `intraword_underscores` off in the Markdown dialect, a `_` run pairs like `*`,
+        // emphasizing even between word characters; otherwise the CommonMark `_` rule keeps an
+        // intraword run inert.
+        let relax_underscore =
+            self.notes.markdown && !self.ext.contains(Extension::IntrawordUnderscores);
+        let (can_open, can_close) = run_flanking(ch, before, after, relax_underscore);
         self.nodes.push(Node::Delimiter(Delimiter {
             ch,
             count,
@@ -1782,7 +1812,12 @@ impl InlineParser<'_> {
         true
     }
 
-    fn build_link(&mut self, opener_index: usize, is_image: bool, target: Target, attr: Attr) {
+    fn build_link(&mut self, opener_index: usize, is_image: bool, mut target: Target, attr: Attr) {
+        // The markdown dialect percent-encodes a destination's unsafe characters; the strict
+        // CommonMark and GitHub dialects keep it verbatim.
+        if self.notes.markdown {
+            target.url = escape_uri(&target.url);
+        }
         let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
         // Any bracket stack entries that pointed into the split-off range are now part of the
@@ -2408,9 +2443,17 @@ fn is_quote(ch: u8) -> bool {
 
 /// Open/close eligibility for a delimiter run, dispatching to the smart-quote rule for `'`/`"` and
 /// to the emphasis rule for everything else.
-fn run_flanking(ch: u8, before: Option<char>, after: Option<char>) -> (bool, bool) {
+fn run_flanking(
+    ch: u8,
+    before: Option<char>,
+    after: Option<char>,
+    relax_underscore: bool,
+) -> (bool, bool) {
     if is_quote(ch) {
         quote_flanking(ch, before, after)
+    } else if ch == b'_' && relax_underscore {
+        // Pair underscores by the same boundary rule as `*`, which permits intraword emphasis.
+        flanking(b'*', before, after)
     } else {
         flanking(ch, before, after)
     }
@@ -2589,6 +2632,15 @@ fn classify_angle_autolink(inline: Inline) -> Inline {
     let is_email = matches!(text.first(), Some(Inline::Str(shown)) if *shown != target.url);
     attr.classes
         .push(if is_email { "email" } else { "uri" }.to_owned());
+    Inline::Link(attr, text, target)
+}
+
+/// Percent-encode the destination of a link, leaving its shown text untouched.
+fn escape_link_destination(inline: Inline) -> Inline {
+    let Inline::Link(attr, text, mut target) = inline else {
+        return inline;
+    };
+    target.url = escape_uri(&target.url);
     Inline::Link(attr, text, target)
 }
 
@@ -3190,280 +3242,6 @@ fn normalize_code(content: &str, markdown: bool) -> String {
             .to_owned()
     } else {
         collapsed
-    }
-}
-
-/// A curated subset of common emoji shortcodes mapped to their unicode strings, sorted by name
-/// for binary search. The full set of named emoji is far larger; this table ships the names most
-/// likely to appear in prose — faces, hands (including `+1`/`-1`), hearts, and common symbols and
-/// objects. Some entries carry a trailing variation selector (`U+FE0F`) as part of their text.
-mod emoji {
-    /// `(shortname, unicode)` pairs, sorted ascending by `shortname` so [`lookup`] can binary-search.
-    const TABLE: &[(&str, &str)] = &[
-        ("+1", "\u{1f44d}"),
-        ("-1", "\u{1f44e}"),
-        ("100", "\u{1f4af}"),
-        ("8ball", "\u{1f3b1}"),
-        ("airplane", "\u{2708}\u{fe0f}"),
-        ("alarm_clock", "\u{23f0}"),
-        ("angry", "\u{1f620}"),
-        ("ant", "\u{1f41c}"),
-        ("apple", "\u{1f34e}"),
-        ("arrow_down", "\u{2b07}\u{fe0f}"),
-        ("arrow_left", "\u{2b05}\u{fe0f}"),
-        ("arrow_right", "\u{27a1}\u{fe0f}"),
-        ("arrow_up", "\u{2b06}\u{fe0f}"),
-        ("arrow_upper_right", "\u{2197}\u{fe0f}"),
-        ("astonished", "\u{1f632}"),
-        ("balloon", "\u{1f388}"),
-        ("banana", "\u{1f34c}"),
-        ("bangbang", "\u{203c}\u{fe0f}"),
-        ("baseball", "\u{26be}"),
-        ("basketball", "\u{1f3c0}"),
-        ("battery", "\u{1f50b}"),
-        ("bear", "\u{1f43b}"),
-        ("bee", "\u{1f41d}"),
-        ("beer", "\u{1f37a}"),
-        ("beers", "\u{1f37b}"),
-        ("bell", "\u{1f514}"),
-        ("bird", "\u{1f426}"),
-        ("black_circle", "\u{26ab}"),
-        ("black_heart", "\u{1f5a4}"),
-        ("blue_heart", "\u{1f499}"),
-        ("blush", "\u{1f60a}"),
-        ("bomb", "\u{1f4a3}"),
-        ("book", "\u{1f4d6}"),
-        ("books", "\u{1f4da}"),
-        ("boom", "\u{1f4a5}"),
-        ("broken_heart", "\u{1f494}"),
-        ("bug", "\u{1f41b}"),
-        ("bulb", "\u{1f4a1}"),
-        ("bus", "\u{1f68c}"),
-        ("bust_in_silhouette", "\u{1f464}"),
-        ("butterfly", "\u{1f98b}"),
-        ("calling", "\u{1f4f2}"),
-        ("camera", "\u{1f4f7}"),
-        ("car", "\u{1f697}"),
-        ("cat", "\u{1f431}"),
-        ("cherries", "\u{1f352}"),
-        ("chicken", "\u{1f414}"),
-        ("clap", "\u{1f44f}"),
-        ("cloud", "\u{2601}\u{fe0f}"),
-        ("cocktail", "\u{1f378}"),
-        ("coffee", "\u{2615}"),
-        ("collision", "\u{1f4a5}"),
-        ("computer", "\u{1f4bb}"),
-        ("confetti_ball", "\u{1f38a}"),
-        ("confused", "\u{1f615}"),
-        ("cow", "\u{1f42e}"),
-        ("crescent_moon", "\u{1f319}"),
-        ("crown", "\u{1f451}"),
-        ("cry", "\u{1f622}"),
-        ("cupid", "\u{1f498}"),
-        ("dart", "\u{1f3af}"),
-        ("dash", "\u{1f4a8}"),
-        ("desktop_computer", "\u{1f5a5}\u{fe0f}"),
-        ("disappointed", "\u{1f61e}"),
-        ("dizzy_face", "\u{1f635}"),
-        ("dog", "\u{1f436}"),
-        ("dollar", "\u{1f4b5}"),
-        ("droplet", "\u{1f4a7}"),
-        ("ear", "\u{1f442}"),
-        ("earth_americas", "\u{1f30e}"),
-        ("electric_plug", "\u{1f50c}"),
-        ("email", "\u{1f4e7}"),
-        ("envelope", "\u{2709}\u{fe0f}"),
-        ("exclamation", "\u{2757}"),
-        ("expressionless", "\u{1f611}"),
-        ("eye", "\u{1f441}\u{fe0f}"),
-        ("eyes", "\u{1f440}"),
-        ("fearful", "\u{1f628}"),
-        ("fire", "\u{1f525}"),
-        ("fist", "\u{270a}"),
-        ("flashlight", "\u{1f526}"),
-        ("flushed", "\u{1f633}"),
-        ("football", "\u{1f3c8}"),
-        ("footprints", "\u{1f463}"),
-        ("fox_face", "\u{1f98a}"),
-        ("fries", "\u{1f35f}"),
-        ("frog", "\u{1f438}"),
-        ("frowning", "\u{1f626}"),
-        ("full_moon", "\u{1f315}"),
-        ("gear", "\u{2699}\u{fe0f}"),
-        ("gem", "\u{1f48e}"),
-        ("gift", "\u{1f381}"),
-        ("globe_with_meridians", "\u{1f310}"),
-        ("golf", "\u{26f3}"),
-        ("grapes", "\u{1f347}"),
-        ("green_heart", "\u{1f49a}"),
-        ("grey_exclamation", "\u{2755}"),
-        ("grey_question", "\u{2754}"),
-        ("grimacing", "\u{1f62c}"),
-        ("grin", "\u{1f601}"),
-        ("grinning", "\u{1f600}"),
-        ("guitar", "\u{1f3b8}"),
-        ("gun", "\u{1f52b}"),
-        ("hamburger", "\u{1f354}"),
-        ("hammer", "\u{1f528}"),
-        ("hand", "\u{270b}"),
-        ("handshake", "\u{1f91d}"),
-        ("headphones", "\u{1f3a7}"),
-        ("heart", "\u{2764}\u{fe0f}"),
-        ("heart_eyes", "\u{1f60d}"),
-        ("heartbeat", "\u{1f493}"),
-        ("heartpulse", "\u{1f497}"),
-        ("heavy_check_mark", "\u{2714}\u{fe0f}"),
-        ("heavy_division_sign", "\u{2797}"),
-        ("heavy_minus_sign", "\u{2796}"),
-        ("heavy_multiplication_x", "\u{2716}\u{fe0f}"),
-        ("heavy_plus_sign", "\u{2795}"),
-        ("horse", "\u{1f434}"),
-        ("hourglass", "\u{231b}"),
-        ("interrobang", "\u{2049}\u{fe0f}"),
-        ("iphone", "\u{1f4f1}"),
-        ("joy", "\u{1f602}"),
-        ("key", "\u{1f511}"),
-        ("keyboard", "\u{2328}\u{fe0f}"),
-        ("kiss", "\u{1f48b}"),
-        ("kissing_heart", "\u{1f618}"),
-        ("knife", "\u{1f52a}"),
-        ("koala", "\u{1f428}"),
-        ("large_blue_circle", "\u{1f535}"),
-        ("laughing", "\u{1f606}"),
-        ("lemon", "\u{1f34b}"),
-        ("lips", "\u{1f444}"),
-        ("lock", "\u{1f512}"),
-        ("mag", "\u{1f50d}"),
-        ("mask", "\u{1f637}"),
-        ("memo", "\u{1f4dd}"),
-        ("metal", "\u{1f918}"),
-        ("microphone", "\u{1f3a4}"),
-        ("microscope", "\u{1f52c}"),
-        ("moneybag", "\u{1f4b0}"),
-        ("monkey_face", "\u{1f435}"),
-        ("moon", "\u{1f314}"),
-        ("mouse", "\u{1f42d}"),
-        ("movie_camera", "\u{1f3a5}"),
-        ("muscle", "\u{1f4aa}"),
-        ("musical_note", "\u{1f3b5}"),
-        ("nail_care", "\u{1f485}"),
-        ("negative_squared_cross_mark", "\u{274e}"),
-        ("neutral_face", "\u{1f610}"),
-        ("no_bell", "\u{1f515}"),
-        ("no_mouth", "\u{1f636}"),
-        ("nose", "\u{1f443}"),
-        ("notes", "\u{1f3b6}"),
-        ("ok_hand", "\u{1f44c}"),
-        ("open_hands", "\u{1f450}"),
-        ("open_mouth", "\u{1f62e}"),
-        ("panda_face", "\u{1f43c}"),
-        ("peach", "\u{1f351}"),
-        ("pencil2", "\u{270f}\u{fe0f}"),
-        ("penguin", "\u{1f427}"),
-        ("pensive", "\u{1f614}"),
-        ("phone", "\u{260e}\u{fe0f}"),
-        ("pig", "\u{1f437}"),
-        ("pill", "\u{1f48a}"),
-        ("pizza", "\u{1f355}"),
-        ("point_down", "\u{1f447}"),
-        ("point_left", "\u{1f448}"),
-        ("point_right", "\u{1f449}"),
-        ("point_up", "\u{261d}\u{fe0f}"),
-        ("pray", "\u{1f64f}"),
-        ("printer", "\u{1f5a8}\u{fe0f}"),
-        ("punch", "\u{1f44a}"),
-        ("purple_heart", "\u{1f49c}"),
-        ("question", "\u{2753}"),
-        ("rabbit", "\u{1f430}"),
-        ("rage", "\u{1f621}"),
-        ("raised_hand", "\u{270b}"),
-        ("raised_hands", "\u{1f64c}"),
-        ("recycle", "\u{267b}\u{fe0f}"),
-        ("red_circle", "\u{1f534}"),
-        ("relaxed", "\u{263a}\u{fe0f}"),
-        ("relieved", "\u{1f60c}"),
-        ("revolving_hearts", "\u{1f49e}"),
-        ("rocket", "\u{1f680}"),
-        ("rotating_light", "\u{1f6a8}"),
-        ("satellite", "\u{1f4e1}"),
-        ("scream", "\u{1f631}"),
-        ("shield", "\u{1f6e1}\u{fe0f}"),
-        ("sleeping", "\u{1f634}"),
-        ("sleepy", "\u{1f62a}"),
-        ("slightly_smiling_face", "\u{1f642}"),
-        ("smile", "\u{1f604}"),
-        ("smiley", "\u{1f603}"),
-        ("smirk", "\u{1f60f}"),
-        ("snail", "\u{1f40c}"),
-        ("snake", "\u{1f40d}"),
-        ("snowflake", "\u{2744}\u{fe0f}"),
-        ("snowman", "\u{26c4}"),
-        ("sob", "\u{1f62d}"),
-        ("soccer", "\u{26bd}"),
-        ("sparkles", "\u{2728}"),
-        ("sparkling_heart", "\u{1f496}"),
-        ("spider", "\u{1f577}\u{fe0f}"),
-        ("star", "\u{2b50}"),
-        ("star2", "\u{1f31f}"),
-        ("strawberry", "\u{1f353}"),
-        ("stuck_out_tongue", "\u{1f61b}"),
-        ("sun_with_face", "\u{1f31e}"),
-        ("sunglasses", "\u{1f60e}"),
-        ("sunny", "\u{2600}\u{fe0f}"),
-        ("sweat_drops", "\u{1f4a6}"),
-        ("sweat_smile", "\u{1f605}"),
-        ("syringe", "\u{1f489}"),
-        ("tada", "\u{1f389}"),
-        ("taxi", "\u{1f695}"),
-        ("tea", "\u{1f375}"),
-        ("telephone", "\u{260e}\u{fe0f}"),
-        ("telescope", "\u{1f52d}"),
-        ("tennis", "\u{1f3be}"),
-        ("thinking", "\u{1f914}"),
-        ("thumbsdown", "\u{1f44e}"),
-        ("thumbsup", "\u{1f44d}"),
-        ("tiger", "\u{1f42f}"),
-        ("tired_face", "\u{1f62b}"),
-        ("tongue", "\u{1f445}"),
-        ("train", "\u{1f68b}"),
-        ("triumph", "\u{1f624}"),
-        ("trophy", "\u{1f3c6}"),
-        ("trumpet", "\u{1f3ba}"),
-        ("turtle", "\u{1f422}"),
-        ("tv", "\u{1f4fa}"),
-        ("two_hearts", "\u{1f495}"),
-        ("umbrella", "\u{2614}"),
-        ("unamused", "\u{1f612}"),
-        ("unlock", "\u{1f513}"),
-        ("upside_down_face", "\u{1f643}"),
-        ("v", "\u{270c}\u{fe0f}"),
-        ("warning", "\u{26a0}\u{fe0f}"),
-        ("watch", "\u{231a}"),
-        ("watermelon", "\u{1f349}"),
-        ("wave", "\u{1f44b}"),
-        ("weary", "\u{1f629}"),
-        ("white_check_mark", "\u{2705}"),
-        ("white_circle", "\u{26aa}"),
-        ("wine_glass", "\u{1f377}"),
-        ("wink", "\u{1f609}"),
-        ("wolf", "\u{1f43a}"),
-        ("worried", "\u{1f61f}"),
-        ("wrench", "\u{1f527}"),
-        ("writing_hand", "\u{270d}\u{fe0f}"),
-        ("x", "\u{274c}"),
-        ("yellow_heart", "\u{1f49b}"),
-        ("yum", "\u{1f60b}"),
-        ("zap", "\u{26a1}"),
-        ("zzz", "\u{1f4a4}"),
-    ];
-
-    /// The unicode string for `name`, or `None` when the name is not in the curated table.
-    pub(super) fn lookup(name: &str) -> Option<&'static str> {
-        TABLE
-            .binary_search_by(|(key, _)| (*key).cmp(name))
-            .ok()
-            .and_then(|index| TABLE.get(index))
-            .map(|(_, value)| *value)
     }
 }
 

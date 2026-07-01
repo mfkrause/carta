@@ -17,6 +17,7 @@ jobs:
   check:
     name: fmt · clippy · test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain
@@ -37,6 +38,7 @@ jobs:
   conformance:
     name: conformance (differential)
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain
@@ -61,6 +63,7 @@ jobs:
   coverage:
     name: coverage (≥90%)
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain
@@ -75,6 +78,7 @@ jobs:
   minimal:
     name: minimal feature build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain
@@ -90,14 +94,15 @@ jobs:
       - name: Build zero-format config
         run: cargo build -p carta --no-default-features
 
-  fuzz-smoke:
-    name: fuzz smoke (nightly)
+  fuzz-replay:
+    name: fuzz build · regression replay
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         # One entry per reader fuzz target (see fuzz/Cargo.toml). Add new readers here.
-        target: [commonmark, json, native, html, csv, tsv, opml]
+        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man]
     steps:
       - uses: actions/checkout@v7
       - name: Install nightly toolchain
@@ -108,15 +113,32 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-fuzz
-      - name: Smoke-run ${{ matrix.target }} target
-        # Pin the gnu target explicitly: the prebuilt cargo-fuzz from install-action is a musl
-        # binary and defaults to its own musl triple, but musl links libc statically and the
-        # sanitizer cannot instrument a static libc. Building for the runner's gnu host avoids it.
-        run: cargo +nightly fuzz run ${{ matrix.target }} --target x86_64-unknown-linux-gnu -- -max_total_time=30
+      - name: Build and replay ${{ matrix.target }} seed corpus
+        # A deterministic PR gate, not a bug hunt: compile the target and replay its committed
+        # seed corpus once with no mutation (-runs=0), so a change that reintroduces a fixed
+        # crash fails here reproducibly. Random-seeded discovery fuzzing runs on a schedule in
+        # fuzz.yml, never as a PR gate — so an unrelated PR is never blocked by a newly-surfaced
+        # latent bug in some other reader.
+        #
+        #   -runs=0        execute each committed seed once, then exit; no mutation.
+        #   -timeout=10    abort (and report) any single input running >10s; -max_total_time is
+        #                  only checked between units, so a single hanging unit slips past it.
+        #   -rss_limit_mb  bound memory so a pathological allocation is a reported crash, not an
+        #                  OOM-killed runner.
+        #
+        # Pin the gnu target: the prebuilt cargo-fuzz is a musl binary that defaults to its own
+        # musl triple, but musl links libc statically and the sanitizer cannot instrument it.
+        timeout-minutes: 15
+        run: >
+          cargo +nightly fuzz run ${{ matrix.target }}
+          --target x86_64-unknown-linux-gnu
+          fuzz/seeds/${{ matrix.target }}
+          -- -runs=0 -timeout=10 -rss_limit_mb=2048
 
   typos:
     name: typos
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: crate-ci/typos@master
@@ -124,6 +146,7 @@ jobs:
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain

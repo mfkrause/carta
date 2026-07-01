@@ -1,0 +1,5 @@
+| The long opening line of verse that
+  wraps onto a second physical line
+| A short line
+| The final line that also runs
+  across two source lines

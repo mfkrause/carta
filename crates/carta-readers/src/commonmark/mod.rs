@@ -236,7 +236,9 @@ pub(crate) fn plain(inlines: Vec<Inline>) -> Block {
 #[cfg(test)]
 mod tests {
     use super::CommonmarkReader;
-    use carta_ast::{Attr, Block, Document, Inline, ListNumberDelim, ListNumberStyle, Target};
+    use carta_ast::{
+        Alignment, Attr, Block, Document, Inline, ListNumberDelim, ListNumberStyle, Target,
+    };
     use carta_core::{Extension, Extensions, Reader, ReaderOptions};
 
     fn blocks(input: &str) -> Vec<Block> {
@@ -1138,12 +1140,7 @@ mod tests {
         ) {
             for block in blocks {
                 if let Block::OrderedList(attrs, items) = block {
-                    out.push((
-                        attrs.start,
-                        attrs.style.clone(),
-                        attrs.delim.clone(),
-                        items.len(),
-                    ));
+                    out.push((attrs.start, attrs.style, attrs.delim, items.len()));
                     for item in items {
                         collect(item, out);
                     }
@@ -1290,12 +1287,7 @@ mod tests {
             for block in blocks {
                 match block {
                     Block::OrderedList(attrs, items) => {
-                        out.push((
-                            attrs.start,
-                            attrs.style.clone(),
-                            attrs.delim.clone(),
-                            items.len(),
-                        ));
+                        out.push((attrs.start, attrs.style, attrs.delim, items.len()));
                         for item in items {
                             collect(item, out);
                         }
@@ -1499,6 +1491,80 @@ mod tests {
     }
 
     #[test]
+    fn lists_without_preceding_blankline_lets_a_fresh_list_interrupt_a_paragraph() {
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        // A bullet and a decimal marker both open a list directly under the paragraph.
+        assert!(matches!(
+            greedy_blocks("text\n- item\n", ext).as_slice(),
+            [Block::Para(_), Block::BulletList(_)]
+        ));
+        assert!(matches!(
+            greedy_blocks("text\n2. item\n", ext).as_slice(),
+            [Block::Para(_), Block::OrderedList(_, _)]
+        ));
+    }
+
+    #[test]
+    fn a_list_shaped_line_ends_a_paragraph_even_when_no_list_opens() {
+        // With no enabled enumerator style for these shapes, the line still ends the paragraph and
+        // becomes a fresh paragraph of its own rather than folding in.
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        for line in ["(5) item", "ii. item", "a) item", "#) item"] {
+            let input = format!("text\n{line}\n");
+            assert!(
+                matches!(
+                    greedy_blocks(&input, ext).as_slice(),
+                    [Block::Para(_), Block::Para(_)]
+                ),
+                "expected two paragraphs for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn definition_and_example_markers_end_a_greedy_paragraph() {
+        // Under `lists_without_preceding_blankline`, a definition marker (`:`/`~`) with definition
+        // lists off, and an example marker (`(@)`, `(@label)`) with example lists off, each end a
+        // greedy paragraph and start a fresh one rather than folding in — even though no list opens.
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        for line in [": def", "~ def", "(@) item", "(@label) item"] {
+            let input = format!("text\n{line}\n");
+            assert!(
+                matches!(
+                    greedy_blocks(&input, ext).as_slice(),
+                    [Block::Para(_), Block::Para(_)]
+                ),
+                "expected two paragraphs for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_definition_marker_opens_a_list_when_definition_lists_are_on() {
+        // With definition lists enabled the same marker instead turns the paragraph into a term and
+        // opens a definition list, so it does not split into two plain paragraphs.
+        let ext = &[
+            Extension::ListsWithoutPrecedingBlankline,
+            Extension::DefinitionLists,
+        ];
+        assert!(matches!(
+            greedy_blocks("text\n: def\n", ext).as_slice(),
+            [Block::DefinitionList(_)]
+        ));
+    }
+
+    #[test]
+    fn a_decimal_marker_closed_by_one_paren_stays_prose() {
+        // `2)` is too easily ordinary prose, so it neither opens a list nor ends the paragraph; the
+        // two lines fold into a single paragraph.
+        let ext = &[Extension::ListsWithoutPrecedingBlankline];
+        assert!(matches!(
+            greedy_blocks("text\n2) still prose\n", ext).as_slice(),
+            [Block::Para(_)]
+        ));
+    }
+
+    #[test]
     fn a_greedy_paragraph_folds_a_fenced_div_and_footnote_definition() {
         assert!(matches!(
             greedy_blocks("text\n::: note\nx\n:::\n", &[Extension::FencedDivs]).as_slice(),
@@ -1511,10 +1577,32 @@ mod tests {
     }
 
     #[test]
-    fn a_fenced_code_block_still_ends_a_greedy_paragraph() {
+    fn a_closed_fenced_code_block_ends_a_greedy_paragraph() {
+        // A backtick fence ends a greedy paragraph only once its character is enabled and it is
+        // closed; the block then opens as its own sibling.
+        assert!(matches!(
+            greedy_blocks("text\n```\ncode\n```\n", &[Extension::BacktickCodeBlocks]).as_slice(),
+            [Block::Para(_), Block::CodeBlock(_, _)]
+        ));
+    }
+
+    #[test]
+    fn a_fence_without_its_character_enabled_folds_into_the_paragraph() {
+        // With no `backtick_code_blocks`, the fence names no code block; the run of lines up to its
+        // close stays paragraph text, where the matching backtick runs read as an inline code span.
         assert!(matches!(
             greedy_blocks("text\n```\ncode\n```\n", &[]).as_slice(),
-            [Block::Para(_), Block::CodeBlock(_, _)]
+            [Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn an_unclosed_fence_folds_into_the_paragraph() {
+        // A fence with its character enabled but no closing fence opens nothing: it runs to the end
+        // of its container, so the dialect keeps its lines as paragraph text instead.
+        assert!(matches!(
+            greedy_blocks("text\n```\ncode\n", &[Extension::BacktickCodeBlocks]).as_slice(),
+            [Block::Para(_)]
         ));
     }
 
@@ -1651,6 +1739,59 @@ mod tests {
         assert!(matches!(doc.blocks.as_slice(), [Block::Table(_)]));
         let inlines = caption_inlines(&doc.blocks).expect("captioned table");
         assert_eq!(inlines.first(), Some(&Inline::Str("A".to_owned())));
+    }
+
+    #[test]
+    fn an_indented_simple_table_header_aligns_against_its_own_column() {
+        // The header sits two columns in from the ruling. Within each column the dashes are flush
+        // with the header text on the right and reach past it on the left, so the columns are right-
+        // or center-aligned — not the left alignment a header read at the ruling's margin would give.
+        let doc = read_markdown(
+            "  Right     Left     Center\n-------   ------   ----------\n     12     12        12\n",
+            &[Extension::SimpleTables],
+        );
+        let aligns: Vec<Alignment> = match doc.blocks.as_slice() {
+            [Block::Table(table)] => table
+                .col_specs
+                .iter()
+                .map(|spec| spec.align.clone())
+                .collect(),
+            other => panic!("expected a single table, got {other:?}"),
+        };
+        assert_eq!(
+            aligns,
+            vec![
+                Alignment::AlignRight,
+                Alignment::AlignRight,
+                Alignment::AlignCenter,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_paragraph_interrupted_by_an_html_block_reads_tight() {
+        // No blank line separates the paragraph from the div, so the div interrupts it as a block
+        // and the paragraph reads tight — `Plain` rather than `Para`.
+        let doc = read_markdown(
+            "text before\n<div>\ninside\n</div>\n",
+            &[Extension::MarkdownInHtmlBlocks, Extension::NativeDivs],
+        );
+        assert!(
+            matches!(doc.blocks.as_slice(), [Block::Plain(_), Block::Div(..)]),
+            "expected a tight paragraph then a div, got {:?}",
+            doc.blocks
+        );
+
+        // A blank line before the element leaves the paragraph loose, so it stays a full paragraph.
+        let loose = read_markdown(
+            "text before\n\n<div>\ninside\n</div>\n",
+            &[Extension::MarkdownInHtmlBlocks, Extension::NativeDivs],
+        );
+        assert!(
+            matches!(loose.blocks.as_slice(), [Block::Para(_), Block::Div(..)]),
+            "expected a loose paragraph then a div, got {:?}",
+            loose.blocks
+        );
     }
 
     #[test]

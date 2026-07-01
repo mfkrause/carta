@@ -1,0 +1,7 @@
+A line with *strong* and _emphasis_ together.
+
+Then +inserted+, ^superscript^ and ~subscript~ text.
+
+Finally -deleted- words and a {{monospaced}} span.
+
+Nested *_strong emphasis_* in one run.

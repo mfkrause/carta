@@ -30,10 +30,16 @@ pub enum Error {
     FormatNotEnabled(String),
     #[error("unknown extension: {0}")]
     UnknownExtension(String),
+    #[error(
+        "The extension '{extension}' is not supported for {format}.\nUse --list-extensions={format} to list supported extensions."
+    )]
+    UnsupportedExtension { extension: String, format: String },
     #[error("invalid document metadata: {0}")]
     InvalidMetadata(String),
     #[error("template error: {0}")]
     Template(String),
+    #[error("cannot represent this content in the target format: {0}")]
+    Unrepresentable(String),
 }
 
 #[cfg(feature = "template")]

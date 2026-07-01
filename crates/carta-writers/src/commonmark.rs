@@ -14,9 +14,9 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_offset, indent_block,
-    is_known_scheme, is_loose, is_percent_escaped_uri, item_separator, normalize_image_attr,
-    offset_as_i32, ordered_marker, quote_marks, render_html_attr,
+    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_groups, indent_block,
+    is_loose, is_uri, item_separator, label_matches_url, normalize_image_attr, offset_as_i32,
+    ordered_marker, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -31,7 +31,7 @@ impl Writer for CommonmarkWriter {
             width,
             ..State::default()
         };
-        let body = state.blocks_to_string(&document.blocks, width);
+        let body = state.blocks_to_string(&document.blocks, width, false);
         Ok(append_notes(body, &state.footnotes))
     }
 
@@ -53,6 +53,13 @@ struct State {
     footnotes: Vec<String>,
     wrap: WrapMode,
     width: usize,
+    /// Whether rendering is currently inside a raw-HTML anchor. An anchor cannot contain another
+    /// anchor, so a link nested inside one degrades to a `<span>` carrying its attributes.
+    in_anchor: bool,
+    /// Half-open index ranges into the piece run being built that must wrap as a single atom — a
+    /// raw-HTML link fallback, whose opening tag, body, and closing tag fold together rather than
+    /// letting the surrounding text wrap between them.
+    groups: Vec<(usize, usize)>,
 }
 
 impl Default for State {
@@ -61,6 +68,8 @@ impl Default for State {
             footnotes: Vec::new(),
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
+            in_anchor: false,
+            groups: Vec::new(),
         }
     }
 }
@@ -69,12 +78,15 @@ impl State {
     /// Render a block sequence, dropping blocks that produce no output. Blocks are separated by a
     /// blank line, except that a [`Block::Plain`] is followed by a single newline and certain
     /// neighbors require an HTML-comment separator (see [`needs_separator`]). This is the layout used
-    /// for the document body, blockquotes, divs, list items, and definitions.
-    fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+    /// for the document body, blockquotes, divs, list items, and definitions. When `hang` is set the
+    /// first non-empty block keeps a space that opens it, so content laid out under a list marker or
+    /// block-quote prefix keeps the gap the source put after that prefix.
+    fn blocks_to_string(&mut self, blocks: &[Block], width: usize, hang: bool) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
+        let mut first = true;
         for block in blocks {
-            let text = self.block(block, width);
+            let text = self.block(block, width, hang && first);
             if text.is_empty() {
                 continue;
             }
@@ -89,15 +101,16 @@ impl State {
             }
             out.push_str(&text);
             previous = Some(block);
+            first = false;
         }
         out
     }
 
-    fn block(&mut self, block: &Block, width: usize) -> String {
+    fn block(&mut self, block: &Block, width: usize, hang: bool) -> String {
         match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
-                let pieces = self.pieces(inlines, true);
-                fill(&pieces, width, self.wrap)
+                let (pieces, groups) = self.pieces(inlines, true);
+                fill_groups(&pieces, &groups, width, 0, hang, self.wrap)
             }
             Block::Header(level, _, inlines) => {
                 let hashes = "#".repeat(usize::try_from((*level).max(1)).unwrap_or(1));
@@ -117,7 +130,7 @@ impl State {
                 }
             }
             Block::BlockQuote(blocks) => {
-                let body = self.blocks_to_string(blocks, width.saturating_sub(2));
+                let body = self.blocks_to_string(blocks, width.saturating_sub(2), true);
                 quote_block(&body)
             }
             Block::BulletList(items) => self.bullet_list(items, width),
@@ -125,8 +138,17 @@ impl State {
             Block::DefinitionList(items) => self.definition_list(items, width),
             Block::HorizontalRule => "-".repeat(width),
             Block::Div(attr, blocks) => {
-                let body = self.blocks_to_string(blocks, width);
-                format!("<div{}>\n\n{body}\n\n</div>", render_html_attr(attr))
+                let open = fill(
+                    &html_tag_pieces(&format!("<div{}>", render_html_attr(attr))),
+                    width,
+                    self.wrap,
+                );
+                let body = self.blocks_to_string(blocks, width, false);
+                if body.is_empty() {
+                    format!("{open}\n\n</div>")
+                } else {
+                    format!("{open}\n\n{body}\n\n</div>")
+                }
             }
             Block::LineBlock(lines) => self.line_block(lines),
             Block::Figure(..) | Block::Table(_) => collapse_html_block(
@@ -149,7 +171,7 @@ impl State {
         let rendered: Vec<String> = items
             .iter()
             .map(|item| {
-                let rendered = self.blocks_to_string(item, body_width);
+                let rendered = self.blocks_to_string(item, body_width, true);
                 let body = offset_horizontal_rule(item, rendered);
                 indent_block(&body, "- ", "  ")
             })
@@ -176,9 +198,9 @@ impl State {
             .enumerate()
             .map(|(offset, item)| {
                 let number = attrs.start.saturating_add(offset_as_i32(offset));
-                let marker = ordered_marker(number, &ListNumberStyle::Decimal, &delim);
+                let marker = ordered_marker(number, ListNumberStyle::Decimal, delim);
                 let field = (marker.chars().count() + 1).max(4);
-                let rendered = self.blocks_to_string(item, width.saturating_sub(field));
+                let rendered = self.blocks_to_string(item, width.saturating_sub(field), true);
                 let body = offset_horizontal_rule(item, rendered);
                 let first = format!("{marker:<field$}");
                 let rest = " ".repeat(field);
@@ -196,22 +218,41 @@ impl State {
         let groups: Vec<String> = items
             .iter()
             .map(|(term, definitions)| {
-                let term_line = self.inlines_oneline(term, true);
+                let term_line = self.term_line(term);
                 let bodies: Vec<String> = definitions
                     .iter()
-                    .map(|definition| self.blocks_to_string(definition, width))
+                    .map(|definition| self.blocks_to_string(definition, width, false))
                     .collect();
                 let body = bodies.join("\n\n");
-                format!("{term_line}  \n{body}")
+                if body.is_empty() {
+                    format!("{term_line}  ")
+                } else {
+                    format!("{term_line}  \n{body}")
+                }
             })
             .collect();
         groups.join("\n\n")
     }
 
+    /// Render a definition-list term, collapsing breakable breaks to spaces but keeping a forced
+    /// line break as an actual newline, so a term that spans lines stays split across them.
+    fn term_line(&mut self, inlines: &[Inline]) -> String {
+        let (pieces, _groups) = self.pieces(inlines, true);
+        let mut out = String::new();
+        for piece in &pieces {
+            match piece {
+                Piece::Text(text) => out.push_str(text),
+                Piece::Space | Piece::Soft => out.push(' '),
+                Piece::Hard => out.push('\n'),
+            }
+        }
+        out
+    }
+
     /// Render an inline sequence to a single line, collapsing breakable and forced breaks to spaces.
-    /// Used where a construct cannot span lines (headers, line-block lines, definition terms).
+    /// Used where a construct cannot span lines (headers, line-block lines).
     fn inlines_oneline(&mut self, inlines: &[Inline], line_start: bool) -> String {
-        let pieces = self.pieces(inlines, line_start);
+        let (pieces, _groups) = self.pieces(inlines, line_start);
         let mut out = String::new();
         for piece in &pieces {
             match piece {
@@ -222,10 +263,19 @@ impl State {
         out
     }
 
-    fn pieces(&mut self, inlines: &[Inline], line_start: bool) -> Vec<Piece> {
+    /// Build the inline pieces and the atomic-group ranges recorded while building them. A footnote
+    /// renders its own body mid-build (calling back into here), so the in-progress ranges are set
+    /// aside and restored around the nested build rather than cleared.
+    fn pieces(
+        &mut self,
+        inlines: &[Inline],
+        line_start: bool,
+    ) -> (Vec<Piece>, Vec<(usize, usize)>) {
+        let saved = std::mem::take(&mut self.groups);
         let mut out = Vec::new();
         self.extend_pieces(inlines, &mut out, line_start);
-        out
+        let groups = std::mem::replace(&mut self.groups, saved);
+        (out, groups)
     }
 
     /// Append the inline sequence's pieces to `out`. `line_start` enables block-start escaping for
@@ -264,7 +314,7 @@ impl State {
             Inline::Superscript(inlines) => self.wrap_tag("sup", inlines, out),
             Inline::Subscript(inlines) => self.wrap_tag("sub", inlines, out),
             Inline::SmallCaps(inlines) => {
-                out.push(Piece::Text("<span class=\"smallcaps\">".to_owned()));
+                push_html(out, "<span class=\"smallcaps\">", self.in_anchor);
                 self.extend_pieces(inlines, out, false);
                 out.push(Piece::Text("</span>".to_owned()));
             }
@@ -297,7 +347,7 @@ impl State {
             }
             Inline::RawInline(format, text) => {
                 if is_html_format(format) {
-                    out.push(Piece::Text(text.clone()));
+                    push_html(out, text, self.in_anchor);
                 }
             }
             Inline::Link(attr, inlines, target) => self.link(attr, inlines, target, out),
@@ -306,7 +356,11 @@ impl State {
                 if attr_is_empty(attr) {
                     self.extend_pieces(inlines, out, false);
                 } else {
-                    out.push(Piece::Text(format!("<span{}>", render_html_attr(attr))));
+                    push_html(
+                        out,
+                        &format!("<span{}>", render_html_attr(attr)),
+                        self.in_anchor,
+                    );
                     self.extend_pieces(inlines, out, false);
                     out.push(Piece::Text("</span>".to_owned()));
                 }
@@ -343,6 +397,9 @@ impl State {
     }
 
     fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        if inlines.is_empty() {
+            return;
+        }
         out.push(Piece::Text(marker.to_owned()));
         self.extend_pieces(inlines, out, false);
         out.push(Piece::Text(marker.to_owned()));
@@ -358,6 +415,12 @@ impl State {
     }
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
+        if self.in_anchor {
+            push_html(out, &format!("<span{}>", render_html_attr(attr)), true);
+            self.extend_pieces(inlines, out, false);
+            out.push(Piece::Text("</span>".to_owned()));
+            return;
+        }
         if (attr_is_empty(attr) || is_autolink_class(attr))
             && let Some(autolink) = autolink(inlines, target)
         {
@@ -369,14 +432,22 @@ impl State {
             self.extend_pieces(inlines, out, false);
             out.push(Piece::Text(format!("]({})", destination(target))));
         } else {
-            out.push(Piece::Text(format!(
-                "<a href=\"{}\"{}{}>",
-                escape_attr(&target.url),
-                render_html_attr(attr),
-                title_attr(&target.title)
-            )));
+            let start = out.len();
+            push_html(
+                out,
+                &format!(
+                    "<a href=\"{}\"{}{}>",
+                    escape_attr(&target.url),
+                    render_html_attr(attr),
+                    title_attr(&target.title)
+                ),
+                true,
+            );
+            self.in_anchor = true;
             self.extend_pieces(inlines, out, false);
+            self.in_anchor = false;
             out.push(Piece::Text("</a>".to_owned()));
+            self.groups.push((start, out.len()));
         }
     }
 
@@ -387,18 +458,21 @@ impl State {
             out.push(Piece::Text(format!("]({})", destination(target))));
             return;
         }
-        let alt = alt_text(inlines);
-        let alt_attr = if alt.is_empty() {
+        let alt_attr = if inlines.is_empty() {
             String::new()
         } else {
-            format!(" alt=\"{}\"", escape_attr(&alt))
+            format!(" alt=\"{}\"", escape_attr(&alt_text(inlines)))
         };
-        out.push(Piece::Text(format!(
-            "<img src=\"{}\"{}{}{alt_attr} />",
-            escape_attr(&target.url),
-            title_attr(&target.title),
-            render_html_attr(&normalize_image_attr(attr)),
-        )));
+        push_html(
+            out,
+            &format!(
+                "<img src=\"{}\"{}{}{alt_attr} />",
+                escape_attr(&target.url),
+                title_attr(&target.title),
+                render_html_attr(&normalize_image_attr(attr)),
+            ),
+            true,
+        );
     }
 }
 
@@ -408,7 +482,7 @@ impl NotesHost for State {
     }
 
     fn render_block(&mut self, block: &Block, width: usize) -> String {
-        self.block(block, width)
+        self.block(block, width, false)
     }
 
     fn render_offset_paragraph(
@@ -417,13 +491,41 @@ impl NotesHost for State {
         width: usize,
         initial: usize,
     ) -> String {
-        let pieces = self.pieces(inlines, true);
-        fill_offset(&pieces, width, initial, self.wrap)
+        let (pieces, groups) = self.pieces(inlines, true);
+        fill_groups(&pieces, &groups, width, initial, false, self.wrap)
     }
 
     fn base_width(&self) -> usize {
         self.width
     }
+}
+
+/// Split a synthesized HTML tag into fill pieces breakable only at the spaces that separate its
+/// attributes, never inside a quoted value. Used in place of a single text run so the line filler can
+/// wrap a long opening tag at the fill column the way running text wraps.
+fn html_tag_pieces(tag: &str) -> Vec<Piece> {
+    let mut pieces = Vec::new();
+    let mut word = String::new();
+    let mut in_value = false;
+    for ch in tag.chars() {
+        match ch {
+            '"' => {
+                in_value = !in_value;
+                word.push(ch);
+            }
+            ' ' if !in_value => {
+                if !word.is_empty() {
+                    pieces.push(Piece::Text(std::mem::take(&mut word)));
+                }
+                pieces.push(Piece::Space);
+            }
+            _ => word.push(ch),
+        }
+    }
+    if !word.is_empty() {
+        pieces.push(Piece::Text(word));
+    }
+    pieces
 }
 
 /// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
@@ -565,6 +667,44 @@ fn longest_backtick_run(text: &str) -> usize {
     longest
 }
 
+/// Append a raw-HTML run to the fill pieces. When `breakable`, the spaces separating a tag's
+/// attributes become wrap points so a long tag may fold across lines, while a space inside a quoted
+/// attribute value belongs to the value and stays put. Otherwise the run is one unbreakable piece.
+/// Either way a non-space run abutting the next piece (a tag's `>` and the text after it) stays one
+/// word.
+fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
+    if !breakable {
+        out.push(Piece::Text(html.to_owned()));
+        return;
+    }
+    let mut tokens: Vec<String> = vec![String::new()];
+    let mut in_quote = false;
+    for ch in html.chars() {
+        match ch {
+            '"' => {
+                in_quote = !in_quote;
+                if let Some(last) = tokens.last_mut() {
+                    last.push(ch);
+                }
+            }
+            ' ' if !in_quote => tokens.push(String::new()),
+            _ => {
+                if let Some(last) = tokens.last_mut() {
+                    last.push(ch);
+                }
+            }
+        }
+    }
+    for (index, part) in tokens.iter().enumerate() {
+        if index > 0 {
+            out.push(Piece::Space);
+        }
+        if !part.is_empty() {
+            out.push(Piece::Text(part.clone()));
+        }
+    }
+}
+
 /// The `(url "title")` destination tail of a link or image, with the title omitted when empty.
 fn destination(target: &Target) -> String {
     if target.title.is_empty() {
@@ -574,28 +714,20 @@ fn destination(target: &Target) -> String {
     }
 }
 
-/// The angle-bracket autolink form when a link's text is exactly its URL (a URI) or the address of a
-/// `mailto:` URL, else `None`.
+/// The angle-bracket autolink form when a link's single-`Str` text is the visible form of its URL —
+/// the URL itself or its percent-decoded form, for a genuine URI — or the address of a `mailto:`
+/// URL, else `None`. The angle-bracket form carries the encoded URL, not the decoded text.
 fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
     let [Inline::Str(text)] = inlines else {
         return None;
     };
-    if &target.url == text && is_uri(text) {
-        return Some(format!("<{text}>"));
+    if is_uri(&target.url) && label_matches_url(text, &target.url) {
+        return Some(format!("<{}>", target.url));
     }
     if target.url == format!("mailto:{text}") {
         return Some(format!("<{text}>"));
     }
     None
-}
-
-/// Whether a string is a bare URI eligible to stand as an angle-bracket autolink: it opens with a
-/// recognized scheme and every character is valid in a URI.
-fn is_uri(text: &str) -> bool {
-    let Some(colon) = text.find(':') else {
-        return false;
-    };
-    text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
 }
 
 fn attr_is_empty(attr: &Attr) -> bool {
@@ -638,6 +770,11 @@ fn escape_str(text: &str, line_start: bool) -> String {
     } else {
         None
     };
+    let paren_close = if line_start {
+        paren_marker_close(text)
+    } else {
+        None
+    };
     let mut out = String::with_capacity(text.len());
     let mut prev: Option<char> = None;
     let mut iter = text.char_indices().peekable();
@@ -651,6 +788,8 @@ fn escape_str(text: &str, line_start: bool) -> String {
         let next = iter.peek().map(|&(_, following)| following);
         let tail = || text.get(offset..).unwrap_or_default();
         match ch {
+            '(' if offset == 0 && paren_close.is_some() => out.push_str("\\("),
+            ')' if Some(offset) == paren_close => out.push_str("\\)"),
             '#' if offset == 0 => out.push_str("\\#"),
             '!' if next == Some('[') => out.push_str("\\!"),
             '[' if prev == Some('!') => out.push('['),
@@ -755,6 +894,29 @@ fn leading_escape(text: &str) -> Option<usize> {
     }
 }
 
+/// The byte offset of the `)` that closes a leading ordered-list marker in parenthesized form — `(`
+/// then a run of decimal digits then `)` — when that `)` falls within the first ten columns and is
+/// followed by whitespace or the end of the text. Both parentheses are escaped so the run is not
+/// re-read as a list item. `None` when the text does not open with such a marker. The offset always
+/// falls inside an ASCII prefix, so it doubles as a character index.
+fn paren_marker_close(text: &str) -> Option<usize> {
+    let mut chars = text.char_indices();
+    if chars.next()?.1 != '(' {
+        return None;
+    }
+    if !chars.next()?.1.is_ascii_digit() {
+        return None;
+    }
+    let (delim_offset, delim) = chars.by_ref().find(|(_, ch)| !ch.is_ascii_digit())?;
+    if delim_offset > 9 || delim != ')' {
+        return None;
+    }
+    chars
+        .next()
+        .is_none_or(|(_, ch)| ch.is_whitespace())
+        .then_some(delim_offset)
+}
+
 /// Whether an `_` with the given neighbors sits at a word boundary: at least one neighbor (treating
 /// the ends of the run as boundaries) is not alphanumeric, so the `_` could flank emphasis.
 fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
@@ -847,9 +1009,9 @@ mod tests {
         assert!(is_uri("http://example.com"));
         assert!(!is_uri("noscheme"));
         assert!(!is_uri("bogusscheme:rest"));
-        assert!(is_known_scheme("HTTP"));
-        assert!(is_known_scheme("mailto"));
-        assert!(!is_known_scheme("nope"));
+        assert!(crate::common::is_known_scheme("HTTP"));
+        assert!(crate::common::is_known_scheme("mailto"));
+        assert!(!crate::common::is_known_scheme("nope"));
     }
 
     #[test]
@@ -1011,6 +1173,61 @@ mod tests {
     }
 
     #[test]
+    fn long_div_opening_tag_wraps_at_fill_column() {
+        let a = "a".repeat(28);
+        let b = "b".repeat(28);
+        let div = Block::Div(
+            Attr {
+                attributes: vec![
+                    ("data-one".into(), a.clone()),
+                    ("data-two".into(), b.clone()),
+                ],
+                ..Attr::default()
+            },
+            vec![para(str_inlines("body"))],
+        );
+        assert_eq!(
+            render(vec![div]),
+            format!("<div data-one=\"{a}\"\ndata-two=\"{b}\">\n\nbody\n\n</div>")
+        );
+    }
+
+    #[test]
+    fn long_image_tag_wraps_at_fill_column() {
+        let url = format!("{}.png", "x".repeat(46));
+        let image = Inline::Image(
+            Attr {
+                attributes: vec![
+                    ("width".into(), "320".into()),
+                    ("height".into(), "240".into()),
+                ],
+                ..Attr::default()
+            },
+            vec![],
+            Target {
+                url: url.clone(),
+                title: String::new(),
+            },
+        );
+        assert_eq!(
+            render(vec![para(vec![image])]),
+            format!("<img src=\"{url}\"\nwidth=\"320\" height=\"240\" />")
+        );
+    }
+
+    #[test]
+    fn div_holding_only_a_dropped_raw_block_emits_no_surplus_blank_lines() {
+        let div = Block::Div(
+            Attr {
+                id: "embed".into(),
+                ..Attr::default()
+            },
+            vec![Block::RawBlock(Format("latex".into()), "\\x".into())],
+        );
+        assert_eq!(render(vec![div]), "<div id=\"embed\">\n\n</div>");
+    }
+
+    #[test]
     fn code_span_pads_only_when_backtick_bearing() {
         // Backtick-free content is wrapped with no padding, whatever its spacing.
         assert_eq!(code_span(""), "``");
@@ -1089,6 +1306,24 @@ mod tests {
         assert_eq!(leading_escape("12.x"), None);
         assert_eq!(leading_escape("1234567890. x"), None);
         assert_eq!(leading_escape("abc"), None);
+    }
+
+    #[test]
+    fn paren_marker_close_finds_decimal_paren_markers() {
+        assert_eq!(paren_marker_close("(1) x"), Some(2));
+        assert_eq!(paren_marker_close("(12) x"), Some(3));
+        assert_eq!(paren_marker_close("(1)"), Some(2));
+        assert_eq!(paren_marker_close("(1)x"), None);
+        assert_eq!(paren_marker_close("(a) x"), None);
+        assert_eq!(paren_marker_close("1) x"), None);
+        assert_eq!(paren_marker_close("(1234567890) x"), None);
+    }
+
+    #[test]
+    fn escape_str_escapes_decimal_paren_markers_only_at_line_start() {
+        assert_eq!(escape_str("(1) item", true), "\\(1\\) item");
+        assert_eq!(escape_str("(1) item", false), "(1) item");
+        assert_eq!(escape_str("(a) item", true), "(a) item");
     }
 
     #[test]

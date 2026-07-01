@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["top-section",[],[]],[{"t":"Str","c":"Top"},{"t":"Space"},{"t":"Str","c":"Section"}]]},{"t":"Para","c":[{"t":"Str","c":"Body"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"under"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"top"},{"t":"Space"},{"t":"Str","c":"section."}]},{"t":"Header","c":[2,["nested-section",[],[]],[{"t":"Str","c":"Nested"},{"t":"Space"},{"t":"Str","c":"Section"}]]},{"t":"Para","c":[{"t":"Str","c":"Body"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"under"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"nested"},{"t":"Space"},{"t":"Str","c":"section."}]},{"t":"Header","c":[3,["deeper-section",[],[]],[{"t":"Str","c":"Deeper"},{"t":"Space"},{"t":"Str","c":"Section"}]]},{"t":"Para","c":[{"t":"Str","c":"Body"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"under"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"deeper"},{"t":"Space"},{"t":"Str","c":"section."}]}]}

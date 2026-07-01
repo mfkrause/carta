@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"plain"},{"t":"Space"},{"t":"Str","c":"code"},{"t":"Space"},{"t":"Str","c":"region:"}]},{"t":"CodeBlock","c":[["",[],[]],"plain text\n  preserved exactly\n"]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"highlighted"},{"t":"Space"},{"t":"Str","c":"region"},{"t":"Space"},{"t":"Str","c":"names"},{"t":"Space"},{"t":"Str","c":"its"},{"t":"Space"},{"t":"Str","c":"language:"}]},{"t":"CodeBlock","c":[["",["python"],[]],"def greet(name):\n    return \"hello \" + name\n"]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"file"},{"t":"Space"},{"t":"Str","c":"region"},{"t":"Space"},{"t":"Str","c":"behaves"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"same"},{"t":"Space"},{"t":"Str","c":"way:"}]},{"t":"CodeBlock","c":[["",[],[]],"contents of a file\n"]}]}

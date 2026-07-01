@@ -1,0 +1,3 @@
+This page suppresses its table of contents.~~NOTOC~~
+
+The cache control macro ~~NOCACHE~~ is dropped from the rendered text.

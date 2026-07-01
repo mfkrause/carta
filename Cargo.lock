@@ -104,6 +104,7 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
+ "unicode-general-category",
 ]
 
 [[package]]
@@ -133,6 +134,7 @@ dependencies = [
  "serde",
  "serde_json",
  "unicode-general-category",
+ "unicode-normalization",
 ]
 
 [[package]]

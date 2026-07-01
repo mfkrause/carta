@@ -1,0 +1,1 @@
+Lowercase http://example.com autolinks but HTTP://example.com does not, nor does [HTTP://example.org].

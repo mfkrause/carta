@@ -1,0 +1,5 @@
+.TH TITLE 1
+.SH NAME
+title \- an example
+.SH DESCRIPTION
+A paragraph with \fBbold\fR text.
