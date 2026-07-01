@@ -1,0 +1,5 @@
+Visit https://example.org/path?q=1 for details, or write to me@example.com.
+
+A parenthesised reference (https://example.org/page) keeps its bounds.
+
+An address such as user@host.co.uk becomes a mail link.

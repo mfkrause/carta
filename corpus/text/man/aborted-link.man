@@ -1,0 +1,7 @@
+.TH AL 1
+.SH LINKS
+before
+.UR https://example.com
+.B bold label
+.UE after
+following text.

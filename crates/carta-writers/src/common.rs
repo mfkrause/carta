@@ -76,7 +76,60 @@ pub(crate) fn fill_offset(
         WrapMode::Auto => width.max(1),
         WrapMode::None | WrapMode::Preserve => usize::MAX,
     };
-    fill_core(pieces, width, initial, matches!(wrap, WrapMode::Preserve))
+    fill_core(
+        pieces,
+        width,
+        initial,
+        matches!(wrap, WrapMode::Preserve),
+        false,
+        &[],
+    )
+}
+
+/// Like [`fill_offset`], but `groups` names half-open index ranges into `pieces` that must be laid
+/// out as a single atom: a group is measured at its full single-line width for the decision of
+/// whether to begin it on a fresh line, then its interior is filled from there (folding across
+/// lines only when the group on its own is wider than the column). The ranges must be disjoint and
+/// listed in ascending order. With `keep_leading` (see [`fill_hang`]) a space that opens the content
+/// is emitted before the first word instead of being dropped.
+pub(crate) fn fill_groups(
+    pieces: &[Piece],
+    groups: &[(usize, usize)],
+    width: usize,
+    initial: usize,
+    keep_leading: bool,
+    wrap: WrapMode,
+) -> String {
+    let width = match wrap {
+        WrapMode::Auto => width.max(1),
+        WrapMode::None | WrapMode::Preserve => usize::MAX,
+    };
+    fill_core(
+        pieces,
+        width,
+        initial,
+        matches!(wrap, WrapMode::Preserve),
+        keep_leading,
+        groups,
+    )
+}
+
+/// Like [`fill`], but the first line keeps a leading space rather than dropping it: the content is
+/// laid out as hanging text that a caller will prefix with a marker, so a space that opens the first
+/// block sits between the marker and the first word instead of being swallowed.
+pub(crate) fn fill_hang(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
+    let width = match wrap {
+        WrapMode::Auto => width.max(1),
+        WrapMode::None | WrapMode::Preserve => usize::MAX,
+    };
+    fill_core(
+        pieces,
+        width,
+        0,
+        matches!(wrap, WrapMode::Preserve),
+        true,
+        &[],
+    )
 }
 
 /// Lay out a table cell's inline content to a fixed-width column field. Unlike [`fill`], the field
@@ -89,31 +142,89 @@ pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
         WrapMode::None => usize::MAX,
         WrapMode::Auto | WrapMode::Preserve => width.max(1),
     };
-    fill_core(pieces, width, 0, matches!(wrap, WrapMode::Preserve))
+    fill_core(
+        pieces,
+        width,
+        0,
+        matches!(wrap, WrapMode::Preserve),
+        false,
+        &[],
+    )
 }
 
-/// The shared line-filling engine behind [`fill_offset`] and [`fill_cell`]: lay `pieces` out into
-/// lines no wider than `width` (already resolved to a sentinel when the caller wants no width wrap),
-/// starting `initial` columns into the first line, breaking on each source soft break only when
-/// `preserve_softs` is set.
-fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: bool) -> String {
+/// The shared line-filling engine behind [`fill_offset`], [`fill_cell`], [`fill_groups`], and
+/// [`fill_hang`]: lay `pieces` out into lines no wider than `width` (already resolved to a sentinel
+/// when the caller wants no width wrap), starting `initial` columns into the first line, breaking on
+/// each source soft break only when `preserve_softs` is set. With `keep_leading`, a space that opens
+/// the content is emitted before the first word instead of being dropped, so hanging content laid
+/// out under a marker keeps the gap the source put between the marker position and its first word.
+/// `groups` names disjoint, ascending half-open index ranges that are placed atomically (see
+/// [`fill_groups`]).
+// A cohesive line-layout state machine: the per-piece arms and group handling share one running
+// cursor, so keeping them in one body is clearer than threading the cursor through callees.
+#[allow(clippy::too_many_lines)]
+fn fill_core(
+    pieces: &[Piece],
+    width: usize,
+    initial: usize,
+    preserve_softs: bool,
+    keep_leading: bool,
+    groups: &[(usize, usize)],
+) -> String {
     let mut out = String::new();
     let mut column = initial;
-    let mut at_line_start = initial == 0;
+    let mut at_line_start = initial == 0 && !keep_leading;
     let mut pending_space = false;
     // Consecutive text pieces (no intervening space or break) form one unbreakable word, gathered
     // here as borrowed runs and placed only once its full width is known.
     let mut word: Vec<&str> = Vec::new();
     let mut word_width = 0;
-    for piece in pieces {
-        match piece {
-            Piece::Text(text) => {
+    let mut next_group = 0;
+    let mut index = 0;
+    while index < pieces.len() {
+        if let Some(&(start, end)) = groups.get(next_group) {
+            if index >= end {
+                // A stale range that the cursor has already passed; advance past it.
+                next_group += 1;
+                continue;
+            }
+            if index == start && end > start && end <= pieces.len() {
+                // Flush the pending word; the group joins it with no space when no space split them.
+                let abuts = !word.is_empty();
+                place_word(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space,
+                    &word,
+                    word_width,
+                    width,
+                );
+                word.clear();
+                word_width = 0;
+                place_group(
+                    &mut out,
+                    &mut column,
+                    &mut at_line_start,
+                    pending_space && !abuts,
+                    pieces.get(start..end).unwrap_or(&[]),
+                    preserve_softs,
+                    width,
+                );
+                pending_space = false;
+                index = end;
+                next_group += 1;
+                continue;
+            }
+        }
+        match pieces.get(index) {
+            Some(Piece::Text(text)) => {
                 word.push(text);
                 word_width += display_width(text);
             }
             // A soft break forces a line break only when preserving the source's own breaks;
             // otherwise it is just inter-word space (and may become a reflow point under Auto).
-            Piece::Soft if preserve_softs => {
+            Some(Piece::Soft) if preserve_softs => {
                 place_word(
                     &mut out,
                     &mut column,
@@ -132,7 +243,7 @@ fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: boo
                 }
                 pending_space = false;
             }
-            Piece::Space | Piece::Soft => {
+            Some(Piece::Space | Piece::Soft) => {
                 place_word(
                     &mut out,
                     &mut column,
@@ -146,7 +257,7 @@ fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: boo
                 word_width = 0;
                 pending_space = true;
             }
-            Piece::Hard => {
+            Some(Piece::Hard) => {
                 place_word(
                     &mut out,
                     &mut column,
@@ -165,7 +276,9 @@ fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: boo
                 }
                 pending_space = false;
             }
+            None => {}
         }
+        index += 1;
     }
     place_word(
         &mut out,
@@ -179,8 +292,64 @@ fn fill_core(pieces: &[Piece], width: usize, initial: usize, preserve_softs: boo
     out.trim_end_matches('\n').to_owned()
 }
 
+/// Place an atomic group's interior into `out`, deciding first whether it begins on a fresh line.
+/// The group is sized at its full single-line width: when `lead_space` (a breakable space precedes
+/// it) and the whole group would overflow the current line, it starts a new line; either way its
+/// interior is then filled from the resulting column, folding across lines only when the group
+/// alone is wider than the column.
+fn place_group(
+    out: &mut String,
+    column: &mut usize,
+    at_line_start: &mut bool,
+    lead_space: bool,
+    inner: &[Piece],
+    preserve_softs: bool,
+    width: usize,
+) {
+    let flat = flat_width(inner);
+    if *at_line_start {
+        *at_line_start = false;
+    } else if lead_space && *column + 1 + flat > width {
+        out.push('\n');
+        *column = 0;
+    } else if lead_space {
+        out.push(' ');
+        *column += 1;
+    }
+    let rendered = fill_core(inner, width, *column, preserve_softs, false, &[]);
+    out.push_str(&rendered);
+    *column = line_end_column(&rendered, *column);
+}
+
+/// The natural single-line width of a piece run: each text run's display width, each space or break
+/// counted as one column.
+fn flat_width(pieces: &[Piece]) -> usize {
+    pieces
+        .iter()
+        .map(|piece| match piece {
+            Piece::Text(text) => display_width(text),
+            Piece::Space | Piece::Soft | Piece::Hard => 1,
+        })
+        .sum()
+}
+
+/// The column reached at the end of an already-filled run that began `start_col` columns into its
+/// first line: the width of the text after the last line break, or `start_col` plus the whole run's
+/// width when it stayed on one line.
+fn line_end_column(rendered: &str, start_col: usize) -> usize {
+    match rendered.rsplit_once('\n') {
+        Some((_, last)) => display_width(last),
+        None => start_col + display_width(rendered),
+    }
+}
+
 /// Place a gathered word onto the current line, inserting a line break in place of the preceding
 /// space when keeping the word would overflow `width`. A no-op for an empty word.
+///
+/// A word usually has no embedded line break, but a multi-line literal — a footnote body set over
+/// several paragraphs — does. Such a word's first line is what must fit after the preceding space,
+/// and its last line sets the column the following text continues from; only its first line shares
+/// the line it lands on, so the rest cannot push later words off the column.
 fn place_word(
     out: &mut String,
     column: &mut usize,
@@ -193,9 +362,10 @@ fn place_word(
     if word.is_empty() {
         return;
     }
+    let (first_line, multiline, last_line) = word_line_metrics(word, word_width);
     if *at_line_start {
         *at_line_start = false;
-    } else if pending_space && *column + 1 + word_width > width {
+    } else if pending_space && *column > 0 && *column + 1 + first_line > width {
         out.push('\n');
         *column = 0;
         *at_line_start = false;
@@ -206,7 +376,23 @@ fn place_word(
     for part in word {
         out.push_str(part);
     }
-    *column += word_width;
+    *column = if multiline {
+        last_line
+    } else {
+        *column + word_width
+    };
+}
+
+/// A gathered word's first-line width, whether it spans more than one line, and its last-line width.
+/// Without an embedded line break the first and last lines are the whole word.
+fn word_line_metrics(word: &[&str], word_width: usize) -> (usize, bool, usize) {
+    if !word.iter().any(|part| part.contains('\n')) {
+        return (word_width, false, word_width);
+    }
+    let joined = word.concat();
+    let first = joined.split('\n').next().unwrap_or("");
+    let last = joined.rsplit('\n').next().unwrap_or("");
+    (display_width(first), true, display_width(last))
 }
 
 /// Apply `first` to the first line and `rest` to each non-empty later line, leaving blank lines
@@ -388,7 +574,7 @@ pub(crate) fn join_loose(rendered: Vec<(bool, String)>) -> String {
 }
 
 /// Wrap an ordered-list numeral in its delimiter: `n.`, `n)`, or `(n)`.
-pub(crate) fn wrap_delim(numeral: &str, delim: &ListNumberDelim) -> String {
+pub(crate) fn wrap_delim(numeral: &str, delim: ListNumberDelim) -> String {
     match delim {
         ListNumberDelim::DefaultDelim | ListNumberDelim::Period => format!("{numeral}."),
         ListNumberDelim::OneParen => format!("{numeral})"),
@@ -478,14 +664,14 @@ pub(crate) fn offset_as_i32(offset: usize) -> i32 {
 /// the list's delimiter.
 pub(crate) fn ordered_marker(
     number: i32,
-    style: &ListNumberStyle,
-    delim: &ListNumberDelim,
+    style: ListNumberStyle,
+    delim: ListNumberDelim,
 ) -> String {
     wrap_delim(&numeral(number, style), delim)
 }
 
 /// Render a number in a list's numeral style.
-pub(crate) fn numeral(number: i32, style: &ListNumberStyle) -> String {
+pub(crate) fn numeral(number: i32, style: ListNumberStyle) -> String {
     match style {
         ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
             number.to_string()
@@ -1135,6 +1321,91 @@ fn is_uri_char(ch: char, allow_non_ascii: bool) -> bool {
         )
 }
 
+/// Percent-encode the characters a link destination cannot carry literally: ASCII whitespace and the
+/// delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes through unchanged —
+/// including a literal `%`, so an existing `%XX` sequence is preserved rather than doubled — as does
+/// all non-ASCII text. The transform is idempotent: applying it twice yields the same result.
+pub(crate) fn escape_uri(url: &str) -> String {
+    fn hex(nibble: u8) -> char {
+        char::from_digit(u32::from(nibble), 16)
+            .unwrap_or('0')
+            .to_ascii_uppercase()
+    }
+    let mut out = String::with_capacity(url.len());
+    for ch in url.chars() {
+        if ch.is_ascii_whitespace()
+            || matches!(
+                ch,
+                '<' | '>' | '|' | '"' | '{' | '}' | '[' | ']' | '^' | '`'
+            )
+        {
+            let byte = ch as u8;
+            out.push('%');
+            out.push(hex(byte >> 4));
+            out.push(hex(byte & 0x0f));
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Whether a string is a bare URI eligible to stand alone (as an angle-bracket autolink in
+/// `CommonMark`, a bare run in plain text or MediaWiki): it opens with a recognized scheme and every
+/// character is valid in a percent-escaped URI.
+pub(crate) fn is_uri(text: &str) -> bool {
+    let Some(colon) = text.find(':') else {
+        return false;
+    };
+    text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
+}
+
+/// Whether a link's visible content is a single string that, once URI-escaped, is exactly the link's
+/// destination — the shape of a link the reader produced by autolinking a bare address, where the
+/// destination is the percent-escaped form of the text shown. The destination-equality test alone
+/// does not gate the bare rendering; each writer additionally requires the address to be a usable URI
+/// (a recognized scheme and valid characters).
+pub(crate) fn is_bare_uri_text(inlines: &[Inline], url: &str) -> bool {
+    matches!(inlines, [Inline::Str(text)] if escape_uri(text) == url)
+}
+
+/// Decode the `%XX` percent-escapes in `url`, returning the decoded string, or `None` when an escape
+/// is truncated or malformed or the decoded bytes are not valid UTF-8.
+pub(crate) fn percent_decode(url: &str) -> Option<String> {
+    let bytes = url.as_bytes();
+    let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while let Some(&byte) = bytes.get(index) {
+        if byte == b'%' {
+            let high = bytes.get(index + 1).copied().and_then(hex_digit)?;
+            let low = bytes.get(index + 2).copied().and_then(hex_digit)?;
+            decoded.push(high << 4 | low);
+            index += 3;
+        } else {
+            decoded.push(byte);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+/// Whether a single-`Str` link label is the visible form of the bare URL `url`: equal to the URL
+/// itself, or to the URL with its percent-escapes decoded. A link of this shape is a bare URL; the
+/// caller pairs this with the format's own URI test where the autolink form is reserved for genuine
+/// URIs, and renders the encoded `url`, not the decoded label.
+pub(crate) fn label_matches_url(label: &str, url: &str) -> bool {
+    label == url || percent_decode(url).as_deref() == Some(label)
+}
+
 /// Escape the XML/HTML metacharacters `&`, `<`, and `>` to their entities, and additionally `"` when
 /// `escape_quotes` is set (as in an attribute value).
 pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
@@ -1273,13 +1544,27 @@ impl RowSpanGrid {
 /// Render an [`Attr`] to an HTML attribute string (a leading space per attribute, empty when blank):
 /// `id`, then `class`, then key/value pairs, with unrecognized keys `data-` prefixed.
 pub(crate) fn render_html_attr(attr: &Attr) -> String {
-    use std::fmt::Write as _;
     let mut out = String::new();
+    for token in html_attr_tokens(attr) {
+        out.push(' ');
+        out.push_str(&token);
+    }
+    out
+}
+
+/// The HTML attribute string as individual `name="value"` tokens, in the order [`render_html_attr`]
+/// emits them. Each token is one unbreakable unit, which lets a caller fill an opening tag to a
+/// column width without splitting inside an attribute.
+pub(crate) fn html_attr_tokens(attr: &Attr) -> Vec<String> {
+    let mut tokens = Vec::new();
     if !attr.id.is_empty() {
-        let _ = write!(out, " id=\"{}\"", escape_attr(&attr.id));
+        tokens.push(format!("id=\"{}\"", escape_attr(&attr.id)));
     }
     if !attr.classes.is_empty() {
-        let _ = write!(out, " class=\"{}\"", escape_attr(&attr.classes.join(" ")));
+        tokens.push(format!(
+            "class=\"{}\"",
+            escape_attr(&attr.classes.join(" "))
+        ));
     }
     for (key, value) in &attr.attributes {
         let name = if is_known_attribute(key) {
@@ -1287,9 +1572,9 @@ pub(crate) fn render_html_attr(attr: &Attr) -> String {
         } else {
             format!("data-{key}")
         };
-        let _ = write!(out, " {name}=\"{}\"", escape_attr(value));
+        tokens.push(format!("{name}=\"{}\"", escape_attr(value)));
     }
-    out
+    tokens
 }
 
 /// Whether an attribute name is emitted verbatim in HTML output. Recognized names, the `data-`/`aria-`
@@ -1310,7 +1595,10 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "accesskey",
     "action",
     "allow",
+    "allowfullscreen",
+    "allowpaymentrequest",
     "alt",
+    "as",
     "async",
     "autocapitalize",
     "autocomplete",
@@ -1320,6 +1608,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "checked",
     "cite",
     "class",
+    "color",
     "cols",
     "colspan",
     "content",
@@ -1339,6 +1628,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "draggable",
     "enctype",
     "enterkeyhint",
+    "fetchpriority",
     "for",
     "form",
     "formaction",
@@ -1352,7 +1642,10 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "high",
     "href",
     "hreflang",
+    "http-equiv",
     "id",
+    "imagesizes",
+    "imagesrcset",
     "inputmode",
     "integrity",
     "is",
@@ -1368,6 +1661,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "loading",
     "loop",
     "low",
+    "manifest",
     "max",
     "maxlength",
     "media",
@@ -1377,8 +1671,90 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "multiple",
     "muted",
     "name",
+    "nomodule",
     "nonce",
     "novalidate",
+    "onabort",
+    "onafterprint",
+    "onauxclick",
+    "onbeforeprint",
+    "onbeforeunload",
+    "onblur",
+    "oncancel",
+    "oncanplay",
+    "oncanplaythrough",
+    "onchange",
+    "onclick",
+    "onclose",
+    "oncontextmenu",
+    "oncopy",
+    "oncuechange",
+    "oncut",
+    "ondblclick",
+    "ondrag",
+    "ondragend",
+    "ondragenter",
+    "ondragexit",
+    "ondragleave",
+    "ondragover",
+    "ondragstart",
+    "ondrop",
+    "ondurationchange",
+    "onemptied",
+    "onended",
+    "onerror",
+    "onfocus",
+    "onhashchange",
+    "oninput",
+    "oninvalid",
+    "onkeydown",
+    "onkeypress",
+    "onkeyup",
+    "onlanguagechange",
+    "onload",
+    "onloadeddata",
+    "onloadedmetadata",
+    "onloadend",
+    "onloadstart",
+    "onmessage",
+    "onmessageerror",
+    "onmousedown",
+    "onmouseenter",
+    "onmouseleave",
+    "onmousemove",
+    "onmouseout",
+    "onmouseover",
+    "onmouseup",
+    "onoffline",
+    "ononline",
+    "onpagehide",
+    "onpageshow",
+    "onpaste",
+    "onpause",
+    "onplay",
+    "onplaying",
+    "onpopstate",
+    "onprogress",
+    "onratechange",
+    "onrejectionhandled",
+    "onreset",
+    "onresize",
+    "onscroll",
+    "onsecuritypolicyviolation",
+    "onseeked",
+    "onseeking",
+    "onselect",
+    "onstalled",
+    "onstorage",
+    "onsubmit",
+    "onsuspend",
+    "ontimeupdate",
+    "ontoggle",
+    "onunhandledrejection",
+    "onunload",
+    "onvolumechange",
+    "onwaiting",
+    "onwheel",
     "open",
     "optimum",
     "pattern",
@@ -1391,6 +1767,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "referrerpolicy",
     "rel",
     "required",
+    "rev",
     "reversed",
     "role",
     "rows",
@@ -1406,6 +1783,7 @@ const HTML_ATTRIBUTES: &[&str] = &[
     "spellcheck",
     "src",
     "srcdoc",
+    "srclang",
     "srcset",
     "start",
     "step",
@@ -1724,6 +2102,55 @@ mod tests {
     }
 
     #[test]
+    fn escape_uri_hexes_only_unsafe_ascii() {
+        assert_eq!(escape_uri("http://e.com/a b"), "http://e.com/a%20b");
+        assert_eq!(escape_uri("a^b|c"), "a%5Eb%7Cc");
+        assert_eq!(escape_uri("<>[]{}\"`"), "%3C%3E%5B%5D%7B%7D%22%60");
+        // Sub-delims, percent, backslash, tilde and all non-ASCII pass through unchanged.
+        assert_eq!(
+            escape_uri("a+b@c:d/e#f?g&h%20~café"),
+            "a+b@c:d/e#f?g&h%20~café"
+        );
+        // Idempotent: a second pass leaves an already-escaped string alone.
+        assert_eq!(escape_uri(&escape_uri("a b^c")), escape_uri("a b^c"));
+    }
+
+    #[test]
+    fn is_uri_requires_scheme_and_valid_charset() {
+        assert!(is_uri("https://example.com/path"));
+        assert!(is_uri("mailto:user@example.com"));
+        assert!(!is_uri("example.com")); // no scheme
+        assert!(!is_uri("notascheme:value")); // scheme not recognized
+        assert!(!is_uri("http://e.com/a b")); // unescaped space
+        assert!(is_uri("http://e.com/café")); // non-ASCII is permitted
+    }
+
+    #[test]
+    fn is_bare_uri_text_matches_escaped_single_string() {
+        let url = "http://e.com/a%20b";
+        assert!(is_bare_uri_text(
+            &[Inline::Str("http://e.com/a b".into())],
+            url
+        ));
+        assert!(is_bare_uri_text(
+            &[Inline::Str("http://e.com/a%20b".into())],
+            url
+        ));
+        // Two inlines, or text whose escaped form differs from the destination, do not match.
+        assert!(!is_bare_uri_text(
+            &[
+                Inline::Str("http://e.com".into()),
+                Inline::Str("/a b".into())
+            ],
+            url
+        ));
+        assert!(!is_bare_uri_text(
+            &[Inline::Str("http://other".into())],
+            url
+        ));
+    }
+
+    #[test]
     fn uri_scheme_recognition() {
         assert!(!is_uri_scheme(""));
         assert!(is_uri_scheme("http"));
@@ -1734,16 +2161,16 @@ mod tests {
 
     #[test]
     fn numeral_renders_every_style() {
-        assert_eq!(numeral(5, &ListNumberStyle::Decimal), "5");
-        assert_eq!(numeral(5, &ListNumberStyle::DefaultStyle), "5");
-        assert_eq!(numeral(5, &ListNumberStyle::Example), "5");
-        assert_eq!(numeral(1, &ListNumberStyle::LowerAlpha), "a");
-        assert_eq!(numeral(27, &ListNumberStyle::LowerAlpha), "aa");
-        assert_eq!(numeral(1, &ListNumberStyle::UpperAlpha), "A");
-        assert_eq!(numeral(28, &ListNumberStyle::UpperAlpha), "AB");
-        assert_eq!(numeral(4, &ListNumberStyle::LowerRoman), "iv");
-        assert_eq!(numeral(9, &ListNumberStyle::LowerRoman), "ix");
-        assert_eq!(numeral(2024, &ListNumberStyle::UpperRoman), "MMXXIV");
+        assert_eq!(numeral(5, ListNumberStyle::Decimal), "5");
+        assert_eq!(numeral(5, ListNumberStyle::DefaultStyle), "5");
+        assert_eq!(numeral(5, ListNumberStyle::Example), "5");
+        assert_eq!(numeral(1, ListNumberStyle::LowerAlpha), "a");
+        assert_eq!(numeral(27, ListNumberStyle::LowerAlpha), "aa");
+        assert_eq!(numeral(1, ListNumberStyle::UpperAlpha), "A");
+        assert_eq!(numeral(28, ListNumberStyle::UpperAlpha), "AB");
+        assert_eq!(numeral(4, ListNumberStyle::LowerRoman), "iv");
+        assert_eq!(numeral(9, ListNumberStyle::LowerRoman), "ix");
+        assert_eq!(numeral(2024, ListNumberStyle::UpperRoman), "MMXXIV");
     }
 
     #[test]
@@ -1756,12 +2183,12 @@ mod tests {
 
     #[test]
     fn wrap_delim_and_marker() {
-        assert_eq!(wrap_delim("3", &ListNumberDelim::Period), "3.");
-        assert_eq!(wrap_delim("3", &ListNumberDelim::DefaultDelim), "3.");
-        assert_eq!(wrap_delim("3", &ListNumberDelim::OneParen), "3)");
-        assert_eq!(wrap_delim("3", &ListNumberDelim::TwoParens), "(3)");
+        assert_eq!(wrap_delim("3", ListNumberDelim::Period), "3.");
+        assert_eq!(wrap_delim("3", ListNumberDelim::DefaultDelim), "3.");
+        assert_eq!(wrap_delim("3", ListNumberDelim::OneParen), "3)");
+        assert_eq!(wrap_delim("3", ListNumberDelim::TwoParens), "(3)");
         assert_eq!(
-            ordered_marker(2, &ListNumberStyle::LowerRoman, &ListNumberDelim::OneParen),
+            ordered_marker(2, ListNumberStyle::LowerRoman, ListNumberDelim::OneParen),
             "ii)"
         );
     }

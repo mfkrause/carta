@@ -1,0 +1,3 @@
+Text with an inline {{tl|template}} reference.
+
+{{Infobox|name=Test|value=42}}

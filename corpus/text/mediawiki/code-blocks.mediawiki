@@ -1,0 +1,9 @@
+<syntaxhighlight lang="python">
+def f():
+    return 1
+</syntaxhighlight>
+
+<pre>
+plain preformatted
+  text block
+</pre>

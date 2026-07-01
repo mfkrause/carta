@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"LineBlock","c":[[{"t":"Str","c":"Lend"},{"t":"Space"},{"t":"Str","c":"us"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"couple"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"bob"}],[{"t":"Str","c":"till"},{"t":"Space"},{"t":"Str","c":"Thursday."}],[],[{"t":"Str","c":"I'm"},{"t":"Space"},{"t":"Str","c":"short"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"couple"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"bob."}]]}]}

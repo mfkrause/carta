@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"section":{"t":"MetaInlines","c":[{"t":"Str","c":"1"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"T"}]}},"blocks":[{"t":"Header","c":[1,["no-fill",[],[]],[{"t":"Str","c":"NO-FILL"}]]},{"t":"CodeBlock","c":[["",[],[]],"the quick brown fox\n  jumps over the lazy dog"]},{"t":"Header","c":[1,["example",[],[]],[{"t":"Str","c":"EXAMPLE"}]]},{"t":"CodeBlock","c":[["",[],[]],"configure --prefix=/usr\nmake install"]},{"t":"Header","c":[1,["tab-separated",[],[]],[{"t":"Str","c":"TAB-SEPARATED"}]]},{"t":"CodeBlock","c":[["",[],[]],"col1\tcol2\tcol3"]}]}

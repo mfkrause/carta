@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Table","c":[["",[],[]],[null,[]],[[{"t":"AlignDefault"},{"t":"ColWidthDefault"}]],[["",[],[]],[]],[[["",[],[]],0,[],[[["",[],[]],[[["",[],[["style","background:red|orange"]]],{"t":"AlignDefault"},1,1,[{"t":"Para","c":[{"t":"Str","c":"cell"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"pipe"},{"t":"Space"},{"t":"Str","c":"inside"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"attribute"}]}]]]],[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Para","c":[{"t":"Str","c":"spanning"},{"t":"Space"},{"t":"Str","c":"cell"}]}]]]]]]],[["",[],[]],[]]]}]}

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"With"},{"t":"Space"},{"t":"Str","c":"smart"},{"t":"Space"},{"t":"Str","c":"typography"},{"t":"Space"},{"t":"Str","c":"off,"},{"t":"Space"},{"t":"Str","c":"\"straight"},{"t":"Space"},{"t":"Str","c":"quotes\""},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"'single"},{"t":"Space"},{"t":"Str","c":"quotes'"},{"t":"Space"},{"t":"Str","c":"stay"},{"t":"Space"},{"t":"Str","c":"literal."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"dash---and"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"range"},{"t":"Space"},{"t":"Str","c":"10--20---keep"},{"t":"Space"},{"t":"Str","c":"their"},{"t":"Space"},{"t":"Str","c":"hyphens,"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"ellipsis..."},{"t":"Space"},{"t":"Str","c":"stays"},{"t":"Space"},{"t":"Str","c":"as"},{"t":"Space"},{"t":"Str","c":"dots."}]}]}

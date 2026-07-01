@@ -1,0 +1,7 @@
+.TH T 1
+.SH First Section
+Body text under the first section.
+.SS A Subsection
+Body text under the subsection.
+.SH First Section
+A repeated heading whose identifier is disambiguated.

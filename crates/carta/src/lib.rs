@@ -123,8 +123,12 @@ pub fn format_extensions(format: Option<&str>) -> Result<Vec<(Extension, bool)>>
         return Err(Error::UnsupportedFormat(base));
     }
 
+    // A format that declares a fixed extension set lists only those; otherwise every modeled
+    // extension is reported with its default state.
+    let supported = format_spec::supported_extensions(&base);
     let mut entries: Vec<(Extension, bool)> = Extension::ALL
         .iter()
+        .filter(|&&extension| supported.is_none_or(|set| set.contains(extension)))
         .map(|&extension| (extension, extensions.contains(extension)))
         .collect();
     entries.sort_by_key(|(extension, _)| extension.name());

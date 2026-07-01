@@ -1,0 +1,18 @@
+.TH T 1
+.SH FONTS
+.B bold words
+.PP
+.I italic words
+.PP
+.BR bold then roman
+.PP
+.RI roman then italic
+.PP
+.BI bold italic pairs
+.PP
+plain \fBbold\fR and \fIitalic\fR and \f(BIboth\fP back to plain
+.PP
+nested \fBouter \fIinner\fR still bold\fP done
+.PP
+a font macro called with an explicit empty argument keeps its wrapper:
+.B ""

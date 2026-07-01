@@ -1,0 +1,8 @@
+{noformat}
+int x = 1;
+no *markup* is interpreted here
+{noformat}
+
+{noformat}
+raw & <text> stays literal
+{noformat}

@@ -1,0 +1,3 @@
+Water is H<sub>2</sub>O and the area is 10m<sup>2</sup> in size.
+
+This sentence has a <del>deleted</del> word in the middle.

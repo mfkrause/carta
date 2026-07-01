@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"DefinitionList","c":[[[{"t":"Str","c":"Author"}],[[{"t":"Plain","c":[{"t":"Str","c":"Ada"},{"t":"Space"},{"t":"Str","c":"Writer"}]}]]],[[{"t":"Str","c":"Version"}],[[{"t":"Plain","c":[{"t":"Str","c":"1.0"}]}]]],[[{"t":"Str","c":"Note"}],[[{"t":"Plain","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"field"},{"t":"Space"},{"t":"Str","c":"whose"},{"t":"Space"},{"t":"Str","c":"value"},{"t":"Space"},{"t":"Str","c":"begins"},{"t":"Space"},{"t":"Str","c":"on"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"next"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"SoftBreak"},{"t":"Str","c":"spans"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"indented"},{"t":"Space"},{"t":"Str","c":"block."}]}]]]]}]}

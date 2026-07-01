@@ -12,7 +12,7 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml"]
+default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man"]
 commonmark = ["dep:unicode-general-category", "dep:caseless", "dep:serde_json"]
 json = []
 html = []
@@ -20,11 +20,18 @@ native = []
 csv = []
 tsv = ["csv"]
 opml = ["commonmark", "html"]
+rst = []
+ipynb = ["commonmark"]
+mediawiki = ["html"]
+dokuwiki = ["dep:unicode-normalization"]
+jira = []
+man = []
 
 [dependencies]
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
 unicode-general-category = { workspace = true, optional = true }
+unicode-normalization = { workspace = true, optional = true }
 caseless = { workspace = true, optional = true }
 # Parses JSON metadata files; YAML files go through the in-crate parser.
 serde_json = { workspace = true, optional = true }

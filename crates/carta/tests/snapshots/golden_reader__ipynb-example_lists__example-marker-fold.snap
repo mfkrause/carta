@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"jupyter":{"t":"MetaMap","c":{"kernelspec":{"t":"MetaMap","c":{"display_name":{"t":"MetaString","c":"Python 3"},"language":{"t":"MetaString","c":"python"},"name":{"t":"MetaString","c":"python3"}}},"nbformat":{"t":"MetaString","c":"4"},"nbformat_minor":{"t":"MetaString","c":"5"}}}},"blocks":[{"t":"Div","c":[["exfold",["cell","markdown"],[]],[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"prose"}]},{"t":"Para","c":[{"t":"Str","c":"(@)"},{"t":"Space"},{"t":"Str","c":"not"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"example"},{"t":"Space"},{"t":"Str","c":"list"},{"t":"Space"},{"t":"Str","c":"when"},{"t":"Space"},{"t":"Str","c":"example"},{"t":"Space"},{"t":"Str","c":"lists"},{"t":"Space"},{"t":"Str","c":"are"},{"t":"Space"},{"t":"Str","c":"off"}]}]]}]}

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"jupyter":{"t":"MetaMap","c":{"kernelspec":{"t":"MetaMap","c":{"display_name":{"t":"MetaString","c":"Python 3"},"language":{"t":"MetaString","c":"python"},"name":{"t":"MetaString","c":"python3"}}},"nbformat":{"t":"MetaString","c":"4"},"nbformat_minor":{"t":"MetaString","c":"5"}}}},"blocks":[{"t":"Div","c":[["geo",["cell","code"],[["execution_count","1"]]],[{"t":"CodeBlock","c":[["",["python"],[]],"feature"]},{"t":"Div","c":[["",["output","display_data"],[]],[{"t":"CodeBlock","c":[["",["json"],[]],"{\"coordinates\":[1,2],\"type\":\"Point\"}"]}]]}]]},{"t":"Div","c":[["tie",["cell","code"],[["execution_count","2"]]],[{"t":"CodeBlock","c":[["",["python"],[]],"rendered"]},{"t":"Div","c":[["",["output","display_data"],[]],[{"t":"CodeBlock","c":[["",["json"],[]],"{\"j\":2}"]}]]}]]}]}

@@ -855,7 +855,7 @@ fn ordered_markers(attrs: &ListAttributes, count: usize) -> Vec<String> {
             let number = attrs
                 .start
                 .saturating_add(i32::try_from(offset).unwrap_or(i32::MAX));
-            ordered_marker(number, &attrs.style, &attrs.delim)
+            ordered_marker(number, attrs.style, attrs.delim)
         })
         .collect();
     let longest = raw

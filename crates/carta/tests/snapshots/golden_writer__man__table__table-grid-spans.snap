@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+lw(24.3n) lw(12.6n) lw(10.7n) lw(10.7n).
+T{
+Header row, column 1
+T}@T{
+Header 2
+T}@T{
+Header 3
+T}@T{
+Header 4
+T}
+_
+T{
+body row 1, column 1
+T}@T{
+column 2
+T}@T{
+column 3
+T}@T{
+column 4
+T}
+T{
+body row 2
+T}@T{
+Cells may span columns.
+T}@T{
+T}@T{
+T}
+T{
+body row 3
+T}@T{
+Cells may span rows.
+T}@T{
+.IP \(bu 2
+Cells.
+.IP \(bu 2
+Contain.
+.IP \(bu 2
+Blocks.
+T}@T{
+T}
+T{
+body row 4
+T}@T{
+T}@T{
+T}@T{
+T}
+.TE

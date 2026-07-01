@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"section":{"t":"MetaInlines","c":[{"t":"Str","c":"1"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"ACC"}]}},"blocks":[{"t":"Header","c":[1,["accents",[],[]],[{"t":"Str","c":"ACCENTS"}]]},{"t":"Para","c":[{"t":"Str","c":"Café"},{"t":"Space"},{"t":"Str","c":"naïve"},{"t":"Space"},{"t":"Str","c":"Straße"},{"t":"Space"},{"t":"Str","c":"çedilla"},{"t":"Space"},{"t":"Str","c":"angle"},{"t":"Space"},{"t":"Str","c":"⟨"},{"t":"Space"},{"t":"Str","c":"x"},{"t":"Space"},{"t":"Str","c":"⟩"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"œ"},{"t":"Space"},{"t":"Str","c":"ligature"},{"t":"Space"},{"t":"Str","c":"plus"},{"t":"Space"},{"t":"Str","c":"ø."}]}]}

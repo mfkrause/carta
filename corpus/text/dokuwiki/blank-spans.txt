@@ -1,0 +1,2 @@
+An empty <sub></sub>, a whitespace-only <sup> </sup>, and a blank
+<del></del> all stay literal text.

@@ -15,7 +15,7 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     RowSpanGrid, attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
-    is_percent_escaped_uri, is_uri_scheme, quote_marks, render_html_attr,
+    is_percent_escaped_uri, is_uri_scheme, label_matches_url, quote_marks, render_html_attr,
 };
 
 /// Renders a document to `MediaWiki` markup.
@@ -70,23 +70,20 @@ impl State {
     /// text and blocks are joined per the top-level spacing. Blocks that render to nothing are
     /// dropped.
     fn block_seq(&mut self, blocks: &[Block], html: bool) -> String {
-        let rendered: Vec<(&Block, String)> = blocks
+        let rendered = self.render_blocks(blocks, html);
+        join_blocks(&rendered, html)
+    }
+
+    /// Render each block in context, dropping those that produce no output, and pair every surviving
+    /// string with its source block so a caller can both join them and inspect the final one.
+    fn render_blocks<'b>(&mut self, blocks: &'b [Block], html: bool) -> Vec<(&'b Block, String)> {
+        blocks
             .iter()
             .filter_map(|block| {
                 let core = self.block_ctx(block, html);
                 (!core.is_empty()).then_some((block, core))
             })
-            .collect();
-        let mut out = String::new();
-        for (index, (block, core)) in rendered.iter().enumerate() {
-            match rendered.get(index.wrapping_sub(1)) {
-                Some((prev, _)) if index > 0 => out.push_str(separator(prev, block, html)),
-                _ if html && matches!(block, Block::HorizontalRule) => out.push_str("\n\n"),
-                _ => {}
-            }
-            out.push_str(core);
-        }
-        out
+            .collect()
     }
 
     fn block(&mut self, block: &Block) -> String {
@@ -125,14 +122,20 @@ impl State {
             Block::Table(table) => self.table(table),
             Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
             Block::Div(attr, blocks) => {
-                let body = self.blocks(blocks);
-                let trailing = match blocks.last() {
-                    Some(block)
-                        if matches!(block, Block::Para(_)) || needs_trailing_blank(block) =>
+                if blocks.is_empty() {
+                    return format!("<div{}>\n</div>", render_html_attr(attr));
+                }
+                let rendered = self.render_blocks(blocks, false);
+                let body = join_blocks(&rendered, false);
+                let trailing = match rendered.last() {
+                    Some((block, _))
+                        if matches!(block, Block::Para(_) | Block::Div(..))
+                            || needs_trailing_blank(block) =>
                     {
                         "\n\n"
                     }
-                    _ => "\n",
+                    Some(_) => "\n",
+                    None => "",
                 };
                 format!("<div{}>\n{body}{trailing}</div>", render_html_attr(attr))
             }
@@ -181,7 +184,7 @@ impl State {
             let rendered_term = self.inlines(term);
             self.in_term = false;
             self.single_line = false;
-            lines.push(format!("; {rendered_term}"));
+            lines.push(marked_line(";", &rendered_term));
             for definition in definitions {
                 self.single_line = true;
                 let body = self.blocks(definition);
@@ -222,14 +225,14 @@ impl State {
                         self.single_line = true;
                         let text = self.inlines(inlines);
                         self.single_line = false;
-                        lines.push(format!("{prefix} {text}"));
+                        lines.push(marked_line(&prefix, &text));
                         item_has_marker = true;
                     }
                     Block::Para(inlines) => {
                         self.single_line = true;
                         let text = guarded_paragraph(self.inlines(inlines));
                         self.single_line = false;
-                        lines.push(format!("{prefix} {text}"));
+                        lines.push(marked_line(&prefix, &text));
                         item_has_marker = true;
                     }
                     Block::BulletList(sub) | Block::OrderedList(_, sub) => {
@@ -380,8 +383,20 @@ impl State {
     }
 
     fn inlines(&mut self, inlines: &[Inline]) -> String {
+        self.render_inlines(inlines, false)
+    }
+
+    /// Render an inline run, keeping any leading and trailing whitespace. Used for content nested in a
+    /// formatting wrapper (a span, emphasis, …), where an edge space sits inside the markup and is
+    /// significant, unlike a block boundary where edge whitespace is dropped.
+    fn inlines_keep_edges(&mut self, inlines: &[Inline]) -> String {
+        self.render_inlines(inlines, true)
+    }
+
+    fn render_inlines(&mut self, inlines: &[Inline], keep_edges: bool) -> String {
         let mut out = String::new();
         let mut pending_space = false;
+        let mut wrote = false;
         for inline in inlines {
             // A preserved soft break is a real line break; it stands in for any pending space.
             if matches!(inline, Inline::SoftBreak)
@@ -402,7 +417,7 @@ impl State {
             if rendered.is_empty() {
                 continue;
             }
-            if pending_space && !out.is_empty() {
+            if pending_space && (keep_edges || wrote) {
                 out.push(' ');
             }
             pending_space = false;
@@ -412,6 +427,10 @@ impl State {
                 out.push_str("<nowiki/>");
             }
             out.push_str(&rendered);
+            wrote = true;
+        }
+        if keep_edges && pending_space && wrote {
+            out.push(' ');
         }
         out
     }
@@ -422,16 +441,20 @@ impl State {
                 escape_text(text).replace(':', "<nowiki>:</nowiki>")
             }
             Inline::Str(text) => escape_text(text),
-            Inline::Emph(inlines) => format!("''{}''", self.inlines(inlines)),
-            Inline::Strong(inlines) => format!("'''{}'''", self.inlines(inlines)),
-            Inline::Strikeout(inlines) => format!("<s>{}</s>", self.inlines(inlines)),
-            Inline::Superscript(inlines) => format!("<sup>{}</sup>", self.inlines(inlines)),
-            Inline::Subscript(inlines) => format!("<sub>{}</sub>", self.inlines(inlines)),
-            Inline::Underline(inlines) => format!("<u>{}</u>", self.inlines(inlines)),
+            Inline::Emph(inlines) => format!("''{}''", self.inlines_keep_edges(inlines)),
+            Inline::Strong(inlines) => format!("'''{}'''", self.inlines_keep_edges(inlines)),
+            Inline::Strikeout(inlines) => format!("<s>{}</s>", self.inlines_keep_edges(inlines)),
+            Inline::Superscript(inlines) => {
+                format!("<sup>{}</sup>", self.inlines_keep_edges(inlines))
+            }
+            Inline::Subscript(inlines) => {
+                format!("<sub>{}</sub>", self.inlines_keep_edges(inlines))
+            }
+            Inline::Underline(inlines) => format!("<u>{}</u>", self.inlines_keep_edges(inlines)),
             Inline::SmallCaps(inlines) | Inline::Cite(_, inlines) => self.inlines(inlines),
             Inline::Quoted(kind, inlines) => {
                 let (open, close) = quote_marks(kind);
-                format!("{open}{}{close}", self.inlines(inlines))
+                format!("{open}{}{close}", self.inlines_keep_edges(inlines))
             }
             Inline::Code(_, text) => format!("<code>{}</code>", escape_text(text)),
             // A soft break stays a line break only when the source's own breaks are preserved and the
@@ -456,7 +479,7 @@ impl State {
                 format!(
                     "<span{}>{}</span>",
                     render_html_attr(attr),
-                    self.inlines(inlines)
+                    self.inlines_keep_edges(inlines)
                 )
             }
             Inline::Note(blocks) => self.note(blocks),
@@ -468,7 +491,7 @@ impl State {
             return format!(
                 "<span{}>{}</span>",
                 render_html_attr(attr),
-                self.inlines(inlines)
+                self.inlines_keep_edges(inlines)
             );
         }
         self.in_link = true;
@@ -481,10 +504,11 @@ impl State {
         let label = self.inlines(inlines);
         let plain = to_plain_text(inlines);
         if is_external_uri(&target.url) {
-            if plain != target.url {
-                format!("[{} {label}]", target.url)
-            } else if is_percent_escaped_uri(&target.url, false) {
+            if is_percent_escaped_uri(&target.url, false) && label_matches_url(&plain, &target.url)
+            {
                 target.url.clone()
+            } else if plain != target.url {
+                format!("[{} {label}]", target.url)
             } else if label == target.url {
                 format!("[[{}]]", target.url)
             } else {
@@ -506,19 +530,30 @@ impl State {
         }
         let mut parts = vec![format!("File:{}", target.url)];
         let alt = self.inlines(inlines);
-        if target.title == "fig:" {
+        let is_figure = target.title == "fig:";
+        if is_figure {
             parts.push("thumb".to_owned());
             parts.push("none".to_owned());
+        } else if let Some(size) = image_size(attr) {
+            parts.push(size);
+        }
+        if !attr.classes.is_empty() {
+            parts.push(format!("class={}", attr.classes.join(" ")));
+        }
+        if is_figure {
             if !alt.is_empty() {
                 parts.push(format!("alt={alt}"));
                 parts.push(alt);
             }
         } else {
-            if let Some(size) = image_size(attr) {
-                parts.push(size);
-            }
-            if !alt.is_empty() {
-                parts.push(alt);
+            // The caption is the alternate text, falling back to the title.
+            let caption = if alt.is_empty() {
+                target.title.clone()
+            } else {
+                alt
+            };
+            if !caption.is_empty() {
+                parts.push(caption);
             }
         }
         format!("[[{}]]", parts.join("|"))
@@ -529,6 +564,21 @@ impl State {
         let body = self.blocks(blocks);
         format!("<ref>{}</ref>", body.trim_end_matches('\n'))
     }
+}
+
+/// Join already-rendered blocks with the spacing each consecutive pair calls for, mirroring the
+/// leading-rule special case of the HTML-list context.
+fn join_blocks(rendered: &[(&Block, String)], html: bool) -> String {
+    let mut out = String::new();
+    for (index, (block, core)) in rendered.iter().enumerate() {
+        match rendered.get(index.wrapping_sub(1)) {
+            Some((prev, _)) if index > 0 => out.push_str(separator(prev, block, html)),
+            _ if html && matches!(block, Block::HorizontalRule) => out.push_str("\n\n"),
+            _ => {}
+        }
+        out.push_str(core);
+    }
+    out
 }
 
 /// The separator between two consecutive rendered blocks. Inside an HTML list item a blank line
@@ -564,6 +614,16 @@ fn needs_trailing_blank(block: &Block) -> bool {
             | Block::OrderedList(..)
             | Block::DefinitionList(_)
     )
+}
+
+/// A compact-list line: the marker run, then the item text after a separating space. An item that
+/// renders to nothing carries the bare marker with no trailing space.
+fn marked_line(prefix: &str, text: &str) -> String {
+    if text.is_empty() {
+        prefix.to_owned()
+    } else {
+        format!("{prefix} {text}")
+    }
 }
 
 /// Guard a bare paragraph whose text would otherwise be read as block markup at the start of a line:
@@ -602,14 +662,14 @@ fn ordered_open_tag(attrs: &ListAttributes) -> String {
         let _ = write!(
             tag,
             " style=\"list-style-type: {};\"",
-            list_style_type(&attrs.style)
+            list_style_type(attrs.style)
         );
     }
     tag.push('>');
     tag
 }
 
-fn list_style_type(style: &ListNumberStyle) -> &'static str {
+fn list_style_type(style: ListNumberStyle) -> &'static str {
     match style {
         ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal => "decimal",
         ListNumberStyle::LowerAlpha => "lower-alpha",
@@ -653,11 +713,13 @@ fn code_block(attr: &Attr, text: &str) -> String {
     if let Some(language) = attr.classes.first()
         && is_highlight_language(language)
     {
-        let numbered = if attr.classes.iter().any(|class| is_number_lines(class)) {
-            " line"
-        } else {
-            ""
-        };
+        let mut numbered = String::new();
+        if attr.classes.iter().any(|class| is_number_lines(class)) {
+            numbered.push_str(" line");
+            if let Some(start) = attribute_value(attr, "startFrom") {
+                let _ = write!(numbered, " start=\"{}\"", escape_attr(start));
+            }
+        }
         format!("<syntaxhighlight lang=\"{language}\"{numbered}>{text}</syntaxhighlight>")
     } else if attr.classes.is_empty() {
         format!("<pre>{}</pre>", escape_text(text))

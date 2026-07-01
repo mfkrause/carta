@@ -56,6 +56,9 @@ pub(crate) fn to_typst_display(tex: &str) -> Option<String> {
 /// the closing `$`. Returns `None` when the expression cannot be translated. With `display` set, the
 /// markup is lowered for display context: a prime on a limit operator stacks as a superscript
 /// (`\sum'` → `sum^(')`) the way display math sets primes above the operator.
+// Only the Typst writer lowers math to Typst markup; builds without it still compile this entry
+// point (and the chain it drives) but never call it.
+#[cfg_attr(not(feature = "typst"), allow(dead_code))]
 pub(crate) fn to_typst_labeled(tex: &str, display: bool) -> Option<TypstMath> {
     let atoms = parse::parse(tex)?;
     if is_bare_binary_operator(&atoms) {
@@ -69,6 +72,7 @@ pub(crate) fn to_typst_labeled(tex: &str, display: bool) -> Option<TypstMath> {
 
 /// Typst math markup: the inner content (no surrounding `$`) and the trailing reference label to set
 /// after the closing `$`, if the expression carried an equation `\label`.
+#[cfg_attr(not(feature = "typst"), allow(dead_code))]
 pub(crate) struct TypstMath {
     pub body: String,
     pub label: Option<String>,

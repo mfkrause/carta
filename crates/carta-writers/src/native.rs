@@ -46,7 +46,7 @@ fn render_doc(tree: &Doc) -> String {
         col: 0,
         line_indent: 0,
     };
-    printer.render(tree);
+    printer.render(tree, 0);
     printer.out
 }
 
@@ -160,19 +160,23 @@ impl Printer {
             && self.col.saturating_sub(self.line_indent) + width <= RIBBON
     }
 
-    fn render(&mut self, doc: &Doc) {
+    /// Lay out `doc` at the current cursor. `trailing` is the width of same-line content that will
+    /// follow this node before the next line break — the closing delimiters a flat layout would have
+    /// to share the line with. A node fits only when it and that trailing run both stay within budget,
+    /// so a value sitting just inside the limit still breaks once its closing `)` or `]` is counted.
+    fn render(&mut self, doc: &Doc, trailing: usize) {
         match &doc.kind {
             Kind::Atom(text) => self.write_str(text),
             Kind::Wrap(inner) => {
-                if self.fits(doc.width) {
+                if self.fits(doc.width + trailing) {
                     self.write_flat(doc);
                 } else if let Kind::Cons { name, args } = &inner.kind {
                     self.write_char('(');
-                    self.render_cons_broken(name, args);
+                    self.render_cons_broken(name, args, trailing + 1);
                     self.write_char(')');
                 } else {
                     self.write_char('(');
-                    self.render(inner);
+                    self.render(inner, trailing + 1);
                     self.write_char(')');
                 }
             }
@@ -180,7 +184,7 @@ impl Printer {
                 if items.is_empty() {
                     self.write_char(*open);
                     self.write_char(*close);
-                } else if self.fits(doc.width) {
+                } else if self.fits(doc.width + trailing) {
                     self.write_flat(doc);
                 } else {
                     self.render_composite_broken(*open, *close, items);
@@ -189,10 +193,10 @@ impl Printer {
             Kind::Cons { name, args } => {
                 if args.is_empty() {
                     self.write_str(name);
-                } else if self.fits(doc.width) {
+                } else if self.fits(doc.width + trailing) {
                     self.write_flat(doc);
                 } else {
-                    self.render_cons_broken(name, args);
+                    self.render_cons_broken(name, args, trailing);
                 }
             }
         }
@@ -238,20 +242,21 @@ impl Printer {
         self.write_char(open);
         self.write_char(' ');
         if let Some(first) = items.first() {
-            self.render(first);
+            self.render(first, 0);
         }
         for item in items.iter().skip(1) {
             self.newline_to(open_col);
             self.write_str(", ");
-            self.render(item);
+            self.render(item, 0);
         }
         self.newline_to(open_col);
         self.write_char(close);
     }
 
     /// Lay out a constructor that does not fit flat: the name, then its arguments on the next line.
-    /// The arguments share that one line when they all fit; otherwise each takes its own line.
-    fn render_cons_broken(&mut self, name: &str, args: &[Doc]) {
+    /// The arguments share that one line when they all fit alongside the `trailing` closing run;
+    /// otherwise each takes its own line, with only the last sharing its line with that trailing run.
+    fn render_cons_broken(&mut self, name: &str, args: &[Doc], trailing: usize) {
         let name_col = self.col;
         self.write_str(name);
         if args.is_empty() {
@@ -259,7 +264,7 @@ impl Printer {
         }
         self.newline_to(name_col + INDENT);
         let joined = args.iter().map(|arg| arg.width).sum::<usize>() + (args.len() - 1);
-        if self.fits(joined) {
+        if self.fits(joined + trailing) {
             for (index, arg) in args.iter().enumerate() {
                 if index > 0 {
                     self.write_char(' ');
@@ -267,11 +272,12 @@ impl Printer {
                 self.write_flat(arg);
             }
         } else {
+            let last = args.len() - 1;
             for (index, arg) in args.iter().enumerate() {
                 if index > 0 {
                     self.newline_to(name_col + INDENT);
                 }
-                self.render(arg);
+                self.render(arg, if index == last { trailing } else { 0 });
             }
         }
     }
@@ -400,8 +406,8 @@ fn caption_argument(value: &Caption) -> Doc {
 fn list_attributes(value: &ListAttributes) -> Doc {
     tuple(vec![
         integer(i64::from(value.start), NumberPos::Standalone),
-        atom(number_style(&value.style)),
-        atom(number_delim(&value.delim)),
+        atom(number_style(value.style)),
+        atom(number_delim(value.delim)),
     ])
 }
 
@@ -629,7 +635,7 @@ fn citation_mode(value: &CitationMode) -> &'static str {
     }
 }
 
-fn number_style(value: &ListNumberStyle) -> &'static str {
+fn number_style(value: ListNumberStyle) -> &'static str {
     match value {
         ListNumberStyle::DefaultStyle => "DefaultStyle",
         ListNumberStyle::Example => "Example",
@@ -641,7 +647,7 @@ fn number_style(value: &ListNumberStyle) -> &'static str {
     }
 }
 
-fn number_delim(value: &ListNumberDelim) -> &'static str {
+fn number_delim(value: ListNumberDelim) -> &'static str {
     match value {
         ListNumberDelim::DefaultDelim => "DefaultDelim",
         ListNumberDelim::Period => "Period",

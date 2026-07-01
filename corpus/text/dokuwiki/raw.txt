@@ -1,0 +1,5 @@
+<HTML>
+<div class="note">raw block</div>
+</HTML>
+
+An inline <html><span>fragment</span></html> sits within a paragraph.

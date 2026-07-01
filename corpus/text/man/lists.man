@@ -1,0 +1,21 @@
+.TH T 1
+.SH OPTIONS
+.TP
+.B \-v
+Produce verbose output.
+.TP
+.B \-f \fIfile\fR
+Read input from the named file.
+.SH BULLETS
+.IP \(bu 2
+First bullet item.
+.IP \(bu 2
+Second bullet item.
+.SH NUMBERED
+.IP 1. 4
+First numbered item.
+.IP 2. 4
+Second numbered item.
+.SH PLAIN
+.IP
+An indented paragraph with no marker.

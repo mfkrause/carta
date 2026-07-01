@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"named"}],["http://example.com/a%20path",""]]},{"t":"Space"},{"t":"Str","c":"link"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"anonymous"}],["http://example.com/another%20path",""]]},{"t":"Space"},{"t":"Str","c":"link"},{"t":"Space"},{"t":"Str","c":"whose"},{"t":"Space"},{"t":"Str","c":"destinations"},{"t":"Space"},{"t":"Str","c":"contain"},{"t":"Space"},{"t":"Str","c":"spaces."}]}]}

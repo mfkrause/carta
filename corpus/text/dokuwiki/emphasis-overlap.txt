@@ -1,0 +1,1 @@
+Overlapping markers as in **a //b** c// pair greedily from the outside.

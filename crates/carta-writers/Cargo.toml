@@ -12,7 +12,7 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "beamer", "revealjs"]
+default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "beamer", "revealjs", "ipynb"]
 html = ["dep:unicode-general-category"]
 json = []
 plain = []
@@ -28,6 +28,7 @@ dokuwiki = []
 jira = []
 asciidoc = []
 man = []
+ipynb = ["markdown"]
 opml = ["markdown"]
 beamer = ["latex", "slides"]
 revealjs = ["html", "slides"]

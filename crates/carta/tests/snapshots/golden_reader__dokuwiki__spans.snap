@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Water"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"H"},{"t":"Subscript","c":[{"t":"Str","c":"2"}]},{"t":"Str","c":"O"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"area"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"10m"},{"t":"Superscript","c":[{"t":"Str","c":"2"}]},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"size."}]},{"t":"Para","c":[{"t":"Str","c":"This"},{"t":"Space"},{"t":"Str","c":"sentence"},{"t":"Space"},{"t":"Str","c":"has"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Strikeout","c":[{"t":"Str","c":"deleted"}]},{"t":"Space"},{"t":"Str","c":"word"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"middle."}]}]}

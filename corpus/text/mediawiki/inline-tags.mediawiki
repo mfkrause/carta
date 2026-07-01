@@ -1,0 +1,3 @@
+Water H<sub>2</sub>O and E=mc<sup>2</sup> and <del>gone</del> <strike>old</strike> here.
+
+Use <code>fn()</code> and <tt>mono</tt> and <kbd>Ctrl</kbd> here.

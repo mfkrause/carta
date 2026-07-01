@@ -1,0 +1,5 @@
+__NOTOC__ __NOEDITSECTION__ Lead paragraph after two switches.
+
+A sentence with an inline __TOC__ switch removed.
+
+<nowiki>__NOTOC__</nowiki> stays literal here.

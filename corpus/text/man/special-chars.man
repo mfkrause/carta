@@ -1,0 +1,11 @@
+.TH T 1
+.SH ESCAPES
+An em dash \(em and an en dash \(en and a hyphen \- in a row.
+.PP
+Quotation \(lqquoted\(rq and a bullet \(bu and copyright \(co sign.
+.PP
+A Unicode escape \[u00C9] and the trademark \(tm symbol.
+.PP
+first line of text
+.br
+second line after an explicit break

@@ -1,0 +1,10 @@
+.TH TQ 1
+.SH OPTIONS
+.TP
+.B \-a
+.TQ
+.B \-\-all
+Describe both spellings of the option.
+.TP
+.B \-v
+Verbose output.

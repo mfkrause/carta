@@ -7,15 +7,16 @@
 //! column of 72.
 
 use carta_ast::{
-    Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, MathType, MetaValue,
-    QuoteType, Row, Table, Target, single_block_inlines, slug, to_plain_text,
+    Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, ListNumberDelim,
+    ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, Target, single_block_inlines,
+    slug, to_plain_text,
 };
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
-    display_width, fill, fill_cell, indent_block, is_known_scheme, is_uri_scheme, offset_as_i32,
-    ordered_marker, quote_marks,
+    display_width, fill, fill_cell, fill_hang, indent_block, is_known_scheme, is_uri_scheme,
+    label_matches_url, offset_as_i32, ordered_marker, quote_marks,
 };
 use crate::grid;
 
@@ -132,14 +133,16 @@ impl Default for State {
     }
 }
 
-/// An inline-rendering unit: an unbreakable text run carrying whether it is RST markup (so its
-/// boundaries may need a `\ ` separator), a breakable space, a soft line break from the source, or a
-/// forced line break.
+/// An inline-rendering unit: an unbreakable text run carrying whether each of its edges is RST markup
+/// (so that edge may need a `\ ` separator from an abutting run), a breakable space, a soft line break
+/// from the source, or a forced line break. A word that only opens markup (e.g. `*one`) has a markup
+/// leading edge but a plain trailing edge, so the two edges are tracked separately.
 #[derive(Debug, Clone)]
 enum Token {
     Word {
         text: String,
-        complex: bool,
+        lead_complex: bool,
+        trail_complex: bool,
         lead: char,
     },
     /// A zero-width boundary that prints nothing but, like markup, needs a `\ ` separator when it
@@ -156,10 +159,18 @@ enum Token {
 /// rendered text. Escaped plain text uses [`plain_word`] instead, since escaping can prepend a
 /// backslash that is not the character RST would actually see.
 fn word(text: String, complex: bool) -> Token {
+    edge_word(text, complex, complex)
+}
+
+/// Build a word whose leading and trailing edges may carry markup independently. A boundary word that
+/// only opens markup marks its leading edge complex and its trailing edge plain, and vice versa, so an
+/// interior word abutting it on the plain side is not parted by a spurious `\ ` separator.
+fn edge_word(text: String, lead_complex: bool, trail_complex: bool) -> Token {
     let lead = text.chars().next().unwrap_or('\0');
     Token::Word {
         text,
-        complex,
+        lead_complex,
+        trail_complex,
         lead,
     }
 }
@@ -168,16 +179,43 @@ fn is_word_token(token: &Token) -> bool {
     matches!(token, Token::Word { .. })
 }
 
+/// Whether an inline sequence yields any visible output. An empty string and a breaking space
+/// render to nothing, as does a formatting wrapper around blank content; anything else — a
+/// non-empty string, a hard break, code, math, media, or a nested link — is content. A link or
+/// image whose target and title are empty is dropped entirely when its label is blank, since there
+/// is then nothing to anchor a reference to.
+fn renders_visible(inlines: &[Inline]) -> bool {
+    inlines.iter().any(|inline| match inline {
+        Inline::Str(text) => !text.is_empty(),
+        Inline::Space | Inline::SoftBreak => false,
+        Inline::Emph(children)
+        | Inline::Underline(children)
+        | Inline::Strong(children)
+        | Inline::SmallCaps(children)
+        | Inline::Span(_, children)
+        | Inline::Cite(_, children) => renders_visible(children),
+        _ => true,
+    })
+}
+
 impl State {
     /// Render a block sequence into the document's default layout. Consecutive blocks are separated
     /// by a blank line, except that a [`Block::Plain`] is followed by a single newline when the next
     /// block can sit directly beneath it (see [`tight_after_plain`]). Blocks that render empty are
     /// dropped.
     fn blocks_to_string(&mut self, blocks: &[Block], width: usize, top: bool) -> String {
+        self.blocks_laid(blocks, width, top, false)
+    }
+
+    /// Render a block sequence as [`Self::blocks_to_string`], but when `hang` is set the first
+    /// non-empty block keeps a space that opens it, so a list item's text keeps the gap the source
+    /// put after the marker rather than collapsing it against the marker.
+    fn blocks_laid(&mut self, blocks: &[Block], width: usize, top: bool, hang: bool) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
+        let mut first = true;
         for block in blocks {
-            let text = self.block(block, width, top);
+            let text = self.block_laid(block, width, top, hang && first);
             if text.is_empty() {
                 continue;
             }
@@ -186,25 +224,29 @@ impl State {
             }
             out.push_str(&text);
             previous = Some(block);
+            first = false;
         }
         out
     }
 
     /// Fill inline content to `width` under the active wrap mode. Inside a table cell the field
-    /// reflows to its column width even when the document is not auto-wrapped.
-    fn lay(&mut self, inlines: &[Inline], width: usize) -> String {
+    /// reflows to its column width even when the document is not auto-wrapped. With `hang`, a space
+    /// that opens the content is kept rather than dropped.
+    fn lay(&mut self, inlines: &[Inline], width: usize, hang: bool) -> String {
         let pieces = to_pieces(self.tokens(inlines));
         if self.in_cell {
             fill_cell(&pieces, width, self.wrap)
+        } else if hang {
+            fill_hang(&pieces, width, self.wrap)
         } else {
             fill(&pieces, width, self.wrap)
         }
     }
 
-    fn block(&mut self, block: &Block, width: usize, top: bool) -> String {
+    fn block_laid(&mut self, block: &Block, width: usize, top: bool, hang: bool) -> String {
         match block {
-            Block::Plain(inlines) => self.lay(inlines, width),
-            Block::Para(inlines) => self.para(inlines, width),
+            Block::Plain(inlines) => self.lay(inlines, width, hang),
+            Block::Para(inlines) => self.para(inlines, width, hang),
             Block::Header(level, attr, inlines) => self.header(*level, attr, inlines, top),
             Block::CodeBlock(attr, text) => code_block(attr, text),
             Block::RawBlock(format, text) => raw_block(format, text),
@@ -235,18 +277,13 @@ impl State {
 
     /// Render a paragraph. A paragraph holding a forced line break becomes a line block; one holding
     /// display math is split around each formula into separate paragraphs and `.. math::` directives;
-    /// otherwise its inlines are filled to `width`.
-    fn para(&mut self, inlines: &[Inline], width: usize) -> String {
-        let mut has_break = false;
-        let mut has_display_math = false;
-        for inline in inlines {
-            match inline {
-                Inline::LineBreak => has_break = true,
-                Inline::Math(MathType::DisplayMath, _) => has_display_math = true,
-                _ => {}
-            }
-        }
-        if has_break {
+    /// otherwise its inlines are filled to `width`. With `hang`, a space that opens the paragraph is
+    /// kept (see [`Self::lay`]).
+    fn para(&mut self, inlines: &[Inline], width: usize, hang: bool) -> String {
+        if inlines
+            .iter()
+            .any(|inline| matches!(inline, Inline::LineBreak))
+        {
             let lines = split_at(inlines, |inline| matches!(inline, Inline::LineBreak));
             let rendered: Vec<String> = lines
                 .iter()
@@ -254,35 +291,68 @@ impl State {
                 .collect();
             return rendered.join("\n");
         }
-        if has_display_math {
-            return self.para_with_math(inlines, width);
+        if contains_display_math(inlines) {
+            let flattened = unwrap_transparent(inlines);
+            return self.para_with_math(&flattened, width);
         }
-        self.lay(inlines, width)
+        self.lay(inlines, width, hang)
     }
 
+    /// Render a paragraph that carries display math, splitting it into `.. math::` directives around
+    /// the surrounding inline runs. A run adjacent to a directive keeps an escaped-space marker on the
+    /// touching side so the inline flow survives the block break; two abutting directives are parted by
+    /// a standalone escaped space.
     fn para_with_math(&mut self, inlines: &[Inline], width: usize) -> String {
-        let mut parts: Vec<String> = Vec::new();
+        enum Piece {
+            Math(String),
+            Text(String),
+        }
+        const MARKER: &str = "\\ ";
+        let mut pieces: Vec<Piece> = Vec::new();
         let mut start = 0;
         for (index, inline) in inlines.iter().enumerate() {
             if let Inline::Math(MathType::DisplayMath, tex) = inline {
-                if let Some(segment) = inlines.get(start..index)
-                    && !segment.is_empty()
-                {
-                    let text = self.lay(segment, width);
+                if let Some(segment) = inlines.get(start..index) {
+                    let text = self.lay(segment, width, false);
                     if !text.is_empty() {
-                        parts.push(text);
+                        pieces.push(Piece::Text(text));
                     }
                 }
-                parts.push(format!(".. math:: {}", tex.trim()));
+                pieces.push(Piece::Math(tex.trim().to_owned()));
                 start = index + 1;
             }
         }
-        if let Some(segment) = inlines.get(start..)
-            && !segment.is_empty()
-        {
-            let text = self.lay(segment, width);
+        if let Some(segment) = inlines.get(start..) {
+            let text = self.lay(segment, width, false);
             if !text.is_empty() {
-                parts.push(text);
+                pieces.push(Piece::Text(text));
+            }
+        }
+
+        let mut parts: Vec<String> = Vec::new();
+        for (index, piece) in pieces.iter().enumerate() {
+            let prev_math = index
+                .checked_sub(1)
+                .is_some_and(|prev| matches!(pieces.get(prev), Some(Piece::Math(_))));
+            let next_math = matches!(pieces.get(index + 1), Some(Piece::Math(_)));
+            match piece {
+                Piece::Math(tex) => {
+                    if prev_math {
+                        parts.push(MARKER.to_owned());
+                    }
+                    parts.push(format!(".. math:: {tex}"));
+                }
+                Piece::Text(text) => {
+                    let mut line = String::new();
+                    if prev_math {
+                        line.push_str(MARKER);
+                    }
+                    line.push_str(text);
+                    if next_math {
+                        line.push_str(MARKER);
+                    }
+                    parts.push(line);
+                }
             }
         }
         parts.join("\n\n")
@@ -291,7 +361,7 @@ impl State {
     /// Render one line-block line: its inlines filled to the body width, then prefixed with `| ` and
     /// continuation lines indented to match.
     fn render_line(&mut self, line: &[Inline], width: usize) -> String {
-        let body = self.lay(line, width.saturating_sub(2));
+        let body = self.lay(line, width.saturating_sub(2), false);
         indent_block(&body, "| ", "  ")
     }
 
@@ -318,7 +388,7 @@ impl State {
     }
 
     fn item_body(&mut self, item: &[Block], width: usize) -> String {
-        let body = self.blocks_to_string(item, width, false);
+        let body = self.blocks_laid(item, width, false, true);
         if !body.is_empty() && item.first().is_some_and(marker_stands_alone) {
             format!("\n\n{body}")
         } else {
@@ -342,10 +412,19 @@ impl State {
         items: &[Vec<Block>],
         width: usize,
     ) -> String {
+        // An unstyled list starting at 1 is written with the `#` auto-enumerator, which renumbers
+        // itself; an explicit style or a start past 1 needs literal numbers instead.
+        let auto_enumerated = attrs.start == 1
+            && matches!(attrs.style, ListNumberStyle::DefaultStyle)
+            && matches!(attrs.delim, ListNumberDelim::DefaultDelim);
         let markers: Vec<String> = (0..items.len())
             .map(|offset| {
-                let number = attrs.start.saturating_add(offset_as_i32(offset));
-                ordered_marker(number, &attrs.style, &attrs.delim)
+                if auto_enumerated {
+                    "#.".to_string()
+                } else {
+                    let number = attrs.start.saturating_add(offset_as_i32(offset));
+                    ordered_marker(number, attrs.style, attrs.delim)
+                }
             })
             .collect();
         let field = markers.iter().map(|m| m.chars().count()).max().unwrap_or(0) + 1;
@@ -368,18 +447,30 @@ impl State {
     ) -> String {
         let mut groups = Vec::new();
         for (term, definitions) in items {
-            let term_line = self.flat(term);
+            let term_line = self.term_line(term);
             let mut def_units = Vec::new();
             for definition in definitions {
                 let simple = matches!(definition.as_slice(), [Block::Plain(_)]);
                 let body = self.blocks_to_string(definition, width.saturating_sub(3), false);
                 let body = lead_quote_fence(definition, body);
-                def_units.push((simple, indent_block(&body, "   ", "   ")));
+                let indented = if body.is_empty() {
+                    String::new()
+                } else {
+                    indent_block(&body, "   ", "   ")
+                };
+                def_units.push((simple, indented));
             }
             let group_simple = definitions
                 .iter()
                 .all(|definition| matches!(definition.as_slice(), [Block::Plain(_)]));
-            let group = format!("{term_line}\n{}", join_loose_items(def_units));
+            let bodies = join_loose_items(def_units);
+            let group = if term_line.is_empty() {
+                bodies
+            } else if bodies.is_empty() {
+                term_line
+            } else {
+                format!("{term_line}\n{bodies}")
+            };
             groups.push((group_simple, group));
         }
         join_loose_items(groups)
@@ -395,8 +486,14 @@ impl State {
             directive.push_str("\n   name: ");
             directive.push_str(&attr.id);
         }
-        if let Some((image_attr, alt, _)) = image {
+        if let Some((image_attr, alt, target)) = image {
+            // The directive's alternate text is the image's, falling back to its title.
             let alt_text = to_plain_text(alt);
+            let alt_text = if alt_text.is_empty() {
+                target.title.clone()
+            } else {
+                alt_text
+            };
             if !alt_text.is_empty() {
                 directive.push_str("\n   :alt: ");
                 directive.push_str(&alt_text);
@@ -418,9 +515,11 @@ impl State {
     }
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
+        if is_bare_title(attr) {
+            return String::new();
+        }
         let body = self.blocks_to_string(blocks, width.saturating_sub(3), false);
         let body = lead_quote_fence(blocks, body);
-        let indented = indent_block(&body, "   ", "   ");
         let mut directive = match attr.classes.first() {
             Some(class) if is_admonition(class) => format!(".. {class}::"),
             _ if attr.classes.is_empty() => ".. container::".to_owned(),
@@ -430,14 +529,32 @@ impl State {
             directive.push_str("\n   :name: ");
             directive.push_str(&attr.id);
         }
+        if body.is_empty() {
+            return directive;
+        }
+        let indented = indent_block(&body, "   ", "   ");
         format!("{directive}\n\n{indented}")
     }
 
     /// Render inlines to a single flat line: spaces and forced breaks collapse to one space, with
     /// `\ ` separators inserted between adjacent markup boundaries. Used for content that must stay on
-    /// one line (headers, definition terms, and the inside of inline markup).
+    /// one line (headers and the inside of inline markup).
     fn flat(&mut self, inlines: &[Inline]) -> String {
         self.flat_nested(inlines, false)
+    }
+
+    /// Render a definition-list term: like [`flat`](Self::flat), but a forced line break stays a real
+    /// newline so a term that spans lines is kept split across them.
+    fn term_line(&mut self, inlines: &[Inline]) -> String {
+        let mut out = String::new();
+        for piece in to_pieces(self.tokens_nested(inlines, false)) {
+            match piece {
+                Piece::Text(text) => out.push_str(&text),
+                Piece::Space | Piece::Soft => out.push(' '),
+                Piece::Hard => out.push('\n'),
+            }
+        }
+        out
     }
 
     fn flat_nested(&mut self, inlines: &[Inline], in_emphasis: bool) -> String {
@@ -463,7 +580,8 @@ impl State {
         match inline {
             Inline::Str(text) => out.push(Token::Word {
                 text: escape(text, self.smart),
-                complex: false,
+                lead_complex: false,
+                trail_complex: false,
                 lead: text.chars().next().unwrap_or('\0'),
             }),
             Inline::Space => out.push(Token::Space),
@@ -670,7 +788,7 @@ impl State {
 
     fn link(&mut self, label: &[Inline], target: &Target, out: &mut Vec<Token>) {
         let plain = to_plain_text(label);
-        if target.url.is_empty() && label.is_empty() {
+        if target.url.is_empty() && target.title.is_empty() && !renders_visible(label) {
             return;
         }
         if let [Inline::Image(attr, alt, image_target)] = label {
@@ -681,7 +799,7 @@ impl State {
             out.push(word(plain, true));
             return;
         }
-        if plain == target.url && is_standalone_uri(&target.url) {
+        if label_matches_url(&plain, &target.url) && is_standalone_uri(&target.url) {
             out.push(word(target.url.clone(), true));
             return;
         }
@@ -728,13 +846,13 @@ impl State {
         for (index, token) in label_tokens.into_iter().enumerate() {
             match token {
                 Token::Word { text, .. } if index == first && index == last => {
-                    out.push(word(format!("`{text}{suffix}"), true));
+                    out.push(edge_word(format!("`{text}{suffix}"), true, true));
                 }
                 Token::Word { text, .. } if index == first => {
-                    out.push(word(format!("`{text}"), true));
+                    out.push(edge_word(format!("`{text}"), true, false));
                 }
                 Token::Word { text, .. } if index == last => {
-                    out.push(word(format!("{text}{suffix}"), true));
+                    out.push(edge_word(format!("{text}{suffix}"), false, true));
                 }
                 other => out.push(other),
             }
@@ -752,6 +870,13 @@ impl State {
         link: Option<&str>,
         out: &mut Vec<Token>,
     ) {
+        if link.is_none()
+            && target.url.is_empty()
+            && target.title.is_empty()
+            && !renders_visible(alt)
+        {
+            return;
+        }
         let breakouts: Vec<usize> = alt
             .iter()
             .enumerate()
@@ -982,9 +1107,13 @@ impl State {
             placements.push((col, span));
             col += span;
         }
-        // A blank first column would leave the row line starting with whitespace, which a simple
-        // table reads as a continuation rather than an empty cell; a lone backslash marks it.
-        if let Some(first) = col_lines.first_mut()
+        // A blank first column in a row that has content elsewhere would leave the row line
+        // starting with whitespace, which a simple table reads as a continuation rather than an
+        // empty cell; a lone backslash marks it. A wholly empty row carries no content to protect,
+        // so it stays blank.
+        let row_has_content = col_lines.iter().any(|lines| !lines.is_empty());
+        if row_has_content
+            && let Some(first) = col_lines.first_mut()
             && first.is_empty()
         {
             first.push("\\".to_owned());
@@ -1248,26 +1377,21 @@ fn is_simple_item(item: &[Block]) -> bool {
     item.is_empty() || matches!(item, [Block::Plain(_)])
 }
 
-/// Join already-rendered list items or definition groups. A list is tight only when every unit is a
-/// single line; one multi-line unit makes the whole list loose, separating all units with a blank
-/// line rather than a single newline. Empty units are dropped.
+/// Join already-rendered list items or definition groups. The gap before each unit depends on the
+/// one above it: a single-line unit is followed on the next line, a multi-line unit is followed
+/// across a blank line. Empty units are dropped and do not influence the gap around them.
 fn join_loose_items(units: Vec<(bool, String)>) -> String {
-    let separator = if units.iter().all(|(simple, _)| *simple) {
-        "\n"
-    } else {
-        "\n\n"
-    };
     let mut out = String::new();
-    let mut first = true;
-    for (_, text) in units {
+    let mut previous_simple: Option<bool> = None;
+    for (simple, text) in units {
         if text.is_empty() {
             continue;
         }
-        if !first {
-            out.push_str(separator);
+        if let Some(above_is_simple) = previous_simple {
+            out.push_str(if above_is_simple { "\n" } else { "\n\n" });
         }
         out.push_str(&text);
-        first = false;
+        previous_simple = Some(simple);
     }
     out
 }
@@ -1360,19 +1484,20 @@ fn to_pieces(tokens: Vec<Token>) -> Vec<Piece> {
         match token {
             Token::Word {
                 text,
-                complex,
+                lead_complex,
+                trail_complex,
                 lead,
             } => {
                 let Some(last) = text.chars().last() else {
                     continue;
                 };
-                if let Some((previous_complex, previous_last)) = pending
-                    && separator_needed(previous_complex, previous_last, complex, lead)
+                if let Some((previous_trail_complex, previous_last)) = pending
+                    && separator_needed(previous_trail_complex, previous_last, lead_complex, lead)
                 {
                     out.push(Piece::Text("\\ ".to_owned()));
                 }
                 out.push(Piece::Text(text));
-                pending = Some((complex, last));
+                pending = Some((trail_complex, last));
             }
             Token::Marker => {
                 if pending.is_some_and(|(previous_complex, _)| previous_complex) {
@@ -1410,13 +1535,17 @@ fn wrap_run(body: Vec<Token>, opening: &str, closing: &str, complex: bool, out: 
             for (index, token) in body.into_iter().enumerate() {
                 match token {
                     Token::Word { text, .. } if index == first && index == last => {
-                        out.push(word(format!("{opening}{text}{closing}"), complex));
+                        out.push(edge_word(
+                            format!("{opening}{text}{closing}"),
+                            complex,
+                            complex,
+                        ));
                     }
                     Token::Word { text, .. } if index == first => {
-                        out.push(word(format!("{opening}{text}"), complex));
+                        out.push(edge_word(format!("{opening}{text}"), complex, false));
                     }
                     Token::Word { text, .. } if index == last => {
-                        out.push(word(format!("{text}{closing}"), complex));
+                        out.push(edge_word(format!("{text}{closing}"), false, complex));
                     }
                     other => out.push(other),
                 }
@@ -1450,13 +1579,13 @@ const MARKER_BOUNDARY: char = '\0';
 /// character that cannot legally follow it, or one preceded by a character that cannot legally
 /// precede it.
 fn separator_needed(
-    previous_complex: bool,
+    previous_trail_complex: bool,
     previous_last: char,
-    current_complex: bool,
+    current_lead_complex: bool,
     current_first: char,
 ) -> bool {
-    (previous_complex && !is_safe_follower(current_first))
-        || (current_complex && !is_safe_preceder(previous_last))
+    (previous_trail_complex && !is_safe_follower(current_first))
+        || (current_lead_complex && !is_safe_preceder(previous_last))
 }
 
 /// A phrase run partitioned around its non-space core, with the null-separator decision for each
@@ -1603,6 +1732,41 @@ fn is_admonition(name: &str) -> bool {
     )
 }
 
+/// Whether any inline is display math, looking through the transparent wrappers (spans and citations)
+/// that the writer renders without their own markup.
+fn contains_display_math(inlines: &[Inline]) -> bool {
+    inlines.iter().any(|inline| match inline {
+        Inline::Math(MathType::DisplayMath, _) => true,
+        Inline::Span(_, inner) | Inline::Cite(_, inner) => contains_display_math(inner),
+        _ => false,
+    })
+}
+
+/// Lift the children of transparent wrappers (spans and citations) to the top level so any display
+/// math they enclose drives the paragraph's `.. math::` directives directly.
+fn unwrap_transparent(inlines: &[Inline]) -> Vec<Inline> {
+    let mut out = Vec::new();
+    for inline in inlines {
+        match inline {
+            Inline::Span(_, inner) | Inline::Cite(_, inner) => {
+                out.extend(unwrap_transparent(inner));
+            }
+            other => out.push(other.clone()),
+        }
+    }
+    out
+}
+
+/// Whether a `Div` is a bare title wrapper: its only attribute is the single class `title`. Such a
+/// wrapper carries a title implied by its surrounding directive, so reStructuredText leaves it
+/// unwritten.
+fn is_bare_title(attr: &Attr) -> bool {
+    attr.id.is_empty()
+        && attr.attributes.is_empty()
+        && attr.classes.len() == 1
+        && attr.classes.first().map(String::as_str) == Some("title")
+}
+
 /// The language argument of a code block: its first class that is not the line-numbering flag.
 fn code_language(attr: &Attr) -> Option<&str> {
     attr.classes
@@ -1617,12 +1781,24 @@ fn code_block(attr: &Attr, text: &str) -> String {
             let mut head = format!(".. code:: {language}");
             if attr.classes.iter().any(|class| class == "numberLines") {
                 head.push_str("\n   :number-lines:");
+                if let Some(start) = start_from(attr) {
+                    head.push(' ');
+                    head.push_str(start);
+                }
             }
             head
         }
         None => "::".to_owned(),
     };
     literal_directive(&head, text)
+}
+
+/// The line-numbering start value carried by a code block's `startFrom` attribute, if any.
+fn start_from(attr: &Attr) -> Option<&str> {
+    attr.attributes
+        .iter()
+        .find(|(key, _)| key == "startFrom")
+        .map(|(_, value)| value.as_str())
 }
 
 /// Render a raw block: content whose format is `rst` passes through verbatim; any other format is
@@ -1826,4 +2002,43 @@ fn split_at(inlines: &[Inline], is_separator: impl Fn(&Inline) -> bool) -> Vec<&
     }
     segments.push(inlines.get(start..).unwrap_or(&[]));
     segments
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unit(simple: bool, text: &str) -> (bool, String) {
+        (simple, text.to_string())
+    }
+
+    #[test]
+    fn all_single_line_units_join_tightly() {
+        let joined = join_loose_items(vec![unit(true, "a"), unit(true, "b"), unit(true, "c")]);
+        assert_eq!(joined, "a\nb\nc");
+    }
+
+    #[test]
+    fn all_multi_line_units_join_loosely() {
+        let joined = join_loose_items(vec![unit(false, "a"), unit(false, "b")]);
+        assert_eq!(joined, "a\n\nb");
+    }
+
+    #[test]
+    fn the_gap_below_a_unit_follows_that_unit_not_the_whole_list() {
+        // A single-line unit is followed on the next line even when a later unit is multi-line, and a
+        // multi-line unit forces a blank line before whatever follows it.
+        let joined = join_loose_items(vec![
+            unit(true, "one"),
+            unit(false, "two\n\n  - sub"),
+            unit(true, "three"),
+        ]);
+        assert_eq!(joined, "one\ntwo\n\n  - sub\n\nthree");
+    }
+
+    #[test]
+    fn empty_units_are_dropped_and_do_not_set_the_gap() {
+        let joined = join_loose_items(vec![unit(false, ""), unit(true, "a"), unit(true, "b")]);
+        assert_eq!(joined, "a\nb");
+    }
 }
