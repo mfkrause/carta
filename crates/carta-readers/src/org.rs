@@ -246,6 +246,12 @@ fn parse_blocks(
         if let Some(name) = drawer_open(line) {
             let (inner, consumed) = collect_drawer(lines, i);
             i += consumed;
+            // A metadata drawer holds bookkeeping, not document content, and is elided; every other
+            // named drawer becomes a div wrapping its parsed contents.
+            if name.eq_ignore_ascii_case("PROPERTIES") || name.eq_ignore_ascii_case("LOGBOOK") {
+                pending = Affiliated::default();
+                continue;
+            }
             let body = parse_blocks(&inner, ext, notes, ids, meta);
             let attr = Attr {
                 classes: vec![name, "drawer".to_owned()],
