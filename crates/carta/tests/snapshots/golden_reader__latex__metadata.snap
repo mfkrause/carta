@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"author":{"t":"MetaList","c":[{"t":"MetaInlines","c":[{"t":"Str","c":"Ada"},{"t":"Space"},{"t":"Str","c":"Lovelace"}]},{"t":"MetaInlines","c":[{"t":"Str","c":"Alan"},{"t":"Space"},{"t":"Str","c":"Turing"}]}]},"date":{"t":"MetaInlines","c":[{"t":"Str","c":"2024-01-01"}]},"subtitle":{"t":"MetaInlines","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"Empirical"},{"t":"Space"},{"t":"Str","c":"Report"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"Study"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"Widgets"}]}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"body"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"document"},{"t":"Space"},{"t":"Str","c":"begins"},{"t":"Space"},{"t":"Str","c":"here."}]}]}

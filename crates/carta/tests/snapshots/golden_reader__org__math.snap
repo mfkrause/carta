@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Inline"},{"t":"Space"},{"t":"Str","c":"math"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"a^2 + b^2 = c^2"]},{"t":"Space"},{"t":"Str","c":"appears"},{"t":"Space"},{"t":"Str","c":"mid-sentence."}]},{"t":"Para","c":[{"t":"Str","c":"Dollar-delimited"},{"t":"Space"},{"t":"Str","c":"math"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"E = mc^2"]},{"t":"Space"},{"t":"Str","c":"also"},{"t":"Space"},{"t":"Str","c":"renders"},{"t":"Space"},{"t":"Str","c":"inline."}]},{"t":"Para","c":[{"t":"Str","c":"Display"},{"t":"Space"},{"t":"Str","c":"math"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"set"},{"t":"Space"},{"t":"Str","c":"apart:"}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"\n\\int_0^1 x^2 \\, dx = \\frac{1}{3}\n"]}]}]}

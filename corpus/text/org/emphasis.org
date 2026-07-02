@@ -1,0 +1,1 @@
+Text with *bold*, /italic/, _underline_, +strikethrough+, =verbatim=, and ~code~ markup.

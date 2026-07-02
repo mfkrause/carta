@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><strong>bold</strong> opens the line</p>
+<p>*literal star</p>

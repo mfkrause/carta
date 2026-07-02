@@ -106,6 +106,20 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "latex"
+path = "fuzz_targets/latex.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "org"
+path = "fuzz_targets/org.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 debug = 1
 

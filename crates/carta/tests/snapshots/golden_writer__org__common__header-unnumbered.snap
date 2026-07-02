@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Hidden
+:PROPERTIES:
+:CUSTOM_ID: hidden
+:CLASS: unnumbered
+:END:

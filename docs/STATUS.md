@@ -82,9 +82,42 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Verbatim regions flatten embedded font macros (literal tabs are preserved).
 - A `tbl` table using row or column spans degrades to a placeholder paragraph.
 
+### `latex` — ✅
+- Only the `\begin{document}`…`\end{document}` body is rendered; the preamble contributes metadata
+  (`\title`, `\author`, `\date`, `\subtitle`, `abstract`) and macro definitions but is otherwise
+  dropped. A file with no `document` environment is read whole. `\institute` is dropped entirely.
+- With `raw_tex` off (the default), an unknown command is dropped together with its bracket and brace
+  arguments and an unknown environment becomes a classed `Div`; under `raw_tex` both are preserved
+  verbatim as raw LaTeX.
+- Macro expansion (`\newcommand`, `\renewcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`,
+  `\let`) handles numbered parameters and one optional-argument default and is bounded to a fixed
+  nesting depth; delimited parameters, `\csname`/`\expandafter`, catcode changes, and recursive or
+  multi-optional macros are unsupported. With `latex_macros` off, each definition is left verbatim as a
+  raw block.
+- Cross-reference commands (`\ref`, `\eqref`, `\autoref`, `\cref`, `\pageref`) resolve to a link whose
+  visible text is a bracketed `[label]` placeholder rather than the target's counter number.
+- Multi-line math environments (`align`, `gather`, `multline`, `eqnarray`, `alignat`, `flalign`, …) are
+  kept as a single display-math inline holding the whole `\begin…\end` text rather than split into rows
+  and cells.
+- `\includegraphics` keeps only `width` and `height`; `\textwidth`/`\linewidth`/`\textheight` lengths
+  convert to percentages and absolute units pass through, but `\columnwidth`/`\paperwidth` and
+  leading-dot decimal values are omitted.
+- Table support covers header detection, per-column alignment, and `\multicolumn` colspan; `\multirow`,
+  partial `\cline` rules, nested tables, and `\caption` placement may flatten or drop.
+- `\raisebox` in its optional depth/height form drops the box content; purely visual commands
+  (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner content.
+
+### `org` — ✅
+- Drawers: a headline's property drawer is consumed and supplies its `CUSTOM_ID` as the heading
+  identifier; the bookkeeping drawers `:PROPERTIES:` and `:LOGBOOK:` are dropped wherever they appear;
+  every other named drawer becomes a `Div` classed with the drawer name.
+- A property drawer's `:ID:` is not used as a fallback heading identifier when no `:CUSTOM_ID:` is
+  present, and a file-level property drawer's keys are not promoted to document metadata.
+- An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
+
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
-`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `latex`, `mdoc`, `muse`, `odt`, `org`, `pod`,
-`pptx`, `ris`, `rtf`, `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
+`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
+`rtf`, `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---
 
@@ -119,6 +152,9 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 ### `opml` — ✅
 - Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
+### `org` — ✅
+- A `Div` marked as a drawer is written back as a `:NAME:` … `:END:` drawer.
+
 ### `json` — ✅
 ### `native` — ✅
 
@@ -133,7 +169,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
 `csljson`, `docbook` (+ `4`, `5`), `docx`, `dzslides`, `epub` (+ `2`, `3`), `fb2`, `haddock`,
 `icml`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
-`odt`, `opendocument`, `org`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
+`odt`, `opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
 `vimdoc`, `xml`, `xwiki`, `zimwiki`.
 
 ---

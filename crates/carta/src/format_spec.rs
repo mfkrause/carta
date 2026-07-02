@@ -19,9 +19,16 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
         // These formats default to `smart`: quotes, dashes, and ellipses are folded into their
-        // typographic forms — TeX ligatures for `latex`/`beamer`, the corresponding glyphs for
-        // `typst` and `dokuwiki` — unless `-smart` asks for the literal Unicode punctuation instead.
-        "latex" | "beamer" | "typst" | "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
+        // typographic forms — TeX ligatures for `beamer`, the corresponding glyphs for `typst` and
+        // `dokuwiki` — unless `-smart` asks for the literal Unicode punctuation instead.
+        "beamer" | "typst" | "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
+        // Reading LaTeX additionally assigns header identifiers from title text and expands
+        // user-defined macros by default; both can be turned off with a `-` toggle.
+        "latex" => Extensions::from_list(&[
+            Extension::Smart,
+            Extension::AutoIdentifiers,
+            Extension::LatexMacros,
+        ]),
         "html" | "html5" | "html4" => Extensions::from_list(&[
             Extension::AutoIdentifiers,
             Extension::LineBlocks,
@@ -29,6 +36,14 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::NativeSpans,
         ]),
         "rst" | "mediawiki" | "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        // Org assigns header identifiers, recognizes `[cite:@key]` citations, and reads task-list
+        // checkboxes by default; `smart`, `fancy_lists`, and the alternate identifier shapes are
+        // opt-in toggles.
+        "org" => Extensions::from_list(&[
+            Extension::AutoIdentifiers,
+            Extension::Citations,
+            Extension::TaskLists,
+        ]),
         // A notebook's markdown cells are parsed and rendered in a GitHub-flavored dialect with dollar
         // math and auto identifiers on by default; a hash run needs a following space to open a
         // heading (so a bare `#.` is a list marker, not a heading).
@@ -300,6 +315,22 @@ mod tests {
                 "+{name}-{name} should disable it"
             );
         }
+    }
+
+    #[test]
+    fn latex_defaults_include_identifiers_and_macros() {
+        let (base, ext) = parse_format_spec("latex").unwrap();
+        assert_eq!(base, "latex");
+        assert!(ext.contains(Extension::Smart));
+        assert!(ext.contains(Extension::AutoIdentifiers));
+        assert!(ext.contains(Extension::LatexMacros));
+        assert!(!ext.contains(Extension::RawTex));
+
+        let (_, ext) = parse_format_spec("latex-smart-latex_macros+raw_tex").unwrap();
+        assert!(!ext.contains(Extension::Smart));
+        assert!(!ext.contains(Extension::LatexMacros));
+        assert!(ext.contains(Extension::RawTex));
+        assert!(ext.contains(Extension::AutoIdentifiers));
     }
 
     #[test]

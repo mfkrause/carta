@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#+name: d
+#+begin_note
+body paragraph
+#+end_note

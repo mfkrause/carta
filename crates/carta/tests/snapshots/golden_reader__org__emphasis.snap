@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Text"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"bold"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"italic"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Underline","c":[{"t":"Str","c":"underline"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Strikeout","c":[{"t":"Str","c":"strikethrough"}]},{"t":"Str","c":","},{"t":"Space"},{"t":"Code","c":[["",["verbatim"],[]],"verbatim"]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"code"]},{"t":"Space"},{"t":"Str","c":"markup."}]}]}

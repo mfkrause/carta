@@ -1,0 +1,25 @@
+#+TITLE: An Example
+#+AUTHOR: A. Writer
+
+* Introduction
+A paragraph with *bold* and /italic/ text, inline code =verbatim=, a
+subscript a_1, and a footnote.[fn:1]
+
+- First item
+- Second item
+- [ ] A task still to do
+- [X] A task already done
+
+#+begin_quote
+A short quotation.
+#+end_quote
+
+#+begin_src rust
+fn main() {}
+#+end_src
+
+| Name | Value |
+|------+-------|
+| a    |     1 |
+
+[fn:1] A note.

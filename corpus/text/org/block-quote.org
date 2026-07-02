@@ -1,0 +1,5 @@
+#+begin_quote
+A quoted paragraph inside a block quote.
+
+A second quoted paragraph.
+#+end_quote

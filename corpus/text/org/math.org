@@ -1,0 +1,9 @@
+Inline math \(a^2 + b^2 = c^2\) appears mid-sentence.
+
+Dollar-delimited math $E = mc^2$ also renders inline.
+
+Display math is set apart:
+
+\[
+\int_0^1 x^2 \, dx = \frac{1}{3}
+\]
