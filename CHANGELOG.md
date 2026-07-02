@@ -9,8 +9,6 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
-## [0.0.1] - 2026-07-01
+## [0.0.1] - 2026-07-02
 
-Initial alpha release. carta converts between a growing set of markup formats — CommonMark,
-HTML, LaTeX, reStructuredText, and more (see the status table in the README) — with a focus on
-conversion speed and small binary size.
+Initial alpha release.
