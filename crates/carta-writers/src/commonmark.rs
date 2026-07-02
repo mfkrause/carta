@@ -8,8 +8,8 @@
 //! This format has no public specification.
 
 use carta_ast::{
-    Attr, Block, Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle,
-    MathType, Target, Text,
+    Attr, Block, Document, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
+    Target, Text,
 };
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
@@ -17,6 +17,10 @@ use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_groups, indent_block,
     is_loose, is_uri, item_separator, label_matches_url, normalize_image_attr, offset_as_i32,
     ordered_marker, quote_marks, render_html_attr,
+};
+use crate::markdown_common::{
+    attr_is_empty, indent_code, is_autolink_class, is_html_format, longest_backtick_run,
+    needs_separator, offset_horizontal_rule, quote_block,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -528,62 +532,12 @@ fn html_tag_pieces(tag: &str) -> Vec<Piece> {
     pieces
 }
 
-/// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
-/// the first: two lists of the same kind would merge into one, and an indented code block following
-/// a list would read as a continuation of the final item.
-fn needs_separator(previous: &Block, current: &Block) -> bool {
-    match (previous, current) {
-        (Block::BulletList(_), Block::BulletList(_))
-        | (Block::OrderedList(..), Block::OrderedList(..)) => true,
-        (Block::BulletList(_) | Block::OrderedList(..), Block::CodeBlock(attr, _)) => {
-            attr_is_empty(attr)
-        }
-        _ => false,
-    }
-}
-
-/// A list item whose first block is a horizontal rule cannot place the rule on the marker line,
-/// where it would read as part of the marker; the rule is pushed onto its own line below an empty
-/// marker line by prefixing the rendered body with a blank line.
-fn offset_horizontal_rule(item: &[Block], body: String) -> String {
-    if matches!(item.first(), Some(Block::HorizontalRule)) {
-        format!("\n\n{body}")
-    } else {
-        body
-    }
-}
-
 /// Whether the next inline is a bare `1.` or `1)`: an ordered-list marker whose start number is one,
 /// the only ordered marker that can interrupt a paragraph. If such a token began a wrapped
 /// continuation line it would be re-read as a list, so the space before it is held non-breakable to
 /// keep it on the line with the preceding word.
 fn next_is_para_interrupting_marker(inline: Option<&Inline>) -> bool {
     matches!(inline, Some(Inline::Str(text)) if text == "1." || text == "1)")
-}
-
-/// Prefix every line of a blockquote body with `> ` (a bare `>` on an otherwise empty line).
-fn quote_block(body: &str) -> String {
-    if body.is_empty() {
-        return "> ".to_owned();
-    }
-    let mut out = String::new();
-    for (index, line) in body.split('\n').enumerate() {
-        if index > 0 {
-            out.push('\n');
-        }
-        if line.is_empty() {
-            out.push('>');
-        } else {
-            out.push_str("> ");
-            out.push_str(line);
-        }
-    }
-    out
-}
-
-/// Whether a raw node targets HTML and should pass its content through verbatim.
-fn is_html_format(format: &Format) -> bool {
-    matches!(format.0.as_str(), "html" | "html4" | "html5")
 }
 
 /// Keep an embedded HTML block a single `CommonMark` block: each blank line inside it becomes a
@@ -616,23 +570,6 @@ fn code_block(attr: &Attr, text: &str) -> String {
     }
 }
 
-/// An indented code block: every non-blank line is prefixed with four spaces, blank lines stay
-/// empty, and trailing blank lines are dropped. Empty content yields no output.
-fn indent_code(text: &str) -> String {
-    let body = text.trim_end_matches('\n');
-    let mut out = String::new();
-    for (index, line) in body.split('\n').enumerate() {
-        if index > 0 {
-            out.push('\n');
-        }
-        if !line.is_empty() {
-            out.push_str("    ");
-            out.push_str(line);
-        }
-    }
-    out
-}
-
 /// The backtick run length for a fenced code block: longer than the longest backtick run in the
 /// content, and at least three.
 fn backtick_fence_len(text: &str) -> usize {
@@ -651,20 +588,6 @@ fn code_span(text: &str) -> String {
     } else {
         format!("{fence}{text}{fence}")
     }
-}
-
-fn longest_backtick_run(text: &str) -> usize {
-    let mut longest = 0;
-    let mut current = 0;
-    for ch in text.chars() {
-        if ch == '`' {
-            current += 1;
-            longest = longest.max(current);
-        } else {
-            current = 0;
-        }
-    }
-    longest
 }
 
 /// Append a raw-HTML run to the fill pieces. When `breakable`, the spaces separating a tag's
@@ -728,18 +651,6 @@ fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
         return Some(format!("<{text}>"));
     }
     None
-}
-
-fn attr_is_empty(attr: &Attr) -> bool {
-    attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty()
-}
-
-/// Whether a link's attributes consist solely of the `uri` or `email` class that marks it as an
-/// autolink: with no id and no further attributes, such a link is written in angle-bracket form.
-fn is_autolink_class(attr: &Attr) -> bool {
-    attr.id.is_empty()
-        && attr.attributes.is_empty()
-        && matches!(attr.classes.as_slice(), [class] if class == "uri" || class == "email")
 }
 
 /// The plain-text projection of an inline sequence, used for an image's `alt` attribute.
@@ -927,7 +838,7 @@ fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use carta_ast::QuoteType;
+    use carta_ast::{Format, QuoteType};
 
     fn render(blocks: Vec<Block>) -> String {
         CommonmarkWriter
