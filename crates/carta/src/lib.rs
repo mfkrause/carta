@@ -14,7 +14,7 @@ pub use carta_ast::Document;
 pub use carta_core::{
     AnyReader, AnyWriter, BytesReader, BytesWriter, Error, Extension, Extensions, MathMethod,
     MediaBag, MediaItem, Output, Reader, ReaderOptions, Result, TocStyle, WrapMode, Writer,
-    WriterOptions, presets,
+    WriterOptions, media, presets,
 };
 
 use std::sync::Arc;
