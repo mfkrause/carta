@@ -23,11 +23,15 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
     body_rows, cell_inlines, dash_rule, display_width, escape_attr, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_known_scheme, is_loose,
-    is_percent_escaped_uri, is_simple_cell, item_separator, lay_row, measure_pieces, offset_as_i32,
-    ordered_marker, pad_align, pieces_nonempty, quote_marks, render_html_attr, table_form,
+    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell, is_uri,
+    item_separator, lay_row, measure_pieces, offset_as_i32, ordered_marker, pad_align,
+    pieces_nonempty, quote_marks, render_html_attr, table_form,
 };
 use crate::grid;
+use crate::markdown_common::{
+    attr_is_empty, indent_code, is_autolink_class, is_html_format, longest_backtick_run,
+    needs_separator, offset_horizontal_rule, quote_block,
+};
 
 /// The rendering configuration shared by every entry point and exposed to sibling writers that embed
 /// markdown (the outline writer renders note text through this engine). The active [`Extensions`]
@@ -1892,48 +1896,6 @@ fn pieces_to_string(pieces: &[Piece]) -> String {
     out
 }
 
-fn needs_separator(previous: &Block, current: &Block) -> bool {
-    match (previous, current) {
-        (Block::BulletList(_), Block::BulletList(_))
-        | (Block::OrderedList(..), Block::OrderedList(..)) => true,
-        (Block::BulletList(_) | Block::OrderedList(..), Block::CodeBlock(attr, _)) => {
-            attr_is_empty(attr)
-        }
-        _ => false,
-    }
-}
-
-fn offset_horizontal_rule(item: &[Block], body: String) -> String {
-    if matches!(item.first(), Some(Block::HorizontalRule)) {
-        format!("\n\n{body}")
-    } else {
-        body
-    }
-}
-
-fn quote_block(body: &str) -> String {
-    if body.is_empty() {
-        return "> ".to_owned();
-    }
-    let mut out = String::new();
-    for (index, line) in body.split('\n').enumerate() {
-        if index > 0 {
-            out.push('\n');
-        }
-        if line.is_empty() {
-            out.push('>');
-        } else {
-            out.push_str("> ");
-            out.push_str(line);
-        }
-    }
-    out
-}
-
-fn is_html_format(format: &Format) -> bool {
-    matches!(format.0.as_str(), "html" | "html4" | "html5")
-}
-
 /// Whether a raw-format name denotes TeX, which Markdown dialects with `raw_tex` embed verbatim.
 /// `ConTeXt` and other TeX-adjacent formats are excluded — only `tex`/`latex` take the verbatim
 /// path; everything else is rendered via the `raw_attribute` fenced form.
@@ -2019,21 +1981,6 @@ fn github_code_info(attr: &Attr) -> Option<String> {
     }
 }
 
-fn indent_code(text: &str) -> String {
-    let body = text.trim_end_matches('\n');
-    let mut out = String::new();
-    for (index, line) in body.split('\n').enumerate() {
-        if index > 0 {
-            out.push('\n');
-        }
-        if !line.is_empty() {
-            out.push_str("    ");
-            out.push_str(line);
-        }
-    }
-    out
-}
-
 /// The fence length for a fenced code block built from `fence`: longer than the longest leading run
 /// of that character already in the body (so the fence cannot close early), and at least three.
 fn fence_run_len(text: &str, fence: char) -> usize {
@@ -2098,20 +2045,6 @@ fn code_span(text: &str) -> String {
     }
 }
 
-fn longest_backtick_run(text: &str) -> usize {
-    let mut longest = 0;
-    let mut current = 0;
-    for ch in text.chars() {
-        if ch == '`' {
-            current += 1;
-            longest = longest.max(current);
-        } else {
-            current = 0;
-        }
-    }
-    longest
-}
-
 fn destination(target: &Target) -> String {
     if target.title.is_empty() {
         target.url.to_string()
@@ -2135,17 +2068,6 @@ fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
         return Some(format!("<{text}>"));
     }
     None
-}
-
-fn is_uri(text: &str) -> bool {
-    let Some(colon) = text.find(':') else {
-        return false;
-    };
-    text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
-}
-
-fn attr_is_empty(attr: &Attr) -> bool {
-    attr.id.is_empty() && attr.classes.is_empty() && attr.attributes.is_empty()
 }
 
 /// Flatten a figure caption's blocks into one inline sequence for the implicit-figure form: each
@@ -2173,12 +2095,6 @@ fn header_attr_implicit(attr: &Attr, inlines: &[Inline], auto_identifiers: bool)
         && attr.attributes.is_empty()
         && (attr.id.is_empty()
             || (auto_identifiers && attr.id == carta_ast::slug(&carta_ast::to_plain_text(inlines))))
-}
-
-fn is_autolink_class(attr: &Attr) -> bool {
-    attr.id.is_empty()
-        && attr.attributes.is_empty()
-        && matches!(attr.classes.as_slice(), [class] if class == "uri" || class == "email")
 }
 
 fn has_dimension(attr: &Attr) -> bool {
