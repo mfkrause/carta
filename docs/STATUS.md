@@ -21,11 +21,7 @@ gap.
 - Narrow per-extension divergences — see [known parity gaps](#known-parity-gaps).
 
 The four dialect readers below share the `markdown` reader engine, gating each construct on the
-dialect's own default extension set, so the `markdown` notes above apply to them as well. Each raw
-HTML block is read verbatim: a block-level open tag at the left margin spans every line — blank lines
-included — up to its balanced close tag as a single raw block; a self-closing, void, unclosed, or
-bare-close tag yields a single-line raw block. In `markdown_phpextra` and `markdown_mmd` such a block
-may be indented up to three columns and interrupts an open paragraph.
+dialect's own default extension set, so the `markdown` notes above apply to them as well.
 
 ### `markdown_strict` — ✅
 - The sparsest dialect: raw HTML plus the shortcut and spaced reference-link forms, and nothing else.
