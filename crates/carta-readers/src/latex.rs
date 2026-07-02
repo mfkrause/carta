@@ -14,7 +14,8 @@
 //! degrades: an unknown command is dropped (or passed through verbatim under `raw_tex`), and an
 //! unknown environment becomes a classed [`Block::Div`] (or a raw block under `raw_tex`).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+use std::rc::Rc;
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth, Document,
@@ -22,6 +23,8 @@ use carta_ast::{
     QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target, slug, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
+
+use crate::heading_ids::{IdRegistry, IdScheme};
 
 /// Parses LaTeX source into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -42,7 +45,7 @@ impl Reader for LatexReader {
             ext,
             smart: ext.contains(Extension::Smart),
             meta: BTreeMap::new(),
-            macros: BTreeMap::new(),
+            macros: Rc::new(BTreeMap::new()),
             ids: IdRegistry::default(),
             base_level,
             in_figure: false,
@@ -74,9 +77,11 @@ impl Reader for LatexReader {
 /// the preamble is everything before it and the body is the text up to a matching `\end{document}`;
 /// without one, the whole source is the body and there is no preamble.
 fn split_document(input: &str) -> (Option<&str>, &str) {
-    if let Some(begin) = find_command(input, "\\begin{document}") {
+    // The `\begin{document}`/`\end{document}` needles end in `}`, so a plain substring search cannot
+    // latch onto a longer control word.
+    if let Some(begin) = input.find("\\begin{document}") {
         let after = &input[begin + "\\begin{document}".len()..];
-        let body = match find_command(after, "\\end{document}") {
+        let body = match after.find("\\end{document}") {
             Some(end) => &after[..end],
             None => after,
         };
@@ -84,11 +89,6 @@ fn split_document(input: &str) -> (Option<&str>, &str) {
     } else {
         (None, input)
     }
-}
-
-/// The byte offset of `needle` in `haystack`, treating it as a literal control-sequence occurrence.
-fn find_command(haystack: &str, needle: &str) -> Option<usize> {
-    haystack.find(needle)
 }
 
 /// The header level the top-most sectioning command in `body` maps to. `\part` shifts every section
@@ -148,7 +148,9 @@ struct Parser {
     ext: Extensions,
     smart: bool,
     meta: BTreeMap<String, MetaValue>,
-    macros: BTreeMap<String, Macro>,
+    /// User macro definitions, shared with sub-parsers by reference; a sub-parser that defines its own
+    /// macro copies the table on write, so definitions never leak across scopes.
+    macros: Rc<BTreeMap<String, Macro>>,
     ids: IdRegistry,
     /// The level offset for sectioning commands (see [`base_section_level`]).
     base_level: i32,
@@ -366,7 +368,7 @@ impl Parser {
         }
         let name = self.peek_control_word()?;
         if let Some(level) = section_intrinsic(&name) {
-            return Some(vec![self.parse_section(&name, level)]);
+            return Some(vec![self.parse_section(level)]);
         }
         match name.as_str() {
             "title" | "author" | "date" | "subtitle" => {
@@ -456,7 +458,7 @@ impl Parser {
 
     // --- Sectioning ------------------------------------------------------------------------------
 
-    fn parse_section(&mut self, name: &str, intrinsic: i32) -> Block {
+    fn parse_section(&mut self, intrinsic: i32) -> Block {
         self.consume_control_word();
         let starred = self.cur() == Some('*');
         if starred {
@@ -474,12 +476,11 @@ impl Parser {
         if let Some(id) = self.peek_env_arg_after_label() {
             label = Some(id);
         }
-        let _ = name;
 
         let level = (intrinsic - self.base_level + 1).max(1);
         let id = match label {
             Some(id) => {
-                self.ids.reserve(&id);
+                self.ids.reserve_native(&id);
                 id
             }
             None => self.assign_id(&to_plain_text(&title)),
@@ -534,12 +535,18 @@ impl Parser {
         kept
     }
 
+    /// Derives a heading identifier from its title text. The slug shape follows the active extension,
+    /// but a section always disambiguates natively: an empty slug becomes `section` and a repeat
+    /// increments a numeric suffix until unused (also avoiding any reserved `\label`).
     fn assign_id(&mut self, text: &str) -> String {
-        match id_scheme(self.ext) {
-            Some(IdScheme::Plain) => self.ids.assign_native(slug(text)),
-            Some(IdScheme::Gfm) => self.ids.assign_gfm(&slug_gfm(text)),
-            None => String::new(),
-        }
+        let Some(scheme) = IdScheme::select(self.ext, false) else {
+            return String::new();
+        };
+        let base = match scheme {
+            IdScheme::Plain => slug(text),
+            IdScheme::Gfm => slug_gfm(text),
+        };
+        self.ids.assign_native(base)
     }
 
     // --- Environments ----------------------------------------------------------------------------
@@ -1221,28 +1228,27 @@ impl Parser {
             self.read_accent_symbol(accent, buf);
             return;
         }
+        // Font family/shape/series switches wrap their argument in a single-class span.
+        if let Some(class) = font_span_class(name) {
+            let inner = self.parse_group_inlines();
+            emit_all(out, buf, extract_spaces(inner, |i| span_class(i, class)));
+            return;
+        }
         match name {
-            "textcolor" => {
+            "textcolor" | "colorbox" => {
                 let color = self.read_group_raw().unwrap_or_default();
                 let inner = self.parse_group_inlines();
+                let property = if name == "colorbox" {
+                    "background-color"
+                } else {
+                    "color"
+                };
                 let attr = Attr {
                     id: String::new(),
                     classes: Vec::new(),
-                    attributes: vec![("style".to_owned(), format!("color: {}", color.trim()))],
+                    attributes: vec![("style".to_owned(), format!("{property}: {}", color.trim()))],
                 };
                 emit(out, buf, Inline::Span(attr, inner));
-            }
-            "textrm" | "textnormal" => {
-                let inner = self.parse_group_inlines();
-                emit_all(out, buf, extract_spaces(inner, |i| span_class(i, "roman")));
-            }
-            "textsf" => {
-                let inner = self.parse_group_inlines();
-                emit_all(
-                    out,
-                    buf,
-                    extract_spaces(inner, |i| span_class(i, "sans-serif")),
-                );
             }
             "texttt" | "lstinline" => {
                 if name == "lstinline" {
@@ -1357,26 +1363,14 @@ impl Parser {
                 flush_buf(buf, out);
                 self.read_citation(name, out);
             }
-            "textsuperscript" => {
+            "textsuperscript" | "textsubscript" => {
                 let inner = self.parse_group_inlines();
-                emit_all(out, buf, extract_spaces(inner, Inline::Superscript));
-            }
-            "textsubscript" => {
-                let inner = self.parse_group_inlines();
-                emit_all(out, buf, extract_spaces(inner, Inline::Subscript));
-            }
-            "colorbox" => {
-                let color = self.read_group_raw().unwrap_or_default();
-                let inner = self.parse_group_inlines();
-                let attr = Attr {
-                    id: String::new(),
-                    classes: Vec::new(),
-                    attributes: vec![(
-                        "style".to_owned(),
-                        format!("background-color: {}", color.trim()),
-                    )],
+                let wrap: fn(Vec<Inline>) -> Inline = if name == "textsubscript" {
+                    Inline::Subscript
+                } else {
+                    Inline::Superscript
                 };
-                emit(out, buf, Inline::Span(attr, inner));
+                emit_all(out, buf, extract_spaces(inner, wrap));
             }
             "mbox" | "hbox" => {
                 let inner = self.parse_group_inlines();
@@ -1389,18 +1383,6 @@ impl Parser {
                     buf,
                     Inline::Math(MathType::InlineMath, body.trim().to_owned()),
                 );
-            }
-            "textup" => {
-                let inner = self.parse_group_inlines();
-                emit_all(
-                    out,
-                    buf,
-                    extract_spaces(inner, |i| span_class(i, "upright")),
-                );
-            }
-            "textmd" => {
-                let inner = self.parse_group_inlines();
-                emit_all(out, buf, extract_spaces(inner, |i| span_class(i, "medium")));
             }
             "footnotemark" | "protect" | "noindent" | "indent" | "bigskip" | "medskip"
             | "smallskip" | "centering" | "hfill" | "hrulefill" | "dotfill" | "par"
@@ -1544,26 +1526,33 @@ impl Parser {
     }
 
     /// Reads a braced group as blocks (used for footnote bodies).
+    /// A sub-parser over `source` that inherits the shared context (extensions, smart mode, macro
+    /// table, section base level, expansion depth) but starts with fresh cursor and output state
+    /// (metadata and heading ids). It never inherits float context.
+    fn child(&self, source: &str, in_figure: bool) -> Parser {
+        Parser {
+            chars: source.chars().collect(),
+            pos: 0,
+            ext: self.ext,
+            smart: self.smart,
+            meta: BTreeMap::new(),
+            macros: Rc::clone(&self.macros),
+            ids: IdRegistry::default(),
+            base_level: self.base_level,
+            in_figure,
+            in_float: false,
+            expand_depth: self.expand_depth,
+            last_ws_had_newline: false,
+        }
+    }
+
     fn parse_group_blocks(&mut self) -> Vec<Block> {
         if self.cur() != Some('{') {
             return Vec::new();
         }
         // Slice out the balanced group and parse it as a sub-document so paragraph breaks work.
         let source = self.read_group_raw().unwrap_or_default();
-        let mut sub = Parser {
-            chars: source.chars().collect(),
-            pos: 0,
-            ext: self.ext,
-            smart: self.smart,
-            meta: BTreeMap::new(),
-            macros: self.macros.clone(),
-            ids: IdRegistry::default(),
-            base_level: self.base_level,
-            in_figure: self.in_figure,
-            in_float: false,
-            expand_depth: self.expand_depth,
-            last_ws_had_newline: false,
-        };
+        let mut sub = self.child(&source, self.in_figure);
         sub.parse_blocks(&Stop::Eof)
     }
 
@@ -1826,7 +1815,7 @@ impl Parser {
                 .unwrap_or(0);
             let optional_default = self.read_optional_raw();
             let body = self.read_group_raw().unwrap_or_default();
-            self.macros.insert(
+            Rc::make_mut(&mut self.macros).insert(
                 macro_name,
                 Macro {
                     args,
@@ -1881,7 +1870,7 @@ impl Parser {
             }
         }
         let body = self.read_group_raw().unwrap_or_default();
-        self.macros.insert(
+        Rc::make_mut(&mut self.macros).insert(
             macro_name,
             Macro {
                 args,
@@ -2046,6 +2035,18 @@ fn inline_wrapper(name: &str) -> Option<fn(Vec<Inline>) -> Inline> {
     }
 }
 
+/// The CSS class a font-family/shape/series command wraps its argument in, or `None` for a command
+/// that is not one of these span-producing font switches.
+fn font_span_class(name: &str) -> Option<&'static str> {
+    match name {
+        "textrm" | "textnormal" => Some("roman"),
+        "textsf" => Some("sans-serif"),
+        "textup" => Some("upright"),
+        "textmd" => Some("medium"),
+        _ => None,
+    }
+}
+
 /// Wraps inlines in a formatter, but lifts leading and trailing spacing out of the wrapper so it
 /// stays between words rather than inside the formatted run.
 fn extract_spaces<F: FnOnce(Vec<Inline>) -> Inline>(
@@ -2146,64 +2147,6 @@ fn group_span(inner: Vec<Inline>) -> Option<Inline> {
             inner.into_iter().next()
         }
         _ => Some(Inline::Span(Attr::default(), inner)),
-    }
-}
-
-/// Which identifier scheme a header uses, given the active extensions. `gfm_auto_identifiers` takes
-/// precedence; with neither identifier extension, a header carries no automatic id.
-enum IdScheme {
-    Plain,
-    Gfm,
-}
-
-fn id_scheme(ext: Extensions) -> Option<IdScheme> {
-    if ext.contains(Extension::GfmAutoIdentifiers) {
-        Some(IdScheme::Gfm)
-    } else if ext.contains(Extension::AutoIdentifiers) {
-        Some(IdScheme::Plain)
-    } else {
-        None
-    }
-}
-
-/// Assigns unique heading identifiers, disambiguating repeats with a numeric suffix.
-#[derive(Default)]
-struct IdRegistry {
-    seen: BTreeSet<String>,
-}
-
-impl IdRegistry {
-    /// Records an explicit identifier (from a `\label`) as taken.
-    fn reserve(&mut self, id: &str) {
-        self.seen.insert(id.to_owned());
-    }
-
-    fn assign_native(&mut self, base: String) -> String {
-        let base = if base.is_empty() {
-            "section".to_owned()
-        } else {
-            base
-        };
-        self.disambiguate(base)
-    }
-
-    fn assign_gfm(&mut self, base: &str) -> String {
-        self.disambiguate(base.to_owned())
-    }
-
-    /// Returns `base` if unused, otherwise `base-1`, `base-2`, … until unused.
-    fn disambiguate(&mut self, base: String) -> String {
-        if self.seen.insert(base.clone()) {
-            return base;
-        }
-        let mut n = 1;
-        loop {
-            let candidate = format!("{base}-{n}");
-            if self.seen.insert(candidate.clone()) {
-                return candidate;
-            }
-            n += 1;
-        }
     }
 }
 
@@ -2893,39 +2836,56 @@ fn read_brace_group(chars: &[char], start: usize) -> Option<(String, usize)> {
     None
 }
 
-/// Strips leading whitespace and horizontal-rule commands from a row chunk, returning whether any
-/// rule was present and the remaining content.
+/// Strips leading whitespace and horizontal-rule commands from a row chunk, returning whether a
+/// header-separating rule was present and the remaining content.
 fn strip_leading_rules(chunk: &str) -> (bool, String) {
     let chars: Vec<char> = chunk.chars().collect();
     let mut i = 0;
-    let mut found = false;
+    let mut header_boundary = false;
     loop {
         while matches!(chars.get(i), Some(c) if c.is_whitespace()) {
             i += 1;
         }
-        if chars.get(i) != Some(&'\\') {
-            break;
-        }
-        let mut j = i + 1;
-        let mut name = String::new();
-        while let Some(&d) = chars.get(j) {
-            if d.is_ascii_alphabetic() {
-                name.push(d);
-                j += 1;
-            } else {
-                break;
+        match rule_command_at(&chars, i) {
+            Some((end, header)) => {
+                header_boundary |= header;
+                i = end;
             }
-        }
-        if !is_rule_command(&name) {
-            break;
-        }
-        found = true;
-        i = j;
-        while matches!(chars.get(i), Some('{' | '[' | '(')) {
-            i = skip_rule_argument(&chars, i);
+            None => break,
         }
     }
-    (found, chars.get(i..).unwrap_or(&[]).iter().collect())
+    (
+        header_boundary,
+        chars.get(i..).unwrap_or(&[]).iter().collect(),
+    )
+}
+
+/// If a horizontal-rule command (`\hline`, `\toprule`, …) begins at `chars[start]`, returns the index
+/// just past the command name and all its bracketed arguments, together with whether the rule marks a
+/// header boundary. A dashed or custom rule (`\hdashline`, `\specialrule`) is removed from the source
+/// but does not separate the header row from the body.
+fn rule_command_at(chars: &[char], start: usize) -> Option<(usize, bool)> {
+    if chars.get(start) != Some(&'\\') {
+        return None;
+    }
+    let mut j = start + 1;
+    let mut name = String::new();
+    while let Some(&d) = chars.get(j) {
+        if d.is_ascii_alphabetic() {
+            name.push(d);
+            j += 1;
+        } else {
+            break;
+        }
+    }
+    if !is_rule_command(&name) {
+        return None;
+    }
+    let header_boundary = !matches!(name.as_str(), "hdashline" | "specialrule");
+    while matches!(chars.get(j), Some('{' | '[' | '(')) {
+        j = skip_rule_argument(chars, j);
+    }
+    Some((j, header_boundary))
 }
 
 fn is_rule_command(name: &str) -> bool {
@@ -2962,20 +2922,7 @@ fn skip_rule_argument(chars: &[char], start: usize) -> usize {
 
 /// Parses a single table cell's source into inlines using a fresh sub-parser.
 fn parse_cell_inlines(parser: &Parser, source: &str) -> Vec<Inline> {
-    let mut sub = Parser {
-        chars: source.chars().collect(),
-        pos: 0,
-        ext: parser.ext,
-        smart: parser.smart,
-        meta: BTreeMap::new(),
-        macros: parser.macros.clone(),
-        ids: IdRegistry::default(),
-        base_level: parser.base_level,
-        in_figure: false,
-        in_float: false,
-        expand_depth: parser.expand_depth,
-        last_ws_had_newline: false,
-    };
+    let mut sub = parser.child(source, false);
     trim_inlines(sub.parse_inlines(InlineStop::Paragraph))
 }
 
@@ -2985,41 +2932,8 @@ fn strip_rules(row: &str) -> String {
     let chars: Vec<char> = row.chars().collect();
     let mut i = 0;
     while let Some(&c) = chars.get(i) {
-        if c == '\\' {
-            let mut name = String::new();
-            let mut j = i + 1;
-            while let Some(&d) = chars.get(j) {
-                if d.is_ascii_alphabetic() {
-                    name.push(d);
-                    j += 1;
-                } else {
-                    break;
-                }
-            }
-            if matches!(
-                name.as_str(),
-                "hline" | "toprule" | "midrule" | "bottomrule" | "cmidrule" | "cline"
-            ) {
-                i = j;
-                // Skip trailing `{…}`/`(…)`/`[…]` arguments of the rule command.
-                while matches!(chars.get(i), Some('{' | '[' | '(')) {
-                    let close = match chars.get(i) {
-                        Some('{') => '}',
-                        Some('[') => ']',
-                        _ => ')',
-                    };
-                    i += 1;
-                    while let Some(&d) = chars.get(i) {
-                        i += 1;
-                        if d == close {
-                            break;
-                        }
-                    }
-                }
-                continue;
-            }
-            out.push('\\');
-            i += 1;
+        if let Some((end, _)) = rule_command_at(&chars, i) {
+            i = end;
             continue;
         }
         out.push(c);

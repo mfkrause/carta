@@ -63,24 +63,31 @@ gap.
 - A `tbl` table using row or column spans degrades to a placeholder paragraph.
 
 ### `latex` — ✅
-- Default extensions: `smart`, `auto_identifiers`, `latex_macros`; `raw_tex` and `gfm_auto_identifiers`
-  are off by default. Each is toggled with the `+`/`-` spec syntax.
 - Only the `\begin{document}`…`\end{document}` body is rendered; the preamble contributes metadata
-  (`\title`, `\author`, `\date`, `\subtitle`, `abstract`) and macro definitions but is otherwise dropped.
-  A file with no `document` environment is read whole.
-- An unknown command is dropped together with its bracket/brace arguments; an unknown environment
-  becomes a classed `Div`. Under `raw_tex`, both are instead preserved verbatim as raw LaTeX.
-- Macro expansion (`\newcommand`, `\renewcommand`, `\providecommand`, `\def`, `\let`) is bounded to a
-  fixed nesting depth to stop runaway recursion; with `latex_macros` off, each definition is left in
-  the output verbatim as a raw block.
+  (`\title`, `\author`, `\date`, `\subtitle`, `abstract`) and macro definitions but is otherwise
+  dropped. A file with no `document` environment is read whole. `\institute` is dropped entirely.
+- With `raw_tex` off (the default), an unknown command is dropped together with its bracket and brace
+  arguments and an unknown environment becomes a classed `Div`; under `raw_tex` both are preserved
+  verbatim as raw LaTeX.
+- Macro expansion (`\newcommand`, `\renewcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`,
+  `\let`) handles numbered parameters and one optional-argument default and is bounded to a fixed
+  nesting depth; delimited parameters, `\csname`/`\expandafter`, catcode changes, and recursive or
+  multi-optional macros are unsupported. With `latex_macros` off, each definition is left verbatim as a
+  raw block.
+- Cross-reference commands (`\ref`, `\eqref`, `\autoref`, `\cref`, `\pageref`) resolve to a link whose
+  visible text is a bracketed `[label]` placeholder rather than the target's counter number.
+- Multi-line math environments (`align`, `gather`, `multline`, `eqnarray`, `alignat`, `flalign`, …) are
+  kept as a single display-math inline holding the whole `\begin…\end` text rather than split into rows
+  and cells.
+- `\includegraphics` keeps only `width` and `height`; `\textwidth`/`\linewidth`/`\textheight` lengths
+  convert to percentages and absolute units pass through, but `\columnwidth`/`\paperwidth` and
+  leading-dot decimal values are omitted.
+- Table support covers header detection, per-column alignment, and `\multicolumn` colspan; `\multirow`,
+  partial `\cline` rules, nested tables, and `\caption` placement may flatten or drop.
+- `\raisebox` in its optional depth/height form drops the box content; purely visual commands
+  (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner content.
 
 ### `org` — ✅
-- Default extensions: `auto_identifiers`, `citations`, `task_lists`; `smart`, `fancy_lists`, and the
-  `gfm_auto_identifiers`/`ascii_identifiers` identifier shapes are opt-in toggles.
-- Headlines, greater blocks (`#+begin_…`/`#+end_…`), keyword lines, tables, lists, drawers,
-  fixed-width and comment lines are recognized; keyword lines feed document metadata.
-- Inline markup covers emphasis, verbatim, sub/superscripts, links, footnotes, math, entities, and
-  citations; footnote definitions are gathered up front and their references expand inline.
 
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
 `docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `markdown_strict`, `markdown_mmd`,
@@ -121,10 +128,6 @@ gap.
 - Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
 ### `org` — ✅
-- Block structure maps to heading asterisks, list markers, and `#+begin_…`/`#+end_…` blocks; inline
-  emphasis, code, sub/superscripts, and math map to their Org forms.
-- Footnotes are collected while rendering and emitted as a trailing section; content is filled at a
-  column of 72.
 
 ### `json` — ✅
 ### `native` — ✅

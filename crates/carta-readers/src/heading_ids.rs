@@ -14,8 +14,11 @@
 //! - count-suffix — repeats are disambiguated by a per-base occurrence count (which can itself
 //!   collide with a slug that already carries that suffix), and an empty slug stays empty.
 
-use std::collections::{BTreeMap, BTreeSet};
+#[cfg(any(feature = "commonmark", feature = "rst"))]
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
+#[cfg(any(feature = "commonmark", feature = "rst"))]
 use carta_ast::{slug, slug_gfm};
 use carta_core::{Extension, Extensions};
 
@@ -50,7 +53,7 @@ impl IdScheme {
 /// Transliterates header text to ASCII for the `ascii_identifiers` extension: each accented letter is
 /// folded to its unaccented base, plain ASCII is kept, and every other character (a letter with no
 /// ASCII base, or a non-Latin script) is dropped. The result is then slugged as usual.
-#[cfg(feature = "man")]
+#[cfg(any(feature = "man", feature = "org"))]
 pub(crate) fn fold_to_ascii(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -65,7 +68,7 @@ pub(crate) fn fold_to_ascii(text: &str) -> String {
 
 /// The unaccented ASCII letter underlying a Latin letter with a diacritic, or `None` for a character
 /// with no single-letter ASCII base (so the caller drops it).
-#[cfg(feature = "man")]
+#[cfg(any(feature = "man", feature = "org"))]
 #[allow(clippy::match_same_arms)]
 fn ascii_base(c: char) -> Option<char> {
     let base = match c {
@@ -157,12 +160,14 @@ pub(crate) struct IdRegistry {
     /// Every identifier emitted or reserved, used by the increment-until-unique strategy.
     seen: BTreeSet<String>,
     /// Per-base occurrence counts, used by the count-suffix strategy.
+    #[cfg(any(feature = "commonmark", feature = "rst"))]
     counts: BTreeMap<String, u32>,
 }
 
 impl IdRegistry {
     /// Derive an identifier for `text` under `scheme`, disambiguating it against every identifier
     /// already emitted or reserved.
+    #[cfg(any(feature = "commonmark", feature = "rst"))]
     pub(crate) fn assign(&mut self, scheme: IdScheme, text: &str) -> String {
         match scheme {
             IdScheme::Plain => self.assign_native(slug(text)),
@@ -210,12 +215,21 @@ impl IdRegistry {
             self.seen.insert(id.to_owned());
         }
     }
+
+    /// Reserve `id` for the increment-until-unique strategy so a later derived identifier avoids it,
+    /// regardless of the slug shape in use. Readers that always disambiguate natively — where a
+    /// `gfm_auto_identifiers` slug still increments against a shared pool — reserve through this.
+    #[cfg(any(feature = "latex", feature = "org"))]
+    pub(crate) fn reserve_native(&mut self, id: &str) {
+        self.seen.insert(id.to_owned());
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(any(feature = "commonmark", feature = "rst"))]
     #[test]
     fn plain_scheme_falls_back_to_section_and_increments() {
         let mut registry = IdRegistry::default();
@@ -239,6 +253,7 @@ mod tests {
         assert_eq!(registry.assign(IdScheme::Plain, "Intro"), "intro-1");
     }
 
+    #[cfg(any(feature = "commonmark", feature = "rst"))]
     #[test]
     fn gfm_scheme_counts_repeats_per_base() {
         let mut registry = IdRegistry::default();
