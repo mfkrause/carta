@@ -96,7 +96,7 @@ checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
 name = "carta"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -110,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "carta-ast"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "carta-core"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "carta-ast",
  "serde_json",
@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "carta-readers"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "carta-writers"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "carta-ast",
  "carta-core",
