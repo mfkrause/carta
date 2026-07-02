@@ -15,6 +15,8 @@ pub use base64::{
 };
 pub use sha1::hex as sha1_hex;
 
+use crate::walk;
+use carta_ast::Block;
 use std::collections::BTreeMap;
 
 /// One entry in a [`MediaBag`]: a resource's bytes together with its MIME type, when the source
@@ -109,9 +111,32 @@ pub fn content_addressed_name(mime: &str, bytes: &[u8]) -> String {
     format!("{}.{}", sha1_hex(bytes), extension_for_mime(mime))
 }
 
+/// The path a resource named `name` occupies when a document's media is extracted under `dir`: the
+/// directory and the name joined with `/`. A reference rewritten to this path resolves to the file
+/// the extraction writes out.
+#[must_use]
+pub fn extracted_path(dir: &str, name: &str) -> String {
+    format!("{}/{}", dir.trim_end_matches('/'), name)
+}
+
+/// Rewrites every image reference in `blocks` that names an entry of `media` to the path it occupies
+/// once extracted under `dir` (see [`extracted_path`]), turning an embedded resource into an external
+/// file reference. A reference to anything the bag does not hold is left untouched.
+pub fn rewrite_extracted_references(blocks: &mut [Block], media: &MediaBag, dir: &str) {
+    walk::for_each_image_target(blocks, &mut |target| {
+        if media.contains(target.url.as_str()) {
+            target.url = extracted_path(dir, target.url.as_str()).into();
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{MediaBag, content_addressed_name, extension_for_mime};
+    use super::{
+        MediaBag, content_addressed_name, extension_for_mime, extracted_path,
+        rewrite_extracted_references,
+    };
+    use carta_ast::{Block, Inline, Target};
 
     #[test]
     fn extension_falls_back_to_subtype_without_suffix() {
@@ -128,7 +153,7 @@ mod tests {
     fn content_addressed_name_is_stable_for_equal_bytes() {
         let name = content_addressed_name("image/png", b"the same bytes");
         assert_eq!(name, content_addressed_name("image/png", b"the same bytes"));
-        assert!(name.ends_with(".png"));
+        assert_eq!(name.rsplit('.').next(), Some("png"));
         assert_eq!(name.len(), 40 + 1 + 3);
     }
 
@@ -145,6 +170,49 @@ mod tests {
             bag.get("a.png").map(|item| item.bytes.clone()),
             Some(vec![2])
         );
+    }
+
+    #[test]
+    fn extracted_path_joins_with_a_single_slash() {
+        assert_eq!(extracted_path("media", "a.png"), "media/a.png");
+        assert_eq!(extracted_path("assets/img", "a.png"), "assets/img/a.png");
+        // A trailing slash on the directory does not double up.
+        assert_eq!(extracted_path("media/", "a.png"), "media/a.png");
+    }
+
+    #[test]
+    fn rewrite_points_bag_references_at_their_extracted_paths() {
+        let mut bag = MediaBag::new();
+        bag.insert("a.png", Some("image/png".to_owned()), vec![1]);
+        let mut blocks = vec![
+            Block::Para(vec![image("a.png")]),
+            // A reference the bag does not hold is left as it is.
+            Block::Para(vec![image("https://example.com/b.png")]),
+        ];
+        rewrite_extracted_references(&mut blocks, &bag, "media");
+        let urls: Vec<&str> = blocks.iter().map(image_url).collect();
+        assert_eq!(urls, ["media/a.png", "https://example.com/b.png"]);
+    }
+
+    fn image(url: &str) -> Inline {
+        Inline::Image(
+            Box::default(),
+            Vec::new(),
+            Box::new(Target {
+                url: url.into(),
+                title: carta_ast::Text::default(),
+            }),
+        )
+    }
+
+    fn image_url(block: &Block) -> &str {
+        let Block::Para(inlines) = block else {
+            panic!("expected para");
+        };
+        let Some(Inline::Image(_, _, target)) = inlines.first() else {
+            panic!("expected image");
+        };
+        target.url.as_str()
     }
 
     #[test]
