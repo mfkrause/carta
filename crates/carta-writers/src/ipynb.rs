@@ -22,7 +22,8 @@ use std::iter::Peekable;
 use std::str::Chars;
 
 use carta_ast::{Attr, Block, Document, Format, Inline, MetaValue, Text, to_plain_text};
-use carta_core::{Error, Extension, Extensions, Result, Writer, WriterOptions};
+use carta_core::media::base64_encode_mime;
+use carta_core::{Error, Extension, Extensions, MediaBag, Result, Writer, WriterOptions};
 
 use crate::markdown::MarkdownWriter;
 
@@ -102,7 +103,7 @@ fn typed_cell(
     counter: &mut usize,
 ) -> Result<Json> {
     if has_class(attr, "code") {
-        code_cell(attr, content, counter)
+        code_cell(attr, content, &options.media, counter)
     } else if has_class(attr, "raw") {
         Ok(raw_cell(attr, content, counter))
     } else {
@@ -110,24 +111,58 @@ fn typed_cell(
     }
 }
 
-/// A markdown cell: its blocks rendered as markdown, with the div's attributes as cell metadata.
+/// A markdown cell: its blocks rendered as markdown, with the div's attributes as cell metadata. An
+/// image whose file name the media bag holds is restored to the cell's inline-attachment form — an
+/// `attachment:` reference and an entry in the cell's `attachments` object.
 fn markdown_cell(
     blocks: &[Block],
     attr: &Attr,
     options: &WriterOptions,
     counter: &mut usize,
 ) -> Result<Json> {
-    let source = render_cell_markdown(blocks, options)?;
+    let mut blocks = blocks.to_vec();
+    let attachments = reattach_media(&mut blocks, &options.media)?;
+    let source = render_cell_markdown(&blocks, options)?;
     let id = next_id(&attr.id, &source, counter);
-    Ok(Json::Object(vec![
+    let mut fields = vec![
         ("cell_type".to_owned(), Json::Str("markdown".to_owned())),
         (
             "metadata".to_owned(),
             attribute_metadata(&attr.attributes, &[]),
         ),
         ("source".to_owned(), source_lines(&source)),
-        ("id".to_owned(), Json::Str(id)),
-    ]))
+    ];
+    if let Some(attachments) = attachments {
+        fields.push(("attachments".to_owned(), attachments));
+    }
+    fields.push(("id".to_owned(), Json::Str(id)));
+    Ok(Json::Object(fields))
+}
+
+/// Rewrites every image in a cell whose file name the bag holds into an `attachment:` reference and
+/// returns the cell's reconstructed `attachments` object, or `None` when the cell draws on no bag
+/// resources. Each attachment is keyed by the image's file name — the reference the rewritten link now
+/// points at — and carries the same MIME→payload bundle an output image would.
+fn reattach_media(blocks: &mut [Block], media: &MediaBag) -> Result<Option<Json>> {
+    let mut names: Vec<String> = Vec::new();
+    carta_core::walk::for_each_image_target(blocks, &mut |target| {
+        let name = target.url.as_str();
+        if media.contains(name) {
+            if !names.iter().any(|seen| seen == name) {
+                names.push(name.to_owned());
+            }
+            target.url = format!("attachment:{name}").into();
+        }
+    });
+    if names.is_empty() {
+        return Ok(None);
+    }
+    let mut entries = Vec::with_capacity(names.len());
+    for name in names {
+        let bundle = Json::Object(vec![image_entry(&name, media)?]);
+        entries.push((name, bundle));
+    }
+    Ok(Some(Json::Object(entries)))
 }
 
 /// A code cell: the first code block's text as source, the execution count lifted out of the
@@ -144,7 +179,12 @@ fn execution_count_json(attr: &Attr) -> Json {
     }
 }
 
-fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Result<Json> {
+fn code_cell(
+    attr: &Attr,
+    content: &[Block],
+    media: &MediaBag,
+    counter: &mut usize,
+) -> Result<Json> {
     let mut source = String::new();
     let mut found_source = false;
     let mut outputs = Vec::new();
@@ -156,7 +196,7 @@ fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Result<Json
                 found_source = true;
             }
             Block::Div(output_attr, inner) if has_class(output_attr, "output") => {
-                outputs.push(output_object(output_attr, inner)?);
+                outputs.push(output_object(output_attr, inner, media)?);
             }
             _ => {}
         }
@@ -199,7 +239,7 @@ fn raw_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
 }
 
 /// Reconstructs an output object from an `output` div. The output kind is the div's second class.
-fn output_object(attr: &Attr, content: &[Block]) -> Result<Json> {
+fn output_object(attr: &Attr, content: &[Block], media: &MediaBag) -> Result<Json> {
     let output = match attr.classes.get(1).map(Text::as_str) {
         Some("stream") => {
             let name = attr
@@ -244,7 +284,7 @@ fn output_object(attr: &Attr, content: &[Block]) -> Result<Json> {
                 ),
                 ("execution_count".to_owned(), execution_count),
                 ("metadata".to_owned(), Json::Object(Vec::new())),
-                ("data".to_owned(), data_bundle(content)?),
+                ("data".to_owned(), data_bundle(content, media)?),
             ])
         }
         _ => Json::Object(vec![
@@ -253,7 +293,7 @@ fn output_object(attr: &Attr, content: &[Block]) -> Result<Json> {
                 Json::Str("display_data".to_owned()),
             ),
             ("metadata".to_owned(), Json::Object(Vec::new())),
-            ("data".to_owned(), data_bundle(content)?),
+            ("data".to_owned(), data_bundle(content, media)?),
         ]),
     };
     Ok(output)
@@ -261,10 +301,10 @@ fn output_object(attr: &Attr, content: &[Block]) -> Result<Json> {
 
 /// The mime bundle of a rich output: each recognized block contributes one mime entry.
 ///
-/// An image output references its payload by file name (the document model carries no embedded
-/// bytes), so it cannot be turned back into the notebook's base64 `data` entry and is reported as
-/// unrepresentable rather than written as a broken bundle.
-fn data_bundle(content: &[Block]) -> Result<Json> {
+/// An image output references its payload by file name; the bytes are drawn from the media bag and
+/// re-embedded under the image's MIME type. An image whose bytes the bag does not hold cannot be
+/// reconstructed and is reported as unrepresentable rather than written as a broken bundle.
+fn data_bundle(content: &[Block], media: &MediaBag) -> Result<Json> {
     let mut entries = Vec::new();
     for block in content {
         match block {
@@ -276,15 +316,36 @@ fn data_bundle(content: &[Block]) -> Result<Json> {
             }
             Block::Para(inlines) | Block::Plain(inlines) => {
                 if let Some(url) = image_url(inlines) {
-                    return Err(Error::Unrepresentable(format!(
-                        "an image output references the file {url:?}, whose data is not embedded in the document"
-                    )));
+                    entries.push(image_entry(url, media)?);
                 }
             }
             _ => {}
         }
     }
     Ok(Json::Object(entries))
+}
+
+/// The `data` entry for an image output: its MIME type mapped to the payload drawn from the media bag
+/// under the image's file name. A textual image (SVG) is written as a source-line array; every other
+/// type is written as a single base64 string wrapped to notebook line width. An image the bag does
+/// not hold — or one carrying no MIME type — cannot be reconstructed and is unrepresentable.
+fn image_entry(url: &str, media: &MediaBag) -> Result<(String, Json)> {
+    let item = media.get(url).ok_or_else(|| {
+        Error::Unrepresentable(format!(
+            "an image output references the file {url:?}, whose bytes are not available"
+        ))
+    })?;
+    let mime = item.mime.clone().ok_or_else(|| {
+        Error::Unrepresentable(format!(
+            "the image output {url:?} carries no MIME type, so its data bundle cannot be rebuilt"
+        ))
+    })?;
+    let data = if mime == "image/svg+xml" {
+        source_lines(&String::from_utf8_lossy(&item.bytes))
+    } else {
+        Json::Str(base64_encode_mime(&item.bytes))
+    };
+    Ok((mime, data))
 }
 
 /// The text of the first code block in a sequence, or empty when there is none.
@@ -870,9 +931,9 @@ mod tests {
         assert!(notebook.contains("\"evalue\": \"bad\""));
     }
 
-    #[test]
-    fn image_output_without_embedded_data_is_unrepresentable() {
-        let document = Document {
+    /// A one-code-cell document whose single `display_data` output is an image referencing `url`.
+    fn image_output_document(url: &str) -> Document {
+        Document {
             blocks: vec![Block::Div(
                 Box::new(Attr {
                     id: String::new().into(),
@@ -894,7 +955,7 @@ mod tests {
                             Box::default(),
                             Vec::new(),
                             Box::new(carta_ast::Target {
-                                url: "plot.png".to_owned().into(),
+                                url: url.to_owned().into(),
                                 title: String::new().into(),
                             }),
                         )])],
@@ -902,7 +963,13 @@ mod tests {
                 ],
             )],
             ..Document::default()
-        };
+        }
+    }
+
+    #[test]
+    fn image_output_without_embedded_data_is_unrepresentable() {
+        // With no media bag, the referenced bytes are unavailable, so the output cannot be rebuilt.
+        let document = image_output_document("plot.png");
         match IpynbWriter.write(&document, &WriterOptions::default()) {
             Err(Error::Unrepresentable(message)) => assert!(
                 message.contains("plot.png"),
@@ -910,6 +977,78 @@ mod tests {
             ),
             other => panic!("expected an unrepresentable error, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn image_output_data_is_re_embedded_from_the_media_bag() {
+        let bytes = vec![1u8, 2, 3, 4, 5, 6, 7];
+        let mut bag = MediaBag::new();
+        bag.insert("plot.png", Some("image/png".to_owned()), bytes.clone());
+        let mut options = WriterOptions::default();
+        options.media = std::sync::Arc::new(bag);
+
+        let notebook = IpynbWriter
+            .write(&image_output_document("plot.png"), &options)
+            .expect("the image bytes are available, so the output writes");
+        // The bundle names the image's MIME type and carries the base64 of the bag's bytes.
+        assert!(notebook.contains("\"image/png\""));
+        let encoded = base64_encode_mime(&bytes);
+        assert!(
+            notebook.contains(encoded.trim_end_matches('\n')),
+            "notebook should embed the base64 payload"
+        );
+    }
+
+    #[test]
+    fn svg_output_data_is_re_embedded_as_source_lines() {
+        let mut bag = MediaBag::new();
+        bag.insert(
+            "fig.svg",
+            Some("image/svg+xml".to_owned()),
+            b"<svg/>".to_vec(),
+        );
+        let mut options = WriterOptions::default();
+        options.media = std::sync::Arc::new(bag);
+
+        let notebook = IpynbWriter
+            .write(&image_output_document("fig.svg"), &options)
+            .expect("the svg bytes are available, so the output writes");
+        assert!(notebook.contains("\"image/svg+xml\""));
+        assert!(notebook.contains("<svg/>"));
+    }
+
+    #[test]
+    fn markdown_cell_image_becomes_an_inline_attachment() {
+        let bytes = vec![9u8, 8, 7, 6];
+        let mut bag = MediaBag::new();
+        bag.insert("cell-diagram.png", Some("image/png".to_owned()), bytes);
+        let mut options = WriterOptions::default();
+        options.media = std::sync::Arc::new(bag);
+
+        // A markdown cell whose image references a bag entry by its file name.
+        let document = Document {
+            blocks: vec![Block::Div(
+                Box::new(Attr {
+                    id: "cell".to_owned().into(),
+                    classes: vec!["cell".to_owned().into(), "markdown".to_owned().into()],
+                    attributes: Vec::new(),
+                }),
+                vec![Block::Para(vec![Inline::Image(
+                    Box::default(),
+                    vec![Inline::Str("a diagram".to_owned().into())],
+                    Box::new(carta_ast::Target {
+                        url: "cell-diagram.png".to_owned().into(),
+                        title: String::new().into(),
+                    }),
+                )])],
+            )],
+            ..Document::default()
+        };
+        let notebook = IpynbWriter.write(&document, &options).expect("writes");
+        // The link is rewritten to the attachment form and the payload restored under that name.
+        assert!(notebook.contains("attachment:cell-diagram.png"));
+        assert!(notebook.contains("\"attachments\""));
+        assert!(notebook.contains("\"cell-diagram.png\""));
     }
 
     #[test]
