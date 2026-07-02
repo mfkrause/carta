@@ -6,6 +6,8 @@
 //! rendering and emitted as a trailing section. Output carries no trailing newline; the caller
 //! appends one. Content is wrapped at a fill column of 72.
 
+use std::borrow::Cow;
+
 use carta_ast::{
     Attr, Block, Caption, Cell, Citation, CitationMode, Document, Format, Inline, ListAttributes,
     ListNumberDelim, MathType, QuoteType, Row, Table, Target, to_plain_text,
@@ -170,9 +172,9 @@ impl State {
     /// Replace a leading Org-ballot checkbox character in a task-list item with an Org checkbox
     /// marker, returning the item unchanged when task lists are off or the item does not open with a
     /// checkbox.
-    fn checkbox_item(&self, item: &[Block]) -> Vec<Block> {
+    fn checkbox_item<'a>(&self, item: &'a [Block]) -> Cow<'a, [Block]> {
         if !self.task_lists {
-            return item.to_vec();
+            return Cow::Borrowed(item);
         }
         let replacement = match item.first() {
             Some(Block::Plain(inlines) | Block::Para(inlines)) => match inlines.first() {
@@ -186,7 +188,7 @@ impl State {
             _ => None,
         };
         let Some(marker) = replacement else {
-            return item.to_vec();
+            return Cow::Borrowed(item);
         };
         let mut blocks = item.to_vec();
         if let Some(Block::Plain(inlines) | Block::Para(inlines)) = blocks.first_mut()
@@ -195,7 +197,7 @@ impl State {
             let rest: String = text.chars().skip(1).collect();
             *text = format!("{marker}{rest}");
         }
-        blocks
+        Cow::Owned(blocks)
     }
 
     fn ordered_list(

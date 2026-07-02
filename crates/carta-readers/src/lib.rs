@@ -5,7 +5,13 @@
 mod emoji;
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod entities;
-#[cfg(any(feature = "commonmark", feature = "man", feature = "rst"))]
+#[cfg(any(
+    feature = "commonmark",
+    feature = "man",
+    feature = "rst",
+    feature = "latex",
+    feature = "org"
+))]
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod inline_scan;

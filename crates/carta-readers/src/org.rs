@@ -10,7 +10,8 @@
 //! Footnote definitions are gathered up front and their references resolved inline, so a `[fn:label]`
 //! reference expands to a [`Inline::Note`] carrying the definition's blocks.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::mem;
 
 use carta_ast::{
@@ -19,6 +20,8 @@ use carta_ast::{
     TableBody, TableFoot, TableHead, Text, slug, slug_gfm,
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
+
+use crate::heading_ids::{IdRegistry, IdScheme, fold_to_ascii};
 
 /// Parses Org markup into the document model.
 ///
@@ -42,7 +45,7 @@ impl Reader for OrgReader {
         let mut notes: BTreeMap<String, Vec<Block>> = BTreeMap::new();
         for (label, text) in &defs {
             let def_lines: Vec<&str> = text.split('\n').collect();
-            let mut throwaway_ids = IdRegistry::new();
+            let mut throwaway_ids = new_id_registry();
             let mut throwaway_meta = BTreeMap::new();
             let blocks = parse_blocks(
                 &def_lines,
@@ -54,7 +57,7 @@ impl Reader for OrgReader {
             notes.insert(label.clone(), blocks);
         }
 
-        let mut ids = IdRegistry::new();
+        let mut ids = new_id_registry();
         let mut meta: BTreeMap<Text, MetaValue> = BTreeMap::new();
         let blocks = parse_blocks(&body_lines, ext, &notes, &mut ids, &mut meta);
 
@@ -66,9 +69,14 @@ impl Reader for OrgReader {
     }
 }
 
-/// Normalizes line endings to `\n` so the line-oriented pass sees a single terminator.
-fn normalize(input: &str) -> String {
-    input.replace("\r\n", "\n").replace('\r', "\n")
+/// Normalizes line endings to `\n` so the line-oriented pass sees a single terminator. Input without
+/// a carriage return is already normalized and is borrowed unchanged.
+fn normalize(input: &str) -> Cow<'_, str> {
+    if input.contains('\r') {
+        Cow::Owned(input.replace("\r\n", "\n").replace('\r', "\n"))
+    } else {
+        Cow::Borrowed(input)
+    }
 }
 
 // -- Footnote gathering ------------------------------------------------------------------------
@@ -127,112 +135,33 @@ fn is_footnote_label_char(c: char) -> bool {
 
 // -- Identifier derivation ---------------------------------------------------------------------
 
-/// Tracks issued heading identifiers so repeats gain a numeric suffix. The base `section` (the
-/// fallback for a heading with no identifier-bearing text) is reserved from the start, so the first
-/// heading that reduces to it is already `section-1`.
-struct IdRegistry {
-    seen: BTreeSet<String>,
-    counts: BTreeMap<String, u32>,
+/// A fresh heading-identifier registry with `section` reserved from the start, so the first heading
+/// that reduces to it is already `section-1`.
+fn new_id_registry() -> IdRegistry {
+    let mut ids = IdRegistry::default();
+    ids.reserve_native("section");
+    ids
 }
 
-impl IdRegistry {
-    fn new() -> Self {
-        let mut seen = BTreeSet::new();
-        seen.insert("section".to_owned());
-        Self {
-            seen,
-            counts: BTreeMap::new(),
-        }
-    }
-
-    /// Derives an identifier for `text` under the active extensions, or an empty string when no
-    /// auto-identifier extension is on.
-    fn assign(&mut self, text: &str, ext: Extensions) -> String {
-        if !ext.contains(Extension::AutoIdentifiers) {
-            return String::new();
-        }
-        let folded = if ext.contains(Extension::AsciiIdentifiers) {
-            fold_to_ascii(text)
-        } else {
-            text.to_owned()
-        };
-        if ext.contains(Extension::GfmAutoIdentifiers) {
-            let base = slug_gfm(&folded);
-            let count = self.counts.entry(base.clone()).or_insert(0);
-            let result = if *count == 0 {
-                base.clone()
-            } else {
-                format!("{base}-{count}")
-            };
-            *count += 1;
-            result
-        } else {
-            let base = slug(&folded);
-            let base = if base.is_empty() {
-                "section".to_owned()
-            } else {
-                base
-            };
-            self.disambiguate(base)
-        }
-    }
-
-    fn disambiguate(&mut self, base: String) -> String {
-        if self.seen.insert(base.clone()) {
-            return base;
-        }
-        let mut suffix = 1u32;
-        loop {
-            let candidate = format!("{base}-{suffix}");
-            if self.seen.insert(candidate.clone()) {
-                return candidate;
-            }
-            suffix += 1;
-        }
-    }
-
-    /// Reserves an explicit identifier so a later derived one avoids the collision.
-    fn reserve(&mut self, id: &str) {
-        self.seen.insert(id.to_owned());
-    }
-}
-
-/// Folds accented Latin letters to their unaccented ASCII base and drops characters with no such
-/// base, for the `ascii_identifiers` extension.
-fn fold_to_ascii(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for c in text.chars() {
-        if c.is_ascii() {
-            out.push(c);
-        } else if let Some(base) = ascii_base(c) {
-            out.push(base);
-        }
-    }
-    out
-}
-
-fn ascii_base(c: char) -> Option<char> {
-    let base = match c {
-        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' | 'ă' | 'ą' => 'a',
-        'ç' | 'ć' | 'č' | 'ĉ' | 'ċ' => 'c',
-        'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => 'e',
-        'ì' | 'í' | 'î' | 'ï' | 'ī' | 'ĭ' | 'į' => 'i',
-        'ñ' | 'ń' | 'ņ' | 'ň' => 'n',
-        'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'ō' | 'ŏ' | 'ő' => 'o',
-        'ù' | 'ú' | 'û' | 'ü' | 'ū' | 'ŭ' | 'ů' | 'ű' | 'ų' => 'u',
-        'ý' | 'ÿ' => 'y',
-        'ß' => 's',
-        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => 'A',
-        'Ç' | 'Ć' | 'Č' => 'C',
-        'È' | 'É' | 'Ê' | 'Ë' => 'E',
-        'Ì' | 'Í' | 'Î' | 'Ï' => 'I',
-        'Ñ' => 'N',
-        'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => 'O',
-        'Ù' | 'Ú' | 'Û' | 'Ü' => 'U',
-        'Ý' => 'Y',
-        _ => return None,
+/// Derives an identifier for `text` under the active extensions, or an empty string when no
+/// auto-identifier extension is on. The slug shape follows the extension, but headings always
+/// disambiguate natively: an empty slug becomes `section` and repeats increment until unused.
+fn assign_id(ids: &mut IdRegistry, text: &str, ext: Extensions) -> String {
+    let Some(scheme) = IdScheme::select(ext, true) else {
+        return String::new();
     };
-    Some(base)
+    let folded;
+    let source = if ext.contains(Extension::AsciiIdentifiers) {
+        folded = fold_to_ascii(text);
+        folded.as_str()
+    } else {
+        text
+    };
+    let base = match scheme {
+        IdScheme::Plain => slug(source),
+        IdScheme::Gfm => slug_gfm(source),
+    };
+    ids.assign_native(base)
 }
 
 // -- Block parsing -----------------------------------------------------------------------------
@@ -283,7 +212,7 @@ fn parse_blocks(
             let (block, consumed) = parse_greater_block(lines, i, &name, ext, notes, ids, meta);
             i += consumed;
             if let Some(block) = block {
-                out.push(apply_affiliated(block, &mut pending, ext, notes));
+                out.push(apply_affiliated(block, &mut pending));
             }
             continue;
         }
@@ -344,8 +273,10 @@ fn parse_blocks(
             pending = Affiliated::default();
             continue;
         }
-        // Paragraph: gather until a structural line or blank.
+        // Paragraph: gather until a structural line or blank. The dispatch above already proved this
+        // first line is neither blank nor a block opener, so continuation begins at the next line.
         let start = i;
+        i += 1;
         while let Some(&l) = lines.get(i) {
             if l.trim().is_empty() || opens_block(l) {
                 break;
@@ -360,7 +291,7 @@ fn parse_blocks(
             .collect::<Vec<_>>()
             .join("\n");
         let para = Block::Para(parse_inlines(&text, ext, notes));
-        out.push(apply_affiliated(para, &mut pending, ext, notes));
+        out.push(apply_affiliated(para, &mut pending));
     }
     out
 }
@@ -381,13 +312,7 @@ fn opens_block(line: &str) -> bool {
 
 /// Attaches a pending caption/name to a freshly built block: a caption turns a lone-image paragraph
 /// into a figure, and a name supplies its identifier.
-fn apply_affiliated(
-    block: Block,
-    pending: &mut Affiliated,
-    ext: Extensions,
-    notes: &BTreeMap<String, Vec<Block>>,
-) -> Block {
-    let _ = (ext, notes);
+fn apply_affiliated(block: Block, pending: &mut Affiliated) -> Block {
     if pending.is_empty() {
         return block;
     }
@@ -450,10 +375,10 @@ fn build_headline(
     let title_inlines = parse_inlines(title_text, ext, notes);
 
     let id = if let Some(custom) = id_override {
-        ids.reserve(&custom);
+        ids.reserve_native(&custom);
         custom
     } else {
-        ids.assign(&carta_ast::to_plain_text(&title_inlines), ext)
+        assign_id(ids, &carta_ast::to_plain_text(&title_inlines), ext)
     };
 
     let mut inlines = Vec::new();
@@ -574,7 +499,8 @@ fn read_property_drawer(lines: &[&str], start: usize) -> Option<(Option<String>,
 
 // -- Greater blocks ----------------------------------------------------------------------------
 
-/// The block name of a `#+begin_<name>` line, lowercased for matching.
+/// The block name of a `#+begin_<name>` line, as written (case preserved). Callers compare it
+/// case-insensitively.
 fn greater_block_open(line: &str) -> Option<String> {
     let trimmed = line.trim_start();
     let rest = strip_prefix_ci(trimmed, "#+begin_")?;
@@ -595,18 +521,14 @@ fn parse_greater_block(
     ids: &mut IdRegistry,
     meta: &mut BTreeMap<Text, MetaValue>,
 ) -> (Option<Block>, usize) {
+    // `name` is the block name parsed from this same open line, so the header arguments are whatever
+    // follows it on that line.
     let open_line = lines.get(start).copied().unwrap_or("");
-    let raw_name: String = strip_prefix_ci(open_line.trim_start(), "#+begin_")
-        .unwrap_or("")
-        .chars()
-        .take_while(|c| !c.is_whitespace())
-        .collect();
     let header_args = strip_prefix_ci(open_line.trim_start(), "#+begin_")
         .unwrap_or("")
-        .get(raw_name.len()..)
+        .get(name.len()..)
         .unwrap_or("")
-        .trim()
-        .to_owned();
+        .trim();
 
     let lower = name.to_ascii_lowercase();
     let end_marker = format!("#+end_{lower}");
@@ -666,7 +588,7 @@ fn parse_greater_block(
         "comment" => None,
         _ => {
             let attr = Attr {
-                classes: vec![raw_name],
+                classes: vec![name.to_owned()],
                 ..Attr::default()
             };
             Some(Block::Div(
@@ -1390,7 +1312,9 @@ impl Inlines<'_> {
                     }
                 }
                 '=' | '~' => {
-                    if let Some(end) = self.scan_verbatim(i, c, prev) {
+                    // Verbatim uses the same border rules as markup emphasis but takes its body
+                    // literally.
+                    if let Some(end) = self.scan_emphasis(i, c, prev) {
                         let inner = self.chars.get(i + 1..end).unwrap_or(&[]);
                         self.push_inline(verbatim_code(c, inner));
                         i = end + 1;
@@ -1453,7 +1377,7 @@ impl Inlines<'_> {
                     i += 1;
                 }
                 '"' | '\'' if self.ext.contains(Extension::Smart) => {
-                    let (inline, end) = self.scan_quote(i, prev, c);
+                    let (inline, end) = self.scan_quote(i, c);
                     if let Some(q) = inline {
                         self.push_inline(q);
                         i = end;
@@ -1501,11 +1425,6 @@ impl Inlines<'_> {
             j += 1;
         }
         None
-    }
-
-    fn scan_verbatim(&self, i: usize, marker: char, prev: Option<char>) -> Option<usize> {
-        // Verbatim uses the same border rules as markup emphasis but takes its body literally.
-        self.scan_emphasis(i, marker, prev)
     }
 
     // -- Sub/superscript -----------------------------------------------------------------------
@@ -1893,19 +1812,16 @@ impl Inlines<'_> {
 
     // -- Smart quotes --------------------------------------------------------------------------
 
-    fn scan_quote(&self, i: usize, prev: Option<char>, quote: char) -> (Option<Inline>, usize) {
-        let (kind, open, close) = if quote == '"' {
-            (QuoteType::DoubleQuote, '"', '"')
+    fn scan_quote(&self, i: usize, quote: char) -> (Option<Inline>, usize) {
+        let (kind, close) = if quote == '"' {
+            (QuoteType::DoubleQuote, '"')
         } else {
-            (QuoteType::SingleQuote, '\'', '\'')
+            (QuoteType::SingleQuote, '\'')
         };
-        let _ = (open, prev);
-        // Find the matching closing quote on constraints similar to emphasis.
-        let first = match self.at(i + 1) {
-            Some(c) if !c.is_whitespace() => c,
-            _ => return (None, i + 1),
-        };
-        let _ = first;
+        // The opening quote must be followed immediately by a non-space character.
+        if !matches!(self.at(i + 1), Some(c) if !c.is_whitespace()) {
+            return (None, i + 1);
+        }
         let mut j = i + 1;
         while let Some(c) = self.at(j) {
             if c == close
