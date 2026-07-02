@@ -25,10 +25,10 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | CommonMark-X (`commonmark_x`) | ✅ | ✅ |
 | GitHub-Flavored Markdown (`gfm`) | ✅ | ✅ |
 | Pandoc Markdown (`markdown`) | ✅ | ✅ |
-| Markdown strict (`markdown_strict`) | ❌ | ✅ |
-| MultiMarkdown (`markdown_mmd`) | ❌ | ✅ |
-| PHP Markdown Extra (`markdown_phpextra`) | ❌ | ✅ |
-| GitHub Markdown, legacy (`markdown_github`) | ❌ | ✅ |
+| Markdown strict (`markdown_strict`) | ✅ | ✅ |
+| MultiMarkdown (`markdown_mmd`) | ✅ | ✅ |
+| PHP Markdown Extra (`markdown_phpextra`) | ✅ | ✅ |
+| GitHub Markdown, legacy (`markdown_github`) | ✅ | ✅ |
 | Djot (`djot`) | ❌ | ❌ |
 | Markua (`markua`) | ➖ | ❌ |
 
