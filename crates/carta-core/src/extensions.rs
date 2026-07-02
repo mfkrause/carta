@@ -376,6 +376,7 @@ pub mod presets {
         Extension::BlankBeforeHeader,
         Extension::EscapedLineBreaks,
         Extension::IntrawordUnderscores,
+        Extension::SpaceInAtxHeader,
     ]);
 
     /// The legacy GitHub Markdown dialect (`markdown_github`). The set is restricted to the
@@ -448,6 +449,92 @@ pub mod presets {
     /// indented code, an HTML block, or a raw glyph. Lacking `intraword_underscores`, every `_` is
     /// escaped; lacking `pipe_tables`, a literal `|` is left unescaped.
     pub const MARKDOWN_STRICT: Extensions = Extensions::from_list(&[Extension::RawHtml]);
+
+    // The reader default sets below are broader than the writer presets above: a reader enables every
+    // construct the dialect can parse, whereas the writer presets carry only the extensions that shape
+    // the emitted text. Some entries name constructs the shared Markdown engine does not yet branch on;
+    // they are recorded so the dialect's default surface is complete and takes effect once modeled.
+
+    /// Reader defaults for the original Markdown dialect (`markdown_strict`): only raw HTML, plus the
+    /// shortcut and spaced reference-link forms.
+    pub const MARKDOWN_STRICT_READ: Extensions = Extensions::from_list(&[
+        Extension::RawHtml,
+        Extension::ShortcutReferenceLinks,
+        Extension::SpacedReferenceLinks,
+    ]);
+
+    /// Reader defaults for the GitHub Markdown dialect (`markdown_github`): the GitHub construct set —
+    /// strikeout, task lists, pipe tables, footnotes, bare-URI autolinking, emoji, alerts, backtick and
+    /// fenced code, auto identifiers in both forms, intra-word underscores, lists that open without a
+    /// preceding blank line, and the escaping/heading-spacing leniencies.
+    pub const MARKDOWN_GITHUB_READ: Extensions = Extensions::from_list(&[
+        Extension::Alerts,
+        Extension::AllSymbolsEscapable,
+        Extension::AutoIdentifiers,
+        Extension::Autolink,
+        Extension::BacktickCodeBlocks,
+        Extension::Emoji,
+        Extension::FencedCodeBlocks,
+        Extension::Footnotes,
+        Extension::GfmAutoIdentifiers,
+        Extension::IntrawordUnderscores,
+        Extension::ListsWithoutPrecedingBlankline,
+        Extension::PipeTables,
+        Extension::RawHtml,
+        Extension::ShortcutReferenceLinks,
+        Extension::SpaceInAtxHeader,
+        Extension::Strikeout,
+        Extension::TaskLists,
+    ]);
+
+    /// Reader defaults for the PHP Markdown Extra dialect (`markdown_phpextra`): abbreviations,
+    /// definition lists, fenced code, footnotes, header and link attributes, intra-word underscores,
+    /// the `data-markdown` div marker, pipe tables, raw HTML, and the reference-link forms.
+    pub const MARKDOWN_PHPEXTRA_READ: Extensions = Extensions::from_list(&[
+        Extension::Abbreviations,
+        Extension::DefinitionLists,
+        Extension::FencedCodeBlocks,
+        Extension::Footnotes,
+        Extension::HeaderAttributes,
+        Extension::IntrawordUnderscores,
+        Extension::LinkAttributes,
+        Extension::MarkdownAttribute,
+        Extension::PipeTables,
+        Extension::RawHtml,
+        Extension::ShortcutReferenceLinks,
+        Extension::SpacedReferenceLinks,
+    ]);
+
+    /// Reader defaults for the `MultiMarkdown` dialect (`markdown_mmd`): auto identifiers, backtick
+    /// code, definition lists, footnotes, implicit figures and header references, intra-word
+    /// underscores, the `data-markdown` div marker, `MultiMarkdown`'s trailing `[id]` header
+    /// identifiers, its link-attribute and title-block forms, pipe tables, raw HTML and raw attributes,
+    /// single-character sub/superscripts, the reference-link forms, sub/superscript spans, dollar math,
+    /// and the double-backslash math delimiters.
+    pub const MARKDOWN_MMD_READ: Extensions = Extensions::from_list(&[
+        Extension::AllSymbolsEscapable,
+        Extension::AutoIdentifiers,
+        Extension::BacktickCodeBlocks,
+        Extension::DefinitionLists,
+        Extension::Footnotes,
+        Extension::ImplicitFigures,
+        Extension::ImplicitHeaderReferences,
+        Extension::IntrawordUnderscores,
+        Extension::MarkdownAttribute,
+        Extension::MmdHeaderIdentifiers,
+        Extension::MmdLinkAttributes,
+        Extension::MmdTitleBlock,
+        Extension::PipeTables,
+        Extension::RawAttribute,
+        Extension::RawHtml,
+        Extension::ShortSubsuperscripts,
+        Extension::ShortcutReferenceLinks,
+        Extension::SpacedReferenceLinks,
+        Extension::Subscript,
+        Extension::Superscript,
+        Extension::TexMathDollars,
+        Extension::TexMathDoubleBackslash,
+    ]);
 }
 
 #[cfg(test)]
