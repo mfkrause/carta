@@ -17,7 +17,7 @@
 //! The scanner is panic-free on malformed input: unbalanced or unterminated constructs degrade to
 //! literal text rather than being rejected.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use carta_ast::{
     Alignment, ApiVersion, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
@@ -28,6 +28,7 @@ use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::emoji;
 use crate::entities;
+use crate::heading_ids;
 
 /// Parses a wikitext document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -65,11 +66,11 @@ impl Reader for MediawikiReader {
 }
 
 /// Carries the state that spans a whole document: the enabled extensions, the running counter for
-/// unlabeled external links, and the set of heading identifiers already issued (for de-duplication).
+/// unlabeled external links, and the heading identifiers already issued (for de-duplication).
 struct Parser {
     extensions: Extensions,
     link_counter: usize,
-    seen_ids: BTreeSet<String>,
+    ids: heading_ids::IdRegistry,
     /// Category links pulled out of the inline flow, to be emitted as one trailing paragraph.
     categories: Vec<Inline>,
     /// Current block-nesting depth, capped to keep adversarially deep input from exhausting the stack.
@@ -150,7 +151,7 @@ impl Parser {
         Self {
             extensions: options.extensions,
             link_counter: 0,
-            seen_ids: BTreeSet::new(),
+            ids: heading_ids::IdRegistry::default(),
             categories: Vec::new(),
             depth: 0,
         }
@@ -1363,10 +1364,10 @@ impl Parser {
         let plain = to_plain_text(inlines);
         if self.extensions.contains(Extension::GfmAutoIdentifiers) {
             let base = self.finish_id(slug_gfm, &emoji_to_aliases(&plain));
-            self.dedup(base, '-')
+            self.ids.assign_with_separator(base, '-')
         } else if self.extensions.contains(Extension::AutoIdentifiers) {
             let base = self.finish_id(mediawiki_slug, &plain);
-            self.dedup(base, '_')
+            self.ids.assign_with_separator(base, '_')
         } else {
             String::new()
         }
@@ -1375,33 +1376,13 @@ impl Parser {
     /// Builds an identifier with `slug`, then — when `ascii_identifiers` is on — folds the finished
     /// slug to pure ASCII (accents stripped, non-Latin letters dropped) and re-slugs it, so a dropped
     /// letter leaves its separators intact while a now-leading separator is trimmed. An empty result
-    /// becomes a placeholder.
+    /// is mapped to a placeholder during disambiguation.
     fn finish_id(&self, slug: fn(&str) -> String, source: &str) -> String {
         let mut base = slug(source);
         if self.extensions.contains(Extension::AsciiIdentifiers) {
             base = slug(&transliterate_ascii(&base));
         }
-        if base.is_empty() {
-            "section".to_string()
-        } else {
-            base
-        }
-    }
-
-    fn dedup(&mut self, base: String, sep: char) -> String {
-        if !self.seen_ids.contains(&base) {
-            self.seen_ids.insert(base.clone());
-            return base;
-        }
-        let mut k = 1usize;
-        loop {
-            let candidate = format!("{base}{sep}{k}");
-            if !self.seen_ids.contains(&candidate) {
-                self.seen_ids.insert(candidate.clone());
-                return candidate;
-            }
-            k += 1;
-        }
+        base
     }
 }
 

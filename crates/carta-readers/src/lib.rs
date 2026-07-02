@@ -16,7 +16,8 @@ mod entities;
     feature = "rst",
     feature = "latex",
     feature = "org",
-    feature = "dokuwiki"
+    feature = "dokuwiki",
+    feature = "mediawiki"
 ))]
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]

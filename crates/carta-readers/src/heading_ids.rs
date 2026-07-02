@@ -24,15 +24,39 @@ use std::collections::BTreeSet;
 
 #[cfg(any(feature = "commonmark", feature = "rst", feature = "dokuwiki"))]
 use carta_ast::{slug, slug_gfm};
+#[cfg(any(
+    feature = "commonmark",
+    feature = "rst",
+    feature = "dokuwiki",
+    feature = "latex",
+    feature = "man",
+    feature = "org"
+))]
 use carta_core::{Extension, Extensions};
 
 /// The identifier-derivation algorithm an auto-identifier extension selects.
+#[cfg(any(
+    feature = "commonmark",
+    feature = "rst",
+    feature = "dokuwiki",
+    feature = "latex",
+    feature = "man",
+    feature = "org"
+))]
 #[derive(Clone, Copy)]
 pub(crate) enum IdScheme {
     Plain,
     Gfm,
 }
 
+#[cfg(any(
+    feature = "commonmark",
+    feature = "rst",
+    feature = "dokuwiki",
+    feature = "latex",
+    feature = "man",
+    feature = "org"
+))]
 impl IdScheme {
     /// The scheme the active extensions select, or `None` when no auto-identifier extension is on.
     ///
@@ -191,8 +215,23 @@ impl IdRegistry {
 
     /// Disambiguate an already-slugged `base` with the native strategy: an empty base becomes
     /// `section`, and a repeated base gains a numeric suffix incremented until the whole identifier
-    /// is unused against every identifier already issued or reserved.
+    /// is unused against every identifier already issued or reserved. The suffix is joined with `-`.
+    #[cfg(any(
+        feature = "commonmark",
+        feature = "rst",
+        feature = "dokuwiki",
+        feature = "latex",
+        feature = "man",
+        feature = "org"
+    ))]
     pub(crate) fn assign_native(&mut self, base: String) -> String {
+        self.assign_with_separator(base, '-')
+    }
+
+    /// The native disambiguation strategy with a caller-chosen `separator` between the base and its
+    /// numeric suffix: an empty base becomes `section`, and a repeated base gains a suffix
+    /// incremented until the whole identifier is unused against every identifier already issued.
+    pub(crate) fn assign_with_separator(&mut self, base: String, separator: char) -> String {
         let base = if base.is_empty() {
             "section".to_owned()
         } else {
@@ -203,7 +242,7 @@ impl IdRegistry {
         }
         let mut suffix = 1u32;
         loop {
-            let candidate = format!("{base}-{suffix}");
+            let candidate = format!("{base}{separator}{suffix}");
             if self.seen.insert(candidate.clone()) {
                 return candidate;
             }
