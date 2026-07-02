@@ -10,11 +10,13 @@ use std::io;
 use carta_ast::{Block, Document, Inline};
 
 pub mod extensions;
+pub mod media;
 pub mod sections;
 #[cfg(feature = "template")]
 pub mod template;
 
 pub use extensions::{Extension, Extensions, presets};
+pub use media::{MediaBag, MediaItem};
 
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]
