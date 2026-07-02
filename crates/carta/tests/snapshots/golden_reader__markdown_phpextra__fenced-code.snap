@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Prose"},{"t":"Space"},{"t":"Str","c":"before"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"tilde"},{"t":"Space"},{"t":"Str","c":"fence."}]},{"t":"CodeBlock","c":[["",[],[]],"plain fenced code"]}]}
