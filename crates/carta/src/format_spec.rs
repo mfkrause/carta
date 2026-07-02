@@ -30,7 +30,8 @@ fn default_extensions(base: &str) -> Extensions {
         ]),
         "rst" | "mediawiki" | "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
         // A notebook's markdown cells are parsed and rendered in a GitHub-flavored dialect with dollar
-        // math and auto identifiers on by default.
+        // math and auto identifiers on by default; a hash run needs a following space to open a
+        // heading (so a bare `#.` is a list marker, not a heading).
         "ipynb" => Extensions::from_list(&[
             Extension::AutoIdentifiers,
             Extension::GfmAutoIdentifiers,
@@ -41,11 +42,27 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::ListsWithoutPrecedingBlankline,
             Extension::PipeTables,
             Extension::RawHtml,
+            Extension::SpaceInAtxHeader,
             Extension::Strikeout,
             Extension::TaskLists,
             Extension::TexMathDollars,
         ]),
         _ => Extensions::empty(),
+    }
+}
+
+/// The extensions enabled by default for `base` when it is read, before any `+`/`-` toggles.
+///
+/// A reader enables every construct its dialect can parse, which for the Markdown variants is a
+/// broader set than the writer-shaping subset in [`default_extensions`]. Every other format reads and
+/// writes with the same defaults.
+fn reader_default_extensions(base: &str) -> Extensions {
+    match base {
+        "markdown_strict" => presets::MARKDOWN_STRICT_READ,
+        "markdown_github" => presets::MARKDOWN_GITHUB_READ,
+        "markdown_phpextra" => presets::MARKDOWN_PHPEXTRA_READ,
+        "markdown_mmd" => presets::MARKDOWN_MMD_READ,
+        _ => default_extensions(base),
     }
 }
 
@@ -77,9 +94,26 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
 /// # Errors
 /// [`Error::UnknownExtension`] if a toggle names an extension this build does not recognize.
 pub fn parse_format_spec(spec: &str) -> Result<(String, Extensions)> {
+    parse_format_spec_with(spec, default_extensions)
+}
+
+/// Splits a reading format specifier into its base name and the [`Extensions`] it selects, seeding
+/// the toggles from the reader defaults (which for the Markdown variants are broader than the writer
+/// defaults; see [`reader_default_extensions`]).
+///
+/// # Errors
+/// [`Error::UnknownExtension`] if a toggle names an extension this build does not recognize.
+pub(crate) fn parse_reader_format_spec(spec: &str) -> Result<(String, Extensions)> {
+    parse_format_spec_with(spec, reader_default_extensions)
+}
+
+fn parse_format_spec_with(
+    spec: &str,
+    defaults: impl Fn(&str) -> Extensions,
+) -> Result<(String, Extensions)> {
     let base_end = spec.find(['+', '-']).unwrap_or(spec.len());
     let (base, mut rest) = spec.split_at(base_end);
-    let mut extensions = default_extensions(base);
+    let mut extensions = defaults(base);
     let supported = supported_extensions(base);
 
     while !rest.is_empty() {
@@ -226,7 +260,8 @@ mod tests {
     fn recognized_dialect_toggle_names_parse_without_error() {
         // These extension names are part of the markdown-family vocabulary a format spec may toggle.
         // Each must be recognized so that toggling it on a base format succeeds rather than aborting,
-        // and each toggle must round-trip: `+name` then `-name` returns to the default membership.
+        // and each toggle must apply in both directions: `+name` enables it and a trailing `-name`
+        // disables it, regardless of whether the base enables it by default.
         let names = [
             "abbreviations",
             "all_symbols_escapable",
@@ -250,7 +285,6 @@ mod tests {
             "wikilinks_title_after_pipe",
             "wikilinks_title_before_pipe",
         ];
-        let (_, default) = parse_format_spec("ipynb").unwrap();
         for name in names {
             let (_, enabled) = parse_format_spec(&format!("ipynb+{name}"))
                 .unwrap_or_else(|err| panic!("ipynb+{name} should parse: {err:?}"));
@@ -260,10 +294,9 @@ mod tests {
 
             let (_, disabled) = parse_format_spec(&format!("ipynb+{name}-{name}"))
                 .unwrap_or_else(|err| panic!("ipynb+{name}-{name} should parse: {err:?}"));
-            assert_eq!(
-                disabled.contains(extension),
-                default.contains(extension),
-                "+{name}-{name} should return to the default membership"
+            assert!(
+                !disabled.contains(extension),
+                "+{name}-{name} should disable it"
             );
         }
     }
