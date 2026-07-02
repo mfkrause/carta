@@ -57,7 +57,7 @@ fn wrap_mode_output_snapshots() {
             for (mode, mode_name) in [(WrapMode::None, "none"), (WrapMode::Preserve, "preserve")] {
                 let mut options = WriterOptions::default();
                 options.wrap = mode;
-                let output = carta::convert(
+                let output = carta::convert_text(
                     "json",
                     target,
                     &case.input,

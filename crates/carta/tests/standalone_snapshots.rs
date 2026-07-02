@@ -6,7 +6,7 @@
 #![cfg(all(feature = "standalone", feature = "read-commonmark"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use carta::{ReaderOptions, WriterOptions, convert};
+use carta::{ReaderOptions, WriterOptions, convert_text};
 
 /// A document touching every title-block and metadata slot a default template can interpolate: an
 /// inline title carrying both markup and a quotation (so the plain-text identity variables keep the
@@ -59,7 +59,7 @@ fn default_template_snapshots() {
         }
         let mut options = WriterOptions::default();
         options.standalone = true;
-        let output = convert(
+        let output = convert_text(
             "markdown",
             target,
             INPUT,

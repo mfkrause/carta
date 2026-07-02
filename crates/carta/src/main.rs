@@ -7,12 +7,12 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use carta::ast::MetaValue;
-use carta::{Error, MathMethod, ReaderOptions, Result, WrapMode, WriterOptions, convert};
+use carta::{Error, MathMethod, Output, ReaderOptions, Result, WrapMode, WriterOptions, convert};
 use clap::{ArgAction, Parser};
 
 const LIST_FLAGS: [&str; 4] = [
@@ -152,7 +152,6 @@ fn run(cli: &Cli) -> Result<()> {
 
 fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let input = read_input(cli.input.as_deref())?;
-    let text = String::from_utf8(input)?;
 
     let mut writer_options = WriterOptions::default();
     writer_options.standalone = cli.standalone;
@@ -180,7 +179,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
     let verbatim = cli.standalone || cli.template.is_some();
 
-    let output = convert(from, to, &text, &ReaderOptions::default(), &writer_options)?;
+    let output = convert(from, to, &input, &ReaderOptions::default(), &writer_options)?;
     write_output(cli.output.as_deref(), &output, verbatim)
 }
 
@@ -300,7 +299,7 @@ fn read_metadata_files(paths: &[PathBuf]) -> Result<BTreeMap<String, MetaValue>>
 
 fn print_default_template(spec: &str) -> Result<()> {
     let (base, _) = carta::parse_format_spec(spec)?;
-    let writer = carta::writer_for(&base)?;
+    let writer = carta::any_writer_for(&base)?;
     match writer.default_template() {
         Some(template) => {
             io::stdout().lock().write_all(template.as_bytes())?;
@@ -339,17 +338,35 @@ fn read_input(path: Option<&Path>) -> Result<Vec<u8>> {
     }
 }
 
-fn write_output(path: Option<&Path>, output: &str, verbatim: bool) -> Result<()> {
+fn write_output(path: Option<&Path>, output: &Output, verbatim: bool) -> Result<()> {
+    if matches!(output, Output::Bytes(_)) && binary_to_terminal(path) {
+        return Err(Error::Io(io::Error::other(
+            "refusing to write binary output to a terminal (use -o FILE or redirect stdout)",
+        )));
+    }
+
     let mut writer: Box<dyn Write> = match path {
         Some(path) => Box::new(fs::File::create(path)?),
         None => Box::new(io::stdout().lock()),
     };
-    writer.write_all(output.as_bytes())?;
-    // A fragment gets exactly one trailing newline; a template's output is emitted byte-for-byte.
-    if !verbatim {
-        writer.write_all(b"\n")?;
+    match output {
+        Output::Text(text) => {
+            writer.write_all(text.as_bytes())?;
+            // A fragment gets exactly one trailing newline; a template's output is emitted byte-for-byte.
+            if !verbatim {
+                writer.write_all(b"\n")?;
+            }
+        }
+        // Binary output is emitted exactly, with no trailing newline.
+        Output::Bytes(bytes) => writer.write_all(bytes)?,
     }
     Ok(())
+}
+
+/// Whether writing would send binary output straight to a terminal — no `-o FILE` and stdout is a
+/// tty. Such output corrupts the terminal, so it is refused.
+fn binary_to_terminal(path: Option<&Path>) -> bool {
+    path.is_none() && io::stdout().is_terminal()
 }
 
 #[cfg(test)]
