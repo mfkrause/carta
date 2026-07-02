@@ -165,6 +165,8 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   (SVG and other text payloads emit as source-line arrays); `--extract-media=DIR` instead writes each
   resource to a file and rewrites the reference to point at it. An image whose bytes are absent from
   the bag is reported as unrepresentable rather than emitted as a broken bundle.
+- An image output's display metadata (dimensions, background hint) rides on the image's attributes and
+  is restored as the output's `metadata`; a cell's `attachments` are keyed in sorted order.
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
 - Standalone (`-s`), TOC, and section numbering are no-ops.
 
