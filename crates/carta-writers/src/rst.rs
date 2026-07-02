@@ -318,7 +318,7 @@ impl State {
                         pieces.push(Piece::Text(text));
                     }
                 }
-                pieces.push(Piece::Math(tex.trim().to_owned()));
+                pieces.push(Piece::Math(tex.clone()));
                 start = index + 1;
             }
         }
@@ -340,7 +340,7 @@ impl State {
                     if prev_math {
                         parts.push(MARKER.to_owned());
                     }
-                    parts.push(format!(".. math:: {tex}"));
+                    parts.push(math_directive(tex));
                 }
                 Piece::Text(text) => {
                     let mut line = String::new();
@@ -1649,16 +1649,16 @@ const CLOSERS: &[char] = &[
     '-', '.', ',', ':', ';', '!', '?', '\'', '"', ')', ']', '}', '>',
 ];
 
-/// Characters that may directly follow an inline-markup end without a separator: a space, a backslash
-/// or slash, or any end-string closer.
+/// Characters that may directly follow an inline-markup end without a separator: whitespace (any
+/// space, including a non-breaking space), a backslash or slash, or any end-string closer.
 fn is_safe_follower(ch: char) -> bool {
-    ch == ' ' || ch == '\\' || ch == '/' || CLOSERS.contains(&ch)
+    ch.is_whitespace() || ch == '\\' || ch == '/' || CLOSERS.contains(&ch)
 }
 
-/// Characters that may directly precede an inline-markup start without a separator: a space or any
-/// start-string opener.
+/// Characters that may directly precede an inline-markup start without a separator: whitespace (any
+/// space, including a non-breaking space) or any start-string opener.
 fn is_safe_preceder(ch: char) -> bool {
-    ch == ' ' || OPENERS.contains(&ch)
+    ch.is_whitespace() || OPENERS.contains(&ch)
 }
 
 /// Escape the characters of a text run that RST would otherwise read as markup. A backslash is always
@@ -1730,6 +1730,29 @@ fn is_admonition(name: &str) -> bool {
             | "warning"
             | "admonition"
     )
+}
+
+/// Render a display-math formula as a `.. math::` directive. A single-line formula sits on the
+/// directive line; a formula spanning several lines moves to an indented body, each line indented by
+/// three spaces with blank lines left empty and trailing blanks dropped.
+fn math_directive(tex: &str) -> String {
+    if !tex.contains('\n') {
+        return format!(".. math:: {}", tex.trim());
+    }
+    let mut lines: Vec<String> = tex
+        .split('\n')
+        .map(|line| {
+            if line.trim().is_empty() {
+                String::new()
+            } else {
+                format!("   {line}")
+            }
+        })
+        .collect();
+    while lines.last().is_some_and(String::is_empty) {
+        lines.pop();
+    }
+    format!(".. math::\n\n{}", lines.join("\n"))
 }
 
 /// Whether any inline is display math, looking through the transparent wrappers (spans and citations)
