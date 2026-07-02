@@ -279,7 +279,7 @@ impl BlockParser<'_> {
         let (ts, te) = trim(self.chars, self.pos + 3, e);
         let inlines = drop_trailing_break(parse_inlines(self.chars, ts, te));
         self.advance_line();
-        Some(Block::Header(level, Attr::default(), inlines))
+        Some(Block::Header(level, Box::default(), inlines))
     }
 
     fn try_horizontal_rule(&mut self) -> Option<Block> {
@@ -407,7 +407,7 @@ impl BlockParser<'_> {
             classes: Vec::new(),
             attributes: vec![("color".to_string(), value)],
         };
-        Some(Block::Div(attr, inner))
+        Some(Block::Div(Box::new(attr), inner))
     }
 
     // --- tables ------------------------------------------------------------
@@ -577,7 +577,7 @@ impl BlockParser<'_> {
         };
         if let Some((content, resume)) = self.scan_code_content(content_start) {
             self.pos = resume;
-            Some(vec![Block::CodeBlock(attr, content)])
+            Some(vec![Block::CodeBlock(Box::new(attr), content)])
         } else {
             self.pos = self.len();
             Some(Vec::new())
@@ -633,7 +633,7 @@ impl BlockParser<'_> {
         if let Some(close) = find_token(self.chars, content_start, CLOSE) {
             let content = slice_to_string(self.chars, content_start, close);
             self.pos = close + CLOSE.chars().count();
-            vec![Block::CodeBlock(attr, content)]
+            vec![Block::CodeBlock(Box::new(attr), content)]
         } else {
             self.pos = self.len();
             Vec::new()
@@ -688,21 +688,21 @@ impl BlockParser<'_> {
         let mut inner = Vec::new();
         if let Some(title) = title {
             inner.push(Block::Div(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["panelheader".to_string()],
                     attributes: Vec::new(),
-                },
+                }),
                 vec![Block::Plain(vec![Inline::Strong(plain_inlines(&title))])],
             ));
         }
         inner.extend(parse_blocks_from_str(&content));
         Some(vec![Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["panel".to_string()],
                 attributes,
-            },
+            }),
             inner,
         )])
     }
@@ -1078,12 +1078,12 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
             push_text(&mut pending, &mut toks);
             let url = slice_to_string(chars, i, end);
             toks.push(Tok::Atom(Inline::Link(
-                Attr::default(),
+                Box::default(),
                 vec![Inline::Str(url.clone())],
-                Target {
+                Box::new(Target {
                     url,
                     title: String::new(),
-                },
+                }),
             )));
             i = end;
             continue;
@@ -1634,7 +1634,7 @@ fn parse_brace_inline(
         let close = match_monospace_close(chars, i, hi)?;
         let inner = inlines_with(chars, i + 2, close, autolink, depth + 1);
         let text = carta_ast::to_plain_text(&inner);
-        return Some((Inline::Code(Attr::default(), text), close + 2));
+        return Some((Inline::Code(Box::default(), text), close + 2));
     }
 
     if matches_at(chars, i, "{color:") {
@@ -1648,7 +1648,7 @@ fn parse_brace_inline(
             classes: Vec::new(),
             attributes: vec![("color".to_string(), value)],
         };
-        return Some((Inline::Span(attr, inner), close + "{color}".len()));
+        return Some((Inline::Span(Box::new(attr), inner), close + "{color}".len()));
     }
 
     if matches_at(chars, i, "{anchor:") {
@@ -1665,7 +1665,7 @@ fn parse_brace_inline(
             classes: Vec::new(),
             attributes: Vec::new(),
         };
-        return Some((Inline::Span(attr, Vec::new()), name_end + 1));
+        return Some((Inline::Span(Box::new(attr), Vec::new()), name_end + 1));
     }
 
     None
@@ -1752,12 +1752,12 @@ fn parse_link(chars: &[char], i: usize, hi: usize, depth: usize) -> Option<(Inli
     };
     Some((
         Inline::Link(
-            attr,
+            Box::new(attr),
             label,
-            Target {
+            Box::new(Target {
                 url,
                 title: String::new(),
-            },
+            }),
         ),
         close + 1,
     ))
@@ -1808,7 +1808,11 @@ fn parse_image(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
         None => (Attr::default(), String::new()),
     };
     Some((
-        Inline::Image(attr, Vec::new(), Target { url: src, title }),
+        Inline::Image(
+            Box::new(attr),
+            Vec::new(),
+            Box::new(Target { url: src, title }),
+        ),
         close + 1,
     ))
 }
@@ -1992,7 +1996,7 @@ mod tests {
     fn heading_levels() {
         assert_eq!(
             blocks("h2. Title"),
-            vec![Block::Header(2, Attr::default(), vec![str_node("Title")])]
+            vec![Block::Header(2, Box::default(), vec![str_node("Title")])]
         );
         // Level seven is not a heading.
         assert!(matches!(blocks("h7. Title").as_slice(), [Block::Para(_)]));
@@ -2033,7 +2037,7 @@ mod tests {
     fn monospace_stringifies_inner_markup() {
         assert_eq!(
             para("{{a *b* c}}"),
-            vec![Inline::Code(Attr::default(), "a b c".to_string())]
+            vec![Inline::Code(Box::default(), "a b c".to_string())]
         );
     }
 
@@ -2042,11 +2046,11 @@ mod tests {
         assert_eq!(
             para("{color:red}x{color}"),
             vec![Inline::Span(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: Vec::new(),
                     attributes: vec![("color".to_string(), "red".to_string())],
-                },
+                }),
                 vec![str_node("x")],
             )]
         );
@@ -2062,7 +2066,7 @@ mod tests {
         assert_eq!(
             blocks("{color:red}\nstuff\n{color}"),
             vec![Block::Div(
-                attr,
+                Box::new(attr),
                 vec![Block::Para(vec![Inline::LineBreak, str_node("stuff")])],
             )]
         );
@@ -2079,11 +2083,11 @@ mod tests {
             para("{anchor:foo}bar"),
             vec![
                 Inline::Span(
-                    Attr {
+                    Box::new(Attr {
                         id: "foo".to_string(),
                         classes: Vec::new(),
                         attributes: Vec::new(),
-                    },
+                    }),
                     Vec::new(),
                 ),
                 str_node("bar"),
@@ -2179,12 +2183,12 @@ mod tests {
         assert_eq!(
             para("[home|http://example.com]"),
             vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 vec![str_node("home")],
-                Target {
+                Box::new(Target {
                     url: "http://example.com".to_string(),
                     title: String::new(),
-                },
+                }),
             )]
         );
     }
@@ -2194,12 +2198,12 @@ mod tests {
         assert_eq!(
             para("[http://example.com]"),
             vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 vec![str_node("http://example.com")],
-                Target {
+                Box::new(Target {
                     url: "http://example.com".to_string(),
                     title: String::new(),
-                },
+                }),
             )]
         );
     }
@@ -2209,16 +2213,16 @@ mod tests {
         assert_eq!(
             para("[^file.txt]"),
             vec![Inline::Link(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["attachment".to_string()],
                     attributes: Vec::new(),
-                },
+                }),
                 vec![str_node("file.txt")],
-                Target {
+                Box::new(Target {
                     url: "file.txt".to_string(),
                     title: String::new(),
-                },
+                }),
             )]
         );
     }
@@ -2231,12 +2235,12 @@ mod tests {
                 str_node("see"),
                 Inline::Space,
                 Inline::Link(
-                    Attr::default(),
+                    Box::default(),
                     vec![str_node("http://example.com")],
-                    Target {
+                    Box::new(Target {
                         url: "http://example.com".to_string(),
                         title: String::new(),
-                    },
+                    }),
                 ),
                 Inline::Space,
                 str_node("here"),
@@ -2249,19 +2253,19 @@ mod tests {
         assert_eq!(
             para("!pic.png|align=right, vspace=4!"),
             vec![Inline::Image(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: Vec::new(),
                     attributes: vec![
                         ("align".to_string(), "right".to_string()),
                         ("vspace".to_string(), "4".to_string()),
                     ],
-                },
+                }),
                 Vec::new(),
-                Target {
+                Box::new(Target {
                     url: "pic.png".to_string(),
                     title: String::new(),
-                },
+                }),
             )]
         );
     }
@@ -2271,16 +2275,16 @@ mod tests {
         assert_eq!(
             para("!pic.png|thumbnail!"),
             vec![Inline::Image(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["thumbnail".to_string()],
                     attributes: Vec::new(),
-                },
+                }),
                 Vec::new(),
-                Target {
+                Box::new(Target {
                     url: "pic.png".to_string(),
                     title: String::new(),
-                },
+                }),
             )]
         );
     }
@@ -2352,11 +2356,11 @@ mod tests {
         assert_eq!(
             blocks("{code}\nint x = 1;\n{code}"),
             vec![Block::CodeBlock(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["java".to_string()],
                     attributes: Vec::new(),
-                },
+                }),
                 "int x = 1;\n".to_string(),
             )]
         );
@@ -2367,11 +2371,11 @@ mod tests {
         assert_eq!(
             blocks("{code:python}\npass\n{code}"),
             vec![Block::CodeBlock(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["python".to_string()],
                     attributes: Vec::new(),
-                },
+                }),
                 "pass\n".to_string(),
             )]
         );
@@ -2381,7 +2385,7 @@ mod tests {
     fn noformat_has_no_language_class() {
         assert_eq!(
             blocks("{noformat}\nraw\n{noformat}"),
-            vec![Block::CodeBlock(Attr::default(), "raw\n".to_string())]
+            vec![Block::CodeBlock(Box::default(), "raw\n".to_string())]
         );
     }
 
@@ -2405,18 +2409,18 @@ mod tests {
         assert_eq!(
             blocks("{panel:title=Note}\nbody\n{panel}"),
             vec![Block::Div(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["panel".to_string()],
                     attributes: Vec::new(),
-                },
+                }),
                 vec![
                     Block::Div(
-                        Attr {
+                        Box::new(Attr {
                             id: String::new(),
                             classes: vec!["panelheader".to_string()],
                             attributes: Vec::new(),
-                        },
+                        }),
                         vec![Block::Plain(vec![Inline::Strong(vec![str_node("Note")])])],
                     ),
                     Block::Para(vec![str_node("body")]),

@@ -1502,11 +1502,11 @@ impl Parser<'_> {
         }
         Block::Header(
             level,
-            Attr {
+            Box::new(Attr {
                 id,
                 classes: Vec::new(),
                 attributes: Vec::new(),
-            },
+            }),
             inlines,
         )
     }
@@ -1621,7 +1621,7 @@ impl Parser<'_> {
             text_lines.pop();
         }
         Some((
-            Block::CodeBlock(Attr::default(), text_lines.join("\n")),
+            Block::CodeBlock(Box::default(), text_lines.join("\n")),
             end + 1,
         ))
     }
@@ -1646,7 +1646,7 @@ impl Parser<'_> {
         if text_lines.is_empty() {
             return None;
         }
-        Some((Block::CodeBlock(Attr::default(), text_lines.join("\n")), i))
+        Some((Block::CodeBlock(Box::default(), text_lines.join("\n")), i))
     }
 
     fn line_block(&mut self, lines: &[String], start: usize, out: &mut Vec<Block>) -> usize {
@@ -1861,7 +1861,7 @@ impl Parser<'_> {
             };
             let end = explicit_extent(lines, i, 0);
             let body = explicit_body(lines, i, end, value_col);
-            let term_inline = vec![Inline::Code(Attr::default(), term)];
+            let term_inline = vec![Inline::Code(Box::default(), term)];
             items.push((term_inline, vec![self.blocks(&body)]));
             i = end;
         }
@@ -1915,7 +1915,7 @@ impl Parser<'_> {
                 while text.ends_with('\n') {
                     text.pop();
                 }
-                out.push(Block::CodeBlock(attr, text));
+                out.push(Block::CodeBlock(Box::new(attr), text));
             }
             "math" => {
                 let mut equations = Vec::new();
@@ -1934,11 +1934,11 @@ impl Parser<'_> {
                     math
                 } else {
                     vec![Inline::Span(
-                        Attr {
+                        Box::new(Attr {
                             id,
                             classes,
                             attributes,
-                        },
+                        }),
                         math,
                     )]
                 };
@@ -1951,12 +1951,12 @@ impl Parser<'_> {
                     alt = vec![Inline::Str("image".to_string())];
                 }
                 let image = Inline::Image(
-                    attr,
+                    Box::new(attr),
                     alt,
-                    Target {
+                    Box::new(Target {
                         url,
                         title: String::new(),
-                    },
+                    }),
                 );
                 out.push(Block::Para(vec![Self::wrap_target(image, &options)]));
             }
@@ -1965,11 +1965,11 @@ impl Parser<'_> {
             | "important" | "tip" => {
                 let title = capitalize(name);
                 let mut blocks = vec![Block::Div(
-                    Attr {
+                    Box::new(Attr {
                         id: String::new(),
                         classes: vec!["title".to_string()],
                         attributes: Vec::new(),
-                    },
+                    }),
                     vec![Block::Para(vec![Inline::Str(title)])],
                 )];
                 blocks.extend(self.blocks(&directive_content(&body)));
@@ -2100,12 +2100,12 @@ impl Parser<'_> {
     fn wrap_target(image: Inline, options: &[(String, String)]) -> Inline {
         if let Some((_, url)) = options.iter().find(|(k, _)| k == "target") {
             Inline::Link(
-                Attr::default(),
+                Box::default(),
                 vec![image],
-                Target {
+                Box::new(Target {
                     url: url.clone(),
                     title: String::new(),
-                },
+                }),
             )
         } else {
             image
@@ -2136,15 +2136,15 @@ impl Parser<'_> {
         // The image description defaults to the figure's caption when no explicit alt is given.
         let description = if alt.is_empty() { caption_inlines } else { alt };
         let image = Inline::Image(
-            img_attr,
+            Box::new(img_attr),
             description,
-            Target {
+            Box::new(Target {
                 url,
                 title: String::new(),
-            },
+            }),
         );
         let body = vec![Block::Plain(vec![image])];
-        Block::Figure(figure_attr(options), caption, body)
+        Block::Figure(Box::new(figure_attr(options)), Box::new(caption), body)
     }
 
     /// A `line-block` directive: each body line becomes one line of the block, with a blank body line
@@ -2200,22 +2200,22 @@ impl Parser<'_> {
             .iter()
             .map(|(label, body)| {
                 let term = vec![Inline::Span(
-                    Attr {
+                    Box::new(Attr {
                         id: label.clone(),
                         classes: vec!["citation-label".to_string()],
                         attributes: Vec::new(),
-                    },
+                    }),
                     vec![Inline::Str(label.clone())],
                 )];
                 (term, vec![self.blocks(body)])
             })
             .collect();
         Some(Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: "citations".to_string(),
                 classes: Vec::new(),
                 attributes: Vec::new(),
-            },
+            }),
             vec![Block::DefinitionList(items)],
         ))
     }
@@ -2835,11 +2835,11 @@ impl Parser<'_> {
         let id = carta_ast::slug(&carta_ast::to_plain_text(&inner));
         Some((
             Inline::Span(
-                Attr {
+                Box::new(Attr {
                     id,
                     classes: Vec::new(),
                     attributes: Vec::new(),
-                },
+                }),
                 inner,
             ),
             end,
@@ -3004,7 +3004,7 @@ impl Parser<'_> {
             let (content, end) = find_close_literal(chars, pos + 2, "``")?;
             return Some((
                 vec![Inline::Code(
-                    Attr::default(),
+                    Box::default(),
                     normalize_inline_literal(&content),
                 )],
                 false,
@@ -3078,24 +3078,27 @@ impl Parser<'_> {
                 if let Some(language) = chain.language {
                     classes.push(language);
                 }
-                Inline::Code(class_attr(classes), content.to_string())
+                Inline::Code(Box::new(class_attr(classes)), content.to_string())
             }
             "title-reference" | "title" | "t" => {
                 let mut classes = chain.classes;
                 classes.push("title-ref".to_string());
-                Inline::Span(class_attr(classes), self.inlines_no_trim(content))
+                Inline::Span(Box::new(class_attr(classes)), self.inlines_no_trim(content))
             }
             // A chain that bottoms out in no base role (a plain custom role) wraps the content in a
             // span carrying its accumulated classes.
-            "" => Inline::Span(class_attr(chain.classes), self.inlines_no_trim(content)),
+            "" => Inline::Span(
+                Box::new(class_attr(chain.classes)),
+                self.inlines_no_trim(content),
+            ),
             // An unrecognized role keeps its content verbatim, tagged with the role name so the
             // information survives a round-trip.
             other => Inline::Code(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["interpreted-text".to_string()],
                     attributes: vec![("role".to_string(), other.to_string())],
-                },
+                }),
                 content.to_string(),
             ),
         }
@@ -3162,12 +3165,12 @@ impl Parser<'_> {
             push_text(&mut display, &format!("|{name}|"));
             return Some((
                 vec![Inline::Link(
-                    Attr::default(),
+                    Box::default(),
                     display,
-                    Target {
+                    Box::new(Target {
                         url: format!("##SUBST##|{name}|"),
                         title: String::new(),
-                    },
+                    }),
                 )],
                 false,
                 end,
@@ -3181,16 +3184,16 @@ impl Parser<'_> {
                 // A replacement that expands to several inlines is kept together as one unit.
                 match inlines.len() {
                     1 => inlines,
-                    _ => vec![Inline::Span(Attr::default(), inlines)],
+                    _ => vec![Inline::Span(Box::default(), inlines)],
                 }
             }
             Some(Substitution::Image(url, attr, alt)) => vec![Inline::Image(
-                attr,
+                Box::new(attr),
                 alt,
-                Target {
+                Box::new(Target {
                     url,
                     title: String::new(),
-                },
+                }),
             )],
             None => {
                 // An undefined substitution is preserved as a placeholder link whose visible text is
@@ -3199,12 +3202,12 @@ impl Parser<'_> {
                 push_text(&mut display, &format!("|{name}|"));
                 return Some((
                     vec![Inline::Link(
-                        Attr::default(),
+                        Box::default(),
                         display,
-                        Target {
+                        Box::new(Target {
                             url: format!("##SUBST##|{name}|"),
                             title: String::new(),
-                        },
+                        }),
                     )],
                     false,
                     end,
@@ -3213,12 +3216,12 @@ impl Parser<'_> {
         };
         let result = if referenced {
             vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 expansion,
-                Target {
+                Box::new(Target {
                     url: defer_reference(&name),
                     title: String::new(),
-                },
+                }),
             )]
         } else {
             expansion
@@ -3246,16 +3249,16 @@ impl Parser<'_> {
         if is_citation_label(&label) {
             let url = format!("#{label}");
             let link = Inline::Link(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["citation".to_string()],
                     attributes: Vec::new(),
-                },
+                }),
                 vec![Inline::Str(format!("[{label}]"))],
-                Target {
+                Box::new(Target {
                     url,
                     title: String::new(),
-                },
+                }),
             );
             return Some((vec![link], false, end));
         }
@@ -3305,12 +3308,12 @@ impl Parser<'_> {
             self.deferred.insert(normalize_name(&label), target.clone());
         }
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             self.inlines(&display),
-            Target {
+            Box::new(Target {
                 url: target,
                 title: String::new(),
-            },
+            }),
         )
     }
 
@@ -3347,12 +3350,12 @@ impl Parser<'_> {
             defer_reference(&name)
         };
         let link = Inline::Link(
-            Attr::default(),
+            Box::default(),
             vec![Inline::Str(name)],
-            Target {
+            Box::new(Target {
                 url,
                 title: String::new(),
-            },
+            }),
         );
         Some((link, after))
     }
@@ -3864,11 +3867,11 @@ fn scale_dimension(dimension: Dimension, scale: Option<(f64, bool)>) -> Dimensio
 
 fn class_div(classes: Vec<String>, blocks: Vec<Block>) -> Block {
     Block::Div(
-        Attr {
+        Box::new(Attr {
             id: String::new(),
             classes,
             attributes: Vec::new(),
-        },
+        }),
         blocks,
     )
 }
@@ -3915,11 +3918,11 @@ fn attach_targets(mut blocks: Vec<Block>, mut targets: Vec<String>) -> Vec<Block
         attr.id = last;
         for name in targets.into_iter().rev() {
             inlines.push(Inline::Span(
-                Attr {
+                Box::new(Attr {
                     id: name,
                     classes: Vec::new(),
                     attributes: Vec::new(),
-                },
+                }),
                 Vec::new(),
             ));
         }
@@ -3927,11 +3930,11 @@ fn attach_targets(mut blocks: Vec<Block>, mut targets: Vec<String>) -> Vec<Block
     }
     for name in targets.into_iter().rev() {
         blocks = vec![Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: name,
                 classes: Vec::new(),
                 attributes: Vec::new(),
-            },
+            }),
             blocks,
         )];
     }
@@ -3961,11 +3964,11 @@ fn options_div(name: &str, options: &[(String, String)], blocks: Vec<Block>) -> 
     let mut classes = vec![name.to_string()];
     classes.extend(extra);
     Block::Div(
-        Attr {
+        Box::new(Attr {
             id,
             classes,
             attributes,
-        },
+        }),
         blocks,
     )
 }
@@ -4371,12 +4374,12 @@ fn try_uri_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     // The link text shows the URL as written; the destination is percent-encoded.
     Some((
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             vec![Inline::Str(url.clone())],
-            Target {
+            Box::new(Target {
                 url: escape_uri(&url),
                 title: String::new(),
-            },
+            }),
         ),
         end,
     ))
@@ -4425,12 +4428,12 @@ fn try_email_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     let address: String = chars.get(pos..end)?.iter().collect();
     Some((
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             vec![Inline::Str(address.clone())],
-            Target {
+            Box::new(Target {
                 url: format!("mailto:{address}"),
                 title: String::new(),
-            },
+            }),
         ),
         end,
     ))
@@ -5176,7 +5179,7 @@ mod tests {
                 Inline::Space,
                 Inline::Str("and".into()),
                 Inline::Space,
-                Inline::Code(Attr::default(), "lit".into()),
+                Inline::Code(Box::default(), "lit".into()),
                 Inline::Str(".".into()),
             ])]
         );
@@ -5189,11 +5192,11 @@ mod tests {
             blocks,
             vec![Block::Header(
                 1,
-                Attr {
+                Box::new(Attr {
                     id: "title".into(),
                     classes: Vec::new(),
                     attributes: Vec::new(),
-                },
+                }),
                 vec![Inline::Str("Title".into())],
             )]
         );
@@ -5249,7 +5252,7 @@ mod tests {
         let blocks = parse("::\n\n    code line\n");
         assert_eq!(
             blocks,
-            vec![Block::CodeBlock(Attr::default(), "code line".into())]
+            vec![Block::CodeBlock(Box::default(), "code line".into())]
         );
     }
 
@@ -5283,12 +5286,12 @@ mod tests {
                 assert_eq!(
                     link,
                     Some(&Inline::Link(
-                        Attr::default(),
+                        Box::default(),
                         vec![Inline::Str("website".into())],
-                        Target {
+                        Box::new(Target {
                             url: "https://example.org".into(),
                             title: String::new(),
-                        },
+                        }),
                     ))
                 );
             }
@@ -5429,7 +5432,7 @@ mod tests {
             };
             for inline in inlines {
                 if let Inline::Image(attr, _, _) = inline {
-                    return Some(attr.clone());
+                    return Some(*attr.clone());
                 }
             }
         }

@@ -2084,20 +2084,20 @@ mod tests {
     #[test]
     fn header_levels_and_anchors() {
         assert_eq!(
-            render(vec![Block::Header(1, Attr::default(), str_inlines("T"))]),
+            render(vec![Block::Header(1, Box::default(), str_inlines("T"))]),
             "\\section{T}"
         );
         assert_eq!(
-            render(vec![Block::Header(4, Attr::default(), str_inlines("T"))]),
+            render(vec![Block::Header(4, Box::default(), str_inlines("T"))]),
             "\\paragraph{T}"
         );
         assert_eq!(
-            render(vec![Block::Header(5, Attr::default(), str_inlines("T"))]),
+            render(vec![Block::Header(5, Box::default(), str_inlines("T"))]),
             "\\subparagraph{T}"
         );
         // A level beyond the mapped range degrades to plain text.
         assert_eq!(
-            render(vec![Block::Header(7, Attr::default(), str_inlines("T"))]),
+            render(vec![Block::Header(7, Box::default(), str_inlines("T"))]),
             "T"
         );
     }
@@ -2109,7 +2109,7 @@ mod tests {
             classes: vec!["unnumbered".into()],
             ..Attr::default()
         };
-        let out = render(vec![Block::Header(1, attr, str_inlines("Title"))]);
+        let out = render(vec![Block::Header(1, Box::new(attr), str_inlines("Title"))]);
         assert!(out.contains("\\section*{Title}\\label{sec}"));
         assert!(out.contains("\\addcontentsline{toc}{section}{Title}"));
     }
@@ -2117,7 +2117,7 @@ mod tests {
     #[test]
     fn header_with_markup_wraps_texorpdfstring() {
         let inlines = vec![Inline::Emph(str_inlines("x"))];
-        let out = render(vec![Block::Header(1, Attr::default(), inlines)]);
+        let out = render(vec![Block::Header(1, Box::default(), inlines)]);
         assert!(out.contains("\\texorpdfstring{\\emph{x}}{x}"));
     }
 
@@ -2195,8 +2195,8 @@ mod tests {
             ..Attr::default()
         };
         let out = render(vec![Block::Figure(
-            attr,
-            caption,
+            Box::new(attr),
+            Box::new(caption),
             vec![Block::Plain(str_inlines("body"))],
         )]);
         assert!(out.contains("\\caption{Cap}\\label{fig}"));
@@ -2209,8 +2209,8 @@ mod tests {
             ..Attr::default()
         };
         let out = render(vec![Block::Figure(
-            attr,
-            Caption::default(),
+            Box::new(attr),
+            Box::default(),
             vec![Block::Plain(str_inlines("body"))],
         )]);
         assert!(out.contains("\\caption{}\\label{fig}"));
@@ -2219,10 +2219,10 @@ mod tests {
     #[test]
     fn span_with_id_emits_phantom_label() {
         let span = Inline::Span(
-            Attr {
+            Box::new(Attr {
                 id: "s".into(),
                 ..Attr::default()
-            },
+            }),
             str_inlines("x"),
         );
         let out = render(vec![Block::Para(vec![span])]);
@@ -2239,12 +2239,12 @@ mod tests {
             ..Attr::default()
         };
         let image = Inline::Image(
-            attr,
+            Box::new(attr),
             str_inlines("alt"),
-            Target {
+            Box::new(Target {
                 url: "img.png".into(),
                 title: String::new(),
-            },
+            }),
         );
         let out = render(vec![Block::Para(vec![image])]);
         assert!(out.contains("width=0.5\\linewidth"));
@@ -2254,7 +2254,7 @@ mod tests {
 
     #[test]
     fn footnote_with_code_block_closes_on_own_line() {
-        let note = Inline::Note(vec![Block::CodeBlock(Attr::default(), "x\n".into())]);
+        let note = Inline::Note(vec![Block::CodeBlock(Box::default(), "x\n".into())]);
         let out = render(vec![Block::Para(vec![Inline::Str("a".into()), note])]);
         assert!(out.contains("\\begin{Verbatim}"));
         assert!(out.contains("\n}"));

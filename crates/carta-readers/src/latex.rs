@@ -491,11 +491,11 @@ impl Parser {
         }
         Block::Header(
             level,
-            Attr {
+            Box::new(Attr {
                 id,
                 classes,
                 attributes: Vec::new(),
-            },
+            }),
             title,
         )
     }
@@ -572,11 +572,11 @@ impl Parser {
                 let inner = self.parse_blocks(&Stop::Env(env));
                 self.consume_env_marker("\\end");
                 vec![Block::Div(
-                    Attr {
+                    Box::new(Attr {
                         id: String::new(),
                         classes: vec![env.to_owned()],
                         attributes: Vec::new(),
-                    },
+                    }),
                     inner,
                 )]
             }
@@ -587,11 +587,11 @@ impl Parser {
                 let inner = self.parse_blocks(&Stop::Env(env));
                 self.consume_env_marker("\\end");
                 vec![Block::Div(
-                    Attr {
+                    Box::new(Attr {
                         id: String::new(),
                         classes: vec!["minipage".to_owned()],
                         attributes: Vec::new(),
-                    },
+                    }),
                     inner,
                 )]
             }
@@ -628,11 +628,11 @@ impl Parser {
                     let inner = self.parse_blocks(&Stop::Env(env));
                     self.consume_env_marker("\\end");
                     vec![Block::Div(
-                        Attr {
+                        Box::new(Attr {
                             id: String::new(),
                             classes: vec![env.to_owned()],
                             attributes: Vec::new(),
-                        },
+                        }),
                         inner,
                     )]
                 }
@@ -754,11 +754,11 @@ impl Parser {
         }
         let content = self.read_verbatim_body(env);
         vec![Block::CodeBlock(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes,
                 attributes,
-            },
+            }),
             content,
         )]
     }
@@ -792,15 +792,15 @@ impl Parser {
         let (blocks, caption, id) = self.collect_float(env);
         self.in_figure = was_in_figure;
         Block::Figure(
-            Attr {
+            Box::new(Attr {
                 id: id.unwrap_or_default(),
                 classes: Vec::new(),
                 attributes: Vec::new(),
-            },
-            Caption {
+            }),
+            Box::new(Caption {
                 short: None,
                 long: caption,
-            },
+            }),
             blocks.into_iter().map(demote_image_para).collect(),
         )
     }
@@ -1248,7 +1248,7 @@ impl Parser {
                     classes: Vec::new(),
                     attributes: vec![("style".to_owned(), format!("{property}: {}", color.trim()))],
                 };
-                emit(out, buf, Inline::Span(attr, inner));
+                emit(out, buf, Inline::Span(Box::new(attr), inner));
             }
             "texttt" | "lstinline" => {
                 if name == "lstinline" {
@@ -1258,12 +1258,12 @@ impl Parser {
                 emit(
                     out,
                     buf,
-                    Inline::Code(Attr::default(), to_plain_text(&inner)),
+                    Inline::Code(Box::default(), to_plain_text(&inner)),
                 );
             }
             "verb" => {
                 if let Some(code) = self.read_verb() {
-                    emit(out, buf, Inline::Code(Attr::default(), code));
+                    emit(out, buf, Inline::Code(Box::default(), code));
                 }
             }
             "footnote" | "footnotetext" | "thanks" => {
@@ -1278,16 +1278,16 @@ impl Parser {
                         out,
                         buf,
                         Inline::Link(
-                            Attr {
+                            Box::new(Attr {
                                 id: String::new(),
                                 classes: vec!["uri".to_owned()],
                                 attributes: Vec::new(),
-                            },
+                            }),
                             vec![Inline::Str(url.clone())],
-                            Target {
+                            Box::new(Target {
                                 url,
                                 title: String::new(),
-                            },
+                            }),
                         ),
                     );
                 }
@@ -1302,12 +1302,12 @@ impl Parser {
                     out,
                     buf,
                     Inline::Link(
-                        Attr::default(),
+                        Box::default(),
                         text,
-                        Target {
+                        Box::new(Target {
                             url,
                             title: String::new(),
-                        },
+                        }),
                     ),
                 );
             }
@@ -1324,16 +1324,16 @@ impl Parser {
                     out,
                     buf,
                     Inline::Image(
-                        Attr {
+                        Box::new(Attr {
                             id: String::new(),
                             classes: Vec::new(),
                             attributes,
-                        },
+                        }),
                         alt,
-                        Target {
+                        Box::new(Target {
                             url: path,
                             title: String::new(),
-                        },
+                        }),
                     ),
                 );
             }
@@ -1343,11 +1343,11 @@ impl Parser {
                         out,
                         buf,
                         Inline::Span(
-                            Attr {
+                            Box::new(Attr {
                                 id: id.clone(),
                                 classes: Vec::new(),
                                 attributes: vec![("label".to_owned(), id)],
-                            },
+                            }),
                             Vec::new(),
                         ),
                     );
@@ -2070,11 +2070,11 @@ fn extract_spaces<F: FnOnce(Vec<Inline>) -> Inline>(
 /// Wraps inlines in a span carrying a single class.
 fn span_class(inlines: Vec<Inline>, class: &str) -> Inline {
     Inline::Span(
-        Attr {
+        Box::new(Attr {
             id: String::new(),
             classes: vec![class.to_owned()],
             attributes: Vec::new(),
-        },
+        }),
         inlines,
     )
 }
@@ -2087,19 +2087,19 @@ fn reference_link(name: &str, target: &str) -> Inline {
         other => other,
     };
     Inline::Link(
-        Attr {
+        Box::new(Attr {
             id: String::new(),
             classes: Vec::new(),
             attributes: vec![
                 ("reference-type".to_owned(), kind.to_owned()),
                 ("reference".to_owned(), target.to_owned()),
             ],
-        },
+        }),
         vec![Inline::Str(format!("[{target}]"))],
-        Target {
+        Box::new(Target {
             url: format!("#{target}"),
             title: String::new(),
-        },
+        }),
     )
 }
 
@@ -2118,7 +2118,7 @@ impl Switch {
             Switch::Strong => Inline::Strong(inner),
             Switch::Emph => Inline::Emph(inner),
             Switch::SmallCaps => Inline::SmallCaps(inner),
-            Switch::Code => Inline::Code(Attr::default(), to_plain_text(&inner)),
+            Switch::Code => Inline::Code(Box::default(), to_plain_text(&inner)),
         }
     }
 }
@@ -2146,7 +2146,7 @@ fn group_span(inner: Vec<Inline>) -> Option<Inline> {
         {
             inner.into_iter().next()
         }
-        _ => Some(Inline::Span(Attr::default(), inner)),
+        _ => Some(Inline::Span(Box::default(), inner)),
     }
 }
 
@@ -3005,15 +3005,15 @@ mod tests {
                 Inline::Space,
                 Inline::Str("Section\u{a0}".to_owned()),
                 Inline::Link(
-                    attr(vec![
+                    Box::new(attr(vec![
                         ("reference-type".to_owned(), "ref".to_owned()),
                         ("reference".to_owned(), "sec:intro".to_owned()),
-                    ]),
+                    ])),
                     vec![Inline::Str("[sec:intro]".to_owned())],
-                    Target {
+                    Box::new(Target {
                         url: "#sec:intro".to_owned(),
                         title: String::new(),
-                    },
+                    }),
                 ),
                 Inline::Str(".".to_owned()),
             ])],
@@ -3054,12 +3054,12 @@ mod tests {
                 Inline::Str("x".to_owned()),
                 Inline::Space,
                 Inline::Image(
-                    attr(vec![("width".to_owned(), "50%".to_owned())]),
+                    Box::new(attr(vec![("width".to_owned(), "50%".to_owned())])),
                     vec![Inline::Str("image".to_owned())],
-                    Target {
+                    Box::new(Target {
                         url: "diagram.png".to_owned(),
                         title: String::new(),
-                    },
+                    }),
                 ),
                 Inline::Space,
                 Inline::Str("y".to_owned()),

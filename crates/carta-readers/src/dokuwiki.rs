@@ -161,7 +161,7 @@ fn parse_blocks(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Ve
         if let Some((level, title, trailing)) = header_split(line) {
             blocks.push(Block::Header(
                 level,
-                Attr::default(),
+                Box::default(),
                 inline_content(&title, ctx, depth),
             ));
             *index += 1;
@@ -471,7 +471,7 @@ fn parse_raw_region(chars: &[char], start: usize) -> Option<(Block, usize)> {
                 classes: class.into_iter().collect(),
                 ..Default::default()
             };
-            Block::CodeBlock(attr, content)
+            Block::CodeBlock(Box::new(attr), content)
         }
         RawKind::Html => Block::RawBlock(Format("html".to_string()), content),
         RawKind::Php => Block::RawBlock(Format("html".to_string()), format!("<?php {content} ?>")),
@@ -517,7 +517,7 @@ fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
         out.push('\n');
         *index += 1;
     }
-    Block::CodeBlock(Attr::default(), out)
+    Block::CodeBlock(Box::default(), out)
 }
 
 /// Parse a thematically grouped run of list lines into one bullet or ordered list.
@@ -1389,7 +1389,7 @@ fn parse_mono(
         if !closed {
             return None;
         }
-        return Some((Inline::Code(Attr::default(), flatten_mono(&inner)), pos));
+        return Some((Inline::Code(Box::default(), flatten_mono(&inner)), pos));
     }
     let close = find_subsequence(chars, begin + 2, "''")?;
     if close <= begin + 2 || is_ws_opt(chars.get(close - 1).copied()) {
@@ -1398,7 +1398,7 @@ fn parse_mono(
     let content = chars.get(begin + 2..close).unwrap_or(&[]);
     let inner = scan_slice(content, ctx, depth + 1);
     Some((
-        Inline::Code(Attr::default(), to_plain_text(&inner)),
+        Inline::Code(Box::default(), to_plain_text(&inner)),
         close + 2,
     ))
 }
@@ -1619,12 +1619,12 @@ fn try_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     let url: String = chars.get(pos..end)?.iter().collect();
     Some((
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             vec![Inline::Str(url.clone())],
-            Target {
+            Box::new(Target {
                 url,
                 title: String::new(),
-            },
+            }),
         ),
         end,
     ))
@@ -1760,12 +1760,12 @@ fn parse_link(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     };
     Some((
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             label_inlines,
-            Target {
+            Box::new(Target {
                 url,
                 title: String::new(),
-            },
+            }),
         ),
         close + 2,
     ))
@@ -1827,12 +1827,12 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
 
     let node = match query {
         Some(q) if q.contains("linkonly") => Inline::Link(
-            Attr {
+            Box::new(Attr {
                 classes,
                 ..Default::default()
-            },
+            }),
             alt,
-            target,
+            Box::new(target),
         ),
         Some(q) => {
             let (width, height) = parse_size(q);
@@ -1845,22 +1845,22 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
             }
             attributes.push(("query".to_string(), format!("?{q}")));
             Inline::Image(
-                Attr {
+                Box::new(Attr {
                     classes,
                     attributes,
                     ..Default::default()
-                },
+                }),
                 alt,
-                target,
+                Box::new(target),
             )
         }
         None => Inline::Image(
-            Attr {
+            Box::new(Attr {
                 classes,
                 ..Default::default()
-            },
+            }),
             alt,
-            target,
+            Box::new(target),
         ),
     };
     Some((node, end))
@@ -2101,12 +2101,12 @@ fn angle_email(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     let url = format!("mailto:{inner}");
     Some((
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             vec![Inline::Str(inner)],
-            Target {
+            Box::new(Target {
                 url,
                 title: String::new(),
-            },
+            }),
         ),
         j + 1,
     ))

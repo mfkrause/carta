@@ -85,29 +85,32 @@ fn document_corpus() -> Vec<Document> {
             Inline::Quoted(QuoteType::DoubleQuote, vec![str_inline("b")]),
         ])]),
         document(vec![Block::Para(vec![
-            Inline::Code(attr("i", &["lang"], &[("k", "v")]), "x = 1".to_owned()),
+            Inline::Code(
+                Box::new(attr("i", &["lang"], &[("k", "v")])),
+                "x = 1".to_owned(),
+            ),
             Inline::Math(MathType::InlineMath, "a^2".to_owned()),
             Inline::Math(MathType::DisplayMath, "b".to_owned()),
             Inline::RawInline(Format("html".to_owned()), "<b>".to_owned()),
         ])]),
         document(vec![Block::Para(vec![
             Inline::Link(
-                attr("l", &["c"], &[]),
+                Box::new(attr("l", &["c"], &[])),
                 vec![str_inline("t")],
-                Target {
+                Box::new(Target {
                     url: "http://x".to_owned(),
                     title: "ti".to_owned(),
-                },
+                }),
             ),
             Inline::Image(
-                Attr::default(),
+                Box::default(),
                 vec![str_inline("alt")],
-                Target {
+                Box::new(Target {
                     url: "p.png".to_owned(),
                     title: String::new(),
-                },
+                }),
             ),
-            Inline::Span(attr("s", &["c"], &[]), vec![str_inline("inner")]),
+            Inline::Span(Box::new(attr("s", &["c"], &[])), vec![str_inline("inner")]),
             Inline::Note(vec![Block::Para(vec![str_inline("n")])]),
         ])]),
         document(vec![Block::Para(vec![Inline::Cite(
@@ -141,7 +144,7 @@ fn document_corpus() -> Vec<Document> {
         )])]),
         document(vec![
             Block::LineBlock(vec![vec![str_inline("one")], vec![str_inline("two")]]),
-            Block::CodeBlock(attr("", &["rust"], &[]), "let x = 1;".to_owned()),
+            Block::CodeBlock(Box::new(attr("", &["rust"], &[])), "let x = 1;".to_owned()),
             Block::RawBlock(Format("html".to_owned()), "<div>".to_owned()),
             Block::BlockQuote(vec![Block::Para(vec![str_inline("q")])]),
             Block::HorizontalRule,
@@ -207,34 +210,38 @@ fn document_corpus() -> Vec<Document> {
             Block::DefinitionList(vec![(vec![str_inline("Term")], vec![vec![plain("def")]])]),
         ]),
         document(vec![
-            Block::Header(2, attr("id", &["c"], &[("k", "v")]), vec![str_inline("H")]),
+            Block::Header(
+                2,
+                Box::new(attr("id", &["c"], &[("k", "v")])),
+                vec![str_inline("H")],
+            ),
             Block::Div(
-                attr("d", &["note"], &[]),
+                Box::new(attr("d", &["note"], &[])),
                 vec![Block::Para(vec![str_inline("body")])],
             ),
         ]),
         document(vec![
             Block::Figure(
-                attr("f", &[], &[]),
-                Caption {
+                Box::new(attr("f", &[], &[])),
+                Box::new(Caption {
                     short: None,
                     long: vec![Block::Plain(vec![str_inline("cap")])],
-                },
+                }),
                 vec![Block::Plain(vec![Inline::Image(
-                    Attr::default(),
+                    Box::default(),
                     vec![str_inline("alt")],
-                    Target {
+                    Box::new(Target {
                         url: "p.png".to_owned(),
                         title: String::new(),
-                    },
+                    }),
                 )])],
             ),
             Block::Figure(
-                Attr::default(),
-                Caption {
+                Box::default(),
+                Box::new(Caption {
                     short: Some(vec![str_inline("short")]),
                     long: vec![Block::Plain(vec![str_inline("long")])],
-                },
+                }),
                 vec![Block::Para(vec![str_inline("x")])],
             ),
         ]),

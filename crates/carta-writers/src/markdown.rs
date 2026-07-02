@@ -867,8 +867,8 @@ impl State {
         if !self.config.has(Extension::ImplicitFigures) {
             return crate::html::render_fragment(
                 &[Block::Figure(
-                    attr.clone(),
-                    caption.clone(),
+                    Box::new(attr.clone()),
+                    Box::new(caption.clone()),
                     blocks.to_vec(),
                 )],
                 self.wrap,
@@ -879,8 +879,8 @@ impl State {
         }
         crate::html::render_fragment(
             &[Block::Figure(
-                attr.clone(),
-                caption.clone(),
+                Box::new(attr.clone()),
+                Box::new(caption.clone()),
                 blocks.to_vec(),
             )],
             self.wrap,
