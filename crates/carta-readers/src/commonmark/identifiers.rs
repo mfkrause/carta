@@ -27,6 +27,8 @@ pub(crate) fn assign_header_identifiers(blocks: &mut [Block], ext: Extensions, m
 /// `{#id}`, or empty).
 pub(crate) struct HeaderNumbering {
     scheme: Option<IdScheme>,
+    /// The broad Markdown dialect, which disambiguates every slug shape with the native strategy.
+    markdown: bool,
     registry: IdRegistry,
 }
 
@@ -34,6 +36,7 @@ impl HeaderNumbering {
     pub(crate) fn new(ext: Extensions, markdown: bool) -> Self {
         Self {
             scheme: IdScheme::select(ext, markdown),
+            markdown,
             registry: IdRegistry::default(),
         }
     }
@@ -46,9 +49,18 @@ impl HeaderNumbering {
             return explicit_id.to_owned();
         };
         if explicit_id.is_empty() {
-            self.registry.assign(scheme, &to_plain_text(inlines))
+            let text = to_plain_text(inlines);
+            if self.markdown {
+                self.registry.assign_markdown(scheme, &text)
+            } else {
+                self.registry.assign(scheme, &text)
+            }
         } else {
-            self.registry.reserve(scheme, explicit_id);
+            if self.markdown {
+                self.registry.reserve_native(explicit_id);
+            } else {
+                self.registry.reserve(scheme, explicit_id);
+            }
             explicit_id.to_owned()
         }
     }
