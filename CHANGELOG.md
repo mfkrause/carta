@@ -13,11 +13,8 @@ curated in the release pull request, so there is no manually maintained _Unrelea
 
 ### Fixed
 
+- *(readers)* bound dokuwiki inline re-parsing and clamp html table spans
 - *(readers)* compile the dokuwiki and jira features standalone
-
-### Other
-
-- Merge branch 'fix/per-feature-build-graph'
 
 ## [0.0.1] - 2026-07-02
 
