@@ -14,7 +14,7 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Attr, Block, Document, Inline, MetaValue, QuoteType, Target};
+use carta_ast::{Block, Document, Inline, MetaValue, QuoteType, Target};
 use carta_core::{Reader, ReaderOptions, Result, presets};
 
 use crate::commonmark::CommonmarkReader;
@@ -80,17 +80,17 @@ fn emit_outline(outline: &Element, level: i32, blocks: &mut Vec<Block>) -> Resul
     let heading = if is_link_outline(outline) {
         let url = outline.attributes.get("url").cloned().unwrap_or_default();
         vec![Inline::Link(
-            Attr::default(),
+            Box::default(),
             heading,
-            Target {
+            Box::new(Target {
                 url,
                 title: String::new(),
-            },
+            }),
         )]
     } else {
         heading
     };
-    blocks.push(Block::Header(level, Attr::default(), heading));
+    blocks.push(Block::Header(level, Box::default(), heading));
     if let Some(note) = outline.attributes.get("_note") {
         let parsed = CommonmarkReader.read(note, &note_options())?;
         blocks.extend(parsed.blocks);
@@ -1006,7 +1006,7 @@ mod tests {
             vec![
                 Inline::Str("a".to_owned()),
                 Inline::Space,
-                Inline::Code(Attr::default(), "c".to_owned()),
+                Inline::Code(Box::default(), "c".to_owned()),
                 Inline::Space,
                 Inline::Str("b".to_owned()),
                 Inline::Space,
@@ -1320,10 +1320,7 @@ mod tests {
         // A matched pair inside a code span renders as its left and right glyphs, not a Quoted node.
         assert_eq!(
             inlines,
-            vec![Inline::Code(
-                Attr::default(),
-                "\u{2018}q\u{2019}".to_owned()
-            )]
+            vec![Inline::Code(Box::default(), "\u{2018}q\u{2019}".to_owned())]
         );
     }
 
@@ -1333,7 +1330,7 @@ mod tests {
         assert_eq!(
             inlines,
             vec![Inline::Code(
-                Attr::default(),
+                Box::default(),
                 "it\u{2019}s \u{2014} x".to_owned()
             )]
         );

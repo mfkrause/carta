@@ -624,7 +624,7 @@ impl Parser {
             "CodeBlock" => {
                 let attr = self.parse_attr()?;
                 let text = self.parse_string()?;
-                Ok(Block::CodeBlock(attr, text))
+                Ok(Block::CodeBlock(Box::new(attr), text))
             }
             "RawBlock" => {
                 let format = self.parse_format()?;
@@ -645,7 +645,7 @@ impl Parser {
                 let level = self.parse_i32()?;
                 let attr = self.parse_attr()?;
                 let inlines = self.parse_inline_list()?;
-                Ok(Block::Header(level, attr, inlines))
+                Ok(Block::Header(level, Box::new(attr), inlines))
             }
             "HorizontalRule" => Ok(Block::HorizontalRule),
             "Table" => Ok(Block::Table(Box::new(self.parse_table()?))),
@@ -653,12 +653,12 @@ impl Parser {
                 let attr = self.parse_attr()?;
                 let caption = self.parse_caption()?;
                 let blocks = self.parse_block_list()?;
-                Ok(Block::Figure(attr, caption, blocks))
+                Ok(Block::Figure(Box::new(attr), Box::new(caption), blocks))
             }
             "Div" => {
                 let attr = self.parse_attr()?;
                 let blocks = self.parse_block_list()?;
-                Ok(Block::Div(attr, blocks))
+                Ok(Block::Div(Box::new(attr), blocks))
             }
             other => Err(syntax_error(format!("unknown block '{other}'"))),
         }
@@ -688,7 +688,7 @@ impl Parser {
             "Code" => {
                 let attr = self.parse_attr()?;
                 let text = self.parse_string()?;
-                Ok(Inline::Code(attr, text))
+                Ok(Inline::Code(Box::new(attr), text))
             }
             "Space" => Ok(Inline::Space),
             "SoftBreak" => Ok(Inline::SoftBreak),
@@ -707,19 +707,19 @@ impl Parser {
                 let attr = self.parse_attr()?;
                 let inlines = self.parse_inline_list()?;
                 let target = self.parse_target()?;
-                Ok(Inline::Link(attr, inlines, target))
+                Ok(Inline::Link(Box::new(attr), inlines, Box::new(target)))
             }
             "Image" => {
                 let attr = self.parse_attr()?;
                 let inlines = self.parse_inline_list()?;
                 let target = self.parse_target()?;
-                Ok(Inline::Image(attr, inlines, target))
+                Ok(Inline::Image(Box::new(attr), inlines, Box::new(target)))
             }
             "Note" => Ok(Inline::Note(self.parse_block_list()?)),
             "Span" => {
                 let attr = self.parse_attr()?;
                 let inlines = self.parse_inline_list()?;
-                Ok(Inline::Span(attr, inlines))
+                Ok(Inline::Span(Box::new(attr), inlines))
             }
             other => Err(syntax_error(format!("unknown inline '{other}'"))),
         }
@@ -1128,11 +1128,11 @@ mod tests {
         assert_eq!(
             only_block(r#"CodeBlock ("i", ["rust", "numberLines"], [("k", "v")]) "let x = 1;""#),
             Block::CodeBlock(
-                Attr {
+                Box::new(Attr {
                     id: "i".to_string(),
                     classes: vec!["rust".to_string(), "numberLines".to_string()],
                     attributes: vec![("k".to_string(), "v".to_string())],
-                },
+                }),
                 "let x = 1;".to_string()
             )
         );
@@ -1186,11 +1186,11 @@ mod tests {
             only_block(r#"Header 2 ("h", [], []) [Str "Title"]"#),
             Block::Header(
                 2,
-                Attr {
+                Box::new(Attr {
                     id: "h".to_string(),
                     classes: vec![],
                     attributes: vec![],
-                },
+                }),
                 vec![str_inline("Title")]
             )
         );
@@ -1201,11 +1201,11 @@ mod tests {
         assert_eq!(
             only_block(r#"Div ("d", [], []) [BlockQuote [Para [Str "q"]]]"#),
             Block::Div(
-                Attr {
+                Box::new(Attr {
                     id: "d".to_string(),
                     classes: vec![],
                     attributes: vec![],
-                },
+                }),
                 vec![Block::BlockQuote(vec![Block::Para(vec![str_inline("q")])])]
             )
         );
@@ -1267,7 +1267,7 @@ mod tests {
             Block::Para(vec![
                 Inline::Quoted(QuoteType::DoubleQuote, vec![str_inline("q")]),
                 Inline::Math(MathType::InlineMath, "x^2".to_string()),
-                Inline::Code(Attr::default(), "f()".to_string()),
+                Inline::Code(Box::default(), "f()".to_string()),
             ])
         );
     }
@@ -1281,27 +1281,27 @@ mod tests {
             block,
             Block::Para(vec![
                 Inline::Link(
-                    Attr::default(),
+                    Box::default(),
                     vec![str_inline("t")],
-                    Target {
+                    Box::new(Target {
                         url: "/u".to_string(),
                         title: "ti".to_string()
-                    }
+                    })
                 ),
                 Inline::Image(
-                    Attr::default(),
+                    Box::default(),
                     vec![str_inline("alt")],
-                    Target {
+                    Box::new(Target {
                         url: "/i".to_string(),
                         title: String::new()
-                    }
+                    })
                 ),
                 Inline::Span(
-                    Attr {
+                    Box::new(Attr {
                         id: "sp".to_string(),
                         classes: vec![],
                         attributes: vec![],
-                    },
+                    }),
                     vec![str_inline("s")]
                 ),
                 Inline::Note(vec![Block::Para(vec![str_inline("n")])]),

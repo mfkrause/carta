@@ -462,10 +462,10 @@ mod tests {
         };
         assert_eq!(
             *target,
-            Target {
+            Box::new(Target {
                 url: "/u".to_string(),
                 title: "T".to_string()
-            }
+            })
         );
         assert!(attr.classes.contains(&"x".to_string()));
     }
@@ -1016,7 +1016,7 @@ mod tests {
                 Inline::Space,
                 Inline::Str("b".to_string()),
                 Inline::Space,
-                Inline::Code(carta_ast::Attr::default(), "c".to_string()),
+                Inline::Code(Box::default(), "c".to_string()),
             ]
         );
     }

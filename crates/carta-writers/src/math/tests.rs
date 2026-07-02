@@ -1,5 +1,5 @@
 use super::{to_inlines, to_typst, to_typst_display, to_typst_labeled};
-use carta_ast::{Attr, Inline};
+use carta_ast::Inline;
 
 /// The Typst body and formatted trailing label for an expression, for the equation-label tests.
 fn typst_labeled(tex: &str) -> Option<(String, Option<String>)> {
@@ -147,8 +147,8 @@ fn monospace_text_becomes_per_character_code() {
     assert_eq!(
         to_inlines("\\mathtt{ab}"),
         Some(vec![
-            Inline::Code(Attr::default(), "a".to_string()),
-            Inline::Code(Attr::default(), "b".to_string()),
+            Inline::Code(Box::default(), "a".to_string()),
+            Inline::Code(Box::default(), "b".to_string()),
         ])
     );
 }
@@ -1090,9 +1090,9 @@ fn monospace_keeps_a_digit_run_as_one_code_span() {
     assert_eq!(
         to_inlines("\\mathtt{1a23}"),
         Some(vec![
-            Inline::Code(Attr::default(), "1".to_string()),
-            Inline::Code(Attr::default(), "a".to_string()),
-            Inline::Code(Attr::default(), "23".to_string()),
+            Inline::Code(Box::default(), "1".to_string()),
+            Inline::Code(Box::default(), "a".to_string()),
+            Inline::Code(Box::default(), "23".to_string()),
         ])
     );
 }
@@ -2423,7 +2423,7 @@ fn text_escape_preserves_the_wrapper_formatting() {
     );
     assert_eq!(
         to_inlines("\\texttt{a\\%b}"),
-        Some(vec![Inline::Code(Attr::default(), "a%b".to_string())])
+        Some(vec![Inline::Code(Box::default(), "a%b".to_string())])
     );
 }
 
@@ -2810,19 +2810,19 @@ fn monospace_wraps_each_glyph_but_keeps_a_number_whole() {
     assert_eq!(
         to_inlines("\\mathtt{abc}"),
         Some(vec![
-            Inline::Code(Attr::default(), "a".to_string()),
-            Inline::Code(Attr::default(), "b".to_string()),
-            Inline::Code(Attr::default(), "c".to_string()),
+            Inline::Code(Box::default(), "a".to_string()),
+            Inline::Code(Box::default(), "b".to_string()),
+            Inline::Code(Box::default(), "c".to_string()),
         ])
     );
     assert_eq!(
         to_inlines("\\mathtt{12}"),
-        Some(vec![Inline::Code(Attr::default(), "12".to_string())])
+        Some(vec![Inline::Code(Box::default(), "12".to_string())])
     );
     // A monospaced operator is still code-wrapped, keeping its ordinary glyph.
     assert_eq!(
         to_inlines("\\mathtt{+}"),
-        Some(vec![Inline::Code(Attr::default(), "+".to_string())])
+        Some(vec![Inline::Code(Box::default(), "+".to_string())])
     );
 }
 

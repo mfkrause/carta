@@ -741,7 +741,7 @@ mod tests {
     #[test]
     fn loose_blocks_become_one_markdown_cell() {
         let notebook = write(vec![
-            Block::Header(1, Attr::default(), vec![Inline::Str("Title".to_owned())]),
+            Block::Header(1, Box::default(), vec![Inline::Str("Title".to_owned())]),
             para("Body."),
         ]);
         assert!(notebook.contains("\"cell_type\": \"markdown\""));
@@ -770,12 +770,12 @@ mod tests {
     #[test]
     fn cell_div_selects_kind_and_keeps_id() {
         let notebook = write(vec![Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: "given".to_owned(),
                 classes: vec!["cell".to_owned(), "code".to_owned()],
                 attributes: vec![("execution_count".to_owned(), "7".to_owned())],
-            },
-            vec![Block::CodeBlock(Attr::default(), "print(1)".to_owned())],
+            }),
+            vec![Block::CodeBlock(Box::default(), "print(1)".to_owned())],
         )]);
         assert!(notebook.contains("\"cell_type\": \"code\""));
         assert!(notebook.contains("\"execution_count\": 7"));
@@ -787,11 +787,11 @@ mod tests {
     #[test]
     fn raw_cell_carries_mime_type() {
         let notebook = write(vec![Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["cell".to_owned(), "raw".to_owned()],
                 attributes: Vec::new(),
-            },
+            }),
             vec![Block::RawBlock(
                 Format("html".to_owned()),
                 "<b>x</b>".to_owned(),
@@ -805,11 +805,11 @@ mod tests {
     #[test]
     fn raw_cell_maps_asciidoc_mime() {
         let notebook = write(vec![Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["cell".to_owned(), "raw".to_owned()],
                 attributes: Vec::new(),
-            },
+            }),
             vec![Block::RawBlock(
                 Format("asciidoc".to_owned()),
                 "[NOTE]\n====\nbody\n====".to_owned(),
@@ -822,15 +822,15 @@ mod tests {
     #[test]
     fn stream_and_error_outputs_round_trip() {
         let notebook = write(vec![Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["cell".to_owned(), "code".to_owned()],
                 attributes: Vec::new(),
-            },
+            }),
             vec![
-                Block::CodeBlock(Attr::default(), "x".to_owned()),
+                Block::CodeBlock(Box::default(), "x".to_owned()),
                 Block::Div(
-                    Attr {
+                    Box::new(Attr {
                         id: String::new(),
                         classes: vec![
                             "output".to_owned(),
@@ -838,19 +838,19 @@ mod tests {
                             "stdout".to_owned(),
                         ],
                         attributes: Vec::new(),
-                    },
-                    vec![Block::CodeBlock(Attr::default(), "hi\n".to_owned())],
+                    }),
+                    vec![Block::CodeBlock(Box::default(), "hi\n".to_owned())],
                 ),
                 Block::Div(
-                    Attr {
+                    Box::new(Attr {
                         id: String::new(),
                         classes: vec!["output".to_owned(), "error".to_owned()],
                         attributes: vec![
                             ("ename".to_owned(), "ValueError".to_owned()),
                             ("evalue".to_owned(), "bad".to_owned()),
                         ],
-                    },
-                    vec![Block::CodeBlock(Attr::default(), "trace\n".to_owned())],
+                    }),
+                    vec![Block::CodeBlock(Box::default(), "trace\n".to_owned())],
                 ),
             ],
         )]);
@@ -865,26 +865,26 @@ mod tests {
     fn image_output_without_embedded_data_is_unrepresentable() {
         let document = Document {
             blocks: vec![Block::Div(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["cell".to_owned(), "code".to_owned()],
                     attributes: Vec::new(),
-                },
+                }),
                 vec![
-                    Block::CodeBlock(Attr::default(), "plot()".to_owned()),
+                    Block::CodeBlock(Box::default(), "plot()".to_owned()),
                     Block::Div(
-                        Attr {
+                        Box::new(Attr {
                             id: String::new(),
                             classes: vec!["output".to_owned(), "display_data".to_owned()],
                             attributes: Vec::new(),
-                        },
+                        }),
                         vec![Block::Para(vec![Inline::Image(
-                            Attr::default(),
+                            Box::default(),
                             Vec::new(),
-                            carta_ast::Target {
+                            Box::new(carta_ast::Target {
                                 url: "plot.png".to_owned(),
                                 title: String::new(),
-                            },
+                            }),
                         )])],
                     ),
                 ],

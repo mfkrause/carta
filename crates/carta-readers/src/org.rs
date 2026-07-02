@@ -237,7 +237,7 @@ fn parse_blocks(
         // Fixed-width (colon) block.
         if is_fixed_width(line) {
             let (text, consumed) = collect_fixed_width(lines, i);
-            out.push(Block::CodeBlock(Attr::default(), text));
+            out.push(Block::CodeBlock(Box::default(), text));
             i += consumed;
             pending = Affiliated::default();
             continue;
@@ -257,7 +257,7 @@ fn parse_blocks(
                 classes: vec![name, "drawer".to_owned()],
                 ..Attr::default()
             };
-            out.push(Block::Div(attr, body));
+            out.push(Block::Div(Box::new(attr), body));
             pending = Affiliated::default();
             continue;
         }
@@ -331,8 +331,8 @@ fn apply_affiliated(block: Block, pending: &mut Affiliated) -> Block {
             };
             let long = caption.map(|c| vec![Block::Plain(c)]).unwrap_or_default();
             Block::Figure(
-                attr,
-                Caption { short: None, long },
+                Box::new(attr),
+                Box::new(Caption { short: None, long }),
                 vec![Block::Plain(inlines)],
             )
         }
@@ -408,7 +408,7 @@ fn build_headline(
         ..Attr::default()
     };
     let level = i32::try_from(level).unwrap_or(6).clamp(1, 6);
-    Block::Header(level, attr, inlines)
+    Block::Header(level, Box::new(attr), inlines)
 }
 
 fn todo_span(keyword: &str) -> Inline {
@@ -417,7 +417,7 @@ fn todo_span(keyword: &str) -> Inline {
         classes: vec![state.to_owned(), keyword.to_owned()],
         ..Attr::default()
     };
-    Inline::Span(attr, vec![Inline::Str(keyword.to_owned())])
+    Inline::Span(Box::new(attr), vec![Inline::Str(keyword.to_owned())])
 }
 
 fn tag_span(tag: &str) -> Inline {
@@ -427,7 +427,7 @@ fn tag_span(tag: &str) -> Inline {
         ..Attr::default()
     };
     Inline::Span(
-        attr,
+        Box::new(attr),
         vec![Inline::SmallCaps(vec![Inline::Str(tag.to_owned())])],
     )
 }
@@ -571,9 +571,9 @@ fn parse_greater_block(
                 classes: if lang.is_empty() { vec![] } else { vec![lang] },
                 ..Attr::default()
             };
-            Some(Block::CodeBlock(attr, dedent_verbatim(&content)))
+            Some(Block::CodeBlock(Box::new(attr), dedent_verbatim(&content)))
         }
-        "example" => Some(Block::CodeBlock(Attr::default(), dedent_verbatim(&content))),
+        "example" => Some(Block::CodeBlock(Box::default(), dedent_verbatim(&content))),
         "export" => {
             let fmt = header_args
                 .split_whitespace()
@@ -598,7 +598,7 @@ fn parse_greater_block(
                 ..Attr::default()
             };
             Some(Block::Div(
-                attr,
+                Box::new(attr),
                 parse_blocks(&content, ext, notes, ids, meta),
             ))
         }
@@ -1723,7 +1723,7 @@ impl Inlines<'_> {
                 while matches!(self.at(end), Some(' ' | '\t')) {
                     end += 1;
                 }
-                return Some((Inline::Span(attr, Vec::new()), end));
+                return Some((Inline::Span(Box::new(attr), Vec::new()), end));
             }
             return None;
         }
@@ -1945,28 +1945,28 @@ fn verbatim_code(marker: char, inner: &[char]) -> Inline {
     } else {
         Attr::default()
     };
-    Inline::Code(attr, text)
+    Inline::Code(Box::new(attr), text)
 }
 
 fn link(target: &str, desc: Vec<Inline>) -> Inline {
     Inline::Link(
-        Attr::default(),
+        Box::default(),
         desc,
-        carta_ast::Target {
+        Box::new(carta_ast::Target {
             url: target.to_owned(),
             title: String::new(),
-        },
+        }),
     )
 }
 
 fn image(target: &str, alt: Vec<Inline>) -> Inline {
     Inline::Image(
-        Attr::default(),
+        Box::default(),
         alt,
-        carta_ast::Target {
+        Box::new(carta_ast::Target {
             url: target.to_owned(),
             title: String::new(),
-        },
+        }),
     )
 }
 

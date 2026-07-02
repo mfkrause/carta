@@ -593,7 +593,7 @@ fn wrap_text_run(name: &str, run: &str) -> Option<Vec<Inline>> {
         "textbf" => vec![Inline::Strong(vec![text])],
         "textit" => vec![Inline::Emph(vec![text])],
         // Typewriter text renders as a code span over the run.
-        "texttt" => vec![Inline::Code(carta_ast::Attr::default(), run.to_string())],
+        "texttt" => vec![Inline::Code(Box::default(), run.to_string())],
         _ => return None,
     };
     Some(wrapped)
@@ -646,7 +646,7 @@ fn render_char(c: char, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)
     // or punctuation glyph keeps its spacing; the substituting styles already mapped a letter/digit
     // above and fall through here for a symbol, which keeps its plain glyph and class.
     let inlines = match style {
-        Style::Monospace => vec![Inline::Code(carta_ast::Attr::default(), text)],
+        Style::Monospace => vec![Inline::Code(Box::default(), text)],
         _ if c.is_alphabetic() && !style.is_upright() => vec![italic(text)],
         _ => vec![Inline::Str(text)],
     };
@@ -693,7 +693,7 @@ fn char_glyph(c: char) -> (String, Class, bool) {
 #[allow(clippy::unnecessary_wraps)]
 fn render_number(digits: &str, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
     let inlines = match style {
-        Style::Monospace => vec![Inline::Code(carta_ast::Attr::default(), digits.to_string())],
+        Style::Monospace => vec![Inline::Code(Box::default(), digits.to_string())],
         Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(digits, alphabet))],
         Style::SubstituteBold(alphabet) => {
             vec![Inline::Strong(vec![Inline::Str(substitute_run(
@@ -716,10 +716,7 @@ fn style_glyph(c: char, style: Style) -> Option<Vec<Inline>> {
             substitute_char(c, alphabet),
         )])]),
         // Monospace renders the character as its own code span, whatever the character.
-        Style::Monospace => Some(vec![Inline::Code(
-            carta_ast::Attr::default(),
-            c.to_string(),
-        )]),
+        Style::Monospace => Some(vec![Inline::Code(Box::default(), c.to_string())]),
         _ => None,
     }
 }
@@ -793,7 +790,7 @@ fn style_single_glyph(text: &str, italic_default: bool, style: Style) -> Vec<Inl
 /// every other style keeps the run whole and upright.
 fn style_text_glyph(text: &str, style: Style) -> Vec<Inline> {
     match style {
-        Style::Monospace => vec![Inline::Code(carta_ast::Attr::default(), text.to_string())],
+        Style::Monospace => vec![Inline::Code(Box::default(), text.to_string())],
         Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(text, alphabet))],
         Style::SubstituteBold(alphabet) => {
             vec![Inline::Strong(vec![Inline::Str(substitute_run(

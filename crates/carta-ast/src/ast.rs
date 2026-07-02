@@ -90,17 +90,17 @@ node_enum! {
         Plain(Vec<Inline>),
         Para(Vec<Inline>),
         LineBlock(Vec<Vec<Inline>>),
-        CodeBlock(Attr, Text),
+        CodeBlock(Box<Attr>, Text),
         RawBlock(Format, Text),
         BlockQuote(Vec<Block>),
         OrderedList(ListAttributes, Vec<Vec<Block>>),
         BulletList(Vec<Vec<Block>>),
         DefinitionList(Vec<(Vec<Inline>, Vec<Vec<Block>>)>),
-        Header(i32, Attr, Vec<Inline>),
+        Header(i32, Box<Attr>, Vec<Inline>),
         HorizontalRule,
         Table(Box<Table>),
-        Figure(Attr, Caption, Vec<Block>),
-        Div(Attr, Vec<Block>),
+        Figure(Box<Attr>, Box<Caption>, Vec<Block>),
+        Div(Box<Attr>, Vec<Block>),
     }
     tags: BLOCK_TAGS
 }
@@ -119,16 +119,16 @@ node_enum! {
         SmallCaps(Vec<Inline>),
         Quoted(QuoteType, Vec<Inline>),
         Cite(Vec<Citation>, Vec<Inline>),
-        Code(Attr, Text),
+        Code(Box<Attr>, Text),
         Space,
         SoftBreak,
         LineBreak,
         Math(MathType, Text),
         RawInline(Format, Text),
-        Link(Attr, Vec<Inline>, Target),
-        Image(Attr, Vec<Inline>, Target),
+        Link(Box<Attr>, Vec<Inline>, Box<Target>),
+        Image(Box<Attr>, Vec<Inline>, Box<Target>),
         Note(Vec<Block>),
-        Span(Attr, Vec<Inline>),
+        Span(Box<Attr>, Vec<Inline>),
     }
     tags: INLINE_TAGS
 }
@@ -247,7 +247,9 @@ pub struct ColSpec {
 }
 
 /// A table: its attributes, caption, per-column specs, header, bodies, and footer. Boxed inside
-/// [`Block::Table`] so the common, table-free blocks stay small.
+/// [`Block::Table`] so the common, table-free blocks stay small. This is the general rule for the
+/// node enums: attribute-bearing and otherwise heavy payloads are boxed so the common lightweight
+/// variants set each enum's size.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Table {
     pub attr: Attr,
@@ -444,6 +446,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn node_enums_stay_small() {
+        assert!(std::mem::size_of::<Inline>() <= 64);
+        assert!(std::mem::size_of::<Block>() <= 64);
+    }
+
+    #[test]
     fn plain_inlines_unwraps_markup_keeps_quotation_and_drops_passthrough() {
         let inlines = vec![
             Inline::Emph(vec![Inline::Str("emph".to_owned())]),
@@ -452,7 +460,7 @@ mod tests {
                 QuoteType::DoubleQuote,
                 vec![Inline::Strong(vec![Inline::Str("loud".to_owned())])],
             ),
-            Inline::Code(Attr::default(), "code".to_owned()),
+            Inline::Code(Box::default(), "code".to_owned()),
             Inline::Math(MathType::InlineMath, "x".to_owned()),
             Inline::RawInline(Format("html".to_owned()), "<br>".to_owned()),
             Inline::Note(vec![Block::Para(vec![Inline::Str("note".to_owned())])]),

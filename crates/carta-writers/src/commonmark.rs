@@ -1042,15 +1042,15 @@ mod tests {
     #[test]
     fn link_with_autolink_class_renders_angle_form() {
         let link = Inline::Link(
-            Attr {
+            Box::new(Attr {
                 classes: vec!["uri".into()],
                 ..Attr::default()
-            },
+            }),
             str_inlines("http://example.com"),
-            Target {
+            Box::new(Target {
                 url: "http://example.com".into(),
                 title: String::new(),
-            },
+            }),
         );
         assert_eq!(render(vec![para(vec![link])]), "<http://example.com>");
     }
@@ -1058,15 +1058,15 @@ mod tests {
     #[test]
     fn attributed_link_falls_back_to_html() {
         let link = Inline::Link(
-            Attr {
+            Box::new(Attr {
                 id: "l".into(),
                 ..Attr::default()
-            },
+            }),
             str_inlines("text"),
-            Target {
+            Box::new(Target {
                 url: "/p".into(),
                 title: "T".into(),
-            },
+            }),
         );
         let out = render(vec![para(vec![link])]);
         assert!(out.contains("<a href=\"/p\" id=\"l\" title=\"T\">text</a>"));
@@ -1075,12 +1075,12 @@ mod tests {
     #[test]
     fn plain_link_uses_inline_destination() {
         let link = Inline::Link(
-            Attr::default(),
+            Box::default(),
             str_inlines("text"),
-            Target {
+            Box::new(Target {
                 url: "/p".into(),
                 title: "T".into(),
-            },
+            }),
         );
         assert_eq!(render(vec![para(vec![link])]), "[text](/p \"T\")");
     }
@@ -1106,7 +1106,7 @@ mod tests {
     #[test]
     fn empty_header_keeps_marker() {
         assert_eq!(
-            render(vec![Block::Header(2, Attr::default(), vec![])]),
+            render(vec![Block::Header(2, Box::default(), vec![])]),
             "## "
         );
     }
@@ -1146,10 +1146,10 @@ mod tests {
     #[test]
     fn span_with_attrs_wraps_in_tag() {
         let span = Inline::Span(
-            Attr {
+            Box::new(Attr {
                 id: "s".into(),
                 ..Attr::default()
-            },
+            }),
             str_inlines("x"),
         );
         assert_eq!(render(vec![para(vec![span])]), "<span id=\"s\">x</span>");
@@ -1158,15 +1158,15 @@ mod tests {
     #[test]
     fn image_with_attrs_falls_back_to_html() {
         let image = Inline::Image(
-            Attr {
+            Box::new(Attr {
                 classes: vec!["c".into()],
                 ..Attr::default()
-            },
+            }),
             str_inlines("alt"),
-            Target {
+            Box::new(Target {
                 url: "i.png".into(),
                 title: "T".into(),
-            },
+            }),
         );
         let out = render(vec![para(vec![image])]);
         assert!(out.contains("<img src=\"i.png\" title=\"T\" class=\"c\" alt=\"alt\" />"));
@@ -1177,13 +1177,13 @@ mod tests {
         let a = "a".repeat(28);
         let b = "b".repeat(28);
         let div = Block::Div(
-            Attr {
+            Box::new(Attr {
                 attributes: vec![
                     ("data-one".into(), a.clone()),
                     ("data-two".into(), b.clone()),
                 ],
                 ..Attr::default()
-            },
+            }),
             vec![para(str_inlines("body"))],
         );
         assert_eq!(
@@ -1196,18 +1196,18 @@ mod tests {
     fn long_image_tag_wraps_at_fill_column() {
         let url = format!("{}.png", "x".repeat(46));
         let image = Inline::Image(
-            Attr {
+            Box::new(Attr {
                 attributes: vec![
                     ("width".into(), "320".into()),
                     ("height".into(), "240".into()),
                 ],
                 ..Attr::default()
-            },
+            }),
             vec![],
-            Target {
+            Box::new(Target {
                 url: url.clone(),
                 title: String::new(),
-            },
+            }),
         );
         assert_eq!(
             render(vec![para(vec![image])]),
@@ -1218,10 +1218,10 @@ mod tests {
     #[test]
     fn div_holding_only_a_dropped_raw_block_emits_no_surplus_blank_lines() {
         let div = Block::Div(
-            Attr {
+            Box::new(Attr {
                 id: "embed".into(),
                 ..Attr::default()
-            },
+            }),
             vec![Block::RawBlock(Format("latex".into()), "\\x".into())],
         );
         assert_eq!(render(vec![div]), "<div id=\"embed\">\n\n</div>");
@@ -1254,11 +1254,14 @@ mod tests {
             ..Attr::default()
         };
         assert_eq!(
-            render(vec![Block::CodeBlock(attr.clone(), "fn x(){}\n".into())]),
+            render(vec![Block::CodeBlock(
+                Box::new(attr.clone()),
+                "fn x(){}\n".into()
+            )]),
             "``` rust\nfn x(){}\n```"
         );
         assert_eq!(
-            render(vec![Block::CodeBlock(attr, String::new())]),
+            render(vec![Block::CodeBlock(Box::new(attr), String::new())]),
             "``` rust\n```"
         );
     }
@@ -1266,7 +1269,7 @@ mod tests {
     #[test]
     fn indented_code_block_without_attrs() {
         assert_eq!(
-            render(vec![Block::CodeBlock(Attr::default(), "a\n\nb\n".into())]),
+            render(vec![Block::CodeBlock(Box::default(), "a\n\nb\n".into())]),
             "    a\n\n    b"
         );
     }
@@ -1337,7 +1340,7 @@ mod tests {
     fn code_block_indented_then_list_separates() {
         assert!(needs_separator(
             &Block::BulletList(vec![plain_item("a")]),
-            &Block::CodeBlock(Attr::default(), "x".into())
+            &Block::CodeBlock(Box::default(), "x".into())
         ));
         assert!(!needs_separator(&Block::Para(vec![]), &Block::Para(vec![])));
     }
@@ -1471,14 +1474,18 @@ mod tests {
             long: vec![Block::Plain(str_inlines("a caption"))],
         };
         let image = Inline::Image(
-            Attr::default(),
+            Box::default(),
             str_inlines("a caption"),
-            Target {
+            Box::new(Target {
                 url: "pic.png".into(),
                 title: "fig title".into(),
-            },
+            }),
         );
-        let figure = Block::Figure(Attr::default(), caption, vec![Block::Plain(vec![image])]);
+        let figure = Block::Figure(
+            Box::default(),
+            Box::new(caption),
+            vec![Block::Plain(vec![image])],
+        );
         assert_eq!(
             render(vec![figure]),
             "<figure>\n<img src=\"pic.png\" title=\"fig title\" alt=\"a caption\" />\n\
@@ -1489,15 +1496,15 @@ mod tests {
     #[test]
     fn dimensioned_image_falls_back_to_html_img() {
         let image = Inline::Image(
-            Attr {
+            Box::new(Attr {
                 attributes: vec![("width".into(), "200".into())],
                 ..Attr::default()
-            },
+            }),
             str_inlines("alt"),
-            Target {
+            Box::new(Target {
                 url: "pic.png".into(),
                 title: String::new(),
-            },
+            }),
         );
         assert_eq!(
             render(vec![para(vec![image])]),
@@ -1508,27 +1515,27 @@ mod tests {
     #[test]
     fn attrless_image_stays_markdown() {
         let image = Inline::Image(
-            Attr::default(),
+            Box::default(),
             str_inlines("alt"),
-            Target {
+            Box::new(Target {
                 url: "pic.png".into(),
                 title: String::new(),
-            },
+            }),
         );
         assert_eq!(render(vec![para(vec![image])]), "![alt](pic.png)");
     }
 
     fn dimensioned_image(attributes: Vec<(String, String)>) -> Inline {
         Inline::Image(
-            Attr {
+            Box::new(Attr {
                 attributes,
                 ..Attr::default()
-            },
+            }),
             str_inlines("alt"),
-            Target {
+            Box::new(Target {
                 url: "pic.png".into(),
                 title: String::new(),
-            },
+            }),
         )
     }
 
