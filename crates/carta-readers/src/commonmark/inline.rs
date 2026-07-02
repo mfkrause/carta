@@ -757,6 +757,7 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
         notes,
         ext,
         bracket_stack: Vec::new(),
+        interesting: interesting_chars(ext),
     };
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
@@ -799,6 +800,32 @@ struct InlineParser<'a> {
     /// Indices into `nodes` for each open `[` or `![` delimiter, in parse order. O(1) lookup of
     /// the most recent bracket opener instead of a backward scan through all nodes.
     bracket_stack: Vec<usize>,
+    /// For each ASCII code, whether a character can start a syntactic construct under the active
+    /// extensions. Everything else is ordinary text a run scan can skip over in one step.
+    interesting: [bool; 128],
+}
+
+/// The ASCII characters that can begin an inline construct under `ext`; every other character is
+/// ordinary text. Must stay in lockstep with the dispatch arms in [`InlineParser::run`] — any new
+/// arm's trigger character has to be marked here, or the construct becomes unreachable mid-text.
+fn interesting_chars(ext: Extensions) -> [bool; 128] {
+    let smart = ext.contains(Extension::Smart);
+    core::array::from_fn(|code| {
+        let Ok(byte) = u8::try_from(code) else {
+            return false;
+        };
+        match char::from(byte) {
+            '\\' | '`' | '<' | '&' | '\n' | '*' | '_' | '[' | ']' | '!' => true,
+            '$' => ext.contains(Extension::TexMathDollars),
+            '~' => ext.contains(Extension::Subscript) || ext.contains(Extension::Strikeout),
+            '^' => ext.contains(Extension::InlineNotes) || ext.contains(Extension::Superscript),
+            '=' => ext.contains(Extension::Mark),
+            '@' => ext.contains(Extension::ExampleLists) || ext.contains(Extension::Citations),
+            ':' => ext.contains(Extension::Emoji),
+            '\'' | '"' | '-' | '.' => smart,
+            _ => false,
+        }
+    })
 }
 
 impl InlineParser<'_> {
@@ -810,8 +837,29 @@ impl InlineParser<'_> {
         self.chars.get(self.pos + offset).copied()
     }
 
+    fn is_interesting(&self, ch: char) -> bool {
+        usize::try_from(u32::from(ch))
+            .ok()
+            .and_then(|code| self.interesting.get(code))
+            .copied()
+            .unwrap_or(false)
+    }
+
     fn run(&mut self) {
         while let Some(ch) = self.peek() {
+            if !self.is_interesting(ch) {
+                let start = self.pos;
+                while let Some(&next) = self.chars.get(self.pos) {
+                    if self.is_interesting(next) {
+                        break;
+                    }
+                    self.pos += 1;
+                }
+                if let Some(run) = self.chars.get(start..self.pos) {
+                    self.push_chars(run);
+                }
+                continue;
+            }
             match ch {
                 '\\' => self.backslash(),
                 '`' => self.code_span(),
@@ -875,6 +923,14 @@ impl InlineParser<'_> {
             text.push_str(value);
         } else {
             self.nodes.push(Node::Text(value.to_owned()));
+        }
+    }
+
+    fn push_chars(&mut self, run: &[char]) {
+        if let Some(Node::Text(text)) = self.nodes.last_mut() {
+            text.extend(run.iter());
+        } else {
+            self.nodes.push(Node::Text(run.iter().collect()));
         }
     }
 
@@ -3425,11 +3481,38 @@ fn normalize_code(content: &str, markdown: bool) -> String {
 mod tests {
     use super::{
         TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, emoji, flanking, fold_dash_run,
-        fold_ellipsis_run, match_use_count, parse_meta_inlines, quote_flanking, split_header_attr,
-        task_marker_replacement,
+        fold_ellipsis_run, interesting_chars, match_use_count, parse_meta_inlines, quote_flanking,
+        split_header_attr, task_marker_replacement,
     };
     use carta_ast::{Attr, Inline, Target};
     use carta_core::{Extension, Extensions};
+
+    fn is_interesting(table: &[bool; 128], ch: char) -> bool {
+        usize::try_from(u32::from(ch))
+            .ok()
+            .and_then(|code| table.get(code))
+            .copied()
+            .unwrap_or(false)
+    }
+
+    #[test]
+    fn interesting_set_tracks_active_extensions() {
+        let base = interesting_chars(Extensions::empty());
+        assert!(is_interesting(&base, '*'));
+        assert!(is_interesting(&base, '['));
+        assert!(is_interesting(&base, '\n'));
+        assert!(!is_interesting(&base, 'q'));
+        assert!(!is_interesting(&base, '-'));
+        assert!(!is_interesting(&base, ':'));
+        assert!(!is_interesting(&base, 'é'));
+
+        let gated = interesting_chars(exts(&[Extension::Smart, Extension::Emoji]));
+        assert!(is_interesting(&gated, '-'));
+        assert!(is_interesting(&gated, ':'));
+        assert!(is_interesting(&gated, '*'));
+        assert!(!is_interesting(&gated, 'q'));
+        assert!(!is_interesting(&gated, 'é'));
+    }
 
     fn exts(list: &[Extension]) -> Extensions {
         Extensions::from_list(list)
