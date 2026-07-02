@@ -9,7 +9,7 @@ A universal document converter written in Rust that reads a markup format and re
 
 - **Performance** and a **smaller binary** than pandoc.
 - **Feature parity** with pandoc across all formats and extensions.
-- A **DX-friendly library**, with the CLI as a thin shell over it.
+- A **developer-friendly library**, with the CLI as a thin shell over it.
 
 ## Status
 
@@ -25,10 +25,10 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | CommonMark-X (`commonmark_x`) | ✅ | ✅ |
 | GitHub-Flavored Markdown (`gfm`) | ✅ | ✅ |
 | Pandoc Markdown (`markdown`) | ✅ | ✅ |
-| Markdown strict (`markdown_strict`) | ❌ | ✅ |
-| MultiMarkdown (`markdown_mmd`) | ❌ | ✅ |
-| PHP Markdown Extra (`markdown_phpextra`) | ❌ | ✅ |
-| GitHub Markdown, legacy (`markdown_github`) | ❌ | ✅ |
+| Markdown strict (`markdown_strict`) | ✅ | ✅ |
+| MultiMarkdown (`markdown_mmd`) | ✅ | ✅ |
+| PHP Markdown Extra (`markdown_phpextra`) | ✅ | ✅ |
+| GitHub Markdown, legacy (`markdown_github`) | ✅ | ✅ |
 | Djot (`djot`) | ❌ | ❌ |
 | Markua (`markua`) | ➖ | ❌ |
 
@@ -143,13 +143,28 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 ## Installation
 
-No releases yet. You can build from source with Rust 1.93+.
+### Prebuilt binaries
+
+Download the archive for your platform from the [latest release][latest-release]. Builds are provided for Linux (x86-64 gnu and static musl, arm64), macOS (Intel and Apple Silicon), and Windows (x86-64).
+
+### From crates.io
 
 ```sh
+cargo install carta
+```
+
+This installs the `carta` binary. For a smaller build, pass `--no-default-features` with only the formats you need, e.g. `--features cli,read-commonmark,write-html`.
+
+### From source
+
+```sh
+git clone https://github.com/mfkrause/carta
 cd carta
 cargo build --release
 # binary at target/release/carta
 ```
+
+[latest-release]: https://github.com/mfkrause/carta/releases/latest
 
 ## Usage
 
@@ -207,7 +222,7 @@ cargo clippy --all-targets          # lint
 cargo +nightly fuzz run commonmark  # fuzz a reader (see fuzz/README.md)
 ```
 
-The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and options), `carta-readers`, `carta-writers`, the `carta` library facade, and the `carta-cli` binary.
+The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and options), `carta-readers`, `carta-writers`, and `carta` (the library facade, which also ships the command-line binary behind its `cli` feature).
 
 ## License
 

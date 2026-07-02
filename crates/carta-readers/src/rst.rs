@@ -41,6 +41,7 @@ impl Reader for RstReader {
             custom_roles: BTreeMap::new(),
             default_role: DEFAULT_ROLE.to_string(),
             include_depth: 0,
+            active_substitutions: Vec::new(),
             deferred: BTreeMap::new(),
         };
         let mut blocks = parser.blocks(&lines);
@@ -762,6 +763,7 @@ fn included_blocks(path: &str, ext: Extensions, depth: usize) -> Option<Vec<Bloc
         custom_roles: BTreeMap::new(),
         default_role: DEFAULT_ROLE.to_string(),
         include_depth: depth,
+        active_substitutions: Vec::new(),
         deferred: BTreeMap::new(),
     };
     let mut blocks = parser.blocks(&lines);
@@ -1289,6 +1291,12 @@ struct Parser<'a> {
     default_role: String,
     /// How many nested `include` directives deep this parser is, bounding include recursion.
     include_depth: usize,
+    /// The chain of substitution names currently being expanded, by normalized name. A
+    /// substitution replacement is itself parsed as inline markup, so a definition that refers
+    /// to itself — directly or through a cycle of other definitions — would recurse without
+    /// bound and overflow the stack. RST forbids circular substitution references; a name already
+    /// on this stack is left unexpanded instead of re-entered.
+    active_substitutions: Vec<String>,
     /// Every hyperlink-target name discovered while building the tree — explicit targets, internal
     /// targets, section titles, and the labels of phrase references with an embedded destination —
     /// mapped to its destination. Filled in document order so a later definition supersedes an
@@ -3143,9 +3151,33 @@ impl Parser<'_> {
         if referenced {
             end += 1;
         }
-        let expansion = match self.defs.substitutions.get(&normalize_name(&name)).cloned() {
+        let key = normalize_name(&name);
+        // A circular substitution reference (`|a|` expanding to text that references `|a|`, or a
+        // longer cycle through other definitions) would recurse without bound: expanding a
+        // replacement parses it as inline markup, which re-enters here. RST forbids such cycles,
+        // so a name already being expanded is left as an unresolved placeholder rather than
+        // re-entered.
+        if self.active_substitutions.iter().any(|n| n == &key) {
+            let mut display = Vec::new();
+            push_text(&mut display, &format!("|{name}|"));
+            return Some((
+                vec![Inline::Link(
+                    Attr::default(),
+                    display,
+                    Target {
+                        url: format!("##SUBST##|{name}|"),
+                        title: String::new(),
+                    },
+                )],
+                false,
+                end,
+            ));
+        }
+        let expansion = match self.defs.substitutions.get(&key).cloned() {
             Some(Substitution::Replace(text)) => {
+                self.active_substitutions.push(key.clone());
                 let inlines = self.inlines(&text);
+                self.active_substitutions.pop();
                 // A replacement that expands to several inlines is kept together as one unit.
                 match inlines.len() {
                     1 => inlines,
@@ -5095,6 +5127,27 @@ mod tests {
         let _ = parse("_C_\n");
         let _ = parse("_C");
         let _ = parse(":a");
+    }
+
+    #[test]
+    fn circular_substitution_does_not_overflow_the_stack() {
+        // A substitution whose replacement references itself — directly, or through a cycle of
+        // other definitions — would expand without bound, because a replacement is itself parsed
+        // as inline markup. RST forbids circular references; the reader must leave such a name
+        // unexpanded rather than recurse into a stack overflow. A nightly fuzz run hit this.
+        let _ = parse(".. |a| replace:: |a|\n\n|a|\n");
+        let _ = parse(".. |a| replace:: |b|\n.. |b| replace:: |a|\n\n|a|\n");
+        // The reduced reproducer libFuzzer minimized from the crashing input.
+        let bytes = [
+            84u8, 46, 46, 32, 124, 124, 97, 112, 124, 0, 32, 10, 46, 46, 32, 124, 46, 46, 32, 124,
+            117, 110, 105, 99, 111, 100, 101, 58, 58, 32, 124, 124, 124, 124, 95, 58, 58, 32, 124,
+            124, 46, 124, 46, 9, 124, 1, 0, 46, 46, 32, 124, 117, 110, 32, 124, 46, 46, 32, 124,
+            117, 110, 105, 99, 111, 100, 101, 58, 58, 32, 124, 124, 124, 124, 95, 58, 58, 32, 124,
+            124, 46, 46, 124, 124, 1, 9, 0, 46, 46, 32, 124, 117, 110, 105, 99, 111, 100, 101, 58,
+            44, 32, 124, 124, 46, 105, 99, 111, 100, 101, 58, 44, 32, 124, 124, 46, 124, 46, 9,
+            124, 1, 0, 0, 114, 10, 9, 46, 116, 0,
+        ];
+        let _ = parse(std::str::from_utf8(&bytes).unwrap());
     }
 
     #[test]

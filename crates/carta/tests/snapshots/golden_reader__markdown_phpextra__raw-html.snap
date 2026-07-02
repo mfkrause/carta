@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Plain","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"that"},{"t":"Space"},{"t":"Str","c":"runs"},{"t":"Space"},{"t":"Str","c":"right"},{"t":"Space"},{"t":"Str","c":"up"},{"t":"Space"},{"t":"Str","c":"to"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"raw"},{"t":"Space"},{"t":"Str","c":"block."}]},{"t":"RawBlock","c":["html","<div class=\"note\">\nContent inside the raw block.\n</div>"]},{"t":"RawBlock","c":["html","<div class=\"indented\">\nThis block tolerates up to three columns of indentation.\n</div>"]}]}

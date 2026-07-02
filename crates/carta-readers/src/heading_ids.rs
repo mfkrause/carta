@@ -13,6 +13,10 @@
 //!   identifier is unused against every identifier already issued or reserved.
 //! - count-suffix — repeats are disambiguated by a per-base occurrence count (which can itself
 //!   collide with a slug that already carries that suffix), and an empty slug stays empty.
+//!
+//! The disambiguation strategy is chosen by the dialect, not the slug shape: the broad Markdown
+//! dialect uses native disambiguation for every slug shape (so its GitHub-slug variant still maps an
+//! empty slug to `section`), while the bare `CommonMark` engine pairs the GitHub slug with count-suffix.
 
 #[cfg(any(feature = "commonmark", feature = "rst"))]
 use std::collections::BTreeMap;
@@ -216,10 +220,24 @@ impl IdRegistry {
         }
     }
 
+    /// Derive an identifier under `scheme`'s slug algorithm but with the native (increment-until-
+    /// unique, empty-becomes-`section`) disambiguation — the strategy the broad Markdown dialect
+    /// applies to every slug shape, including the GitHub slug. The bare `CommonMark` engine instead
+    /// pairs each slug shape with its own disambiguation via [`Self::assign`].
+    #[cfg(feature = "commonmark")]
+    pub(crate) fn assign_markdown(&mut self, scheme: IdScheme, text: &str) -> String {
+        let base = match scheme {
+            IdScheme::Plain => slug(text),
+            IdScheme::Gfm => slug_gfm(text),
+        };
+        self.assign_native(base)
+    }
+
     /// Reserve `id` for the increment-until-unique strategy so a later derived identifier avoids it,
-    /// regardless of the slug shape in use. Readers that always disambiguate natively — where a
-    /// `gfm_auto_identifiers` slug still increments against a shared pool — reserve through this.
-    #[cfg(any(feature = "latex", feature = "org"))]
+    /// regardless of the slug shape in use. The broad Markdown dialect reserves every explicit
+    /// identifier this way, and the latex and org readers reserve identically so a later derived id
+    /// avoids a heading's explicit id.
+    #[cfg(any(feature = "commonmark", feature = "latex", feature = "org"))]
     pub(crate) fn reserve_native(&mut self, id: &str) {
         self.seen.insert(id.to_owned());
     }
@@ -261,6 +279,21 @@ mod tests {
         assert_eq!(
             registry.assign(IdScheme::Gfm, "Hello World"),
             "hello-world-1"
+        );
+    }
+
+    #[cfg(feature = "commonmark")]
+    #[test]
+    fn markdown_pairs_the_gfm_slug_with_native_disambiguation() {
+        // The broad Markdown dialect keeps the GitHub slug shape but disambiguates natively: an
+        // empty slug becomes `section` and increments, unlike the bare engine's count-suffix.
+        let mut registry = IdRegistry::default();
+        assert_eq!(registry.assign_markdown(IdScheme::Gfm, "???"), "section");
+        assert_eq!(registry.assign_markdown(IdScheme::Gfm, "!!!"), "section-1");
+        // A non-empty GitHub slug is still produced by the GitHub algorithm.
+        assert_eq!(
+            registry.assign_markdown(IdScheme::Gfm, "Hello, World."),
+            "hello-world"
         );
     }
 

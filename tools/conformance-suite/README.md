@@ -5,7 +5,7 @@ Differential conformance tests: run carta and the pinned pandoc oracle over the 
 ## Running
 
 ```sh
-cargo build -p carta-cli                   # the suite diffs the built debug binary
+cargo build -p carta                        # the suite diffs the built debug binary
 tools/conformance-suite/run.sh all          # every surface
 tools/conformance-suite/run.sh writer       # one surface
 tools/conformance-suite/run.sh writer rst   # one surface, narrowed to a format/target

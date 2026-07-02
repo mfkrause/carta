@@ -20,6 +20,26 @@ gap.
 - `latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.
 - Narrow per-extension divergences — see [known parity gaps](#known-parity-gaps).
 
+The four dialect readers below share the `markdown` reader engine, gating each construct on the
+dialect's own default extension set, so the `markdown` notes above apply to them as well.
+
+### `markdown_strict` — ✅
+- The sparsest dialect: raw HTML plus the shortcut and spaced reference-link forms, and nothing else.
+
+### `markdown_github` — ✅
+- A task-list item followed by an ordinary bullet item splits into two lists rather than staying in
+  one.
+
+### `markdown_phpextra` — ✅
+- An inline attribute block that trails a bracketed group which is not a link (`[text]{.class}`) is
+  kept as literal text; the dialect consumes and discards it.
+
+### `markdown_mmd` — ✅
+- An empty sub/superscript delimiter pair (`x^^y`, `a~~b`) is not read as an empty span.
+- A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.
+- An implicit header reference does not resolve against a header whose identifier was set by the
+  trailing `[id]` syntax.
+
 ### `html` — ✅
 ### `opml` — ✅
 ### `json` — ✅
@@ -96,9 +116,8 @@ gap.
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
-`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `markdown_strict`, `markdown_mmd`,
-`markdown_phpextra`, `markdown_github`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`, `rtf`,
-`t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
+`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
+`rtf`, `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---
 
@@ -171,7 +190,9 @@ naming one parses and records it rather than aborting.
 `inline_notes`, `native_divs`, `native_spans`, `markdown_in_html_blocks`, `raw_tex`, `citations`,
 `table_attributes`, `blank_before_blockquote`, `blank_before_header`, `mark`, `emoji`, `alerts`,
 `tex_math_single_backslash`, `tex_math_double_backslash`, `lists_without_preceding_blankline`,
-`intraword_underscores`, `backtick_code_blocks`, `fenced_code_blocks`, `escaped_line_breaks`.
+`intraword_underscores`, `backtick_code_blocks`, `fenced_code_blocks`, `escaped_line_breaks`,
+`space_in_atx_header`, `all_symbols_escapable`, `spaced_reference_links`, `short_subsuperscripts`,
+`mmd_title_block`, `mmd_header_identifiers`, `abbreviations`, `markdown_attribute`.
 
 ### Known parity gaps
 
@@ -191,12 +212,10 @@ Constructs the supported extensions read, each with one narrow case that still d
 ### Recognized, behavior not yet modeled
 
 These names have an enum variant, so a format spec may toggle them and the toggle is recorded, but the
-reader does not yet branch on the construct (notable, non-exhaustive): `latex_macros`, `abbreviations`,
-`wikilinks_title_after_pipe`, `wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_title_block`,
-`mmd_header_identifiers`, `mmd_link_attributes`, `markdown_attribute`, `short_subsuperscripts`,
-`old_dashes`, `east_asian_line_breaks`, `four_space_rule`, `space_in_atx_header`, `literate_haskell`,
-`rebase_relative_paths`, `gutenberg`, `all_symbols_escapable`, `angle_brackets_escapable`,
-`ignore_line_breaks`, `raw_markdown`, `spaced_reference_links`.
+reader does not yet branch on the construct (notable, non-exhaustive): `latex_macros`,
+`wikilinks_title_after_pipe`, `wikilinks_title_before_pipe`, `ascii_identifiers`, `mmd_link_attributes`,
+`old_dashes`, `east_asian_line_breaks`, `four_space_rule`, `literate_haskell`, `rebase_relative_paths`,
+`gutenberg`, `angle_brackets_escapable`, `ignore_line_breaks`, `raw_markdown`.
 (`shortcut_reference_links` is already covered by the CommonMark engine.)
 
 ---

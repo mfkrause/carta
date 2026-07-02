@@ -7,7 +7,7 @@ Times `carta` against the pinned pandoc binary on **equivalent work** and report
 - **hyperfine** — the timing driver.
 - **jq** — builds fixtures and parses results.
 - **`.oracle/`** — the pinned pandoc binary (`tools/install-pandoc.sh`).
-- The carta release binary is built automatically (`cargo build --release -p carta-cli`).
+- The carta release binary is built automatically (`cargo build --release -p carta`).
 
 ## Usage
 

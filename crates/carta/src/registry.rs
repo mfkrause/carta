@@ -74,7 +74,7 @@ format_dispatch! {
     recognizes: reader_recognizes;
     supported: supported_input_formats;
     names: input_format_names;
-    "read-commonmark" => "commonmark" | "commonmark_x" | "markdown" | "gfm" => carta_readers::CommonmarkReader;
+    "read-commonmark" => "commonmark" | "commonmark_x" | "markdown" | "gfm" | "markdown_strict" | "markdown_mmd" | "markdown_phpextra" | "markdown_github" => carta_readers::CommonmarkReader;
     "read-json" => "json" => carta_readers::JsonReader;
     "read-native" => "native" => carta_readers::NativeReader;
     "read-html" => "html" => carta_readers::HtmlReader;

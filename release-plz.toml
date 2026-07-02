@@ -1,0 +1,57 @@
+# release-plz drives the crates.io release flow. On every push to `main` it opens (or updates) a
+# "Release" pull request that bumps the version and regenerates the changelog from the Conventional
+# Commit history; merging that PR publishes every crate to crates.io and cuts a single GitHub
+# release. Configuration reference: https://release-plz.dev/docs/config
+
+[changelog]
+# Hand-written preamble kept at the top of CHANGELOG.md; release tooling inserts version sections
+# below it.
+header = """# Changelog
+
+All notable changes to carta are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
+project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the
+version is below `0.1.0`, anything may change at any time.
+"""
+
+# The five crates share one version (`version_group`), so a release bumps and publishes them
+# together. `carta` is the single release representative: it owns the one root CHANGELOG.md
+# (folding in the other crates' commits via `changelog_include`), the one `v<version>` git tag,
+# and the one GitHub release the binary workflow attaches to. `carta` also ships the CLI binary.
+[[package]]
+name = "carta"
+version_group = "carta"
+changelog_path = "CHANGELOG.md"
+changelog_include = ["carta-ast", "carta-core", "carta-readers", "carta-writers"]
+git_tag_name = "v{{ version }}"
+
+# The remaining crates still publish to crates.io, but produce no separate changelog, tag, or
+# GitHub release — those are consolidated onto the representative above.
+[[package]]
+name = "carta-ast"
+version_group = "carta"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
+
+[[package]]
+name = "carta-core"
+version_group = "carta"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
+
+[[package]]
+name = "carta-readers"
+version_group = "carta"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
+
+[[package]]
+name = "carta-writers"
+version_group = "carta"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
