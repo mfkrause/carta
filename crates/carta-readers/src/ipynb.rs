@@ -18,16 +18,18 @@
 //!   `raw_mimetype` metadata, falling back to its `format` metadata.
 //!
 //! Notebook-level metadata is exposed under a single `jupyter` metadata key, with the `nbformat`
-//! and `nbformat_minor` versions folded in. Image payloads in the outputs are referenced by a
-//! content-addressed file name (the SHA-1 of the decoded bytes); the bytes themselves are not
-//! retained in the tree.
+//! and `nbformat_minor` versions folded in. An output's image payload is referenced by a
+//! content-addressed file name (the SHA-1 of the decoded bytes) and a markdown cell's attachment by
+//! a cell-scoped name; in both cases the bytes are lifted out of the tree into the media bag, which
+//! [`IpynbReader::read_media`] returns alongside the document.
 
 use std::collections::BTreeMap;
 
 use carta_ast::{
     ApiVersion, Attr, Block, Document, Format, Inline, MetaValue, Target, ToCompactString,
 };
-use carta_core::{Error, Reader, ReaderOptions, Result};
+use carta_core::media::{base64_decode, content_addressed_name};
+use carta_core::{Error, MediaBag, Reader, ReaderOptions, Result};
 use serde_json::Value;
 
 use crate::commonmark::CommonmarkReader;
@@ -38,6 +40,11 @@ pub struct IpynbReader;
 
 impl Reader for IpynbReader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
+        self.read_media(input, options)
+            .map(|(document, _)| document)
+    }
+
+    fn read_media(&self, input: &str, options: &ReaderOptions) -> Result<(Document, MediaBag)> {
         let notebook: Value = serde_json::from_str(input)?;
         let nbformat = notebook
             .get("nbformat")
@@ -55,19 +62,21 @@ impl Reader for IpynbReader {
         let language = notebook_language(&notebook);
         let meta = build_meta(&notebook, nbformat, nbformat_minor);
 
+        let mut media = MediaBag::new();
         let mut blocks = Vec::new();
         if let Some(Value::Array(cells)) = notebook.get("cells") {
             for cell in cells {
-                if let Some(block) = cell_to_block(cell, &language, options)? {
+                if let Some(block) = cell_to_block(cell, &language, options, &mut media)? {
                     blocks.push(block);
                 }
             }
         }
-        Ok(Document {
+        let document = Document {
             api_version: ApiVersion::default(),
             meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
             blocks,
-        })
+        };
+        Ok((document, media))
     }
 }
 
@@ -270,15 +279,22 @@ fn json_write(value: &Value, out: &mut String) {
     }
 }
 
-/// Convert one cell into its `Div`, or `None` for an unrecognized cell kind.
-fn cell_to_block(cell: &Value, language: &str, options: &ReaderOptions) -> Result<Option<Block>> {
+/// Convert one cell into its `Div`, or `None` for an unrecognized cell kind. Any image bytes the
+/// cell carries — a code cell's image outputs, a markdown cell's attachments — are lifted into
+/// `media`.
+fn cell_to_block(
+    cell: &Value,
+    language: &str,
+    options: &ReaderOptions,
+    media: &mut MediaBag,
+) -> Result<Option<Block>> {
     let Some(kind) = cell.get("cell_type").and_then(Value::as_str) else {
         return Ok(None);
     };
     let attr = cell_attr(cell, kind);
     let block = match kind {
-        "markdown" => Block::Div(Box::new(attr), markdown_cell_blocks(cell, options)?),
-        "code" => Block::Div(Box::new(attr), code_cell_blocks(cell, language)),
+        "markdown" => Block::Div(Box::new(attr), markdown_cell_blocks(cell, options, media)?),
+        "code" => Block::Div(Box::new(attr), code_cell_blocks(cell, language, media)),
         "raw" => Block::Div(Box::new(attr), vec![raw_cell_block(cell)]),
         _ => return Ok(None),
     };
@@ -340,7 +356,11 @@ fn is_integer_literal(text: &str) -> bool {
 /// A markdown cell's blocks: its source parsed as Markdown with the reader's extensions, then with
 /// `attachment:` image references rewritten to the cell-scoped name `<cell id>-<reference>`. A cell
 /// that carries no `id` field leaves the bare reference in place.
-fn markdown_cell_blocks(cell: &Value, options: &ReaderOptions) -> Result<Vec<Block>> {
+fn markdown_cell_blocks(
+    cell: &Value,
+    options: &ReaderOptions,
+    media: &mut MediaBag,
+) -> Result<Vec<Block>> {
     let source = multiline_text(cell.get("source"));
     let mut markdown_options = ReaderOptions::default();
     markdown_options.extensions = options.extensions;
@@ -354,13 +374,42 @@ fn markdown_cell_blocks(cell: &Value, options: &ReaderOptions) -> Result<Vec<Blo
     let prefix = cell
         .get("id")
         .map(|id| format!("{}-", id.as_str().unwrap_or_default()));
+    capture_attachments(cell, prefix.as_deref(), media);
     strip_attachment_blocks(&mut blocks, prefix.as_deref());
     Ok(blocks)
 }
 
+/// Lift a markdown cell's inline attachments into the media bag. Each entry in the cell's
+/// `attachments` object maps a reference name to a MIME→payload bundle; its bytes are stored under
+/// the cell-scoped name (`<prefix><reference>`) the `attachment:` references resolve to, so a later
+/// extract or re-embed step finds them. The bundle's image representation is preferred; failing that,
+/// its first entry in key order is taken.
+fn capture_attachments(cell: &Value, prefix: Option<&str>, media: &mut MediaBag) {
+    let Some(Value::Object(attachments)) = cell.get("attachments") else {
+        return;
+    };
+    for (reference, bundle) in attachments {
+        let Value::Object(by_mime) = bundle else {
+            continue;
+        };
+        let chosen = by_mime
+            .iter()
+            .find(|(mime, _)| is_image_like(mime))
+            .or_else(|| by_mime.iter().next());
+        let Some((mime, payload)) = chosen else {
+            continue;
+        };
+        let name = match prefix {
+            Some(prefix) => format!("{prefix}{reference}"),
+            None => reference.clone(),
+        };
+        media.insert(name, Some(mime.clone()), decode_payload(mime, payload));
+    }
+}
+
 /// A code cell's blocks: a `CodeBlock` of its source tagged with the kernel language, then one
 /// block per renderable output.
-fn code_cell_blocks(cell: &Value, language: &str) -> Vec<Block> {
+fn code_cell_blocks(cell: &Value, language: &str, media: &mut MediaBag) -> Vec<Block> {
     let source = multiline_text(cell.get("source"));
     let source_attr = Attr {
         id: carta_ast::Text::default(),
@@ -370,7 +419,7 @@ fn code_cell_blocks(cell: &Value, language: &str) -> Vec<Block> {
     let mut blocks = vec![Block::CodeBlock(Box::new(source_attr), source.into())];
     if let Some(Value::Array(outputs)) = cell.get("outputs") {
         for output in outputs {
-            if let Some(block) = output_to_block(output) {
+            if let Some(block) = output_to_block(output, media) {
                 blocks.push(block);
             }
         }
@@ -392,12 +441,13 @@ fn raw_cell_block(cell: &Value) -> Block {
     Block::RawBlock(Format(format.into()), source.into())
 }
 
-/// Convert one execution output into its `Div`, or `None` for an unrecognized output kind.
-fn output_to_block(output: &Value) -> Option<Block> {
+/// Convert one execution output into its `Div`, or `None` for an unrecognized output kind. An image
+/// output's bytes are lifted into `media`.
+fn output_to_block(output: &Value, media: &mut MediaBag) -> Option<Block> {
     match output.get("output_type").and_then(Value::as_str)? {
         "stream" => Some(stream_output(output)),
-        "execute_result" => Some(result_output(output, true)),
-        "display_data" => Some(result_output(output, false)),
+        "execute_result" => Some(result_output(output, true, media)),
+        "display_data" => Some(result_output(output, false, media)),
         "error" => Some(error_output(output)),
         _ => None,
     }
@@ -424,7 +474,7 @@ fn stream_output(output: &Value) -> Block {
 
 /// An `execute_result` or `display_data` output: the richest renderable bundle from its `data`,
 /// inside a `Div`. A result carries its `execution_count` as an attribute.
-fn result_output(output: &Value, is_result: bool) -> Block {
+fn result_output(output: &Value, is_result: bool, media: &mut MediaBag) -> Block {
     let kind = if is_result {
         "execute_result"
     } else {
@@ -444,7 +494,7 @@ fn result_output(output: &Value, is_result: bool) -> Block {
     };
     Block::Div(
         Box::new(attr),
-        data_to_blocks(output.get("data"), output.get("metadata")),
+        data_to_blocks(output.get("data"), output.get("metadata"), media),
     )
 }
 
@@ -495,12 +545,16 @@ fn error_output(output: &Value) -> Block {
 /// any `+json` structured-syntax type — then plain text, HTML, LaTeX, and Markdown are tried in that
 /// order. Among several JSON representations the lowest MIME name is taken. An empty or absent bundle
 /// yields no blocks.
-fn data_to_blocks(data: Option<&Value>, metadata: Option<&Value>) -> Vec<Block> {
+fn data_to_blocks(
+    data: Option<&Value>,
+    metadata: Option<&Value>,
+    media: &mut MediaBag,
+) -> Vec<Block> {
     let Some(Value::Object(data)) = data else {
         return Vec::new();
     };
     if let Some((mime, value)) = data.iter().find(|(mime, _)| is_image_like(mime)) {
-        return vec![image_block(mime, value, metadata)];
+        return vec![image_block(mime, value, metadata, media)];
     }
     if let Some((mime, value)) = data.iter().find(|(mime, _)| is_json_like(mime)) {
         return vec![non_image_block(mime, value)];
@@ -543,17 +597,12 @@ fn non_image_block(mime: &str, value: &Value) -> Block {
 }
 
 /// A `Para` holding a single image whose URL is the content-addressed file name of the decoded
-/// payload. SVG is stored as its source text; every other type is base64-decoded to bytes, falling
-/// back to the raw source bytes when the payload is not well-formed base64. Any entry the output's
+/// payload, whose bytes are lifted into `media` under that same name. Any entry the output's
 /// `metadata` records under the chosen MIME type becomes an attribute on the image.
-fn image_block(mime: &str, value: &Value, metadata: Option<&Value>) -> Block {
-    let payload = multiline_text(Some(value));
-    let bytes = if mime == "image/svg+xml" {
-        payload.into_bytes()
-    } else {
-        base64_decode(&payload).unwrap_or_else(|| payload.into_bytes())
-    };
-    let name = format!("{}.{}", sha1_hex(&bytes), extension_for_mime(mime));
+fn image_block(mime: &str, value: &Value, metadata: Option<&Value>, media: &mut MediaBag) -> Block {
+    let bytes = decode_payload(mime, value);
+    let name = content_addressed_name(mime, &bytes);
+    media.insert(name.clone(), Some(mime.to_owned()), bytes);
     Block::Para(vec![Inline::Image(
         Box::new(image_attr(mime, metadata)),
         Vec::new(),
@@ -562,6 +611,18 @@ fn image_block(mime: &str, value: &Value, metadata: Option<&Value>) -> Block {
             title: carta_ast::Text::default(),
         }),
     )])
+}
+
+/// The raw bytes of an image payload. An SVG representation is its own UTF-8 source; every other type
+/// is base64-decoded, falling back to the raw source bytes when the payload is not well-formed
+/// base64.
+fn decode_payload(mime: &str, value: &Value) -> Vec<u8> {
+    let payload = multiline_text(Some(value));
+    if mime == "image/svg+xml" {
+        payload.into_bytes()
+    } else {
+        base64_decode(&payload).unwrap_or_else(|| payload.into_bytes())
+    }
 }
 
 /// The image attributes drawn from an output's `metadata`: every key under the entry named for the
@@ -595,23 +656,6 @@ fn is_image_like(mime: &str) -> bool {
 /// structured-syntax suffix is `+json` (for example `application/geo+json`).
 fn is_json_like(mime: &str) -> bool {
     mime == "application/json" || mime.ends_with("+json")
-}
-
-/// The file extension for an image-like MIME type.
-fn extension_for_mime(mime: &str) -> &str {
-    match mime {
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/gif" => "gif",
-        "image/svg+xml" => "svg",
-        "application/pdf" => "pdf",
-        // An unrecognized image type falls back to its subtype, dropping any structured suffix.
-        other => other
-            .rsplit('/')
-            .next()
-            .and_then(|subtype| subtype.split('+').next())
-            .unwrap_or(other),
-    }
 }
 
 /// The raw-passthrough format name for a cell's `format` MIME type. A few media types map onto a
@@ -765,134 +809,10 @@ fn strip_attachment_inlines(inlines: &mut [Inline], prefix: Option<&str>) {
     }
 }
 
-/// Decode standard base64, ignoring inner whitespace. Returns `None` when the input — once
-/// whitespace is removed — is not well-formed: a length that is not a multiple of four, a symbol
-/// outside the alphabet, or padding that does not fall at the very end of the final quartet.
-fn base64_decode(input: &str) -> Option<Vec<u8>> {
-    let symbols: Vec<u8> = input
-        .bytes()
-        .filter(|byte| !byte.is_ascii_whitespace())
-        .collect();
-    if symbols.is_empty() {
-        return Some(Vec::new());
-    }
-    if !symbols.len().is_multiple_of(4) {
-        return None;
-    }
-    let group_count = symbols.len() / 4;
-    let mut out = Vec::with_capacity(group_count * 3);
-    for (index, chunk) in symbols.chunks_exact(4).enumerate() {
-        let last = index + 1 == group_count;
-        let &[a, b, c, d] = chunk else { return None };
-        let v0 = sextet(a)?;
-        let v1 = sextet(b)?;
-        out.push((v0 << 2) | (v1 >> 4));
-        if c == b'=' {
-            if !last || d != b'=' {
-                return None;
-            }
-            continue;
-        }
-        let v2 = sextet(c)?;
-        out.push(((v1 & 0x0f) << 4) | (v2 >> 2));
-        if d == b'=' {
-            if !last {
-                return None;
-            }
-            continue;
-        }
-        let v3 = sextet(d)?;
-        out.push(((v2 & 0x03) << 6) | v3);
-    }
-    Some(out)
-}
-
-/// The 6-bit value of one standard base64 alphabet symbol, or `None` for any other byte.
-fn sextet(byte: u8) -> Option<u8> {
-    match byte {
-        b'A'..=b'Z' => Some(byte - b'A'),
-        b'a'..=b'z' => Some(byte - b'a' + 26),
-        b'0'..=b'9' => Some(byte - b'0' + 52),
-        b'+' => Some(62),
-        b'/' => Some(63),
-        _ => None,
-    }
-}
-
-/// The SHA-1 digest of `data` as a 40-character lowercase hex string.
-#[allow(
-    clippy::indexing_slicing,
-    clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    reason = "the schedule and chunk indices are bounded by the fixed 80-word/64-byte block sizes; \
-              the casts isolate the intended low bits; the single-letter names are the digest's own \
-              working-variable notation"
-)]
-fn sha1_hex(data: &[u8]) -> String {
-    const HEX: [u8; 16] = *b"0123456789abcdef";
-    let mut h: [u32; 5] = [
-        0x6745_2301,
-        0xEFCD_AB89,
-        0x98BA_DCFE,
-        0x1032_5476,
-        0xC3D2_E1F0,
-    ];
-    let bit_len = (data.len() as u64).wrapping_mul(8);
-    let mut message = data.to_vec();
-    message.push(0x80);
-    while message.len() % 64 != 56 {
-        message.push(0);
-    }
-    message.extend_from_slice(&bit_len.to_be_bytes());
-
-    for block in message.chunks_exact(64) {
-        let mut w = [0u32; 80];
-        for (index, word) in block.chunks_exact(4).enumerate() {
-            w[index] = u32::from_be_bytes(word.try_into().unwrap_or([0; 4]));
-        }
-        for index in 16..80 {
-            w[index] = (w[index - 3] ^ w[index - 8] ^ w[index - 14] ^ w[index - 16]).rotate_left(1);
-        }
-        let [mut a, mut b, mut c, mut d, mut e] = h;
-        for (index, &word) in w.iter().enumerate() {
-            let (f, k) = match index {
-                0..=19 => ((b & c) | ((!b) & d), 0x5A82_7999u32),
-                20..=39 => (b ^ c ^ d, 0x6ED9_EBA1),
-                40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1B_BCDC),
-                _ => (b ^ c ^ d, 0xCA62_C1D6),
-            };
-            let temp = a
-                .rotate_left(5)
-                .wrapping_add(f)
-                .wrapping_add(e)
-                .wrapping_add(k)
-                .wrapping_add(word);
-            e = d;
-            d = c;
-            c = b.rotate_left(30);
-            b = a;
-            a = temp;
-        }
-        h[0] = h[0].wrapping_add(a);
-        h[1] = h[1].wrapping_add(b);
-        h[2] = h[2].wrapping_add(c);
-        h[3] = h[3].wrapping_add(d);
-        h[4] = h[4].wrapping_add(e);
-    }
-
-    let mut out = String::with_capacity(40);
-    for word in h {
-        for byte in word.to_be_bytes() {
-            out.push(HEX[usize::from(byte >> 4)] as char);
-            out.push(HEX[usize::from(byte & 0x0f)] as char);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use carta_core::MediaBag;
 
     fn read(input: &str) -> Document {
         IpynbReader
@@ -906,33 +826,17 @@ mod tests {
         IpynbReader.read(input, &options).expect("notebook parses")
     }
 
+    fn read_media(input: &str) -> (Document, MediaBag) {
+        IpynbReader
+            .read_media(input, &ReaderOptions::default())
+            .expect("notebook input parses")
+    }
+
     fn jupyter(document: &Document) -> &BTreeMap<carta_ast::Text, MetaValue> {
         match document.meta.get("jupyter") {
             Some(MetaValue::MetaMap(map)) => map,
             _ => panic!("expected a jupyter metadata map"),
         }
-    }
-
-    #[test]
-    fn sha1_matches_known_vectors() {
-        assert_eq!(sha1_hex(b""), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
-        assert_eq!(sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
-        assert_eq!(
-            sha1_hex(b"The quick brown fox jumps over the lazy dog"),
-            "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"
-        );
-    }
-
-    #[test]
-    fn base64_decodes_and_ignores_whitespace() {
-        assert_eq!(base64_decode("aGVsbG8="), Some(b"hello".to_vec()));
-        assert_eq!(base64_decode("aGVs\nbG8="), Some(b"hello".to_vec()));
-        assert_eq!(base64_decode(""), Some(Vec::new()));
-        // A length that is not a multiple of four, a non-alphabet byte, and misplaced padding each
-        // fail to decode rather than silently dropping or truncating input.
-        assert_eq!(base64_decode("QQ"), None);
-        assert_eq!(base64_decode("aGVsbG8@"), None);
-        assert_eq!(base64_decode("a=VsbG8="), None);
     }
 
     #[test]
@@ -1210,6 +1114,95 @@ mod tests {
             panic!("expected an image");
         };
         assert_eq!(target.url, "1c3ba3b813e1080e9721846f23a21c09e5c3fd27.svg");
+    }
+
+    #[test]
+    fn image_output_bytes_are_lifted_into_the_media_bag() {
+        let (document, media) = read_media(
+            r#"{"cells": [{"cell_type": "code", "metadata": {}, "execution_count": 1,
+               "source": [], "outputs": [
+                 {"output_type": "display_data", "data": {"image/png": "iVBORw0KGgoAAAANSUhEUg=="},
+                  "metadata": {}}]}],
+               "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
+        );
+        // The tree references the image by its content-addressed name...
+        let Some(Block::Div(_, body)) = first_output(&document) else {
+            panic!("expected an output div");
+        };
+        let Some(Block::Para(inlines)) = body.first() else {
+            panic!("expected a paragraph");
+        };
+        let Some(Inline::Image(_, _, target)) = inlines.first() else {
+            panic!("expected an image");
+        };
+        let name = "22f545ac6b50163ce39bac49094c3f64e0858403.png";
+        assert_eq!(target.url, name);
+        // ...and the bag holds exactly that name, with the decoded bytes and their MIME type.
+        assert_eq!(media.len(), 1);
+        let item = media.get(name).expect("image is in the bag");
+        assert_eq!(item.mime.as_deref(), Some("image/png"));
+        assert_eq!(
+            item.bytes,
+            carta_core::media::base64_decode("iVBORw0KGgoAAAANSUhEUg==").unwrap()
+        );
+    }
+
+    #[test]
+    fn svg_output_is_stored_as_its_source_bytes() {
+        let (_, media) = read_media(
+            r#"{"cells": [{"cell_type": "code", "metadata": {}, "execution_count": 1,
+               "source": [], "outputs": [
+                 {"output_type": "display_data", "data": {"image/svg+xml": ["<svg/>"]},
+                  "metadata": {}}]}],
+               "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
+        );
+        let name = "1c3ba3b813e1080e9721846f23a21c09e5c3fd27.svg";
+        let item = media.get(name).expect("svg is in the bag");
+        assert_eq!(item.mime.as_deref(), Some("image/svg+xml"));
+        assert_eq!(item.bytes, b"<svg/>");
+    }
+
+    #[test]
+    fn identical_image_outputs_share_one_bag_entry() {
+        let (_, media) = read_media(
+            r#"{"cells": [{"cell_type": "code", "metadata": {}, "execution_count": 1,
+               "source": [], "outputs": [
+                 {"output_type": "display_data", "data": {"image/png": "iVBORw0KGgoAAAANSUhEUg=="},
+                  "metadata": {}},
+                 {"output_type": "display_data", "data": {"image/png": "iVBORw0KGgoAAAANSUhEUg=="},
+                  "metadata": {}}]}],
+               "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
+        );
+        // Content addressing means equal bytes collapse to a single entry.
+        assert_eq!(media.len(), 1);
+    }
+
+    #[test]
+    fn markdown_attachment_bytes_are_lifted_into_the_media_bag() {
+        let (_, media) = read_media(
+            r#"{"cells": [{"cell_type": "markdown", "id": "cell9", "metadata": {},
+               "attachments": {"a.png": {"image/png": "iVBORw0KGgoAAAANSUhEUg=="}},
+               "source": ["![alt](attachment:a.png)"]}],
+               "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
+        );
+        // The attachment is keyed by the same cell-scoped name the image reference resolves to.
+        let item = media.get("cell9-a.png").expect("attachment is in the bag");
+        assert_eq!(item.mime.as_deref(), Some("image/png"));
+        assert_eq!(
+            item.bytes,
+            carta_core::media::base64_decode("iVBORw0KGgoAAAANSUhEUg==").unwrap()
+        );
+    }
+
+    #[test]
+    fn attachment_without_a_cell_id_uses_the_bare_reference() {
+        let (_, media) = read_media(
+            r#"{"cells": [{"cell_type": "markdown", "metadata": {},
+               "attachments": {"a.png": {"image/png": "iVBORw0KGgoAAAANSUhEUg=="}},
+               "source": ["![alt](attachment:a.png)"]}],
+               "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
+        );
+        assert!(media.contains("a.png"));
     }
 
     #[test]
