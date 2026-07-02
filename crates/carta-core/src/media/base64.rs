@@ -141,14 +141,16 @@ mod tests {
     #[test]
     fn mime_form_wraps_at_76_with_trailing_newline() {
         // 300 bytes -> 400 base64 chars -> five 76-char lines plus a 20-char line, each newline-ended.
-        let data: Vec<u8> = (0..300).map(|index| (index % 251) as u8).collect();
+        let data: Vec<u8> = (0..300u32)
+            .map(|index| u8::try_from(index % 251).unwrap_or(0))
+            .collect();
         let wrapped = encode_mime(&data);
         let lines: Vec<&str> = wrapped.split('\n').collect();
         // A trailing newline means split leaves an empty final element.
         assert_eq!(lines.last(), Some(&""));
         assert_eq!(lines.len(), 7);
-        assert!(lines[..5].iter().all(|line| line.len() == 76));
-        assert_eq!(lines[5].len(), 20);
+        assert!(lines.iter().take(5).all(|line| line.len() == 76));
+        assert_eq!(lines.get(5).map(|line| line.len()), Some(20));
         // The concatenation of the lines decodes back to the input.
         assert_eq!(decode(&wrapped), Some(data));
     }

@@ -132,7 +132,7 @@ mod tests {
             Block::Para(vec![image("a")]),
             Block::BulletList(vec![vec![Block::Plain(vec![image("b")])]]),
             Block::BlockQuote(vec![Block::Div(
-                Box::new(Attr::default()),
+                Box::<Attr>::default(),
                 vec![Block::Para(vec![Inline::Note(vec![Block::Para(vec![
                     image("c"),
                 ])])])],
@@ -145,10 +145,10 @@ mod tests {
         });
         assert_eq!(seen, ["a", "b", "c"]);
         // The mutation is threaded back into the tree.
-        let Block::Para(inlines) = &blocks[0] else {
+        let Some(Block::Para(inlines)) = blocks.first() else {
             panic!("expected para");
         };
-        let Inline::Image(_, _, target) = &inlines[0] else {
+        let Some(Inline::Image(_, _, target)) = inlines.first() else {
             panic!("expected image");
         };
         assert_eq!(target.url.as_str(), "seen:a");
