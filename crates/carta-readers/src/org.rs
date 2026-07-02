@@ -74,8 +74,9 @@ fn normalize(input: &str) -> String {
 // -- Footnote gathering ------------------------------------------------------------------------
 
 /// Splits block-level footnote definitions (`[fn:label] …`) out of the line stream, returning the
-/// remaining body lines and the ordered `(label, joined-body)` definitions. A definition runs from
-/// its opening line to the next blank line, footnote definition, or headline.
+/// remaining body lines and the ordered `(label, joined-body)` definitions. A definition's body
+/// continues across single blank lines, so it can hold several blocks; it ends at the next footnote
+/// definition, a headline, two consecutive blank lines, or the end of input.
 fn collect_footnotes<'a>(lines: &[&'a str]) -> (Vec<&'a str>, Vec<(String, String)>) {
     let mut body = Vec::new();
     let mut defs = Vec::new();
@@ -85,9 +86,13 @@ fn collect_footnotes<'a>(lines: &[&'a str]) -> (Vec<&'a str>, Vec<(String, Strin
             let mut collected = vec![first];
             i += 1;
             while let Some(next) = lines.get(i) {
+                if footnote_definition(next).is_some() || headline_level(next).is_some() {
+                    break;
+                }
                 if next.trim().is_empty()
-                    || footnote_definition(next).is_some()
-                    || headline_level(next).is_some()
+                    && lines
+                        .get(i + 1)
+                        .is_none_or(|following| following.trim().is_empty())
                 {
                     break;
                 }
@@ -1508,7 +1513,9 @@ impl Inlines<'_> {
     /// Parses a subscript (`_`) or superscript (`^`) at `i`. Requires a preceding non-space base and
     /// accepts either a `{…}` group or a bare token ending in an alphanumeric.
     fn scan_subsup(&self, i: usize, prev: Option<char>, sup: bool) -> Option<(Inline, usize)> {
-        if prev.is_none_or(char::is_whitespace) {
+        // The base must be a non-space character, and never an underscore: a run like `a__b` is a
+        // literal double underscore, not a subscript.
+        if prev.is_none_or(|c| c.is_whitespace() || c == '_') {
             return None;
         }
         let content;
