@@ -26,6 +26,7 @@ pub(crate) fn lookup_named(name: &str) -> Option<&'static str> {
 /// further than `limit`. Named (`&name;`) and decimal (`&#NN;`) forms are always recognized;
 /// hexadecimal (`&#xNN;`) only when `allow_hex` is set. Returns the decoded text and the index just
 /// past the closing `;`.
+#[cfg(any(feature = "dokuwiki", feature = "jira", feature = "mediawiki"))]
 pub(crate) fn read_reference(
     chars: &[char],
     i: usize,
