@@ -2282,8 +2282,9 @@ impl Parser {
     }
 
     /// A blockquote whose first content line is exactly an alert marker `[!TYPE]` (with `TYPE` one of
-    /// the recognized kinds, case-insensitive, and nothing but trailing whitespace after the `]`)
-    /// becomes a `Div` classed by the lowercased type. Its first child is a titled `Div` holding the
+    /// the recognized kinds, and nothing but trailing whitespace after the `]`) becomes a `Div`
+    /// classed by the lowercased type. The broad Markdown dialect requires the uppercase spelling;
+    /// the `CommonMark` engine accepts any casing. Its first child is a titled `Div` holding the
     /// type's display name; the marker line is stripped from the quote's first paragraph, and the
     /// rest of the quote's content follows. Returns `None` when the first line is not a clean marker,
     /// leaving the blockquote as an ordinary `BlockQuote`.
@@ -2305,7 +2306,7 @@ impl Parser {
         // is not an alert, but the block phase has already folded that insignificant paragraph indent
         // away by this point, so the marker still reads as clean here. Markers at zero or one column
         // — the conventional spelling — are classified correctly.
-        let alert_type = alert_marker_type(marker_line)?;
+        let alert_type = alert_marker_type(marker_line, self.greedy_paragraphs)?;
 
         let title = IrBlock::Div(
             Attr {
@@ -2812,7 +2813,7 @@ fn div_open_fence(line: &str) -> Option<(usize, Attr)> {
     Some((count, attr))
 }
 
-/// The recognized alert kinds: the marker spelling (matched case-insensitively), the lowercased
+/// The recognized alert kinds: the marker spelling (recognized only in all-uppercase), the lowercased
 /// class applied to the wrapping div, and the display title.
 struct AlertType {
     class: &'static str,
@@ -2858,13 +2859,18 @@ const ALERT_TYPES: &[(&str, AlertType)] = &[
 ];
 
 /// If `line` is exactly an alert marker `[!TYPE]` followed by only trailing whitespace — with no
-/// leading whitespace and a recognized `TYPE` matched case-insensitively — return its kind.
-fn alert_marker_type(line: &str) -> Option<&'static AlertType> {
+/// leading whitespace and a recognized `TYPE` — return its kind. The broad Markdown dialect
+/// (`uppercase_only`) admits only the all-uppercase spelling `[!NOTE]`; the `CommonMark` engine
+/// accepts any casing (`[!note]`, `[!Note]`).
+fn alert_marker_type(line: &str, uppercase_only: bool) -> Option<&'static AlertType> {
     let inner = line.strip_prefix("[!")?;
     let close = inner.find(']')?;
     let name = inner.get(..close)?;
     // Only whitespace may follow the closing bracket.
     if !inner.get(close + 1..)?.chars().all(char::is_whitespace) {
+        return None;
+    }
+    if uppercase_only && name.bytes().any(|b| b.is_ascii_lowercase()) {
         return None;
     }
     ALERT_TYPES
@@ -3516,40 +3522,63 @@ mod tests {
     }
 
     #[test]
-    fn alert_marker_recognizes_every_kind_case_insensitively() {
-        assert_eq!(alert_marker_type("[!NOTE]").map(|t| t.class), Some("note"));
-        assert_eq!(alert_marker_type("[!tip]").map(|t| t.class), Some("tip"));
+    fn alert_marker_recognizes_every_kind() {
         assert_eq!(
-            alert_marker_type("[!Important]").map(|t| t.class),
+            alert_marker_type("[!NOTE]", true).map(|t| t.class),
+            Some("note")
+        );
+        assert_eq!(
+            alert_marker_type("[!TIP]", true).map(|t| t.class),
+            Some("tip")
+        );
+        assert_eq!(
+            alert_marker_type("[!IMPORTANT]", true).map(|t| t.class),
             Some("important")
         );
         assert_eq!(
-            alert_marker_type("[!wArNiNg]").map(|t| t.class),
+            alert_marker_type("[!WARNING]", true).map(|t| t.class),
             Some("warning")
         );
         assert_eq!(
-            alert_marker_type("[!CAUTION]").map(|t| t.title),
+            alert_marker_type("[!CAUTION]", true).map(|t| t.title),
             Some("Caution")
         );
     }
 
     #[test]
+    fn alert_marker_casing_depends_on_the_dialect() {
+        // The broad Markdown dialect admits only the uppercase spelling.
+        assert!(alert_marker_type("[!note]", true).is_none());
+        assert!(alert_marker_type("[!Tip]", true).is_none());
+        assert!(alert_marker_type("[!wArNiNg]", true).is_none());
+        // The CommonMark engine accepts any casing.
+        assert_eq!(
+            alert_marker_type("[!note]", false).map(|t| t.class),
+            Some("note")
+        );
+        assert_eq!(
+            alert_marker_type("[!Tip]", false).map(|t| t.class),
+            Some("tip")
+        );
+    }
+
+    #[test]
     fn alert_marker_allows_only_trailing_whitespace() {
-        assert!(alert_marker_type("[!NOTE]").is_some());
-        assert!(alert_marker_type("[!NOTE]   ").is_some());
-        assert!(alert_marker_type("[!NOTE]\t").is_some());
+        assert!(alert_marker_type("[!NOTE]", true).is_some());
+        assert!(alert_marker_type("[!NOTE]   ", true).is_some());
+        assert!(alert_marker_type("[!NOTE]\t", true).is_some());
         // Anything other than whitespace after the bracket disqualifies the marker.
-        assert!(alert_marker_type("[!NOTE] hi").is_none());
-        assert!(alert_marker_type("[!NOTE]x").is_none());
+        assert!(alert_marker_type("[!NOTE] hi", true).is_none());
+        assert!(alert_marker_type("[!NOTE]x", true).is_none());
     }
 
     #[test]
     fn alert_marker_rejects_unknown_or_malformed_markers() {
-        assert!(alert_marker_type("[!FOO]").is_none());
-        assert!(alert_marker_type("[!]").is_none());
-        assert!(alert_marker_type("[NOTE]").is_none());
-        assert!(alert_marker_type(" [!NOTE]").is_none());
-        assert!(alert_marker_type("[!NOTE").is_none());
+        assert!(alert_marker_type("[!FOO]", true).is_none());
+        assert!(alert_marker_type("[!]", true).is_none());
+        assert!(alert_marker_type("[NOTE]", true).is_none());
+        assert!(alert_marker_type(" [!NOTE]", true).is_none());
+        assert!(alert_marker_type("[!NOTE", true).is_none());
     }
 
     #[test]
