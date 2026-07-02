@@ -1,0 +1,7 @@
+Water is H_2O and also H_{2}O.
+
+Einstein wrote E = mc^2 and x^{n} grows.
+
+A grouped subscript a_{bc}d and glucose C_{6}H_{12}O_{6}.
+
+A double underscore H__2__O stays literal.
