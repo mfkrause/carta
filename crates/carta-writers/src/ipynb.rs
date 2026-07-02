@@ -142,7 +142,8 @@ fn markdown_cell(
 /// Rewrites every image in a cell whose file name the bag holds into an `attachment:` reference and
 /// returns the cell's reconstructed `attachments` object, or `None` when the cell draws on no bag
 /// resources. Each attachment is keyed by the image's file name — the reference the rewritten link now
-/// points at — and carries the same MIME→payload bundle an output image would.
+/// points at — and carries the same MIME→payload bundle an output image would. The keys are emitted in
+/// sorted order, independent of where each reference first appears in the cell.
 fn reattach_media(blocks: &mut [Block], media: &MediaBag) -> Result<Option<Json>> {
     let mut names: Vec<String> = Vec::new();
     carta_core::walk::for_each_image_target(blocks, &mut |target| {
@@ -157,6 +158,7 @@ fn reattach_media(blocks: &mut [Block], media: &MediaBag) -> Result<Option<Json>
     if names.is_empty() {
         return Ok(None);
     }
+    names.sort();
     let mut entries = Vec::with_capacity(names.len());
     for name in names {
         let bundle = Json::Object(vec![image_entry(&name, media)?]);
@@ -283,7 +285,7 @@ fn output_object(attr: &Attr, content: &[Block], media: &MediaBag) -> Result<Jso
                     Json::Str("execute_result".to_owned()),
                 ),
                 ("execution_count".to_owned(), execution_count),
-                ("metadata".to_owned(), Json::Object(Vec::new())),
+                ("metadata".to_owned(), output_metadata(content)),
                 ("data".to_owned(), data_bundle(content, media)?),
             ])
         }
@@ -292,7 +294,7 @@ fn output_object(attr: &Attr, content: &[Block], media: &MediaBag) -> Result<Jso
                 "output_type".to_owned(),
                 Json::Str("display_data".to_owned()),
             ),
-            ("metadata".to_owned(), Json::Object(Vec::new())),
+            ("metadata".to_owned(), output_metadata(content)),
             ("data".to_owned(), data_bundle(content, media)?),
         ]),
     };
@@ -358,12 +360,33 @@ fn first_verbatim(content: &[Block]) -> String {
     String::new()
 }
 
-/// The destination of the first image among the inlines, if any.
-fn image_url(inlines: &[Inline]) -> Option<&str> {
+/// The first image inline among the inlines: its attributes and destination.
+fn first_image(inlines: &[Inline]) -> Option<(&Attr, &str)> {
     inlines.iter().find_map(|inline| match inline {
-        Inline::Image(_, _, target) => Some(target.url.as_str()),
+        Inline::Image(attr, _, target) => Some((attr.as_ref(), target.url.as_str())),
         _ => None,
     })
+}
+
+/// The destination of the first image among the inlines, if any.
+fn image_url(inlines: &[Inline]) -> Option<&str> {
+    first_image(inlines).map(|(_, url)| url)
+}
+
+/// The metadata object of a rich output, reconstructed from its image payload. An image output's
+/// per-MIME display metadata (dimensions, background hint) is carried on the image's attributes;
+/// this restores it as the output's own metadata, sorted by key. An output with no image, or an
+/// image bearing no such attributes, has empty metadata.
+fn output_metadata(content: &[Block]) -> Json {
+    for block in content {
+        if let Block::Para(inlines) | Block::Plain(inlines) = block
+            && let Some((attr, _)) = first_image(inlines)
+            && !attr.attributes.is_empty()
+        {
+            return attribute_metadata(&attr.attributes, &[]);
+        }
+    }
+    Json::Object(Vec::new())
 }
 
 /// Builds cell metadata from a div's key/value attributes, skipping the named keys. Each value is
@@ -1049,6 +1072,126 @@ mod tests {
         assert!(notebook.contains("attachment:cell-diagram.png"));
         assert!(notebook.contains("\"attachments\""));
         assert!(notebook.contains("\"cell-diagram.png\""));
+    }
+
+    #[test]
+    fn image_output_metadata_is_restored_sorted_and_typed() {
+        // An image output's display metadata rides on the image's attributes; the writer restores it
+        // as the output's own metadata object, keys sorted, numbers and strings typed as given.
+        let bytes = vec![1u8, 2, 3, 4];
+        let mut bag = MediaBag::new();
+        bag.insert("plot.png", Some("image/png".to_owned()), bytes);
+        let mut options = WriterOptions::default();
+        options.media = std::sync::Arc::new(bag);
+
+        let image = Inline::Image(
+            Box::new(Attr {
+                id: String::new().into(),
+                classes: Vec::new(),
+                attributes: vec![
+                    ("width".to_owned().into(), "320".to_owned().into()),
+                    ("height".to_owned().into(), "240".to_owned().into()),
+                    (
+                        "needs_background".to_owned().into(),
+                        "light".to_owned().into(),
+                    ),
+                ],
+            }),
+            Vec::new(),
+            Box::new(carta_ast::Target {
+                url: "plot.png".to_owned().into(),
+                title: String::new().into(),
+            }),
+        );
+        let document = Document {
+            blocks: vec![Block::Div(
+                Box::new(Attr {
+                    id: String::new().into(),
+                    classes: vec!["cell".to_owned().into(), "code".to_owned().into()],
+                    attributes: Vec::new(),
+                }),
+                vec![
+                    Block::CodeBlock(Box::default(), "plot()".to_owned().into()),
+                    Block::Div(
+                        Box::new(Attr {
+                            id: String::new().into(),
+                            classes: vec![
+                                "output".to_owned().into(),
+                                "display_data".to_owned().into(),
+                            ],
+                            attributes: Vec::new(),
+                        }),
+                        vec![Block::Para(vec![image])],
+                    ),
+                ],
+            )],
+            ..Document::default()
+        };
+
+        let notebook = IpynbWriter.write(&document, &options).expect("writes");
+        assert!(notebook.contains("\"height\": 240"));
+        assert!(notebook.contains("\"width\": 320"));
+        assert!(notebook.contains("\"needs_background\": \"light\""));
+        let height = notebook.find("\"height\"").expect("height key");
+        let background = notebook
+            .find("\"needs_background\"")
+            .expect("background key");
+        let width = notebook.find("\"width\"").expect("width key");
+        assert!(
+            height < background && background < width,
+            "metadata keys are not sorted:\n{notebook}"
+        );
+    }
+
+    #[test]
+    fn image_output_without_metadata_has_an_empty_metadata_object() {
+        let Json::Object(entries) =
+            output_metadata(&[Block::Para(vec![Inline::Str("text".to_owned().into())])])
+        else {
+            panic!("expected object");
+        };
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn cell_attachments_are_emitted_in_sorted_key_order() {
+        let bytes = vec![9u8, 8, 7, 6];
+        let mut bag = MediaBag::new();
+        bag.insert("fig-a.png", Some("image/png".to_owned()), bytes.clone());
+        bag.insert("fig-b.png", Some("image/png".to_owned()), bytes);
+        let mut options = WriterOptions::default();
+        options.media = std::sync::Arc::new(bag);
+
+        // The cell references b before a; the emitted attachments object is keyed in sorted order.
+        let reference = |name: &str| {
+            Block::Para(vec![Inline::Image(
+                Box::default(),
+                Vec::new(),
+                Box::new(carta_ast::Target {
+                    url: name.to_owned().into(),
+                    title: String::new().into(),
+                }),
+            )])
+        };
+        let document = Document {
+            blocks: vec![Block::Div(
+                Box::new(Attr {
+                    id: "fig".to_owned().into(),
+                    classes: vec!["cell".to_owned().into(), "markdown".to_owned().into()],
+                    attributes: Vec::new(),
+                }),
+                vec![reference("fig-b.png"), reference("fig-a.png")],
+            )],
+            ..Document::default()
+        };
+
+        let notebook = IpynbWriter.write(&document, &options).expect("writes");
+        let (_, attachments) = notebook
+            .split_once("\"attachments\"")
+            .expect("attachments object present");
+        let a = attachments.find("fig-a.png").expect("a key present");
+        let b = attachments.find("fig-b.png").expect("b key present");
+        assert!(a < b, "attachments are not sorted:\n{notebook}");
     }
 
     #[test]
