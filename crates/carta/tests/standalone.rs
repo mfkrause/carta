@@ -46,18 +46,12 @@ fn options() -> WriterOptions {
         ("vm".to_owned(), "from-V-vm".to_owned()),
     ];
     options.metadata = BTreeMap::from([
-        (
-            "mover".to_owned(),
-            MetaValue::MetaString("from-M".to_owned()),
-        ),
-        (
-            "vm".to_owned(),
-            MetaValue::MetaString("from-M-vm".to_owned()),
-        ),
+        ("mover".to_owned(), MetaValue::MetaString("from-M".into())),
+        ("vm".to_owned(), MetaValue::MetaString("from-M-vm".into())),
     ]);
     options.metadata_defaults = BTreeMap::from([(
         "deflt".to_owned(),
-        MetaValue::MetaString("default-val".to_owned()),
+        MetaValue::MetaString("default-val".into()),
     )]);
     options
 }

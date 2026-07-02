@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell as TableCell, Citation, CitationMode, ColSpec, ColWidth,
-    Inline, MathType, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target,
+    Inline, MathType, QuoteType, Row, Table, TableBody, TableFoot, TableHead, Target, Text,
 };
 use carta_core::{Extension, Extensions};
 
@@ -193,7 +193,10 @@ fn resolve_block(
             ));
         }
         IrBlock::CodeBlock(attr, text) => {
-            out.push(Block::CodeBlock(Box::new(attr.clone()), text.clone()));
+            out.push(Block::CodeBlock(
+                Box::new(attr.clone()),
+                text.clone().into(),
+            ));
         }
         IrBlock::RawHtml(text) => {
             // In the Markdown dialect with `raw_html` off an HTML block degrades to an ordinary
@@ -203,13 +206,13 @@ fn resolve_block(
                 out.push(Block::Para(parse_inlines(text, refs, notes, ext)));
             } else {
                 out.push(Block::RawBlock(
-                    carta_ast::Format("html".to_owned()),
-                    text.clone(),
+                    carta_ast::Format("html".into()),
+                    text.clone().into(),
                 ));
             }
         }
         IrBlock::RawBlock(format, text) => {
-            out.push(Block::RawBlock(format.clone(), text.clone()));
+            out.push(Block::RawBlock(format.clone(), text.clone().into()));
         }
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
         IrBlock::Div(attr, children) => {
@@ -630,7 +633,7 @@ fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
         return (
             content,
             Attr {
-                id,
+                id: id.into(),
                 ..Attr::default()
             },
         );
@@ -996,7 +999,7 @@ impl InlineParser<'_> {
         let note_num = self.bump_cite_count();
         self.pos = next;
         let citation = Citation {
-            id: id.clone(),
+            id: id.clone().into(),
             prefix: Vec::new(),
             suffix: Vec::new(),
             mode: CitationMode::AuthorInText,
@@ -1005,7 +1008,7 @@ impl InlineParser<'_> {
         };
         self.nodes.push(Node::Inline(Inline::Cite(
             vec![citation],
-            vec![Inline::Str(format!("@{id}"))],
+            vec![Inline::Str(format!("@{id}").into())],
         )));
         true
     }
@@ -1043,14 +1046,14 @@ impl InlineParser<'_> {
             return false;
         };
         let attr = Attr {
-            id: String::new(),
-            classes: vec!["emoji".to_owned()],
-            attributes: vec![("data-emoji".to_owned(), name)],
+            id: carta_ast::Text::default(),
+            classes: vec!["emoji".into()],
+            attributes: vec![("data-emoji".into(), name.into())],
         };
         self.pos = index + 1;
         self.nodes.push(Node::Inline(Inline::Span(
             Box::new(attr),
-            vec![Inline::Str(codepoints.to_owned())],
+            vec![Inline::Str(codepoints.into())],
         )));
         true
     }
@@ -1101,7 +1104,7 @@ impl InlineParser<'_> {
             Some(slice) if !slice.is_empty() => slice.iter().collect(),
             _ => return false,
         };
-        let inner = vec![Inline::Str(content)];
+        let inner = vec![Inline::Str(content.into())];
         let node = if delimiter == '^' {
             Inline::Superscript(inner)
         } else {
@@ -1188,7 +1191,7 @@ impl InlineParser<'_> {
             Some((math_type, content, next)) => {
                 self.pos = next;
                 self.nodes
-                    .push(Node::Inline(Inline::Math(math_type, content)));
+                    .push(Node::Inline(Inline::Math(math_type, content.into())));
                 true
             }
             None => false,
@@ -1277,8 +1280,8 @@ impl InlineParser<'_> {
         };
         self.pos = i;
         self.nodes.push(Node::Inline(Inline::RawInline(
-            carta_ast::Format("tex".to_owned()),
-            source,
+            carta_ast::Format("tex".into()),
+            source.into(),
         )));
         true
     }
@@ -1308,8 +1311,8 @@ impl InlineParser<'_> {
         };
         self.pos = end;
         self.nodes.push(Node::Inline(Inline::RawInline(
-            carta_ast::Format("tex".to_owned()),
-            source,
+            carta_ast::Format("tex".into()),
+            source.into(),
         )));
         true
     }
@@ -1409,15 +1412,15 @@ impl InlineParser<'_> {
                     if let Some((format, next)) = self.scan_raw_format() {
                         self.pos = next;
                         self.nodes.push(Node::Inline(Inline::RawInline(
-                            carta_ast::Format(format),
-                            normalize_code(&content, self.notes.markdown),
+                            carta_ast::Format(format.into()),
+                            normalize_code(&content, self.notes.markdown).into(),
                         )));
                         return;
                     }
                     let attr = self.take_code_attr();
                     self.nodes.push(Node::Inline(Inline::Code(
                         Box::new(attr),
-                        normalize_code(&content, self.notes.markdown),
+                        normalize_code(&content, self.notes.markdown).into(),
                     )));
                     return;
                 }
@@ -1448,16 +1451,20 @@ impl InlineParser<'_> {
                 crate::inline_scan::scan_display_math(self.chars, self.pos)
             {
                 self.pos = next;
-                self.nodes
-                    .push(Node::Inline(Inline::Math(MathType::DisplayMath, content)));
+                self.nodes.push(Node::Inline(Inline::Math(
+                    MathType::DisplayMath,
+                    content.into(),
+                )));
                 return;
             }
         } else if let Some((content, next)) =
             crate::inline_scan::scan_inline_math(self.chars, self.pos)
         {
             self.pos = next;
-            self.nodes
-                .push(Node::Inline(Inline::Math(MathType::InlineMath, content)));
+            self.nodes.push(Node::Inline(Inline::Math(
+                MathType::InlineMath,
+                content.into(),
+            )));
             return;
         }
         self.pos += 1;
@@ -1488,8 +1495,8 @@ impl InlineParser<'_> {
                 self.push_str(&html);
             } else {
                 self.nodes.push(Node::Inline(Inline::RawInline(
-                    carta_ast::Format("html".to_owned()),
-                    html,
+                    carta_ast::Format("html".into()),
+                    html.into(),
                 )));
             }
             return;
@@ -1753,7 +1760,7 @@ impl InlineParser<'_> {
         // before its number (`p.\u{a0}5`). That join, gated on a fixed set of abbreviations, is not
         // applied here: the suffix is tokenized as ordinary inlines, so `p. 5` stays three tokens.
         Some(Citation {
-            id: key.id,
+            id: key.id.into(),
             prefix: parse_inlines(prefix_src.trim(), self.refs, self.notes, self.ext),
             suffix: parse_inlines(suffix_src.trim_end(), self.refs, self.notes, self.ext),
             mode,
@@ -1976,7 +1983,7 @@ impl InlineParser<'_> {
             self.push_text('!');
         }
         let note = if self.notes.in_definition {
-            Inline::Str(String::new())
+            Inline::Str(carta_ast::Text::default())
         } else {
             Inline::Note(self.notes.by_id.get(&key).cloned().unwrap_or_default())
         };
@@ -2030,7 +2037,7 @@ impl InlineParser<'_> {
         // The markdown dialect percent-encodes a destination's unsafe characters; the strict
         // CommonMark and GitHub dialects keep it verbatim.
         if self.notes.markdown {
-            target.url = escape_uri(&target.url);
+            target.url = escape_uri(&target.url).into();
         }
         let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
         self.nodes.pop(); // remove the opener delimiter
@@ -2063,7 +2070,7 @@ fn citation_fallback_inlines(raw: &str) -> Vec<Inline> {
     let mut had_newline = false;
     let flush_word = |out: &mut Vec<Inline>, word: &mut String| {
         if !word.is_empty() {
-            out.push(Inline::Str(std::mem::take(word)));
+            out.push(Inline::Str(std::mem::take(word).into()));
         }
     };
     for ch in raw.chars() {
@@ -2259,8 +2266,8 @@ fn find_citation_key(chars: &[char], range: std::ops::Range<usize>) -> Option<Ci
 
 fn def_target(def: &LinkDef) -> Target {
     Target {
-        url: def.url.clone(),
-        title: def.title.clone(),
+        url: def.url.clone().into(),
+        title: def.title.clone().into(),
     }
 }
 
@@ -2602,8 +2609,8 @@ fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: bool) {
         let content = collapse(inner);
         let span = Inline::Span(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["mark".to_string()],
+                id: carta_ast::Text::default(),
+                classes: vec!["mark".into()],
                 attributes: Vec::new(),
             }),
             content,
@@ -2789,8 +2796,8 @@ fn scan_markdown_inline_target(chars: &[char], pos: usize) -> Option<(Target, us
     }
     Some((
         Target {
-            url: unescape_string(&url),
-            title: unescape_string(&title),
+            url: unescape_string(&url).into(),
+            title: unescape_string(&title).into(),
         },
         index,
     ))
@@ -2845,7 +2852,7 @@ fn classify_angle_autolink(inline: Inline) -> Inline {
     };
     let is_email = matches!(text.first(), Some(Inline::Str(shown)) if *shown != target.url);
     attr.classes
-        .push(if is_email { "email" } else { "uri" }.to_owned());
+        .push(if is_email { "email" } else { "uri" }.into());
     Inline::Link(attr, text, target)
 }
 
@@ -2854,7 +2861,7 @@ fn escape_link_destination(inline: Inline) -> Inline {
     let Inline::Link(attr, text, mut target) = inline else {
         return inline;
     };
-    target.url = escape_uri(&target.url);
+    target.url = escape_uri(&target.url).into();
     Inline::Link(attr, text, target)
 }
 
@@ -3046,8 +3053,8 @@ fn pair_spans_level(
                         // No matching close at this level: the opener reverts to raw, and its
                         // gathered inner content rejoins the stream.
                         out.push(Inline::RawInline(
-                            carta_ast::Format("html".to_owned()),
-                            open_tag_raw(&attr),
+                            carta_ast::Format("html".into()),
+                            open_tag_raw(&attr).into(),
                         ));
                         out.extend(inner);
                     }
@@ -3207,16 +3214,16 @@ fn parse_span_attributes(chars: &[char], start: usize) -> Option<Attr> {
         match name.as_str() {
             "id" => {
                 if attr.id.is_empty() {
-                    attr.id = value;
+                    attr.id = value.into();
                 }
             }
             "class" => {
                 if !seen_class {
                     seen_class = true;
-                    attr.classes = value.split_whitespace().map(str::to_owned).collect();
+                    attr.classes = value.split_whitespace().map(Into::into).collect();
                 }
             }
-            _ => attr.attributes.push((name, value)),
+            _ => attr.attributes.push((name.into(), value.into())),
         }
     }
 }
@@ -3343,7 +3350,8 @@ fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
 /// spaces to a single `Space`.
 fn push_text_inlines(out: &mut Vec<Inline>, text: &str) {
     let mut chars = text.chars().peekable();
-    let mut word = String::new();
+    // Built directly as `Text` so a word short enough for inline storage never touches the heap.
+    let mut word = Text::default();
     while let Some(ch) = chars.next() {
         if ch == ' ' {
             if !word.is_empty() {
@@ -3528,11 +3536,11 @@ mod tests {
     fn emoji_span(name: &str, text: &str) -> Inline {
         Inline::Span(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["emoji".to_owned()],
-                attributes: vec![("data-emoji".to_owned(), name.to_owned())],
+                id: carta_ast::Text::default(),
+                classes: vec!["emoji".to_owned().into()],
+                attributes: vec![("data-emoji".to_owned().into(), name.to_owned().into())],
             }),
-            vec![Inline::Str(text.to_owned())],
+            vec![Inline::Str(text.to_owned().into())],
         )
     }
 
@@ -3574,12 +3582,12 @@ mod tests {
         // An unrecognized name leaves the colons and text verbatim.
         assert_eq!(
             parse_meta_inlines(":unknown_xyz:", on, false),
-            vec![Inline::Str(":unknown_xyz:".to_owned())]
+            vec![Inline::Str(":unknown_xyz:".to_owned().into())]
         );
         // An empty `::` is not a shortcode.
         assert_eq!(
             parse_meta_inlines("::", on, false),
-            vec![Inline::Str("::".to_owned())]
+            vec![Inline::Str("::".to_owned().into())]
         );
     }
 
@@ -3588,15 +3596,15 @@ mod tests {
         let off = Extensions::empty();
         assert_eq!(
             parse_meta_inlines(":smile:", off, false),
-            vec![Inline::Str(":smile:".to_owned())]
+            vec![Inline::Str(":smile:".to_owned().into())]
         );
     }
 
     fn mark_span(content: Vec<Inline>) -> Inline {
         Inline::Span(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["mark".to_owned()],
+                id: carta_ast::Text::default(),
+                classes: vec!["mark".to_owned().into()],
                 attributes: Vec::new(),
             }),
             content,
@@ -3611,10 +3619,10 @@ mod tests {
             parse_meta_inlines("[==hi==](u)", on, false),
             vec![Inline::Link(
                 Box::default(),
-                vec![mark_span(vec![Inline::Str("hi".to_owned())])],
+                vec![mark_span(vec![Inline::Str("hi".to_owned().into())])],
                 Box::new(Target {
-                    url: "u".to_owned(),
-                    title: String::new(),
+                    url: "u".to_owned().into(),
+                    title: carta_ast::Text::default(),
                 }),
             )]
         );
@@ -3625,8 +3633,8 @@ mod tests {
         let on = exts(&[Extension::Mark, Extension::BracketedSpans]);
         // A `==…==` run nested in a bracketed span's body resolves there too.
         let span_attr = Attr {
-            id: String::new(),
-            classes: vec!["x".to_owned()],
+            id: carta_ast::Text::default(),
+            classes: vec!["x".to_owned().into()],
             attributes: Vec::new(),
         };
         assert_eq!(
@@ -3634,11 +3642,11 @@ mod tests {
             vec![Inline::Span(
                 Box::new(span_attr),
                 vec![
-                    Inline::Str("a".to_owned()),
+                    Inline::Str("a".to_owned().into()),
                     Inline::Space,
-                    mark_span(vec![Inline::Str("b".to_owned())]),
+                    mark_span(vec![Inline::Str("b".to_owned().into())]),
                     Inline::Space,
-                    Inline::Str("c".to_owned()),
+                    Inline::Str("c".to_owned().into()),
                 ],
             )]
         );
@@ -3652,10 +3660,10 @@ mod tests {
             parse_meta_inlines("[==hi==](u)", off, false),
             vec![Inline::Link(
                 Box::default(),
-                vec![Inline::Str("==hi==".to_owned())],
+                vec![Inline::Str("==hi==".to_owned().into())],
                 Box::new(Target {
-                    url: "u".to_owned(),
-                    title: String::new(),
+                    url: "u".to_owned().into(),
+                    title: carta_ast::Text::default(),
                 }),
             )]
         );
@@ -3909,7 +3917,7 @@ mod inline_tests {
     }
 
     fn str(s: &str) -> Inline {
-        Inline::Str(s.to_owned())
+        Inline::Str(s.to_owned().into())
     }
 
     fn link(content: Vec<Inline>, url: &str) -> Inline {
@@ -3917,8 +3925,8 @@ mod inline_tests {
             Box::default(),
             content,
             Box::new(Target {
-                url: url.to_owned(),
-                title: String::new(),
+                url: url.to_owned().into(),
+                title: carta_ast::Text::default(),
             }),
         )
     }
@@ -3928,8 +3936,8 @@ mod inline_tests {
             Box::default(),
             alt,
             Box::new(Target {
-                url: url.to_owned(),
-                title: String::new(),
+                url: url.to_owned().into(),
+                title: carta_ast::Text::default(),
             }),
         )
     }
@@ -4370,11 +4378,11 @@ mod inline_tests {
     // --- TeX math ---
 
     fn math_inline(content: &str) -> Inline {
-        Inline::Math(carta_ast::MathType::InlineMath, content.to_owned())
+        Inline::Math(carta_ast::MathType::InlineMath, content.to_owned().into())
     }
 
     fn math_display(content: &str) -> Inline {
-        Inline::Math(carta_ast::MathType::DisplayMath, content.to_owned())
+        Inline::Math(carta_ast::MathType::DisplayMath, content.to_owned().into())
     }
 
     fn math() -> Extensions {
@@ -4433,12 +4441,9 @@ mod inline_tests {
 
     fn attr(id: &str, classes: &[&str], kv: &[(&str, &str)]) -> Attr {
         Attr {
-            id: id.to_owned(),
-            classes: classes.iter().map(|c| (*c).to_owned()).collect(),
-            attributes: kv
-                .iter()
-                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
-                .collect(),
+            id: id.to_owned().into(),
+            classes: classes.iter().map(|c| (*c).into()).collect(),
+            attributes: kv.iter().map(|(k, v)| ((*k).into(), (*v).into())).collect(),
         }
     }
 
@@ -4493,14 +4498,14 @@ mod inline_tests {
             pe("`code`{.rust #x}", attrs()),
             vec![Inline::Code(
                 Box::new(attr("x", &["rust"], &[])),
-                "code".to_owned()
+                "code".to_owned().into()
             )]
         );
         // A space before the block leaves it unattached (no wrapper artifact is produced).
         assert_eq!(
             pe("`code` x", attrs()),
             vec![
-                Inline::Code(Box::default(), "code".to_owned()),
+                Inline::Code(Box::default(), "code".to_owned().into()),
                 Inline::Space,
                 str("x")
             ]
@@ -4513,8 +4518,8 @@ mod inline_tests {
             Box::new(attr("home", &["external"], &[])),
             vec![str("t")],
             Box::new(Target {
-                url: "u".to_owned(),
-                title: String::new(),
+                url: "u".to_owned().into(),
+                title: carta_ast::Text::default(),
             }),
         );
         assert_eq!(pe("[t](u){.external #home}", attrs()), vec![link_with_attr]);
@@ -4522,8 +4527,8 @@ mod inline_tests {
             Box::new(attr("", &[], &[("width", "200")])),
             vec![str("a")],
             Box::new(Target {
-                url: "i".to_owned(),
-                title: String::new(),
+                url: "i".to_owned().into(),
+                title: carta_ast::Text::default(),
             }),
         );
         assert_eq!(pe("![a](i){width=200}", attrs()), vec![image_with_attr]);
@@ -4558,11 +4563,14 @@ mod inline_tests {
     // --- Inline raw attribute (`{=FORMAT}` on a code span) ---
 
     fn raw(format: &str, text: &str) -> Inline {
-        Inline::RawInline(carta_ast::Format(format.to_owned()), text.to_owned())
+        Inline::RawInline(
+            carta_ast::Format(format.to_owned().into()),
+            text.to_owned().into(),
+        )
     }
 
     fn code(text: &str) -> Inline {
-        Inline::Code(Box::default(), text.to_owned())
+        Inline::Code(Box::default(), text.to_owned().into())
     }
 
     #[test]
@@ -4617,10 +4625,10 @@ mod inline_tests {
             pe("`x`{.c}", ext),
             vec![Inline::Code(
                 Box::new(Attr {
-                    classes: vec!["c".to_owned()],
+                    classes: vec!["c".to_owned().into()],
                     ..Attr::default()
                 }),
-                "x".to_owned()
+                "x".to_owned().into()
             )]
         );
     }
@@ -4633,7 +4641,10 @@ mod inline_tests {
     // --- Inline raw TeX and backslash math ---
 
     fn tex(source: &str) -> Inline {
-        Inline::RawInline(carta_ast::Format("tex".to_owned()), source.to_owned())
+        Inline::RawInline(
+            carta_ast::Format("tex".to_owned().into()),
+            source.to_owned().into(),
+        )
     }
 
     fn raw_tex() -> Extensions {
@@ -5082,7 +5093,7 @@ mod inline_tests {
         note_num: i32,
     ) -> Citation {
         Citation {
-            id: id.to_owned(),
+            id: id.to_owned().into(),
             prefix,
             suffix,
             mode,

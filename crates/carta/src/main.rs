@@ -267,7 +267,7 @@ fn parse_metadata(specs: &[String]) -> BTreeMap<String, MetaValue> {
         let (key, value) = match spec.split_once([':', '=']) {
             Some((key, "true")) => (key, MetaValue::MetaBool(true)),
             Some((key, "false")) => (key, MetaValue::MetaBool(false)),
-            Some((key, value)) => (key, MetaValue::MetaString(value.to_owned())),
+            Some((key, value)) => (key, MetaValue::MetaString(value.into())),
             None => (spec.as_str(), MetaValue::MetaBool(true)),
         };
         let next = match map.remove(key) {
@@ -419,9 +419,9 @@ mod tests {
                 .map(|s| (*s).to_owned())
                 .collect::<Vec<_>>(),
         );
-        assert_eq!(map["a"], MetaValue::MetaString("val".to_owned()));
+        assert_eq!(map["a"], MetaValue::MetaString("val".into()));
         assert_eq!(map["b"], MetaValue::MetaBool(true));
-        assert_eq!(map["c"], MetaValue::MetaString("x=y".to_owned()));
+        assert_eq!(map["c"], MetaValue::MetaString("x=y".into()));
     }
 
     #[test]
@@ -434,10 +434,10 @@ mod tests {
         );
         assert_eq!(map["a"], MetaValue::MetaBool(true));
         assert_eq!(map["b"], MetaValue::MetaBool(false));
-        assert_eq!(map["c"], MetaValue::MetaString("text".to_owned()));
+        assert_eq!(map["c"], MetaValue::MetaString("text".into()));
         assert_eq!(map["d"], MetaValue::MetaBool(true));
         // Only lowercase `true`/`false` are booleans; anything else stays a string.
-        assert_eq!(map["e"], MetaValue::MetaString("True".to_owned()));
+        assert_eq!(map["e"], MetaValue::MetaString("True".into()));
     }
 
     #[test]
@@ -447,8 +447,8 @@ mod tests {
         assert_eq!(
             two["k"],
             MetaValue::MetaList(vec![
-                MetaValue::MetaString("first".to_owned()),
-                MetaValue::MetaString("second".to_owned()),
+                MetaValue::MetaString("first".into()),
+                MetaValue::MetaString("second".into()),
             ])
         );
         // Further occurrences append; a bare first occurrence keeps its boolean element.
@@ -457,8 +457,8 @@ mod tests {
             mixed["k"],
             MetaValue::MetaList(vec![
                 MetaValue::MetaBool(true),
-                MetaValue::MetaString("a".to_owned()),
-                MetaValue::MetaString("b".to_owned()),
+                MetaValue::MetaString("a".into()),
+                MetaValue::MetaString("b".into()),
             ])
         );
     }

@@ -56,7 +56,7 @@ pub(super) fn normalize_cell_style(attr: &mut Attr) {
     if declarations.is_empty() {
         attr.attributes.remove(index);
     } else if let Some(entry) = attr.attributes.get_mut(index) {
-        entry.1 = declarations.join("; ");
+        entry.1 = declarations.join("; ").into();
     }
 }
 

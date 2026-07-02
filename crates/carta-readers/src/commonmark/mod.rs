@@ -51,7 +51,7 @@ impl Reader for CommonmarkReader {
             options.greedy_paragraphs,
         );
         Ok(Document {
-            meta,
+            meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
             blocks,
             ..Document::default()
         })
@@ -531,7 +531,7 @@ mod tests {
         };
         assert_eq!(attr.id, "a");
         assert_eq!(attr.classes, ["b", "c"]);
-        assert_eq!(attr.attributes, [("k".to_owned(), "v".to_owned())]);
+        assert_eq!(attr.attributes, [("k".into(), "v".into())]);
     }
 
     #[test]
@@ -686,7 +686,7 @@ mod tests {
         blocks
             .iter()
             .filter_map(|b| match b {
-                Block::Header(_, attr, _) => Some(attr.id.clone()),
+                Block::Header(_, attr, _) => Some(attr.id.to_string()),
                 _ => None,
             })
             .collect()
@@ -741,7 +741,7 @@ mod tests {
             for inline in inlines {
                 match inline {
                     Inline::Link(_, _, target) | Inline::Image(_, _, target) => {
-                        out.push(target.url.clone());
+                        out.push(target.url.to_string());
                     }
                     _ => {}
                 }
@@ -1698,12 +1698,14 @@ mod tests {
         assert_eq!(doc.meta.get("flag"), Some(&MetaValue::MetaBool(true)));
         assert_eq!(
             doc.meta.get("empty"),
-            Some(&MetaValue::MetaString(String::new()))
+            Some(&MetaValue::MetaString(carta_ast::Text::default()))
         );
         // An unquoted numeric scalar is canonicalized before it is parsed as inline markdown.
         assert_eq!(
             doc.meta.get("revision"),
-            Some(&MetaValue::MetaInlines(vec![Inline::Str("7".to_owned())]))
+            Some(&MetaValue::MetaInlines(vec![Inline::Str(
+                "7".to_owned().into()
+            )]))
         );
         assert!(matches!(doc.blocks.as_slice(), [Block::Para(_)]));
     }
@@ -1775,7 +1777,7 @@ mod tests {
         );
         assert!(matches!(doc.blocks.as_slice(), [Block::Table(_)]));
         let inlines = caption_inlines(&doc.blocks).expect("captioned table");
-        assert_eq!(inlines.first(), Some(&Inline::Str("A".to_owned())));
+        assert_eq!(inlines.first(), Some(&Inline::Str("A".to_owned().into())));
     }
 
     #[test]

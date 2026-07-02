@@ -924,8 +924,8 @@ pub(crate) fn normalize_image_attr(attr: &Attr) -> Attr {
     for (key, value) in &attr.attributes {
         match key.as_str() {
             "width" | "height" => {}
-            "style" => base_style = Some(value.clone()),
-            _ => rest.push((key.clone(), value.clone())),
+            "style" => base_style = Some(value.to_string()),
+            _ => rest.push((key.to_string(), value.to_string())),
         }
     }
 
@@ -941,7 +941,10 @@ pub(crate) fn normalize_image_attr(attr: &Attr) -> Attr {
     Attr {
         id: attr.id.clone(),
         classes: attr.classes.clone(),
-        attributes,
+        attributes: attributes
+            .into_iter()
+            .map(|(key, value)| (key.into(), value.into()))
+            .collect(),
     }
 }
 
@@ -1568,7 +1571,7 @@ pub(crate) fn html_attr_tokens(attr: &Attr) -> Vec<String> {
     }
     for (key, value) in &attr.attributes {
         let name = if is_known_attribute(key) {
-            key.clone()
+            key.to_string()
         } else {
             format!("data-{key}")
         };
@@ -2452,7 +2455,7 @@ mod tests {
         };
         assert_eq!(
             normalize_image_attr(&pixels).attributes,
-            vec![("width".to_owned(), "200".to_owned())]
+            vec![("width".into(), "200".into())]
         );
         let percent = Attr {
             attributes: vec![("width".into(), "50%".into())],
@@ -2460,7 +2463,7 @@ mod tests {
         };
         assert_eq!(
             normalize_image_attr(&percent).attributes,
-            vec![("style".to_owned(), "width:50.0%".to_owned())]
+            vec![("style".into(), "width:50.0%".into())]
         );
     }
 
@@ -2481,10 +2484,10 @@ mod tests {
         assert_eq!(
             normalize_image_attr(&attr).attributes,
             vec![
-                ("style".to_owned(), "width:50.0%".to_owned()),
-                ("data-a".to_owned(), "1".to_owned()),
-                ("loading".to_owned(), "lazy".to_owned()),
-                ("height".to_owned(), "200".to_owned()),
+                ("style".into(), "width:50.0%".into()),
+                ("data-a".into(), "1".into()),
+                ("loading".into(), "lazy".into()),
+                ("height".into(), "200".into()),
             ]
         );
     }
@@ -2503,8 +2506,8 @@ mod tests {
         assert_eq!(
             normalize_image_attr(&attr).attributes,
             vec![
-                ("width".to_owned(), "200".to_owned()),
-                ("height".to_owned(), "100".to_owned()),
+                ("width".into(), "200".into()),
+                ("height".into(), "100".into()),
             ]
         );
         let both_style = Attr {
@@ -2516,7 +2519,7 @@ mod tests {
         };
         assert_eq!(
             normalize_image_attr(&both_style).attributes,
-            vec![("style".to_owned(), "width:50.0%;height:5cm".to_owned())]
+            vec![("style".into(), "width:50.0%;height:5cm".into())]
         );
     }
 
@@ -2532,7 +2535,7 @@ mod tests {
         };
         assert_eq!(
             normalize_image_attr(&attr).attributes,
-            vec![("style".to_owned(), "color:red;width:50.0%".to_owned())]
+            vec![("style".into(), "color:red;width:50.0%".into())]
         );
         // A source style with no dimensions still moves ahead of the remaining pairs.
         let style_only = Attr {
@@ -2546,9 +2549,9 @@ mod tests {
         assert_eq!(
             normalize_image_attr(&style_only).attributes,
             vec![
-                ("style".to_owned(), "color:red".to_owned()),
-                ("data-a".to_owned(), "1".to_owned()),
-                ("data-b".to_owned(), "2".to_owned()),
+                ("style".into(), "color:red".into()),
+                ("data-a".into(), "1".into()),
+                ("data-b".into(), "2".into()),
             ]
         );
     }
@@ -2568,9 +2571,6 @@ mod tests {
         assert_eq!(normalized.id, "x");
         assert_eq!(normalized.classes, vec!["c".to_owned()]);
         // The unparsable width is dropped; the pixel height survives.
-        assert_eq!(
-            normalized.attributes,
-            vec![("height".to_owned(), "100".to_owned())]
-        );
+        assert_eq!(normalized.attributes, vec![("height".into(), "100".into())]);
     }
 }

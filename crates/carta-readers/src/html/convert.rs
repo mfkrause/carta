@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Format, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, TableBody,
-    TableFoot, TableHead, Target, slug, slug_gfm, to_plain_text,
+    TableFoot, TableHead, Target, ToCompactString, slug, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions};
 
@@ -312,7 +312,7 @@ impl Converter {
             let mut code_attr = extract_attr(code, &[]);
             for class in &mut code_attr.classes {
                 if let Some(rest) = class.strip_prefix("language-") {
-                    *class = rest.to_string();
+                    *class = rest.into();
                 }
             }
             merge_attr(&mut attr, code_attr);
@@ -324,7 +324,7 @@ impl Converter {
         if text.ends_with('\n') {
             text.pop();
         }
-        Block::CodeBlock(Box::new(attr), text)
+        Block::CodeBlock(Box::new(attr), text.into())
     }
 
     fn table(&mut self, e: &Element) -> Block {
@@ -438,7 +438,7 @@ impl Converter {
     fn header_attr(&mut self, e: &Element, inlines: &[Inline]) -> Attr {
         let mut attr = extract_attr(e, &[]);
         if !attr.id.is_empty() {
-            self.used_ids.insert(attr.id.clone());
+            self.used_ids.insert(attr.id.to_string());
         } else if self.ext.contains(Extension::AutoIdentifiers) {
             let plain = to_plain_text(inlines);
             let base = if self.ext.contains(Extension::GfmAutoIdentifiers) {
@@ -451,7 +451,7 @@ impl Converter {
             } else {
                 base
             };
-            attr.id = self.unique_id(base);
+            attr.id = self.unique_id(base).into();
         }
         // `auto_identifiers` off: a heading without an explicit id keeps an empty one.
         attr
@@ -603,9 +603,9 @@ impl Converter {
                 let inner = self.build_inlines(&e.children);
                 if let Some(dir) = attr_value(e, "dir") {
                     let attr = Attr {
-                        id: String::new(),
+                        id: carta_ast::Text::default(),
                         classes: Vec::new(),
-                        attributes: vec![("dir".to_string(), dir)],
+                        attributes: vec![("dir".into(), dir.into())],
                     };
                     out.push(Inline::Span(Box::new(attr), inner));
                 } else {
@@ -614,7 +614,7 @@ impl Converter {
             }
             InlineKind::SpanClass => {
                 let mut attr = Box::new(extract_attr(e, &[]));
-                attr.classes.insert(0, e.name.clone());
+                attr.classes.insert(0, e.name.clone().into());
                 out.push(Inline::Span(attr, self.build_inlines(&e.children)));
             }
             InlineKind::Code(class) => self.code_inline(out, e, class),
@@ -622,13 +622,13 @@ impl Converter {
             InlineKind::Image => out.push(image(e)),
             InlineKind::Style => {
                 out.push(Inline::RawInline(
-                    Format("html".to_string()),
-                    serialize_element(e),
+                    Format("html".into()),
+                    serialize_element(e).into(),
                 ));
             }
             InlineKind::Script => {
                 if let Some(math_type) = math_script_type(e) {
-                    out.push(Inline::Math(math_type, collect_text(e)));
+                    out.push(Inline::Math(math_type, collect_text(e).into()));
                 }
             }
             InlineKind::Input => {
@@ -638,23 +638,23 @@ impl Converter {
                     } else {
                         '\u{2610}'
                     };
-                    out.push(Inline::Str(symbol.to_string()));
+                    out.push(Inline::Str(symbol.to_compact_string()));
                     out.push(Inline::Space);
                 }
             }
             InlineKind::Transparent => {
                 if self.preserve_unknown_tags && block_kind(&e.name).is_none() {
-                    let format = Format("html".to_string());
+                    let format = Format("html".into());
                     if e.end_only {
-                        out.push(Inline::RawInline(format, close_tag(&e.name)));
+                        out.push(Inline::RawInline(format, close_tag(&e.name).into()));
                     } else {
-                        out.push(Inline::RawInline(format.clone(), open_tag(e)));
+                        out.push(Inline::RawInline(format.clone(), open_tag(e).into()));
                         if !e.void {
                             for child in &e.children {
                                 self.append_inline(out, child);
                             }
                             if e.closed {
-                                out.push(Inline::RawInline(format, close_tag(&e.name)));
+                                out.push(Inline::RawInline(format, close_tag(&e.name).into()));
                             }
                         }
                     }
@@ -670,7 +670,7 @@ impl Converter {
     fn code_inline(&self, out: &mut Vec<Inline>, e: &Element, forced_class: Option<&str>) {
         let mut attr = extract_attr(e, &[]);
         if let Some(class) = forced_class {
-            attr.classes = vec![class.to_string()];
+            attr.classes = vec![class.into()];
         }
         let has_elements = e
             .children
@@ -682,7 +682,7 @@ impl Converter {
             self.in_code.set(previous);
             codify(out, inner, &attr);
         } else {
-            out.push(Inline::Code(Box::new(attr), collect_text(e)));
+            out.push(Inline::Code(Box::new(attr), collect_text(e).into()));
         }
     }
 
@@ -698,7 +698,7 @@ impl Converter {
         if attr.id.is_empty()
             && let Some(name) = attr_value(e, "name")
         {
-            attr.id = name;
+            attr.id = name.into();
         }
         if let Some(lead) = leading {
             out.push(lead);
@@ -708,7 +708,10 @@ impl Converter {
             Inline::Link(
                 Box::new(attr),
                 trimmed,
-                Box::new(Target { url: href, title }),
+                Box::new(Target {
+                    url: href.into(),
+                    title: title.into(),
+                }),
             )
         } else {
             Inline::Span(Box::new(attr), trimmed)
@@ -727,7 +730,10 @@ fn codify(out: &mut Vec<Inline>, inlines: Vec<Inline>, attr: &Attr) {
     let mut run = String::new();
     let flush = |run: &mut String, out: &mut Vec<Inline>| {
         if !run.is_empty() {
-            out.push(Inline::Code(Box::new(attr.clone()), std::mem::take(run)));
+            out.push(Inline::Code(
+                Box::new(attr.clone()),
+                std::mem::take(run).into(),
+            ));
         }
     };
     for inline in inlines {
@@ -853,7 +859,7 @@ fn resolve_smart(items: &[Item], lo: usize, hi: usize) -> Vec<Inline> {
         match items.get(i) {
             Some(Item::Math(math_type, content)) => {
                 flush_run(&mut buf, &mut out);
-                out.push(Inline::Math(math_type.clone(), content.clone()));
+                out.push(Inline::Math(math_type.clone(), content.clone().into()));
                 i += 1;
             }
             Some(Item::Lit('"')) => {
@@ -915,7 +921,7 @@ fn emit_math_only(items: &[Item], out: &mut Vec<Inline>) {
                     push_text(out, &buf);
                     buf.clear();
                 }
-                out.push(Inline::Math(math_type.clone(), content.clone()));
+                out.push(Inline::Math(math_type.clone(), content.clone().into()));
             }
             Item::Lit(c) => buf.push(*c),
         }
@@ -951,7 +957,7 @@ fn emit_code(items: &[Item], smart: bool, out: &mut Vec<Inline>) {
                     push_str(out, &result);
                     result.clear();
                 }
-                out.push(Inline::Math(math_type.clone(), content.clone()));
+                out.push(Inline::Math(math_type.clone(), content.clone().into()));
                 i += 1;
             }
             Some(Item::Lit('"')) if smart => {
@@ -1219,7 +1225,10 @@ fn image(e: &Element) -> Inline {
     Inline::Image(
         Box::new(attr),
         inlines_from_text(&alt),
-        Box::new(Target { url, title }),
+        Box::new(Target {
+            url: url.into(),
+            title: title.into(),
+        }),
     )
 }
 
@@ -1230,11 +1239,11 @@ fn extract_attr(e: &Element, exclude: &[&str]) -> Attr {
             continue;
         }
         match key.as_str() {
-            "id" => attr.id.clone_from(value),
-            "class" => attr.classes = value.split_whitespace().map(str::to_string).collect(),
+            "id" => attr.id = value.as_str().into(),
+            "class" => attr.classes = value.split_whitespace().map(Into::into).collect(),
             _ => {
                 let name = key.strip_prefix("data-").unwrap_or(key).to_string();
-                attr.attributes.push((name, value.clone()));
+                attr.attributes.push((name.into(), value.clone().into()));
             }
         }
     }
@@ -1249,7 +1258,7 @@ fn is_line_block_div(e: &Element) -> bool {
 fn div_attr(e: &Element, sectioning: bool) -> Attr {
     let mut attr = extract_attr(e, &[]);
     if sectioning {
-        attr.classes.insert(0, e.name.clone());
+        attr.classes.insert(0, e.name.clone().into());
     }
     attr
 }
@@ -1304,7 +1313,7 @@ fn push_text(out: &mut Vec<Inline>, text: &str) {
             push_break(out, newline);
         } else {
             if !matches!(out.last(), Some(Inline::Str(_))) {
-                out.push(Inline::Str(String::new()));
+                out.push(Inline::Str(carta_ast::Text::default()));
             }
             if let Some(Inline::Str(existing)) = out.last_mut() {
                 while let Some(&w) = chars.peek() {
@@ -1323,7 +1332,7 @@ fn push_str(out: &mut Vec<Inline>, word: &str) {
     if let Some(Inline::Str(existing)) = out.last_mut() {
         existing.push_str(word);
     } else {
-        out.push(Inline::Str(word.to_string()));
+        out.push(Inline::Str(word.into()));
     }
 }
 

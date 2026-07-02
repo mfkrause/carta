@@ -1232,7 +1232,7 @@ mod tests {
     }
 
     fn str_inline(text: &str) -> Inline {
-        Inline::Str(text.to_owned())
+        Inline::Str(text.to_owned().into())
     }
 
     #[test]
@@ -1437,7 +1437,7 @@ mod tests {
                 vec![str_inline("alt")],
                 Box::new(Target {
                     url: "i.png".into(),
-                    title: String::new(),
+                    title: String::new().into(),
                 }),
             )])]),
             "#box(image(\"i.png\", width: 2.08333in, alt: \"alt\"))"

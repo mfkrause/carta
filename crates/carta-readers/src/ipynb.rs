@@ -24,7 +24,9 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{ApiVersion, Attr, Block, Document, Format, Inline, MetaValue, Target};
+use carta_ast::{
+    ApiVersion, Attr, Block, Document, Format, Inline, MetaValue, Target, ToCompactString,
+};
 use carta_core::{Error, Reader, ReaderOptions, Result};
 use serde_json::Value;
 
@@ -63,7 +65,7 @@ impl Reader for IpynbReader {
         }
         Ok(Document {
             api_version: ApiVersion::default(),
-            meta,
+            meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
             blocks,
         })
     }
@@ -92,14 +94,17 @@ fn build_meta(notebook: &Value, nbformat: i64, nbformat_minor: i64) -> BTreeMap<
     }
     jupyter.insert(
         "nbformat".to_owned(),
-        MetaValue::MetaString(nbformat.to_string()),
+        MetaValue::MetaString(nbformat.to_compact_string()),
     );
     jupyter.insert(
         "nbformat_minor".to_owned(),
-        MetaValue::MetaString(nbformat_minor.to_string()),
+        MetaValue::MetaString(nbformat_minor.to_compact_string()),
     );
     let mut meta = BTreeMap::new();
-    meta.insert("jupyter".to_owned(), MetaValue::MetaMap(jupyter));
+    meta.insert(
+        "jupyter".to_owned(),
+        MetaValue::MetaMap(jupyter.into_iter().map(|(k, v)| (k.into(), v)).collect()),
+    );
     meta
 }
 
@@ -110,14 +115,14 @@ fn build_meta(notebook: &Value, nbformat: i64, nbformat_minor: i64) -> BTreeMap<
 /// large magnitudes.
 fn meta_value(value: &Value) -> MetaValue {
     match value {
-        Value::Null => MetaValue::MetaString(String::new()),
+        Value::Null => MetaValue::MetaString(carta_ast::Text::default()),
         Value::Bool(flag) => MetaValue::MetaBool(*flag),
-        Value::Number(number) => MetaValue::MetaString(meta_number(number)),
-        Value::String(text) => MetaValue::MetaString(text.clone()),
+        Value::Number(number) => MetaValue::MetaString(meta_number(number).into()),
+        Value::String(text) => MetaValue::MetaString(text.clone().into()),
         Value::Array(items) => MetaValue::MetaList(items.iter().map(meta_value).collect()),
         Value::Object(map) => MetaValue::MetaMap(
             map.iter()
-                .map(|(key, value)| (key.clone(), meta_value(value)))
+                .map(|(key, value)| (key.clone().into(), meta_value(value)))
                 .collect(),
         ),
     }
@@ -301,9 +306,12 @@ fn cell_attr(cell: &Value, kind: &str) -> Attr {
         }
     }
     Attr {
-        id,
-        classes,
-        attributes,
+        id: id.into(),
+        classes: classes.into_iter().map(Into::into).collect(),
+        attributes: attributes
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect(),
     }
 }
 
@@ -355,11 +363,11 @@ fn markdown_cell_blocks(cell: &Value, options: &ReaderOptions) -> Result<Vec<Blo
 fn code_cell_blocks(cell: &Value, language: &str) -> Vec<Block> {
     let source = multiline_text(cell.get("source"));
     let source_attr = Attr {
-        id: String::new(),
-        classes: vec![language.to_owned()],
+        id: carta_ast::Text::default(),
+        classes: vec![language.into()],
         attributes: Vec::new(),
     };
-    let mut blocks = vec![Block::CodeBlock(Box::new(source_attr), source)];
+    let mut blocks = vec![Block::CodeBlock(Box::new(source_attr), source.into())];
     if let Some(Value::Array(outputs)) = cell.get("outputs") {
         for output in outputs {
             if let Some(block) = output_to_block(output) {
@@ -381,7 +389,7 @@ fn raw_cell_block(cell: &Value) -> Block {
         .or_else(|| metadata.and_then(|metadata| metadata.get("format")))
         .and_then(Value::as_str);
     let format = mime.map_or_else(|| "ipynb".to_owned(), format_from_mime);
-    Block::RawBlock(Format(format), source)
+    Block::RawBlock(Format(format.into()), source.into())
 }
 
 /// Convert one execution output into its `Div`, or `None` for an unrecognized output kind.
@@ -404,11 +412,14 @@ fn stream_output(output: &Value) -> Block {
         .unwrap_or("stdout");
     let text = strip_ansi(&multiline_text(output.get("text")));
     let attr = Attr {
-        id: String::new(),
-        classes: vec!["output".to_owned(), "stream".to_owned(), name.to_owned()],
+        id: carta_ast::Text::default(),
+        classes: vec!["output".into(), "stream".into(), name.into()],
         attributes: Vec::new(),
     };
-    Block::Div(Box::new(attr), vec![Block::CodeBlock(Box::default(), text)])
+    Block::Div(
+        Box::new(attr),
+        vec![Block::CodeBlock(Box::default(), text.into())],
+    )
 }
 
 /// An `execute_result` or `display_data` output: the richest renderable bundle from its `data`,
@@ -424,9 +435,12 @@ fn result_output(output: &Value, is_result: bool) -> Block {
         attributes.push(("execution_count".to_owned(), count.to_string()));
     }
     let attr = Attr {
-        id: String::new(),
-        classes: vec!["output".to_owned(), kind.to_owned()],
-        attributes,
+        id: carta_ast::Text::default(),
+        classes: vec!["output".into(), kind.into()],
+        attributes: attributes
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect(),
     };
     Block::Div(
         Box::new(attr),
@@ -460,13 +474,19 @@ fn error_output(output: &Value) -> Block {
         _ => String::new(),
     };
     let attr = Attr {
-        id: String::new(),
-        classes: vec!["output".to_owned(), "error".to_owned()],
-        attributes: vec![("ename".to_owned(), ename), ("evalue".to_owned(), evalue)],
+        id: carta_ast::Text::default(),
+        classes: vec!["output".into(), "error".into()],
+        attributes: vec![
+            ("ename".into(), ename.into()),
+            ("evalue".into(), evalue.into()),
+        ],
     };
     Block::Div(
         Box::new(attr),
-        vec![Block::CodeBlock(Box::default(), strip_ansi(&traceback))],
+        vec![Block::CodeBlock(
+            Box::default(),
+            strip_ansi(&traceback).into(),
+        )],
     )
 }
 
@@ -500,21 +520,25 @@ fn non_image_block(mime: &str, value: &Value) -> Block {
     if is_json_like(mime) {
         return Block::CodeBlock(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["json".to_owned()],
+                id: carta_ast::Text::default(),
+                classes: vec!["json".into()],
                 attributes: Vec::new(),
             }),
-            json_render(value),
+            json_render(value).into(),
         );
     }
     match mime {
-        "text/html" => Block::RawBlock(Format("html".to_owned()), multiline_text(Some(value))),
-        "text/latex" => Block::RawBlock(Format("latex".to_owned()), multiline_text(Some(value))),
-        "text/markdown" => {
-            Block::RawBlock(Format("markdown".to_owned()), multiline_text(Some(value)))
-        }
+        "text/html" => Block::RawBlock(Format("html".into()), multiline_text(Some(value)).into()),
+        "text/latex" => Block::RawBlock(Format("latex".into()), multiline_text(Some(value)).into()),
+        "text/markdown" => Block::RawBlock(
+            Format("markdown".into()),
+            multiline_text(Some(value)).into(),
+        ),
         // The fallthrough is plain text; the preference list only routes the cases above here.
-        _ => Block::CodeBlock(Box::default(), strip_ansi(&multiline_text(Some(value)))),
+        _ => Block::CodeBlock(
+            Box::default(),
+            strip_ansi(&multiline_text(Some(value))).into(),
+        ),
     }
 }
 
@@ -534,8 +558,8 @@ fn image_block(mime: &str, value: &Value, metadata: Option<&Value>) -> Block {
         Box::new(image_attr(mime, metadata)),
         Vec::new(),
         Box::new(Target {
-            url: name,
-            title: String::new(),
+            url: name.into(),
+            title: carta_ast::Text::default(),
         }),
     )])
 }
@@ -552,9 +576,12 @@ fn image_attr(mime: &str, metadata: Option<&Value>) -> Attr {
         }
     }
     Attr {
-        id: String::new(),
+        id: carta_ast::Text::default(),
         classes: Vec::new(),
-        attributes,
+        attributes: attributes
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect(),
     }
 }
 
@@ -703,8 +730,8 @@ fn strip_attachment_inlines(inlines: &mut [Inline], prefix: Option<&str>) {
             Inline::Image(_, alt, target) => {
                 if let Some(bare) = target.url.strip_prefix("attachment:") {
                     target.url = match prefix {
-                        Some(prefix) => format!("{prefix}{bare}"),
-                        None => bare.to_owned(),
+                        Some(prefix) => format!("{prefix}{bare}").into(),
+                        None => bare.into(),
                     };
                 }
                 strip_attachment_inlines(alt, prefix);
@@ -879,7 +906,7 @@ mod tests {
         IpynbReader.read(input, &options).expect("notebook parses")
     }
 
-    fn jupyter(document: &Document) -> &BTreeMap<String, MetaValue> {
+    fn jupyter(document: &Document) -> &BTreeMap<carta_ast::Text, MetaValue> {
         match document.meta.get("jupyter") {
             Some(MetaValue::MetaMap(map)) => map,
             _ => panic!("expected a jupyter metadata map"),
@@ -915,11 +942,11 @@ mod tests {
         let map = jupyter(&document);
         assert_eq!(
             map.get("nbformat"),
-            Some(&MetaValue::MetaString("4".to_owned()))
+            Some(&MetaValue::MetaString("4".to_owned().into()))
         );
         assert_eq!(
             map.get("nbformat_minor"),
-            Some(&MetaValue::MetaString("5".to_owned()))
+            Some(&MetaValue::MetaString("5".to_owned().into()))
         );
     }
 
@@ -928,7 +955,7 @@ mod tests {
         let document = read(r#"{"cells": [], "metadata": {}, "nbformat": 4}"#);
         assert_eq!(
             jupyter(&document).get("nbformat_minor"),
-            Some(&MetaValue::MetaString("0".to_owned()))
+            Some(&MetaValue::MetaString("0".to_owned().into()))
         );
     }
 
@@ -942,23 +969,23 @@ mod tests {
         let map = jupyter(&document);
         assert_eq!(
             map.get("afloat"),
-            Some(&MetaValue::MetaString("3".to_owned()))
+            Some(&MetaValue::MetaString("3".to_owned().into()))
         );
         assert_eq!(
             map.get("aint"),
-            Some(&MetaValue::MetaString("7".to_owned()))
+            Some(&MetaValue::MetaString("7".to_owned().into()))
         );
         assert_eq!(map.get("abool"), Some(&MetaValue::MetaBool(true)));
         assert_eq!(
             map.get("anull"),
-            Some(&MetaValue::MetaString(String::new()))
+            Some(&MetaValue::MetaString(carta_ast::Text::default()))
         );
         assert_eq!(
             map.get("alist"),
             Some(&MetaValue::MetaList(vec![
-                MetaValue::MetaString("1".to_owned()),
-                MetaValue::MetaString("two".to_owned()),
-                MetaValue::MetaString("3".to_owned()),
+                MetaValue::MetaString("1".to_owned().into()),
+                MetaValue::MetaString("two".to_owned().into()),
+                MetaValue::MetaString("3".to_owned().into()),
             ]))
         );
         let Some(MetaValue::MetaMap(nested)) = map.get("amap") else {
@@ -966,11 +993,11 @@ mod tests {
         };
         assert_eq!(
             nested.get("a"),
-            Some(&MetaValue::MetaString("2".to_owned()))
+            Some(&MetaValue::MetaString("2".to_owned().into()))
         );
         assert_eq!(
             nested.get("z"),
-            Some(&MetaValue::MetaString("1".to_owned()))
+            Some(&MetaValue::MetaString("1".to_owned().into()))
         );
     }
 
@@ -1073,8 +1100,8 @@ mod tests {
         assert_eq!(
             attr.attributes,
             vec![
-                ("execution_count".to_owned(), "5".to_owned()),
-                ("scrolled".to_owned(), "true".to_owned()),
+                ("execution_count".into(), "5".into()),
+                ("scrolled".into(), "true".into()),
             ]
         );
         // Source code block tagged with the language.
@@ -1111,7 +1138,7 @@ mod tests {
         );
         assert_eq!(
             result_attr.attributes,
-            vec![("execution_count".to_owned(), "5".to_owned())]
+            vec![("execution_count".into(), "5".into())]
         );
         assert!(matches!(
             result_body.first(),
@@ -1124,10 +1151,7 @@ mod tests {
         };
         assert_eq!(
             error_attr.attributes,
-            vec![
-                ("ename".to_owned(), "E".to_owned()),
-                ("evalue".to_owned(), "v".to_owned()),
-            ]
+            vec![("ename".into(), "E".into()), ("evalue".into(), "v".into()),]
         );
         assert!(matches!(
             error_body.first(),
@@ -1233,9 +1257,9 @@ mod tests {
         assert_eq!(
             attr.attributes,
             vec![
-                ("height".to_owned(), "50".to_owned()),
-                ("needs_background".to_owned(), "light".to_owned()),
-                ("width".to_owned(), "100".to_owned()),
+                ("height".into(), "50".into()),
+                ("needs_background".into(), "light".into()),
+                ("width".into(), "100".into()),
             ]
         );
     }
@@ -1270,10 +1294,7 @@ mod tests {
         let Some(Block::Div(attr, body)) = document.blocks.first() else {
             panic!("expected a raw cell div");
         };
-        assert_eq!(
-            attr.attributes,
-            vec![("format".to_owned(), "text/html".to_owned())]
-        );
+        assert_eq!(attr.attributes, vec![("format".into(), "text/html".into())]);
         assert!(matches!(
             body.first(),
             Some(Block::RawBlock(Format(name), text)) if name == "html" && text == "<b>x</b>"

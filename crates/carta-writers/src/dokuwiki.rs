@@ -371,7 +371,7 @@ fn bare_inline(inline: &Inline) -> String {
 fn link(inlines: &[Inline], target: &Target, wrap: WrapMode) -> String {
     let plain = to_plain_text(inlines);
     if plain == target.url && !target.url.contains(' ') {
-        return target.url.clone();
+        return target.url.to_string();
     }
     if target.url.starts_with("mailto:") && !inlines.is_empty() && is_all_text(inlines) {
         return format!("<{plain}>");
@@ -399,7 +399,7 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, wrap: WrapMode) -> St
     let caption = if target.title.is_empty() {
         inlines_to_markup(inlines, wrap)
     } else {
-        target.title.clone()
+        target.title.to_string()
     };
     if caption.is_empty() {
         format!("{{{{{head}}}}}")

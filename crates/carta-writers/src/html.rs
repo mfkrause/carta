@@ -128,7 +128,8 @@ impl SlideRenderer {
     /// titleless slide passes an empty `attr`, yielding the class words alone.
     #[must_use]
     pub(crate) fn section_open(attr: &Attr, class_words: &[&str]) -> String {
-        let mut classes: Vec<String> = class_words.iter().map(|word| (*word).to_owned()).collect();
+        let mut classes: Vec<carta_ast::Text> =
+            class_words.iter().map(|word| (*word).into()).collect();
         classes.extend(attr.classes.iter().cloned());
         let mut tag = String::from("<section");
         tag.push_str(&render_id(&attr.id));
@@ -144,7 +145,7 @@ impl SlideRenderer {
     pub(crate) fn title(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
         let tag = header_tag(level);
         let titleless = Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: attr.classes.clone(),
             attributes: attr.attributes.clone(),
         };
@@ -1199,7 +1200,7 @@ fn cell_attr(attr: &Attr, align_style: Option<&str>) -> String {
             merged = true;
         } else {
             let name = if is_known_attribute(key) {
-                key.clone()
+                key.to_string()
             } else {
                 format!("data-{key}")
             };
@@ -1251,7 +1252,7 @@ fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
         }
         let name = match flavor {
             Flavor::Html5 | Flavor::Slides if !is_known_attribute(key) => format!("data-{key}"),
-            _ => key.clone(),
+            _ => key.to_string(),
         };
         let _ = write!(out, "{BREAK}{name}=\"{}\"", escape_attr(value));
     }

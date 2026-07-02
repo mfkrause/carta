@@ -517,7 +517,7 @@ impl Parser {
             let meta = self.parse_meta()?;
             let blocks = self.parse_block_list()?;
             return Ok(Document {
-                meta,
+                meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
                 blocks,
                 ..Default::default()
             });
@@ -587,12 +587,17 @@ impl Parser {
     fn parse_meta_value(&mut self) -> Result<MetaValue> {
         let name = self.constructor()?;
         match name.as_str() {
-            "MetaMap" => Ok(MetaValue::MetaMap(self.parse_from_list()?)),
+            "MetaMap" => Ok(MetaValue::MetaMap(
+                self.parse_from_list()?
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v))
+                    .collect(),
+            )),
             "MetaList" => Ok(MetaValue::MetaList(
                 self.parse_list(Self::parse_meta_value)?,
             )),
             "MetaBool" => Ok(MetaValue::MetaBool(self.parse_bool()?)),
-            "MetaString" => Ok(MetaValue::MetaString(self.parse_string()?)),
+            "MetaString" => Ok(MetaValue::MetaString(self.parse_string()?.into())),
             "MetaInlines" => Ok(MetaValue::MetaInlines(self.parse_inline_list()?)),
             "MetaBlocks" => Ok(MetaValue::MetaBlocks(self.parse_block_list()?)),
             other => Err(syntax_error(format!("unknown metadata value '{other}'"))),
@@ -624,12 +629,12 @@ impl Parser {
             "CodeBlock" => {
                 let attr = self.parse_attr()?;
                 let text = self.parse_string()?;
-                Ok(Block::CodeBlock(Box::new(attr), text))
+                Ok(Block::CodeBlock(Box::new(attr), text.into()))
             }
             "RawBlock" => {
                 let format = self.parse_format()?;
                 let text = self.parse_string()?;
-                Ok(Block::RawBlock(format, text))
+                Ok(Block::RawBlock(format, text.into()))
             }
             "BlockQuote" => Ok(Block::BlockQuote(self.parse_block_list()?)),
             "OrderedList" => {
@@ -667,7 +672,7 @@ impl Parser {
     fn parse_inline(&mut self) -> Result<Inline> {
         let name = self.constructor()?;
         match name.as_str() {
-            "Str" => Ok(Inline::Str(self.parse_string()?)),
+            "Str" => Ok(Inline::Str(self.parse_string()?.into())),
             "Emph" => Ok(Inline::Emph(self.parse_inline_list()?)),
             "Underline" => Ok(Inline::Underline(self.parse_inline_list()?)),
             "Strong" => Ok(Inline::Strong(self.parse_inline_list()?)),
@@ -688,7 +693,7 @@ impl Parser {
             "Code" => {
                 let attr = self.parse_attr()?;
                 let text = self.parse_string()?;
-                Ok(Inline::Code(Box::new(attr), text))
+                Ok(Inline::Code(Box::new(attr), text.into()))
             }
             "Space" => Ok(Inline::Space),
             "SoftBreak" => Ok(Inline::SoftBreak),
@@ -696,12 +701,12 @@ impl Parser {
             "Math" => {
                 let math = self.parse_math_type()?;
                 let text = self.parse_string()?;
-                Ok(Inline::Math(math, text))
+                Ok(Inline::Math(math, text.into()))
             }
             "RawInline" => {
                 let format = self.parse_format()?;
                 let text = self.parse_string()?;
-                Ok(Inline::RawInline(format, text))
+                Ok(Inline::RawInline(format, text.into()))
             }
             "Link" => {
                 let attr = self.parse_attr()?;
@@ -734,9 +739,12 @@ impl Parser {
         let attributes = self.parse_list(Self::parse_string_pair)?;
         self.eat(&Token::RParen)?;
         Ok(Attr {
-            id,
-            classes,
-            attributes,
+            id: id.into(),
+            classes: classes.into_iter().map(Into::into).collect(),
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         })
     }
 
@@ -755,7 +763,10 @@ impl Parser {
         self.eat(&Token::Comma)?;
         let title = self.parse_string()?;
         self.eat(&Token::RParen)?;
-        Ok(Target { url, title })
+        Ok(Target {
+            url: url.into(),
+            title: title.into(),
+        })
     }
 
     fn parse_format(&mut self) -> Result<Format> {
@@ -763,7 +774,7 @@ impl Parser {
         self.eat_ident("Format")?;
         let name = self.parse_string()?;
         self.close_if(opened)?;
-        Ok(Format(name))
+        Ok(Format(name.into()))
     }
 
     fn parse_list_attributes(&mut self) -> Result<ListAttributes> {
@@ -864,7 +875,7 @@ impl Parser {
         self.eat_ident("Citation")?;
         self.eat(&Token::LBrace)?;
         let mut citation = Citation {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             prefix: Vec::new(),
             suffix: Vec::new(),
             mode: CitationMode::NormalCitation,
@@ -875,7 +886,7 @@ impl Parser {
             let field = self.constructor()?;
             self.eat(&Token::Equals)?;
             match field.as_str() {
-                "citationId" => citation.id = self.parse_string()?,
+                "citationId" => citation.id = self.parse_string()?.into(),
                 "citationPrefix" => citation.prefix = self.parse_inline_list()?,
                 "citationSuffix" => citation.suffix = self.parse_inline_list()?,
                 "citationMode" => citation.mode = self.parse_citation_mode()?,
@@ -1040,7 +1051,7 @@ mod tests {
     }
 
     fn str_inline(text: &str) -> Inline {
-        Inline::Str(text.to_string())
+        Inline::Str(text.to_string().into())
     }
 
     #[test]
@@ -1063,9 +1074,12 @@ mod tests {
         assert_eq!(
             document.meta.get("m"),
             Some(&MetaValue::MetaMap(
-                [("k".to_string(), MetaValue::MetaString("v".to_string()))]
-                    .into_iter()
-                    .collect()
+                [(
+                    "k".to_string().into(),
+                    MetaValue::MetaString("v".to_string().into())
+                )]
+                .into_iter()
+                .collect()
             ))
         );
         assert_eq!(
@@ -1129,11 +1143,11 @@ mod tests {
             only_block(r#"CodeBlock ("i", ["rust", "numberLines"], [("k", "v")]) "let x = 1;""#),
             Block::CodeBlock(
                 Box::new(Attr {
-                    id: "i".to_string(),
-                    classes: vec!["rust".to_string(), "numberLines".to_string()],
-                    attributes: vec![("k".to_string(), "v".to_string())],
+                    id: "i".to_string().into(),
+                    classes: vec!["rust".to_string().into(), "numberLines".to_string().into()],
+                    attributes: vec![("k".to_string().into(), "v".to_string().into())],
                 }),
-                "let x = 1;".to_string()
+                "let x = 1;".to_string().into()
             )
         );
     }
@@ -1142,7 +1156,7 @@ mod tests {
     fn parses_raw_block_with_format_in_parens() {
         assert_eq!(
             only_block(r#"RawBlock (Format "html") "<hr>""#),
-            Block::RawBlock(Format("html".to_string()), "<hr>".to_string())
+            Block::RawBlock(Format("html".to_string().into()), "<hr>".to_string().into())
         );
     }
 
@@ -1187,7 +1201,7 @@ mod tests {
             Block::Header(
                 2,
                 Box::new(Attr {
-                    id: "h".to_string(),
+                    id: "h".to_string().into(),
                     classes: vec![],
                     attributes: vec![],
                 }),
@@ -1202,7 +1216,7 @@ mod tests {
             only_block(r#"Div ("d", [], []) [BlockQuote [Para [Str "q"]]]"#),
             Block::Div(
                 Box::new(Attr {
-                    id: "d".to_string(),
+                    id: "d".to_string().into(),
                     classes: vec![],
                     attributes: vec![],
                 }),
@@ -1266,8 +1280,8 @@ mod tests {
             block,
             Block::Para(vec![
                 Inline::Quoted(QuoteType::DoubleQuote, vec![str_inline("q")]),
-                Inline::Math(MathType::InlineMath, "x^2".to_string()),
-                Inline::Code(Box::default(), "f()".to_string()),
+                Inline::Math(MathType::InlineMath, "x^2".to_string().into()),
+                Inline::Code(Box::default(), "f()".to_string().into()),
             ])
         );
     }
@@ -1284,21 +1298,21 @@ mod tests {
                     Box::default(),
                     vec![str_inline("t")],
                     Box::new(Target {
-                        url: "/u".to_string(),
-                        title: "ti".to_string()
+                        url: "/u".to_string().into(),
+                        title: "ti".to_string().into()
                     })
                 ),
                 Inline::Image(
                     Box::default(),
                     vec![str_inline("alt")],
                     Box::new(Target {
-                        url: "/i".to_string(),
-                        title: String::new()
+                        url: "/i".to_string().into(),
+                        title: carta_ast::Text::default()
                     })
                 ),
                 Inline::Span(
                     Box::new(Attr {
-                        id: "sp".to_string(),
+                        id: "sp".to_string().into(),
                         classes: vec![],
                         attributes: vec![],
                     }),
@@ -1315,8 +1329,8 @@ mod tests {
         assert_eq!(
             block,
             Block::Para(vec![Inline::RawInline(
-                Format("tex".to_string()),
-                "\\hi".to_string()
+                Format("tex".to_string().into()),
+                "\\hi".to_string().into()
             )])
         );
     }

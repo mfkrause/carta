@@ -102,8 +102,8 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
                 let label: String = span.iter().collect();
                 let attr = if markdown {
                     Attr {
-                        id: String::new(),
-                        classes: vec![m.kind.class().to_owned()],
+                        id: carta_ast::Text::default(),
+                        classes: vec![m.kind.class().into()],
                         attributes: Vec::new(),
                     }
                 } else {
@@ -118,10 +118,10 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
                 };
                 out.push(Inline::Link(
                     Box::new(attr),
-                    vec![Inline::Str(label)],
+                    vec![Inline::Str(label.into())],
                     Box::new(Target {
-                        url,
-                        title: String::new(),
+                        url: url.into(),
+                        title: carta_ast::Text::default(),
                     }),
                 ));
             }
@@ -341,7 +341,7 @@ mod tests {
 
     /// Autolink a single text token, reporting each link as `(label, href, classes)`.
     fn classed_links(text: &str, markdown: bool) -> Vec<(String, String, Vec<String>)> {
-        let mut inlines = vec![Inline::Str(text.to_owned())];
+        let mut inlines = vec![Inline::Str(text.to_owned().into())];
         autolink_inlines(&mut inlines, markdown);
         inlines
             .iter()
@@ -354,7 +354,11 @@ mod tests {
                             _ => "",
                         })
                         .collect();
-                    Some((text, target.url.clone(), attr.classes.clone()))
+                    Some((
+                        text,
+                        target.url.to_string(),
+                        attr.classes.iter().map(ToString::to_string).collect(),
+                    ))
                 }
                 _ => None,
             })
@@ -363,7 +367,7 @@ mod tests {
 
     /// Autolink a single text token, returning the resulting inlines.
     fn autolinked(text: &str, markdown: bool) -> Vec<Inline> {
-        let mut inlines = vec![Inline::Str(text.to_owned())];
+        let mut inlines = vec![Inline::Str(text.to_owned().into())];
         autolink_inlines(&mut inlines, markdown);
         inlines
     }
@@ -459,10 +463,10 @@ mod tests {
         // A link is never nested inside another link: a pre-formed Link is passed through verbatim.
         let inner = Inline::Link(
             Box::default(),
-            vec![Inline::Str("http://example.com".to_owned())],
+            vec![Inline::Str("http://example.com".to_owned().into())],
             Box::new(Target {
-                url: "http://example.com".to_owned(),
-                title: String::new(),
+                url: "http://example.com".to_owned().into(),
+                title: carta_ast::Text::default(),
             }),
         );
         let mut inlines = vec![inner.clone()];
@@ -472,7 +476,7 @@ mod tests {
 
     #[test]
     fn code_is_left_untouched() {
-        let code = Inline::Code(Box::default(), "http://example.com".to_owned());
+        let code = Inline::Code(Box::default(), "http://example.com".to_owned().into());
         let mut inlines = vec![code.clone()];
         autolink_inlines(&mut inlines, false);
         assert_eq!(inlines, vec![code]);
@@ -540,7 +544,7 @@ mod tests {
         // bare `www.` hosts, so the token must survive as a single unchanged `Str`.
         assert_eq!(
             autolinked("www.example.com", true),
-            vec![Inline::Str("www.example.com".to_owned())]
+            vec![Inline::Str("www.example.com".to_owned().into())]
         );
     }
 
@@ -548,7 +552,7 @@ mod tests {
     fn trigger_gate_passes_plain_token_through_unchanged() {
         assert_eq!(
             autolinked("nothing-here", false),
-            vec![Inline::Str("nothing-here".to_owned())]
+            vec![Inline::Str("nothing-here".to_owned().into())]
         );
     }
 
@@ -557,7 +561,7 @@ mod tests {
         // Contains `://` and `@` triggers so the gate does not skip it, yet nothing matches.
         assert_eq!(
             autolinked("not:a//url @ alone", false),
-            vec![Inline::Str("not:a//url @ alone".to_owned())]
+            vec![Inline::Str("not:a//url @ alone".to_owned().into())]
         );
     }
 
@@ -574,7 +578,7 @@ mod tests {
                             _ => "",
                         })
                         .collect();
-                    Some((text, target.url.clone()))
+                    Some((text, target.url.to_string()))
                 }
                 _ => None,
             })

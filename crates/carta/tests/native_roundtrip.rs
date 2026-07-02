@@ -41,16 +41,16 @@ fn document(blocks: Vec<Block>) -> Document {
 }
 
 fn str_inline(text: &str) -> Inline {
-    Inline::Str(text.to_owned())
+    Inline::Str(text.into())
 }
 
 fn attr(id: &str, classes: &[&str], attributes: &[(&str, &str)]) -> Attr {
     Attr {
-        id: id.to_owned(),
-        classes: classes.iter().map(|c| (*c).to_owned()).collect(),
+        id: id.into(),
+        classes: classes.iter().map(|c| (*c).into()).collect(),
         attributes: attributes
             .iter()
-            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .map(|(k, v)| ((*k).into(), (*v).into()))
             .collect(),
     }
 }
@@ -87,27 +87,27 @@ fn document_corpus() -> Vec<Document> {
         document(vec![Block::Para(vec![
             Inline::Code(
                 Box::new(attr("i", &["lang"], &[("k", "v")])),
-                "x = 1".to_owned(),
+                "x = 1".into(),
             ),
-            Inline::Math(MathType::InlineMath, "a^2".to_owned()),
-            Inline::Math(MathType::DisplayMath, "b".to_owned()),
-            Inline::RawInline(Format("html".to_owned()), "<b>".to_owned()),
+            Inline::Math(MathType::InlineMath, "a^2".into()),
+            Inline::Math(MathType::DisplayMath, "b".into()),
+            Inline::RawInline(Format("html".into()), "<b>".into()),
         ])]),
         document(vec![Block::Para(vec![
             Inline::Link(
                 Box::new(attr("l", &["c"], &[])),
                 vec![str_inline("t")],
                 Box::new(Target {
-                    url: "http://x".to_owned(),
-                    title: "ti".to_owned(),
+                    url: "http://x".into(),
+                    title: "ti".into(),
                 }),
             ),
             Inline::Image(
                 Box::default(),
                 vec![str_inline("alt")],
                 Box::new(Target {
-                    url: "p.png".to_owned(),
-                    title: String::new(),
+                    url: "p.png".into(),
+                    title: "".into(),
                 }),
             ),
             Inline::Span(Box::new(attr("s", &["c"], &[])), vec![str_inline("inner")]),
@@ -116,7 +116,7 @@ fn document_corpus() -> Vec<Document> {
         document(vec![Block::Para(vec![Inline::Cite(
             vec![
                 Citation {
-                    id: "k".to_owned(),
+                    id: "k".into(),
                     prefix: vec![str_inline("see")],
                     suffix: vec![str_inline("p5")],
                     mode: CitationMode::NormalCitation,
@@ -124,7 +124,7 @@ fn document_corpus() -> Vec<Document> {
                     hash: 0,
                 },
                 Citation {
-                    id: "j".to_owned(),
+                    id: "j".into(),
                     prefix: vec![],
                     suffix: vec![],
                     mode: CitationMode::AuthorInText,
@@ -132,7 +132,7 @@ fn document_corpus() -> Vec<Document> {
                     hash: 0,
                 },
                 Citation {
-                    id: "h".to_owned(),
+                    id: "h".into(),
                     prefix: vec![],
                     suffix: vec![],
                     mode: CitationMode::SuppressAuthor,
@@ -144,8 +144,8 @@ fn document_corpus() -> Vec<Document> {
         )])]),
         document(vec![
             Block::LineBlock(vec![vec![str_inline("one")], vec![str_inline("two")]]),
-            Block::CodeBlock(Box::new(attr("", &["rust"], &[])), "let x = 1;".to_owned()),
-            Block::RawBlock(Format("html".to_owned()), "<div>".to_owned()),
+            Block::CodeBlock(Box::new(attr("", &["rust"], &[])), "let x = 1;".into()),
+            Block::RawBlock(Format("html".into()), "<div>".into()),
             Block::BlockQuote(vec![Block::Para(vec![str_inline("q")])]),
             Block::HorizontalRule,
         ]),
@@ -231,8 +231,8 @@ fn document_corpus() -> Vec<Document> {
                     Box::default(),
                     vec![str_inline("alt")],
                     Box::new(Target {
-                        url: "p.png".to_owned(),
-                        title: String::new(),
+                        url: "p.png".into(),
+                        title: "".into(),
                     }),
                 )])],
             ),

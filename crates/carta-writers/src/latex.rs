@@ -1554,7 +1554,7 @@ fn push_inline(
         }
         Inline::RawInline(format, text) => {
             if is_latex_format(&format.0) {
-                out.push(Piece::Text(text.clone()));
+                out.push(Piece::Text(text.to_string()));
             }
         }
         Inline::Link(attr, inlines, target) => {
@@ -1958,7 +1958,7 @@ mod tests {
     }
 
     fn str_inlines(text: &str) -> Vec<Inline> {
-        vec![Inline::Str(text.to_owned())]
+        vec![Inline::Str(text.to_owned().into())]
     }
 
     fn render_columns(blocks: Vec<Block>, columns: usize) -> String {
@@ -1975,7 +1975,7 @@ mod tests {
         let words: Vec<Inline> =
             "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi"
                 .split(' ')
-                .flat_map(|word| [Inline::Str(word.to_owned()), Inline::Space])
+                .flat_map(|word| [Inline::Str(word.to_owned().into()), Inline::Space])
                 .collect();
         vec![Block::Para(words)]
     }
@@ -2243,7 +2243,7 @@ mod tests {
             str_inlines("alt"),
             Box::new(Target {
                 url: "img.png".into(),
-                title: String::new(),
+                title: String::new().into(),
             }),
         );
         let out = render(vec![Block::Para(vec![image])]);
