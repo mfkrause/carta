@@ -22,6 +22,70 @@ fn commonmark_to_html() {
     assert_eq!(output, "<h1>Hi</h1>");
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn number_sections_without_standalone_numbers_the_body_in_place() {
+    let mut writer_options = WriterOptions::default();
+    writer_options.number_sections = true;
+    let output = convert(
+        "commonmark",
+        "html",
+        "# First\n\n## Nested\n",
+        &ReaderOptions::default(),
+        &writer_options,
+    )
+    .unwrap();
+
+    assert!(
+        output.contains(r#"<span class="header-section-number">1</span>"#),
+        "top heading not numbered: {output}"
+    );
+    assert!(
+        output.contains(r#"<span class="header-section-number">1.1</span>"#),
+        "nested heading not numbered: {output}"
+    );
+}
+
+#[cfg(all(
+    feature = "read-commonmark",
+    feature = "write-html",
+    feature = "standalone"
+))]
+#[test]
+fn number_sections_with_standalone_toc_numbers_body_and_toc_exactly_once() {
+    let mut writer_options = WriterOptions::default();
+    writer_options.number_sections = true;
+    writer_options.standalone = true;
+    writer_options.toc = true;
+    let output = convert(
+        "commonmark",
+        "html",
+        "# First\n\n## Nested\n",
+        &ReaderOptions::default(),
+        &writer_options,
+    )
+    .unwrap();
+
+    assert!(
+        output.contains(r#"<span class="toc-section-number">1</span>"#)
+            && output.contains(r#"<span class="toc-section-number">1.1</span>"#),
+        "contents entries not numbered: {output}"
+    );
+    // The body headings carry a section number; the contents entries carry their own. Neither the
+    // body nor the contents should show a doubled number, so each span appears exactly as many times
+    // as there are headings.
+    assert_eq!(
+        output.matches(r#"class="header-section-number""#).count(),
+        2,
+        "body section numbers doubled or leaked into the contents: {output}"
+    );
+    assert_eq!(
+        output.matches(r#"class="toc-section-number""#).count(),
+        2,
+        "contents section numbers doubled: {output}"
+    );
+}
+
 #[cfg(all(feature = "read-json", feature = "write-json"))]
 #[test]
 fn json_round_trips() {
