@@ -1721,7 +1721,19 @@ impl InlineParser<'_> {
             }
         }
         // Explicit reference. Labels match on their raw source text (the closing `]` sits at `pos - 1`).
-        if let Some((label, next)) = scan_following_label(self.chars, self.pos) {
+        // With `spaced_reference_links`, whitespace may separate the text bracket from the reference
+        // label bracket — `[text] [ref]` and `[text]\n[ref]` — though not from the inline `(...)`
+        // target handled above.
+        let mut label_start = self.pos;
+        if self.ext.contains(Extension::SpacedReferenceLinks) {
+            while matches!(
+                self.chars.get(label_start).copied(),
+                Some(' ' | '\t' | '\n')
+            ) {
+                label_start += 1;
+            }
+        }
+        if let Some((label, next)) = scan_following_label(self.chars, label_start) {
             let key = if label.is_empty() {
                 normalize_label(&self.raw_label(opener_index))
             } else {
@@ -3765,6 +3777,43 @@ mod inline_tests {
         let refs = ref_map(&[("r", "http://r")]);
         let result = parse_inlines("[a][r]", &refs, no_notes(), no_ext());
         assert_eq!(result, vec![link(vec![str("a")], "http://r")]);
+    }
+
+    #[test]
+    fn spaced_reference_link_allows_whitespace_before_the_label() {
+        let refs = ref_map(&[("ref", "http://r"), ("text", "http://t")]);
+        let ext = exts(&[Extension::SpacedReferenceLinks]);
+        // A space or newline separates the text bracket from the reference label; the display comes
+        // from the first bracket and the target from the second.
+        assert_eq!(
+            parse_inlines("[text] [ref]", &refs, no_notes(), ext),
+            vec![link(vec![str("text")], "http://r")]
+        );
+        assert_eq!(
+            parse_inlines("[text]\n[ref]", &refs, no_notes(), ext),
+            vec![link(vec![str("text")], "http://r")]
+        );
+        // An empty second bracket is a collapsed reference keyed on the first bracket.
+        assert_eq!(
+            parse_inlines("[text] []", &refs, no_notes(), ext),
+            vec![link(vec![str("text")], "http://t")]
+        );
+        // A defined text but an undefined second label leaves the whole run literal — the text is
+        // not retried as a shortcut.
+        let only_text = ref_map(&[("text", "http://t")]);
+        assert_eq!(
+            parse_inlines("[text] [ref]", &only_text, no_notes(), ext),
+            vec![str("[text]"), Inline::Space, str("[ref]")]
+        );
+        // Without the extension the space breaks the pair into two shortcut references.
+        assert_eq!(
+            parse_inlines("[text] [ref]", &refs, no_notes(), no_ext()),
+            vec![
+                link(vec![str("text")], "http://t"),
+                Inline::Space,
+                link(vec![str("ref")], "http://r"),
+            ]
+        );
     }
 
     #[test]
