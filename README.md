@@ -9,7 +9,7 @@ A universal document converter written in Rust that reads a markup format and re
 
 - **Performance** and a **smaller binary** than pandoc.
 - **Feature parity** with pandoc across all formats and extensions.
-- A **DX-friendly library**, with the CLI as a thin shell over it.
+- A **developer-friendly library**, with the CLI as a thin shell over it.
 
 ## Status
 
@@ -145,21 +145,15 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 ### Prebuilt binaries
 
-Download the archive for your platform from the [latest release][latest-release], extract it, and
-put the `carta` executable on your `PATH`. Each archive ships a SHA-256 checksum and the license.
-Builds are provided for Linux (x86-64 gnu and static musl, arm64), macOS (Intel and Apple Silicon),
-and Windows (x86-64).
+Download the archive for your platform from the [latest release][latest-release]. Builds are provided for Linux (x86-64 gnu and static musl, arm64), macOS (Intel and Apple Silicon), and Windows (x86-64).
 
 ### From crates.io
-
-With a Rust 1.93+ toolchain:
 
 ```sh
 cargo install carta
 ```
 
-This installs the `carta` binary. For a smaller build, pass `--no-default-features` with only the
-formats you need, e.g. `--features cli,read-commonmark,write-html`.
+This installs the `carta` binary. For a smaller build, pass `--no-default-features` with only the formats you need, e.g. `--features cli,read-commonmark,write-html`.
 
 ### From source
 
@@ -228,7 +222,7 @@ cargo clippy --all-targets          # lint
 cargo +nightly fuzz run commonmark  # fuzz a reader (see fuzz/README.md)
 ```
 
-The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and options), `carta-readers`, `carta-writers`, and `carta` — the library facade, which also ships the command-line binary behind its `cli` feature.
+The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and options), `carta-readers`, `carta-writers`, and `carta` (the library facade, which also ships the command-line binary behind its `cli` feature).
 
 ## License
 
