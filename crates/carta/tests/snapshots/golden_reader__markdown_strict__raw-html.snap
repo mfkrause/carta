@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"RawBlock","c":["html","<div class=\"outer\">\n\nA paragraph inside the raw block.\n\n<div class=\"inner\">\nNested content.\n</div>\n\n</div>"]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"paragraph"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"RawInline","c":["html","<span>"]},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Str","c":"raw"},{"t":"Space"},{"t":"Str","c":"HTML"},{"t":"RawInline","c":["html","</span>"]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"break."}]},{"t":"RawBlock","c":["html","<hr>"]},{"t":"Para","c":[{"t":"Str","c":"Text"},{"t":"Space"},{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"void"},{"t":"Space"},{"t":"Str","c":"tag."}]}]}
