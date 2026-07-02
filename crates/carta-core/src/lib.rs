@@ -15,6 +15,7 @@ pub mod media;
 pub mod sections;
 #[cfg(feature = "template")]
 pub mod template;
+pub mod walk;
 
 pub use extensions::{Extension, Extensions, presets};
 pub use media::{MediaBag, MediaItem};

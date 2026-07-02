@@ -375,7 +375,12 @@ fn markdown_cell_blocks(
         .get("id")
         .map(|id| format!("{}-", id.as_str().unwrap_or_default()));
     capture_attachments(cell, prefix.as_deref(), media);
-    strip_attachment_blocks(&mut blocks, prefix.as_deref());
+    let prefix = prefix.as_deref().unwrap_or_default();
+    carta_core::walk::for_each_image_target(&mut blocks, &mut |target| {
+        if let Some(bare) = target.url.strip_prefix("attachment:") {
+            target.url = format!("{prefix}{bare}").into();
+        }
+    });
     Ok(blocks)
 }
 
@@ -702,111 +707,6 @@ fn strip_ansi(text: &str) -> String {
         }
     }
     out
-}
-
-/// Rewrite `attachment:` image references to their cell-scoped names throughout a block sequence.
-/// `prefix` is the cell's name prefix (`<id>-`), or `None` for a cell without an `id`.
-fn strip_attachment_blocks(blocks: &mut [Block], prefix: Option<&str>) {
-    for block in blocks {
-        match block {
-            Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
-                strip_attachment_inlines(inlines, prefix);
-            }
-            Block::LineBlock(lines) => {
-                for line in lines {
-                    strip_attachment_inlines(line, prefix);
-                }
-            }
-            Block::BlockQuote(inner) | Block::Div(_, inner) => {
-                strip_attachment_blocks(inner, prefix);
-            }
-            Block::OrderedList(_, items) | Block::BulletList(items) => {
-                for item in items {
-                    strip_attachment_blocks(item, prefix);
-                }
-            }
-            Block::DefinitionList(items) => {
-                for (term, definitions) in items {
-                    strip_attachment_inlines(term, prefix);
-                    for definition in definitions {
-                        strip_attachment_blocks(definition, prefix);
-                    }
-                }
-            }
-            Block::Figure(_, caption, inner) => {
-                strip_attachment_caption(caption, prefix);
-                strip_attachment_blocks(inner, prefix);
-            }
-            Block::Table(table) => strip_attachment_table(table, prefix),
-            Block::CodeBlock(..) | Block::RawBlock(..) | Block::HorizontalRule => {}
-        }
-    }
-}
-
-/// Rewrite `attachment:` image references throughout a table's caption and cells.
-fn strip_attachment_table(table: &mut carta_ast::Table, prefix: Option<&str>) {
-    strip_attachment_caption(&mut table.caption, prefix);
-    let row_groups = std::iter::once(&mut table.head.rows)
-        .chain(table.bodies.iter_mut().flat_map(|body| {
-            std::iter::once(&mut body.head).chain(std::iter::once(&mut body.body))
-        }))
-        .chain(std::iter::once(&mut table.foot.rows));
-    for rows in row_groups {
-        for row in rows {
-            for cell in &mut row.cells {
-                strip_attachment_blocks(&mut cell.content, prefix);
-            }
-        }
-    }
-}
-
-fn strip_attachment_caption(caption: &mut carta_ast::Caption, prefix: Option<&str>) {
-    if let Some(short) = &mut caption.short {
-        strip_attachment_inlines(short, prefix);
-    }
-    strip_attachment_blocks(&mut caption.long, prefix);
-}
-
-/// Rewrite `attachment:` image references to their cell-scoped names throughout an inline sequence.
-fn strip_attachment_inlines(inlines: &mut [Inline], prefix: Option<&str>) {
-    for inline in inlines {
-        match inline {
-            Inline::Image(_, alt, target) => {
-                if let Some(bare) = target.url.strip_prefix("attachment:") {
-                    target.url = match prefix {
-                        Some(prefix) => format!("{prefix}{bare}").into(),
-                        None => bare.into(),
-                    };
-                }
-                strip_attachment_inlines(alt, prefix);
-            }
-            Inline::Emph(children)
-            | Inline::Underline(children)
-            | Inline::Strong(children)
-            | Inline::Strikeout(children)
-            | Inline::Superscript(children)
-            | Inline::Subscript(children)
-            | Inline::SmallCaps(children)
-            | Inline::Quoted(_, children)
-            | Inline::Link(_, children, _)
-            | Inline::Span(_, children) => strip_attachment_inlines(children, prefix),
-            Inline::Cite(citations, children) => {
-                for citation in citations {
-                    strip_attachment_inlines(&mut citation.prefix, prefix);
-                    strip_attachment_inlines(&mut citation.suffix, prefix);
-                }
-                strip_attachment_inlines(children, prefix);
-            }
-            Inline::Note(blocks) => strip_attachment_blocks(blocks, prefix),
-            Inline::Str(_)
-            | Inline::Code(..)
-            | Inline::Space
-            | Inline::SoftBreak
-            | Inline::LineBreak
-            | Inline::Math(..)
-            | Inline::RawInline(..) => {}
-        }
-    }
 }
 
 #[cfg(test)]
