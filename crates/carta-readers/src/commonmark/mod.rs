@@ -1509,7 +1509,7 @@ mod tests {
         // With no enabled enumerator style for these shapes, the line still ends the paragraph and
         // becomes a fresh paragraph of its own rather than folding in.
         let ext = &[Extension::ListsWithoutPrecedingBlankline];
-        for line in ["(5) item", "ii. item", "a) item", "#) item"] {
+        for line in ["(5) item", "ii. item", "a) item"] {
             let input = format!("text\n{line}\n");
             assert!(
                 matches!(
@@ -1519,6 +1519,15 @@ mod tests {
                 "expected two paragraphs for {input:?}"
             );
         }
+        // With `space_in_atx_header` off, a hash run glued to a marker opens a heading rather than
+        // continuing the paragraph.
+        assert!(
+            matches!(
+                greedy_blocks("text\n#) item\n", ext).as_slice(),
+                [Block::Para(_), Block::Header(1, _, _)]
+            ),
+            "expected a paragraph then a heading for a glued hash marker"
+        );
     }
 
     #[test]
@@ -1574,6 +1583,34 @@ mod tests {
             greedy_blocks("text\n[^1]: a note\n", &[Extension::Footnotes]).as_slice(),
             [Block::Para(_)]
         ));
+    }
+
+    #[test]
+    fn a_definition_marker_ends_an_open_footnote_definition() {
+        // A footnote-definition marker folds into an ordinary paragraph, but when the paragraph it
+        // would continue is itself a definition's body, the marker ends that definition and opens a
+        // new one — so consecutive definitions, and a marker after a definition's continuation line,
+        // stay separate rather than being swallowed.
+        let blocks = greedy_blocks(
+            "x[^1] y[^2]\n\n[^1]: one\n[^2]: two\n",
+            &[Extension::Footnotes],
+        );
+        let notes: Vec<_> = blocks
+            .iter()
+            .flat_map(|block| match block {
+                Block::Para(inlines) => inlines.clone(),
+                _ => Vec::new(),
+            })
+            .filter(|inline| matches!(inline, Inline::Note(_)))
+            .collect();
+        assert_eq!(notes.len(), 2, "each definition resolves to its own note");
+        for note in &notes {
+            let Inline::Note(body) = note else { continue };
+            let Some(Block::Para(para)) = body.first() else {
+                panic!("a note holds a single-line paragraph");
+            };
+            assert_eq!(para.len(), 1, "no following definition is swallowed in");
+        }
     }
 
     #[test]

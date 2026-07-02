@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"link"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"space"},{"t":"Space"},{"t":"Str","c":"before"},{"t":"Space"},{"t":"Str","c":"its"},{"t":"Space"},{"t":"Str","c":"label:"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"text"}],["/url","Title"]]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"collapsed"},{"t":"Space"},{"t":"Str","c":"one:"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"ref"}],["/url","Title"]]},{"t":"Str","c":"."}]}]}

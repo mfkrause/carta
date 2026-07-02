@@ -43,7 +43,7 @@ pub fn convert(
     reader_options: &ReaderOptions,
     writer_options: &WriterOptions,
 ) -> Result<String> {
-    let (from_base, from_ext) = parse_format_spec(from)?;
+    let (from_base, from_ext) = format_spec::parse_reader_format_spec(from)?;
     let (to_base, to_ext) = parse_format_spec(to)?;
 
     let reader = reader_for(&from_base)?;
@@ -51,9 +51,10 @@ pub fn convert(
 
     let mut reader_options = reader_options.clone();
     reader_options.extensions = from_ext.union(reader_options.extensions);
-    // The markdown dialect treats paragraphs as greedy: most block openers need a preceding blank
-    // line, so a bare following line continues the paragraph rather than starting a new block.
-    reader_options.greedy_paragraphs |= from_base == "markdown";
+    // The markdown dialect and its variants treat paragraphs as greedy: most block openers need a
+    // preceding blank line, so a bare following line continues the paragraph rather than starting a
+    // new block.
+    reader_options.greedy_paragraphs |= from_base.starts_with("markdown");
     let mut writer_options = writer_options.clone();
     writer_options.extensions = to_ext.union(writer_options.extensions);
 

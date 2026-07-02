@@ -1,14 +1,15 @@
-//! Document front matter: a leading YAML metadata block (`yaml_metadata_block`) or a percent-line
-//! title block (`pandoc_title_block`). Either populates the document's `meta` map from material at
-//! the very top of the input and removes it from the body.
+//! Document front matter: a leading YAML metadata block (`yaml_metadata_block`), a percent-line
+//! title block (`pandoc_title_block`), or a `key: value` title block (`mmd_title_block`). Each
+//! populates the document's `meta` map from material at the very top of the input and removes it
+//! from the body.
 //!
-//! Both are recognized only when their extension is enabled and only at the first line of the
-//! document. [`extract`] returns the metadata together with the body that remains once the front
-//! matter is stripped.
+//! Each is recognized only when its extension is enabled and only at the first line of the document.
+//! [`extract`] returns the metadata together with the body that remains once the front matter is
+//! stripped.
 
 use std::collections::BTreeMap;
 
-use carta_ast::MetaValue;
+use carta_ast::{Inline, MetaValue};
 use carta_core::{Error, Extension, ReaderOptions, Result};
 
 use super::inline::parse_meta_inlines;
@@ -32,6 +33,14 @@ pub(crate) fn extract(normalized: &str, options: &ReaderOptions) -> Result<Front
     }
     if options.extensions.contains(Extension::PandocTitleBlock)
         && let Some((meta, body)) = title_block(normalized, options)
+    {
+        return Ok(FrontMatter {
+            meta,
+            body: Some(body),
+        });
+    }
+    if options.extensions.contains(Extension::MmdTitleBlock)
+        && let Some((meta, body)) = mmd_title_block(normalized)
     {
         return Ok(FrontMatter {
             meta,
@@ -286,6 +295,88 @@ fn title_block(
     Some((meta, body))
 }
 
+/// Try to consume a leading `key: value` metadata block (`mmd_title_block`). The first line must be
+/// a key line carrying a value; the block then runs to the first blank line (or the end of input).
+/// Each key line starts a field; an indented line without a key continues the current field's value.
+/// Any other non-blank line before the terminator abandons the block, so ordinary prose is left in
+/// the body. Values are taken verbatim — words become `Str`, line breaks become soft breaks — with no
+/// inline markup, and keys are lowercased with all whitespace removed.
+fn mmd_title_block(normalized: &str) -> Option<(BTreeMap<String, MetaValue>, String)> {
+    let lines: Vec<&str> = normalized.split('\n').collect();
+    let (mut key, value) = lines.first().and_then(|line| meta_key_line(line))?;
+    if value.trim().is_empty() {
+        return None;
+    }
+    let mut meta = BTreeMap::new();
+    let mut field = vec![value.trim().to_owned()];
+    let mut idx = 1;
+    let mut terminator = None;
+    while let Some(&line) = lines.get(idx) {
+        if line.trim().is_empty() {
+            terminator = Some(idx);
+            break;
+        }
+        if let Some((next_key, next_value)) = meta_key_line(line) {
+            insert_meta_field(&mut meta, &key, &field);
+            key = next_key;
+            field = vec![next_value.trim().to_owned()];
+        } else if starts_with_space(line) {
+            field.push(line.trim().to_owned());
+        } else {
+            return None;
+        }
+        idx += 1;
+    }
+    insert_meta_field(&mut meta, &key, &field);
+    let body = match terminator {
+        Some(blank) => lines.get(blank + 1..).unwrap_or(&[]).join("\n"),
+        None => String::new(),
+    };
+    Some((meta, body))
+}
+
+/// Parse one `key: value` metadata line, returning the normalized key and the raw value. The key is
+/// the text before the first colon; it may hold only letters, digits, spaces, hyphens, and
+/// underscores, and normalizes to its lowercase with whitespace removed. Any other content (or an
+/// empty key, or no colon) means the line is not a key line.
+fn meta_key_line(line: &str) -> Option<(String, &str)> {
+    let colon = line.find(':')?;
+    let raw = line.get(..colon)?;
+    if !raw
+        .chars()
+        .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '\t' | '-' | '_'))
+    {
+        return None;
+    }
+    let key: String = raw
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(char::to_lowercase)
+        .collect();
+    if key.is_empty() {
+        return None;
+    }
+    Some((key, line.get(colon + 1..).unwrap_or("")))
+}
+
+/// Store one `mmd_title_block` field as verbatim inlines: each line's words become `Str` separated by
+/// `Space`, and successive lines are joined with a soft break.
+fn insert_meta_field(meta: &mut BTreeMap<String, MetaValue>, key: &str, field: &[String]) {
+    let mut inlines = Vec::new();
+    for line in field {
+        if !inlines.is_empty() {
+            inlines.push(Inline::SoftBreak);
+        }
+        for (word_index, word) in line.split_whitespace().enumerate() {
+            if word_index > 0 {
+                inlines.push(Inline::Space);
+            }
+            inlines.push(Inline::Str(word.to_owned()));
+        }
+    }
+    meta.insert(key.to_owned(), MetaValue::MetaInlines(inlines));
+}
+
 /// Add one title-block field to the metadata. Title and date are inline markdown (continuation lines
 /// join as soft breaks) and are omitted when empty; the author field is always a list, split on `;`
 /// and on continuation lines.
@@ -373,5 +464,70 @@ mod tests {
         // A fence must start at the line's first column; leading whitespace disqualifies it.
         let document = read("   ---\ntitle: T\n---\n\nBody\n");
         assert!(document.meta.is_empty());
+    }
+
+    fn read_mmd(input: &str) -> carta_ast::Document {
+        let mut options = ReaderOptions::default();
+        let mut extensions = Extensions::empty();
+        extensions.insert(Extension::MmdTitleBlock);
+        options.extensions = extensions;
+        CommonmarkReader
+            .read(input, &options)
+            .expect("reader should not fail")
+    }
+
+    fn inlines(words: &[&str]) -> MetaValue {
+        use carta_ast::Inline;
+        let mut out = Vec::new();
+        for (index, word) in words.iter().enumerate() {
+            if index > 0 {
+                out.push(Inline::Space);
+            }
+            out.push(Inline::Str((*word).to_owned()));
+        }
+        MetaValue::MetaInlines(out)
+    }
+
+    #[test]
+    fn mmd_title_block_populates_meta_and_strips_the_body() {
+        // Keys normalize to lowercase with whitespace removed; values are taken verbatim.
+        let document = read_mmd("Title: My Doc\nBase Header Level: 2\n\nBody.\n");
+        assert_eq!(document.meta.get("title"), Some(&inlines(&["My", "Doc"])));
+        assert_eq!(document.meta.get("baseheaderlevel"), Some(&inlines(&["2"])));
+        assert!(matches!(document.blocks.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn mmd_title_block_values_are_not_markdown() {
+        // Inline markup in a value stays literal text.
+        let document = read_mmd("Title: *Emph* `code`\n\nBody.\n");
+        assert_eq!(
+            document.meta.get("title"),
+            Some(&inlines(&["*Emph*", "`code`"]))
+        );
+    }
+
+    #[test]
+    fn mmd_title_block_continuation_lines_join_with_soft_breaks() {
+        use carta_ast::Inline;
+        let document = read_mmd("Author: Jane\n    John\n\nBody.\n");
+        assert_eq!(
+            document.meta.get("author"),
+            Some(&MetaValue::MetaInlines(vec![
+                Inline::Str("Jane".to_owned()),
+                Inline::SoftBreak,
+                Inline::Str("John".to_owned()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn mmd_title_block_requires_a_first_value_and_well_formed_lines() {
+        // A first line with no value is not a title block.
+        assert!(read_mmd("Foo:\nTitle: X\n\nBody.\n").meta.is_empty());
+        // A non-key, non-continuation line before the terminator abandons the block.
+        assert!(read_mmd("Title: X\nNot a key\n\nBody.\n").meta.is_empty());
+        // A key with an unsupported character is not a key line.
+        assert!(read_mmd("a/b: v\n\nBody.\n").meta.is_empty());
     }
 }

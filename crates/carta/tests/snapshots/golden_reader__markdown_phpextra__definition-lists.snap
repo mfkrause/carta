@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"DefinitionList","c":[[[{"t":"Str","c":"Term"}],[[{"t":"Plain","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"definition"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"term."}]}]]],[[{"t":"Str","c":"Apple"}],[[{"t":"Plain","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"pomaceous"},{"t":"Space"},{"t":"Str","c":"fruit."}]}],[{"t":"Plain","c":[{"t":"Str","c":"Also"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"company."}]}]]]]}]}

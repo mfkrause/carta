@@ -645,6 +645,56 @@ pub(crate) fn parse_link_reference_definition(
     Some((normalized, def, rest))
 }
 
+/// Parse a leading abbreviation definition (`abbreviations`) from `text`: a single line of the form
+/// `*[label]:` optionally followed by the definition. The `*` must be glued to the opening bracket;
+/// the label runs to its matching close bracket (nesting allowed) on the same line, may be empty, and
+/// must be followed immediately by a colon. The definition itself is discarded — only later use of
+/// the term is affected — so this returns just the unconsumed remainder of `text`, or `None` when the
+/// line does not open a definition.
+pub(crate) fn parse_abbreviation_definition(text: &str) -> Option<&str> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut index = 0;
+    if chars.get(index).copied() != Some('*') {
+        return None;
+    }
+    index += 1;
+    if chars.get(index).copied() != Some('[') {
+        return None;
+    }
+    index += 1;
+    let mut depth = 1;
+    loop {
+        match chars.get(index).copied() {
+            None | Some('\n') => return None,
+            Some('[') => {
+                depth += 1;
+                index += 1;
+            }
+            Some(']') => {
+                depth -= 1;
+                index += 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            Some(_) => index += 1,
+        }
+    }
+    if chars.get(index).copied() != Some(':') {
+        return None;
+    }
+    while let Some(&ch) = chars.get(index) {
+        index += 1;
+        if ch == '\n' {
+            break;
+        }
+    }
+    let consumed_bytes: usize = chars
+        .get(..index)
+        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
+    Some(text.get(consumed_bytes..).unwrap_or(""))
+}
+
 /// After a destination ending at `after_dest`, scan an optional title separated from it by
 /// whitespace and at most one newline. Returns the title (empty when absent) together with the
 /// index at the end of the definition's last line. Returns `None` when non-whitespace other than a
@@ -860,5 +910,36 @@ mod tests {
     #[test]
     fn backslashes_and_non_ascii_text_pass_through() {
         assert_eq!(escape_uri("a\\b/café"), "a\\b/café");
+    }
+
+    use super::parse_abbreviation_definition;
+
+    #[test]
+    fn an_abbreviation_definition_consumes_its_line() {
+        assert_eq!(
+            parse_abbreviation_definition("*[HTML]: markup\nrest\n"),
+            Some("rest\n")
+        );
+        // Empty label, nested brackets, and an absent definition all still open one.
+        assert_eq!(parse_abbreviation_definition("*[]: x\nrest"), Some("rest"));
+        assert_eq!(
+            parse_abbreviation_definition("*[a[b]]: x\nrest"),
+            Some("rest")
+        );
+        assert_eq!(
+            parse_abbreviation_definition("*[HTML]:\nrest"),
+            Some("rest")
+        );
+    }
+
+    #[test]
+    fn a_malformed_line_opens_no_definition() {
+        // Leading space, a double star, a gap before the colon, an unclosed label, and a missing
+        // colon each disqualify the line.
+        assert_eq!(parse_abbreviation_definition(" *[HTML]: x"), None);
+        assert_eq!(parse_abbreviation_definition("**[HTML]: x"), None);
+        assert_eq!(parse_abbreviation_definition("*[HTML] : x"), None);
+        assert_eq!(parse_abbreviation_definition("*[HTML: x\nmore"), None);
+        assert_eq!(parse_abbreviation_definition("*[HTML] x"), None);
     }
 }

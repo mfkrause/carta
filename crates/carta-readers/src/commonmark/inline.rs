@@ -586,39 +586,106 @@ fn task_marker_replacement(text: &str) -> Option<String> {
 /// Split a trailing attribute block off a heading's text when header attributes are enabled,
 /// returning the content to parse as inlines and the heading's attribute. The block must be the
 /// last non-blank run on the line (`# Title {#id .cls}`); an empty block (`{}`) is left in the text.
+/// When `mmd_header_identifiers` is on and no attribute block is present, a trailing `[id]` label is
+/// taken as the identifier instead.
 fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
-    if !(ext.contains(Extension::HeaderAttributes) || ext.contains(Extension::Attributes)) {
-        return (text, Attr::default());
-    }
-    let trimmed = text.trim_end();
-    if !trimmed.ends_with('}') {
-        return (text, Attr::default());
-    }
-    let chars: Vec<char> = trimmed.chars().collect();
-    for start in (0..chars.len()).rev() {
-        if chars.get(start) != Some(&'{') {
-            continue;
+    if ext.contains(Extension::HeaderAttributes) || ext.contains(Extension::Attributes) {
+        let trimmed = text.trim_end();
+        if trimmed.ends_with('}') {
+            let chars: Vec<char> = trimmed.chars().collect();
+            for start in (0..chars.len()).rev() {
+                if chars.get(start) != Some(&'{') {
+                    continue;
+                }
+                // The block must be set off from the heading text by whitespace, else it belongs to
+                // the preceding word rather than the heading.
+                let preceded_by_space = start == 0
+                    || chars
+                        .get(start - 1)
+                        .copied()
+                        .is_some_and(is_unicode_whitespace);
+                if preceded_by_space
+                    && let Some((attr, end)) = attr::parse_attributes_chars(&chars, start)
+                    && end == chars.len()
+                    && attr::is_non_empty(&attr)
+                {
+                    let byte_start: usize = chars
+                        .get(..start)
+                        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
+                    let content = text.get(..byte_start).unwrap_or(text).trim_end();
+                    return (content, attr);
+                }
+            }
         }
-        // The block must be set off from the heading text by whitespace, else it belongs to the
-        // preceding word rather than the heading.
-        let preceded_by_space = start == 0
-            || chars
-                .get(start - 1)
-                .copied()
-                .is_some_and(is_unicode_whitespace);
-        if preceded_by_space
-            && let Some((attr, end)) = attr::parse_attributes_chars(&chars, start)
-            && end == chars.len()
-            && attr::is_non_empty(&attr)
-        {
-            let byte_start: usize = chars
-                .get(..start)
-                .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
-            let content = text.get(..byte_start).unwrap_or(text).trim_end();
-            return (content, attr);
-        }
+    }
+    if ext.contains(Extension::MmdHeaderIdentifiers)
+        && let Some((content, id)) = split_mmd_header_id(text)
+    {
+        return (
+            content,
+            Attr {
+                id,
+                ..Attr::default()
+            },
+        );
     }
     (text, Attr::default())
+}
+
+/// Split a trailing `[id]` label off a heading's text (`mmd_header_identifiers`), returning the
+/// content to keep and the identifier. The label is the last bracket group on the line, its opener
+/// reachable without crossing another bracket group's close (so a reference-link tail like
+/// `[text][ref]` is not mistaken for it). The identifier is the bracket content lowercased with all
+/// whitespace removed; an empty label is still stripped but yields an empty identifier, which then
+/// falls to an automatic one.
+fn split_mmd_header_id(text: &str) -> Option<(&str, String)> {
+    let trimmed = text.trim_end();
+    if !trimmed.ends_with(']') {
+        return None;
+    }
+    let chars: Vec<char> = trimmed.chars().collect();
+    let close = chars.len().checked_sub(1)?;
+    let mut depth = 0i32;
+    let mut open = None;
+    for i in (0..chars.len()).rev() {
+        match chars.get(i).copied() {
+            Some(']') => depth += 1,
+            Some('[') => {
+                depth -= 1;
+                if depth == 0 {
+                    open = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let open = open?;
+    // A bracket group directly before the label (only whitespace between) makes the pair a
+    // reference-link construct, not an identifier.
+    let mut before = open;
+    while before > 0
+        && chars
+            .get(before - 1)
+            .copied()
+            .is_some_and(is_unicode_whitespace)
+    {
+        before -= 1;
+    }
+    if before > 0 && chars.get(before - 1) == Some(&']') {
+        return None;
+    }
+    let id: String = chars
+        .get(open + 1..close)?
+        .iter()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(|c| c.to_lowercase())
+        .collect();
+    let byte_open: usize = chars
+        .get(..open)
+        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
+    let content = text.get(..byte_open).unwrap_or(text).trim_end();
+    Some((content, id))
 }
 
 /// A node in the in-progress inline list. Delimiter runs stay as nodes until emphasis resolution.
@@ -754,6 +821,9 @@ impl InlineParser<'_> {
                 '\n' => self.line_ending(),
                 '*' | '_' => self.emphasis_run(ch as u8),
                 '~' if self.ext.contains(Extension::Subscript)
+                    && self.ext.contains(Extension::ShortSubsuperscripts)
+                    && self.try_short_script('~') => {}
+                '~' if self.ext.contains(Extension::Subscript)
                     || self.ext.contains(Extension::Strikeout) =>
                 {
                     self.emphasis_run(b'~');
@@ -761,6 +831,9 @@ impl InlineParser<'_> {
                 '^' if self.ext.contains(Extension::InlineNotes)
                     && self.at(1) == Some('[')
                     && self.try_inline_note() => {}
+                '^' if self.ext.contains(Extension::Superscript)
+                    && self.ext.contains(Extension::ShortSubsuperscripts)
+                    && self.try_short_script('^') => {}
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
                 '=' if self.ext.contains(Extension::Mark) => self.emphasis_run(b'='),
                 '@' if self.ext.contains(Extension::ExampleLists)
@@ -920,6 +993,63 @@ impl InlineParser<'_> {
         true
     }
 
+    /// Try a short sub/superscript at the cursor (`short_subsuperscripts`): a `~` or `^` directly
+    /// followed by a run of alphanumerics, taken as the sub/superscript content without a closing
+    /// delimiter. Within a caret's whitespace-bounded span the delimiters pair up left to right into
+    /// the delimited `^x^`/`~x~` form, which the delimiter stack resolves; the short form applies
+    /// only to an unpaired opener — an even number of matching delimiters precede it in the span and
+    /// none follow. An empty alphanumeric run (a delimiter met by a non-alphanumeric or the line's
+    /// end) is not a script.
+    fn try_short_script(&mut self, delimiter: char) -> bool {
+        let mut preceding = 0usize;
+        let mut behind = self.pos;
+        while behind > 0 {
+            match self.chars.get(behind - 1).copied() {
+                Some(ch) if ch.is_whitespace() => break,
+                Some(ch) => {
+                    if ch == delimiter {
+                        preceding += 1;
+                    }
+                    behind -= 1;
+                }
+                None => break,
+            }
+        }
+        // An odd count leaves this delimiter closing a prior opener, never starting a short script.
+        if preceding % 2 == 1 {
+            return false;
+        }
+        // An opener pairs into the delimited form when another matching delimiter follows in-span.
+        let mut ahead = self.pos + 1;
+        while let Some(&ch) = self.chars.get(ahead) {
+            if ch.is_whitespace() {
+                break;
+            }
+            if ch == delimiter {
+                return false;
+            }
+            ahead += 1;
+        }
+        let start = self.pos + 1;
+        let mut end = start;
+        while self.chars.get(end).is_some_and(|ch| ch.is_alphanumeric()) {
+            end += 1;
+        }
+        let content: String = match self.chars.get(start..end) {
+            Some(slice) if !slice.is_empty() => slice.iter().collect(),
+            _ => return false,
+        };
+        let inner = vec![Inline::Str(content)];
+        let node = if delimiter == '^' {
+            Inline::Superscript(inner)
+        } else {
+            Inline::Subscript(inner)
+        };
+        self.nodes.push(Node::Inline(node));
+        self.pos = end;
+        true
+    }
+
     fn backslash(&mut self) {
         // Backslash-delimited TeX math and raw TeX commands take precedence over a plain escape,
         // each gated behind its own extension. `\\(`/`\\[` (double backslash) is tried before
@@ -928,6 +1058,11 @@ impl InlineParser<'_> {
             return;
         }
         self.pos += 1;
+        // With `all_symbols_escapable` — and always in the bare CommonMark engine — a backslash
+        // escapes any ASCII punctuation character (and, in the markdown dialect, turns a following
+        // space into a non-breaking space). Without it a markdown dialect escapes only the classic
+        // set and leaves every other backslash literal.
+        let broad = !self.notes.markdown || self.ext.contains(Extension::AllSymbolsEscapable);
         match self.peek() {
             // In the broad Markdown dialect a backslash before a line ending is a hard break only
             // when `escaped_line_breaks` is on; with it off the backslash is literal and the line
@@ -946,11 +1081,15 @@ impl InlineParser<'_> {
             }
             // In the markdown dialect a backslash before a space is a non-breaking space, which binds
             // into the surrounding text rather than splitting it on whitespace.
-            Some(' ') if self.notes.markdown => {
+            Some(' ') if self.notes.markdown && broad => {
                 self.pos += 1;
                 self.push_text('\u{a0}');
             }
-            Some(ch) if is_ascii_punctuation(ch) => {
+            Some(ch) if broad && is_ascii_punctuation(ch) => {
+                self.pos += 1;
+                self.push_text(ch);
+            }
+            Some(ch) if is_classic_markdown_escapable(ch) => {
                 self.pos += 1;
                 self.push_text(ch);
             }
@@ -1712,7 +1851,19 @@ impl InlineParser<'_> {
             }
         }
         // Explicit reference. Labels match on their raw source text (the closing `]` sits at `pos - 1`).
-        if let Some((label, next)) = scan_following_label(self.chars, self.pos) {
+        // With `spaced_reference_links`, whitespace may separate the text bracket from the reference
+        // label bracket — `[text] [ref]` and `[text]\n[ref]` — though not from the inline `(...)`
+        // target handled above.
+        let mut label_start = self.pos;
+        if self.ext.contains(Extension::SpacedReferenceLinks) {
+            while matches!(
+                self.chars.get(label_start).copied(),
+                Some(' ' | '\t' | '\n')
+            ) {
+                label_start += 1;
+            }
+        }
+        if let Some((label, next)) = scan_following_label(self.chars, label_start) {
             let key = if label.is_empty() {
                 normalize_label(&self.raw_label(opener_index))
             } else {
@@ -3191,6 +3342,31 @@ fn quote_flanking(_ch: u8, before: Option<char>, after: Option<char>) -> (bool, 
     (can_open, can_close)
 }
 
+/// The characters an original-Markdown backslash escape recognizes regardless of
+/// `all_symbols_escapable`: the inline delimiters and block markers that carry syntactic weight. A
+/// dialect without the broad escape set drops the backslash before only these, leaving every other
+/// backslash literal.
+fn is_classic_markdown_escapable(ch: char) -> bool {
+    matches!(
+        ch,
+        '\\' | '`'
+            | '*'
+            | '_'
+            | '{'
+            | '}'
+            | '['
+            | ']'
+            | '('
+            | ')'
+            | '>'
+            | '#'
+            | '+'
+            | '-'
+            | '.'
+            | '!'
+    )
+}
+
 /// A Unicode punctuation character per the spec: an ASCII punctuation character or anything in the
 /// Unicode `P` (punctuation) or `S` (symbol) general categories.
 fn is_punctuation(ch: char) -> bool {
@@ -3411,6 +3587,36 @@ mod tests {
         let (content, attr) = split_header_attr("Title {#id}", Extensions::empty());
         assert_eq!(content, "Title {#id}");
         assert!(attr.id.is_empty());
+    }
+
+    #[test]
+    fn mmd_header_identifier_split() {
+        let on = exts(&[Extension::MmdHeaderIdentifiers]);
+        // A trailing `[id]` label is the identifier; the content keeps everything before it.
+        let (content, attr) = split_header_attr("Heading [myid]", on);
+        assert_eq!(content, "Heading");
+        assert_eq!(attr.id, "myid");
+        // The identifier is lowercased with all whitespace removed.
+        assert_eq!(split_header_attr("Foo [My Id]", on).1.id, "myid");
+        // No whitespace is required before the label.
+        let (content, attr) = split_header_attr("Foo[b]", on);
+        assert_eq!((content, attr.id.as_str()), ("Foo", "b"));
+        // Only the last bracket group is the label; earlier ones stay in the content.
+        let (content, attr) = split_header_attr("Foo [a] bar [b]", on);
+        assert_eq!((content, attr.id.as_str()), ("Foo [a] bar", "b"));
+        // A reference-link tail (label directly after another bracket group) is not an identifier.
+        assert_eq!(split_header_attr("See [ref][myid]", on).1.id, "");
+        assert_eq!(split_header_attr("Foo [a] [b]", on).1.id, "");
+        // An empty label is stripped but leaves the identifier empty (falls to an automatic one).
+        assert_eq!(
+            split_header_attr("Heading []", on),
+            ("Heading", Attr::default())
+        );
+        // Without the extension the label stays in the text.
+        assert_eq!(
+            split_header_attr("Heading [myid]", Extensions::empty()).0,
+            "Heading [myid]"
+        );
     }
 
     #[test]
@@ -3734,6 +3940,43 @@ mod inline_tests {
     }
 
     #[test]
+    fn spaced_reference_link_allows_whitespace_before_the_label() {
+        let refs = ref_map(&[("ref", "http://r"), ("text", "http://t")]);
+        let ext = exts(&[Extension::SpacedReferenceLinks]);
+        // A space or newline separates the text bracket from the reference label; the display comes
+        // from the first bracket and the target from the second.
+        assert_eq!(
+            parse_inlines("[text] [ref]", &refs, no_notes(), ext),
+            vec![link(vec![str("text")], "http://r")]
+        );
+        assert_eq!(
+            parse_inlines("[text]\n[ref]", &refs, no_notes(), ext),
+            vec![link(vec![str("text")], "http://r")]
+        );
+        // An empty second bracket is a collapsed reference keyed on the first bracket.
+        assert_eq!(
+            parse_inlines("[text] []", &refs, no_notes(), ext),
+            vec![link(vec![str("text")], "http://t")]
+        );
+        // A defined text but an undefined second label leaves the whole run literal — the text is
+        // not retried as a shortcut.
+        let only_text = ref_map(&[("text", "http://t")]);
+        assert_eq!(
+            parse_inlines("[text] [ref]", &only_text, no_notes(), ext),
+            vec![str("[text]"), Inline::Space, str("[ref]")]
+        );
+        // Without the extension the space breaks the pair into two shortcut references.
+        assert_eq!(
+            parse_inlines("[text] [ref]", &refs, no_notes(), no_ext()),
+            vec![
+                link(vec![str("text")], "http://t"),
+                Inline::Space,
+                link(vec![str("ref")], "http://r"),
+            ]
+        );
+    }
+
+    #[test]
     fn nested_bracket_in_link_text() {
         // [[a]](u) — the inner [a] becomes a literal `[a]` in the link text because it has no
         // matching target of its own, and the outer pair provides the `(u)` target.
@@ -3800,17 +4043,42 @@ mod inline_tests {
 
     #[test]
     fn markdown_escaped_space_becomes_non_breaking() {
-        // In the markdown dialect `\ ` is a non-breaking space bound into the surrounding word; in
-        // the strict dialect a backslash before a space is a literal backslash and the space splits
-        // the run.
-        assert_eq!(pm("a\\ b", no_ext()), vec![str("a\u{a0}b")]);
+        // With the broad escape set a markdown-dialect `\ ` is a non-breaking space bound into the
+        // surrounding word; without it (as in the strict dialect) and in the bare CommonMark engine a
+        // backslash before a space is a literal backslash and the space splits the run.
+        assert_eq!(
+            pm("a\\ b", exts(&[Extension::AllSymbolsEscapable])),
+            vec![str("a\u{a0}b")]
+        );
+        assert_eq!(
+            pm("a\\ b", no_ext()),
+            vec![str("a\\"), Inline::Space, str("b")]
+        );
         assert_eq!(p("a\\ b"), vec![str("a\\"), Inline::Space, str("b")]);
+    }
+
+    #[test]
+    fn broad_escape_set_is_gated_on_all_symbols_escapable() {
+        // With the broad escape set a backslash drops before any ASCII punctuation.
+        let broad = exts(&[Extension::AllSymbolsEscapable]);
+        assert_eq!(pm("x\\|y", broad), vec![str("x|y")]);
+        assert_eq!(pm("x\\~y", broad), vec![str("x~y")]);
+        assert_eq!(pm("x\\<y", broad), vec![str("x<y")]);
+        // Without it only the classic Markdown set is escapable; every other backslash stays literal.
+        assert_eq!(pm("x\\|y", no_ext()), vec![str("x\\|y")]);
+        assert_eq!(pm("x\\~y", no_ext()), vec![str("x\\~y")]);
+        assert_eq!(pm("x\\<y", no_ext()), vec![str("x\\<y")]);
+        // The classic set is escapable regardless of the extension.
+        assert_eq!(pm("x\\!y", no_ext()), vec![str("x!y")]);
+        assert_eq!(pm("x\\*y", no_ext()), vec![str("x*y")]);
+        // The bare CommonMark engine escapes all ASCII punctuation with no extension needed.
+        assert_eq!(p("x\\|y"), vec![str("x|y")]);
     }
 
     #[test]
     fn markdown_superscript_rejects_inner_space() {
         // A raw space anywhere inside a superscript voids it; the delimiters stay literal.
-        let ext = exts(&[Extension::Superscript]);
+        let ext = exts(&[Extension::Superscript, Extension::AllSymbolsEscapable]);
         assert_eq!(pm("^a b^", ext), vec![str("^a"), Inline::Space, str("b^")]);
         // An escaped (non-breaking) space keeps the superscript intact.
         assert_eq!(
@@ -3819,6 +4087,50 @@ mod inline_tests {
         );
         // No inner whitespace: still a superscript.
         assert_eq!(pm("^ab^", ext), vec![Inline::Superscript(vec![str("ab")])]);
+    }
+
+    #[test]
+    fn short_subsuperscripts_consume_an_alphanumeric_run() {
+        let ext = exts(&[
+            Extension::Superscript,
+            Extension::Subscript,
+            Extension::ShortSubsuperscripts,
+        ]);
+        // A caret or tilde with an alphanumeric run and no closing delimiter is a short script.
+        assert_eq!(
+            pm("x^2y", ext),
+            vec![str("x"), Inline::Superscript(vec![str("2y")])]
+        );
+        assert_eq!(
+            pm("H~2O", ext),
+            vec![str("H"), Inline::Subscript(vec![str("2O")])]
+        );
+        // The run stops at the first non-alphanumeric character.
+        assert_eq!(
+            pm("x^2.5", ext),
+            vec![str("x"), Inline::Superscript(vec![str("2")]), str(".5")]
+        );
+        // A closing delimiter in the span forms the delimited pair instead; a leftover unpaired
+        // caret then still opens a short script.
+        assert_eq!(
+            pm("a^b^c", ext),
+            vec![str("a"), Inline::Superscript(vec![str("b")]), str("c")]
+        );
+        assert_eq!(
+            pm("a^b^c^d", ext),
+            vec![
+                str("a"),
+                Inline::Superscript(vec![str("b")]),
+                str("c"),
+                Inline::Superscript(vec![str("d")]),
+            ]
+        );
+        // A delimiter with no alphanumeric run is literal.
+        assert_eq!(pm("x^(2)", ext), vec![str("x^(2)")]);
+        assert_eq!(pm("foo^", ext), vec![str("foo^")]);
+        // Without the extension the short form does not fire.
+        let off = exts(&[Extension::Superscript, Extension::Subscript]);
+        assert_eq!(pm("x^2y", off), vec![str("x^2y")]);
     }
 
     #[test]

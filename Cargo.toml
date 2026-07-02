@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024"
 rust-version = "1.93"
 authors = ["Maximilian Krause"]
@@ -12,7 +12,7 @@ repository = "https://github.com/mfkrause/carta"
 homepage = "https://github.com/mfkrause/carta"
 # Inherited paths resolve relative to the workspace root, so every crate ships the root README.
 readme = "README.md"
-publish = false
+publish = true
 
 [workspace.dependencies]
 # Shared dependency versions. Crates opt in via `dep = { workspace = true }`.
@@ -24,14 +24,16 @@ unicode-general-category = "1"
 unicode-normalization = "0.1"
 caseless = "0.2"
 insta = "1"
-criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 
-# Internal crates
-carta = { path = "crates/carta" }
-carta-ast = { path = "crates/carta-ast" }
-carta-core = { path = "crates/carta-core" }
-carta-readers = { path = "crates/carta-readers" }
-carta-writers = { path = "crates/carta-writers" }
+# Internal crates. Each carries a `version` alongside `path` so the published packages
+# depend on the registry release; the path is used for in-workspace builds. Kept in lockstep
+# with the workspace version by the release tooling.
+carta = { path = "crates/carta", version = "0.0.1" }
+carta-ast = { path = "crates/carta-ast", version = "0.0.1" }
+carta-core = { path = "crates/carta-core", version = "0.0.1" }
+carta-readers = { path = "crates/carta-readers", version = "0.0.1" }
+carta-writers = { path = "crates/carta-writers", version = "0.0.1" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
