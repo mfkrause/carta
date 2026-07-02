@@ -254,7 +254,7 @@ fn parse_blocks(
             }
             let body = parse_blocks(&inner, ext, notes, ids, meta);
             let attr = Attr {
-                classes: vec![name.into(), "drawer".to_owned().into()],
+                classes: vec![name.into(), "drawer".into()],
                 ..Attr::default()
             };
             out.push(Block::Div(Box::new(attr), body));
@@ -397,7 +397,7 @@ fn build_headline(
         inlines.push(Inline::Space);
         for (n, tag) in tags.iter().enumerate() {
             if n > 0 {
-                inlines.push(Inline::Str("\u{a0}".to_owned().into()));
+                inlines.push(Inline::Str("\u{a0}".into()));
             }
             inlines.push(tag_span(tag));
         }
@@ -414,21 +414,21 @@ fn build_headline(
 fn todo_span(keyword: &str) -> Inline {
     let state = if keyword == "DONE" { "done" } else { "todo" };
     let attr = Attr {
-        classes: vec![state.to_owned().into(), keyword.to_owned().into()],
+        classes: vec![state.into(), keyword.into()],
         ..Attr::default()
     };
-    Inline::Span(Box::new(attr), vec![Inline::Str(keyword.to_owned().into())])
+    Inline::Span(Box::new(attr), vec![Inline::Str(keyword.into())])
 }
 
 fn tag_span(tag: &str) -> Inline {
     let attr = Attr {
-        classes: vec!["tag".to_owned().into()],
-        attributes: vec![("tag-name".to_owned().into(), tag.to_owned().into())],
+        classes: vec!["tag".into()],
+        attributes: vec![("tag-name".into(), tag.into())],
         ..Attr::default()
     };
     Inline::Span(
         Box::new(attr),
-        vec![Inline::SmallCaps(vec![Inline::Str(tag.to_owned().into())])],
+        vec![Inline::SmallCaps(vec![Inline::Str(tag.into())])],
     )
 }
 
@@ -607,7 +607,7 @@ fn parse_greater_block(
         "comment" => None,
         _ => {
             let attr = Attr {
-                classes: vec![name.to_owned().into()],
+                classes: vec![name.into()],
                 ..Attr::default()
             };
             Some(Block::Div(
@@ -697,10 +697,7 @@ fn handle_keyword(
             );
         }
         "LANGUAGE" => {
-            meta.insert(
-                "lang".to_owned().into(),
-                MetaValue::MetaString(value.to_owned().into()),
-            );
+            meta.insert("lang".into(), MetaValue::MetaString(value.into()));
         }
         "CAPTION" => pending.caption = Some(parse_inlines(value, ext, notes)),
         "NAME" | "LABEL" => pending.name = Some(value.to_owned()),
@@ -715,19 +712,17 @@ fn handle_keyword(
             append_header_include(meta, "html", value);
         }
         _ => out.push(Block::RawBlock(
-            Format("org".to_owned().into()),
-            line.trim_end().to_owned().into(),
+            Format("org".into()),
+            line.trim_end().into(),
         )),
     }
 }
 
 fn append_header_include(meta: &mut BTreeMap<Text, MetaValue>, format: &str, value: &str) {
-    let entry = MetaValue::MetaInlines(vec![Inline::RawInline(
-        Format(format.to_owned().into()),
-        value.to_owned().into(),
-    )]);
+    let entry =
+        MetaValue::MetaInlines(vec![Inline::RawInline(Format(format.into()), value.into())]);
     match meta
-        .entry("header-includes".to_owned().into())
+        .entry("header-includes".into())
         .or_insert_with(|| MetaValue::MetaList(Vec::new()))
     {
         MetaValue::MetaList(list) => list.push(entry),
@@ -1168,9 +1163,9 @@ fn strip_checkbox(line: &str) -> Option<(&'static str, &str)> {
 fn prepend_checkbox(blocks: &mut Vec<Block>, glyph: &str) {
     match blocks.first_mut() {
         Some(Block::Plain(inlines) | Block::Para(inlines)) => {
-            inlines.splice(0..0, [Inline::Str(glyph.to_owned().into()), Inline::Space]);
+            inlines.splice(0..0, [Inline::Str(glyph.into()), Inline::Space]);
         }
-        _ => blocks.insert(0, Block::Plain(vec![Inline::Str(glyph.to_owned().into())])),
+        _ => blocks.insert(0, Block::Plain(vec![Inline::Str(glyph.into())])),
     }
 }
 
@@ -1586,7 +1581,7 @@ impl Inlines<'_> {
             self.word.push_str(replacement);
         } else {
             self.push_inline(Inline::RawInline(
-                Format("latex".to_owned().into()),
+                Format("latex".into()),
                 format!("\\{name}").into(),
             ));
         }
@@ -1639,10 +1634,7 @@ impl Inlines<'_> {
                 if is_image_target(&target) {
                     Some((image(&target, Vec::new()), end))
                 } else {
-                    Some((
-                        link(&target, vec![Inline::Str(target_raw.to_owned().into())]),
-                        end,
-                    ))
+                    Some((link(&target, vec![Inline::Str(target_raw.into())]), end))
                 }
             }
         }
@@ -1939,7 +1931,7 @@ fn plain_words(text: &str) -> Vec<Inline> {
         if !out.is_empty() {
             out.push(Inline::Space);
         }
-        out.push(Inline::Str(word.to_owned().into()));
+        out.push(Inline::Str(word.into()));
     }
     out
 }
@@ -1961,7 +1953,7 @@ fn verbatim_code(marker: char, inner: &[char]) -> Inline {
         .collect();
     let attr = if marker == '=' {
         Attr {
-            classes: vec!["verbatim".to_owned().into()],
+            classes: vec!["verbatim".into()],
             ..Attr::default()
         }
     } else {
@@ -1975,7 +1967,7 @@ fn link(target: &str, desc: Vec<Inline>) -> Inline {
         Box::default(),
         desc,
         Box::new(carta_ast::Target {
-            url: target.to_owned().into(),
+            url: target.into(),
             title: carta_ast::Text::default(),
         }),
     )
@@ -1986,7 +1978,7 @@ fn image(target: &str, alt: Vec<Inline>) -> Inline {
         Box::default(),
         alt,
         Box::new(carta_ast::Target {
-            url: target.to_owned().into(),
+            url: target.into(),
             title: carta_ast::Text::default(),
         }),
     )
@@ -2107,7 +2099,7 @@ fn parse_citation_items(
     if let (Some(suffix), Some(last)) = (trailing_suffix, items.last_mut()) {
         let mut combined = last.2.clone();
         if !combined.is_empty() {
-            combined.push(Inline::Str(";".to_owned().into()));
+            combined.push(Inline::Str(";".into()));
         }
         combined.extend(parse_inlines(suffix.trim(), ext, notes));
         last.2 = combined;

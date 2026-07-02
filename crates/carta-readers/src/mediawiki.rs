@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use carta_ast::{
     Alignment, ApiVersion, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
     ListAttributes, ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table,
-    TableBody, TableFoot, TableHead, Target, slug_gfm, to_plain_text,
+    TableBody, TableFoot, TableHead, Target, ToCompactString, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
@@ -1045,10 +1045,7 @@ impl Parser {
                     Some((inner_end, after)) => {
                         let inner = collect_range(chars, after_open, inner_end);
                         Some((
-                            vec![Inline::Math(
-                                MathType::InlineMath,
-                                inner.trim().to_string().into(),
-                            )],
+                            vec![Inline::Math(MathType::InlineMath, inner.trim().into())],
                             after,
                         ))
                     }
@@ -1167,7 +1164,7 @@ impl Parser {
                 let inner = collect_range(chars, after_open, inner_end);
                 let attr = Attr {
                     id: carta_ast::Text::default(),
-                    classes: vec![class.to_string().into()],
+                    classes: vec![class.into()],
                     attributes: Vec::new(),
                 };
                 (
@@ -1196,7 +1193,7 @@ impl Parser {
         }
         let text = if label.is_empty() {
             self.link_counter += 1;
-            vec![Inline::Str(self.link_counter.to_string().into())]
+            vec![Inline::Str(self.link_counter.to_compact_string())]
         } else {
             self.parse_inlines(&label)
         };
@@ -1239,7 +1236,7 @@ impl Parser {
                 let title = title_text(&text);
                 let attr = Attr {
                     id: carta_ast::Text::default(),
-                    classes: vec!["wikilink".to_string().into()],
+                    classes: vec!["wikilink".into()],
                     attributes: Vec::new(),
                 };
                 self.categories.push(Inline::Link(
@@ -1284,7 +1281,7 @@ impl Parser {
         }
         let attr = Attr {
             id: carta_ast::Text::default(),
-            classes: vec!["wikilink".to_string().into()],
+            classes: vec!["wikilink".into()],
             attributes: Vec::new(),
         };
         let url = wikilink_url(&target);
@@ -1727,7 +1724,7 @@ fn parse_runs(
                     pos = next;
                     continue;
                 }
-                nodes.push(Inline::Str("'".to_string().into()));
+                nodes.push(Inline::Str("'".into()));
                 pos += 1;
             }
         }
@@ -3919,7 +3916,7 @@ fn degraded_blocks(chars: &[char]) -> Vec<Block> {
     if trimmed.is_empty() {
         Vec::new()
     } else {
-        vec![Block::Para(vec![Inline::Str(trimmed.to_string().into())])]
+        vec![Block::Para(vec![Inline::Str(trimmed.into())])]
     }
 }
 
@@ -4021,15 +4018,15 @@ fn flush_word(word: &mut String, toks: &mut Vec<Tok>) {
 }
 
 fn raw_html(text: String) -> Inline {
-    Inline::RawInline(Format("html".to_string().into()), text.into())
+    Inline::RawInline(Format("html".into()), text.into())
 }
 
 fn format_mediawiki() -> Format {
-    Format("mediawiki".to_string().into())
+    Format("mediawiki".into())
 }
 
 fn format_html() -> Format {
-    Format("html".to_string().into())
+    Format("html".into())
 }
 
 fn at(chars: &[char], i: usize) -> Option<char> {

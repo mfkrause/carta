@@ -491,7 +491,7 @@ impl State {
     fn image(&mut self, out: &mut Vec<Fragment>, font: Font, alt: &[Inline], target: &Target) {
         push_text(out, "[IMAGE: ");
         let caption: Vec<Inline> = if alt.is_empty() {
-            vec![Inline::Str("image".to_owned().into())]
+            vec![Inline::Str("image".into())]
         } else {
             alt.to_vec()
         };

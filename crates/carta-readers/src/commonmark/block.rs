@@ -2454,7 +2454,7 @@ impl Parser {
                     }
                     IrBlock::Para(trimmed.to_owned())
                 } else {
-                    IrBlock::RawBlock(Format("tex".to_owned().into()), node.text.clone())
+                    IrBlock::RawBlock(Format("tex".into()), node.text.clone())
                 }
             }
             Kind::BlockQuote => {
@@ -2529,7 +2529,7 @@ impl Parser {
         let title = IrBlock::Div(
             Attr {
                 id: carta_ast::Text::default(),
-                classes: vec!["title".to_owned().into()],
+                classes: vec!["title".into()],
                 attributes: Vec::new(),
             },
             vec![IrBlock::Para(alert_type.title.to_owned())],
@@ -2552,7 +2552,7 @@ impl Parser {
         Some(IrBlock::Div(
             Attr {
                 id: carta_ast::Text::default(),
-                classes: vec![alert_type.class.to_owned().into()],
+                classes: vec![alert_type.class.into()],
                 attributes: Vec::new(),
             },
             content,
@@ -3013,7 +3013,7 @@ fn fence_attr(info: &str, extensions: Extensions) -> Attr {
     let language = info.split_whitespace().next().unwrap_or("");
     Attr {
         id: carta_ast::Text::default(),
-        classes: vec![language.to_owned().into()],
+        classes: vec![language.into()],
         attributes: Vec::new(),
     }
 }
@@ -3120,7 +3120,7 @@ fn div_open_attr(spec: &str) -> Option<Attr> {
     }
     Some(Attr {
         id: carta_ast::Text::default(),
-        classes: vec![spec.to_owned().into()],
+        classes: vec![spec.into()],
         attributes: Vec::new(),
     })
 }

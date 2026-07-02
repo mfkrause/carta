@@ -473,11 +473,10 @@ fn parse_raw_region(chars: &[char], start: usize) -> Option<(Block, usize)> {
             };
             Block::CodeBlock(Box::new(attr), content.into())
         }
-        RawKind::Html => Block::RawBlock(Format("html".to_string().into()), content.into()),
-        RawKind::Php => Block::RawBlock(
-            Format("html".to_string().into()),
-            format!("<?php {content} ?>").into(),
-        ),
+        RawKind::Html => Block::RawBlock(Format("html".into()), content.into()),
+        RawKind::Php => {
+            Block::RawBlock(Format("html".into()), format!("<?php {content} ?>").into())
+        }
     };
     Some((block, end))
 }
@@ -1810,7 +1809,7 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     let trailing_space = spec.ends_with(char::is_whitespace);
     let mut classes = Vec::new();
     if let Some(class) = media_align(leading_space, trailing_space) {
-        classes.push(class.to_string().into());
+        classes.push(class.into());
     }
 
     let spec = spec.trim();
@@ -1826,7 +1825,7 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     // An explicit but empty caption falls back to the source's auto-display text.
     let alt = match caption {
         Some(text) if !text.trim().is_empty() => tokenize_text(text.trim()),
-        _ if is_external(id) => vec![Inline::Str(id.to_string().into())],
+        _ if is_external(id) => vec![Inline::Str(id.into())],
         _ => vec![Inline::Str(display_id(id).into())],
     };
     let target = Target {
@@ -2058,10 +2057,7 @@ fn parse_angle(
     if let Some((inner, end)) = tag_region(chars, begin, "<html>", "</html>") {
         let text: String = inner.iter().collect();
         return Some((
-            vec![Inline::RawInline(
-                Format("html".to_string().into()),
-                text.into(),
-            )],
+            vec![Inline::RawInline(Format("html".into()), text.into())],
             end,
         ));
     }
@@ -2069,7 +2065,7 @@ fn parse_angle(
         let text: String = inner.iter().collect();
         return Some((
             vec![Inline::RawInline(
-                Format("html".to_string().into()),
+                Format("html".into()),
                 format!("<?php {text} ?>").into(),
             )],
             end,

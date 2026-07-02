@@ -206,7 +206,7 @@ fn resolve_block(
                 out.push(Block::Para(parse_inlines(text, refs, notes, ext)));
             } else {
                 out.push(Block::RawBlock(
-                    carta_ast::Format("html".to_owned().into()),
+                    carta_ast::Format("html".into()),
                     text.clone().into(),
                 ));
             }
@@ -1047,13 +1047,13 @@ impl InlineParser<'_> {
         };
         let attr = Attr {
             id: carta_ast::Text::default(),
-            classes: vec!["emoji".to_owned().into()],
-            attributes: vec![("data-emoji".to_owned().into(), name.into())],
+            classes: vec!["emoji".into()],
+            attributes: vec![("data-emoji".into(), name.into())],
         };
         self.pos = index + 1;
         self.nodes.push(Node::Inline(Inline::Span(
             Box::new(attr),
-            vec![Inline::Str(codepoints.to_owned().into())],
+            vec![Inline::Str(codepoints.into())],
         )));
         true
     }
@@ -1280,7 +1280,7 @@ impl InlineParser<'_> {
         };
         self.pos = i;
         self.nodes.push(Node::Inline(Inline::RawInline(
-            carta_ast::Format("tex".to_owned().into()),
+            carta_ast::Format("tex".into()),
             source.into(),
         )));
         true
@@ -1311,7 +1311,7 @@ impl InlineParser<'_> {
         };
         self.pos = end;
         self.nodes.push(Node::Inline(Inline::RawInline(
-            carta_ast::Format("tex".to_owned().into()),
+            carta_ast::Format("tex".into()),
             source.into(),
         )));
         true
@@ -1495,7 +1495,7 @@ impl InlineParser<'_> {
                 self.push_str(&html);
             } else {
                 self.nodes.push(Node::Inline(Inline::RawInline(
-                    carta_ast::Format("html".to_owned().into()),
+                    carta_ast::Format("html".into()),
                     html.into(),
                 )));
             }
@@ -2610,7 +2610,7 @@ fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: bool) {
         let span = Inline::Span(
             Box::new(Attr {
                 id: carta_ast::Text::default(),
-                classes: vec!["mark".to_string().into()],
+                classes: vec!["mark".into()],
                 attributes: Vec::new(),
             }),
             content,
@@ -2852,7 +2852,7 @@ fn classify_angle_autolink(inline: Inline) -> Inline {
     };
     let is_email = matches!(text.first(), Some(Inline::Str(shown)) if *shown != target.url);
     attr.classes
-        .push(if is_email { "email" } else { "uri" }.to_owned().into());
+        .push(if is_email { "email" } else { "uri" }.into());
     Inline::Link(attr, text, target)
 }
 
@@ -3053,7 +3053,7 @@ fn pair_spans_level(
                         // No matching close at this level: the opener reverts to raw, and its
                         // gathered inner content rejoins the stream.
                         out.push(Inline::RawInline(
-                            carta_ast::Format("html".to_owned().into()),
+                            carta_ast::Format("html".into()),
                             open_tag_raw(&attr).into(),
                         ));
                         out.extend(inner);

@@ -1918,7 +1918,7 @@ impl Parser<'_> {
         match name {
             "raw" => {
                 out.push(Block::RawBlock(
-                    Format(argument.trim().to_string().into()),
+                    Format(argument.trim().into()),
                     content.join("\n").into(),
                 ));
             }
@@ -1967,7 +1967,7 @@ impl Parser<'_> {
                     .map(Into::into)
                     .collect();
                 if alt.is_empty() {
-                    alt = vec![Inline::Str("image".to_string().into())];
+                    alt = vec![Inline::Str("image".into())];
                 }
                 let image = Inline::Image(
                     Box::new(attr),
@@ -1986,7 +1986,7 @@ impl Parser<'_> {
                 let mut blocks = vec![Block::Div(
                     Box::new(Attr {
                         id: carta_ast::Text::default(),
-                        classes: vec!["title".to_string().into()],
+                        classes: vec!["title".into()],
                         attributes: Vec::new(),
                     }),
                     vec![Block::Para(vec![Inline::Str(title.into())])],
@@ -2221,7 +2221,7 @@ impl Parser<'_> {
                 let term = vec![Inline::Span(
                     Box::new(Attr {
                         id: label.clone().into(),
-                        classes: vec!["citation-label".to_string().into()],
+                        classes: vec!["citation-label".into()],
                         attributes: Vec::new(),
                     }),
                     vec![Inline::Str(label.clone().into())],
@@ -2231,7 +2231,7 @@ impl Parser<'_> {
             .collect();
         Some(Block::Div(
             Box::new(Attr {
-                id: "citations".to_string().into(),
+                id: "citations".into(),
                 classes: Vec::new(),
                 attributes: Vec::new(),
             }),
@@ -3084,12 +3084,12 @@ impl Parser<'_> {
             "strong" => Inline::Strong(self.inlines_no_trim(content)),
             "subscript" | "sub" => Inline::Subscript(self.inlines_no_trim(content)),
             "superscript" | "sup" => Inline::Superscript(self.inlines_no_trim(content)),
-            "math" => Inline::Math(MathType::InlineMath, content.to_string().into()),
+            "math" => Inline::Math(MathType::InlineMath, content.into()),
             // A raw role emits its content verbatim under the format its chain declares (empty when
             // none is given); the accumulated classes do not apply to raw inlines.
             "raw" => Inline::RawInline(
                 Format(chain.format.unwrap_or_default().into()),
-                content.to_string().into(),
+                content.into(),
             ),
             // A code/literal role's content is verbatim; a chain's classes lead, then the language.
             "literal" | "code" => {
@@ -3097,7 +3097,7 @@ impl Parser<'_> {
                 if let Some(language) = chain.language {
                     classes.push(language);
                 }
-                Inline::Code(Box::new(class_attr(classes)), content.to_string().into())
+                Inline::Code(Box::new(class_attr(classes)), content.into())
             }
             "title-reference" | "title" | "t" => {
                 let mut classes = chain.classes;
@@ -3115,10 +3115,10 @@ impl Parser<'_> {
             other => Inline::Code(
                 Box::new(Attr {
                     id: carta_ast::Text::default(),
-                    classes: vec!["interpreted-text".to_string().into()],
-                    attributes: vec![("role".to_string().into(), other.to_string().into())],
+                    classes: vec!["interpreted-text".into()],
+                    attributes: vec![("role".into(), other.into())],
                 }),
-                content.to_string().into(),
+                content.into(),
             ),
         }
     }
@@ -3270,7 +3270,7 @@ impl Parser<'_> {
             let link = Inline::Link(
                 Box::new(Attr {
                     id: carta_ast::Text::default(),
-                    classes: vec!["citation".to_string().into()],
+                    classes: vec!["citation".into()],
                     attributes: Vec::new(),
                 }),
                 vec![Inline::Str(format!("[{label}]").into())],

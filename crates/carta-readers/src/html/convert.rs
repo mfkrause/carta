@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Format, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, TableBody,
-    TableFoot, TableHead, Target, slug, slug_gfm, to_plain_text,
+    TableFoot, TableHead, Target, ToCompactString, slug, slug_gfm, to_plain_text,
 };
 use carta_core::{Extension, Extensions};
 
@@ -312,7 +312,7 @@ impl Converter {
             let mut code_attr = extract_attr(code, &[]);
             for class in &mut code_attr.classes {
                 if let Some(rest) = class.strip_prefix("language-") {
-                    *class = rest.to_string().into();
+                    *class = rest.into();
                 }
             }
             merge_attr(&mut attr, code_attr);
@@ -605,7 +605,7 @@ impl Converter {
                     let attr = Attr {
                         id: carta_ast::Text::default(),
                         classes: Vec::new(),
-                        attributes: vec![("dir".to_string().into(), dir.into())],
+                        attributes: vec![("dir".into(), dir.into())],
                     };
                     out.push(Inline::Span(Box::new(attr), inner));
                 } else {
@@ -622,7 +622,7 @@ impl Converter {
             InlineKind::Image => out.push(image(e)),
             InlineKind::Style => {
                 out.push(Inline::RawInline(
-                    Format("html".to_string().into()),
+                    Format("html".into()),
                     serialize_element(e).into(),
                 ));
             }
@@ -638,13 +638,13 @@ impl Converter {
                     } else {
                         '\u{2610}'
                     };
-                    out.push(Inline::Str(symbol.to_string().into()));
+                    out.push(Inline::Str(symbol.to_compact_string()));
                     out.push(Inline::Space);
                 }
             }
             InlineKind::Transparent => {
                 if self.preserve_unknown_tags && block_kind(&e.name).is_none() {
-                    let format = Format("html".to_string().into());
+                    let format = Format("html".into());
                     if e.end_only {
                         out.push(Inline::RawInline(format, close_tag(&e.name).into()));
                     } else {
@@ -670,7 +670,7 @@ impl Converter {
     fn code_inline(&self, out: &mut Vec<Inline>, e: &Element, forced_class: Option<&str>) {
         let mut attr = extract_attr(e, &[]);
         if let Some(class) = forced_class {
-            attr.classes = vec![class.to_string().into()];
+            attr.classes = vec![class.into()];
         }
         let has_elements = e
             .children
@@ -1332,7 +1332,7 @@ fn push_str(out: &mut Vec<Inline>, word: &str) {
     if let Some(Inline::Str(existing)) = out.last_mut() {
         existing.push_str(word);
     } else {
-        out.push(Inline::Str(word.to_string().into()));
+        out.push(Inline::Str(word.into()));
     }
 }
 

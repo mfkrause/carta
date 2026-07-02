@@ -970,7 +970,7 @@ fn alternating(rest: &str, fonts: [Font; 2], strings: &Strings) -> Vec<Inline> {
 /// optional argument (the rest) roman, the whole bracketed as optional — `[ -name argument ]`.
 fn option_synopsis(rest: &str, strings: &Strings) -> Vec<Inline> {
     let args = split_args(rest);
-    let mut out = vec![Inline::Str("[".to_owned().into())];
+    let mut out = vec![Inline::Str("[".into())];
     if let Some(name) = args.first() {
         out.push(Inline::Space);
         out.extend(font_macro(Font::Bold, name, strings));
@@ -981,7 +981,7 @@ fn option_synopsis(rest: &str, strings: &Strings) -> Vec<Inline> {
         out.extend(tokenize(&argument, Font::Regular, strings));
     }
     out.push(Inline::Space);
-    out.push(Inline::Str("]".to_owned().into()));
+    out.push(Inline::Str("]".into()));
     out
 }
 
@@ -1001,7 +1001,7 @@ fn inlines_from_plain(text: &str) -> Vec<Inline> {
         if !out.is_empty() {
             out.push(Inline::Space);
         }
-        out.push(Inline::Str(word.to_owned().into()));
+        out.push(Inline::Str(word.into()));
     }
     out
 }
@@ -1770,7 +1770,7 @@ fn build_tbl(region: &[String]) -> Option<Block> {
         .iter()
         .any(|line| format_has_span(line))
     {
-        return Some(Block::Para(vec![Inline::Str("TABLE".to_owned().into())]));
+        return Some(Block::Para(vec![Inline::Str("TABLE".into())]));
     }
 
     let data = collapse_text_blocks(region.get(data_start..).unwrap_or(&[]), &separator);
@@ -1980,7 +1980,7 @@ fn tbl_cell(field: &str) -> Cell {
         if !inlines.is_empty() {
             inlines.push(Inline::Space);
         }
-        inlines.push(Inline::Str(word.to_owned().into()));
+        inlines.push(Inline::Str(word.into()));
     }
     let content = if inlines.is_empty() {
         Vec::new()

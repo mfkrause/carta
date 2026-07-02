@@ -916,7 +916,7 @@ impl State {
         if !alt_text.is_empty() && alt_text != carta_ast::to_plain_text(&caption_inlines) {
             image_attr
                 .attributes
-                .insert(0, ("alt".to_owned().into(), alt_text.into()));
+                .insert(0, ("alt".into(), alt_text.into()));
         }
         // If the image itself would fall back to an HTML `<img>`, the shorthand cannot carry it; the
         // caller renders the whole figure as an HTML `<figure>` instead.
@@ -2239,14 +2239,14 @@ fn attr_body(attr: &Attr) -> String {
 
 fn underline_attr() -> Attr {
     Attr {
-        classes: vec!["underline".to_owned().into()],
+        classes: vec!["underline".into()],
         ..Attr::default()
     }
 }
 
 fn smallcaps_attr() -> Attr {
     Attr {
-        classes: vec!["smallcaps".to_owned().into()],
+        classes: vec!["smallcaps".into()],
         ..Attr::default()
     }
 }

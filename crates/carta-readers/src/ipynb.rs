@@ -24,7 +24,9 @@
 
 use std::collections::BTreeMap;
 
-use carta_ast::{ApiVersion, Attr, Block, Document, Format, Inline, MetaValue, Target};
+use carta_ast::{
+    ApiVersion, Attr, Block, Document, Format, Inline, MetaValue, Target, ToCompactString,
+};
 use carta_core::{Error, Reader, ReaderOptions, Result};
 use serde_json::Value;
 
@@ -92,11 +94,11 @@ fn build_meta(notebook: &Value, nbformat: i64, nbformat_minor: i64) -> BTreeMap<
     }
     jupyter.insert(
         "nbformat".to_owned(),
-        MetaValue::MetaString(nbformat.to_string().into()),
+        MetaValue::MetaString(nbformat.to_compact_string()),
     );
     jupyter.insert(
         "nbformat_minor".to_owned(),
-        MetaValue::MetaString(nbformat_minor.to_string().into()),
+        MetaValue::MetaString(nbformat_minor.to_compact_string()),
     );
     let mut meta = BTreeMap::new();
     meta.insert(
@@ -362,7 +364,7 @@ fn code_cell_blocks(cell: &Value, language: &str) -> Vec<Block> {
     let source = multiline_text(cell.get("source"));
     let source_attr = Attr {
         id: carta_ast::Text::default(),
-        classes: vec![language.to_owned().into()],
+        classes: vec![language.into()],
         attributes: Vec::new(),
     };
     let mut blocks = vec![Block::CodeBlock(Box::new(source_attr), source.into())];
@@ -411,11 +413,7 @@ fn stream_output(output: &Value) -> Block {
     let text = strip_ansi(&multiline_text(output.get("text")));
     let attr = Attr {
         id: carta_ast::Text::default(),
-        classes: vec![
-            "output".to_owned().into(),
-            "stream".to_owned().into(),
-            name.to_owned().into(),
-        ],
+        classes: vec!["output".into(), "stream".into(), name.into()],
         attributes: Vec::new(),
     };
     Block::Div(
@@ -438,7 +436,7 @@ fn result_output(output: &Value, is_result: bool) -> Block {
     }
     let attr = Attr {
         id: carta_ast::Text::default(),
-        classes: vec!["output".to_owned().into(), kind.to_owned().into()],
+        classes: vec!["output".into(), kind.into()],
         attributes: attributes
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
@@ -477,10 +475,10 @@ fn error_output(output: &Value) -> Block {
     };
     let attr = Attr {
         id: carta_ast::Text::default(),
-        classes: vec!["output".to_owned().into(), "error".to_owned().into()],
+        classes: vec!["output".into(), "error".into()],
         attributes: vec![
-            ("ename".to_owned().into(), ename.into()),
-            ("evalue".to_owned().into(), evalue.into()),
+            ("ename".into(), ename.into()),
+            ("evalue".into(), evalue.into()),
         ],
     };
     Block::Div(
@@ -523,23 +521,17 @@ fn non_image_block(mime: &str, value: &Value) -> Block {
         return Block::CodeBlock(
             Box::new(Attr {
                 id: carta_ast::Text::default(),
-                classes: vec!["json".to_owned().into()],
+                classes: vec!["json".into()],
                 attributes: Vec::new(),
             }),
             json_render(value).into(),
         );
     }
     match mime {
-        "text/html" => Block::RawBlock(
-            Format("html".to_owned().into()),
-            multiline_text(Some(value)).into(),
-        ),
-        "text/latex" => Block::RawBlock(
-            Format("latex".to_owned().into()),
-            multiline_text(Some(value)).into(),
-        ),
+        "text/html" => Block::RawBlock(Format("html".into()), multiline_text(Some(value)).into()),
+        "text/latex" => Block::RawBlock(Format("latex".into()), multiline_text(Some(value)).into()),
         "text/markdown" => Block::RawBlock(
-            Format("markdown".to_owned().into()),
+            Format("markdown".into()),
             multiline_text(Some(value)).into(),
         ),
         // The fallthrough is plain text; the preference list only routes the cases above here.
@@ -739,7 +731,7 @@ fn strip_attachment_inlines(inlines: &mut [Inline], prefix: Option<&str>) {
                 if let Some(bare) = target.url.strip_prefix("attachment:") {
                     target.url = match prefix {
                         Some(prefix) => format!("{prefix}{bare}").into(),
-                        None => bare.to_owned().into(),
+                        None => bare.into(),
                     };
                 }
                 strip_attachment_inlines(alt, prefix);

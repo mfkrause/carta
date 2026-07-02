@@ -9,6 +9,7 @@
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, Row, Table, TableBody, TableFoot, TableHead, Target,
+    ToCompactString,
 };
 use carta_core::{Reader, ReaderOptions, Result};
 
@@ -405,7 +406,7 @@ impl BlockParser<'_> {
         let attr = Attr {
             id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes: vec![("color".to_string().into(), value.into())],
+            attributes: vec![("color".into(), value.into())],
         };
         Some(Block::Div(Box::new(attr), inner))
     }
@@ -696,7 +697,7 @@ impl BlockParser<'_> {
             inner.push(Block::Div(
                 Box::new(Attr {
                     id: carta_ast::Text::default(),
-                    classes: vec!["panelheader".to_string().into()],
+                    classes: vec!["panelheader".into()],
                     attributes: Vec::new(),
                 }),
                 vec![Block::Plain(vec![Inline::Strong(plain_inlines(&title))])],
@@ -706,7 +707,7 @@ impl BlockParser<'_> {
         Some(vec![Block::Div(
             Box::new(Attr {
                 id: carta_ast::Text::default(),
-                classes: vec!["panel".to_string().into()],
+                classes: vec!["panel".into()],
                 attributes: attributes
                     .into_iter()
                     .map(|(k, v)| (k.into(), v.into()))
@@ -1439,7 +1440,7 @@ fn finalize(toks: Vec<Tok>) -> Vec<Inline> {
     for tok in toks {
         let inline = match tok {
             Tok::Text(s) => Inline::Str(s.into()),
-            Tok::Delim { marker, .. } => Inline::Str(marker.to_string().into()),
+            Tok::Delim { marker, .. } => Inline::Str(marker.to_compact_string()),
             Tok::Atom(node) => node,
         };
         let inline = match out.last_mut() {
@@ -1655,7 +1656,7 @@ fn parse_brace_inline(
         let attr = Attr {
             id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes: vec![("color".to_string().into(), value.into())],
+            attributes: vec![("color".into(), value.into())],
         };
         return Some((Inline::Span(Box::new(attr), inner), close + "{color}".len()));
     }
@@ -1844,7 +1845,7 @@ fn image_properties(props: &str) -> Option<(Attr, String)> {
         return Some((
             Attr {
                 id: carta_ast::Text::default(),
-                classes: vec!["thumbnail".to_string().into()],
+                classes: vec!["thumbnail".into()],
                 attributes: Vec::new(),
             },
             String::new(),

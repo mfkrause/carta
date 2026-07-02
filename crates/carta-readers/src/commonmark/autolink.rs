@@ -103,7 +103,7 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
                 let attr = if markdown {
                     Attr {
                         id: carta_ast::Text::default(),
-                        classes: vec![m.kind.class().to_owned().into()],
+                        classes: vec![m.kind.class().into()],
                         attributes: Vec::new(),
                     }
                 } else {

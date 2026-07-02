@@ -491,7 +491,7 @@ impl Parser {
         };
         let mut classes = Vec::new();
         if starred {
-            classes.push("unnumbered".to_owned().into());
+            classes.push("unnumbered".into());
         }
         Block::Header(
             level,
@@ -578,7 +578,7 @@ impl Parser {
                 vec![Block::Div(
                     Box::new(Attr {
                         id: carta_ast::Text::default(),
-                        classes: vec![env.to_owned().into()],
+                        classes: vec![env.into()],
                         attributes: Vec::new(),
                     }),
                     inner,
@@ -593,7 +593,7 @@ impl Parser {
                 vec![Block::Div(
                     Box::new(Attr {
                         id: carta_ast::Text::default(),
-                        classes: vec!["minipage".to_owned().into()],
+                        classes: vec!["minipage".into()],
                         attributes: Vec::new(),
                     }),
                     inner,
@@ -634,7 +634,7 @@ impl Parser {
                     vec![Block::Div(
                         Box::new(Attr {
                             id: carta_ast::Text::default(),
-                            classes: vec![env.to_owned().into()],
+                            classes: vec![env.into()],
                             attributes: Vec::new(),
                         }),
                         inner,
@@ -660,10 +660,7 @@ impl Parser {
         raw.push_str(env);
         raw.push('}');
         self.consume_env_marker("\\end");
-        vec![Block::RawBlock(
-            Format("latex".to_owned().into()),
-            raw.into(),
-        )]
+        vec![Block::RawBlock(Format("latex".into()), raw.into())]
     }
 
     /// Skips to and consumes the matching `\end{env}`.
@@ -899,8 +896,8 @@ impl Parser {
         let body = self.read_environment_source(env);
         self.consume_env_marker("\\end");
         match env {
-            "math" => Inline::Math(MathType::InlineMath, body.trim().to_owned().into()),
-            "displaymath" => Inline::Math(MathType::DisplayMath, body.trim().to_owned().into()),
+            "math" => Inline::Math(MathType::InlineMath, body.trim().into()),
+            "displaymath" => Inline::Math(MathType::DisplayMath, body.trim().into()),
             _ => {
                 // The environment markers are re-emitted on their own lines around the body, with
                 // trailing whitespace stripped but leading indentation of the first line preserved.
@@ -1129,7 +1126,7 @@ impl Parser {
                 self.bump();
                 out.push(Inline::Quoted(QuoteType::DoubleQuote, inner));
             } else {
-                out.push(Inline::Str("\u{201c}".to_owned().into()));
+                out.push(Inline::Str("\u{201c}".into()));
                 out.extend(inner);
             }
         } else {
@@ -1139,7 +1136,7 @@ impl Parser {
                 self.bump();
                 out.push(Inline::Quoted(QuoteType::SingleQuote, inner));
             } else {
-                out.push(Inline::Str("\u{2018}".to_owned().into()));
+                out.push(Inline::Str("\u{2018}".into()));
                 out.extend(inner);
             }
         }
@@ -1257,7 +1254,7 @@ impl Parser {
                     id: carta_ast::Text::default(),
                     classes: Vec::new(),
                     attributes: vec![(
-                        "style".to_owned().into(),
+                        "style".into(),
                         format!("{property}: {}", color.trim()).into(),
                     )],
                 };
@@ -1293,7 +1290,7 @@ impl Parser {
                         Inline::Link(
                             Box::new(Attr {
                                 id: carta_ast::Text::default(),
-                                classes: vec!["uri".to_owned().into()],
+                                classes: vec!["uri".into()],
                                 attributes: Vec::new(),
                             }),
                             vec![Inline::Str(url.clone().into())],
@@ -1331,7 +1328,7 @@ impl Parser {
                 let alt = if self.in_figure {
                     Vec::new()
                 } else {
-                    vec![Inline::Str("image".to_owned().into())]
+                    vec![Inline::Str("image".into())]
                 };
                 emit(
                     out,
@@ -1362,7 +1359,7 @@ impl Parser {
                             Box::new(Attr {
                                 id: id.clone().into(),
                                 classes: Vec::new(),
-                                attributes: vec![("label".to_owned().into(), id.into())],
+                                attributes: vec![("label".into(), id.into())],
                             }),
                             Vec::new(),
                         ),
@@ -1397,7 +1394,7 @@ impl Parser {
                 emit(
                     out,
                     buf,
-                    Inline::Math(MathType::InlineMath, body.trim().to_owned().into()),
+                    Inline::Math(MathType::InlineMath, body.trim().into()),
                 );
             }
             "footnotemark" | "protect" | "noindent" | "indent" | "bigskip" | "medskip"
@@ -1427,7 +1424,7 @@ impl Parser {
                     emit(
                         out,
                         buf,
-                        Inline::RawInline(Format("latex".to_owned().into()), raw.into()),
+                        Inline::RawInline(Format("latex".into()), raw.into()),
                     );
                 } else {
                     // Unknown command: drop it along with any adjacent bracket/brace arguments.
@@ -1496,7 +1493,7 @@ impl Parser {
                 continue;
             }
             citations.push(Citation {
-                id: key.to_owned().into(),
+                id: key.into(),
                 prefix: Vec::new(),
                 suffix: Vec::new(),
                 mode: mode.clone(),
@@ -1524,10 +1521,7 @@ impl Parser {
         raw.push('}');
         out.push(Inline::Cite(
             citations,
-            vec![Inline::RawInline(
-                Format("latex".to_owned().into()),
-                raw.into(),
-            )],
+            vec![Inline::RawInline(Format("latex".into()), raw.into())],
         ));
     }
 
@@ -1856,10 +1850,7 @@ impl Parser {
             .unwrap_or_default()
             .iter()
             .collect();
-        vec![Block::RawBlock(
-            Format("latex".to_owned().into()),
-            raw.into(),
-        )]
+        vec![Block::RawBlock(Format("latex".into()), raw.into())]
     }
 
     /// Reads a `\newcommand`-style target name, whether written `{\name}` or bare `\name`.
@@ -2098,7 +2089,7 @@ fn span_class(inlines: Vec<Inline>, class: &str) -> Inline {
     Inline::Span(
         Box::new(Attr {
             id: carta_ast::Text::default(),
-            classes: vec![class.to_owned().into()],
+            classes: vec![class.into()],
             attributes: Vec::new(),
         }),
         inlines,
@@ -2117,8 +2108,8 @@ fn reference_link(name: &str, target: &str) -> Inline {
             id: carta_ast::Text::default(),
             classes: Vec::new(),
             attributes: vec![
-                ("reference-type".to_owned().into(), kind.to_owned().into()),
-                ("reference".to_owned().into(), target.to_owned().into()),
+                ("reference-type".into(), kind.into()),
+                ("reference".into(), target.into()),
             ],
         }),
         vec![Inline::Str(format!("[{target}]").into())],

@@ -371,7 +371,7 @@ fn insert_meta_field(meta: &mut BTreeMap<String, MetaValue>, key: &str, field: &
             if word_index > 0 {
                 inlines.push(Inline::Space);
             }
-            inlines.push(Inline::Str(word.to_owned().into()));
+            inlines.push(Inline::Str(word.into()));
         }
     }
     meta.insert(key.to_owned(), MetaValue::MetaInlines(inlines));

@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use carta_ast::Inline;
+use carta_ast::{Inline, ToCompactString};
 
 use super::parse::{Atom, Body, Delim, ModKind, ScriptKind, TextPiece};
 use super::symbols::{self, Alphabet, Class, is_limit_glyph};
@@ -376,12 +376,7 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
                 DelimSide::Close
             };
             let glyph = delim.map_or("", |d| delim_glyph(d, side));
-            Some((
-                vec![Inline::Str(glyph.to_string().into())],
-                Class::Ord,
-                false,
-                false,
-            ))
+            Some((vec![Inline::Str(glyph.into())], Class::Ord, false, false))
         }
         Body::Mod(kind, arg) => render_mod(*kind, arg.as_deref()),
         Body::Negated(base) => render_negated(base),
@@ -413,12 +408,7 @@ fn render_negated(base: &str) -> Option<(Vec<Inline>, Class, bool, bool)> {
         return None;
     }
     if let Some(glyph) = symbols::negated_relation(base) {
-        return Some((
-            vec![Inline::Str(glyph.to_string().into())],
-            Class::Rel,
-            false,
-            false,
-        ));
+        return Some((vec![Inline::Str(glyph.into())], Class::Rel, false, false));
     }
     match negated_base(base)? {
         NegatedBase::Relation(glyph) => {
@@ -506,7 +496,7 @@ fn render_mod(kind: ModKind, arg: Option<&[Atom]>) -> Option<(Vec<Inline>, Class
         ModKind::Mod => "\u{2000}mod\u{2006}\u{00A0}",
         ModKind::Pod => "\u{00A0}(",
     };
-    let mut inlines = vec![Inline::Str(prefix.to_string().into())];
+    let mut inlines = vec![Inline::Str(prefix.into())];
     if let Some(arg) = arg {
         inlines.extend(lower(arg)?);
         inlines.push(Inline::Str(")".into()));
@@ -570,7 +560,7 @@ fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class,
         match piece {
             TextPiece::Run(run) => inlines.extend(wrap_text_run(name, run)?),
             TextPiece::Space(space) => {
-                inlines.push(Inline::Str(space.codepoint().to_string().into()));
+                inlines.push(Inline::Str(space.codepoint().to_compact_string()));
             }
             // A `$…$` segment is math, rendered unaffected by the wrapper's own formatting.
             TextPiece::Math(atoms) => inlines.extend(lower(atoms)?),
@@ -584,13 +574,13 @@ fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class,
 
 /// Wrap one literal run of text in the wrapper's formatting.
 fn wrap_text_run(name: &str, run: &str) -> Option<Vec<Inline>> {
-    let text = Inline::Str(run.to_string().into());
+    let text = Inline::Str(run.into());
     let wrapped = match name {
         "text" | "textrm" | "textsf" | "mbox" | "operatorname" => vec![text],
         "textbf" => vec![Inline::Strong(vec![text])],
         "textit" => vec![Inline::Emph(vec![text])],
         // Typewriter text renders as a code span over the run.
-        "texttt" => vec![Inline::Code(Box::default(), run.to_string().into())],
+        "texttt" => vec![Inline::Code(Box::default(), run.into())],
         _ => return None,
     };
     Some(wrapped)
@@ -690,14 +680,14 @@ fn char_glyph(c: char) -> (String, Class, bool) {
 #[allow(clippy::unnecessary_wraps)]
 fn render_number(digits: &str, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
     let inlines = match style {
-        Style::Monospace => vec![Inline::Code(Box::default(), digits.to_string().into())],
+        Style::Monospace => vec![Inline::Code(Box::default(), digits.into())],
         Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(digits, alphabet).into())],
         Style::SubstituteBold(alphabet) => {
             vec![Inline::Strong(vec![Inline::Str(
                 substitute_run(digits, alphabet).into(),
             )])]
         }
-        _ => vec![Inline::Str(digits.to_string().into())],
+        _ => vec![Inline::Str(digits.into())],
     };
     Some((inlines, Class::Ord, false, false))
 }
@@ -713,7 +703,7 @@ fn style_glyph(c: char, style: Style) -> Option<Vec<Inline>> {
             substitute_char(c, alphabet).into(),
         )])]),
         // Monospace renders the character as its own code span, whatever the character.
-        Style::Monospace => Some(vec![Inline::Code(Box::default(), c.to_string().into())]),
+        Style::Monospace => Some(vec![Inline::Code(Box::default(), c.to_compact_string())]),
         _ => None,
     }
 }
@@ -742,12 +732,7 @@ fn substitute_char(c: char, alphabet: Alphabet) -> String {
 
 fn render_command(name: &str, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
     if let Some(s) = symbols::spacing(name) {
-        return Some((
-            vec![Inline::Str(s.to_string().into())],
-            Class::Ord,
-            false,
-            false,
-        ));
+        return Some((vec![Inline::Str(s.into())], Class::Ord, false, false));
     }
     if let Some((letter, is_var)) = symbols::greek(name) {
         return Some((
@@ -783,7 +768,7 @@ fn style_single_glyph(text: &str, italic_default: bool, style: Style) -> Vec<Inl
     if italic_default && !style.is_upright() {
         italic_run(text)
     } else {
-        vec![Inline::Str(text.to_string().into())]
+        vec![Inline::Str(text.into())]
     }
 }
 
@@ -792,14 +777,14 @@ fn style_single_glyph(text: &str, italic_default: bool, style: Style) -> Vec<Inl
 /// every other style keeps the run whole and upright.
 fn style_text_glyph(text: &str, style: Style) -> Vec<Inline> {
     match style {
-        Style::Monospace => vec![Inline::Code(Box::default(), text.to_string().into())],
+        Style::Monospace => vec![Inline::Code(Box::default(), text.into())],
         Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(text, alphabet).into())],
         Style::SubstituteBold(alphabet) => {
             vec![Inline::Strong(vec![Inline::Str(
                 substitute_run(text, alphabet).into(),
             )])]
         }
-        _ => vec![Inline::Str(text.to_string().into())],
+        _ => vec![Inline::Str(text.into())],
     }
 }
 
@@ -932,13 +917,13 @@ fn upright_inner(arg: &[Atom]) -> Option<Vec<Inline>> {
             return None;
         }
         match &atom.body {
-            Body::Char(c) => out.push(Inline::Str(c.to_string().into())),
+            Body::Char(c) => out.push(Inline::Str(c.to_compact_string())),
             Body::Number(digits) => out.push(Inline::Str(digits.clone().into())),
             Body::Command(name) => {
                 if let Some((letter, _)) = symbols::greek(name) {
-                    out.push(Inline::Str(letter.to_string().into()));
+                    out.push(Inline::Str(letter.into()));
                 } else if let Some(sym) = symbols::symbol(name) {
-                    out.push(Inline::Str(sym.text.to_string().into()));
+                    out.push(Inline::Str(sym.text.into()));
                 } else {
                     return None;
                 }
@@ -1004,7 +989,7 @@ fn prime_nucleus(count: u8) -> Vec<Inline> {
 
 fn push_str(out: &mut Vec<Inline>, text: &str) {
     if !text.is_empty() {
-        out.push(Inline::Str(text.to_string().into()));
+        out.push(Inline::Str(text.into()));
     }
 }
 
