@@ -1288,15 +1288,18 @@ fn push_text(out: &mut Vec<Inline>, text: &str) {
             }
             push_break(out, newline);
         } else {
-            let mut word = String::new();
-            while let Some(&w) = chars.peek() {
-                if w.is_ascii_whitespace() {
-                    break;
-                }
-                word.push(w);
-                chars.next();
+            if !matches!(out.last(), Some(Inline::Str(_))) {
+                out.push(Inline::Str(String::new()));
             }
-            push_str(out, &word);
+            if let Some(Inline::Str(existing)) = out.last_mut() {
+                while let Some(&w) = chars.peek() {
+                    if w.is_ascii_whitespace() {
+                        break;
+                    }
+                    existing.push(w);
+                    chars.next();
+                }
+            }
         }
     }
 }
