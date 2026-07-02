@@ -622,9 +622,9 @@ impl State {
             Inline::Str(text) => out.push(Piece::Text(if self.smart {
                 unsmarten(text)
             } else {
-                text.clone()
+                text.to_string()
             })),
-            Inline::Code(_, text) => out.push(Piece::Text(text.clone())),
+            Inline::Code(_, text) => out.push(Piece::Text(text.to_string())),
             Inline::Emph(inlines)
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
@@ -637,7 +637,7 @@ impl State {
                     && is_uri(&target.url)
                     && label_matches_url(text, &target.url)
                 {
-                    out.push(Piece::Text(target.url.clone()));
+                    out.push(Piece::Text(target.url.to_string()));
                 } else {
                     self.extend_pieces(inlines, out);
                 }
@@ -682,7 +682,7 @@ impl State {
             Inline::Math(kind, tex) => self.math(kind, tex, out),
             Inline::RawInline(format, text) => {
                 if is_plain_format(format) {
-                    out.push(Piece::Text(text.clone()));
+                    out.push(Piece::Text(text.to_string()));
                 }
             }
             Inline::Image(_, inlines, target) => {
@@ -973,7 +973,7 @@ mod tests {
     fn long_paragraph() -> Vec<Block> {
         let words: Vec<Inline> = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda"
             .split(' ')
-            .flat_map(|word| [Inline::Str(word.to_owned()), Inline::Space])
+            .flat_map(|word| [Inline::Str(word.to_owned().into()), Inline::Space])
             .collect();
         vec![Block::Para(words)]
     }
@@ -999,7 +999,7 @@ mod tests {
     }
 
     fn math_para(kind: MathType, tex: &str) -> Block {
-        Block::Para(vec![Inline::Math(kind, tex.to_owned())])
+        Block::Para(vec![Inline::Math(kind, tex.to_owned().into())])
     }
 
     fn inline(tex: &str) -> String {
@@ -1098,9 +1098,9 @@ mod tests {
     #[test]
     fn math_flows_inside_surrounding_text() {
         let blocks = vec![Block::Para(vec![
-            Inline::Str("value".to_owned()),
+            Inline::Str("value".to_owned().into()),
             Inline::Space,
-            Inline::Math(MathType::InlineMath, "E = mc^2".to_owned()),
+            Inline::Math(MathType::InlineMath, "E = mc^2".to_owned().into()),
         ])];
         assert_eq!(render(blocks), "value E\u{2004}=\u{2004}mc\u{b2}");
     }
@@ -1108,12 +1108,12 @@ mod tests {
     /// Render a single subscript/superscript run from a plain string of inner text.
     fn sub(text: &str) -> String {
         render(vec![Block::Para(vec![Inline::Subscript(vec![
-            Inline::Str(text.to_owned()),
+            Inline::Str(text.to_owned().into()),
         ])])])
     }
     fn sup(text: &str) -> String {
         render(vec![Block::Para(vec![Inline::Superscript(vec![
-            Inline::Str(text.to_owned()),
+            Inline::Str(text.to_owned().into()),
         ])])])
     }
 
@@ -1191,12 +1191,12 @@ mod tests {
         // Content that is not plain text or a space has no subscript form, so a convertible run is
         // rendered with superscript glyphs.
         let flipped = render(vec![Block::Para(vec![Inline::Subscript(vec![
-            Inline::Emph(vec![Inline::Str("2".to_owned())]),
+            Inline::Emph(vec![Inline::Str("2".to_owned().into())]),
         ])])]);
         assert_eq!(flipped, "\u{00b2}");
         // A formatted but otherwise unmappable run still falls back.
         let fallback = render(vec![Block::Para(vec![Inline::Subscript(vec![
-            Inline::Emph(vec![Inline::Str("a".to_owned())]),
+            Inline::Emph(vec![Inline::Str("a".to_owned().into())]),
         ])])]);
         assert_eq!(fallback, "_(a)");
     }

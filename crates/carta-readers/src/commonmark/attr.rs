@@ -69,7 +69,7 @@ fn parse_attributes_chars_with(
                     return None;
                 }
                 if matches!(policy, IdPolicy::Last) || attr.id.is_empty() {
-                    attr.id = id;
+                    attr.id = id.into();
                 }
             }
             Some('.') => {
@@ -78,7 +78,7 @@ fn parse_attributes_chars_with(
                 if class.is_empty() {
                     return None;
                 }
-                attr.classes.push(class);
+                attr.classes.push(class.into());
             }
             Some(_) => {
                 let key = read_key(chars, &mut index);
@@ -87,7 +87,7 @@ fn parse_attributes_chars_with(
                 }
                 index += 1;
                 let value = read_value(chars, &mut index);
-                attr.attributes.push((key, value));
+                attr.attributes.push((key.into(), value.into()));
             }
         }
     }
@@ -182,8 +182,8 @@ mod tests {
         assert_eq!(
             a.attributes,
             [
-                ("key".to_owned(), "val".to_owned()),
-                ("k2".to_owned(), "two words".to_owned())
+                ("key".into(), "val".into()),
+                ("k2".into(), "two words".into())
             ]
         );
         assert_eq!(consumed, r#"{#sec .a .b key=val k2="two words"}"#.len());
@@ -213,21 +213,18 @@ mod tests {
 
     #[test]
     fn empty_value_after_equals() {
-        assert_eq!(
-            attr("{key=}").0.attributes,
-            [("key".to_owned(), String::new())]
-        );
+        assert_eq!(attr("{key=}").0.attributes, [("key".into(), "".into())]);
     }
 
     #[test]
     fn single_quoted_and_escaped_double_quote() {
         assert_eq!(
             attr("{title='hi there'}").0.attributes,
-            [("title".to_owned(), "hi there".to_owned())]
+            [("title".into(), "hi there".into())]
         );
         assert_eq!(
             attr(r#"{title="a \"q\" b"}"#).0.attributes,
-            [("title".to_owned(), r#"a "q" b"#.to_owned())]
+            [("title".into(), r#"a "q" b"#.into())]
         );
     }
 

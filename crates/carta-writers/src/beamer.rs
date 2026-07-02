@@ -128,7 +128,7 @@ fn frame_options(title: Option<&FrameTitle>, fragile: bool) -> String {
     if let Some(title) = title {
         for class in &title.attr.classes {
             if FRAME_CLASSES.contains(&class.as_str()) {
-                options.push(class.clone());
+                options.push(class.to_string());
             }
         }
         if let Some((_, value)) = title.attr.attributes.iter().find(|(key, _)| key == "label") {
@@ -302,17 +302,17 @@ mod tests {
     }
 
     fn para(text: &str) -> Block {
-        Block::Para(vec![Inline::Str(text.to_owned())])
+        Block::Para(vec![Inline::Str(text.to_owned().into())])
     }
 
     fn header(level: i32, id: &str, title: &str) -> Block {
         Block::Header(
             level,
             Box::new(Attr {
-                id: id.to_owned(),
+                id: id.to_owned().into(),
                 ..Attr::default()
             }),
-            vec![Inline::Str(title.to_owned())],
+            vec![Inline::Str(title.to_owned().into())],
         )
     }
 
@@ -345,7 +345,10 @@ mod tests {
 
     #[test]
     fn code_block_marks_frame_fragile() {
-        let out = render(vec![Block::CodeBlock(Box::default(), "x\n".to_owned())]);
+        let out = render(vec![Block::CodeBlock(
+            Box::default(),
+            "x\n".to_owned().into(),
+        )]);
         assert!(out.starts_with("\\begin{frame}[fragile]"));
     }
 
@@ -353,7 +356,7 @@ mod tests {
     fn inline_code_marks_frame_fragile() {
         let out = render(vec![Block::Para(vec![Inline::Code(
             Box::default(),
-            "x".to_owned(),
+            "x".to_owned().into(),
         )])]);
         assert!(out.starts_with("\\begin{frame}[fragile]"));
     }
@@ -373,12 +376,15 @@ mod tests {
     #[test]
     fn recognized_class_becomes_frame_option() {
         let mut attr = Attr {
-            id: "six".to_owned(),
+            id: "six".to_owned().into(),
             ..Attr::default()
         };
-        attr.classes = vec!["allowframebreaks".to_owned(), "unknown".to_owned()];
+        attr.classes = vec![
+            "allowframebreaks".to_owned().into(),
+            "unknown".to_owned().into(),
+        ];
         let out = render(vec![
-            Block::Header(6, Box::new(attr), vec![Inline::Str("T".to_owned())]),
+            Block::Header(6, Box::new(attr), vec![Inline::Str("T".to_owned().into())]),
             para("y"),
         ]);
         assert!(out.starts_with("\\begin{frame}[allowframebreaks]{T}"));
@@ -392,7 +398,7 @@ mod tests {
     fn div(classes: &[&str], blocks: Vec<Block>) -> Block {
         Block::Div(
             Box::new(Attr {
-                classes: classes.iter().map(|class| (*class).to_owned()).collect(),
+                classes: classes.iter().map(|class| (*class).into()).collect(),
                 ..Attr::default()
             }),
             blocks,

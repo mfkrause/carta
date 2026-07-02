@@ -58,7 +58,11 @@ impl Reader for ManReader {
         let mut parser = Parser::new(lines, options.extensions);
         let blocks = parser.parse_blocks(Ctx::TOP);
         Ok(Document {
-            meta: parser.meta,
+            meta: parser
+                .meta
+                .into_iter()
+                .map(|(k, v)| (k.into(), v))
+                .collect(),
             blocks,
             ..Document::default()
         })
@@ -137,7 +141,7 @@ impl Font {
 fn code_inline(inlines: &[Inline]) -> Inline {
     let mut text = String::new();
     collect_code_text(inlines, &mut text);
-    Inline::Code(Box::default(), text)
+    Inline::Code(Box::default(), text.into())
 }
 
 fn collect_code_text(inlines: &[Inline], out: &mut String) {
@@ -392,7 +396,7 @@ impl Parser {
                     blocks.push(Block::Header(
                         level,
                         Box::new(Attr {
-                            id,
+                            id: id.into(),
                             ..Attr::default()
                         }),
                         inlines,
@@ -659,7 +663,7 @@ impl Parser {
                 text_lines.push(flatten(&line, &self.strings));
             }
         }
-        Block::CodeBlock(Box::default(), text_lines.join("\n"))
+        Block::CodeBlock(Box::default(), text_lines.join("\n").into())
     }
 
     /// Parses a tbl table region (`.TS`/`.TE`) into a [`Block::Table`]. The region's structure is the
@@ -853,8 +857,8 @@ impl Parser {
                 Box::default(),
                 label,
                 Box::new(Target {
-                    url,
-                    title: String::new(),
+                    url: url.into(),
+                    title: carta_ast::Text::default(),
                 }),
             )],
         );
@@ -966,7 +970,7 @@ fn alternating(rest: &str, fonts: [Font; 2], strings: &Strings) -> Vec<Inline> {
 /// optional argument (the rest) roman, the whole bracketed as optional — `[ -name argument ]`.
 fn option_synopsis(rest: &str, strings: &Strings) -> Vec<Inline> {
     let args = split_args(rest);
-    let mut out = vec![Inline::Str("[".to_owned())];
+    let mut out = vec![Inline::Str("[".to_owned().into())];
     if let Some(name) = args.first() {
         out.push(Inline::Space);
         out.extend(font_macro(Font::Bold, name, strings));
@@ -977,7 +981,7 @@ fn option_synopsis(rest: &str, strings: &Strings) -> Vec<Inline> {
         out.extend(tokenize(&argument, Font::Regular, strings));
     }
     out.push(Inline::Space);
-    out.push(Inline::Str("]".to_owned()));
+    out.push(Inline::Str("]".to_owned().into()));
     out
 }
 
@@ -997,7 +1001,7 @@ fn inlines_from_plain(text: &str) -> Vec<Inline> {
         if !out.is_empty() {
             out.push(Inline::Space);
         }
-        out.push(Inline::Str(word.to_owned()));
+        out.push(Inline::Str(word.to_owned().into()));
     }
     out
 }
@@ -1385,14 +1389,14 @@ fn tokenize(text: &str, start_font: Font, strings: &Strings) -> Vec<Inline> {
             if *pending_space {
                 run.push(Inline::Space);
             }
-            run.push(Inline::Str(text));
+            run.push(Inline::Str(text.into()));
         } else {
             flush_run(run, *run_font, result);
             if *pending_space {
                 push_space(result);
             }
             *run_font = word_font;
-            run.push(Inline::Str(text));
+            run.push(Inline::Str(text.into()));
         }
         *pending_space = false;
     };
@@ -1766,7 +1770,7 @@ fn build_tbl(region: &[String]) -> Option<Block> {
         .iter()
         .any(|line| format_has_span(line))
     {
-        return Some(Block::Para(vec![Inline::Str("TABLE".to_owned())]));
+        return Some(Block::Para(vec![Inline::Str("TABLE".to_owned().into())]));
     }
 
     let data = collapse_text_blocks(region.get(data_start..).unwrap_or(&[]), &separator);
@@ -1976,7 +1980,7 @@ fn tbl_cell(field: &str) -> Cell {
         if !inlines.is_empty() {
             inlines.push(Inline::Space);
         }
-        inlines.push(Inline::Str(word.to_owned()));
+        inlines.push(Inline::Str(word.to_owned().into()));
     }
     let content = if inlines.is_empty() {
         Vec::new()
@@ -2684,7 +2688,7 @@ mod tests {
                 ],
                 Box::new(Target {
                     url: "https://example.com".into(),
-                    title: String::new(),
+                    title: carta_ast::Text::default(),
                 }),
             )]))
         );

@@ -37,9 +37,10 @@ macro_rules! node_enum {
     };
 }
 
-/// Every textual payload in the tree. Owned today; aliased so it can be swapped for a
-/// compact-string type later without touching call sites.
-pub type Text = String;
+/// Every textual payload in the tree. A small-string type that stores payloads up to 24 bytes
+/// inline, avoiding a heap allocation for the short words that dominate prose, while keeping the
+/// same 24-byte footprint and string serialization as an owned `String`.
+pub type Text = compact_str::CompactString;
 
 /// The AST schema version carried by an interchange document, as an integer component list
 /// (e.g. `[1, 23, 1, 2]`). Stored verbatim so a parsed document re-serializes losslessly; freshly
@@ -420,7 +421,7 @@ fn push_plain_inlines(inlines: &[Inline], out: &mut Vec<Inline>) {
                 out.push(Inline::Str(text.clone()));
             }
             Inline::Space | Inline::SoftBreak | Inline::LineBreak => {
-                out.push(Inline::Str(" ".to_owned()));
+                out.push(Inline::Str(Text::from(" ")));
             }
             Inline::Quoted(quote, xs) => {
                 out.push(Inline::Quoted(quote.clone(), to_plain_inlines(xs)));
@@ -452,18 +453,27 @@ mod tests {
     }
 
     #[test]
+    fn text_stays_word_sized() {
+        assert_eq!(
+            std::mem::size_of::<Text>(),
+            std::mem::size_of::<String>(),
+            "Text must keep String's footprint so swapping the type never fattens every node"
+        );
+    }
+
+    #[test]
     fn plain_inlines_unwraps_markup_keeps_quotation_and_drops_passthrough() {
         let inlines = vec![
-            Inline::Emph(vec![Inline::Str("emph".to_owned())]),
+            Inline::Emph(vec![Inline::Str("emph".into())]),
             Inline::Space,
             Inline::Quoted(
                 QuoteType::DoubleQuote,
-                vec![Inline::Strong(vec![Inline::Str("loud".to_owned())])],
+                vec![Inline::Strong(vec![Inline::Str("loud".into())])],
             ),
-            Inline::Code(Box::default(), "code".to_owned()),
-            Inline::Math(MathType::InlineMath, "x".to_owned()),
-            Inline::RawInline(Format("html".to_owned()), "<br>".to_owned()),
-            Inline::Note(vec![Block::Para(vec![Inline::Str("note".to_owned())])]),
+            Inline::Code(Box::default(), "code".into()),
+            Inline::Math(MathType::InlineMath, "x".into()),
+            Inline::RawInline(Format("html".into()), "<br>".into()),
+            Inline::Note(vec![Block::Para(vec![Inline::Str("note".into())])]),
         ];
         let plain = to_plain_inlines(&inlines);
         // The emphasis wrapper is gone, the space collapses to a `Str`, the quotation survives with
@@ -472,11 +482,11 @@ mod tests {
         assert_eq!(
             plain,
             vec![
-                Inline::Str("emph".to_owned()),
-                Inline::Str(" ".to_owned()),
-                Inline::Quoted(QuoteType::DoubleQuote, vec![Inline::Str("loud".to_owned())]),
-                Inline::Str("code".to_owned()),
-                Inline::Str("x".to_owned()),
+                Inline::Str("emph".into()),
+                Inline::Str(" ".into()),
+                Inline::Quoted(QuoteType::DoubleQuote, vec![Inline::Str("loud".into())]),
+                Inline::Str("code".into()),
+                Inline::Str("x".into()),
             ]
         );
     }
@@ -484,29 +494,29 @@ mod tests {
     #[test]
     fn single_block_inlines_takes_a_lone_paragraph_and_nothing_else() {
         let para = vec![Block::Para(vec![
-            Inline::Str("Multi".to_owned()),
+            Inline::Str("Multi".into()),
             Inline::SoftBreak,
-            Inline::Str("line".to_owned()),
+            Inline::Str("line".into()),
         ])];
         assert_eq!(
             single_block_inlines(&para),
             &[
-                Inline::Str("Multi".to_owned()),
+                Inline::Str("Multi".into()),
                 Inline::SoftBreak,
-                Inline::Str("line".to_owned()),
+                Inline::Str("line".into()),
             ]
         );
 
         // A lone plain block is also unwrapped.
-        let plain = vec![Block::Plain(vec![Inline::Str("p".to_owned())])];
-        assert_eq!(single_block_inlines(&plain), &[Inline::Str("p".to_owned())]);
+        let plain = vec![Block::Plain(vec![Inline::Str("p".into())])];
+        assert_eq!(single_block_inlines(&plain), &[Inline::Str("p".into())]);
 
         // No inline form: empty, several blocks, or a single non-paragraph block.
         assert!(single_block_inlines(&[]).is_empty());
         assert!(
             single_block_inlines(&[
-                Block::Para(vec![Inline::Str("a".to_owned())]),
-                Block::Para(vec![Inline::Str("b".to_owned())]),
+                Block::Para(vec![Inline::Str("a".into())]),
+                Block::Para(vec![Inline::Str("b".into())]),
             ])
             .is_empty()
         );

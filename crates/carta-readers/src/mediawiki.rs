@@ -58,7 +58,7 @@ impl Reader for MediawikiReader {
         }
         Ok(Document {
             api_version: ApiVersion::default(),
-            meta,
+            meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
             blocks,
         })
     }
@@ -196,7 +196,7 @@ impl Parser {
                     && let Some(after) = balanced_braces(chars, pos)
                 {
                     let raw = collect_range(chars, pos, after);
-                    blocks.push(Block::RawBlock(format_mediawiki(), raw));
+                    blocks.push(Block::RawBlock(format_mediawiki(), raw.into()));
                     let (np, ls) = finish_inline_block(chars, after);
                     pos = np;
                     line_start = ls;
@@ -216,7 +216,7 @@ impl Parser {
                 {
                     let id = self.make_id(&inlines);
                     let attr = Attr {
-                        id,
+                        id: id.into(),
                         classes: Vec::new(),
                         attributes: Vec::new(),
                     };
@@ -506,7 +506,10 @@ impl Parser {
             }
             "pre" => {
                 let (inner, after) = enclosed(chars, after_open, "pre");
-                Some((Block::CodeBlock(Box::default(), trim_code(&inner)), after))
+                Some((
+                    Block::CodeBlock(Box::default(), trim_code(&inner).into()),
+                    after,
+                ))
             }
             "source" | "syntaxhighlight" => {
                 let (inner, after) = enclosed(chars, after_open, &name);
@@ -514,14 +517,17 @@ impl Parser {
                 if let Some(lang) = tag_attribute(&raw_open, "lang")
                     && !lang.is_empty()
                 {
-                    classes.push(lang);
+                    classes.push(lang.into());
                 }
                 let attr = Attr {
-                    id: String::new(),
+                    id: carta_ast::Text::default(),
                     classes,
                     attributes: Vec::new(),
                 };
-                Some((Block::CodeBlock(Box::new(attr), trim_code(&inner)), after))
+                Some((
+                    Block::CodeBlock(Box::new(attr), trim_code(&inner).into()),
+                    after,
+                ))
             }
             "ul" => Some(self.parse_html_list(chars, after_open, false, &raw_open, self_closing)),
             "ol" => Some(self.parse_html_list(chars, after_open, true, &raw_open, self_closing)),
@@ -667,7 +673,7 @@ impl Parser {
             match tok {
                 Tok::BlockRaw(raw) => {
                     flush_para_segment(&mut segment, &mut blocks, smart, east_asian);
-                    blocks.push(Block::RawBlock(format_html(), raw));
+                    blocks.push(Block::RawBlock(format_html(), raw.into()));
                 }
                 Tok::Block(block) => {
                     flush_para_segment(&mut segment, &mut blocks, smart, east_asian);
@@ -939,7 +945,10 @@ impl Parser {
                 {
                     flush_word(&mut word, &mut toks);
                     let raw = collect_range(chars, i, after);
-                    toks.push(Tok::Inline(Inline::RawInline(format_mediawiki(), raw)));
+                    toks.push(Tok::Inline(Inline::RawInline(
+                        format_mediawiki(),
+                        raw.into(),
+                    )));
                     i = after;
                     continue;
                 }
@@ -1036,7 +1045,10 @@ impl Parser {
                     Some((inner_end, after)) => {
                         let inner = collect_range(chars, after_open, inner_end);
                         Some((
-                            vec![Inline::Math(MathType::InlineMath, inner.trim().to_string())],
+                            vec![Inline::Math(
+                                MathType::InlineMath,
+                                inner.trim().to_string().into(),
+                            )],
                             after,
                         ))
                     }
@@ -1154,8 +1166,8 @@ impl Parser {
             Some((inner_end, after)) => {
                 let inner = collect_range(chars, after_open, inner_end);
                 let attr = Attr {
-                    id: String::new(),
-                    classes: vec![class.to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec![class.to_string().into()],
                     attributes: Vec::new(),
                 };
                 (
@@ -1184,7 +1196,7 @@ impl Parser {
         }
         let text = if label.is_empty() {
             self.link_counter += 1;
-            vec![Inline::Str(self.link_counter.to_string())]
+            vec![Inline::Str(self.link_counter.to_string().into())]
         } else {
             self.parse_inlines(&label)
         };
@@ -1193,8 +1205,8 @@ impl Parser {
                 Box::default(),
                 text,
                 Box::new(Target {
-                    url: encode_url_target(&url),
-                    title: String::new(),
+                    url: encode_url_target(&url).into(),
+                    title: carta_ast::Text::default(),
                 }),
             )],
             close + 1,
@@ -1226,16 +1238,16 @@ impl Parser {
                 };
                 let title = title_text(&text);
                 let attr = Attr {
-                    id: String::new(),
-                    classes: vec!["wikilink".to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec!["wikilink".to_string().into()],
                     attributes: Vec::new(),
                 };
                 self.categories.push(Inline::Link(
                     Box::new(attr),
                     text,
                     Box::new(Target {
-                        url: wikilink_url(&target),
-                        title,
+                        url: wikilink_url(&target).into(),
+                        title: title.into(),
                     }),
                 ));
                 return Some((Vec::new(), close + 2));
@@ -1267,12 +1279,12 @@ impl Parser {
         };
         let title = title_text(&label);
         if !trail.is_empty() {
-            label.push(Inline::Str(trail));
+            label.push(Inline::Str(trail.into()));
             label = coalesce(label);
         }
         let attr = Attr {
-            id: String::new(),
-            classes: vec!["wikilink".to_string()],
+            id: carta_ast::Text::default(),
+            classes: vec!["wikilink".to_string().into()],
             attributes: Vec::new(),
         };
         let url = wikilink_url(&target);
@@ -1280,7 +1292,10 @@ impl Parser {
             vec![Inline::Link(
                 Box::new(attr),
                 label,
-                Box::new(Target { url, title }),
+                Box::new(Target {
+                    url: url.into(),
+                    title: title.into(),
+                }),
             )],
             after,
         ))
@@ -1329,14 +1344,20 @@ impl Parser {
         let alt = self.parse_inlines(&caption);
         let title = title_text(&alt);
         let attr = Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes,
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         };
         Some(Inline::Image(
             Box::new(attr),
             alt,
-            Box::new(Target { url, title }),
+            Box::new(Target {
+                url: url.into(),
+                title: title.into(),
+            }),
         ))
     }
 
@@ -1706,7 +1727,7 @@ fn parse_runs(
                     pos = next;
                     continue;
                 }
-                nodes.push(Inline::Str("'".to_string()));
+                nodes.push(Inline::Str("'".to_string().into()));
                 pos += 1;
             }
         }
@@ -1827,7 +1848,7 @@ fn resolve_double_quotes(units: &[SmartUnit], lo: usize, hi: usize) -> Vec<Inlin
 
 fn flush_smart_buf(buf: &mut String, out: &mut Vec<Inline>) {
     if !buf.is_empty() {
-        out.push(Inline::Str(std::mem::take(buf)));
+        out.push(Inline::Str(std::mem::take(buf).into()));
     }
 }
 
@@ -1987,14 +2008,17 @@ fn preformat_transform(inlines: Vec<Inline>) -> Vec<Inline> {
             Inline::Space | Inline::SoftBreak => run.push('\u{a0}'),
             other => {
                 if !run.is_empty() {
-                    out.push(Inline::Code(Box::default(), std::mem::take(&mut run)));
+                    out.push(Inline::Code(
+                        Box::default(),
+                        std::mem::take(&mut run).into(),
+                    ));
                 }
                 out.push(preformat_descend(other));
             }
         }
     }
     if !run.is_empty() {
-        out.push(Inline::Code(Box::default(), run));
+        out.push(Inline::Code(Box::default(), run.into()));
     }
     out
 }
@@ -2030,7 +2054,7 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
         let Some(c) = at(&chars, i) else { break };
         if c.is_whitespace() {
             if !word.is_empty() {
-                out.push(Inline::Str(std::mem::take(&mut word)));
+                out.push(Inline::Str(std::mem::take(&mut word).into()));
             }
             let (token, next) = whitespace_token(&chars, i);
             out.push(token);
@@ -2049,7 +2073,7 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
         }
     }
     if !word.is_empty() {
-        out.push(Inline::Str(word));
+        out.push(Inline::Str(word.into()));
     }
     out
 }
@@ -2457,10 +2481,10 @@ fn bare_url(chars: &[char], i: usize) -> Option<(Inline, usize)> {
     Some((
         Inline::Link(
             Box::default(),
-            vec![Inline::Str(display)],
+            vec![Inline::Str(display.into())],
             Box::new(Target {
-                url: target,
-                title: String::new(),
+                url: target.into(),
+                title: carta_ast::Text::default(),
             }),
         ),
         i + consumed,
@@ -3895,7 +3919,7 @@ fn degraded_blocks(chars: &[char]) -> Vec<Block> {
     if trimmed.is_empty() {
         Vec::new()
     } else {
-        vec![Block::Para(vec![Inline::Str(trimmed.to_string())])]
+        vec![Block::Para(vec![Inline::Str(trimmed.to_string().into())])]
     }
 }
 
@@ -3947,12 +3971,12 @@ fn verbatim_code(
         Some((inner_end, after)) => {
             let inner = collect_range(chars, after_open, inner_end);
             let attr = Attr {
-                id: String::new(),
-                classes: classes.iter().map(|s| (*s).to_string()).collect(),
+                id: carta_ast::Text::default(),
+                classes: classes.iter().map(|s| (*s).into()).collect(),
                 attributes: Vec::new(),
             };
             (
-                vec![Inline::Code(Box::new(attr), decode_entities(&inner))],
+                vec![Inline::Code(Box::new(attr), decode_entities(&inner).into())],
                 after,
             )
         }
@@ -3992,20 +4016,20 @@ fn trim_code(inner: &str) -> String {
 
 fn flush_word(word: &mut String, toks: &mut Vec<Tok>) {
     if !word.is_empty() {
-        toks.push(Tok::Inline(Inline::Str(std::mem::take(word))));
+        toks.push(Tok::Inline(Inline::Str(std::mem::take(word).into())));
     }
 }
 
 fn raw_html(text: String) -> Inline {
-    Inline::RawInline(Format("html".to_string()), text)
+    Inline::RawInline(Format("html".to_string().into()), text.into())
 }
 
 fn format_mediawiki() -> Format {
-    Format("mediawiki".to_string())
+    Format("mediawiki".to_string().into())
 }
 
 fn format_html() -> Format {
-    Format("html".to_string())
+    Format("html".to_string().into())
 }
 
 fn at(chars: &[char], i: usize) -> Option<char> {
@@ -4336,9 +4360,12 @@ fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
         col_span,
         row_span,
         attr: Attr {
-            id,
-            classes,
-            attributes,
+            id: id.into(),
+            classes: classes.into_iter().map(Into::into).collect(),
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         },
     })
 }
@@ -4573,7 +4600,7 @@ mod tests {
         let ids: Vec<String> = blocks
             .iter()
             .filter_map(|b| match b {
-                Block::Header(_, attr, _) => Some(attr.id.clone()),
+                Block::Header(_, attr, _) => Some(attr.id.to_string()),
                 _ => None,
             })
             .collect();
@@ -4595,7 +4622,7 @@ mod tests {
         let ids: Vec<String> = blocks
             .iter()
             .filter_map(|b| match b {
-                Block::Header(_, attr, _) => Some(attr.id.clone()),
+                Block::Header(_, attr, _) => Some(attr.id.to_string()),
                 _ => None,
             })
             .collect();
@@ -4667,7 +4694,7 @@ mod tests {
             parse("[[Page]]s"),
             vec![Block::Para(vec![Inline::Link(
                 Box::new(Attr {
-                    id: String::new(),
+                    id: carta_ast::Text::default(),
                     classes: vec!["wikilink".into()],
                     attributes: vec![],
                 }),
@@ -4740,7 +4767,7 @@ mod tests {
                 }),
                 vec![Block::Plain(vec![Inline::Image(
                     Box::new(Attr {
-                        id: String::new(),
+                        id: carta_ast::Text::default(),
                         classes: vec![],
                         attributes: vec![
                             ("width".into(), "100".into()),
@@ -4782,7 +4809,7 @@ mod tests {
             parse("[[File:]]"),
             vec![Block::Para(vec![Inline::Link(
                 Box::new(Attr {
-                    id: String::new(),
+                    id: carta_ast::Text::default(),
                     classes: vec!["wikilink".into()],
                     attributes: vec![],
                 }),
@@ -4805,7 +4832,7 @@ mod tests {
                     vec![Inline::Str("lbl".into())],
                     Box::new(Target {
                         url: "http://x.com".into(),
-                        title: String::new(),
+                        title: carta_ast::Text::default(),
                     }),
                 ),
                 Inline::Space,
@@ -4814,7 +4841,7 @@ mod tests {
                     vec![Inline::Str("1".into())],
                     Box::new(Target {
                         url: "http://y.com".into(),
-                        title: String::new(),
+                        title: carta_ast::Text::default(),
                     }),
                 ),
             ])]
@@ -4833,7 +4860,7 @@ mod tests {
                     vec![Inline::Str("http://x.com".into())],
                     Box::new(Target {
                         url: "http://x.com".into(),
-                        title: String::new(),
+                        title: carta_ast::Text::default(),
                     }),
                 ),
                 Inline::Str(".".into()),
@@ -4925,7 +4952,7 @@ mod tests {
             parse("<syntaxhighlight lang=\"rust\">\nfn main(){}\n</syntaxhighlight>"),
             vec![Block::CodeBlock(
                 Box::new(Attr {
-                    id: String::new(),
+                    id: carta_ast::Text::default(),
                     classes: vec!["rust".into()],
                     attributes: vec![],
                 }),

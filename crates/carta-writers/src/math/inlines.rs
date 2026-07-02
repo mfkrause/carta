@@ -282,7 +282,7 @@ fn render_script(group: &[Atom], style: Style) -> Option<Vec<Inline>> {
         && atom.sup.is_none()
         && atom.siblings.is_empty()
     {
-        return Some(vec![Inline::Str(prime_glyph(*count))]);
+        return Some(vec![Inline::Str(prime_glyph(*count).into())]);
     }
     let mut inlines = lower_styled(group, style)?;
     // A script whose sole content is a bare named function drops that function's trailing thin space:
@@ -347,12 +347,7 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
         Body::Char('#' | '&' | '%') => None,
         Body::Char(c) => render_char(*c, style),
         // The `:=` digraph prints as the two literal characters and takes relation spacing as a unit.
-        Body::ColonEq => Some((
-            vec![Inline::Str(":=".to_string())],
-            Class::Rel,
-            false,
-            false,
-        )),
+        Body::ColonEq => Some((vec![Inline::Str(":=".into())], Class::Rel, false, false)),
         Body::Number(digits) => render_number(digits, style),
         Body::Command(name) => render_command(name, style),
         Body::Group(inner) => {
@@ -382,7 +377,7 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
             };
             let glyph = delim.map_or("", |d| delim_glyph(d, side));
             Some((
-                vec![Inline::Str(glyph.to_string())],
+                vec![Inline::Str(glyph.to_string().into())],
                 Class::Ord,
                 false,
                 false,
@@ -419,7 +414,7 @@ fn render_negated(base: &str) -> Option<(Vec<Inline>, Class, bool, bool)> {
     }
     if let Some(glyph) = symbols::negated_relation(base) {
         return Some((
-            vec![Inline::Str(glyph.to_string())],
+            vec![Inline::Str(glyph.to_string().into())],
             Class::Rel,
             false,
             false,
@@ -429,7 +424,7 @@ fn render_negated(base: &str) -> Option<(Vec<Inline>, Class, bool, bool)> {
         NegatedBase::Relation(glyph) => {
             let mut struck = glyph;
             struck.push('\u{0338}');
-            Some((vec![Inline::Str(struck)], Class::Rel, false, false))
+            Some((vec![Inline::Str(struck.into())], Class::Rel, false, false))
         }
         NegatedBase::Italic(glyph) => {
             let mut struck = glyph;
@@ -439,7 +434,7 @@ fn render_negated(base: &str) -> Option<(Vec<Inline>, Class, bool, bool)> {
         NegatedBase::Upright(glyph) => {
             let mut struck = glyph;
             struck.push('\u{0338}');
-            Some((vec![Inline::Str(struck)], Class::Ord, false, false))
+            Some((vec![Inline::Str(struck.into())], Class::Ord, false, false))
         }
     }
 }
@@ -511,10 +506,10 @@ fn render_mod(kind: ModKind, arg: Option<&[Atom]>) -> Option<(Vec<Inline>, Class
         ModKind::Mod => "\u{2000}mod\u{2006}\u{00A0}",
         ModKind::Pod => "\u{00A0}(",
     };
-    let mut inlines = vec![Inline::Str(prefix.to_string())];
+    let mut inlines = vec![Inline::Str(prefix.to_string().into())];
     if let Some(arg) = arg {
         inlines.extend(lower(arg)?);
-        inlines.push(Inline::Str(")".to_string()));
+        inlines.push(Inline::Str(")".into()));
     }
     Some((merge_adjacent_str(inlines), Class::Ord, false, false))
 }
@@ -574,7 +569,9 @@ fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class,
     for piece in content {
         match piece {
             TextPiece::Run(run) => inlines.extend(wrap_text_run(name, run)?),
-            TextPiece::Space(space) => inlines.push(Inline::Str(space.codepoint().to_string())),
+            TextPiece::Space(space) => {
+                inlines.push(Inline::Str(space.codepoint().to_string().into()));
+            }
             // A `$…$` segment is math, rendered unaffected by the wrapper's own formatting.
             TextPiece::Math(atoms) => inlines.extend(lower(atoms)?),
         }
@@ -587,13 +584,13 @@ fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class,
 
 /// Wrap one literal run of text in the wrapper's formatting.
 fn wrap_text_run(name: &str, run: &str) -> Option<Vec<Inline>> {
-    let text = Inline::Str(run.to_string());
+    let text = Inline::Str(run.to_string().into());
     let wrapped = match name {
         "text" | "textrm" | "textsf" | "mbox" | "operatorname" => vec![text],
         "textbf" => vec![Inline::Strong(vec![text])],
         "textit" => vec![Inline::Emph(vec![text])],
         // Typewriter text renders as a code span over the run.
-        "texttt" => vec![Inline::Code(Box::default(), run.to_string())],
+        "texttt" => vec![Inline::Code(Box::default(), run.to_string().into())],
         _ => return None,
     };
     Some(wrapped)
@@ -646,9 +643,9 @@ fn render_char(c: char, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)
     // or punctuation glyph keeps its spacing; the substituting styles already mapped a letter/digit
     // above and fall through here for a symbol, which keeps its plain glyph and class.
     let inlines = match style {
-        Style::Monospace => vec![Inline::Code(Box::default(), text)],
+        Style::Monospace => vec![Inline::Code(Box::default(), text.into())],
         _ if c.is_alphabetic() && !style.is_upright() => vec![italic(text)],
-        _ => vec![Inline::Str(text)],
+        _ => vec![Inline::Str(text.into())],
     };
     Some((inlines, class, is_limit, false))
 }
@@ -693,14 +690,14 @@ fn char_glyph(c: char) -> (String, Class, bool) {
 #[allow(clippy::unnecessary_wraps)]
 fn render_number(digits: &str, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
     let inlines = match style {
-        Style::Monospace => vec![Inline::Code(Box::default(), digits.to_string())],
-        Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(digits, alphabet))],
+        Style::Monospace => vec![Inline::Code(Box::default(), digits.to_string().into())],
+        Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(digits, alphabet).into())],
         Style::SubstituteBold(alphabet) => {
-            vec![Inline::Strong(vec![Inline::Str(substitute_run(
-                digits, alphabet,
-            ))])]
+            vec![Inline::Strong(vec![Inline::Str(
+                substitute_run(digits, alphabet).into(),
+            )])]
         }
-        _ => vec![Inline::Str(digits.to_string())],
+        _ => vec![Inline::Str(digits.to_string().into())],
     };
     Some((inlines, Class::Ord, false, false))
 }
@@ -711,12 +708,12 @@ fn render_number(digits: &str, style: Style) -> Option<(Vec<Inline>, Class, bool
 /// style's wrapper. Returns the fully-wrapped inline run for that one character.
 fn style_glyph(c: char, style: Style) -> Option<Vec<Inline>> {
     match style {
-        Style::Substitute(alphabet) => Some(vec![Inline::Str(substitute_char(c, alphabet))]),
+        Style::Substitute(alphabet) => Some(vec![Inline::Str(substitute_char(c, alphabet).into())]),
         Style::SubstituteBold(alphabet) => Some(vec![Inline::Strong(vec![Inline::Str(
-            substitute_char(c, alphabet),
+            substitute_char(c, alphabet).into(),
         )])]),
         // Monospace renders the character as its own code span, whatever the character.
-        Style::Monospace => Some(vec![Inline::Code(Box::default(), c.to_string())]),
+        Style::Monospace => Some(vec![Inline::Code(Box::default(), c.to_string().into())]),
         _ => None,
     }
 }
@@ -745,7 +742,12 @@ fn substitute_char(c: char, alphabet: Alphabet) -> String {
 
 fn render_command(name: &str, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
     if let Some(s) = symbols::spacing(name) {
-        return Some((vec![Inline::Str(s.to_string())], Class::Ord, false, false));
+        return Some((
+            vec![Inline::Str(s.to_string().into())],
+            Class::Ord,
+            false,
+            false,
+        ));
     }
     if let Some((letter, is_var)) = symbols::greek(name) {
         return Some((
@@ -781,7 +783,7 @@ fn style_single_glyph(text: &str, italic_default: bool, style: Style) -> Vec<Inl
     if italic_default && !style.is_upright() {
         italic_run(text)
     } else {
-        vec![Inline::Str(text.to_string())]
+        vec![Inline::Str(text.to_string().into())]
     }
 }
 
@@ -790,14 +792,14 @@ fn style_single_glyph(text: &str, italic_default: bool, style: Style) -> Vec<Inl
 /// every other style keeps the run whole and upright.
 fn style_text_glyph(text: &str, style: Style) -> Vec<Inline> {
     match style {
-        Style::Monospace => vec![Inline::Code(Box::default(), text.to_string())],
-        Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(text, alphabet))],
+        Style::Monospace => vec![Inline::Code(Box::default(), text.to_string().into())],
+        Style::Substitute(alphabet) => vec![Inline::Str(substitute_run(text, alphabet).into())],
         Style::SubstituteBold(alphabet) => {
-            vec![Inline::Strong(vec![Inline::Str(substitute_run(
-                text, alphabet,
-            ))])]
+            vec![Inline::Strong(vec![Inline::Str(
+                substitute_run(text, alphabet).into(),
+            )])]
         }
-        _ => vec![Inline::Str(text.to_string())],
+        _ => vec![Inline::Str(text.to_string().into())],
     }
 }
 
@@ -930,13 +932,13 @@ fn upright_inner(arg: &[Atom]) -> Option<Vec<Inline>> {
             return None;
         }
         match &atom.body {
-            Body::Char(c) => out.push(Inline::Str(c.to_string())),
-            Body::Number(digits) => out.push(Inline::Str(digits.clone())),
+            Body::Char(c) => out.push(Inline::Str(c.to_string().into())),
+            Body::Number(digits) => out.push(Inline::Str(digits.clone().into())),
             Body::Command(name) => {
                 if let Some((letter, _)) = symbols::greek(name) {
-                    out.push(Inline::Str(letter.to_string()));
+                    out.push(Inline::Str(letter.to_string().into()));
                 } else if let Some(sym) = symbols::symbol(name) {
-                    out.push(Inline::Str(sym.text.to_string()));
+                    out.push(Inline::Str(sym.text.to_string().into()));
                 } else {
                     return None;
                 }
@@ -966,7 +968,7 @@ fn flatten_emph(inlines: Vec<Inline>) -> Vec<Inline> {
 }
 
 fn italic(text: String) -> Inline {
-    Inline::Emph(vec![Inline::Str(text)])
+    Inline::Emph(vec![Inline::Str(text.into())])
 }
 
 /// The flat prime glyph string for a run of `count` apostrophes. A run of one to four marks is a
@@ -992,17 +994,17 @@ fn prime_glyph(count: u8) -> String {
 /// the remaining `count - 4` marks into a superscript, which itself decomposes the same way.
 fn prime_nucleus(count: u8) -> Vec<Inline> {
     if count <= 4 {
-        return vec![Inline::Str(prime_glyph(count))];
+        return vec![Inline::Str(prime_glyph(count).into())];
     }
     vec![
-        Inline::Str("\u{2057}".to_string()),
-        Inline::Superscript(vec![Inline::Str(prime_glyph(count - 4))]),
+        Inline::Str("\u{2057}".into()),
+        Inline::Superscript(vec![Inline::Str(prime_glyph(count - 4).into())]),
     ]
 }
 
 fn push_str(out: &mut Vec<Inline>, text: &str) {
     if !text.is_empty() {
-        out.push(Inline::Str(text.to_string()));
+        out.push(Inline::Str(text.to_string().into()));
     }
 }
 

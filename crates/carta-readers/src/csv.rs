@@ -219,7 +219,7 @@ fn field_inlines(field: &str) -> Vec<Inline> {
                 word.push(w);
                 chars.next();
             }
-            inlines.push(Inline::Str(word));
+            inlines.push(Inline::Str(word.into()));
         }
     }
 

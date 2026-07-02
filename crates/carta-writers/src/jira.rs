@@ -346,7 +346,7 @@ impl State {
             None if text.trim().is_empty() => String::new(),
             None => {
                 let delimiter = if display { "$$" } else { "$" };
-                let fallback = Inline::Str(format!("{delimiter}{text}{delimiter}"));
+                let fallback = Inline::Str(format!("{delimiter}{text}{delimiter}").into());
                 self.inline(&fallback, left, right)
             }
         };
@@ -935,7 +935,7 @@ mod tests {
     }
 
     fn math(kind: MathType, tex: &str) -> Inline {
-        Inline::Math(kind, tex.to_owned())
+        Inline::Math(kind, tex.to_owned().into())
     }
 
     fn inline(tex: &str) -> String {
@@ -947,7 +947,7 @@ mod tests {
     }
 
     fn str_inline(text: &str) -> Inline {
-        Inline::Str(text.to_owned())
+        Inline::Str(text.to_owned().into())
     }
 
     #[test]
@@ -1322,7 +1322,7 @@ mod tests {
     fn code(value: &str) -> String {
         render(vec![para(vec![Inline::Code(
             Box::default(),
-            value.to_owned(),
+            value.to_owned().into(),
         )])])
     }
 

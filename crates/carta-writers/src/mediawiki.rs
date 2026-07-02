@@ -162,7 +162,7 @@ impl State {
     fn figure(&mut self, attr: &Attr, blocks: &[Block]) -> String {
         let merged = Attr {
             id: attr.id.clone(),
-            classes: std::iter::once("figure".to_owned())
+            classes: std::iter::once(carta_ast::Text::from("figure"))
                 .chain(attr.classes.iter().cloned())
                 .collect(),
             attributes: attr.attributes.clone(),
@@ -279,7 +279,7 @@ impl State {
         // The table's own attributes render on the `{|` line, with `wikitable` always the first
         // class.
         let mut table_attr = table.attr.clone();
-        table_attr.classes.insert(0, "wikitable".to_owned());
+        table_attr.classes.insert(0, "wikitable".into());
         let mut out = format!("{{|{}", render_html_attr(&table_attr));
         if !table.caption.long.is_empty() {
             let caption = self.blocks(&table.caption.long);
@@ -365,7 +365,7 @@ impl State {
         }
         for (key, value) in &cell.attr.attributes {
             let name = if is_known_attribute(key) {
-                key.clone()
+                key.to_string()
             } else {
                 format!("data-{key}")
             };
@@ -506,7 +506,7 @@ impl State {
         if is_external_uri(&target.url) {
             if is_percent_escaped_uri(&target.url, false) && label_matches_url(&plain, &target.url)
             {
-                target.url.clone()
+                target.url.to_string()
             } else if plain != target.url {
                 format!("[{} {label}]", target.url)
             } else if label == target.url {
@@ -548,7 +548,7 @@ impl State {
         } else {
             // The caption is the alternate text, falling back to the title.
             let caption = if alt.is_empty() {
-                target.title.clone()
+                target.title.to_string()
             } else {
                 alt
             };

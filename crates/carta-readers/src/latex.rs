@@ -66,7 +66,11 @@ impl Reader for LatexReader {
         let blocks = parser.parse_blocks(&Stop::Env("document"));
 
         Ok(Document {
-            meta: parser.meta,
+            meta: parser
+                .meta
+                .into_iter()
+                .map(|(k, v)| (k.into(), v))
+                .collect(),
             blocks,
             ..Document::default()
         })
@@ -487,12 +491,12 @@ impl Parser {
         };
         let mut classes = Vec::new();
         if starred {
-            classes.push("unnumbered".to_owned());
+            classes.push("unnumbered".to_owned().into());
         }
         Block::Header(
             level,
             Box::new(Attr {
-                id,
+                id: id.into(),
                 classes,
                 attributes: Vec::new(),
             }),
@@ -527,7 +531,7 @@ impl Parser {
                 && content.is_empty()
                 && attr.attributes.iter().any(|(k, _)| k == "label")
             {
-                *label = Some(attr.id.clone());
+                *label = Some(attr.id.to_string());
                 continue;
             }
             kept.push(inline);
@@ -573,8 +577,8 @@ impl Parser {
                 self.consume_env_marker("\\end");
                 vec![Block::Div(
                     Box::new(Attr {
-                        id: String::new(),
-                        classes: vec![env.to_owned()],
+                        id: carta_ast::Text::default(),
+                        classes: vec![env.to_owned().into()],
                         attributes: Vec::new(),
                     }),
                     inner,
@@ -588,8 +592,8 @@ impl Parser {
                 self.consume_env_marker("\\end");
                 vec![Block::Div(
                     Box::new(Attr {
-                        id: String::new(),
-                        classes: vec!["minipage".to_owned()],
+                        id: carta_ast::Text::default(),
+                        classes: vec!["minipage".to_owned().into()],
                         attributes: Vec::new(),
                     }),
                     inner,
@@ -629,8 +633,8 @@ impl Parser {
                     self.consume_env_marker("\\end");
                     vec![Block::Div(
                         Box::new(Attr {
-                            id: String::new(),
-                            classes: vec![env.to_owned()],
+                            id: carta_ast::Text::default(),
+                            classes: vec![env.to_owned().into()],
                             attributes: Vec::new(),
                         }),
                         inner,
@@ -656,7 +660,10 @@ impl Parser {
         raw.push_str(env);
         raw.push('}');
         self.consume_env_marker("\\end");
-        vec![Block::RawBlock(Format("latex".to_owned()), raw)]
+        vec![Block::RawBlock(
+            Format("latex".to_owned().into()),
+            raw.into(),
+        )]
     }
 
     /// Skips to and consumes the matching `\end{env}`.
@@ -739,7 +746,7 @@ impl Parser {
             if let Some(opts) = self.read_optional_raw() {
                 for (k, v) in parse_key_values(&opts) {
                     if k == "language" && !v.is_empty() {
-                        classes.push(v.to_lowercase());
+                        classes.push(v.to_lowercase().into());
                     }
                     attributes.push((k, v));
                 }
@@ -749,17 +756,20 @@ impl Parser {
             if let Some(lang) = self.read_group_raw()
                 && !lang.is_empty()
             {
-                classes.push(lang.to_lowercase());
+                classes.push(lang.to_lowercase().into());
             }
         }
         let content = self.read_verbatim_body(env);
         vec![Block::CodeBlock(
             Box::new(Attr {
-                id: String::new(),
+                id: carta_ast::Text::default(),
                 classes,
-                attributes,
+                attributes: attributes
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
             }),
-            content,
+            content.into(),
         )]
     }
 
@@ -793,7 +803,7 @@ impl Parser {
         self.in_figure = was_in_figure;
         Block::Figure(
             Box::new(Attr {
-                id: id.unwrap_or_default(),
+                id: id.unwrap_or_default().into(),
                 classes: Vec::new(),
                 attributes: Vec::new(),
             }),
@@ -817,7 +827,7 @@ impl Parser {
                 long: caption,
             };
             if let Some(id) = id {
-                table.attr.id = id;
+                table.attr.id = id.into();
             }
         }
         blocks
@@ -889,15 +899,15 @@ impl Parser {
         let body = self.read_environment_source(env);
         self.consume_env_marker("\\end");
         match env {
-            "math" => Inline::Math(MathType::InlineMath, body.trim().to_owned()),
-            "displaymath" => Inline::Math(MathType::DisplayMath, body.trim().to_owned()),
+            "math" => Inline::Math(MathType::InlineMath, body.trim().to_owned().into()),
+            "displaymath" => Inline::Math(MathType::DisplayMath, body.trim().to_owned().into()),
             _ => {
                 // The environment markers are re-emitted on their own lines around the body, with
                 // trailing whitespace stripped but leading indentation of the first line preserved.
                 let content = body.trim_end().trim_start_matches(['\n', '\r']);
                 Inline::Math(
                     MathType::DisplayMath,
-                    format!("\\begin{{{env}}}\n{content}\n\\end{{{env}}}"),
+                    format!("\\begin{{{env}}}\n{content}\n\\end{{{env}}}").into(),
                 )
             }
         }
@@ -1119,7 +1129,7 @@ impl Parser {
                 self.bump();
                 out.push(Inline::Quoted(QuoteType::DoubleQuote, inner));
             } else {
-                out.push(Inline::Str("\u{201c}".to_owned()));
+                out.push(Inline::Str("\u{201c}".to_owned().into()));
                 out.extend(inner);
             }
         } else {
@@ -1129,7 +1139,7 @@ impl Parser {
                 self.bump();
                 out.push(Inline::Quoted(QuoteType::SingleQuote, inner));
             } else {
-                out.push(Inline::Str("\u{2018}".to_owned()));
+                out.push(Inline::Str("\u{2018}".to_owned().into()));
                 out.extend(inner);
             }
         }
@@ -1169,11 +1179,11 @@ impl Parser {
             }
             '[' => {
                 let text = self.read_math_body("\\]");
-                emit(out, buf, Inline::Math(MathType::DisplayMath, text));
+                emit(out, buf, Inline::Math(MathType::DisplayMath, text.into()));
             }
             '(' => {
                 let text = self.read_math_body("\\)");
-                emit(out, buf, Inline::Math(MathType::InlineMath, text));
+                emit(out, buf, Inline::Math(MathType::InlineMath, text.into()));
             }
             // An explicit inter-word space is a non-breaking space.
             ' ' | '\n' | '\t' => buf.push('\u{a0}'),
@@ -1244,9 +1254,12 @@ impl Parser {
                     "color"
                 };
                 let attr = Attr {
-                    id: String::new(),
+                    id: carta_ast::Text::default(),
                     classes: Vec::new(),
-                    attributes: vec![("style".to_owned(), format!("{property}: {}", color.trim()))],
+                    attributes: vec![(
+                        "style".to_owned().into(),
+                        format!("{property}: {}", color.trim()).into(),
+                    )],
                 };
                 emit(out, buf, Inline::Span(Box::new(attr), inner));
             }
@@ -1258,12 +1271,12 @@ impl Parser {
                 emit(
                     out,
                     buf,
-                    Inline::Code(Box::default(), to_plain_text(&inner)),
+                    Inline::Code(Box::default(), to_plain_text(&inner).into()),
                 );
             }
             "verb" => {
                 if let Some(code) = self.read_verb() {
-                    emit(out, buf, Inline::Code(Box::default(), code));
+                    emit(out, buf, Inline::Code(Box::default(), code.into()));
                 }
             }
             "footnote" | "footnotetext" | "thanks" => {
@@ -1279,14 +1292,14 @@ impl Parser {
                         buf,
                         Inline::Link(
                             Box::new(Attr {
-                                id: String::new(),
-                                classes: vec!["uri".to_owned()],
+                                id: carta_ast::Text::default(),
+                                classes: vec!["uri".to_owned().into()],
                                 attributes: Vec::new(),
                             }),
-                            vec![Inline::Str(url.clone())],
+                            vec![Inline::Str(url.clone().into())],
                             Box::new(Target {
-                                url,
-                                title: String::new(),
+                                url: url.into(),
+                                title: carta_ast::Text::default(),
                             }),
                         ),
                     );
@@ -1305,8 +1318,8 @@ impl Parser {
                         Box::default(),
                         text,
                         Box::new(Target {
-                            url,
-                            title: String::new(),
+                            url: url.into(),
+                            title: carta_ast::Text::default(),
                         }),
                     ),
                 );
@@ -1318,21 +1331,24 @@ impl Parser {
                 let alt = if self.in_figure {
                     Vec::new()
                 } else {
-                    vec![Inline::Str("image".to_owned())]
+                    vec![Inline::Str("image".to_owned().into())]
                 };
                 emit(
                     out,
                     buf,
                     Inline::Image(
                         Box::new(Attr {
-                            id: String::new(),
+                            id: carta_ast::Text::default(),
                             classes: Vec::new(),
-                            attributes,
+                            attributes: attributes
+                                .into_iter()
+                                .map(|(k, v)| (k.into(), v.into()))
+                                .collect(),
                         }),
                         alt,
                         Box::new(Target {
-                            url: path,
-                            title: String::new(),
+                            url: path.into(),
+                            title: carta_ast::Text::default(),
                         }),
                     ),
                 );
@@ -1344,9 +1360,9 @@ impl Parser {
                         buf,
                         Inline::Span(
                             Box::new(Attr {
-                                id: id.clone(),
+                                id: id.clone().into(),
                                 classes: Vec::new(),
-                                attributes: vec![("label".to_owned(), id)],
+                                attributes: vec![("label".to_owned().into(), id.into())],
                             }),
                             Vec::new(),
                         ),
@@ -1381,7 +1397,7 @@ impl Parser {
                 emit(
                     out,
                     buf,
-                    Inline::Math(MathType::InlineMath, body.trim().to_owned()),
+                    Inline::Math(MathType::InlineMath, body.trim().to_owned().into()),
                 );
             }
             "footnotemark" | "protect" | "noindent" | "indent" | "bigskip" | "medskip"
@@ -1408,7 +1424,11 @@ impl Parser {
                     buf.push_str(text);
                 } else if self.ext.contains(Extension::RawTex) {
                     let raw = self.reconstruct_command(name);
-                    emit(out, buf, Inline::RawInline(Format("latex".to_owned()), raw));
+                    emit(
+                        out,
+                        buf,
+                        Inline::RawInline(Format("latex".to_owned().into()), raw.into()),
+                    );
                 } else {
                     // Unknown command: drop it along with any adjacent bracket/brace arguments.
                     self.skip_adjacent_arguments();
@@ -1476,7 +1496,7 @@ impl Parser {
                 continue;
             }
             citations.push(Citation {
-                id: key.to_owned(),
+                id: key.to_owned().into(),
                 prefix: Vec::new(),
                 suffix: Vec::new(),
                 mode: mode.clone(),
@@ -1504,7 +1524,10 @@ impl Parser {
         raw.push('}');
         out.push(Inline::Cite(
             citations,
-            vec![Inline::RawInline(Format("latex".to_owned()), raw)],
+            vec![Inline::RawInline(
+                Format("latex".to_owned().into()),
+                raw.into(),
+            )],
         ));
     }
 
@@ -1574,10 +1597,10 @@ impl Parser {
         if self.cur() == Some('$') && self.at(1) == Some('$') {
             self.bump();
             self.bump();
-            Inline::Math(MathType::DisplayMath, self.read_math_body("$$"))
+            Inline::Math(MathType::DisplayMath, self.read_math_body("$$").into())
         } else {
             self.bump();
-            Inline::Math(MathType::InlineMath, self.read_math_body("$"))
+            Inline::Math(MathType::InlineMath, self.read_math_body("$").into())
         }
     }
 
@@ -1833,7 +1856,10 @@ impl Parser {
             .unwrap_or_default()
             .iter()
             .collect();
-        vec![Block::RawBlock(Format("latex".to_owned()), raw)]
+        vec![Block::RawBlock(
+            Format("latex".to_owned().into()),
+            raw.into(),
+        )]
     }
 
     /// Reads a `\newcommand`-style target name, whether written `{\name}` or bare `\name`.
@@ -1940,7 +1966,7 @@ impl Parser {
 /// Appends the accumulated text buffer as a single [`Inline::Str`] and clears it.
 fn flush_buf(buf: &mut String, out: &mut Vec<Inline>) {
     if !buf.is_empty() {
-        out.push(Inline::Str(std::mem::take(buf)));
+        out.push(Inline::Str(std::mem::take(buf).into()));
     }
 }
 
@@ -2071,8 +2097,8 @@ fn extract_spaces<F: FnOnce(Vec<Inline>) -> Inline>(
 fn span_class(inlines: Vec<Inline>, class: &str) -> Inline {
     Inline::Span(
         Box::new(Attr {
-            id: String::new(),
-            classes: vec![class.to_owned()],
+            id: carta_ast::Text::default(),
+            classes: vec![class.to_owned().into()],
             attributes: Vec::new(),
         }),
         inlines,
@@ -2088,17 +2114,17 @@ fn reference_link(name: &str, target: &str) -> Inline {
     };
     Inline::Link(
         Box::new(Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: Vec::new(),
             attributes: vec![
-                ("reference-type".to_owned(), kind.to_owned()),
-                ("reference".to_owned(), target.to_owned()),
+                ("reference-type".to_owned().into(), kind.to_owned().into()),
+                ("reference".to_owned().into(), target.to_owned().into()),
             ],
         }),
-        vec![Inline::Str(format!("[{target}]"))],
+        vec![Inline::Str(format!("[{target}]").into())],
         Box::new(Target {
-            url: format!("#{target}"),
-            title: String::new(),
+            url: format!("#{target}").into(),
+            title: carta_ast::Text::default(),
         }),
     )
 }
@@ -2118,7 +2144,7 @@ impl Switch {
             Switch::Strong => Inline::Strong(inner),
             Switch::Emph => Inline::Emph(inner),
             Switch::SmallCaps => Inline::SmallCaps(inner),
-            Switch::Code => Inline::Code(Box::default(), to_plain_text(&inner)),
+            Switch::Code => Inline::Code(Box::default(), to_plain_text(&inner).into()),
         }
     }
 }
@@ -2972,9 +2998,12 @@ mod tests {
 
     fn attr(attributes: Vec<(String, String)>) -> Attr {
         Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes,
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         }
     }
 
@@ -2987,7 +3016,9 @@ mod tests {
             blocks,
             vec![Block::Para(vec![Inline::Math(
                 MathType::DisplayMath,
-                "\\begin{equation}\n  f(x) = x + 1\n\\end{equation}".to_owned(),
+                "\\begin{equation}\n  f(x) = x + 1\n\\end{equation}"
+                    .to_owned()
+                    .into(),
             )])],
         );
     }
@@ -3001,21 +3032,21 @@ mod tests {
         assert_eq!(
             blocks,
             vec![Block::Para(vec![
-                Inline::Str("See".to_owned()),
+                Inline::Str("See".to_owned().into()),
                 Inline::Space,
-                Inline::Str("Section\u{a0}".to_owned()),
+                Inline::Str("Section\u{a0}".to_owned().into()),
                 Inline::Link(
                     Box::new(attr(vec![
                         ("reference-type".to_owned(), "ref".to_owned()),
                         ("reference".to_owned(), "sec:intro".to_owned()),
                     ])),
-                    vec![Inline::Str("[sec:intro]".to_owned())],
+                    vec![Inline::Str("[sec:intro]".to_owned().into())],
                     Box::new(Target {
-                        url: "#sec:intro".to_owned(),
-                        title: String::new(),
+                        url: "#sec:intro".to_owned().into(),
+                        title: carta_ast::Text::default(),
                     }),
                 ),
-                Inline::Str(".".to_owned()),
+                Inline::Str(".".to_owned().into()),
             ])],
         );
     }
@@ -3051,18 +3082,18 @@ mod tests {
         assert_eq!(
             blocks,
             vec![Block::Para(vec![
-                Inline::Str("x".to_owned()),
+                Inline::Str("x".to_owned().into()),
                 Inline::Space,
                 Inline::Image(
                     Box::new(attr(vec![("width".to_owned(), "50%".to_owned())])),
-                    vec![Inline::Str("image".to_owned())],
+                    vec![Inline::Str("image".to_owned().into())],
                     Box::new(Target {
-                        url: "diagram.png".to_owned(),
-                        title: String::new(),
+                        url: "diagram.png".to_owned().into(),
+                        title: carta_ast::Text::default(),
                     }),
                 ),
                 Inline::Space,
-                Inline::Str("y".to_owned()),
+                Inline::Str("y".to_owned().into()),
             ])],
         );
     }
@@ -3076,8 +3107,8 @@ mod tests {
         assert_eq!(
             blocks,
             vec![Block::RawBlock(
-                Format("latex".to_owned()),
-                "\\newcommand{\\foo}{bar}".to_owned(),
+                Format("latex".to_owned().into()),
+                "\\newcommand{\\foo}{bar}".to_owned().into(),
             )],
         );
     }

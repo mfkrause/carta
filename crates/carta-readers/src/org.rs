@@ -237,7 +237,7 @@ fn parse_blocks(
         // Fixed-width (colon) block.
         if is_fixed_width(line) {
             let (text, consumed) = collect_fixed_width(lines, i);
-            out.push(Block::CodeBlock(Box::default(), text));
+            out.push(Block::CodeBlock(Box::default(), text.into()));
             i += consumed;
             pending = Affiliated::default();
             continue;
@@ -254,7 +254,7 @@ fn parse_blocks(
             }
             let body = parse_blocks(&inner, ext, notes, ids, meta);
             let attr = Attr {
-                classes: vec![name, "drawer".to_owned()],
+                classes: vec![name.into(), "drawer".to_owned().into()],
                 ..Attr::default()
             };
             out.push(Block::Div(Box::new(attr), body));
@@ -326,7 +326,7 @@ fn apply_affiliated(block: Block, pending: &mut Affiliated) -> Block {
     match block {
         Block::Para(inlines) if is_lone_image(&inlines) => {
             let attr = Attr {
-                id: name.unwrap_or_default(),
+                id: name.unwrap_or_default().into(),
                 ..Attr::default()
             };
             let long = caption.map(|c| vec![Block::Plain(c)]).unwrap_or_default();
@@ -338,7 +338,7 @@ fn apply_affiliated(block: Block, pending: &mut Affiliated) -> Block {
         }
         Block::CodeBlock(mut attr, text) => {
             if let Some(name) = name {
-                attr.id = name;
+                attr.id = name.into();
             }
             Block::CodeBlock(attr, text)
         }
@@ -397,14 +397,14 @@ fn build_headline(
         inlines.push(Inline::Space);
         for (n, tag) in tags.iter().enumerate() {
             if n > 0 {
-                inlines.push(Inline::Str("\u{a0}".to_owned()));
+                inlines.push(Inline::Str("\u{a0}".to_owned().into()));
             }
             inlines.push(tag_span(tag));
         }
     }
 
     let attr = Attr {
-        id,
+        id: id.into(),
         ..Attr::default()
     };
     let level = i32::try_from(level).unwrap_or(6).clamp(1, 6);
@@ -414,21 +414,21 @@ fn build_headline(
 fn todo_span(keyword: &str) -> Inline {
     let state = if keyword == "DONE" { "done" } else { "todo" };
     let attr = Attr {
-        classes: vec![state.to_owned(), keyword.to_owned()],
+        classes: vec![state.to_owned().into(), keyword.to_owned().into()],
         ..Attr::default()
     };
-    Inline::Span(Box::new(attr), vec![Inline::Str(keyword.to_owned())])
+    Inline::Span(Box::new(attr), vec![Inline::Str(keyword.to_owned().into())])
 }
 
 fn tag_span(tag: &str) -> Inline {
     let attr = Attr {
-        classes: vec!["tag".to_owned()],
-        attributes: vec![("tag-name".to_owned(), tag.to_owned())],
+        classes: vec!["tag".to_owned().into()],
+        attributes: vec![("tag-name".to_owned().into(), tag.to_owned().into())],
         ..Attr::default()
     };
     Inline::Span(
         Box::new(attr),
-        vec![Inline::SmallCaps(vec![Inline::Str(tag.to_owned())])],
+        vec![Inline::SmallCaps(vec![Inline::Str(tag.to_owned().into())])],
     )
 }
 
@@ -568,19 +568,32 @@ fn parse_greater_block(
                 .unwrap_or("")
                 .to_owned();
             let attr = Attr {
-                classes: if lang.is_empty() { vec![] } else { vec![lang] },
+                classes: if lang.is_empty() {
+                    vec![]
+                } else {
+                    vec![lang.into()]
+                },
                 ..Attr::default()
             };
-            Some(Block::CodeBlock(Box::new(attr), dedent_verbatim(&content)))
+            Some(Block::CodeBlock(
+                Box::new(attr),
+                dedent_verbatim(&content).into(),
+            ))
         }
-        "example" => Some(Block::CodeBlock(Box::default(), dedent_verbatim(&content))),
+        "example" => Some(Block::CodeBlock(
+            Box::default(),
+            dedent_verbatim(&content).into(),
+        )),
         "export" => {
             let fmt = header_args
                 .split_whitespace()
                 .next()
                 .unwrap_or("")
                 .to_owned();
-            Some(Block::RawBlock(Format(fmt), verbatim(&content)))
+            Some(Block::RawBlock(
+                Format(fmt.into()),
+                verbatim(&content).into(),
+            ))
         }
         "quote" => Some(Block::BlockQuote(parse_blocks(
             &content, ext, notes, ids, meta,
@@ -594,7 +607,7 @@ fn parse_greater_block(
         "comment" => None,
         _ => {
             let attr = Attr {
-                classes: vec![name.to_owned()],
+                classes: vec![name.to_owned().into()],
                 ..Attr::default()
             };
             Some(Block::Div(
@@ -679,12 +692,15 @@ fn handle_keyword(
     match upper.as_str() {
         "TITLE" | "SUBTITLE" | "AUTHOR" | "DATE" | "KEYWORDS" | "DESCRIPTION" => {
             meta.insert(
-                upper.to_ascii_lowercase(),
+                upper.to_ascii_lowercase().into(),
                 MetaValue::MetaInlines(parse_inlines(value, ext, notes)),
             );
         }
         "LANGUAGE" => {
-            meta.insert("lang".to_owned(), MetaValue::MetaString(value.to_owned()));
+            meta.insert(
+                "lang".to_owned().into(),
+                MetaValue::MetaString(value.to_owned().into()),
+            );
         }
         "CAPTION" => pending.caption = Some(parse_inlines(value, ext, notes)),
         "NAME" | "LABEL" => pending.name = Some(value.to_owned()),
@@ -699,19 +715,19 @@ fn handle_keyword(
             append_header_include(meta, "html", value);
         }
         _ => out.push(Block::RawBlock(
-            Format("org".to_owned()),
-            line.trim_end().to_owned(),
+            Format("org".to_owned().into()),
+            line.trim_end().to_owned().into(),
         )),
     }
 }
 
 fn append_header_include(meta: &mut BTreeMap<Text, MetaValue>, format: &str, value: &str) {
     let entry = MetaValue::MetaInlines(vec![Inline::RawInline(
-        Format(format.to_owned()),
-        value.to_owned(),
+        Format(format.to_owned().into()),
+        value.to_owned().into(),
     )]);
     match meta
-        .entry("header-includes".to_owned())
+        .entry("header-includes".to_owned().into())
         .or_insert_with(|| MetaValue::MetaList(Vec::new()))
     {
         MetaValue::MetaList(list) => list.push(entry),
@@ -887,7 +903,7 @@ fn build_table(
 
     let table = Table {
         attr: Attr {
-            id: name.unwrap_or_default(),
+            id: name.unwrap_or_default().into(),
             ..Attr::default()
         },
         caption,
@@ -1152,9 +1168,9 @@ fn strip_checkbox(line: &str) -> Option<(&'static str, &str)> {
 fn prepend_checkbox(blocks: &mut Vec<Block>, glyph: &str) {
     match blocks.first_mut() {
         Some(Block::Plain(inlines) | Block::Para(inlines)) => {
-            inlines.splice(0..0, [Inline::Str(glyph.to_owned()), Inline::Space]);
+            inlines.splice(0..0, [Inline::Str(glyph.to_owned().into()), Inline::Space]);
         }
-        _ => blocks.insert(0, Block::Plain(vec![Inline::Str(glyph.to_owned())])),
+        _ => blocks.insert(0, Block::Plain(vec![Inline::Str(glyph.to_owned().into())])),
     }
 }
 
@@ -1241,7 +1257,7 @@ impl Inlines<'_> {
 
     fn flush(&mut self) {
         if !self.word.is_empty() {
-            self.out.push(Inline::Str(mem::take(&mut self.word)));
+            self.out.push(Inline::Str(mem::take(&mut self.word).into()));
         }
     }
 
@@ -1264,7 +1280,7 @@ impl Inlines<'_> {
             if is_url_boundary(prev)
                 && let Some((url, end)) = self.scan_bare_url(i)
             {
-                self.push_inline(link(&url, vec![Inline::Str(url.clone())]));
+                self.push_inline(link(&url, vec![Inline::Str(url.clone().into())]));
                 i = end;
                 continue;
             }
@@ -1452,7 +1468,7 @@ impl Inlines<'_> {
             end = close + 1;
         } else {
             let (text, stop) = self.scan_bare_script(i + 1)?;
-            content = vec![Inline::Str(text)];
+            content = vec![Inline::Str(text.into())];
             end = stop;
         }
         let inline = if sup {
@@ -1545,7 +1561,7 @@ impl Inlines<'_> {
         while j < self.chars.len() {
             if self.matches_at(j, &closing) {
                 let inner: String = self.chars.get(start..j).unwrap_or(&[]).iter().collect();
-                self.push_inline(Inline::Math(kind, inner));
+                self.push_inline(Inline::Math(kind, inner.into()));
                 return j + closing.len();
             }
             j += 1;
@@ -1570,8 +1586,8 @@ impl Inlines<'_> {
             self.word.push_str(replacement);
         } else {
             self.push_inline(Inline::RawInline(
-                Format("latex".to_owned()),
-                format!("\\{name}"),
+                Format("latex".to_owned().into()),
+                format!("\\{name}").into(),
             ));
         }
         end
@@ -1623,7 +1639,10 @@ impl Inlines<'_> {
                 if is_image_target(&target) {
                     Some((image(&target, Vec::new()), end))
                 } else {
-                    Some((link(&target, vec![Inline::Str(target_raw.to_owned())]), end))
+                    Some((
+                        link(&target, vec![Inline::Str(target_raw.to_owned().into())]),
+                        end,
+                    ))
                 }
             }
         }
@@ -1715,7 +1734,7 @@ impl Inlines<'_> {
                     .iter()
                     .collect();
                 let attr = Attr {
-                    id: name,
+                    id: name.into(),
                     ..Attr::default()
                 };
                 // A target absorbs the whitespace that follows it.
@@ -1737,7 +1756,10 @@ impl Inlines<'_> {
         }
         let content: String = self.chars.get(i + 1..j).unwrap_or(&[]).iter().collect();
         if is_uri(&content) {
-            return Some((link(&content, vec![Inline::Str(content.clone())]), j + 1));
+            return Some((
+                link(&content, vec![Inline::Str(content.clone().into())]),
+                j + 1,
+            ));
         }
         None
     }
@@ -1752,7 +1774,7 @@ impl Inlines<'_> {
             while j + 1 < self.chars.len() {
                 if self.at(j) == Some('$') && self.at(j + 1) == Some('$') {
                     let inner: String = self.chars.get(start..j).unwrap_or(&[]).iter().collect();
-                    return Some((Inline::Math(MathType::DisplayMath, inner), j + 2));
+                    return Some((Inline::Math(MathType::DisplayMath, inner.into()), j + 2));
                 }
                 j += 1;
             }
@@ -1776,7 +1798,7 @@ impl Inlines<'_> {
                 && !self.at(j + 1).is_some_and(char::is_alphanumeric)
             {
                 let inner: String = self.chars.get(i + 1..j).unwrap_or(&[]).iter().collect();
-                return Some((Inline::Math(MathType::InlineMath, inner), j + 1));
+                return Some((Inline::Math(MathType::InlineMath, inner.into()), j + 1));
             }
             j += 1;
         }
@@ -1809,7 +1831,7 @@ impl Inlines<'_> {
                     .unwrap_or(&[])
                     .iter()
                     .collect();
-                return Some((Inline::RawInline(Format(fmt), content), k + 2));
+                return Some((Inline::RawInline(Format(fmt.into()), content.into()), k + 2));
             }
             k += 1;
         }
@@ -1917,7 +1939,7 @@ fn plain_words(text: &str) -> Vec<Inline> {
         if !out.is_empty() {
             out.push(Inline::Space);
         }
-        out.push(Inline::Str(word.to_owned()));
+        out.push(Inline::Str(word.to_owned().into()));
     }
     out
 }
@@ -1939,13 +1961,13 @@ fn verbatim_code(marker: char, inner: &[char]) -> Inline {
         .collect();
     let attr = if marker == '=' {
         Attr {
-            classes: vec!["verbatim".to_owned()],
+            classes: vec!["verbatim".to_owned().into()],
             ..Attr::default()
         }
     } else {
         Attr::default()
     };
-    Inline::Code(Box::new(attr), text)
+    Inline::Code(Box::new(attr), text.into())
 }
 
 fn link(target: &str, desc: Vec<Inline>) -> Inline {
@@ -1953,8 +1975,8 @@ fn link(target: &str, desc: Vec<Inline>) -> Inline {
         Box::default(),
         desc,
         Box::new(carta_ast::Target {
-            url: target.to_owned(),
-            title: String::new(),
+            url: target.to_owned().into(),
+            title: carta_ast::Text::default(),
         }),
     )
 }
@@ -1964,8 +1986,8 @@ fn image(target: &str, alt: Vec<Inline>) -> Inline {
         Box::default(),
         alt,
         Box::new(carta_ast::Target {
-            url: target.to_owned(),
-            title: String::new(),
+            url: target.to_owned().into(),
+            title: carta_ast::Text::default(),
         }),
     )
 }
@@ -2085,7 +2107,7 @@ fn parse_citation_items(
     if let (Some(suffix), Some(last)) = (trailing_suffix, items.last_mut()) {
         let mut combined = last.2.clone();
         if !combined.is_empty() {
-            combined.push(Inline::Str(";".to_owned()));
+            combined.push(Inline::Str(";".to_owned().into()));
         }
         combined.extend(parse_inlines(suffix.trim(), ext, notes));
         last.2 = combined;
@@ -2095,7 +2117,7 @@ fn parse_citation_items(
         .into_iter()
         .enumerate()
         .map(|(idx, (id, prefix, suffix))| carta_ast::Citation {
-            id,
+            id: id.into(),
             prefix,
             suffix,
             mode: if idx == 0 {

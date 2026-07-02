@@ -48,7 +48,7 @@ fn parse(input: &str, ext: Extensions) -> Document {
     let meta = head.map(extract_meta).unwrap_or_default();
     let blocks = converter.blocks(&body, false);
     Document {
-        meta,
+        meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
         blocks,
         ..Document::default()
     }
@@ -189,8 +189,8 @@ mod tests {
         let Some(Block::Para(inlines)) = result.first() else {
             panic!("expected paragraph");
         };
-        assert!(inlines.contains(&Inline::Str("&".to_string())));
-        assert!(inlines.contains(&Inline::Str("\u{a9}".to_string())));
+        assert!(inlines.contains(&Inline::Str("&".to_string().into())));
+        assert!(inlines.contains(&Inline::Str("\u{a9}".to_string().into())));
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod tests {
         let Some(Block::Para(inlines)) = result.first() else {
             panic!("expected paragraph");
         };
-        assert_eq!(inlines.as_slice(), [Inline::Str("ab".to_string())]);
+        assert_eq!(inlines.as_slice(), [Inline::Str("ab".to_string().into())]);
     }
 
     #[test]
@@ -238,9 +238,9 @@ mod tests {
         assert_eq!(
             inlines.as_slice(),
             [
-                Inline::Str("a".to_string()),
+                Inline::Str("a".to_string().into()),
                 Inline::SoftBreak,
-                Inline::Str("b".to_string())
+                Inline::Str("b".to_string().into())
             ]
         );
     }
@@ -293,7 +293,7 @@ mod tests {
             panic!("expected definition list");
         };
         let (term, defs) = items.into_iter().next().expect("an item");
-        assert_eq!(term, vec![Inline::Str("term".to_string())]);
+        assert_eq!(term, vec![Inline::Str("term".to_string().into())]);
         assert_eq!(defs.len(), 2);
     }
 
@@ -310,7 +310,7 @@ mod tests {
         let Block::Div(attr, _) = first_block("<section><p>x</p></section>") else {
             panic!("expected div");
         };
-        assert!(attr.classes.contains(&"section".to_string()));
+        assert!(attr.classes.contains(&"section".into()));
     }
 
     #[test]
@@ -421,7 +421,7 @@ mod tests {
         let classes: Vec<&str> = inlines
             .iter()
             .filter_map(|inline| match inline {
-                Inline::Span(attr, _) => attr.classes.first().map(String::as_str),
+                Inline::Span(attr, _) => attr.classes.first().map(carta_ast::Text::as_str),
                 _ => None,
             })
             .collect();
@@ -434,7 +434,9 @@ mod tests {
         let classes: Vec<Vec<String>> = inlines
             .iter()
             .filter_map(|inline| match inline {
-                Inline::Code(attr, _) => Some(attr.classes.clone()),
+                Inline::Code(attr, _) => {
+                    Some(attr.classes.iter().map(ToString::to_string).collect())
+                }
                 _ => None,
             })
             .collect();
@@ -463,11 +465,11 @@ mod tests {
         assert_eq!(
             *target,
             Box::new(Target {
-                url: "/u".to_string(),
-                title: "T".to_string()
+                url: "/u".to_string().into(),
+                title: "T".to_string().into()
             })
         );
-        assert!(attr.classes.contains(&"x".to_string()));
+        assert!(attr.classes.contains(&"x".into()));
     }
 
     #[test]
@@ -490,9 +492,9 @@ mod tests {
         assert_eq!(
             alt.as_slice(),
             [
-                Inline::Str("alt".to_string()),
+                Inline::Str("alt".to_string().into()),
                 Inline::Space,
-                Inline::Str("text".to_string())
+                Inline::Str("text".to_string().into())
             ]
         );
     }
@@ -500,7 +502,7 @@ mod tests {
     #[test]
     fn unknown_inline_element_is_transparent() {
         let inlines = para_inlines("<p>a<bogus>b</bogus>c</p>");
-        assert_eq!(inlines.as_slice(), [Inline::Str("abc".to_string())]);
+        assert_eq!(inlines.as_slice(), [Inline::Str("abc".to_string().into())]);
     }
 
     #[test]
@@ -511,7 +513,7 @@ mod tests {
         assert_eq!(attr.id, "d");
         assert!(
             attr.attributes
-                .contains(&("role".to_string(), "note".to_string()))
+                .contains(&("role".to_string().into(), "note".to_string().into()))
         );
     }
 
@@ -527,13 +529,19 @@ mod tests {
     #[test]
     fn numeric_and_named_references_decode() {
         let inlines = para_inlines("<p>&#65;&#x42;&#X43;&copy</p>");
-        assert_eq!(inlines.as_slice(), [Inline::Str("ABC\u{a9}".to_string())]);
+        assert_eq!(
+            inlines.as_slice(),
+            [Inline::Str("ABC\u{a9}".to_string().into())]
+        );
     }
 
     #[test]
     fn unknown_entity_is_left_verbatim() {
         let inlines = para_inlines("<p>&notreal;</p>");
-        assert_eq!(inlines.as_slice(), [Inline::Str("&notreal;".to_string())]);
+        assert_eq!(
+            inlines.as_slice(),
+            [Inline::Str("&notreal;".to_string().into())]
+        );
     }
 
     #[test]
@@ -554,7 +562,7 @@ mod tests {
     #[test]
     fn cdata_and_processing_instructions_are_skipped() {
         let inlines = para_inlines("<p>a<![CDATA[ junk ]]><?pi here?>b</p>");
-        assert_eq!(inlines.as_slice(), [Inline::Str("ab".to_string())]);
+        assert_eq!(inlines.as_slice(), [Inline::Str("ab".to_string().into())]);
     }
 
     #[test]
@@ -704,7 +712,7 @@ mod tests {
     #[test]
     fn checkbox_outside_item_is_dropped() {
         let inlines = para_inlines(r#"<p><input type="checkbox"/>text</p>"#);
-        assert_eq!(inlines.as_slice(), [Inline::Str("text".to_string())]);
+        assert_eq!(inlines.as_slice(), [Inline::Str("text".to_string().into())]);
     }
 
     #[test]
@@ -759,7 +767,7 @@ mod tests {
         let Some(Block::Para(inlines)) = plain.first() else {
             panic!("expected paragraph");
         };
-        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string())]);
+        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string().into())]);
 
         let caps = read_with(
             "<p><span style=\"font-variant: small-caps\">x</span></p>",
@@ -768,7 +776,7 @@ mod tests {
         let Some(Block::Para(inlines)) = caps.first() else {
             panic!("expected paragraph");
         };
-        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string())]);
+        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string().into())]);
     }
 
     #[test]
@@ -829,13 +837,13 @@ mod tests {
         assert_eq!(
             inlines.as_slice(),
             [
-                Inline::Str("\"a\"".to_string()),
+                Inline::Str("\"a\"".to_string().into()),
                 Inline::Space,
-                Inline::Str("--".to_string()),
+                Inline::Str("--".to_string().into()),
                 Inline::Space,
-                Inline::Str("...".to_string()),
+                Inline::Str("...".to_string().into()),
                 Inline::Space,
-                Inline::Str("---".to_string()),
+                Inline::Str("---".to_string().into()),
             ]
         );
     }
@@ -848,14 +856,14 @@ mod tests {
             [
                 Inline::Quoted(
                     carta_ast::QuoteType::DoubleQuote,
-                    vec![Inline::Str("a".to_string())]
+                    vec![Inline::Str("a".to_string().into())]
                 ),
                 Inline::Space,
-                Inline::Str("\u{2013}".to_string()),
+                Inline::Str("\u{2013}".to_string().into()),
                 Inline::Space,
-                Inline::Str("\u{2026}".to_string()),
+                Inline::Str("\u{2026}".to_string().into()),
                 Inline::Space,
-                Inline::Str("\u{2014}".to_string()),
+                Inline::Str("\u{2014}".to_string().into()),
             ]
         );
     }
@@ -866,11 +874,11 @@ mod tests {
         assert_eq!(
             inlines.as_slice(),
             [
-                Inline::Str("$x^2$".to_string()),
+                Inline::Str("$x^2$".to_string().into()),
                 Inline::Space,
-                Inline::Str("and".to_string()),
+                Inline::Str("and".to_string().into()),
                 Inline::Space,
-                Inline::Str("$$y$$".to_string()),
+                Inline::Str("$$y$$".to_string().into()),
             ]
         );
     }
@@ -881,11 +889,11 @@ mod tests {
         assert_eq!(
             inlines.as_slice(),
             [
-                Inline::Math(MathType::InlineMath, "x^2".to_string()),
+                Inline::Math(MathType::InlineMath, "x^2".to_string().into()),
                 Inline::Space,
-                Inline::Str("and".to_string()),
+                Inline::Str("and".to_string().into()),
                 Inline::Space,
-                Inline::Math(MathType::DisplayMath, "y".to_string()),
+                Inline::Math(MathType::DisplayMath, "y".to_string().into()),
             ]
         );
     }
@@ -899,11 +907,11 @@ mod tests {
         assert_eq!(
             inlines.as_slice(),
             [
-                Inline::Math(MathType::InlineMath, "x".to_string()),
+                Inline::Math(MathType::InlineMath, "x".to_string().into()),
                 Inline::Space,
-                Inline::Str("and".to_string()),
+                Inline::Str("and".to_string().into()),
                 Inline::Space,
-                Inline::Math(MathType::DisplayMath, "y".to_string()),
+                Inline::Math(MathType::DisplayMath, "y".to_string().into()),
             ]
         );
     }
@@ -917,11 +925,11 @@ mod tests {
         assert_eq!(
             inlines.as_slice(),
             [
-                Inline::Math(MathType::InlineMath, "x".to_string()),
+                Inline::Math(MathType::InlineMath, "x".to_string().into()),
                 Inline::Space,
-                Inline::Str("and".to_string()),
+                Inline::Str("and".to_string().into()),
                 Inline::Space,
-                Inline::Math(MathType::DisplayMath, "y".to_string()),
+                Inline::Math(MathType::DisplayMath, "y".to_string().into()),
             ]
         );
     }
@@ -938,11 +946,11 @@ mod tests {
         assert_eq!(
             result.as_slice(),
             [Block::Plain(vec![
-                Inline::Str("text".to_string()),
+                Inline::Str("text".to_string().into()),
                 Inline::Note(vec![Block::Para(vec![
-                    Inline::Str("the".to_string()),
+                    Inline::Str("the".to_string().into()),
                     Inline::Space,
-                    Inline::Str("note".to_string()),
+                    Inline::Str("note".to_string().into()),
                 ])]),
             ])]
         );
@@ -954,7 +962,7 @@ mod tests {
         assert_eq!(
             result.as_slice(),
             [Block::Plain(vec![
-                Inline::Str("text".to_string()),
+                Inline::Str("text".to_string().into()),
                 Inline::Note(Vec::new()),
             ])]
         );
@@ -964,7 +972,7 @@ mod tests {
         read_with_text_ext(input, added)
             .into_iter()
             .filter_map(|block| match block {
-                Block::Header(_, attr, _) => Some(attr.id),
+                Block::Header(_, attr, _) => Some(attr.id.to_string()),
                 _ => None,
             })
             .collect()
@@ -998,7 +1006,7 @@ mod tests {
         )
         .into_iter()
         .filter_map(|block| match block {
-            Block::Header(_, attr, _) => Some(attr.id),
+            Block::Header(_, attr, _) => Some(attr.id.to_string()),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -1012,11 +1020,11 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Strong(vec![Inline::Str("a".to_string())]),
+                Inline::Strong(vec![Inline::Str("a".to_string().into())]),
                 Inline::Space,
-                Inline::Str("b".to_string()),
+                Inline::Str("b".to_string().into()),
                 Inline::Space,
-                Inline::Code(Box::default(), "c".to_string()),
+                Inline::Code(Box::default(), "c".to_string().into()),
             ]
         );
     }
@@ -1028,18 +1036,21 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Str("a".to_string()),
+                Inline::Str("a".to_string().into()),
                 Inline::Space,
-                Inline::Str("&".to_string()),
+                Inline::Str("&".to_string().into()),
                 Inline::Space,
-                Inline::Str("b".to_string()),
+                Inline::Str("b".to_string().into()),
             ]
         );
     }
 
     #[cfg(feature = "opml")]
     fn raw(tag: &str) -> Inline {
-        Inline::RawInline(carta_ast::Format("html".to_string()), tag.to_string())
+        Inline::RawInline(
+            carta_ast::Format("html".to_string().into()),
+            tag.to_string().into(),
+        )
     }
 
     #[cfg(feature = "opml")]
@@ -1050,7 +1061,7 @@ mod tests {
             inlines,
             vec![
                 raw("<cite>"),
-                Inline::Str("Book".to_string()),
+                Inline::Str("Book".to_string().into()),
                 raw("</cite>")
             ]
         );
@@ -1064,7 +1075,7 @@ mod tests {
             inlines,
             vec![
                 raw("<time datetime=\"2020\">"),
-                Inline::Str("y".to_string()),
+                Inline::Str("y".to_string().into()),
                 raw("</time>"),
             ]
         );
@@ -1078,7 +1089,7 @@ mod tests {
             inlines,
             vec![
                 raw("<x-foo a=\"1&lt;2&amp;3\" hidden>"),
-                Inline::Str("z".to_string()),
+                Inline::Str("z".to_string().into()),
                 raw("</x-foo>"),
             ]
         );
@@ -1090,7 +1101,11 @@ mod tests {
         let inlines = super::parse_inline_fragment("<CITE>b</CITE>");
         assert_eq!(
             inlines,
-            vec![raw("<cite>"), Inline::Str("b".to_string()), raw("</cite>")]
+            vec![
+                raw("<cite>"),
+                Inline::Str("b".to_string().into()),
+                raw("</cite>")
+            ]
         );
     }
 
@@ -1101,11 +1116,11 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Str("a".to_string()),
+                Inline::Str("a".to_string().into()),
                 Inline::Space,
                 raw("<wbr>"),
                 Inline::Space,
-                Inline::Str("b".to_string()),
+                Inline::Str("b".to_string().into()),
             ]
         );
     }
@@ -1124,10 +1139,10 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Str("a".to_string()),
+                Inline::Str("a".to_string().into()),
                 Inline::Space,
                 raw("<cite>"),
-                Inline::Str("open-only".to_string()),
+                Inline::Str("open-only".to_string().into()),
             ]
         );
     }
@@ -1141,7 +1156,7 @@ mod tests {
             vec![
                 raw("</cite>"),
                 Inline::Space,
-                Inline::Str("tail".to_string()),
+                Inline::Str("tail".to_string().into()),
             ]
         );
     }
@@ -1154,7 +1169,7 @@ mod tests {
             inlines,
             vec![
                 raw("<cite>"),
-                Inline::Emph(vec![Inline::Str("x".to_string())]),
+                Inline::Emph(vec![Inline::Str("x".to_string().into())]),
                 raw("</cite>"),
             ]
         );
@@ -1167,11 +1182,11 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Emph(vec![Inline::Str("e".to_string())]),
+                Inline::Emph(vec![Inline::Str("e".to_string().into())]),
                 Inline::Space,
-                Inline::Strong(vec![Inline::Str("s".to_string())]),
+                Inline::Strong(vec![Inline::Str("s".to_string().into())]),
                 Inline::Space,
-                Inline::Superscript(vec![Inline::Str("2".to_string())]),
+                Inline::Superscript(vec![Inline::Str("2".to_string().into())]),
             ]
         );
     }

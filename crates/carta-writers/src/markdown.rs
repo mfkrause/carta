@@ -916,7 +916,7 @@ impl State {
         if !alt_text.is_empty() && alt_text != carta_ast::to_plain_text(&caption_inlines) {
             image_attr
                 .attributes
-                .insert(0, ("alt".to_owned(), alt_text));
+                .insert(0, ("alt".to_owned().into(), alt_text.into()));
         }
         // If the image itself would fall back to an HTML `<img>`, the shorthand cannot carry it; the
         // caller renders the whole figure as an HTML `<figure>` instead.
@@ -1552,7 +1552,7 @@ impl State {
                     MathType::DisplayMath => ("$$", tex),
                     MathType::InlineMath => ("$", tex.trim()),
                 };
-                let fallback = Inline::Str(format!("{delim}{body}{delim}"));
+                let fallback = Inline::Str(format!("{delim}{body}{delim}").into());
                 self.inline(&fallback, out);
             }
         }
@@ -2114,7 +2114,7 @@ fn longest_backtick_run(text: &str) -> usize {
 
 fn destination(target: &Target) -> String {
     if target.title.is_empty() {
-        target.url.clone()
+        target.url.to_string()
     } else {
         format!("{} \"{}\"", target.url, escape_title(&target.title))
     }
@@ -2128,7 +2128,7 @@ fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
     let [Inline::Str(text)] = inlines else {
         return None;
     };
-    if &target.url == text && is_uri(text) {
+    if target.url == *text && is_uri(text) {
         return Some(format!("<{text}>"));
     }
     if target.url == format!("mailto:{text}") {
@@ -2239,14 +2239,14 @@ fn attr_body(attr: &Attr) -> String {
 
 fn underline_attr() -> Attr {
     Attr {
-        classes: vec!["underline".to_owned()],
+        classes: vec!["underline".to_owned().into()],
         ..Attr::default()
     }
 }
 
 fn smallcaps_attr() -> Attr {
     Attr {
-        classes: vec!["smallcaps".to_owned()],
+        classes: vec!["smallcaps".to_owned().into()],
         ..Attr::default()
     }
 }
@@ -2493,7 +2493,7 @@ mod tests {
             let words: Vec<Inline> =
                 "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu"
                     .split(' ')
-                    .flat_map(|word| [Inline::Str(word.to_owned()), Inline::Space])
+                    .flat_map(|word| [Inline::Str(word.to_owned().into()), Inline::Space])
                     .collect();
             vec![Block::Para(words)]
         }
@@ -2538,8 +2538,8 @@ mod tests {
         fn raw_attribute_fence_outgrows_a_backtick_run_in_the_body() {
             let document = Document {
                 blocks: vec![Block::RawBlock(
-                    Format("dot".to_owned()),
-                    "```\ngraph {}\n```".to_owned(),
+                    Format("dot".to_owned().into()),
+                    "```\ngraph {}\n```".to_owned().into(),
                 )],
                 ..Document::default()
             };
@@ -2557,7 +2557,7 @@ mod tests {
         use crate::markdown::MarkdownWriter;
 
         fn s(text: &str) -> Inline {
-            Inline::Str(text.to_owned())
+            Inline::Str(text.to_owned().into())
         }
 
         fn render(blocks: Vec<Block>) -> String {
@@ -2688,7 +2688,7 @@ mod tests {
                 render_with(
                     vec![Block::Para(vec![Inline::Math(
                         MathType::InlineMath,
-                        "x^2".to_owned()
+                        "x^2".to_owned().into()
                     )])],
                     single
                 ),
@@ -2698,7 +2698,7 @@ mod tests {
                 render_with(
                     vec![Block::Para(vec![Inline::Math(
                         MathType::DisplayMath,
-                        "x^2".to_owned()
+                        "x^2".to_owned().into()
                     )])],
                     single
                 ),
@@ -2714,7 +2714,7 @@ mod tests {
                 render_with(
                     vec![Block::Para(vec![Inline::Math(
                         MathType::InlineMath,
-                        "x^2".to_owned()
+                        "x^2".to_owned().into()
                     )])],
                     double
                 ),
@@ -2730,7 +2730,7 @@ mod tests {
                     vec![Block::Para(vec![
                         s("before"),
                         Inline::Space,
-                        Inline::Math(MathType::DisplayMath, "x^2".to_owned()),
+                        Inline::Math(MathType::DisplayMath, "x^2".to_owned().into()),
                         Inline::Space,
                         s("after"),
                     ])],

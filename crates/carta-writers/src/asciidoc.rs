@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColWidth, Document, Inline, ListAttributes,
-    ListNumberStyle, MathType, QuoteType, Row, Table, TableBody, Target, slug, to_plain_text,
+    ListNumberStyle, MathType, QuoteType, Row, Table, TableBody, Target, Text, slug, to_plain_text,
 };
 use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
@@ -560,7 +560,7 @@ impl State {
             && !url.contains(char::is_whitespace)
             && scheme != Some("mailto");
         if bare {
-            out.push(Piece::Text(url.clone()));
+            out.push(Piece::Text(url.to_string()));
             return;
         }
         let prefix = if scheme.is_some_and(is_autolink_scheme) {
@@ -921,7 +921,7 @@ fn code_block(attr: &Attr, text: &str) -> String {
         .classes
         .iter()
         .filter(|class| class.as_str() != "numberLines")
-        .map(String::as_str)
+        .map(Text::as_str)
         .collect();
     let mut header = String::from("[source");
     if numbered {

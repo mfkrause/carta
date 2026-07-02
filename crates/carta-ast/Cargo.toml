@@ -20,3 +20,4 @@ workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 unicode-general-category = { workspace = true }
+compact_str = { workspace = true }

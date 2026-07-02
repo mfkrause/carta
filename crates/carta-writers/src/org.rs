@@ -10,7 +10,7 @@ use std::borrow::Cow;
 
 use carta_ast::{
     Attr, Block, Caption, Cell, Citation, CitationMode, Document, Format, Inline, ListAttributes,
-    ListNumberDelim, MathType, QuoteType, Row, Table, Target, to_plain_text,
+    ListNumberDelim, MathType, QuoteType, Row, Table, Target, Text, to_plain_text,
 };
 use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 
@@ -200,7 +200,7 @@ impl State {
             && let Some(Inline::Str(text)) = inlines.first_mut()
         {
             let rest: String = text.chars().skip(1).collect();
-            *text = format!("{marker}{rest}");
+            *text = format!("{marker}{rest}").into();
         }
         Cow::Owned(blocks)
     }
@@ -407,7 +407,7 @@ impl State {
         }
         match special_div(&attr.classes) {
             Some(index) => {
-                let name = attr.classes.get(index).map_or("", String::as_str);
+                let name = attr.classes.get(index).map_or("", |class| class.as_str());
                 let extra: Vec<&str> = attr
                     .classes
                     .iter()
@@ -544,7 +544,7 @@ impl State {
             }
             Inline::RawInline(format, text) => {
                 if is_raw_org(format) {
-                    out.push(Piece::Text(text.clone()));
+                    out.push(Piece::Text(text.to_string()));
                 }
             }
             Inline::Link(_, label, target) => out.push(Piece::Text(self.link(label, target))),
@@ -712,14 +712,14 @@ fn fuse_term(term: &[Inline], blocks: &mut Vec<Block>) {
     if let Some(Block::Plain(inlines) | Block::Para(inlines)) = blocks.first_mut() {
         let mut fused = term.to_vec();
         fused.push(Inline::Space);
-        fused.push(Inline::Str("::".to_string()));
+        fused.push(Inline::Str("::".into()));
         fused.push(Inline::Space);
         fused.append(inlines);
         *inlines = fused;
     } else {
         let mut lead = term.to_vec();
         lead.push(Inline::Space);
-        lead.push(Inline::Str("::".to_string()));
+        lead.push(Inline::Str("::".into()));
         blocks.insert(0, Block::Plain(lead));
     }
 }
@@ -812,17 +812,17 @@ fn is_raw_org(format: &Format) -> bool {
 /// The index of the first class naming a special Org block, matched case-insensitively.
 /// The drawer name of a `Div` marked as a drawer: the first class other than the `drawer` marker,
 /// or `None` when the div is not a drawer or carries no name.
-fn drawer_name(classes: &[String]) -> Option<&str> {
+fn drawer_name(classes: &[Text]) -> Option<&str> {
     if !classes.iter().any(|class| class == "drawer") {
         return None;
     }
     classes
         .iter()
-        .map(String::as_str)
+        .map(Text::as_str)
         .find(|&class| class != "drawer")
 }
 
-fn special_div(classes: &[String]) -> Option<usize> {
+fn special_div(classes: &[Text]) -> Option<usize> {
     const SPECIAL: [&str; 7] = [
         "center",
         "quote",
@@ -840,7 +840,7 @@ fn special_div(classes: &[String]) -> Option<usize> {
 
 /// The `#+attr_html:` line for a special block's remaining classes and key/value attributes, or
 /// `None` when it carries neither.
-fn attr_html_line(extra: &[&str], attributes: &[(String, String)]) -> Option<String> {
+fn attr_html_line(extra: &[&str], attributes: &[(Text, Text)]) -> Option<String> {
     if extra.is_empty() && attributes.is_empty() {
         return None;
     }

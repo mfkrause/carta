@@ -2435,7 +2435,7 @@ impl Parser {
                 if self.extensions.contains(Extension::RawAttribute)
                     && let Some(format) = raw_block_format(&fence.info)
                 {
-                    IrBlock::RawBlock(Format(format), text)
+                    IrBlock::RawBlock(Format(format.into()), text)
                 } else {
                     IrBlock::CodeBlock(fence_attr(&fence.info, self.extensions), text)
                 }
@@ -2454,7 +2454,7 @@ impl Parser {
                     }
                     IrBlock::Para(trimmed.to_owned())
                 } else {
-                    IrBlock::RawBlock(Format("tex".to_owned()), node.text.clone())
+                    IrBlock::RawBlock(Format("tex".to_owned().into()), node.text.clone())
                 }
             }
             Kind::BlockQuote => {
@@ -2528,8 +2528,8 @@ impl Parser {
 
         let title = IrBlock::Div(
             Attr {
-                id: String::new(),
-                classes: vec!["title".to_owned()],
+                id: carta_ast::Text::default(),
+                classes: vec!["title".to_owned().into()],
                 attributes: Vec::new(),
             },
             vec![IrBlock::Para(alert_type.title.to_owned())],
@@ -2551,8 +2551,8 @@ impl Parser {
 
         Some(IrBlock::Div(
             Attr {
-                id: String::new(),
-                classes: vec![alert_type.class.to_owned()],
+                id: carta_ast::Text::default(),
+                classes: vec![alert_type.class.to_owned().into()],
                 attributes: Vec::new(),
             },
             content,
@@ -3012,8 +3012,8 @@ fn fence_attr(info: &str, extensions: Extensions) -> Attr {
     }
     let language = info.split_whitespace().next().unwrap_or("");
     Attr {
-        id: String::new(),
-        classes: vec![language.to_owned()],
+        id: carta_ast::Text::default(),
+        classes: vec![language.to_owned().into()],
         attributes: Vec::new(),
     }
 }
@@ -3119,8 +3119,8 @@ fn div_open_attr(spec: &str) -> Option<Attr> {
         return None;
     }
     Some(Attr {
-        id: String::new(),
-        classes: vec![spec.to_owned()],
+        id: carta_ast::Text::default(),
+        classes: vec![spec.to_owned().into()],
         attributes: Vec::new(),
     })
 }
@@ -3439,13 +3439,13 @@ mod html_element {
             end = next;
         }
         match name.as_str() {
-            "id" => attr.id = value,
+            "id" => attr.id = value.into(),
             "class" => {
                 if attr.classes.is_empty() {
-                    attr.classes = value.split_whitespace().map(str::to_owned).collect();
+                    attr.classes = value.split_whitespace().map(Into::into).collect();
                 }
             }
-            _ => attr.attributes.push((name, value)),
+            _ => attr.attributes.push((name.into(), value.into())),
         }
         Some(end)
     }
@@ -3959,7 +3959,7 @@ mod tests {
     #[test]
     fn caption_keyvals_attach_to_the_table() {
         let (attr, _) = table_attr_and_caption("| a |\n|---|\n| 1 |\n\n: c {key=val}\n");
-        assert_eq!(attr.attributes, [("key".to_owned(), "val".to_owned())]);
+        assert_eq!(attr.attributes, [("key".into(), "val".into())]);
     }
 
     #[test]
@@ -4025,10 +4025,7 @@ mod html_element_tests {
         assert_eq!(attr.classes, vec!["a".to_owned(), "b".to_owned()]);
         assert_eq!(
             attr.attributes,
-            vec![
-                ("data-z".to_owned(), "1".to_owned()),
-                ("data-a".to_owned(), "2".to_owned()),
-            ]
+            vec![("data-z".into(), "1".into()), ("data-a".into(), "2".into()),]
         );
     }
 
@@ -4207,10 +4204,7 @@ mod html_element_tests {
         assert_eq!(tag.tag, "div");
         assert_eq!(tag.attr.id, "x");
         assert_eq!(tag.attr.classes, vec!["a".to_owned(), "b".to_owned()]);
-        assert_eq!(
-            tag.attr.attributes,
-            vec![("data-k".to_owned(), "v".to_owned())]
-        );
+        assert_eq!(tag.attr.attributes, vec![("data-k".into(), "v".into())]);
         // The extent stops just past the `>`, leaving any same-line remainder.
         assert_eq!(tag.len, "<div id=\"x\" class=\"a b\" data-k=v>".len());
     }
@@ -4233,10 +4227,7 @@ mod html_element_tests {
     fn parse_open_tag_records_a_valueless_attribute_as_an_empty_value() {
         let tag = html_element::parse_open_tag("<div hidden class=\"a\">").expect("a div");
         assert_eq!(tag.attr.classes, vec!["a".to_owned()]);
-        assert_eq!(
-            tag.attr.attributes,
-            vec![("hidden".to_owned(), String::new())]
-        );
+        assert_eq!(tag.attr.attributes, vec![("hidden".into(), "".into())]);
     }
 
     #[test]

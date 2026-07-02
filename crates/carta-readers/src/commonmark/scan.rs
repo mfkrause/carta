@@ -99,22 +99,30 @@ pub(crate) fn scan_autolink(chars: &[char], start: usize) -> Option<(Inline, usi
     let after = end + 1;
     if is_uri_autolink(&content) {
         let target = Target {
-            url: content.clone(),
-            title: String::new(),
+            url: content.clone().into(),
+            title: carta_ast::Text::default(),
         };
         return Some((
-            Inline::Link(Box::default(), vec![Inline::Str(content)], Box::new(target)),
+            Inline::Link(
+                Box::default(),
+                vec![Inline::Str(content.into())],
+                Box::new(target),
+            ),
             after,
         ));
     }
     if is_email_autolink(&content) {
         let url = format!("mailto:{content}");
         let target = Target {
-            url,
-            title: String::new(),
+            url: url.into(),
+            title: carta_ast::Text::default(),
         };
         return Some((
-            Inline::Link(Box::default(), vec![Inline::Str(content)], Box::new(target)),
+            Inline::Link(
+                Box::default(),
+                vec![Inline::Str(content.into())],
+                Box::new(target),
+            ),
             after,
         ));
     }
@@ -378,8 +386,8 @@ pub(crate) fn scan_inline_target(chars: &[char], pos: usize) -> Option<(Target, 
     }
     Some((
         Target {
-            url: unescape_string(&url),
-            title: unescape_string(&title),
+            url: unescape_string(&url).into(),
+            title: unescape_string(&title).into(),
         },
         index + 1,
     ))

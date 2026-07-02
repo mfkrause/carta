@@ -390,7 +390,7 @@ impl State {
                     MathType::DisplayMath => ("$$", tex),
                     MathType::InlineMath => ("$", tex.trim()),
                 };
-                let fallback = Inline::Str(format!("{delim}{body}{delim}"));
+                let fallback = Inline::Str(format!("{delim}{body}{delim}").into());
                 self.inline(&fallback, out, false);
             }
         }
@@ -708,7 +708,7 @@ fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
 /// The `(url "title")` destination tail of a link or image, with the title omitted when empty.
 fn destination(target: &Target) -> String {
     if target.title.is_empty() {
-        target.url.clone()
+        target.url.to_string()
     } else {
         format!("{} \"{}\"", target.url, target.title)
     }
@@ -946,7 +946,7 @@ mod tests {
     }
 
     fn str_inlines(text: &str) -> Vec<Inline> {
-        vec![Inline::Str(text.to_owned())]
+        vec![Inline::Str(text.to_owned().into())]
     }
 
     fn plain_item(text: &str) -> Vec<Block> {
@@ -983,7 +983,7 @@ mod tests {
     fn autolink_for_uri_and_mailto() {
         let uri = Target {
             url: "http://example.com".into(),
-            title: String::new(),
+            title: String::new().into(),
         };
         assert_eq!(
             autolink(&str_inlines("http://example.com"), &uri),
@@ -991,7 +991,7 @@ mod tests {
         );
         let mail = Target {
             url: "mailto:a@b.com".into(),
-            title: String::new(),
+            title: String::new().into(),
         };
         assert_eq!(
             autolink(&str_inlines("a@b.com"), &mail),
@@ -999,7 +999,7 @@ mod tests {
         );
         let plain = Target {
             url: "http://other".into(),
-            title: String::new(),
+            title: String::new().into(),
         };
         assert_eq!(autolink(&str_inlines("text"), &plain), None);
     }
@@ -1049,7 +1049,7 @@ mod tests {
             str_inlines("http://example.com"),
             Box::new(Target {
                 url: "http://example.com".into(),
-                title: String::new(),
+                title: String::new().into(),
             }),
         );
         assert_eq!(render(vec![para(vec![link])]), "<http://example.com>");
@@ -1179,8 +1179,8 @@ mod tests {
         let div = Block::Div(
             Box::new(Attr {
                 attributes: vec![
-                    ("data-one".into(), a.clone()),
-                    ("data-two".into(), b.clone()),
+                    ("data-one".into(), a.clone().into()),
+                    ("data-two".into(), b.clone().into()),
                 ],
                 ..Attr::default()
             }),
@@ -1205,8 +1205,8 @@ mod tests {
             }),
             vec![],
             Box::new(Target {
-                url: url.clone(),
-                title: String::new(),
+                url: url.clone().into(),
+                title: String::new().into(),
             }),
         );
         assert_eq!(
@@ -1261,7 +1261,7 @@ mod tests {
             "``` rust\nfn x(){}\n```"
         );
         assert_eq!(
-            render(vec![Block::CodeBlock(Box::new(attr), String::new())]),
+            render(vec![Block::CodeBlock(Box::new(attr), String::new().into())]),
             "``` rust\n```"
         );
     }
@@ -1350,7 +1350,7 @@ mod tests {
         assert_eq!(
             destination(&Target {
                 url: "/p".into(),
-                title: String::new()
+                title: String::new().into()
             }),
             "/p"
         );
@@ -1361,16 +1361,16 @@ mod tests {
             }),
             "/p \"T\""
         );
-        assert_eq!(title_attr(&String::new()), "");
-        assert_eq!(title_attr(&"T".to_owned()), " title=\"T\"");
+        assert_eq!(title_attr(&carta_ast::Text::default()), "");
+        assert_eq!(title_attr(&"T".into()), " title=\"T\"");
     }
 
     fn inline_math(tex: &str) -> Inline {
-        Inline::Math(MathType::InlineMath, tex.to_owned())
+        Inline::Math(MathType::InlineMath, tex.to_owned().into())
     }
 
     fn display_math(tex: &str) -> Inline {
-        Inline::Math(MathType::DisplayMath, tex.to_owned())
+        Inline::Math(MathType::DisplayMath, tex.to_owned().into())
     }
 
     #[test]
@@ -1503,7 +1503,7 @@ mod tests {
             str_inlines("alt"),
             Box::new(Target {
                 url: "pic.png".into(),
-                title: String::new(),
+                title: String::new().into(),
             }),
         );
         assert_eq!(
@@ -1519,7 +1519,7 @@ mod tests {
             str_inlines("alt"),
             Box::new(Target {
                 url: "pic.png".into(),
-                title: String::new(),
+                title: String::new().into(),
             }),
         );
         assert_eq!(render(vec![para(vec![image])]), "![alt](pic.png)");
@@ -1528,13 +1528,16 @@ mod tests {
     fn dimensioned_image(attributes: Vec<(String, String)>) -> Inline {
         Inline::Image(
             Box::new(Attr {
-                attributes,
+                attributes: attributes
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
                 ..Attr::default()
             }),
             str_inlines("alt"),
             Box::new(Target {
                 url: "pic.png".into(),
-                title: String::new(),
+                title: String::new().into(),
             }),
         )
     }
