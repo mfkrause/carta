@@ -333,6 +333,7 @@ pub mod presets {
 
     /// The extended Markdown dialect: the broad default extension set.
     pub const MARKDOWN: Extensions = Extensions::from_list(&[
+        Extension::AllSymbolsEscapable,
         Extension::Smart,
         Extension::Strikeout,
         Extension::Superscript,

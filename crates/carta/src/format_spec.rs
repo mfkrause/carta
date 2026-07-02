@@ -33,6 +33,7 @@ fn default_extensions(base: &str) -> Extensions {
         // math and auto identifiers on by default; a hash run needs a following space to open a
         // heading (so a bare `#.` is a list marker, not a heading).
         "ipynb" => Extensions::from_list(&[
+            Extension::AllSymbolsEscapable,
             Extension::AutoIdentifiers,
             Extension::GfmAutoIdentifiers,
             Extension::Autolink,
