@@ -362,6 +362,25 @@ mod tests {
     }
 
     #[test]
+    fn oversized_cell_spans_are_clamped() {
+        // A cell span materialises one grid slot per spanned column (and a carry per spanned row),
+        // so an unbounded `colspan="90000000"` once forced a multi-gigabyte allocation that a
+        // nightly fuzz run hit as an out-of-memory crash. Spans are now clamped to the HTML spec's
+        // limits, keeping the input parseable in bounded memory.
+        let input = r#"<table><tr><td colspan="90000000" rowspan="2">x</td></tr><tr><td>y</td></tr></table>"#;
+        let Block::Table(table) = first_block(input) else {
+            panic!("expected table");
+        };
+        let cell_span = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .map(|cell| (cell.col_span, cell.row_span));
+        assert_eq!(cell_span, Some((1000, 2)));
+    }
+
+    #[test]
     fn cell_alignment_reads_text_align_style() {
         let Block::Table(table) =
             first_block(r#"<table><tr><td style="text-align: center">c</td></tr></table>"#)
