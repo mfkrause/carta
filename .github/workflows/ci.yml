@@ -129,6 +129,8 @@ jobs:
         with:
           tool: cargo-hack
       - name: Check each feature compiles in isolation
+        env:
+          RUSTFLAGS: -D warnings -A dead_code
         run: cargo hack check --each-feature --no-dev-deps -p carta-readers -p carta-writers -p carta
 
   fuzz-replay:
