@@ -1,0 +1,13 @@
+* Task
+:PROPERTIES:
+:CUSTOM_ID: task-one
+:END:
+:LOGBOOK:
+- Note taken on entering
+:END:
+Body under the task.
+
+* Notes
+:MYDRAWER:
+Custom drawers are kept as a div.
+:END:

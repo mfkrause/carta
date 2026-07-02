@@ -391,6 +391,15 @@ impl State {
 
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
         let body = self.blocks(blocks, width, false);
+        if let Some(name) = drawer_name(&attr.classes) {
+            let mut lines = vec![format!(":{name}:"), String::new()];
+            if !body.is_empty() {
+                lines.push(body);
+                lines.push(String::new());
+            }
+            lines.push(":END:".to_owned());
+            return lines.join("\n");
+        }
         match special_div(&attr.classes) {
             Some(index) => {
                 let name = attr.classes.get(index).map_or("", String::as_str);
@@ -591,13 +600,22 @@ impl State {
 /// The separator between two consecutive blocks: a blank line when the earlier block wants trailing
 /// space or the later block wants leading space, a single newline otherwise. A plain block, heading,
 /// or raw Org block attaches tightly to what follows; a block quote, div, verse, rule, table, or raw
-/// HTML block is set off from what precedes it.
+/// HTML block is set off from what precedes it. A drawer opening a heading's section attaches to the
+/// headline like the section's other leading content.
 fn block_separator(previous: &Block, next: &Block) -> &'static str {
+    if matches!(previous, Block::Header(..)) && is_drawer(next) {
+        return "\n";
+    }
     if trailing_blank(previous) || leading_blank(next) {
         "\n\n"
     } else {
         "\n"
     }
+}
+
+/// Whether a block is a drawer: a div carrying the `drawer` marker class and a name.
+fn is_drawer(block: &Block) -> bool {
+    matches!(block, Block::Div(attr, _) if drawer_name(&attr.classes).is_some())
 }
 
 /// Whether a block is followed by a blank line: everything except a plain block, a heading, and a raw
@@ -787,6 +805,18 @@ fn is_raw_org(format: &Format) -> bool {
 }
 
 /// The index of the first class naming a special Org block, matched case-insensitively.
+/// The drawer name of a `Div` marked as a drawer: the first class other than the `drawer` marker,
+/// or `None` when the div is not a drawer or carries no name.
+fn drawer_name(classes: &[String]) -> Option<&str> {
+    if !classes.iter().any(|class| class == "drawer") {
+        return None;
+    }
+    classes
+        .iter()
+        .map(String::as_str)
+        .find(|&class| class != "drawer")
+}
+
 fn special_div(classes: &[String]) -> Option<usize> {
     const SPECIAL: [&str; 7] = [
         "center",

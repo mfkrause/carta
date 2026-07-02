@@ -88,6 +88,12 @@ gap.
   (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner content.
 
 ### `org` — ✅
+- Drawers: a headline's property drawer is consumed and supplies its `CUSTOM_ID` as the heading
+  identifier; the bookkeeping drawers `:PROPERTIES:` and `:LOGBOOK:` are dropped wherever they appear;
+  every other named drawer becomes a `Div` classed with the drawer name.
+- A property drawer's `:ID:` is not used as a fallback heading identifier when no `:CUSTOM_ID:` is
+  present, and a file-level property drawer's keys are not promoted to document metadata.
+- An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
 `docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `markdown_strict`, `markdown_mmd`,
@@ -128,6 +134,7 @@ gap.
 - Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
 ### `org` — ✅
+- A `Div` marked as a drawer is written back as a `:NAME:` … `:END:` drawer.
 
 ### `json` — ✅
 ### `native` — ✅
