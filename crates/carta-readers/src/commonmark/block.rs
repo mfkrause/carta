@@ -1567,19 +1567,28 @@ impl Parser {
             }
             let fence_checkpoint = cursor.checkpoint();
             if let Some(fence) = cursor.fenced_code_start() {
-                if self.fence_opener_accepted(&fence)
+                // In the Markdown family a tilde fence does not interrupt an open paragraph: its
+                // opener line becomes ordinary continuation text and the lines after it are still
+                // read normally, so a heading or other opener among them may still fire. A backtick
+                // fence still interrupts.
+                let folds_into_paragraph =
+                    in_paragraph && self.greedy_paragraphs && fence.marker == b'~';
+                if folds_into_paragraph {
+                    cursor.reset_to(fence_checkpoint);
+                } else if self.fence_opener_accepted(&fence)
                     && self.fence_reaches_close(container, &fence, following)
                 {
                     let kind = Kind::FencedCode(fence);
                     let parent = self.place(container, &kind);
                     return Some(self.append_child(parent, Node::new(kind)));
+                } else {
+                    // The fence opens no code block; its opener line folds into a paragraph and the
+                    // lines up to its matching close (if any) follow as that paragraph's text.
+                    if self.greedy_paragraphs {
+                        self.fence_fold = Some(fence);
+                    }
+                    cursor.reset_to(fence_checkpoint);
                 }
-                // The fence opens no code block; its opener line folds into a paragraph and the
-                // lines up to its matching close (if any) follow as that paragraph's text.
-                if self.greedy_paragraphs {
-                    self.fence_fold = Some(fence);
-                }
-                cursor.reset_to(fence_checkpoint);
             }
             // A recognized block-level HTML element whose inner content is parsed as markdown takes
             // precedence over the raw HTML-block reading, when the governing extension is on.
@@ -4361,6 +4370,56 @@ mod abbreviation_tests {
             out.len(),
             2,
             "no consumption without the extension: {out:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod fence_interrupt_tests {
+    use super::{IrBlock, parse};
+    use carta_core::{Extension, Extensions};
+
+    fn md(input: &str, exts: &[Extension]) -> Vec<IrBlock> {
+        parse(input, Extensions::from_list(exts), true).0
+    }
+
+    #[test]
+    fn a_tilde_fence_does_not_interrupt_a_paragraph() {
+        let out = md("text\n~~~\ncode\n~~~\n", &[Extension::FencedCodeBlocks]);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(_)]),
+            "a tilde fence folds into the open paragraph: {out:?}"
+        );
+    }
+
+    #[test]
+    fn a_tilde_fence_opens_a_block_at_the_top_level() {
+        let out = md("~~~\ncode\n~~~\n", &[Extension::FencedCodeBlocks]);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::CodeBlock(..)]),
+            "a top-level tilde fence still opens a code block: {out:?}"
+        );
+    }
+
+    #[test]
+    fn a_backtick_fence_still_interrupts_a_paragraph() {
+        let out = md("text\n```\ncode\n```\n", &[Extension::BacktickCodeBlocks]);
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(_), IrBlock::CodeBlock(..)]),
+            "a backtick fence interrupts the paragraph: {out:?}"
+        );
+    }
+
+    #[test]
+    fn an_opener_after_a_non_interrupting_tilde_still_fires() {
+        // The tilde line folds in, but the following heading is read normally rather than absorbed.
+        let out = md(
+            "text\n~~~\n# h\n~~~\nmore\n",
+            &[Extension::FencedCodeBlocks],
+        );
+        assert!(
+            matches!(out.get(1), Some(IrBlock::Heading(1, _))),
+            "a heading after a non-interrupting tilde fence still opens: {out:?}"
         );
     }
 }
