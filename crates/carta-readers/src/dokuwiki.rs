@@ -933,7 +933,9 @@ fn scan(
         match c {
             ' ' | '\t' | '\n' => scan_whitespace_run(chars, pos, &mut pending, &mut out),
             '&' => {
-                if let Some((decoded, next)) = read_entity(chars, *pos) {
+                if let Some((decoded, next)) =
+                    entities::read_reference(chars, *pos, chars.len(), true)
+                {
                     pending.push_str(&decoded);
                     *pos = next;
                 } else {
@@ -1076,46 +1078,6 @@ fn closer_width(closer: Closer) -> usize {
     match closer {
         Closer::Quote(_) => 1,
         Closer::Delim(_) | Closer::Mono => 2,
-    }
-}
-
-/// Read one HTML entity reference starting at the `&` in `chars[i]`, returning its decoded text and
-/// the index just past the closing `;`. Named, decimal (`&#NN;`), and hexadecimal (`&#xNN;`) forms
-/// are recognized; anything else is not an entity.
-fn read_entity(chars: &[char], i: usize) -> Option<(String, usize)> {
-    let mut j = i + 1;
-    if chars.get(j) == Some(&'#') {
-        j += 1;
-        let hex = matches!(chars.get(j), Some('x' | 'X'));
-        if hex {
-            j += 1;
-        }
-        let begin = j;
-        while chars.get(j).is_some_and(|c| {
-            if hex {
-                c.is_ascii_hexdigit()
-            } else {
-                c.is_ascii_digit()
-            }
-        }) {
-            j += 1;
-        }
-        if j == begin || chars.get(j) != Some(&';') {
-            return None;
-        }
-        let digits: String = chars.get(begin..j).unwrap_or(&[]).iter().collect();
-        let code = u32::from_str_radix(&digits, if hex { 16 } else { 10 }).ok()?;
-        Some((entities::code_point(code).to_string(), j + 1))
-    } else {
-        let begin = j;
-        while chars.get(j).is_some_and(char::is_ascii_alphanumeric) {
-            j += 1;
-        }
-        if j == begin || chars.get(j) != Some(&';') {
-            return None;
-        }
-        let name: String = chars.get(begin..j).unwrap_or(&[]).iter().collect();
-        Some((entities::lookup_named(&name)?.to_string(), j + 1))
     }
 }
 

@@ -902,7 +902,8 @@ impl Parser {
                 continue;
             }
             if c == '&' {
-                if let Some((decoded, next)) = read_entity(chars, i) {
+                if let Some((decoded, next)) = entities::read_reference(chars, i, chars.len(), true)
+                {
                     word.push_str(&decoded);
                     i = next;
                 } else {
@@ -2057,7 +2058,7 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
             out.push(token);
             i = next;
         } else if c == '&' {
-            if let Some((decoded, next)) = read_entity(&chars, i) {
+            if let Some((decoded, next)) = entities::read_reference(&chars, i, chars.len(), true) {
                 word.push_str(&decoded);
                 i = next;
             } else {
@@ -2083,7 +2084,7 @@ fn decode_entities(text: &str) -> String {
     let mut i = 0;
     while i < n {
         if at(&chars, i) == Some('&')
-            && let Some((decoded, next)) = read_entity(&chars, i)
+            && let Some((decoded, next)) = entities::read_reference(&chars, i, chars.len(), true)
         {
             out.push_str(&decoded);
             i = next;
@@ -2095,53 +2096,6 @@ fn decode_entities(text: &str) -> String {
         i += 1;
     }
     out
-}
-
-/// Reads one entity reference starting at the `&` in `chars[i]`, returning its decoded text and the
-/// index just past the closing `;`. Named, decimal, and hexadecimal forms are recognized.
-fn read_entity(chars: &[char], i: usize) -> Option<(String, usize)> {
-    let mut j = i + 1;
-    if at(chars, j) == Some('#') {
-        j += 1;
-        let hex = matches!(at(chars, j), Some('x' | 'X'));
-        if hex {
-            j += 1;
-        }
-        let start = j;
-        while let Some(c) = at(chars, j) {
-            let digit = if hex {
-                c.is_ascii_hexdigit()
-            } else {
-                c.is_ascii_digit()
-            };
-            if digit {
-                j += 1;
-            } else {
-                break;
-            }
-        }
-        if j == start || at(chars, j) != Some(';') {
-            return None;
-        }
-        let digits = collect_range(chars, start, j);
-        let code = u32::from_str_radix(&digits, if hex { 16 } else { 10 }).ok()?;
-        Some((entities::code_point(code).to_string(), j + 1))
-    } else {
-        let start = j;
-        while let Some(c) = at(chars, j) {
-            if c.is_ascii_alphanumeric() {
-                j += 1;
-            } else {
-                break;
-            }
-        }
-        if j == start || at(chars, j) != Some(';') {
-            return None;
-        }
-        let name = collect_range(chars, start, j);
-        let decoded = entities::lookup_named(&name)?;
-        Some((decoded.to_string(), j + 1))
-    }
 }
 
 // --- bare URLs & namespaces ---------------------------------------------------------------------

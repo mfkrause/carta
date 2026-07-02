@@ -1104,7 +1104,7 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
                 i = scan_backslash(chars, i, hi, &mut pending, &mut toks);
             }
             '&' => {
-                if let Some((text, next)) = read_entity(chars, i, hi) {
+                if let Some((text, next)) = crate::entities::read_reference(chars, i, hi, false) {
                     pending.push_str(&text);
                     i = next;
                 } else {
@@ -1215,38 +1215,6 @@ fn is_escapable(c: char) -> bool {
             | '{'
             | '}'
     )
-}
-
-/// Reads a character reference at `i` (which holds `&`). A named reference or a decimal numeric
-/// reference resolves to its replacement text; a hexadecimal reference is not recognised and stays
-/// literal. Returns the decoded text and the index just past the closing `;`.
-fn read_entity(chars: &[char], i: usize, hi: usize) -> Option<(String, usize)> {
-    if chars.get(i + 1) == Some(&'#') {
-        let start = i + 2;
-        let mut k = start;
-        while k < hi && chars.get(k).is_some_and(char::is_ascii_digit) {
-            k += 1;
-        }
-        if k > start && chars.get(k) == Some(&';') {
-            let digits = slice_to_string(chars, start, k);
-            if let Ok(code) = digits.parse::<u32>() {
-                return Some((crate::entities::code_point(code).to_string(), k + 1));
-            }
-        }
-        return None;
-    }
-    let start = i + 1;
-    let mut k = start;
-    while k < hi && chars.get(k).is_some_and(char::is_ascii_alphanumeric) {
-        k += 1;
-    }
-    if k > start && chars.get(k) == Some(&';') {
-        let name = slice_to_string(chars, start, k);
-        if let Some(text) = crate::entities::lookup_named(&name) {
-            return Some((text.to_string(), k + 1));
-        }
-    }
-    None
 }
 
 /// Emits a flanking-delimiter token for one of the emphasis markers at `i`, or buffers the marker as
