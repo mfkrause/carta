@@ -10,7 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 readme.workspace = true
 keywords = ["markup", "markdown", "document", "converter", "commonmark"]
-categories = ["text-processing", "parser-implementations"]
+categories = ["command-line-utilities", "text-processing", "parser-implementations"]
 publish.workspace = true
 
 # docs.rs builds default features only; enable all so every reader/writer is documented.
@@ -21,7 +21,12 @@ all-features = true
 workspace = true
 
 [features]
-default = ["full"]
+default = ["full", "cli"]
+# The `carta` command-line binary and its argument parser. Enabled by default so `cargo install carta`
+# yields the tool; library-only users set `default-features = false` to drop it (and `clap`). It pulls
+# the standalone and metadata-file machinery the CLI drives — pair with format features (or `full`) to
+# choose what the binary can convert.
+cli = ["dep:clap", "standalone", "metadata-file"]
 full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-beamer", "write-revealjs", "write-ipynb", "standalone", "metadata-file"]
 # Standalone output: the template engine, context builder, document wrapping, default templates,
 # and the `-s`/`--template`/`-V`/`-M` inputs. Works with any reader/writer; no commonmark required.
@@ -73,10 +78,19 @@ carta-readers = { path = "../carta-readers", version = "0.0.1", default-features
 carta-writers = { path = "../carta-writers", version = "0.0.1", default-features = false, optional = true }
 # `meta-json`: serializes the rendered metadata into the standalone template context.
 serde_json = { workspace = true, optional = true }
+# CLI-only; kept out of a library build via the optional `cli` feature.
+clap = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 criterion = { workspace = true }
+
+# The command-line binary. Gated on `cli` so a library-only build (`default-features = false`) neither
+# compiles it nor pulls its dependencies.
+[[bin]]
+name = "carta"
+path = "src/main.rs"
+required-features = ["cli"]
 
 [[bench]]
 name = "convert"
