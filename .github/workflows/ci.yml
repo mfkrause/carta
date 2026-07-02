@@ -125,6 +125,11 @@ jobs:
         run: cargo nextest run -p carta --no-default-features --features read-commonmark,write-html
       - name: Build zero-format config
         run: cargo build -p carta --no-default-features
+      - uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2
+        with:
+          tool: cargo-hack
+      - name: Check each feature compiles in isolation
+        run: cargo hack check --each-feature --no-dev-deps -p carta-readers -p carta-writers -p carta
 
   fuzz-replay:
     name: fuzz build · regression replay
