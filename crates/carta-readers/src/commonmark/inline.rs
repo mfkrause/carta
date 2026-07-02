@@ -928,6 +928,11 @@ impl InlineParser<'_> {
             return;
         }
         self.pos += 1;
+        // With `all_symbols_escapable` — and always in the bare CommonMark engine — a backslash
+        // escapes any ASCII punctuation character (and, in the markdown dialect, turns a following
+        // space into a non-breaking space). Without it a markdown dialect escapes only the classic
+        // set and leaves every other backslash literal.
+        let broad = !self.notes.markdown || self.ext.contains(Extension::AllSymbolsEscapable);
         match self.peek() {
             // In the broad Markdown dialect a backslash before a line ending is a hard break only
             // when `escaped_line_breaks` is on; with it off the backslash is literal and the line
@@ -946,11 +951,15 @@ impl InlineParser<'_> {
             }
             // In the markdown dialect a backslash before a space is a non-breaking space, which binds
             // into the surrounding text rather than splitting it on whitespace.
-            Some(' ') if self.notes.markdown => {
+            Some(' ') if self.notes.markdown && broad => {
                 self.pos += 1;
                 self.push_text('\u{a0}');
             }
-            Some(ch) if is_ascii_punctuation(ch) => {
+            Some(ch) if broad && is_ascii_punctuation(ch) => {
+                self.pos += 1;
+                self.push_text(ch);
+            }
+            Some(ch) if is_classic_markdown_escapable(ch) => {
                 self.pos += 1;
                 self.push_text(ch);
             }
@@ -3191,6 +3200,31 @@ fn quote_flanking(_ch: u8, before: Option<char>, after: Option<char>) -> (bool, 
     (can_open, can_close)
 }
 
+/// The characters an original-Markdown backslash escape recognizes regardless of
+/// `all_symbols_escapable`: the inline delimiters and block markers that carry syntactic weight. A
+/// dialect without the broad escape set drops the backslash before only these, leaving every other
+/// backslash literal.
+fn is_classic_markdown_escapable(ch: char) -> bool {
+    matches!(
+        ch,
+        '\\' | '`'
+            | '*'
+            | '_'
+            | '{'
+            | '}'
+            | '['
+            | ']'
+            | '('
+            | ')'
+            | '>'
+            | '#'
+            | '+'
+            | '-'
+            | '.'
+            | '!'
+    )
+}
+
 /// A Unicode punctuation character per the spec: an ASCII punctuation character or anything in the
 /// Unicode `P` (punctuation) or `S` (symbol) general categories.
 fn is_punctuation(ch: char) -> bool {
@@ -3800,17 +3834,42 @@ mod inline_tests {
 
     #[test]
     fn markdown_escaped_space_becomes_non_breaking() {
-        // In the markdown dialect `\ ` is a non-breaking space bound into the surrounding word; in
-        // the strict dialect a backslash before a space is a literal backslash and the space splits
-        // the run.
-        assert_eq!(pm("a\\ b", no_ext()), vec![str("a\u{a0}b")]);
+        // With the broad escape set a markdown-dialect `\ ` is a non-breaking space bound into the
+        // surrounding word; without it (as in the strict dialect) and in the bare CommonMark engine a
+        // backslash before a space is a literal backslash and the space splits the run.
+        assert_eq!(
+            pm("a\\ b", exts(&[Extension::AllSymbolsEscapable])),
+            vec![str("a\u{a0}b")]
+        );
+        assert_eq!(
+            pm("a\\ b", no_ext()),
+            vec![str("a\\"), Inline::Space, str("b")]
+        );
         assert_eq!(p("a\\ b"), vec![str("a\\"), Inline::Space, str("b")]);
+    }
+
+    #[test]
+    fn broad_escape_set_is_gated_on_all_symbols_escapable() {
+        // With the broad escape set a backslash drops before any ASCII punctuation.
+        let broad = exts(&[Extension::AllSymbolsEscapable]);
+        assert_eq!(pm("x\\|y", broad), vec![str("x|y")]);
+        assert_eq!(pm("x\\~y", broad), vec![str("x~y")]);
+        assert_eq!(pm("x\\<y", broad), vec![str("x<y")]);
+        // Without it only the classic Markdown set is escapable; every other backslash stays literal.
+        assert_eq!(pm("x\\|y", no_ext()), vec![str("x\\|y")]);
+        assert_eq!(pm("x\\~y", no_ext()), vec![str("x\\~y")]);
+        assert_eq!(pm("x\\<y", no_ext()), vec![str("x\\<y")]);
+        // The classic set is escapable regardless of the extension.
+        assert_eq!(pm("x\\!y", no_ext()), vec![str("x!y")]);
+        assert_eq!(pm("x\\*y", no_ext()), vec![str("x*y")]);
+        // The bare CommonMark engine escapes all ASCII punctuation with no extension needed.
+        assert_eq!(p("x\\|y"), vec![str("x|y")]);
     }
 
     #[test]
     fn markdown_superscript_rejects_inner_space() {
         // A raw space anywhere inside a superscript voids it; the delimiters stay literal.
-        let ext = exts(&[Extension::Superscript]);
+        let ext = exts(&[Extension::Superscript, Extension::AllSymbolsEscapable]);
         assert_eq!(pm("^a b^", ext), vec![str("^a"), Inline::Space, str("b^")]);
         // An escaped (non-breaking) space keeps the superscript intact.
         assert_eq!(
