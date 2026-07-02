@@ -12,7 +12,7 @@ CONF_LIB_SOURCED=1
 
 CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$CONF_DIR/../shared.sh"
-OX="${CARTA_BIN:-${OXIDOC_BIN:-$ROOT/target/debug/carta}}"
+OX="${CARTA_BIN:-$ROOT/target/debug/carta}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
 EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"

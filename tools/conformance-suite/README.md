@@ -61,7 +61,7 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 
 ## Environment
 
-- `CARTA_BIN` — path to the carta binary (default `target/debug/carta`). The former name `OXIDOC_BIN` still works as a fallback.
+- `CARTA_BIN` — path to the carta binary (default `target/debug/carta`).
 - `CONF_WORK` — scratch + per-case diff logs (default `$TMPDIR/carta-conformance`).
 
 ## Surfaces
