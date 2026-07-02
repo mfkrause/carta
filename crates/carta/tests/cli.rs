@@ -19,6 +19,10 @@ struct Output {
 }
 
 fn run(args: &[&str], stdin: &str) -> Output {
+    run_bytes(args, stdin.as_bytes())
+}
+
+fn run_bytes(args: &[&str], stdin: &[u8]) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_carta"))
         .args(args)
         .stdin(Stdio::piped())
@@ -26,11 +30,7 @@ fn run(args: &[&str], stdin: &str) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .expect("spawn carta");
-    let write_result = child
-        .stdin
-        .take()
-        .expect("child stdin")
-        .write_all(stdin.as_bytes());
+    let write_result = child.stdin.take().expect("child stdin").write_all(stdin);
     // A rejected invocation (e.g. an unsupported format) can exit before reading stdin, closing the
     // pipe; a broken-pipe write is then expected and must not fail the test.
     if let Err(error) = write_result {
@@ -141,6 +141,17 @@ fn missing_to_flag_fails() {
     assert!(!result.success);
     assert!(
         result.stderr.contains("--to") && result.stderr.contains("required"),
+        "stderr: {}",
+        result.stderr
+    );
+}
+
+#[test]
+fn invalid_utf8_input_fails() {
+    let result = run_bytes(&["-f", "commonmark", "-t", "html"], &[0xff, 0xfe]);
+    assert!(!result.success);
+    assert!(
+        result.stderr.contains("input is not valid UTF-8"),
         "stderr: {}",
         result.stderr
     );
