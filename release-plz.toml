@@ -15,6 +15,17 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). W
 version is below `0.1.0`, anything may change at any time.
 """
 
+commit_parsers = [
+  { message = "^feat", group = "added" },
+  { message = "^changed", group = "changed" },
+  { message = "^deprecated", group = "deprecated" },
+  { message = "^removed", group = "removed" },
+  { message = "^fix", group = "fixed" },
+  { message = "^perf", group = "performance" },
+  { message = "^security", group = "security" },
+  { message = ".*", group = "other" },
+]
+
 # The five crates share one version (`version_group`), so a release bumps and publishes them
 # together. `carta` is the single release representative: it owns the one root CHANGELOG.md
 # (folding in the other crates' commits via `changelog_include`), the one `v<version>` git tag,
