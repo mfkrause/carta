@@ -23,6 +23,8 @@ mod heading_ids;
 mod inline_scan;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "man"))]
 mod inline_text;
+#[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
+mod url_schemes;
 
 #[cfg(feature = "commonmark")]
 pub mod commonmark;
