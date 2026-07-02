@@ -162,7 +162,7 @@ fn parse_blocks(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Ve
             blocks.push(Block::Header(
                 level,
                 Attr::default(),
-                inline_content(&title, ctx),
+                inline_content(&title, ctx, depth),
             ));
             *index += 1;
             // Content after the closing run is re-parsed as a fresh block of its own.
@@ -178,7 +178,7 @@ fn parse_blocks(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Ve
             continue;
         }
         if is_table_line(line) {
-            blocks.push(parse_table(lines, index, ctx));
+            blocks.push(parse_table(lines, index, ctx, depth));
             continue;
         }
         if opens_list(line) {
@@ -248,7 +248,7 @@ fn split_on_embedded_code(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
         let mut out = Vec::new();
         let before: String = chars.get(..start).unwrap_or(&[]).iter().collect();
         if !before.trim().is_empty() {
-            out.push(Block::Para(inline_content(before.trim(), ctx)));
+            out.push(Block::Para(inline_content(before.trim(), ctx, depth)));
         }
         out.push(block);
         let after: String = chars.get(end..).unwrap_or(&[]).iter().collect();
@@ -259,7 +259,7 @@ fn split_on_embedded_code(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
     } else if text.trim().is_empty() {
         Vec::new()
     } else {
-        vec![Block::Para(inline_content(text.trim(), ctx))]
+        vec![Block::Para(inline_content(text.trim(), ctx, depth))]
     }
 }
 
@@ -576,7 +576,7 @@ fn build_list(items: &[(usize, bool, String)], pos: &mut usize, ctx: Ctx, depth:
             if *item_ordered != ordered {
                 break;
             }
-            let mut blocks = vec![Block::Plain(inline_content(text, ctx))];
+            let mut blocks = vec![Block::Plain(inline_content(text, ctx, depth))];
             *pos += 1;
             if depth < MAX_DEPTH && items.get(*pos).is_some_and(|(l, _, _)| *l > base_level) {
                 blocks.push(build_list(items, pos, ctx, depth + 1));
@@ -645,7 +645,7 @@ fn build_quote(
                 if !inlines.is_empty() {
                     inlines.push(Inline::LineBreak);
                 }
-                inlines.extend(inline_content(text, ctx));
+                inlines.extend(inline_content(text, ctx, depth));
                 *pos += 1;
             }
             blocks.push(Block::Plain(inlines));
@@ -856,7 +856,7 @@ fn inline_budget(len: usize) -> usize {
 }
 
 /// Parse a block's inline content: scan it, then drop leading and trailing whitespace.
-fn inline_content(text: &str, ctx: Ctx) -> Vec<Inline> {
+fn inline_content(text: &str, ctx: Ctx, depth: usize) -> Vec<Inline> {
     let chars: Vec<char> = text.chars().collect();
     let mut pos = 0;
     let mut budget = inline_budget(chars.len());
@@ -866,7 +866,7 @@ fn inline_content(text: &str, ctx: Ctx) -> Vec<Inline> {
         None,
         ctx,
         QuoteCtx::default(),
-        0,
+        depth,
         &mut budget,
     );
     trim_inline_ends(&mut inlines);
@@ -1020,22 +1020,22 @@ fn scan(
                 *pos += run;
             }
             '[' if chars.get(*pos + 1) == Some(&'[') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
             }
             '{' if chars.get(*pos + 1) == Some(&'{') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
             }
             '(' if chars.get(*pos + 1) == Some(&'(') && depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
             }
             '%' if chars.get(*pos + 1) == Some(&'%') => {
-                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
             }
             '<' if depth < MAX_DEPTH => {
-                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
             }
             '~' if chars.get(*pos + 1) == Some(&'~') => {
-                handle_construct(chars, pos, c, ctx, depth, &mut pending, &mut out);
+                handle_construct(chars, pos, c, ctx, depth, budget, &mut pending, &mut out);
             }
             other => {
                 pending.push(other);
@@ -1221,10 +1221,19 @@ fn handle_construct(
     c: char,
     ctx: Ctx,
     depth: usize,
+    budget: &mut usize,
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
-    if let Some((mut nodes, end)) = scan_construct(chars, *pos, c, ctx, depth) {
+    // Parsing a construct recurses (footnotes even re-parse their interior as blocks), and an
+    // enclosing emphasis run that fails to close discards its scan and re-scans the same span — so
+    // the same construct can be parsed many times over. Charge the shared backtracking budget by the
+    // span consumed, so that repeated re-parsing of a region cannot exceed the input-proportional
+    // budget and the total work stays linear.
+    if *budget > 0
+        && let Some((mut nodes, end)) = scan_construct(chars, *pos, c, ctx, depth)
+    {
+        *budget = budget.saturating_sub((end - *pos).max(1));
         flush(pending, out);
         out.append(&mut nodes);
         *pos = end;
@@ -2383,7 +2392,7 @@ const SCHEMES: &[&str] = &[
 
 /// Parse a run of table rows. The first row sets the column count and per-column alignment, and is
 /// the header row when it opens with `^`; all remaining rows form the single body.
-fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx) -> Block {
+fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Block {
     let mut rows: Vec<(bool, Vec<String>)> = Vec::new();
     while *index < lines.len() {
         let line = lines.get(*index).copied().unwrap_or("");
@@ -2411,7 +2420,7 @@ fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx) -> Block {
     let mut head_rows = Vec::new();
     let mut body_rows = Vec::new();
     for (i, (header, cells)) in rows.iter().enumerate() {
-        let row = build_row(cells, col_count, ctx);
+        let row = build_row(cells, col_count, ctx, depth);
         if i == 0 && *header {
             head_rows.push(row);
         } else {
@@ -2438,14 +2447,14 @@ fn parse_table(lines: &[&str], index: &mut usize, ctx: Ctx) -> Block {
 }
 
 /// Build a table row, fitting it to `col_count` by truncating extra cells and padding short rows.
-fn build_row(cells: &[String], col_count: usize, ctx: Ctx) -> Row {
+fn build_row(cells: &[String], col_count: usize, ctx: Ctx, depth: usize) -> Row {
     let mut out = Vec::with_capacity(col_count);
     for i in 0..col_count {
         let trimmed = cells.get(i).map_or("", |c| c.trim());
         let content = if trimmed.is_empty() {
             Vec::new()
         } else {
-            vec![Block::Plain(inline_content(trimmed, ctx))]
+            vec![Block::Plain(inline_content(trimmed, ctx, depth))]
         };
         out.push(Cell {
             attr: Attr::default(),
@@ -2527,4 +2536,35 @@ fn protected_end(chars: &[char], i: usize) -> Option<usize> {
         return Some(end);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Reads with the default option set and reports only whether the read completed without error,
+    /// so a pathological input can be checked for graceful, bounded-time handling.
+    fn reads_ok(input: &str) -> bool {
+        DokuwikiReader
+            .read(input, &ReaderOptions::default())
+            .is_ok()
+    }
+
+    #[test]
+    fn adversarial_footnotes_under_open_emphasis_do_not_stall() {
+        // Each `((…))` footnote re-parses its interior, and an emphasis run that fails to close
+        // discards its scan and re-scans the same span — so overlapping footnotes and unclosed `//`
+        // openers once re-parsed the same regions a super-linear number of times, which a nightly
+        // fuzz run hit as a timeout. Charging the inline backtracking budget for each construct
+        // bounds how often a region can be re-parsed; the pre-fix code blew up exponentially on an
+        // input a fraction of this size.
+        let input = format!("(({}))", "//((x)) ".repeat(400));
+        assert!(reads_ok(&input));
+    }
+
+    #[test]
+    fn adversarially_nested_footnotes_do_not_stall() {
+        let input = format!("{}x{}", "((".repeat(2_000), "))".repeat(2_000));
+        assert!(reads_ok(&input));
+    }
 }

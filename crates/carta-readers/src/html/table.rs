@@ -6,10 +6,15 @@ use carta_ast::{Alignment, Attr, ColWidth, Row};
 use super::tree::{Element, Node, attr_value, style_property};
 
 pub(super) fn span_attr(cell: &Element, key: &str) -> i32 {
+    // Spans expand a cell across the grid, and several passes materialise one slot per spanned
+    // column (or carry it down per spanned row). An attacker-supplied `colspan="99999999"` would
+    // otherwise force a multi-gigabyte allocation, so clamp to the HTML spec's limits: a colspan or
+    // `<col span>` is capped at 1000 and a rowspan at 65534.
+    let max = if key == "rowspan" { 65534 } else { 1000 };
     attr_value(cell, key)
         .and_then(|v| v.trim().parse::<i32>().ok())
         .filter(|&n| n >= 1)
-        .unwrap_or(1)
+        .map_or(1, |n| n.min(max))
 }
 
 pub(super) fn cell_alignment(cell: &Element) -> Alignment {
