@@ -16,13 +16,16 @@ mod entities;
     feature = "rst",
     feature = "latex",
     feature = "org",
-    feature = "dokuwiki"
+    feature = "dokuwiki",
+    feature = "mediawiki"
 ))]
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod inline_scan;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "man"))]
 mod inline_text;
+#[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
+mod url_schemes;
 
 #[cfg(feature = "commonmark")]
 pub mod commonmark;
