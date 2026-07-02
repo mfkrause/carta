@@ -121,13 +121,18 @@ impl State {
 
     /// Render a paragraph or plain block: fill its inlines to `width`, then, unless it is laid out for
     /// a hanging marker, guard a leading `*`, `#`, or `|` with a zero-width space so it is not read as
-    /// a heading, keyword, or table.
+    /// a heading, keyword, or table. Only a character from literal text needs guarding: an emphasis or
+    /// other markup delimiter that opens the line (e.g. the `*` of a bold span) is unambiguous.
     fn leaf(&mut self, inlines: &[Inline], width: usize, hang: bool) -> String {
         let pieces = self.pieces(inlines);
         if hang {
             fill_hang(&pieces, width, self.wrap)
         } else {
-            protect_leading(fill(&pieces, width, self.wrap))
+            let filled = fill(&pieces, width, self.wrap);
+            match inlines.first() {
+                Some(Inline::Str(text)) if !text.is_empty() => protect_leading(filled),
+                _ => filled,
+            }
         }
     }
 

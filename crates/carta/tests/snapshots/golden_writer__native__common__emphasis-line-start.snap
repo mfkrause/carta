@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Strong [ Str "bold" ]
+    , Space
+    , Str "opens"
+    , Space
+    , Str "the"
+    , Space
+    , Str "line"
+    ]
+, Para [ Str "*literal" , Space , Str "star" ]
+]
