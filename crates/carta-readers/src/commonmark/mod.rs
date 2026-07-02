@@ -1509,7 +1509,7 @@ mod tests {
         // With no enabled enumerator style for these shapes, the line still ends the paragraph and
         // becomes a fresh paragraph of its own rather than folding in.
         let ext = &[Extension::ListsWithoutPrecedingBlankline];
-        for line in ["(5) item", "ii. item", "a) item", "#) item"] {
+        for line in ["(5) item", "ii. item", "a) item"] {
             let input = format!("text\n{line}\n");
             assert!(
                 matches!(
@@ -1519,6 +1519,15 @@ mod tests {
                 "expected two paragraphs for {input:?}"
             );
         }
+        // With `space_in_atx_header` off, a hash run glued to a marker opens a heading rather than
+        // continuing the paragraph.
+        assert!(
+            matches!(
+                greedy_blocks("text\n#) item\n", ext).as_slice(),
+                [Block::Para(_), Block::Header(1, _, _)]
+            ),
+            "expected a paragraph then a heading for a glued hash marker"
+        );
     }
 
     #[test]

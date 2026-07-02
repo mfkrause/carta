@@ -1514,14 +1514,18 @@ impl Parser {
                 }
             }
             // CommonMark permits up to three columns of indentation before an ATX opener; the
-            // Markdown dialect requires the hashes to start at the left margin.
+            // Markdown dialect requires the hashes to start at the left margin. A space after the
+            // hash run is required in CommonMark and under `space_in_atx_header`; when that
+            // extension is off in a Markdown dialect, a hash run glued to text opens a heading.
+            let require_space =
+                !self.greedy_paragraphs || self.extensions.contains(Extension::SpaceInAtxHeader);
             if !gates.heading
                 && (!self.greedy_paragraphs || indent == 0)
-                && let Some(level) = cursor.atx_heading(self.greedy_paragraphs)
+                && let Some(level) = cursor.atx_heading(self.greedy_paragraphs, require_space)
             {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
-                self.append_text(index, &strip_atx_closing(&cursor.rest()));
+                self.append_text(index, &strip_atx_closing(&cursor.rest(), require_space));
                 self.close(index);
                 return Some(index);
             }
@@ -2986,13 +2990,18 @@ fn strip_trailing_blank_lines(text: &str) -> String {
 
 /// Trim an ATX heading's content: drop surrounding spaces/tabs and an optional closing run of `#`
 /// (which must be preceded by whitespace or form the whole line, else it belongs to the content).
-fn strip_atx_closing(content: &str) -> String {
+fn strip_atx_closing(content: &str, require_preceding_space: bool) -> String {
     let trimmed = content.trim_matches([' ', '\t']);
     let without_hashes = trimmed.trim_end_matches('#');
     if without_hashes.len() == trimmed.len() {
         return trimmed.to_owned();
     }
-    if without_hashes.is_empty() || without_hashes.ends_with([' ', '\t']) {
+    // A closing hash run always terminates the heading when the dialect does not require a space
+    // after the opener; otherwise the run must be set off from the content by whitespace.
+    if !require_preceding_space
+        || without_hashes.is_empty()
+        || without_hashes.ends_with([' ', '\t'])
+    {
         without_hashes.trim_end_matches([' ', '\t']).to_owned()
     } else {
         trimmed.to_owned()
@@ -4000,6 +4009,50 @@ mod dialect_tests {
     fn deep_heading_still_requires_a_space_after_the_hashes() {
         // Seven hashes glued to content is not a heading in either dialect.
         let blocks = markdown_with("#######nospace\n", presets::MARKDOWN);
+        assert!(matches!(blocks.as_slice(), [IrBlock::Para(_)]));
+    }
+
+    #[test]
+    fn classic_dialect_reads_a_hash_run_glued_to_text_as_a_heading() {
+        // With space_in_atx_header off, a hash run needs no following space.
+        for input in ["#heading\n", "##heading\n", "###heading\n"] {
+            let blocks = markdown_with(input, presets::MARKDOWN_STRICT_READ);
+            assert_eq!(
+                heading_level(&blocks),
+                Some(input.bytes().take_while(|&b| b == b'#').count() as i32),
+                "expected heading for {input:?}, got {blocks:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn classic_dialect_strips_a_glued_closing_hash_run() {
+        // With space_in_atx_header off, a trailing hash run always terminates the heading,
+        // even glued to the content; an interior hash is kept.
+        let cases = [
+            ("#foo#\n", "foo"),
+            ("#foo ###\n", "foo"),
+            ("#foo#bar#\n", "foo#bar"),
+        ];
+        for (input, want) in cases {
+            let blocks = markdown_with(input, presets::MARKDOWN_STRICT_READ);
+            match blocks.as_slice() {
+                [IrBlock::Heading(1, text)] => assert_eq!(text, want, "for {input:?}"),
+                other => panic!("expected level-1 heading for {input:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn extended_dialect_requires_a_space_after_the_hash_run() {
+        // space_in_atx_header is on in the extended dialect: a glued run is a paragraph.
+        let blocks = markdown_with("#heading\n", presets::MARKDOWN);
+        assert!(matches!(blocks.as_slice(), [IrBlock::Para(_)]));
+    }
+
+    #[test]
+    fn commonmark_requires_a_space_after_the_hash_run() {
+        let blocks = strict_with("#heading\n", presets::COMMONMARK);
         assert!(matches!(blocks.as_slice(), [IrBlock::Para(_)]));
     }
 
