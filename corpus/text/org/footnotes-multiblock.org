@@ -1,0 +1,8 @@
+A reference to a note[fn:1] in the text.
+
+[fn:1] First paragraph of the note.
+
+Second paragraph of the note.
+
+
+A separate top-level paragraph.

@@ -1,0 +1,1 @@
+Greek letters \alpha, \beta, and \gamma render as symbols.

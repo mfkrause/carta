@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["first-level-heading",[],[]],[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"level"},{"t":"Space"},{"t":"Str","c":"heading"}]]},{"t":"Para","c":[{"t":"Str","c":"Body"},{"t":"Space"},{"t":"Str","c":"text"},{"t":"Space"},{"t":"Str","c":"under"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"first"},{"t":"Space"},{"t":"Str","c":"heading."}]},{"t":"Header","c":[2,["second-level-heading",[],[]],[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"level"},{"t":"Space"},{"t":"Str","c":"heading"},{"t":"Space"},{"t":"Span","c":[["",["tag"],[["tag-name","work"]]],[{"t":"SmallCaps","c":[{"t":"Str","c":"work"}]}]]},{"t":"Str","c":" "},{"t":"Span","c":[["",["tag"],[["tag-name","urgent"]]],[{"t":"SmallCaps","c":[{"t":"Str","c":"urgent"}]}]]}]]},{"t":"Header","c":[3,["third-level-heading",[],[]],[{"t":"Str","c":"Third"},{"t":"Space"},{"t":"Str","c":"level"},{"t":"Space"},{"t":"Str","c":"heading"}]]}]}

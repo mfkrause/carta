@@ -1,0 +1,6 @@
+See the note[fn:t] below.
+
+[fn:t] The note body paragraph.
+
+| Column A | Column B |
+| 1        | 2        |
