@@ -1283,6 +1283,11 @@ fn handle_delim(
             *pos = scan_pos;
             return;
         }
+        // No closer: the opener is literal text and the speculative scan is thrown away, but the
+        // outer scan resumes just past the opener and, in a delimiter-dense run, would re-scan the
+        // same span from each following opener in turn. Charge the shared budget by the span scanned
+        // so repeated failed opens stay linear in the input rather than quadratic (an OOM vector).
+        *budget = budget.saturating_sub(scan_pos - begin);
     }
     pending.push(delim);
     pending.push(delim);
@@ -1328,6 +1333,9 @@ fn handle_quote(
             out.push(Inline::Quoted(quote_type(quote), inner));
             return;
         }
+        // As in `handle_delim`: an unpaired opener rewinds to just past itself, so charge the span
+        // the failed scan covered to keep a quote-dense run from being re-scanned quadratically.
+        *budget = budget.saturating_sub(pos.saturating_sub(begin));
         *pos = begin + 1;
     } else {
         *pos = begin + 1;
@@ -2576,6 +2584,17 @@ mod tests {
     #[test]
     fn adversarially_nested_footnotes_do_not_stall() {
         let input = format!("{}x{}", "((".repeat(2_000), "))".repeat(2_000));
+        assert!(reads_ok(&input));
+    }
+
+    #[test]
+    fn a_delimiter_dense_run_does_not_blow_up() {
+        // An emphasis opener with no closer discards its speculative scan and rewinds to just past
+        // itself, so a run of unclosed `//` openers whose would-be closers are all whitespace-led
+        // (never valid) was re-scanned from every position — quadratic work that allocated a
+        // discarded inline tree each time. A nightly fuzz run hit this as an out-of-memory on a
+        // sub-kilobyte input. Charging the backtracking budget for the scanned span keeps it linear.
+        let input = "//a ".repeat(4_000);
         assert!(reads_ok(&input));
     }
 }

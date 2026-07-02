@@ -295,6 +295,21 @@ mod tests {
         assert!(matches!(note.as_slice(), [Block::Para(_)]));
     }
 
+    #[test]
+    fn deeply_nested_containers_do_not_overflow_the_stack() {
+        // The block tree is built iteratively, but the passes that turn it into the document — header
+        // gathering, reference resolution, IR-to-AST lowering — recurse through it. A single line of
+        // thousands of `>` nested a block quote per marker, deep enough to overflow the stack when
+        // those walks descended; a nightly fuzz run hit exactly this on the commonmark and (embedded)
+        // ipynb targets. Capping container nesting keeps the tree shallow enough to walk safely.
+        let deep_quotes = ">".repeat(50_000);
+        assert!(
+            CommonmarkReader
+                .read(&deep_quotes, &ReaderOptions::default())
+                .is_ok()
+        );
+    }
+
     /// Read in the markdown dialect (greedy paragraphs) with the given extensions enabled.
     fn read_markdown(input: &str, exts: &[Extension]) -> Document {
         let mut extensions = Extensions::empty();
