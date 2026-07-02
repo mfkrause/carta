@@ -17,7 +17,7 @@ export LC_ALL=C
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$BENCH_DIR/../shared.sh"
 ORACLE_VERSION_FILE="$ROOT/.oracle/PANDOC_VERSION"
-OX="${OXIDOC_BIN:-$ROOT/target/release/carta}"
+OX="${CARTA_BIN:-$ROOT/target/release/carta}"
 SEED="$CORPUS/bench/seed.md"
 
 # Tunables (env-overridable).
