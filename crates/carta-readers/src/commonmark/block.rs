@@ -78,6 +78,15 @@ enum Kind {
     IndentedCode,
     FencedCode(FenceInfo),
     HtmlBlock(u8),
+    /// A raw HTML block in the Markdown family when inner content is not parsed (neither
+    /// `native_divs` nor `markdown_in_html_blocks` applies). A block-level open tag at the left
+    /// margin begins a span that accumulates lines verbatim — nested same-name tags counted, blank
+    /// lines kept — until a close tag brings `depth` back to zero; the whole span is one `RawBlock`.
+    /// A self-closing, void, or bare close tag opens a span already at `depth` zero: a single line.
+    RawHtmlSpan {
+        tag: String,
+        depth: usize,
+    },
     /// A block-level HTML element whose inner content is parsed as markdown. A `<div>` (with
     /// `native_divs` enabled) becomes an [`IrBlock::Div`] carrying the tag's attributes; any other
     /// recognized block tag (with `markdown_in_html_blocks` enabled) keeps its open and close tags as
@@ -391,7 +400,12 @@ impl Parser {
                 .filter(|&c| !self.is_container(c))
             && matches!(
                 self.kind(leaf),
-                Some(Kind::FencedCode(_) | Kind::IndentedCode | Kind::HtmlBlock(_))
+                Some(
+                    Kind::FencedCode(_)
+                        | Kind::IndentedCode
+                        | Kind::HtmlBlock(_)
+                        | Kind::RawHtmlSpan { .. }
+                )
             )
         {
             match self.try_continue(leaf, &mut cursor) {
@@ -819,6 +833,132 @@ impl Parser {
             self.process_line(&trailing, &[]);
         }
         Some(index)
+    }
+
+    /// The Markdown family reading raw HTML where inner content is not parsed: a block-level tag is
+    /// kept verbatim rather than opened as a native div or a markdown-in-HTML element.
+    fn markdown_raw_html(&self) -> bool {
+        self.greedy_paragraphs
+            && !self.extensions.contains(Extension::MarkdownInHtmlBlocks)
+            && !self.extensions.contains(Extension::NativeDivs)
+    }
+
+    /// In the Markdown family reading raw HTML, a block-level HTML tag that starts the line opens a
+    /// raw block. A non-self-closing open tag with a balanced matching close is a span running to that
+    /// close (nested same-name tags and blank lines included); every other block tag — self-closing,
+    /// void (no close ahead), or a bare close tag — is a single-line raw block. With
+    /// `markdown_attribute` the block reads like the other block openers — it accepts up to three
+    /// columns of indentation and interrupts an open paragraph (which then reads tight); without it
+    /// the tag must stand at column zero and folds into an open paragraph as ordinary text instead.
+    fn open_markdown_raw_html(
+        &mut self,
+        container: usize,
+        indent: usize,
+        in_paragraph: bool,
+        cursor: &mut Cursor,
+        following: &[&str],
+    ) -> Option<usize> {
+        enum Opener {
+            /// A single-line raw block holding `line[..end]`.
+            Single(usize),
+            /// A multi-line span with the given tag name and open-nesting depth after its first line.
+            Span(String, usize),
+        }
+        let interrupts = self.extensions.contains(Extension::MarkdownAttribute);
+        let max_indent = if interrupts { 3 } else { 0 };
+        if !self.markdown_raw_html() || indent > max_indent || (in_paragraph && !interrupts) {
+            return None;
+        }
+        let line = cursor.remaining().to_owned();
+        let opener = if let Some(open) = html_element::parse_open_tag(&line) {
+            let after_tag = line.get(open.len..).unwrap_or("");
+            let (line_depth, same_line) = if open.self_closing {
+                (0, None)
+            } else {
+                html_element::scan_depth(after_tag, &open.tag, 1)
+            };
+            match same_line {
+                Some(offset) => Opener::Single(open.len + offset),
+                // A self-closing/void tag, or an open tag with no balanced close ahead: the tag alone
+                // is the raw block, and anything after it on the line is parsed normally.
+                None if line_depth == 0
+                    || !self.raw_html_span_closes(container, line_depth, &open.tag, following) =>
+                {
+                    Opener::Single(open.len)
+                }
+                None => Opener::Span(open.tag, line_depth),
+            }
+        } else if let Some(len) = html_element::parse_close_tag(&line) {
+            Opener::Single(len)
+        } else {
+            return None;
+        };
+        // The whole opener line is read here; content past a close tag is re-fed as a fresh line.
+        cursor.advance_chars(line.len());
+        if in_paragraph {
+            let leaf = self.deepest_open(container);
+            if matches!(self.kind(leaf), Some(Kind::Paragraph)) {
+                if let Some(node) = self.nodes.get_mut(leaf) {
+                    node.as_plain = true;
+                }
+                self.close(leaf);
+            }
+        }
+        match opener {
+            Opener::Single(end) => Some(self.emit_raw_html_leaf(container, &line, end)),
+            Opener::Span(tag, depth) => {
+                let kind = Kind::RawHtmlSpan { tag, depth };
+                let parent = self.place(container, &kind);
+                let index = self.append_child(parent, Node::new(kind));
+                self.append_text(index, &line);
+                self.append_text(index, "\n");
+                Some(index)
+            }
+        }
+    }
+
+    /// Emit a single-line raw HTML block holding `line[..end]`, re-feeding any trailing content on the
+    /// line as a fresh line, and return the closed leaf.
+    fn emit_raw_html_leaf(&mut self, container: usize, line: &str, end: usize) -> usize {
+        let kept = line.get(..end).unwrap_or(line).to_owned();
+        let rest = line.get(end..).unwrap_or("").to_owned();
+        let kind = Kind::RawHtmlSpan {
+            tag: String::new(),
+            depth: 0,
+        };
+        let parent = self.place(container, &kind);
+        let index = self.append_child(parent, Node::new(kind));
+        self.append_text(index, &kept);
+        self.close(index);
+        if !rest.trim().is_empty() {
+            self.process_line(&rest, &[]);
+        }
+        index
+    }
+
+    /// Whether a raw HTML span opened at `depth` finds its balanced close somewhere in the following
+    /// lines (read at the container's own indentation). A span cannot outlast its container.
+    fn raw_html_span_closes(
+        &self,
+        container: usize,
+        depth: usize,
+        tag: &str,
+        following: &[&str],
+    ) -> bool {
+        let path = self.container_path(container);
+        let mut depth = depth;
+        for line in following {
+            let mut cursor = Cursor::new(line);
+            if !self.strip_container_path(&path, &mut cursor) {
+                return false;
+            }
+            let (next, close) = html_element::scan_depth(cursor.remaining(), tag, depth);
+            if close.is_some() {
+                return true;
+            }
+            depth = next;
+        }
+        false
     }
 
     fn text_tables_enabled(&self) -> bool {
@@ -1272,6 +1412,10 @@ impl Parser {
                 self.continue_html(index, kind, cursor);
                 Continue::MatchedLeaf
             }
+            Some(Kind::RawHtmlSpan { tag, depth }) => {
+                self.continue_raw_html_span(index, &tag, depth, cursor);
+                Continue::MatchedLeaf
+            }
             _ => Continue::NotMatched,
         }
     }
@@ -1326,6 +1470,42 @@ impl Parser {
         self.append_text(index, "\n");
         if html_block::closes(kind, &line) {
             self.close(index);
+        }
+    }
+
+    /// Continue an open raw HTML span: absorb this line verbatim (blank lines included), tracking the
+    /// nesting of same-name tags. When a close tag brings the depth to zero, the span ends with that
+    /// tag; any content after it on the line is re-fed as a fresh line.
+    fn continue_raw_html_span(
+        &mut self,
+        index: usize,
+        tag: &str,
+        depth: usize,
+        cursor: &mut Cursor,
+    ) {
+        let line = cursor.rest();
+        let (new_depth, close) = html_element::scan_depth(&line, tag, depth);
+        if let Some(offset) = close {
+            let kept = line.get(..offset).unwrap_or(&line).to_owned();
+            let rest = line.get(offset..).unwrap_or("").to_owned();
+            self.append_text(index, &kept);
+            self.set_raw_html_depth(index, 0);
+            self.close(index);
+            if !rest.trim().is_empty() {
+                self.process_line(&rest, &[]);
+            }
+        } else {
+            self.append_text(index, &line);
+            self.append_text(index, "\n");
+            self.set_raw_html_depth(index, new_depth);
+        }
+    }
+
+    fn set_raw_html_depth(&mut self, index: usize, value: usize) {
+        if let Some(node) = self.nodes.get_mut(index)
+            && let Kind::RawHtmlSpan { depth, .. } = &mut node.kind
+        {
+            *depth = value;
         }
     }
 
@@ -1595,7 +1775,19 @@ impl Parser {
             if let Some(block) = self.open_html_element(container, indent, cursor) {
                 return Some(block);
             }
-            if let Some(kind) = html_block::classify(cursor.remaining(), !in_paragraph) {
+            // With inner HTML not parsed, a block-level tag at the left margin spans to its balanced
+            // close as one raw block.
+            if let Some(block) =
+                self.open_markdown_raw_html(container, indent, in_paragraph, cursor, following)
+            {
+                return Some(block);
+            }
+            // In that same reading, the block-level HTML kinds (6 and 7) are handled above or left as
+            // inline text; only the container-agnostic kinds (comment, script/pre/style, processing
+            // instruction, declaration, CDATA) still form a raw block here.
+            if let Some(kind) = html_block::classify(cursor.remaining(), !in_paragraph)
+                && !(self.markdown_raw_html() && matches!(kind, 6 | 7))
+            {
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
                 let index = self.append_child(parent, Node::new(Kind::HtmlBlock(kind)));
                 // The start line keeps its leading indentation (always spaces after normalization).
@@ -2249,6 +2441,9 @@ impl Parser {
                 }
             }
             Kind::HtmlBlock(kind) => IrBlock::RawHtml(self.finalize_html_block(node, *kind)),
+            Kind::RawHtmlSpan { .. } => {
+                IrBlock::RawHtml(node.text.trim_end_matches('\n').to_owned())
+            }
             Kind::RawTex { .. } => {
                 // A closed environment is verbatim raw TeX. One left open at end of input never
                 // found its `\end`, so its lines are ordinary text: they fall back to a paragraph.
@@ -3087,6 +3282,8 @@ mod html_element {
         pub(super) attr: Attr,
         /// Byte length of the whole tag, up to and including the closing `>`.
         pub(super) len: usize,
+        /// Whether the tag closes itself (`<div/>`), so it opens no element to balance.
+        pub(super) self_closing: bool,
     }
 
     /// A located close tag within a line.
@@ -3195,16 +3392,14 @@ mod html_element {
         loop {
             let after_ws = skip_ws(bytes, i);
             // A `>` (optionally preceded by a self-closing `/`) ends the tag.
-            let close = if bytes.get(after_ws) == Some(&b'/') {
-                after_ws + 1
-            } else {
-                after_ws
-            };
+            let self_closing = bytes.get(after_ws) == Some(&b'/');
+            let close = if self_closing { after_ws + 1 } else { after_ws };
             if bytes.get(close) == Some(&b'>') {
                 return Some(OpenTag {
                     tag: name,
                     attr,
                     len: close + 1,
+                    self_closing,
                 });
             }
             // An attribute must be separated from the name (or a previous attribute) by whitespace.
@@ -3322,6 +3517,59 @@ mod html_element {
         }
         i = skip_ws(bytes, i);
         (bytes.get(i) == Some(&b'>')).then_some(i + 1)
+    }
+
+    /// If `s` begins with a block-level close tag (`</div>`, optional whitespace before `>`), return
+    /// its byte length. A bare close tag at a line start stands alone as a raw block.
+    pub(super) fn parse_close_tag(s: &str) -> Option<usize> {
+        let bytes = s.as_bytes();
+        if bytes.first() != Some(&b'<') || bytes.get(1) != Some(&b'/') {
+            return None;
+        }
+        let name_start = 2;
+        let mut i = name_start;
+        while bytes
+            .get(i)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'-')
+        {
+            i += 1;
+        }
+        let name = s.get(name_start..i)?.to_ascii_lowercase();
+        if !is_block_tag(&name) {
+            return None;
+        }
+        i = skip_ws(bytes, i);
+        (bytes.get(i) == Some(&b'>')).then_some(i + 1)
+    }
+
+    /// Walk `s` from the given open-nesting `depth`, tracking only tags named `tag`: each non-self-
+    /// closing open raises the depth, each close lowers it, and any other tag is skipped whole so a
+    /// `>` inside its attributes cannot be miscounted. Returns the depth after `s` and, when a close
+    /// brings the depth to zero within `s`, the byte offset just past that close tag.
+    pub(super) fn scan_depth(s: &str, tag: &str, mut depth: usize) -> (usize, Option<usize>) {
+        let bytes = s.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes.get(i) == Some(&b'<') {
+                if let Some(open) = parse_open_tag(s.get(i..).unwrap_or("")) {
+                    if open.tag == tag && !open.self_closing {
+                        depth += 1;
+                    }
+                    i += open.len;
+                    continue;
+                }
+                if let Some(end) = close_tag_at(bytes, i, tag) {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return (0, Some(end));
+                    }
+                    i = end;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        (depth, None)
     }
 
     fn skip_ws(bytes: &[u8], mut i: usize) -> usize {
@@ -3913,20 +4161,14 @@ mod html_element_tests {
     }
 
     #[test]
-    fn both_extensions_off_leaves_the_html_block_reading_intact() {
-        // With neither extension, a `<div>` is an ordinary raw HTML block ended by a blank line, so
-        // its inner text is not parsed as a div or wrapped in tightened content.
+    fn both_extensions_off_spans_a_block_element_to_its_balanced_close() {
+        // With neither extension, a block-level tag at the left margin is kept verbatim as one raw
+        // block spanning to its balanced close — blank lines included — rather than parsed as a div.
         let out = with("<div>\n\nfoo\n\n</div>\n", &[]);
-        let [
-            IrBlock::RawHtml(open),
-            IrBlock::Para(text),
-            IrBlock::RawHtml(_),
-        ] = out.as_slice()
-        else {
-            panic!("expected the raw HTML-block reading, got {out:?}");
+        let [IrBlock::RawHtml(html)] = out.as_slice() else {
+            panic!("expected one raw HTML block, got {out:?}");
         };
-        assert!(open.starts_with("<div>"));
-        assert_eq!(text, "foo");
+        assert_eq!(html, "<div>\n\nfoo\n\n</div>");
     }
 
     #[test]
@@ -4006,6 +4248,56 @@ mod html_element_tests {
         // Trailing whitespace before `>` is allowed; a bare name is not a close tag.
         assert!(html_element::find_close_tag("</div >", "div").is_some());
         assert!(html_element::find_close_tag("no tag here", "div").is_none());
+    }
+
+    #[test]
+    fn parse_open_tag_flags_a_self_closing_tag() {
+        assert!(
+            html_element::parse_open_tag("<div/>")
+                .expect("a div")
+                .self_closing
+        );
+        assert!(
+            html_element::parse_open_tag("<hr />")
+                .expect("an hr")
+                .self_closing
+        );
+        assert!(
+            !html_element::parse_open_tag("<div>")
+                .expect("a div")
+                .self_closing
+        );
+    }
+
+    #[test]
+    fn parse_close_tag_matches_a_leading_block_close_tag() {
+        assert_eq!(
+            html_element::parse_close_tag("</div>rest"),
+            Some("</div>".len())
+        );
+        assert_eq!(
+            html_element::parse_close_tag("</div  >"),
+            Some("</div  >".len())
+        );
+        // Only a block-level name, only at the very start.
+        assert_eq!(html_element::parse_close_tag("</span>"), None);
+        assert_eq!(html_element::parse_close_tag("x</div>"), None);
+        assert_eq!(html_element::parse_close_tag("<div>"), None);
+    }
+
+    #[test]
+    fn scan_depth_balances_nested_same_name_tags() {
+        // A same-name open raises the depth; the matching close returns it to zero mid-line.
+        let (depth, close) = html_element::scan_depth("<div>a</div></div>", "div", 1);
+        assert_eq!(depth, 0);
+        assert_eq!(close, Some("<div>a</div>".len() + "</div>".len()));
+        // A self-closing same-name tag does not raise the depth.
+        assert_eq!(html_element::scan_depth("<div/>", "div", 1), (1, None));
+        // A different tag's `>` inside its attributes is skipped whole.
+        assert_eq!(
+            html_element::scan_depth("<td x=\">\">", "div", 1),
+            (1, None)
+        );
     }
 }
 
@@ -4421,5 +4713,142 @@ mod fence_interrupt_tests {
             matches!(out.get(1), Some(IrBlock::Heading(1, _))),
             "a heading after a non-interrupting tilde fence still opens: {out:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod raw_html_span_tests {
+    use super::{IrBlock, parse};
+    use carta_core::{Extension, Extensions};
+
+    /// The Markdown family reading raw HTML where inner content is not parsed (the column-zero,
+    /// no-interrupt gate: neither `markdown_attribute` nor the div/markdown-in-HTML extensions).
+    fn strict(input: &str) -> Vec<IrBlock> {
+        parse(input, Extensions::empty(), true).0
+    }
+
+    /// The same reading with `markdown_attribute`, which lets the block indent and interrupt.
+    fn attr(input: &str) -> Vec<IrBlock> {
+        parse(
+            input,
+            Extensions::from_list(&[Extension::MarkdownAttribute]),
+            true,
+        )
+        .0
+    }
+
+    #[test]
+    fn a_block_element_spans_to_its_balanced_close() {
+        let out = strict("<div>\nx\n\ny\n</div>\n");
+        let [IrBlock::RawHtml(html)] = out.as_slice() else {
+            panic!("expected one raw HTML block, got {out:?}");
+        };
+        assert_eq!(html, "<div>\nx\n\ny\n</div>");
+    }
+
+    #[test]
+    fn nested_same_name_tags_balance() {
+        let out = strict("<div>\n<div>\na\n</div>\nb\n</div>\n");
+        let [IrBlock::RawHtml(html)] = out.as_slice() else {
+            panic!("expected one raw HTML block, got {out:?}");
+        };
+        assert_eq!(html, "<div>\n<div>\na\n</div>\nb\n</div>");
+    }
+
+    #[test]
+    fn a_void_tag_is_a_single_line_block_and_the_rest_parses() {
+        let out = strict("<hr>\ntext\n");
+        let [IrBlock::RawHtml(html), IrBlock::Para(text)] = out.as_slice() else {
+            panic!("expected a single-tag raw block then a paragraph, got {out:?}");
+        };
+        assert_eq!(html, "<hr>");
+        assert_eq!(text, "text");
+    }
+
+    #[test]
+    fn a_self_closing_tag_is_a_single_line_block() {
+        let out = strict("<div/>\ntext\n");
+        assert!(
+            matches!(out.first(), Some(IrBlock::RawHtml(h)) if h == "<div/>"),
+            "a self-closing tag opens no span: {out:?}"
+        );
+    }
+
+    #[test]
+    fn a_bare_close_tag_stands_alone() {
+        let out = strict("</div>\ntext\n");
+        let [IrBlock::RawHtml(html), IrBlock::Para(_)] = out.as_slice() else {
+            panic!("expected a lone close tag then a paragraph, got {out:?}");
+        };
+        assert_eq!(html, "</div>");
+    }
+
+    #[test]
+    fn an_open_and_close_on_one_line_re_feeds_the_trailing_text() {
+        let out = strict("<div>x</div> tail\n");
+        let [IrBlock::RawHtml(html), IrBlock::Para(text)] = out.as_slice() else {
+            panic!("expected a raw block then the trailing text, got {out:?}");
+        };
+        assert_eq!(html, "<div>x</div>");
+        assert_eq!(text, "tail");
+    }
+
+    #[test]
+    fn an_unclosed_open_tag_is_the_tag_alone() {
+        let out = strict("<div>\nx\n\ny\n");
+        let [IrBlock::RawHtml(html), IrBlock::Para(a), IrBlock::Para(b)] = out.as_slice() else {
+            panic!("expected the tag alone then two paragraphs, got {out:?}");
+        };
+        assert_eq!(html, "<div>");
+        assert_eq!(a, "x");
+        assert_eq!(b, "y");
+    }
+
+    #[test]
+    fn an_inline_or_unknown_tag_opens_no_block() {
+        for input in ["<span>x</span>\ntext\n", "<foo>\nx\n</foo>\n"] {
+            let out = strict(input);
+            assert!(
+                !out.iter().any(|b| matches!(b, IrBlock::RawHtml(_))),
+                "a non-block tag stays inline: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn without_markdown_attribute_an_indented_tag_is_inline() {
+        let out = strict("   <div>\nx\n</div>\n");
+        assert!(
+            !out.iter().any(|b| matches!(b, IrBlock::RawHtml(_))),
+            "an indented tag folds into a paragraph: {out:?}"
+        );
+    }
+
+    #[test]
+    fn with_markdown_attribute_an_indented_tag_opens_a_block() {
+        let out = attr("   <div>\nx\n</div>\n");
+        let [IrBlock::RawHtml(html)] = out.as_slice() else {
+            panic!("expected one raw HTML block, got {out:?}");
+        };
+        assert_eq!(html, "<div>\nx\n</div>");
+    }
+
+    #[test]
+    fn without_markdown_attribute_the_block_folds_into_a_paragraph() {
+        let out = strict("text\n<div>\nx\n</div>\n");
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(_)]),
+            "the block does not interrupt the paragraph: {out:?}"
+        );
+    }
+
+    #[test]
+    fn with_markdown_attribute_the_block_interrupts_a_paragraph() {
+        let out = attr("text\n<div>\nx\n</div>\n");
+        let [IrBlock::Plain(text), IrBlock::RawHtml(html)] = out.as_slice() else {
+            panic!("expected a tight paragraph then a raw block, got {out:?}");
+        };
+        assert_eq!(text, "text");
+        assert_eq!(html, "<div>\nx\n</div>");
     }
 }
