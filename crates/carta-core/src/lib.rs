@@ -4,6 +4,7 @@
 //! output text. Readers and writers depend only on the AST contract and this crate, so input and
 //! output formats stay independent.
 
+use std::fmt;
 use std::io;
 
 use carta_ast::{Block, Document, Inline};
@@ -23,7 +24,9 @@ pub enum Error {
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
     #[error("input is not valid UTF-8: {0}")]
-    InvalidUtf8(#[from] std::string::FromUtf8Error),
+    InvalidUtf8(#[from] std::str::Utf8Error),
+    #[error("format '{0}' converts binary data; use the byte-level API (convert_bytes)")]
+    BinaryFormat(String),
     #[error("unsupported format: {0}")]
     UnsupportedFormat(String),
     #[error("format '{0}' is recognized but not enabled in this build")]
@@ -330,5 +333,150 @@ pub trait Writer {
     /// instead and leaves this `false`.
     fn numbers_sections_in_body(&self) -> bool {
         false
+    }
+}
+
+/// Parses input bytes in some source format into the document model. The byte-shaped counterpart of
+/// [`Reader`], for formats whose wire form is not text — zip containers and the like.
+pub trait BytesReader {
+    fn read(&self, input: &[u8], options: &ReaderOptions) -> Result<Document>;
+}
+
+/// Renders the document model into some target format's bytes. The byte-shaped counterpart of
+/// [`Writer`], for formats whose output is not text — zip containers and the like.
+///
+/// This trait carries no decoration hooks (templates, table of contents, metadata rendering): a
+/// container writer produces a complete document by construction. Hooks are added when a real format
+/// needs them.
+pub trait BytesWriter {
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>>;
+}
+
+/// The output of a conversion: text from a text writer, bytes from a byte-shaped writer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Output {
+    Text(String),
+    Bytes(Vec<u8>),
+}
+
+/// A resolved reader, either text-shaped ([`Reader`]) or byte-shaped ([`BytesReader`]).
+pub enum AnyReader {
+    Text(Box<dyn Reader>),
+    Bytes(Box<dyn BytesReader>),
+}
+
+impl fmt::Debug for AnyReader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let variant = match self {
+            AnyReader::Text(_) => "Text",
+            AnyReader::Bytes(_) => "Bytes",
+        };
+        f.debug_tuple(variant).finish()
+    }
+}
+
+impl AnyReader {
+    /// Reads `input` into a document. A text reader decodes the bytes as UTF-8 first; a byte reader
+    /// takes the raw slice.
+    ///
+    /// # Errors
+    /// [`Error::InvalidUtf8`] if a text reader is handed input that is not valid UTF-8, plus any error
+    /// the underlying reader returns.
+    pub fn read(&self, input: &[u8], options: &ReaderOptions) -> Result<Document> {
+        match self {
+            AnyReader::Text(reader) => reader.read(std::str::from_utf8(input)?, options),
+            AnyReader::Bytes(reader) => reader.read(input, options),
+        }
+    }
+}
+
+/// A resolved writer, either text-shaped ([`Writer`]) or byte-shaped ([`BytesWriter`]).
+pub enum AnyWriter {
+    Text(Box<dyn Writer>),
+    Bytes(Box<dyn BytesWriter>),
+}
+
+impl fmt::Debug for AnyWriter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let variant = match self {
+            AnyWriter::Text(_) => "Text",
+            AnyWriter::Bytes(_) => "Bytes",
+        };
+        f.debug_tuple(variant).finish()
+    }
+}
+
+impl AnyWriter {
+    /// This format's own standalone template, or `None` when standalone output is identical to the
+    /// fragment. A byte-shaped writer never has one.
+    #[must_use]
+    pub fn default_template(&self) -> Option<&'static str> {
+        match self {
+            AnyWriter::Text(writer) => writer.default_template(),
+            AnyWriter::Bytes(_) => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AnyReader, AnyWriter, BytesReader, BytesWriter, Error, Reader, ReaderOptions, Result,
+        WriterOptions,
+    };
+    use carta_ast::Document;
+
+    struct FixedBytesWriter;
+    impl BytesWriter for FixedBytesWriter {
+        fn write(&self, _document: &Document, _options: &WriterOptions) -> Result<Vec<u8>> {
+            Ok(vec![0x00, 0xff, 0x9f])
+        }
+    }
+
+    struct RawBytesReader;
+    impl BytesReader for RawBytesReader {
+        fn read(&self, input: &[u8], _options: &ReaderOptions) -> Result<Document> {
+            assert_eq!(input, &[0xff, 0xfe]);
+            Ok(Document::default())
+        }
+    }
+
+    struct EmptyTextReader;
+    impl Reader for EmptyTextReader {
+        fn read(&self, _input: &str, _options: &ReaderOptions) -> Result<Document> {
+            Ok(Document::default())
+        }
+    }
+
+    #[test]
+    fn bytes_writer_round_trips_bytes() {
+        let writer = AnyWriter::Bytes(Box::new(FixedBytesWriter));
+        assert!(writer.default_template().is_none());
+        let AnyWriter::Bytes(inner) = &writer else {
+            panic!("expected a byte writer");
+        };
+        let output = inner
+            .write(&Document::default(), &WriterOptions::default())
+            .unwrap();
+        assert_eq!(output, vec![0x00, 0xff, 0x9f]);
+    }
+
+    #[test]
+    fn text_reader_rejects_invalid_utf8() {
+        let reader = AnyReader::Text(Box::new(EmptyTextReader));
+        let error = reader
+            .read(&[0xff, 0xfe], &ReaderOptions::default())
+            .unwrap_err();
+        assert!(matches!(error, Error::InvalidUtf8(_)), "{error:?}");
+    }
+
+    #[test]
+    fn bytes_reader_accepts_invalid_utf8() {
+        let reader = AnyReader::Bytes(Box::new(RawBytesReader));
+        assert!(
+            reader
+                .read(&[0xff, 0xfe], &ReaderOptions::default())
+                .is_ok()
+        );
     }
 }
