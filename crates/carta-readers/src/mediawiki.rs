@@ -17,7 +17,7 @@
 //! The scanner is panic-free on malformed input: unbalanced or unterminated constructs degrade to
 //! literal text rather than being rejected.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use carta_ast::{
     Alignment, ApiVersion, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Format, Inline,
@@ -28,6 +28,7 @@ use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::emoji;
 use crate::entities;
+use crate::heading_ids;
 
 /// Parses a wikitext document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -65,11 +66,11 @@ impl Reader for MediawikiReader {
 }
 
 /// Carries the state that spans a whole document: the enabled extensions, the running counter for
-/// unlabeled external links, and the set of heading identifiers already issued (for de-duplication).
+/// unlabeled external links, and the heading identifiers already issued (for de-duplication).
 struct Parser {
     extensions: Extensions,
     link_counter: usize,
-    seen_ids: BTreeSet<String>,
+    ids: heading_ids::IdRegistry,
     /// Category links pulled out of the inline flow, to be emitted as one trailing paragraph.
     categories: Vec<Inline>,
     /// Current block-nesting depth, capped to keep adversarially deep input from exhausting the stack.
@@ -150,7 +151,7 @@ impl Parser {
         Self {
             extensions: options.extensions,
             link_counter: 0,
-            seen_ids: BTreeSet::new(),
+            ids: heading_ids::IdRegistry::default(),
             categories: Vec::new(),
             depth: 0,
         }
@@ -902,7 +903,8 @@ impl Parser {
                 continue;
             }
             if c == '&' {
-                if let Some((decoded, next)) = read_entity(chars, i) {
+                if let Some((decoded, next)) = entities::read_reference(chars, i, chars.len(), true)
+                {
                     word.push_str(&decoded);
                     i = next;
                 } else {
@@ -1362,10 +1364,10 @@ impl Parser {
         let plain = to_plain_text(inlines);
         if self.extensions.contains(Extension::GfmAutoIdentifiers) {
             let base = self.finish_id(slug_gfm, &emoji_to_aliases(&plain));
-            self.dedup(base, '-')
+            self.ids.assign_with_separator(base, '-')
         } else if self.extensions.contains(Extension::AutoIdentifiers) {
             let base = self.finish_id(mediawiki_slug, &plain);
-            self.dedup(base, '_')
+            self.ids.assign_with_separator(base, '_')
         } else {
             String::new()
         }
@@ -1374,33 +1376,13 @@ impl Parser {
     /// Builds an identifier with `slug`, then — when `ascii_identifiers` is on — folds the finished
     /// slug to pure ASCII (accents stripped, non-Latin letters dropped) and re-slugs it, so a dropped
     /// letter leaves its separators intact while a now-leading separator is trimmed. An empty result
-    /// becomes a placeholder.
+    /// is mapped to a placeholder during disambiguation.
     fn finish_id(&self, slug: fn(&str) -> String, source: &str) -> String {
         let mut base = slug(source);
         if self.extensions.contains(Extension::AsciiIdentifiers) {
             base = slug(&transliterate_ascii(&base));
         }
-        if base.is_empty() {
-            "section".to_string()
-        } else {
-            base
-        }
-    }
-
-    fn dedup(&mut self, base: String, sep: char) -> String {
-        if !self.seen_ids.contains(&base) {
-            self.seen_ids.insert(base.clone());
-            return base;
-        }
-        let mut k = 1usize;
-        loop {
-            let candidate = format!("{base}{sep}{k}");
-            if !self.seen_ids.contains(&candidate) {
-                self.seen_ids.insert(candidate.clone());
-                return candidate;
-            }
-            k += 1;
-        }
+        base
     }
 }
 
@@ -2057,7 +2039,7 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
             out.push(token);
             i = next;
         } else if c == '&' {
-            if let Some((decoded, next)) = read_entity(&chars, i) {
+            if let Some((decoded, next)) = entities::read_reference(&chars, i, chars.len(), true) {
                 word.push_str(&decoded);
                 i = next;
             } else {
@@ -2083,7 +2065,7 @@ fn decode_entities(text: &str) -> String {
     let mut i = 0;
     while i < n {
         if at(&chars, i) == Some('&')
-            && let Some((decoded, next)) = read_entity(&chars, i)
+            && let Some((decoded, next)) = entities::read_reference(&chars, i, chars.len(), true)
         {
             out.push_str(&decoded);
             i = next;
@@ -2097,320 +2079,13 @@ fn decode_entities(text: &str) -> String {
     out
 }
 
-/// Reads one entity reference starting at the `&` in `chars[i]`, returning its decoded text and the
-/// index just past the closing `;`. Named, decimal, and hexadecimal forms are recognized.
-fn read_entity(chars: &[char], i: usize) -> Option<(String, usize)> {
-    let mut j = i + 1;
-    if at(chars, j) == Some('#') {
-        j += 1;
-        let hex = matches!(at(chars, j), Some('x' | 'X'));
-        if hex {
-            j += 1;
-        }
-        let start = j;
-        while let Some(c) = at(chars, j) {
-            let digit = if hex {
-                c.is_ascii_hexdigit()
-            } else {
-                c.is_ascii_digit()
-            };
-            if digit {
-                j += 1;
-            } else {
-                break;
-            }
-        }
-        if j == start || at(chars, j) != Some(';') {
-            return None;
-        }
-        let digits = collect_range(chars, start, j);
-        let code = u32::from_str_radix(&digits, if hex { 16 } else { 10 }).ok()?;
-        Some((entities::code_point(code).to_string(), j + 1))
-    } else {
-        let start = j;
-        while let Some(c) = at(chars, j) {
-            if c.is_ascii_alphanumeric() {
-                j += 1;
-            } else {
-                break;
-            }
-        }
-        if j == start || at(chars, j) != Some(';') {
-            return None;
-        }
-        let name = collect_range(chars, start, j);
-        let decoded = entities::lookup_named(&name)?;
-        Some((decoded.to_string(), j + 1))
-    }
-}
-
 // --- bare URLs & namespaces ---------------------------------------------------------------------
 
-/// URL schemes recognized for autolinking, kept sorted for binary search and drawn from the IANA URI
-/// scheme registry. A bare URL is one of these scheme names followed by a colon; the `//` authority
-/// prefix is optional, so both `http://example.org` and `mailto:user@host` autolink.
-const URL_SCHEMES: &[&str] = &[
-    "aaa",
-    "aaas",
-    "about",
-    "acap",
-    "acct",
-    "acr",
-    "adiumxtra",
-    "afp",
-    "afs",
-    "aim",
-    "apt",
-    "attachment",
-    "aw",
-    "barion",
-    "beshare",
-    "bitcoin",
-    "blob",
-    "bolo",
-    "browserext",
-    "callto",
-    "cap",
-    "chrome",
-    "chrome-extension",
-    "cid",
-    "coap",
-    "coaps",
-    "com-eventbrite-attendee",
-    "content",
-    "crid",
-    "cvs",
-    "data",
-    "dav",
-    "dict",
-    "dlna-playcontainer",
-    "dlna-playsingle",
-    "dns",
-    "dntp",
-    "doi",
-    "dtn",
-    "dvb",
-    "ed2k",
-    "example",
-    "facetime",
-    "fax",
-    "feed",
-    "feedready",
-    "file",
-    "filesystem",
-    "finger",
-    "fish",
-    "ftp",
-    "geo",
-    "gg",
-    "git",
-    "gizmoproject",
-    "go",
-    "gopher",
-    "gtalk",
-    "h323",
-    "ham",
-    "hcp",
-    "http",
-    "https",
-    "hxxp",
-    "hxxps",
-    "iax",
-    "icap",
-    "icon",
-    "im",
-    "imap",
-    "info",
-    "iotdisco",
-    "ipn",
-    "ipp",
-    "ipps",
-    "irc",
-    "irc6",
-    "ircs",
-    "iris",
-    "isostore",
-    "itms",
-    "jabber",
-    "jar",
-    "javascript",
-    "jms",
-    "keyparc",
-    "lastfm",
-    "ldap",
-    "ldaps",
-    "lvlt",
-    "magnet",
-    "mailserver",
-    "mailto",
-    "maps",
-    "market",
-    "message",
-    "mid",
-    "mms",
-    "modem",
-    "mongodb",
-    "moz",
-    "ms-access",
-    "ms-browser-extension",
-    "ms-drive-to",
-    "ms-enrollment",
-    "ms-excel",
-    "ms-gamebarservices",
-    "ms-getoffice",
-    "ms-help",
-    "ms-infopath",
-    "ms-media-stream-id",
-    "ms-officeapp",
-    "ms-powerpoint",
-    "ms-project",
-    "ms-publisher",
-    "ms-search-repair",
-    "ms-secondary-screen-controller",
-    "ms-secondary-screen-setup",
-    "ms-settings",
-    "ms-settings-airplanemode",
-    "ms-settings-bluetooth",
-    "ms-settings-camera",
-    "ms-settings-cellular",
-    "ms-settings-cloudstorage",
-    "ms-settings-connectabledevices",
-    "ms-settings-displays-topology",
-    "ms-settings-emailandaccounts",
-    "ms-settings-language",
-    "ms-settings-location",
-    "ms-settings-lock",
-    "ms-settings-nfctransactions",
-    "ms-settings-notifications",
-    "ms-settings-power",
-    "ms-settings-privacy",
-    "ms-settings-proximity",
-    "ms-settings-screenrotation",
-    "ms-settings-wifi",
-    "ms-settings-workplace",
-    "ms-spd",
-    "ms-sttoverlay",
-    "ms-transit-to",
-    "ms-virtualtouchpad",
-    "ms-visio",
-    "ms-walk-to",
-    "ms-whiteboard",
-    "ms-whiteboard-cmd",
-    "ms-word",
-    "msnim",
-    "msrp",
-    "msrps",
-    "mtqp",
-    "mumble",
-    "mupdate",
-    "mvn",
-    "news",
-    "nfs",
-    "ni",
-    "nih",
-    "nntp",
-    "notes",
-    "ocf",
-    "oid",
-    "onenote",
-    "onenote-cmd",
-    "opaquelocktoken",
-    "pack",
-    "palm",
-    "paparazzi",
-    "pkcs11",
-    "platform",
-    "pop",
-    "pres",
-    "prospero",
-    "proxy",
-    "psyc",
-    "pwid",
-    "qb",
-    "query",
-    "redis",
-    "rediss",
-    "reload",
-    "res",
-    "resource",
-    "rmi",
-    "rsync",
-    "rtmfp",
-    "rtmp",
-    "rtsp",
-    "rtsps",
-    "rtspu",
-    "secondlife",
-    "service",
-    "session",
-    "sftp",
-    "sgn",
-    "shttp",
-    "sieve",
-    "sip",
-    "sips",
-    "skype",
-    "smb",
-    "sms",
-    "smtp",
-    "snews",
-    "snmp",
-    "soap.beep",
-    "soap.beeps",
-    "soldat",
-    "spotify",
-    "ssh",
-    "steam",
-    "stun",
-    "stuns",
-    "submit",
-    "svn",
-    "tag",
-    "teamspeak",
-    "tel",
-    "teliaeid",
-    "telnet",
-    "tftp",
-    "things",
-    "thismessage",
-    "tip",
-    "tn3270",
-    "tool",
-    "turn",
-    "turns",
-    "tv",
-    "udp",
-    "unreal",
-    "urn",
-    "ut2004",
-    "v-event",
-    "vemmi",
-    "view-source",
-    "vnc",
-    "wais",
-    "webcal",
-    "wpid",
-    "ws",
-    "wss",
-    "wtai",
-    "wyciwyg",
-    "xcon",
-    "xcon-userid",
-    "xfire",
-    "xmlrpc.beep",
-    "xmlrpc.beeps",
-    "xmpp",
-    "xri",
-    "ymsgr",
-    "z39.50",
-    "z39.50r",
-    "z39.50s",
-];
-
-/// Whether `name` (compared case-insensitively) is a recognized URL scheme.
+/// Whether `name` (compared case-insensitively) is a recognized URL scheme. Beyond the shared
+/// registry, this format additionally autolinks the `doi` and `javascript` schemes.
 fn is_scheme(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    URL_SCHEMES.binary_search(&lower.as_str()).is_ok()
+    crate::url_schemes::is_scheme(&lower) || lower == "doi" || lower == "javascript"
 }
 
 /// Whether `text` begins with a recognized scheme followed by a colon — the test a bracketed
@@ -4454,6 +4129,15 @@ mod tests {
         let mut options = ReaderOptions::default();
         options.extensions = Extensions::from_list(&[Extension::GfmAutoIdentifiers]);
         MediawikiReader.read(input, &options).expect("read").blocks
+    }
+
+    #[test]
+    fn doi_and_javascript_are_recognized_schemes() {
+        assert!(is_scheme("doi"));
+        assert!(is_scheme("javascript"));
+        assert!(is_scheme("DOI"));
+        assert!(is_scheme("http"));
+        assert!(!is_scheme("notascheme"));
     }
 
     fn cell_with(content: Vec<Block>) -> Cell {

@@ -933,7 +933,9 @@ fn scan(
         match c {
             ' ' | '\t' | '\n' => scan_whitespace_run(chars, pos, &mut pending, &mut out),
             '&' => {
-                if let Some((decoded, next)) = read_entity(chars, *pos) {
+                if let Some((decoded, next)) =
+                    entities::read_reference(chars, *pos, chars.len(), true)
+                {
                     pending.push_str(&decoded);
                     *pos = next;
                 } else {
@@ -1076,46 +1078,6 @@ fn closer_width(closer: Closer) -> usize {
     match closer {
         Closer::Quote(_) => 1,
         Closer::Delim(_) | Closer::Mono => 2,
-    }
-}
-
-/// Read one HTML entity reference starting at the `&` in `chars[i]`, returning its decoded text and
-/// the index just past the closing `;`. Named, decimal (`&#NN;`), and hexadecimal (`&#xNN;`) forms
-/// are recognized; anything else is not an entity.
-fn read_entity(chars: &[char], i: usize) -> Option<(String, usize)> {
-    let mut j = i + 1;
-    if chars.get(j) == Some(&'#') {
-        j += 1;
-        let hex = matches!(chars.get(j), Some('x' | 'X'));
-        if hex {
-            j += 1;
-        }
-        let begin = j;
-        while chars.get(j).is_some_and(|c| {
-            if hex {
-                c.is_ascii_hexdigit()
-            } else {
-                c.is_ascii_digit()
-            }
-        }) {
-            j += 1;
-        }
-        if j == begin || chars.get(j) != Some(&';') {
-            return None;
-        }
-        let digits: String = chars.get(begin..j).unwrap_or(&[]).iter().collect();
-        let code = u32::from_str_radix(&digits, if hex { 16 } else { 10 }).ok()?;
-        Some((entities::code_point(code).to_string(), j + 1))
-    } else {
-        let begin = j;
-        while chars.get(j).is_some_and(char::is_ascii_alphanumeric) {
-            j += 1;
-        }
-        if j == begin || chars.get(j) != Some(&';') {
-            return None;
-        }
-        let name: String = chars.get(begin..j).unwrap_or(&[]).iter().collect();
-        Some((entities::lookup_named(&name)?.to_string(), j + 1))
     }
 }
 
@@ -1615,7 +1577,7 @@ fn try_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
         return None;
     }
     let scheme: String = chars.get(pos..k)?.iter().collect::<String>().to_lowercase();
-    if !SCHEMES.contains(&scheme.as_str()) {
+    if !crate::url_schemes::is_scheme(&scheme) {
         return None;
     }
     let content_start = k + 3;
@@ -1932,7 +1894,7 @@ fn is_external(s: &str) -> bool {
                 && scheme
                     .chars()
                     .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-'))
-                && SCHEMES.contains(&scheme.to_lowercase().as_str())
+                && crate::url_schemes::is_scheme(&scheme.to_lowercase())
         }
         None => false,
     }
@@ -2139,263 +2101,6 @@ fn parse_blocks_str(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
     let mut index = 0;
     parse_blocks(&lines, &mut index, ctx, depth)
 }
-
-/// URL schemes recognised for bare-URL autolinking and external-link detection.
-const SCHEMES: &[&str] = &[
-    "aaa",
-    "aaas",
-    "about",
-    "acap",
-    "acct",
-    "acr",
-    "adiumxtra",
-    "afp",
-    "afs",
-    "aim",
-    "apt",
-    "attachment",
-    "aw",
-    "barion",
-    "beshare",
-    "bitcoin",
-    "blob",
-    "bolo",
-    "browserext",
-    "callto",
-    "cap",
-    "chrome",
-    "chrome-extension",
-    "cid",
-    "coap",
-    "coaps",
-    "com-eventbrite-attendee",
-    "content",
-    "crid",
-    "cvs",
-    "data",
-    "dav",
-    "dict",
-    "dlna-playcontainer",
-    "dlna-playsingle",
-    "dns",
-    "dntp",
-    "dtn",
-    "dvb",
-    "ed2k",
-    "example",
-    "facetime",
-    "fax",
-    "feed",
-    "feedready",
-    "file",
-    "filesystem",
-    "finger",
-    "fish",
-    "ftp",
-    "geo",
-    "gg",
-    "git",
-    "gizmoproject",
-    "go",
-    "gopher",
-    "gtalk",
-    "h323",
-    "ham",
-    "hcp",
-    "http",
-    "https",
-    "hxxp",
-    "hxxps",
-    "iax",
-    "icap",
-    "icon",
-    "im",
-    "imap",
-    "info",
-    "iotdisco",
-    "ipn",
-    "ipp",
-    "ipps",
-    "irc",
-    "irc6",
-    "ircs",
-    "iris",
-    "isostore",
-    "itms",
-    "jabber",
-    "jar",
-    "jms",
-    "keyparc",
-    "lastfm",
-    "ldap",
-    "ldaps",
-    "lvlt",
-    "magnet",
-    "mailserver",
-    "mailto",
-    "maps",
-    "market",
-    "message",
-    "mid",
-    "mms",
-    "modem",
-    "mongodb",
-    "moz",
-    "ms-access",
-    "ms-browser-extension",
-    "ms-drive-to",
-    "ms-enrollment",
-    "ms-excel",
-    "ms-gamebarservices",
-    "ms-getoffice",
-    "ms-help",
-    "ms-infopath",
-    "ms-media-stream-id",
-    "ms-officeapp",
-    "ms-project",
-    "ms-powerpoint",
-    "ms-publisher",
-    "ms-search-repair",
-    "ms-secondary-screen-controller",
-    "ms-secondary-screen-setup",
-    "ms-settings",
-    "ms-settings-airplanemode",
-    "ms-settings-bluetooth",
-    "ms-settings-camera",
-    "ms-settings-cellular",
-    "ms-settings-cloudstorage",
-    "ms-settings-connectabledevices",
-    "ms-settings-displays-topology",
-    "ms-settings-emailandaccounts",
-    "ms-settings-language",
-    "ms-settings-location",
-    "ms-settings-lock",
-    "ms-settings-nfctransactions",
-    "ms-settings-notifications",
-    "ms-settings-power",
-    "ms-settings-privacy",
-    "ms-settings-proximity",
-    "ms-settings-screenrotation",
-    "ms-settings-wifi",
-    "ms-settings-workplace",
-    "ms-spd",
-    "ms-sttoverlay",
-    "ms-transit-to",
-    "ms-virtualtouchpad",
-    "ms-visio",
-    "ms-walk-to",
-    "ms-whiteboard",
-    "ms-whiteboard-cmd",
-    "ms-word",
-    "msnim",
-    "msrp",
-    "msrps",
-    "mtqp",
-    "mumble",
-    "mupdate",
-    "mvn",
-    "news",
-    "nfs",
-    "ni",
-    "nih",
-    "nntp",
-    "notes",
-    "ocf",
-    "oid",
-    "onenote",
-    "onenote-cmd",
-    "opaquelocktoken",
-    "pack",
-    "palm",
-    "paparazzi",
-    "pkcs11",
-    "platform",
-    "pop",
-    "pres",
-    "prospero",
-    "proxy",
-    "pwid",
-    "psyc",
-    "qb",
-    "query",
-    "redis",
-    "rediss",
-    "reload",
-    "res",
-    "resource",
-    "rmi",
-    "rsync",
-    "rtmfp",
-    "rtmp",
-    "rtsp",
-    "rtsps",
-    "rtspu",
-    "secondlife",
-    "service",
-    "session",
-    "sftp",
-    "sgn",
-    "shttp",
-    "sieve",
-    "sip",
-    "sips",
-    "skype",
-    "smb",
-    "sms",
-    "smtp",
-    "snews",
-    "snmp",
-    "soap.beep",
-    "soap.beeps",
-    "soldat",
-    "spotify",
-    "ssh",
-    "steam",
-    "stun",
-    "stuns",
-    "submit",
-    "svn",
-    "tag",
-    "teamspeak",
-    "tel",
-    "teliaeid",
-    "telnet",
-    "tftp",
-    "things",
-    "thismessage",
-    "tip",
-    "tn3270",
-    "tool",
-    "turn",
-    "turns",
-    "tv",
-    "udp",
-    "unreal",
-    "urn",
-    "ut2004",
-    "v-event",
-    "vemmi",
-    "vnc",
-    "view-source",
-    "wais",
-    "webcal",
-    "wpid",
-    "ws",
-    "wss",
-    "wtai",
-    "wyciwyg",
-    "xcon",
-    "xcon-userid",
-    "xfire",
-    "xmlrpc.beep",
-    "xmlrpc.beeps",
-    "xmpp",
-    "xri",
-    "ymsgr",
-    "z39.50",
-    "z39.50r",
-    "z39.50s",
-];
 
 // ===================================================================================================
 // Tables
