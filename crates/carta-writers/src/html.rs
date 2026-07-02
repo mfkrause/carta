@@ -713,7 +713,7 @@ impl State {
             Inline::Subscript(inlines) => self.wrap(out, "sub", inlines),
             Inline::Underline(inlines) => self.wrap(out, "u", inlines),
             Inline::SmallCaps(inlines) => {
-                out.push_str("<span class=\"smallcaps\">");
+                let _ = write!(out, "<span{BREAK}class=\"smallcaps\">");
                 self.inlines(out, inlines);
                 out.push_str("</span>");
             }
