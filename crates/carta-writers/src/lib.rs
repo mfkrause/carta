@@ -39,6 +39,9 @@ mod grid;
 ))]
 mod math;
 
+#[cfg(any(feature = "commonmark", feature = "markdown", feature = "gfm"))]
+mod markdown_common;
+
 #[cfg(feature = "slides")]
 mod slides;
 
