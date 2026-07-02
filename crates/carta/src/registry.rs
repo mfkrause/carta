@@ -9,28 +9,41 @@
 //! the build resolve. A recognized name whose feature is off yields [`Error::FormatNotEnabled`]; an
 //! unrecognized name yields [`Error::UnsupportedFormat`].
 
-use carta_core::{Error, Reader, Result, Writer};
+use carta_core::{AnyReader, AnyWriter, Error, Reader, Result, Writer};
+
+/// Wraps a constructor into the tagged dispatch enum according to its kind token, `text` for a
+/// text-shaped format and `bytes` for a byte-shaped one.
+macro_rules! dispatch_arm {
+    ($any:ident, text, $constructor:expr) => {
+        $any::Text(Box::new($constructor))
+    };
+    ($any:ident, bytes, $constructor:expr) => {
+        $any::Bytes(Box::new($constructor))
+    };
+}
 
 /// Expands one per-direction format table into its resolver and enumerators. Each entry reads
-/// `<feature> => <canonical> [| <alias>]* => <constructor>;`.
+/// `<feature> => <canonical> [| <alias>]* => <kind> <constructor>;`, where `<kind>` is `text` or
+/// `bytes`.
 macro_rules! format_dispatch {
     (
         trait: $trait:ident;
+        any: $any_enum:ident;
         resolve: $resolve:ident;
         recognizes: $recognizes:ident;
         supported: $supported:ident;
         names: $names:ident;
-        $( $feature:literal => $canonical:literal $(| $alias:literal)* => $constructor:expr ; )+
+        $( $feature:literal => $canonical:literal $(| $alias:literal)* => $kind:ident $constructor:expr ; )+
     ) => {
-        #[doc = concat!("Resolves a format name to its boxed [`", stringify!($trait), "`].")]
+        #[doc = concat!("Resolves a format name to its [`", stringify!($any_enum), "`].")]
         #[doc = ""]
         #[doc = "[`Error::FormatNotEnabled`] if the format is recognized but its feature is off;"]
         #[doc = "[`Error::UnsupportedFormat`] if the name is unknown."]
-        pub fn $resolve(name: &str) -> Result<Box<dyn $trait>> {
+        pub fn $resolve(name: &str) -> Result<$any_enum> {
             match name {
                 $(
                     #[cfg(feature = $feature)]
-                    $canonical $(| $alias)* => Ok(Box::new($constructor)),
+                    $canonical $(| $alias)* => Ok(dispatch_arm!($any_enum, $kind, $constructor)),
                 )+
                 other if $recognizes(other) => Err(Error::FormatNotEnabled(other.to_owned())),
                 other => Err(Error::UnsupportedFormat(other.to_owned())),
@@ -70,57 +83,83 @@ macro_rules! format_dispatch {
 
 format_dispatch! {
     trait: Reader;
-    resolve: reader_for;
+    any: AnyReader;
+    resolve: any_reader_for;
     recognizes: reader_recognizes;
     supported: supported_input_formats;
     names: input_format_names;
-    "read-commonmark" => "commonmark" | "commonmark_x" | "markdown" | "gfm" | "markdown_strict" | "markdown_mmd" | "markdown_phpextra" | "markdown_github" => carta_readers::CommonmarkReader;
-    "read-json" => "json" => carta_readers::JsonReader;
-    "read-native" => "native" => carta_readers::NativeReader;
-    "read-html" => "html" => carta_readers::HtmlReader;
-    "read-csv" => "csv" => carta_readers::CsvReader;
-    "read-tsv" => "tsv" => carta_readers::TsvReader;
-    "read-opml" => "opml" => carta_readers::OpmlReader;
-    "read-rst" => "rst" => carta_readers::RstReader;
-    "read-ipynb" => "ipynb" => carta_readers::IpynbReader;
-    "read-mediawiki" => "mediawiki" => carta_readers::MediawikiReader;
-    "read-dokuwiki" => "dokuwiki" => carta_readers::DokuwikiReader;
-    "read-jira" => "jira" => carta_readers::JiraReader;
-    "read-man" => "man" => carta_readers::ManReader;
-    "read-latex" => "latex" => carta_readers::LatexReader;
-    "read-org" => "org" => carta_readers::OrgReader;
+    "read-commonmark" => "commonmark" | "commonmark_x" | "markdown" | "gfm" | "markdown_strict" | "markdown_mmd" | "markdown_phpextra" | "markdown_github" => text carta_readers::CommonmarkReader;
+    "read-json" => "json" => text carta_readers::JsonReader;
+    "read-native" => "native" => text carta_readers::NativeReader;
+    "read-html" => "html" => text carta_readers::HtmlReader;
+    "read-csv" => "csv" => text carta_readers::CsvReader;
+    "read-tsv" => "tsv" => text carta_readers::TsvReader;
+    "read-opml" => "opml" => text carta_readers::OpmlReader;
+    "read-rst" => "rst" => text carta_readers::RstReader;
+    "read-ipynb" => "ipynb" => text carta_readers::IpynbReader;
+    "read-mediawiki" => "mediawiki" => text carta_readers::MediawikiReader;
+    "read-dokuwiki" => "dokuwiki" => text carta_readers::DokuwikiReader;
+    "read-jira" => "jira" => text carta_readers::JiraReader;
+    "read-man" => "man" => text carta_readers::ManReader;
+    "read-latex" => "latex" => text carta_readers::LatexReader;
+    "read-org" => "org" => text carta_readers::OrgReader;
 }
 
 format_dispatch! {
     trait: Writer;
-    resolve: writer_for;
+    any: AnyWriter;
+    resolve: any_writer_for;
     recognizes: writer_recognizes;
     supported: supported_output_formats;
     names: output_format_names;
-    "write-html" => "html" | "html5" => carta_writers::HtmlWriter;
-    "write-html4" => "html4" => carta_writers::Html4Writer;
-    "write-json" => "json" => carta_writers::JsonWriter;
-    "write-plain" => "plain" => carta_writers::PlainWriter;
-    "write-native" => "native" => carta_writers::NativeWriter;
-    "write-latex" => "latex" => carta_writers::LatexWriter;
-    "write-commonmark" => "commonmark" => carta_writers::CommonmarkWriter;
-    "write-markdown" => "markdown" => carta_writers::MarkdownWriter;
-    "write-markdown" => "commonmark_x" => carta_writers::CommonmarkXWriter;
-    "write-markdown" => "markdown_github" => carta_writers::MarkdownGithubWriter;
-    "write-markdown" => "markdown_phpextra" => carta_writers::MarkdownPhpextraWriter;
-    "write-markdown" => "markdown_mmd" => carta_writers::MarkdownMmdWriter;
-    "write-markdown" => "markdown_strict" => carta_writers::MarkdownStrictWriter;
-    "write-gfm" => "gfm" => carta_writers::GfmWriter;
-    "write-rst" => "rst" => carta_writers::RstWriter;
-    "write-mediawiki" => "mediawiki" => carta_writers::MediawikiWriter;
-    "write-typst" => "typst" => carta_writers::TypstWriter;
-    "write-dokuwiki" => "dokuwiki" => carta_writers::DokuwikiWriter;
-    "write-jira" => "jira" => carta_writers::JiraWriter;
-    "write-asciidoc" => "asciidoc" => carta_writers::AsciidocWriter;
-    "write-man" => "man" => carta_writers::ManWriter;
-    "write-opml" => "opml" => carta_writers::OpmlWriter;
-    "write-org" => "org" => carta_writers::OrgWriter;
-    "write-beamer" => "beamer" => carta_writers::BeamerWriter;
-    "write-revealjs" => "revealjs" => carta_writers::RevealjsWriter;
-    "write-ipynb" => "ipynb" => carta_writers::IpynbWriter;
+    "write-html" => "html" | "html5" => text carta_writers::HtmlWriter;
+    "write-html4" => "html4" => text carta_writers::Html4Writer;
+    "write-json" => "json" => text carta_writers::JsonWriter;
+    "write-plain" => "plain" => text carta_writers::PlainWriter;
+    "write-native" => "native" => text carta_writers::NativeWriter;
+    "write-latex" => "latex" => text carta_writers::LatexWriter;
+    "write-commonmark" => "commonmark" => text carta_writers::CommonmarkWriter;
+    "write-markdown" => "markdown" => text carta_writers::MarkdownWriter;
+    "write-markdown" => "commonmark_x" => text carta_writers::CommonmarkXWriter;
+    "write-markdown" => "markdown_github" => text carta_writers::MarkdownGithubWriter;
+    "write-markdown" => "markdown_phpextra" => text carta_writers::MarkdownPhpextraWriter;
+    "write-markdown" => "markdown_mmd" => text carta_writers::MarkdownMmdWriter;
+    "write-markdown" => "markdown_strict" => text carta_writers::MarkdownStrictWriter;
+    "write-gfm" => "gfm" => text carta_writers::GfmWriter;
+    "write-rst" => "rst" => text carta_writers::RstWriter;
+    "write-mediawiki" => "mediawiki" => text carta_writers::MediawikiWriter;
+    "write-typst" => "typst" => text carta_writers::TypstWriter;
+    "write-dokuwiki" => "dokuwiki" => text carta_writers::DokuwikiWriter;
+    "write-jira" => "jira" => text carta_writers::JiraWriter;
+    "write-asciidoc" => "asciidoc" => text carta_writers::AsciidocWriter;
+    "write-man" => "man" => text carta_writers::ManWriter;
+    "write-opml" => "opml" => text carta_writers::OpmlWriter;
+    "write-org" => "org" => text carta_writers::OrgWriter;
+    "write-beamer" => "beamer" => text carta_writers::BeamerWriter;
+    "write-revealjs" => "revealjs" => text carta_writers::RevealjsWriter;
+    "write-ipynb" => "ipynb" => text carta_writers::IpynbWriter;
+}
+
+/// Resolves a format name to its boxed [`Reader`], the text-only view of [`any_reader_for`].
+///
+/// [`Error::FormatNotEnabled`] if the format is recognized but its feature is off;
+/// [`Error::UnsupportedFormat`] if the name is unknown; [`Error::BinaryFormat`] if the format is
+/// byte-shaped, so it has no text reader.
+pub fn reader_for(name: &str) -> Result<Box<dyn Reader>> {
+    match any_reader_for(name)? {
+        AnyReader::Text(reader) => Ok(reader),
+        AnyReader::Bytes(_) => Err(Error::BinaryFormat(name.to_owned())),
+    }
+}
+
+/// Resolves a format name to its boxed [`Writer`], the text-only view of [`any_writer_for`].
+///
+/// [`Error::FormatNotEnabled`] if the format is recognized but its feature is off;
+/// [`Error::UnsupportedFormat`] if the name is unknown; [`Error::BinaryFormat`] if the format is
+/// byte-shaped, so it has no text writer.
+pub fn writer_for(name: &str) -> Result<Box<dyn Writer>> {
+    match any_writer_for(name)? {
+        AnyWriter::Text(writer) => Ok(writer),
+        AnyWriter::Bytes(_) => Err(Error::BinaryFormat(name.to_owned())),
+    }
 }

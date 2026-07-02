@@ -5,7 +5,45 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use carta::{Error, ReaderOptions, WriterOptions, convert, reader_for, writer_for};
+use carta::{
+    Error, Output, ReaderOptions, WriterOptions, convert, convert_bytes, reader_for, writer_for,
+};
+
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn convert_bytes_text_target_matches_convert() {
+    let bytes = convert_bytes(
+        "commonmark",
+        "html",
+        b"# Hi\n",
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap();
+    let text = convert(
+        "commonmark",
+        "html",
+        "# Hi\n",
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(bytes, Output::Text(text));
+}
+
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn convert_bytes_rejects_invalid_utf8_for_a_text_reader() {
+    let error = convert_bytes(
+        "commonmark",
+        "html",
+        &[0xff, 0xfe],
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, Error::InvalidUtf8(_)), "{error:?}");
+}
 
 #[cfg(all(feature = "read-commonmark", feature = "write-html"))]
 #[test]
