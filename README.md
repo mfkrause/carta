@@ -1,6 +1,18 @@
-# 📜 carta
+<div align="center">
 
-A universal document converter written in Rust that reads a markup format and renders it back out in another. A performant and lightweight reimplementation of [pandoc](https://pandoc.org).
+<img src="assets/logo.png" alt="carta logo" width="140" height="140">
+
+# carta
+
+**A universal document converter written in Rust.** Read a markup format, render it back out in another. A performant and lightweight reimplementation of [pandoc](https://pandoc.org).
+
+[![crates.io](https://img.shields.io/crates/v/carta.svg)](https://crates.io/crates/carta)
+[![docs.rs](https://img.shields.io/docsrs/carta)](https://docs.rs/carta)
+[![CI](https://github.com/mfkrause/carta/actions/workflows/ci.yml/badge.svg)](https://github.com/mfkrause/carta/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+![MSRV](https://img.shields.io/badge/MSRV-1.93-orange.svg)
+
+</div>
 
 > [!WARNING]
 > carta is a **prototype under active development**. Only a small slice of pandoc's formats is implemented today, the API is unstable, and it is not yet ready for production use.
