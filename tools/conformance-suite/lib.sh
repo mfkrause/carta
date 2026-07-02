@@ -12,7 +12,7 @@ CONF_LIB_SOURCED=1
 
 CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$CONF_DIR/../shared.sh"
-OX="${OXIDOC_BIN:-$ROOT/target/debug/carta}"
+OX="${CARTA_BIN:-${OXIDOC_BIN:-$ROOT/target/debug/carta}}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
 EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"
@@ -68,7 +68,9 @@ compare_json() {
   jq -S . "$1" >"$a" 2>/dev/null || { echo "oracle JSON unparsable"; return 1; }
   jq -S . "$2" >"$b" 2>/dev/null || { echo "carta JSON unparsable"; return 1; }
   cmp -s "$a" "$b" && return 0
-  diff "$a" "$b" | head -n 8
+  # Bound the diff so a pathological (megabyte) mismatch stays reviewable; 200 lines is enough to
+  # see a structural divergence whole.
+  diff "$a" "$b" | head -n 200
   return 1
 }
 
@@ -81,7 +83,7 @@ compare_ipynb() {
   jq -S '(.cells[]?.id) |= "id"' "$1" >"$a" 2>/dev/null || { echo "oracle notebook unparsable"; return 1; }
   jq -S '(.cells[]?.id) |= "id"' "$2" >"$b" 2>/dev/null || { echo "carta notebook unparsable"; return 1; }
   cmp -s "$a" "$b" && return 0
-  diff "$a" "$b" | head -n 8
+  diff "$a" "$b" | head -n 200
   return 1
 }
 
@@ -90,7 +92,7 @@ compare_ipynb() {
 # Renders the diff through `cat -A` so whitespace and line ends are visible.
 compare_bytes() {
   cmp -s "$1" "$2" && return 0
-  diff <(cat -A "$1") <(cat -A "$2") | head -n 8
+  diff <(cat -A "$1") <(cat -A "$2") | head -n 200
   return 1
 }
 
@@ -100,7 +102,7 @@ compare_text() {
   a=$(cat "$1"; printf x); a=${a%x}; a=${a%$'\n'}
   b=$(cat "$2"; printf x); b=${b%x}; b=${b%$'\n'}
   [ "$a" = "$b" ] && return 0
-  diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") | head -n 8
+  diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") | head -n 200
   return 1
 }
 
@@ -119,7 +121,12 @@ report() { echo "RESULT $1 $2 pass=$PASS fail=$FAIL err=$ERR skip=$SKIP"; }
 # Suite-level return code, raised to 1 by any group that recorded a failure or error. A surface
 # script seeds it to 0, calls tally_group after each report, and exits with it.
 SUITE_RC=0
-tally_group() { if [ "$FAIL" -gt 0 ] || [ "$ERR" -gt 0 ]; then SUITE_RC=1; fi; }
+tally_group() {
+  if [ "$FAIL" -gt 0 ] || [ "$ERR" -gt 0 ]; then
+    SUITE_RC=1
+    echo "  details: $SURFACE_LOG" >&2
+  fi
+}
 
 # One differential case: convert `input` with the oracle and with carta, then compare.
 # Usage: run_diff <json|text> <label> <input_file> <oracle_arg_string> <carta_arg_string>
@@ -127,6 +134,9 @@ tally_group() { if [ "$FAIL" -gt 0 ] || [ "$ERR" -gt 0 ]; then SUITE_RC=1; fi; }
 run_diff() {
   local mode="$1" label="$2" input="$3" oargs="$4" xargs="$5"
   local ofile="$WORK/.run.oracle" xfile="$WORK/.run.ox" efile="$WORK/.run.err"
+  # The two exact invocations, so a log entry is a self-contained repro.
+  local repro="repro: $ORACLE $oargs <$input
+       $OX $xargs <$input"
   # shellcheck disable=SC2086
   if ! "$ORACLE" $oargs <"$input" >"$ofile" 2>/dev/null; then
     SKIP=$((SKIP + 1))
@@ -134,14 +144,16 @@ run_diff() {
   fi
   # shellcheck disable=SC2086
   if ! "$OX" $xargs <"$input" >"$xfile" 2>"$efile"; then
-    note_err "$label" "$(head -n 3 "$efile")"
+    note_err "$label" "$repro
+$(head -n 3 "$efile")"
     return
   fi
   local detail
   if detail=$("compare_$mode" "$ofile" "$xfile"); then
     PASS=$((PASS + 1))
   else
-    note_fail "$label" "$detail"
+    note_fail "$label" "$repro
+$detail"
   fi
 }
 

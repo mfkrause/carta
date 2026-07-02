@@ -5,13 +5,17 @@
 # `pandoc -f <fmt> -t json` (jq -S). For commonmark, additionally run every worked example from the
 # CommonMark spec as a dedicated group so the spec-parity count stays visible.
 #
-# Usage: surfaces/reader.sh [format]   (no arg = every reader format)
+# Usage: surfaces/reader.sh [format] [case]   (no arg = every reader format; case = one corpus stem)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
 FORMATS="commonmark html native json csv tsv opml rst ipynb mediawiki dokuwiki jira man latex org"
 [ $# -gt 0 ] && FORMATS="$1"
+CASE="${2:-}"
+
+# The case-stem of a corpus file: its basename with the extension stripped.
+stem() { local b; b="$(basename "$1")"; echo "${b%.*}"; }
 
 for fmt in $FORMATS; do
   dir="$CORPUS/text/$fmt"
@@ -19,6 +23,7 @@ for fmt in $FORMATS; do
   conf_reset "reader-$fmt"
   for input in "$dir"/*; do
     [ -f "$input" ] || continue
+    [ -n "$CASE" ] && [ "$(stem "$input")" != "$CASE" ] && continue
     run_diff json "reader/$fmt/$(basename "$input")" "$input" "-f $fmt -t json" "-f $fmt -t json"
   done
   report reader "$fmt"
@@ -36,6 +41,7 @@ if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
     spec="$(basename "$spec_dir")"
     for input in "$spec_dir"/*; do
       [ -f "$input" ] || continue
+      [ -n "$CASE" ] && [ "$(stem "$input")" != "$CASE" ] && continue
       run_diff json "reader-ext/$spec/$(basename "$input")" "$input" "-f $spec -t json" "-f $spec -t json"
     done
   done
@@ -50,6 +56,7 @@ if echo "$FORMATS" | grep -qw commonmark; then
   conf_reset "reader-commonmark-spec"
   for input in "$specdir"/*.md; do
     [ -f "$input" ] || continue
+    [ -n "$CASE" ] && [ "$(stem "$input")" != "$CASE" ] && continue
     run_diff json "reader/commonmark-spec/$(basename "$input")" "$input" "-f commonmark -t json" "-f commonmark -t json"
   done
   report reader commonmark-spec

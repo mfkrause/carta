@@ -24,6 +24,30 @@ RESULT <surface> <group> pass=N fail=N err=N skip=N
 
 `run.sh` exits non-zero if any surface recorded a `fail` or `err`. **The suite is expected to be red until carta reaches full parity** — every `fail` is a real conformance gap the suite has surfaced, and CI gates on them so they cannot regress further or be forgotten.
 
+## Reproducing one failure
+
+When a group records a `fail` or `err`, the surface prints the path to its full log:
+
+```
+RESULT writer html pass=120 fail=3 err=0 skip=5
+  details: /tmp/carta-conformance/writer-html.log
+```
+
+Each log entry carries the case label, the two exact `repro:` invocations (oracle and carta), and the full diff (bounded at 200 lines). The workflow to iterate on one divergence:
+
+1. Run the surface and read the `details:` log to find the failing case's stem.
+2. Rerun the surface narrowed to that one case — pass the case stem as a second argument:
+
+   ```sh
+   tools/conformance-suite/run.sh writer html my-case   # only corpus/ast/*/my-case.json
+   tools/conformance-suite/run.sh reader latex my-case   # only corpus/text/latex/my-case.*
+   ```
+
+   The stem is the corpus filename without its extension (`corpus/ast/<feature>/<stem>.json`, `corpus/text/<fmt>/<stem>.<ext>`).
+3. Copy the `repro:` lines from the log and run them by hand to iterate on the divergence.
+
+Case narrowing is currently wired for the `reader` and `writer` surfaces only.
+
 ## Requirements
 
 The gitignored `.oracle/` tree must be provisioned, plus `jq`:
@@ -37,7 +61,7 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 
 ## Environment
 
-- `OXIDOC_BIN` — path to the carta binary (default `target/debug/carta`).
+- `CARTA_BIN` — path to the carta binary (default `target/debug/carta`). The former name `OXIDOC_BIN` still works as a fallback.
 - `CONF_WORK` — scratch + per-case diff logs (default `$TMPDIR/carta-conformance`).
 
 ## Surfaces

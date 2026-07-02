@@ -8,7 +8,7 @@
 # (target, feature) pairs from exclusions.tsv are skipped and counted. On a full run (no target
 # argument) the extension-toggle group below also runs.
 #
-# Usage: surfaces/writer.sh [target]   (no arg = every writer target)
+# Usage: surfaces/writer.sh [target] [case]   (no arg = every writer target; case = one corpus stem)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -16,6 +16,7 @@ require_tools
 TARGETS="html html4 latex rst plain commonmark commonmark_x markdown markdown_github markdown_phpextra markdown_mmd markdown_strict gfm mediawiki native json typst dokuwiki jira asciidoc man opml org beamer revealjs ipynb"
 EXT_RUN=1
 [ $# -gt 0 ] && { TARGETS="$1"; EXT_RUN=0; }
+CASE="${2:-}"
 
 for target in $TARGETS; do
   conf_reset "writer-$target"
@@ -23,6 +24,7 @@ for target in $TARGETS; do
   mode="$(compare_mode "$target")"
   for input in "$CORPUS"/ast/*/*.json; do
     [ -f "$input" ] || continue
+    [ -n "$CASE" ] && [ "$(basename "$input" .json)" != "$CASE" ] && continue
     feature="$(basename "$(dirname "$input")")"
     if is_excluded "$target" "$feature" "$(basename "$input" .json)"; then
       SKIP=$((SKIP + 1))
