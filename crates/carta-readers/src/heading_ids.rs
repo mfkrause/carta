@@ -18,11 +18,11 @@
 //! dialect uses native disambiguation for every slug shape (so its GitHub-slug variant still maps an
 //! empty slug to `section`), while the bare `CommonMark` engine pairs the GitHub slug with count-suffix.
 
-#[cfg(any(feature = "commonmark", feature = "rst"))]
+#[cfg(any(feature = "commonmark", feature = "rst", feature = "dokuwiki"))]
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-#[cfg(any(feature = "commonmark", feature = "rst"))]
+#[cfg(any(feature = "commonmark", feature = "rst", feature = "dokuwiki"))]
 use carta_ast::{slug, slug_gfm};
 use carta_core::{Extension, Extensions};
 
@@ -164,14 +164,14 @@ pub(crate) struct IdRegistry {
     /// Every identifier emitted or reserved, used by the increment-until-unique strategy.
     seen: BTreeSet<String>,
     /// Per-base occurrence counts, used by the count-suffix strategy.
-    #[cfg(any(feature = "commonmark", feature = "rst"))]
+    #[cfg(any(feature = "commonmark", feature = "rst", feature = "dokuwiki"))]
     counts: BTreeMap<String, u32>,
 }
 
 impl IdRegistry {
     /// Derive an identifier for `text` under `scheme`, disambiguating it against every identifier
     /// already emitted or reserved.
-    #[cfg(any(feature = "commonmark", feature = "rst"))]
+    #[cfg(any(feature = "commonmark", feature = "rst", feature = "dokuwiki"))]
     pub(crate) fn assign(&mut self, scheme: IdScheme, text: &str) -> String {
         match scheme {
             IdScheme::Plain => self.assign_native(slug(text)),
