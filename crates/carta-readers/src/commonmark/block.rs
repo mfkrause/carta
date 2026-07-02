@@ -4417,7 +4417,7 @@ mod dialect_tests {
             let blocks = markdown_with(input, presets::MARKDOWN_STRICT_READ);
             assert_eq!(
                 heading_level(&blocks),
-                Some(input.bytes().take_while(|&b| b == b'#').count() as i32),
+                i32::try_from(input.bytes().take_while(|&b| b == b'#').count()).ok(),
                 "expected heading for {input:?}, got {blocks:?}"
             );
         }
