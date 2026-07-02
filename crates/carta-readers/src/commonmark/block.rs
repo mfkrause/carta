@@ -432,20 +432,33 @@ impl Parser {
                 && let Some(level) = cursor.setext_underline()
             {
                 // Leading link reference definitions belong to neither the heading nor the
-                // underline. Pull them out first; the underline forms a heading only over what
-                // remains. If nothing remains, the paragraph was pure definitions — it is consumed
-                // and this line is reparsed as ordinary content (not an underline).
+                // underline. Find the body that remains after them without registering them yet: the
+                // underline forms a heading only over what remains.
                 let text = self.node_text(para);
-                let remaining = self.extract_refs(&text);
-                let only_definitions = remaining.trim().is_empty();
-                if let Some(node) = self.nodes.get_mut(para) {
-                    node.text = remaining;
+                let mut body = text.as_str();
+                while let Some((_, _, rest)) =
+                    scan::parse_link_reference_definition(body, self.greedy_paragraphs)
+                {
+                    body = rest;
                 }
-                if only_definitions {
-                    self.close(para);
-                } else {
-                    self.convert_paragraph_to_heading(para, level);
-                    return;
+                // In the markdown family the underline heads a single-line paragraph only; a body of
+                // two or more lines keeps the underline as ordinary continuation text instead.
+                let multiline_body = self.greedy_paragraphs && body.trim_end().contains('\n');
+                if !multiline_body {
+                    let only_definitions = body.trim().is_empty();
+                    // Pull the definitions out for real now, then head or consume what remains. If
+                    // nothing remains, the paragraph was pure definitions — it is consumed and this
+                    // line is reparsed as ordinary content (not an underline).
+                    let remaining = self.extract_refs(&text);
+                    if let Some(node) = self.nodes.get_mut(para) {
+                        node.text = remaining;
+                    }
+                    if only_definitions {
+                        self.close(para);
+                    } else {
+                        self.convert_paragraph_to_heading(para, level);
+                        return;
+                    }
                 }
             }
         }
@@ -4000,6 +4013,24 @@ mod dialect_tests {
         assert_eq!(ordered_start(&blocks), Some(3));
         let gfm = strict_with("3. a\n4. b\n", presets::GFM);
         assert_eq!(ordered_start(&gfm), Some(3));
+    }
+
+    #[test]
+    fn markdown_setext_underline_needs_a_single_line_paragraph() {
+        // A single line above the underline forms a heading in the markdown dialect.
+        let one = markdown_with("one line\n===\n", presets::MARKDOWN);
+        assert_eq!(heading_level(&one), Some(1));
+        // Two or more lines keep the underline as ordinary paragraph text: no heading forms, and the
+        // `===` line is retained as part of the paragraph.
+        let many = markdown_with("line one\nline two\n===\n", presets::MARKDOWN);
+        assert!(matches!(many.as_slice(), [IrBlock::Para(text)] if text.contains("===")));
+        // A leading reference definition does not count toward the line budget: the single content
+        // line still heads.
+        let refd = markdown_with("[x]: /u\ncontent\n===\n", presets::MARKDOWN);
+        assert_eq!(heading_level(&refd), Some(1));
+        // The CommonMark family heads a multi-line paragraph, per its setext rule.
+        let cm = strict_with("line one\nline two\n===\n", presets::COMMONMARK);
+        assert_eq!(heading_level(&cm), Some(1));
     }
 
     #[test]
