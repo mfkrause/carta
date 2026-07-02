@@ -987,6 +987,24 @@ impl Parser {
         index
     }
 
+    /// Whether an open footnote definition sits in the chain strictly below `container` — that is,
+    /// the paragraph a line would lazily continue is that definition's body. A definition marker then
+    /// ends the open definition and starts a new one rather than folding into it.
+    fn footnote_def_open_below(&self, container: usize) -> bool {
+        let mut index = self.deepest_open(container);
+        while index != container {
+            if matches!(self.kind(index), Some(Kind::FootnoteDef(_))) {
+                return true;
+            }
+            let parent = self.parent(index);
+            if parent == index {
+                break;
+            }
+            index = parent;
+        }
+        false
+    }
+
     /// Mark the open paragraph interrupted by a block opener under `container` so it renders tight
     /// (`Plain`). A no-op when the deepest open block is not a paragraph.
     fn tighten_interrupted_paragraph(&mut self, container: usize) {
@@ -1488,8 +1506,10 @@ impl Parser {
             }
             // A footnote definition opens here; its content is then gathered by the enclosing
             // container loop, the same as a block quote's. Like the other openers it folds into a
-            // greedy paragraph rather than interrupting it.
-            if !gates.foldable
+            // greedy paragraph rather than interrupting it — except when that paragraph is an open
+            // definition's own body, since a definition marker always ends the preceding definition
+            // and starts a new one.
+            if (!gates.foldable || self.footnote_def_open_below(container))
                 && self.extensions.contains(Extension::Footnotes)
                 && let Some(label) = cursor.footnote_def_marker()
             {
