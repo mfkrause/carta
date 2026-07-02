@@ -14,7 +14,8 @@
     feature = "asciidoc",
     feature = "man",
     feature = "dokuwiki",
-    feature = "jira"
+    feature = "jira",
+    feature = "org"
 ))]
 mod common;
 
@@ -69,6 +70,8 @@ pub mod mediawiki;
 pub mod native;
 #[cfg(feature = "opml")]
 pub mod opml;
+#[cfg(feature = "org")]
+pub mod org;
 #[cfg(feature = "plain")]
 pub mod plain;
 #[cfg(feature = "revealjs")]
@@ -111,6 +114,8 @@ pub use mediawiki::MediawikiWriter;
 pub use native::NativeWriter;
 #[cfg(feature = "opml")]
 pub use opml::OpmlWriter;
+#[cfg(feature = "org")]
+pub use org::OrgWriter;
 #[cfg(feature = "plain")]
 pub use plain::PlainWriter;
 #[cfg(feature = "revealjs")]

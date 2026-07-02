@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+x[fn:1] y[fn:2]
+
+[fn:1] first
+
+[fn:2] second

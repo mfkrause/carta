@@ -1,0 +1,4 @@
+The first paragraph spans
+two source lines joined by a soft break.
+
+A second paragraph follows after a blank line.

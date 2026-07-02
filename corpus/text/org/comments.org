@@ -1,0 +1,5 @@
+# This standalone comment line is dropped.
+
+#+comment: A keyword comment.
+
+Visible paragraph text remains.

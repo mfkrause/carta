@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"RawBlock","c":["latex","\\newcommand{\\foo}{FOO}"]},{"t":"RawBlock","c":["latex","\\renewcommand{\\bar}{BAR}"]},{"t":"RawBlock","c":["latex","\\providecommand{\\baz}{BAZ}"]},{"t":"RawBlock","c":["latex","\\def\\qux{QUX}"]},{"t":"Para","c":[{"t":"Str","c":"Body"},{"t":"Space"},{"t":"Str","c":"text."}]}]}

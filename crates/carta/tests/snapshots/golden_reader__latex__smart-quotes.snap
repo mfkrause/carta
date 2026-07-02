@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"He"},{"t":"Space"},{"t":"Str","c":"said"},{"t":"Space"},{"t":"Quoted","c":[{"t":"DoubleQuote"},[{"t":"Str","c":"hello"},{"t":"Space"},{"t":"Str","c":"there"}]]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"then"},{"t":"Space"},{"t":"Quoted","c":[{"t":"SingleQuote"},[{"t":"Str","c":"goodbye"}]]},{"t":"Space"},{"t":"Str","c":"quietly."}]},{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"em-dash—like"},{"t":"Space"},{"t":"Str","c":"this—and"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"en-dash"},{"t":"Space"},{"t":"Str","c":"1–10"},{"t":"Space"},{"t":"Str","c":"too."}]}]}

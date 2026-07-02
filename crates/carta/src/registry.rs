@@ -87,6 +87,8 @@ format_dispatch! {
     "read-dokuwiki" => "dokuwiki" => carta_readers::DokuwikiReader;
     "read-jira" => "jira" => carta_readers::JiraReader;
     "read-man" => "man" => carta_readers::ManReader;
+    "read-latex" => "latex" => carta_readers::LatexReader;
+    "read-org" => "org" => carta_readers::OrgReader;
 }
 
 format_dispatch! {
@@ -117,6 +119,7 @@ format_dispatch! {
     "write-asciidoc" => "asciidoc" => carta_writers::AsciidocWriter;
     "write-man" => "man" => carta_writers::ManWriter;
     "write-opml" => "opml" => carta_writers::OpmlWriter;
+    "write-org" => "org" => carta_writers::OrgWriter;
     "write-beamer" => "beamer" => carta_writers::BeamerWriter;
     "write-revealjs" => "revealjs" => carta_writers::RevealjsWriter;
     "write-ipynb" => "ipynb" => carta_writers::IpynbWriter;

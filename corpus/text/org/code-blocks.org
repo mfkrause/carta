@@ -1,0 +1,9 @@
+#+begin_src python
+def greet(name):
+    return "Hello, " + name
+#+end_src
+
+#+begin_example
+Literal example text
+spanning two lines.
+#+end_example

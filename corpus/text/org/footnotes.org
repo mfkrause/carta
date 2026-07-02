@@ -1,0 +1,3 @@
+Here is a simple footnote[fn:1] reference.
+
+[fn:1] The footnote definition body.

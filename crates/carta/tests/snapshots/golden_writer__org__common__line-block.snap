@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#+begin_verse
+  first line
+  second line
+#+end_verse

@@ -1,0 +1,1 @@
+A described link [[https://example.com][Example Site]] and a plain link [[https://example.org]].
