@@ -177,6 +177,11 @@ impl Parser {
         let mut pos = 0;
         let mut line_start = true;
         let n = chars.len();
+        // Heading-region lookahead memo, shared across every line-classification query over this
+        // slice so each line's region is resolved at most once. `chars` is fixed for the whole
+        // call, so positions stay valid throughout; nested slices (cells, blockquotes) get their
+        // own memo via their own `parse_blocks_inner`.
+        let mut scan = HeaderScan::default();
         while pos < n {
             if line_start {
                 let le = line_end(chars, pos);
@@ -206,7 +211,8 @@ impl Parser {
                     continue;
                 }
                 if c == '='
-                    && let Some((level, inlines, closer_end)) = self.try_header(chars, pos)
+                    && let Some((level, inlines, closer_end)) =
+                        self.try_header(chars, pos, &mut scan)
                 {
                     let id = self.make_id(&inlines);
                     let attr = Attr {
@@ -251,7 +257,7 @@ impl Parser {
                     continue;
                 }
             }
-            let (mut para_blocks, after) = self.parse_paragraph(chars, pos);
+            let (mut para_blocks, after) = self.parse_paragraph(chars, pos, &mut scan);
             blocks.append(&mut para_blocks);
             pos = after;
             line_start = true;
@@ -259,7 +265,12 @@ impl Parser {
         blocks
     }
 
-    fn try_header(&mut self, chars: &[char], pos: usize) -> Option<(i32, Vec<Inline>, usize)> {
+    fn try_header(
+        &mut self,
+        chars: &[char],
+        pos: usize,
+        scan: &mut HeaderScan,
+    ) -> Option<(i32, Vec<Inline>, usize)> {
         let le = line_end(chars, pos);
         let mut m = 0;
         while pos + m < le && at(chars, pos + m) == Some('=') {
@@ -272,7 +283,7 @@ impl Parser {
         // The closing run may sit several lines below: the heading text continues like a paragraph
         // until a blank line or a line that opens its own block, and the trailing `=` run anywhere in
         // that span closes it.
-        let region_end = header_region_end(chars, pos);
+        let region_end = header_region_end_scan(chars, pos, scan);
         let closer = header_closer(chars, content_start, region_end, m)?;
         let content = collect_range(chars, content_start, closer);
         let inlines = self.parse_inlines(content.trim());
@@ -588,7 +599,12 @@ impl Parser {
         (block, i)
     }
 
-    fn parse_paragraph(&mut self, chars: &[char], pos: usize) -> (Vec<Block>, usize) {
+    fn parse_paragraph(
+        &mut self,
+        chars: &[char],
+        pos: usize,
+        scan: &mut HeaderScan,
+    ) -> (Vec<Block>, usize) {
         let n = chars.len();
         let mut pieces: Vec<String> = Vec::new();
         let mut cur = pos;
@@ -619,7 +635,7 @@ impl Parser {
                 cur = if next_end < n { next_end + 1 } else { next_end };
                 break;
             }
-            if line_starts_block(chars, next) {
+            if line_starts_block_scan(chars, next, scan) {
                 if ref_open && open_ref_block_bodied(chars, pos, next) {
                     cur = next;
                     continue;
@@ -803,11 +819,11 @@ impl Parser {
     fn parse_cell_blocks(&mut self, chars: &[char]) -> Vec<Block> {
         let first = at(chars, 0);
         let suppressed = matches!(first, Some('*' | '#' | ';'))
-            || (first == Some('=') && is_header_line_within(chars, 0, 0));
+            || (first == Some('=') && is_header_line_within(chars, 0));
         if !suppressed {
             return self.parse_blocks(chars);
         }
-        let (mut blocks, after) = self.parse_paragraph(chars, 0);
+        let (mut blocks, after) = self.parse_paragraph(chars, 0, &mut HeaderScan::default());
         if let Some(rest) = chars.get(after..) {
             blocks.extend(self.parse_blocks(rest));
         }
@@ -3638,21 +3654,23 @@ fn tag_attribute(raw: &str, key: &str) -> Option<String> {
 
 // --- line classification ------------------------------------------------------------------------
 
-/// Recursion bound for the heading-region lookahead. A heading's text runs until the next line that
-/// opens a block, and deciding whether a `=`-prefixed line opens its own heading needs the same
-/// lookahead, so the two are mutually recursive. The bound caps that recursion: past it a
-/// `=`-prefixed line is judged by its own single line alone, so deeply stacked heading candidates
-/// cannot exhaust the stack.
-const MAX_HEADING_LOOKAHEAD: usize = 64;
-
-fn line_starts_block(chars: &[char], ls: usize) -> bool {
-    line_starts_block_within(chars, ls, 0)
+/// Memo tables for the heading-region lookahead, keyed by the starting char index within one
+/// `chars` slice. A heading's text runs until the next line that opens a block, and deciding
+/// whether a `=`-prefixed line opens its own heading needs that same lookahead, so region end and
+/// header-ness are mutually recursive. Every recursive step advances to a strictly later line, so
+/// the recursion always terminates on its own — but without memoization each line's region would be
+/// recomputed once per enclosing region, which is exponential in the number of consecutive
+/// `=`-prefixed lines. Caching each result by position collapses that to linear work per line.
+#[derive(Default)]
+struct HeaderScan {
+    region_end: BTreeMap<usize, usize>,
+    is_header: BTreeMap<usize, bool>,
 }
 
-fn line_starts_block_within(chars: &[char], ls: usize, depth: usize) -> bool {
+fn line_starts_block_scan(chars: &[char], ls: usize, scan: &mut HeaderScan) -> bool {
     match at(chars, ls) {
         Some('*' | '#' | ':' | ';' | ' ') => true,
-        Some('=') => is_header_line_within(chars, ls, depth),
+        Some('=') => is_header_line(chars, ls, scan),
         Some('-') => is_hr_line(chars, ls),
         Some('{') => matches!(at(chars, ls + 1), Some('{' | '|')),
         Some('<') => starts_block_tag(chars, ls),
@@ -3660,47 +3678,90 @@ fn line_starts_block_within(chars: &[char], ls: usize, depth: usize) -> bool {
     }
 }
 
-fn is_header_line_within(chars: &[char], pos: usize, depth: usize) -> bool {
+fn is_header_line_within(chars: &[char], pos: usize) -> bool {
+    is_header_line(chars, pos, &mut HeaderScan::default())
+}
+
+fn is_header_line(chars: &[char], pos: usize, scan: &mut HeaderScan) -> bool {
+    if let Some(&cached) = scan.is_header.get(&pos) {
+        return cached;
+    }
     let le = line_end(chars, pos);
     let mut m = 0;
     while pos + m < le && at(chars, pos + m) == Some('=') {
         m += 1;
     }
-    if m == 0 || m > 6 {
-        return false;
-    }
-    if depth >= MAX_HEADING_LOOKAHEAD {
-        return header_closer(chars, pos + m, le, m).is_some();
-    }
-    let region_end = header_region_end_within(chars, pos, depth + 1);
-    header_closer(chars, pos + m, region_end, m).is_some()
+    let result = if m == 0 || m > 6 {
+        false
+    } else {
+        let region_end = header_region_end_scan(chars, pos, scan);
+        header_closer(chars, pos + m, region_end, m).is_some()
+    };
+    scan.is_header.insert(pos, result);
+    result
 }
 
 /// The end index of the span a heading's text may cover: the heading continues across lines like a
 /// paragraph until a blank line or a line that opens its own block, and the result is the line end
 /// of the last line still part of that span.
-fn header_region_end(chars: &[char], pos: usize) -> usize {
-    header_region_end_within(chars, pos, 0)
-}
-
-fn header_region_end_within(chars: &[char], pos: usize, depth: usize) -> usize {
+fn header_region_end_scan(chars: &[char], pos: usize, scan: &mut HeaderScan) -> usize {
+    if let Some(&cached) = scan.region_end.get(&pos) {
+        return cached;
+    }
     let n = chars.len();
+    // The region end of a line depends only on lines that come after it, so resolve them
+    // back-to-front. First gather the forward run of consecutive non-blank line starts beginning at
+    // `pos` (the run stops at the first blank line or the end of input); then fill the memo from the
+    // last line to the first. Resolving bottom-up keeps the mutual recursion between region-end and
+    // header-ness at constant stack depth no matter how many `=`-prefixed lines are stacked — a
+    // naive recursive walk would instead recurse once per line and overflow the stack on adversarial
+    // input.
+    let mut starts = Vec::new();
     let mut cur = pos;
     loop {
+        starts.push(cur);
         let le = line_end(chars, cur);
         if le >= n {
-            return le;
+            break;
         }
         let next = le + 1;
         if next >= n {
-            return le;
+            break;
         }
         let next_end = line_end(chars, next);
-        if is_blank(chars, next, next_end) || line_starts_block_within(chars, next, depth) {
-            return le;
+        if is_blank(chars, next, next_end) {
+            break;
         }
         cur = next;
     }
+    for &s in starts.iter().rev() {
+        if scan.region_end.contains_key(&s) {
+            continue;
+        }
+        let le = line_end(chars, s);
+        let region = if le >= n {
+            le
+        } else {
+            let next = le + 1;
+            if next >= n {
+                le
+            } else {
+                let next_end = line_end(chars, next);
+                // `next` is the following run element (already resolved) or a blank/EOF line, so
+                // `line_starts_block_scan` and the recursive lookup below both hit the memo.
+                if is_blank(chars, next, next_end) || line_starts_block_scan(chars, next, scan) {
+                    le
+                } else {
+                    header_region_end_scan(chars, next, scan)
+                }
+            }
+        };
+        scan.region_end.insert(s, region);
+    }
+    scan.region_end
+        .get(&pos)
+        .copied()
+        .unwrap_or_else(|| line_end(chars, pos))
 }
 
 /// The index of the first bare `=` run after the heading text, when that run is at least `m` long;
@@ -4937,6 +4998,17 @@ mod tests {
     #[test]
     fn adversarially_nested_refs_do_not_panic() {
         let input = format!("{}x{}", "a<ref>".repeat(4000), "</ref>".repeat(4000));
+        assert!(reads_ok(&input));
+    }
+
+    #[test]
+    fn stacked_header_lines_do_not_blow_up() {
+        // A run of consecutive `=`-prefixed lines with no blank separators and no same-line closer
+        // once forced the heading-region lookahead to recompute each line's region for every
+        // enclosing region — exponential in the number of stacked lines, which a nightly fuzz run
+        // hit as a timeout. Memoizing the region scan makes it linear; a run this long would never
+        // finish under the old code.
+        let input = "== ~iT\n= w e\n= J".repeat(4000);
         assert!(reads_ok(&input));
     }
 }
