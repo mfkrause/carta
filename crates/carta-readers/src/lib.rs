@@ -3,14 +3,20 @@
 
 #[cfg(any(feature = "commonmark", feature = "mediawiki"))]
 mod emoji;
-#[cfg(any(feature = "commonmark", feature = "html"))]
+#[cfg(any(
+    feature = "commonmark",
+    feature = "html",
+    feature = "dokuwiki",
+    feature = "jira"
+))]
 mod entities;
 #[cfg(any(
     feature = "commonmark",
     feature = "man",
     feature = "rst",
     feature = "latex",
-    feature = "org"
+    feature = "org",
+    feature = "dokuwiki"
 ))]
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]
