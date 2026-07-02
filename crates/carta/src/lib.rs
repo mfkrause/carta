@@ -67,14 +67,26 @@ pub fn convert(
     #[cfg(not(feature = "standalone"))]
     let document = reader.read(input, &reader_options)?;
 
-    // A section number carried in the heading text is spliced into a copy of the document before the
-    // body is rendered; the pristine document still feeds the contents builder, which numbers its own
-    // entries. A format with a typesetting counter leaves the body untouched and is driven by a
-    // template flag instead.
+    // A pristine copy of the document is kept only when the contents builder will later consume it:
+    // numbering splices section numbers into the heading inlines the builder reads, so it must see
+    // the unnumbered tree to avoid double-numbering its entries. When no standalone wrapper runs the
+    // pristine copy is never read again, so the body is numbered in place. A format with a
+    // typesetting counter leaves the body untouched and is driven by a template flag instead.
+    #[cfg(feature = "standalone")]
+    let pristine_needed = writer_options.standalone || writer_options.template.is_some();
+    #[cfg(not(feature = "standalone"))]
+    let pristine_needed = false;
+
+    let mut document = document;
     let body = if writer_options.number_sections && writer.numbers_sections_in_body() {
-        let mut numbered = document.clone();
-        carta_core::sections::number_sections(&mut numbered.blocks);
-        writer.write(&numbered, &writer_options)?
+        if pristine_needed {
+            let mut numbered = document.clone();
+            carta_core::sections::number_sections(&mut numbered.blocks);
+            writer.write(&numbered, &writer_options)?
+        } else {
+            carta_core::sections::number_sections(&mut document.blocks);
+            return writer.write(&document, &writer_options);
+        }
     } else {
         writer.write(&document, &writer_options)?
     };
