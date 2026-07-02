@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 rust-version = "1.93"
 authors = ["Maximilian Krause"]
@@ -29,11 +29,11 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 # Internal crates. Each carries a `version` alongside `path` so the published packages
 # depend on the registry release; the path is used for in-workspace builds. Kept in lockstep
 # with the workspace version by the release tooling.
-carta = { path = "crates/carta", version = "0.0.1" }
-carta-ast = { path = "crates/carta-ast", version = "0.0.1" }
-carta-core = { path = "crates/carta-core", version = "0.0.1" }
-carta-readers = { path = "crates/carta-readers", version = "0.0.1" }
-carta-writers = { path = "crates/carta-writers", version = "0.0.1" }
+carta = { path = "crates/carta", version = "0.0.2" }
+carta-ast = { path = "crates/carta-ast", version = "0.0.2" }
+carta-core = { path = "crates/carta-core", version = "0.0.2" }
+carta-readers = { path = "crates/carta-readers", version = "0.0.2" }
+carta-writers = { path = "crates/carta-writers", version = "0.0.2" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
