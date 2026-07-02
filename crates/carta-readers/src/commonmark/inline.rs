@@ -586,39 +586,106 @@ fn task_marker_replacement(text: &str) -> Option<String> {
 /// Split a trailing attribute block off a heading's text when header attributes are enabled,
 /// returning the content to parse as inlines and the heading's attribute. The block must be the
 /// last non-blank run on the line (`# Title {#id .cls}`); an empty block (`{}`) is left in the text.
+/// When `mmd_header_identifiers` is on and no attribute block is present, a trailing `[id]` label is
+/// taken as the identifier instead.
 fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
-    if !(ext.contains(Extension::HeaderAttributes) || ext.contains(Extension::Attributes)) {
-        return (text, Attr::default());
-    }
-    let trimmed = text.trim_end();
-    if !trimmed.ends_with('}') {
-        return (text, Attr::default());
-    }
-    let chars: Vec<char> = trimmed.chars().collect();
-    for start in (0..chars.len()).rev() {
-        if chars.get(start) != Some(&'{') {
-            continue;
+    if ext.contains(Extension::HeaderAttributes) || ext.contains(Extension::Attributes) {
+        let trimmed = text.trim_end();
+        if trimmed.ends_with('}') {
+            let chars: Vec<char> = trimmed.chars().collect();
+            for start in (0..chars.len()).rev() {
+                if chars.get(start) != Some(&'{') {
+                    continue;
+                }
+                // The block must be set off from the heading text by whitespace, else it belongs to
+                // the preceding word rather than the heading.
+                let preceded_by_space = start == 0
+                    || chars
+                        .get(start - 1)
+                        .copied()
+                        .is_some_and(is_unicode_whitespace);
+                if preceded_by_space
+                    && let Some((attr, end)) = attr::parse_attributes_chars(&chars, start)
+                    && end == chars.len()
+                    && attr::is_non_empty(&attr)
+                {
+                    let byte_start: usize = chars
+                        .get(..start)
+                        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
+                    let content = text.get(..byte_start).unwrap_or(text).trim_end();
+                    return (content, attr);
+                }
+            }
         }
-        // The block must be set off from the heading text by whitespace, else it belongs to the
-        // preceding word rather than the heading.
-        let preceded_by_space = start == 0
-            || chars
-                .get(start - 1)
-                .copied()
-                .is_some_and(is_unicode_whitespace);
-        if preceded_by_space
-            && let Some((attr, end)) = attr::parse_attributes_chars(&chars, start)
-            && end == chars.len()
-            && attr::is_non_empty(&attr)
-        {
-            let byte_start: usize = chars
-                .get(..start)
-                .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
-            let content = text.get(..byte_start).unwrap_or(text).trim_end();
-            return (content, attr);
-        }
+    }
+    if ext.contains(Extension::MmdHeaderIdentifiers)
+        && let Some((content, id)) = split_mmd_header_id(text)
+    {
+        return (
+            content,
+            Attr {
+                id,
+                ..Attr::default()
+            },
+        );
     }
     (text, Attr::default())
+}
+
+/// Split a trailing `[id]` label off a heading's text (`mmd_header_identifiers`), returning the
+/// content to keep and the identifier. The label is the last bracket group on the line, its opener
+/// reachable without crossing another bracket group's close (so a reference-link tail like
+/// `[text][ref]` is not mistaken for it). The identifier is the bracket content lowercased with all
+/// whitespace removed; an empty label is still stripped but yields an empty identifier, which then
+/// falls to an automatic one.
+fn split_mmd_header_id(text: &str) -> Option<(&str, String)> {
+    let trimmed = text.trim_end();
+    if !trimmed.ends_with(']') {
+        return None;
+    }
+    let chars: Vec<char> = trimmed.chars().collect();
+    let close = chars.len().checked_sub(1)?;
+    let mut depth = 0i32;
+    let mut open = None;
+    for i in (0..chars.len()).rev() {
+        match chars.get(i).copied() {
+            Some(']') => depth += 1,
+            Some('[') => {
+                depth -= 1;
+                if depth == 0 {
+                    open = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let open = open?;
+    // A bracket group directly before the label (only whitespace between) makes the pair a
+    // reference-link construct, not an identifier.
+    let mut before = open;
+    while before > 0
+        && chars
+            .get(before - 1)
+            .copied()
+            .is_some_and(is_unicode_whitespace)
+    {
+        before -= 1;
+    }
+    if before > 0 && chars.get(before - 1) == Some(&']') {
+        return None;
+    }
+    let id: String = chars
+        .get(open + 1..close)?
+        .iter()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(|c| c.to_lowercase())
+        .collect();
+    let byte_open: usize = chars
+        .get(..open)
+        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
+    let content = text.get(..byte_open).unwrap_or(text).trim_end();
+    Some((content, id))
 }
 
 /// A node in the in-progress inline list. Delimiter runs stay as nodes until emphasis resolution.
@@ -3520,6 +3587,36 @@ mod tests {
         let (content, attr) = split_header_attr("Title {#id}", Extensions::empty());
         assert_eq!(content, "Title {#id}");
         assert!(attr.id.is_empty());
+    }
+
+    #[test]
+    fn mmd_header_identifier_split() {
+        let on = exts(&[Extension::MmdHeaderIdentifiers]);
+        // A trailing `[id]` label is the identifier; the content keeps everything before it.
+        let (content, attr) = split_header_attr("Heading [myid]", on);
+        assert_eq!(content, "Heading");
+        assert_eq!(attr.id, "myid");
+        // The identifier is lowercased with all whitespace removed.
+        assert_eq!(split_header_attr("Foo [My Id]", on).1.id, "myid");
+        // No whitespace is required before the label.
+        let (content, attr) = split_header_attr("Foo[b]", on);
+        assert_eq!((content, attr.id.as_str()), ("Foo", "b"));
+        // Only the last bracket group is the label; earlier ones stay in the content.
+        let (content, attr) = split_header_attr("Foo [a] bar [b]", on);
+        assert_eq!((content, attr.id.as_str()), ("Foo [a] bar", "b"));
+        // A reference-link tail (label directly after another bracket group) is not an identifier.
+        assert_eq!(split_header_attr("See [ref][myid]", on).1.id, "");
+        assert_eq!(split_header_attr("Foo [a] [b]", on).1.id, "");
+        // An empty label is stripped but leaves the identifier empty (falls to an automatic one).
+        assert_eq!(
+            split_header_attr("Heading []", on),
+            ("Heading", Attr::default())
+        );
+        // Without the extension the label stays in the text.
+        assert_eq!(
+            split_header_attr("Heading [myid]", Extensions::empty()).0,
+            "Heading [myid]"
+        );
     }
 
     #[test]
