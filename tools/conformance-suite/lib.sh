@@ -106,6 +106,23 @@ compare_text() {
   return 1
 }
 
+# Compare two extracted-media directories byte-for-byte. Either side may be absent — a document that
+# carries no media extracts nothing — and both-absent counts as equal; one-absent is a mismatch.
+# Prints the differing entries (bounded) and returns 1 on any divergence.
+compare_dir() {
+  local a="$1" b="$2" a_has=0 b_has=0
+  [ -d "$a" ] && [ -n "$(ls -A "$a" 2>/dev/null)" ] && a_has=1
+  [ -d "$b" ] && [ -n "$(ls -A "$b" 2>/dev/null)" ] && b_has=1
+  [ "$a_has" = 0 ] && [ "$b_has" = 0 ] && return 0
+  if [ "$a_has" != "$b_has" ]; then
+    echo "extracted media present on one side only (oracle=$a_has carta=$b_has)"
+    return 1
+  fi
+  diff -qr "$a" "$b" >/dev/null 2>&1 && return 0
+  diff -qr "$a" "$b" 2>&1 | head -n 50
+  return 1
+}
+
 # Per-surface tally. Reset before each (surface, format) group.
 conf_reset() {
   PASS=0 FAIL=0 ERR=0 SKIP=0
