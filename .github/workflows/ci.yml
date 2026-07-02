@@ -90,7 +90,26 @@ jobs:
       - name: Build carta
         run: cargo build -p carta
       - name: Run conformance suite
+        env:
+          CONF_WORK: ${{ runner.temp }}/conformance
         run: tools/conformance-suite/run.sh all
+      - name: Show failing-case details
+        if: failure()
+        env:
+          CONF_WORK: ${{ runner.temp }}/conformance
+        run: |
+          for log in "$CONF_WORK"/*.log; do
+            [ -s "$log" ] || continue
+            echo "===== $log ====="
+            head -n 200 "$log"
+          done
+      - name: Upload conformance logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-logs
+          path: ${{ runner.temp }}/conformance/*.log
+          if-no-files-found: ignore
 
   coverage:
     name: coverage (≥90%)
