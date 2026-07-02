@@ -173,10 +173,10 @@ struct Descent {
 /// The deepest a container (block quote, list item, fenced div, …) may nest. Past this the opener is
 /// left as ordinary text rather than descended into, so a pathologically nested input — thousands of
 /// `>` on one line, say — cannot build a tree deep enough for the recursive block/inline tree-walks
-/// to overflow the stack. Set far above any nesting a genuine document reaches; the sanitizer build
-/// the fuzzer uses spends more stack per frame, so the ceiling keeps a wide margin below that build's
-/// limit too.
-const MAX_CONTAINER_DEPTH: usize = 400;
+/// to overflow the stack. Set well above any nesting a genuine document reaches, yet low enough that
+/// the walks stay within the smallest stack the reader runs on — a 1 MiB Windows main thread, or the
+/// sanitizer build the fuzzer uses, whose deeper per-frame cost still clears this ceiling comfortably.
+const MAX_CONTAINER_DEPTH: usize = 128;
 
 #[derive(Debug)]
 struct Node {
