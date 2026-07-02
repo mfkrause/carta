@@ -1,16 +1,26 @@
-//! Facade integration tests: the high-level `convert` entry point and format-name resolution. These
+//! Facade integration tests: the high-level `convert_text` and `convert` entry points and format-name resolution. These
 //! run fully offline — outputs are the writers' own deterministic text. The error-classification cases
 //! are feature-gated so they assert the right branch under both `--all-features` and a minimal
 //! `--no-default-features --features read-commonmark,write-html` build.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use carta::{Error, ReaderOptions, WriterOptions, convert, reader_for, writer_for};
+use carta::{
+    Error, Output, ReaderOptions, WriterOptions, convert, convert_text, reader_for, writer_for,
+};
 
 #[cfg(all(feature = "read-commonmark", feature = "write-html"))]
 #[test]
-fn commonmark_to_html() {
-    let output = convert(
+fn convert_on_text_target_matches_convert_text() {
+    let bytes = convert(
+        "commonmark",
+        "html",
+        b"# Hi\n",
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap();
+    let text = convert_text(
         "commonmark",
         "html",
         "# Hi\n",
@@ -18,7 +28,35 @@ fn commonmark_to_html() {
         &WriterOptions::default(),
     )
     .unwrap();
-    // `convert` returns no trailing newline.
+    assert_eq!(bytes, Output::Text(text));
+}
+
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn convert_rejects_invalid_utf8_for_a_text_reader() {
+    let error = convert(
+        "commonmark",
+        "html",
+        &[0xff, 0xfe],
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, Error::InvalidUtf8(_)), "{error:?}");
+}
+
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn commonmark_to_html() {
+    let output = convert_text(
+        "commonmark",
+        "html",
+        "# Hi\n",
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap();
+    // `convert_text` returns no trailing newline.
     assert_eq!(output, "<h1>Hi</h1>");
 }
 
@@ -27,7 +65,7 @@ fn commonmark_to_html() {
 fn number_sections_without_standalone_numbers_the_body_in_place() {
     let mut writer_options = WriterOptions::default();
     writer_options.number_sections = true;
-    let output = convert(
+    let output = convert_text(
         "commonmark",
         "html",
         "# First\n\n## Nested\n",
@@ -57,7 +95,7 @@ fn number_sections_with_standalone_toc_numbers_body_and_toc_exactly_once() {
     writer_options.number_sections = true;
     writer_options.standalone = true;
     writer_options.toc = true;
-    let output = convert(
+    let output = convert_text(
         "commonmark",
         "html",
         "# First\n\n## Nested\n",
@@ -90,7 +128,7 @@ fn number_sections_with_standalone_toc_numbers_body_and_toc_exactly_once() {
 #[test]
 fn json_round_trips() {
     let input = r#"{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"hi"}]}]}"#;
-    let output = convert(
+    let output = convert_text(
         "json",
         "json",
         input,

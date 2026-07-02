@@ -22,7 +22,7 @@ fn reader_ast_snapshots() {
         if !readers.contains(&case.group.as_str()) {
             continue;
         }
-        let json = carta::convert(
+        let json = carta::convert_text(
             &case.group,
             "json",
             &case.input,
@@ -46,7 +46,7 @@ fn reader_ext_ast_snapshots() {
         if carta::reader_for(&base).is_err() {
             continue;
         }
-        let json = carta::convert(
+        let json = carta::convert_text(
             &case.group,
             "json",
             &case.input,

@@ -1,5 +1,5 @@
 //! Standalone-output integration tests: the context builder, metadata precedence, and target-aware
-//! interpolation, driven through the public `convert` entry point. A single inline template is
+//! interpolation, driven through the public `convert_text` entry point. A single inline template is
 //! rendered to two formats so the same metadata produces format-specific markup. Fully offline.
 
 #![cfg(all(feature = "standalone", feature = "read-commonmark"))]
@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 
 use carta::ast::MetaValue;
-use carta::{ReaderOptions, WriterOptions, convert};
+use carta::{ReaderOptions, WriterOptions, convert_text};
 
 /// Document with a mix of metadata kinds: an inline title (markup), a boolean, a list, and two keys
 /// that also appear in higher precedence layers.
@@ -65,7 +65,7 @@ fn options() -> WriterOptions {
 #[cfg(feature = "write-html")]
 #[test]
 fn standalone_html_context_and_precedence() {
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "html",
         INPUT,
@@ -83,7 +83,7 @@ O=from-V & raw|M=from-M|VM=from-V-vm|D=default-val|B=<p>Body text.</p>"
 #[cfg(feature = "write-latex")]
 #[test]
 fn standalone_latex_context_and_precedence() {
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "latex",
         INPUT,
@@ -128,7 +128,7 @@ fn identity_options() -> WriterOptions {
 #[cfg(feature = "write-html")]
 #[test]
 fn web_identity_variables_expose_pagetitle_date_and_author_list() {
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "html",
         IDENTITY_INPUT,
@@ -148,7 +148,7 @@ AML=[<Ada Lovelace>,<Alan Turing>]"
 #[cfg(feature = "write-latex")]
 #[test]
 fn pdf_identity_variables_expose_title_meta_and_joined_authors() {
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "latex",
         IDENTITY_INPUT,
@@ -170,7 +170,7 @@ AML=[<Ada Lovelace; Alan Turing>]"
 fn plain_title_block_shows_author_and_date_without_a_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "plain",
         "---\nauthor: Ada Lovelace\ndate: 2026-06-20\n---\n\nBody text.\n",
@@ -198,7 +198,7 @@ fn web_pagetitle_strips_markup_but_keeps_quote_glyphs() {
     let mut options = WriterOptions::default();
     options.standalone = true;
     options.template = Some("[$pagetitle$]".to_owned());
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "html",
         QUOTED_TITLE_INPUT,
@@ -217,7 +217,7 @@ fn pdf_title_meta_strips_markup_but_keeps_quote_glyphs() {
     let mut options = WriterOptions::default();
     options.standalone = true;
     options.template = Some("[$title-meta$]".to_owned());
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "latex",
         QUOTED_TITLE_INPUT,
@@ -239,7 +239,7 @@ fn pdf_identity_variables_are_defined_even_without_metadata() {
 TML=[$for(title-meta)$<$title-meta$>$endfor$]"
             .to_owned(),
     );
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "latex",
         "Body only.\n",
@@ -282,7 +282,7 @@ fn web_pagetitle_flattens_a_lone_paragraph_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
     options.template = Some("[$pagetitle$]".to_owned());
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "html",
         BLOCK_SCALAR_TITLE,
@@ -300,7 +300,7 @@ fn pdf_title_meta_flattens_a_lone_paragraph_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
     options.template = Some("[$title-meta$]".to_owned());
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "latex",
         BLOCK_SCALAR_TITLE,
@@ -317,7 +317,7 @@ fn pdf_title_meta_is_empty_for_a_multi_paragraph_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
     options.template = Some("[$title-meta$]".to_owned());
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "latex",
         TWO_PARAGRAPH_TITLE,
@@ -336,7 +336,7 @@ fn man_flattens_block_metadata_into_a_header_field() {
     options.standalone = true;
     options.template = Some("[$title$]".to_owned());
 
-    let single = convert(
+    let single = convert_text(
         "markdown",
         "man",
         BLOCK_SCALAR_TITLE,
@@ -347,7 +347,7 @@ fn man_flattens_block_metadata_into_a_header_field() {
     // The lone paragraph flattens to inline roff — no paragraph macro leaks into the header field.
     assert_eq!(single, "[Multi\\-line Title Block]");
 
-    let multi = convert(
+    let multi = convert_text(
         "markdown",
         "man",
         TWO_PARAGRAPH_TITLE,
@@ -364,7 +364,7 @@ fn rst_builds_a_title_block_from_a_block_scalar_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
     options.template = Some("[$titleblock$]".to_owned());
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "rst",
         BLOCK_SCALAR_TITLE,
@@ -384,7 +384,7 @@ fn rst_builds_a_title_block_from_a_block_scalar_title() {
 fn typst_default_template_renders_a_structured_author_name() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    let output = convert(
+    let output = convert_text(
         "markdown",
         "typst",
         "---\nauthor:\n  - name: Grace Hopper\ntitle: Hi\n---\n\nBody.\n",

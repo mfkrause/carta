@@ -3,7 +3,7 @@
 
 use std::fs;
 
-use carta::{ReaderOptions, WriterOptions, convert, reader_for, writer_for};
+use carta::{ReaderOptions, WriterOptions, convert_text, reader_for, writer_for};
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 /// Small input size: large enough for stable per-iteration timing, small enough to stay fast.
@@ -143,7 +143,7 @@ fn convert_end_to_end(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(input.len() as u64));
         group.bench_function(*name, |b| {
             b.iter(|| {
-                convert(
+                convert_text(
                     "commonmark",
                     "html",
                     input,

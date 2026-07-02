@@ -1,17 +1,19 @@
 //! carta — a document converter library.
 //!
-//! The single public entry point: [`convert`] parses `input` in a source format and renders it to a
-//! target format. Formats are selected at compile time via per-direction Cargo features
-//! (`read-*`/`write-*`); [`supported_input_formats`]/[`supported_output_formats`] report what this
-//! build contains. For lower-level use, the document model is re-exported as [`ast`], and
-//! [`reader_for`]/[`writer_for`] hand back the [`Reader`]/[`Writer`] trait objects so callers can
-//! inspect or transform the [`Document`] directly.
+//! The public entry points: [`convert`] handles any format pair, taking raw bytes and returning an
+//! [`Output`] that is text or bytes depending on the target format's wire shape; [`convert_text`] is
+//! a shortcut for when both sides are text. Formats are selected
+//! at compile time via per-direction Cargo features (`read-*`/`write-*`);
+//! [`supported_input_formats`]/[`supported_output_formats`] report what this build contains. For
+//! lower-level use, the document model is re-exported as [`ast`], and [`reader_for`]/[`writer_for`]
+//! hand back the [`Reader`]/[`Writer`] trait objects so callers can inspect or transform the
+//! [`Document`] directly.
 
 pub use carta_ast as ast;
 pub use carta_ast::Document;
 pub use carta_core::{
-    Error, Extension, Extensions, MathMethod, Reader, ReaderOptions, Result, TocStyle, WrapMode,
-    Writer, WriterOptions, presets,
+    AnyReader, AnyWriter, BytesReader, BytesWriter, Error, Extension, Extensions, MathMethod,
+    Output, Reader, ReaderOptions, Result, TocStyle, WrapMode, Writer, WriterOptions, presets,
 };
 
 mod format_spec;
@@ -21,33 +23,77 @@ mod standalone;
 
 pub use format_spec::parse_format_spec;
 pub use registry::{
-    input_format_names, output_format_names, reader_for, supported_input_formats,
-    supported_output_formats, writer_for,
+    any_reader_for, any_writer_for, input_format_names, output_format_names, reader_for,
+    supported_input_formats, supported_output_formats, writer_for,
 };
 
-/// Converts `input` from format `from` to format `to`.
+/// Converts text `input` from format `from` to text in format `to`.
 ///
-/// Each format may carry `+ext`/`-ext` toggles (e.g. `commonmark+strikeout-raw_html`); the selected
-/// extensions are merged with any already present in the supplied options.
+/// A shortcut over [`convert`] for the common case where both formats are text-shaped. Each format
+/// may carry `+ext`/`-ext` toggles (e.g. `commonmark+strikeout-raw_html`); the selected extensions
+/// are merged with any already present in the supplied options.
 ///
 /// The returned string carries no trailing newline; callers that emit to a stream append their own
 /// (the CLI appends exactly one).
 ///
 /// # Errors
-/// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
-/// [`Error::UnknownExtension`]) and any reader/writer error encountered during conversion.
-pub fn convert(
+/// [`Error::BinaryFormat`] if `to` names a byte-shaped format (its output cannot be represented as a
+/// `String` — use [`convert`]). Otherwise propagates format-resolution errors
+/// ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`], [`Error::UnknownExtension`]) and any
+/// reader/writer error encountered during conversion.
+pub fn convert_text(
     from: &str,
     to: &str,
     input: &str,
     reader_options: &ReaderOptions,
     writer_options: &WriterOptions,
 ) -> Result<String> {
+    match convert(from, to, input.as_bytes(), reader_options, writer_options)? {
+        Output::Text(text) => Ok(text),
+        Output::Bytes(_) => {
+            let (base, _) = parse_format_spec(to)?;
+            Err(Error::BinaryFormat(base))
+        }
+    }
+}
+
+/// Converts raw `input` bytes from format `from` to format `to`, returning text for a text target and
+/// bytes for a byte-shaped one.
+///
+/// This handles any format pair; [`convert_text`] is a shortcut for when both sides are text. A text
+/// reader decodes `input` as UTF-8 (yielding [`Error::InvalidUtf8`] on invalid bytes); a byte reader
+/// takes the raw slice. Each format may carry `+ext`/`-ext` toggles, merged with the extensions
+/// already in the supplied options.
+///
+/// # Errors
+/// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
+/// [`Error::UnknownExtension`]) and any reader/writer error encountered during conversion.
+///
+/// ```
+/// use carta::{convert, Output, ReaderOptions, WriterOptions};
+///
+/// let output = convert(
+///     "commonmark",
+///     "html",
+///     b"# Hi\n",
+///     &ReaderOptions::default(),
+///     &WriterOptions::default(),
+/// )
+/// .unwrap();
+/// assert_eq!(output, Output::Text("<h1>Hi</h1>".to_owned()));
+/// ```
+pub fn convert(
+    from: &str,
+    to: &str,
+    input: &[u8],
+    reader_options: &ReaderOptions,
+    writer_options: &WriterOptions,
+) -> Result<Output> {
     let (from_base, from_ext) = format_spec::parse_reader_format_spec(from)?;
     let (to_base, to_ext) = parse_format_spec(to)?;
 
-    let reader = reader_for(&from_base)?;
-    let writer = writer_for(&to_base)?;
+    let reader = any_reader_for(&from_base)?;
+    let writer = any_writer_for(&to_base)?;
 
     let mut reader_options = reader_options.clone();
     reader_options.extensions = from_ext.union(reader_options.extensions);
@@ -67,6 +113,15 @@ pub fn convert(
     #[cfg(not(feature = "standalone"))]
     let document = reader.read(input, &reader_options)?;
 
+    // A byte-shaped writer owns its complete output: no template, standalone wrapping, or section
+    // splicing decorates it.
+    let writer = match writer {
+        AnyWriter::Text(writer) => writer,
+        AnyWriter::Bytes(writer) => {
+            return writer.write(&document, &writer_options).map(Output::Bytes);
+        }
+    };
+
     // A pristine copy of the document is kept only when the contents builder will later consume it:
     // numbering splices section numbers into the heading inlines the builder reads, so it must see
     // the unnumbered tree to avoid double-numbering its entries. When no standalone wrapper runs the
@@ -85,7 +140,7 @@ pub fn convert(
             writer.write(&numbered, &writer_options)?
         } else {
             carta_core::sections::number_sections(&mut document.blocks);
-            return writer.write(&document, &writer_options);
+            return writer.write(&document, &writer_options).map(Output::Text);
         }
     } else {
         writer.write(&document, &writer_options)?
@@ -96,10 +151,10 @@ pub fn convert(
         && let Some(wrapped) =
             standalone::render(writer.as_ref(), &document, &body, &writer_options, &to_base)?
     {
-        return Ok(wrapped);
+        return Ok(Output::Text(wrapped));
     }
 
-    Ok(body)
+    Ok(Output::Text(body))
 }
 
 /// Parses a metadata file into a metadata map, for use as `WriterOptions::metadata_defaults`.

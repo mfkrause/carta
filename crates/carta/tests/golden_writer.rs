@@ -56,7 +56,7 @@ fn writer_output_snapshots() {
             {
                 continue;
             }
-            let output = carta::convert(
+            let output = carta::convert_text(
                 "json",
                 target,
                 &case.input,
@@ -87,7 +87,7 @@ fn writer_ext_output_snapshots() {
         if !writers.contains(&base) {
             continue;
         }
-        let output = carta::convert(
+        let output = carta::convert_text(
             "json",
             &case.group,
             &case.input,
