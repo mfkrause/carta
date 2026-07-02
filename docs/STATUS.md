@@ -62,9 +62,29 @@ gap.
 - Verbatim regions flatten embedded font macros (literal tabs are preserved).
 - A `tbl` table using row or column spans degrades to a placeholder paragraph.
 
+### `latex` — ✅
+- Default extensions: `smart`, `auto_identifiers`, `latex_macros`; `raw_tex` and `gfm_auto_identifiers`
+  are off by default. Each is toggled with the `+`/`-` spec syntax.
+- Only the `\begin{document}`…`\end{document}` body is rendered; the preamble contributes metadata
+  (`\title`, `\author`, `\date`, `\subtitle`, `abstract`) and macro definitions but is otherwise dropped.
+  A file with no `document` environment is read whole.
+- An unknown command is dropped together with its bracket/brace arguments; an unknown environment
+  becomes a classed `Div`. Under `raw_tex`, both are instead preserved verbatim as raw LaTeX.
+- Macro expansion (`\newcommand`, `\renewcommand`, `\providecommand`, `\def`, `\let`) is bounded to a
+  fixed nesting depth to stop runaway recursion; with `latex_macros` off, each definition is left in
+  the output verbatim as a raw block.
+
+### `org` — ✅
+- Default extensions: `auto_identifiers`, `citations`, `task_lists`; `smart`, `fancy_lists`, and the
+  `gfm_auto_identifiers`/`ascii_identifiers` identifier shapes are opt-in toggles.
+- Headlines, greater blocks (`#+begin_…`/`#+end_…`), keyword lines, tables, lists, drawers,
+  fixed-width and comment lines are recognized; keyword lines feed document metadata.
+- Inline markup covers emphasis, verbatim, sub/superscripts, links, footnotes, math, entities, and
+  citations; footnote definitions are gathered up front and their references expand inline.
+
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
-`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `latex`, `markdown_strict`, `markdown_mmd`,
-`markdown_phpextra`, `markdown_github`, `mdoc`, `muse`, `odt`, `org`, `pod`, `pptx`, `ris`, `rtf`,
+`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `markdown_strict`, `markdown_mmd`,
+`markdown_phpextra`, `markdown_github`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`, `rtf`,
 `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---
@@ -100,6 +120,12 @@ gap.
 ### `opml` — ✅
 - Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
+### `org` — ✅
+- Block structure maps to heading asterisks, list markers, and `#+begin_…`/`#+end_…` blocks; inline
+  emphasis, code, sub/superscripts, and math map to their Org forms.
+- Footnotes are collected while rendering and emitted as a trailing section; content is filled at a
+  column of 72.
+
 ### `json` — ✅
 ### `native` — ✅
 
@@ -114,7 +140,7 @@ gap.
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
 `csljson`, `docbook` (+ `4`, `5`), `docx`, `dzslides`, `epub` (+ `2`, `3`), `fb2`, `haddock`,
 `icml`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
-`odt`, `opendocument`, `org`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
+`odt`, `opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
 `vimdoc`, `xml`, `xwiki`, `zimwiki`.
 
 ---

@@ -39,6 +39,7 @@ const TARGETS: &[&str] = &[
     "asciidoc",
     "man",
     "opml",
+    "org",
     "beamer",
     "revealjs",
     "ipynb",

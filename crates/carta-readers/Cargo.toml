@@ -17,7 +17,7 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man"]
+default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org"]
 commonmark = ["dep:unicode-general-category", "dep:caseless", "dep:serde_json"]
 json = []
 html = []
@@ -31,6 +31,8 @@ mediawiki = ["html"]
 dokuwiki = ["dep:unicode-normalization"]
 jira = []
 man = []
+latex = []
+org = []
 
 [dependencies]
 carta-ast = { workspace = true }
