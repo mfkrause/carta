@@ -12,9 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use carta::ast::MetaValue;
-use carta::{
-    Error, MathMethod, Output, ReaderOptions, Result, WrapMode, WriterOptions, convert_bytes,
-};
+use carta::{Error, MathMethod, Output, ReaderOptions, Result, WrapMode, WriterOptions, convert};
 use clap::{ArgAction, Parser};
 
 const LIST_FLAGS: [&str; 4] = [
@@ -181,7 +179,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
     let verbatim = cli.standalone || cli.template.is_some();
 
-    let output = convert_bytes(from, to, &input, &ReaderOptions::default(), &writer_options)?;
+    let output = convert(from, to, &input, &ReaderOptions::default(), &writer_options)?;
     write_output(cli.output.as_deref(), &output, verbatim)
 }
 

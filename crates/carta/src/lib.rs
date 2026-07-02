@@ -1,8 +1,8 @@
 //! carta — a document converter library.
 //!
-//! The public entry points: [`convert`] parses text `input` in a source format and renders it to
-//! text in a target format; [`convert_bytes`] is the general form, taking raw bytes and returning an
-//! [`Output`] that is text or bytes depending on the target format's wire shape. Formats are selected
+//! The public entry points: [`convert`] handles any format pair, taking raw bytes and returning an
+//! [`Output`] that is text or bytes depending on the target format's wire shape; [`convert_text`] is
+//! a shortcut for when both sides are text. Formats are selected
 //! at compile time via per-direction Cargo features (`read-*`/`write-*`);
 //! [`supported_input_formats`]/[`supported_output_formats`] report what this build contains. For
 //! lower-level use, the document model is re-exported as [`ast`], and [`reader_for`]/[`writer_for`]
@@ -27,25 +27,28 @@ pub use registry::{
     supported_input_formats, supported_output_formats, writer_for,
 };
 
-/// Converts `input` from format `from` to format `to`.
+/// Converts text `input` from format `from` to text in format `to`.
 ///
-/// Each format may carry `+ext`/`-ext` toggles (e.g. `commonmark+strikeout-raw_html`); the selected
-/// extensions are merged with any already present in the supplied options.
+/// A shortcut over [`convert`] for the common case where both formats are text-shaped. Each format
+/// may carry `+ext`/`-ext` toggles (e.g. `commonmark+strikeout-raw_html`); the selected extensions
+/// are merged with any already present in the supplied options.
 ///
 /// The returned string carries no trailing newline; callers that emit to a stream append their own
 /// (the CLI appends exactly one).
 ///
 /// # Errors
-/// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
-/// [`Error::UnknownExtension`]) and any reader/writer error encountered during conversion.
-pub fn convert(
+/// [`Error::BinaryFormat`] if `to` names a byte-shaped format (its output cannot be represented as a
+/// `String` — use [`convert`]). Otherwise propagates format-resolution errors
+/// ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`], [`Error::UnknownExtension`]) and any
+/// reader/writer error encountered during conversion.
+pub fn convert_text(
     from: &str,
     to: &str,
     input: &str,
     reader_options: &ReaderOptions,
     writer_options: &WriterOptions,
 ) -> Result<String> {
-    match convert_bytes(from, to, input.as_bytes(), reader_options, writer_options)? {
+    match convert(from, to, input.as_bytes(), reader_options, writer_options)? {
         Output::Text(text) => Ok(text),
         Output::Bytes(_) => {
             let (base, _) = parse_format_spec(to)?;
@@ -57,18 +60,19 @@ pub fn convert(
 /// Converts raw `input` bytes from format `from` to format `to`, returning text for a text target and
 /// bytes for a byte-shaped one.
 ///
-/// This is the general form of [`convert`]. A text reader decodes `input` as UTF-8 (yielding
-/// [`Error::InvalidUtf8`] on invalid bytes); a byte reader takes the raw slice. Like [`convert`], each
-/// format may carry `+ext`/`-ext` toggles, merged with the extensions already in the supplied options.
+/// This handles any format pair; [`convert_text`] is a shortcut for when both sides are text. A text
+/// reader decodes `input` as UTF-8 (yielding [`Error::InvalidUtf8`] on invalid bytes); a byte reader
+/// takes the raw slice. Each format may carry `+ext`/`-ext` toggles, merged with the extensions
+/// already in the supplied options.
 ///
 /// # Errors
 /// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
 /// [`Error::UnknownExtension`]) and any reader/writer error encountered during conversion.
 ///
 /// ```
-/// use carta::{convert_bytes, Output, ReaderOptions, WriterOptions};
+/// use carta::{convert, Output, ReaderOptions, WriterOptions};
 ///
-/// let output = convert_bytes(
+/// let output = convert(
 ///     "commonmark",
 ///     "html",
 ///     b"# Hi\n",
@@ -78,7 +82,7 @@ pub fn convert(
 /// .unwrap();
 /// assert_eq!(output, Output::Text("<h1>Hi</h1>".to_owned()));
 /// ```
-pub fn convert_bytes(
+pub fn convert(
     from: &str,
     to: &str,
     input: &[u8],

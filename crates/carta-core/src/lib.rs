@@ -25,7 +25,7 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("input is not valid UTF-8: {0}")]
     InvalidUtf8(#[from] std::str::Utf8Error),
-    #[error("format '{0}' converts binary data; use the byte-level API (convert_bytes)")]
+    #[error("format '{0}' converts binary data; use the byte-capable API (convert)")]
     BinaryFormat(String),
     #[error("unsupported format: {0}")]
     UnsupportedFormat(String),

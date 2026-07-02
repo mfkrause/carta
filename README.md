@@ -208,9 +208,9 @@ carta --list-extensions=gfm      # extensions and defaults for a given format
 ### Library
 
 ```rust
-use carta::{convert, ReaderOptions, WriterOptions};
+use carta::{convert_text, ReaderOptions, WriterOptions};
 
-let html = convert(
+let html = convert_text(
     "commonmark",
     "html",
     "# Hello, *world*",
@@ -218,6 +218,8 @@ let html = convert(
     &WriterOptions::default(),
 )?;
 ```
+
+`convert_text` is the shortcut for text-to-text conversion. The general entry point is `convert`, which takes raw bytes and returns an `Output` that is text or bytes depending on the target format — use it when either side is a binary format.
 
 You can select formats at compile time via per-direction features to make binaries even more lightweight for your individual needs.
 
