@@ -12,6 +12,10 @@ readme.workspace = true
 keywords = ["markup", "markdown", "document", "converter", "commonmark"]
 categories = ["command-line-utilities", "text-processing", "parser-implementations"]
 publish.workspace = true
+# The golden-snapshot suite (thousands of `.snap` files under tests/) is developer-only: consumers
+# never compile the integration tests, so keep them out of the published crate rather than shipping
+# ~1 MiB of test data to everyone who installs or depends on `carta`.
+exclude = ["/tests"]
 
 # docs.rs builds default features only; enable all so every reader/writer is documented.
 [package.metadata.docs.rs]
