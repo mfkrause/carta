@@ -15,15 +15,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). W
 version is below `0.1.0`, anything may change at any time.
 """
 
-# The six crates share one version (`version_group`), so a release bumps and publishes them
+# The five crates share one version (`version_group`), so a release bumps and publishes them
 # together. `carta` is the single release representative: it owns the one root CHANGELOG.md
 # (folding in the other crates' commits via `changelog_include`), the one `v<version>` git tag,
-# and the one GitHub release the binary workflow attaches to.
+# and the one GitHub release the binary workflow attaches to. `carta` also ships the CLI binary.
 [[package]]
 name = "carta"
 version_group = "carta"
 changelog_path = "CHANGELOG.md"
-changelog_include = ["carta-ast", "carta-core", "carta-readers", "carta-writers", "carta-cli"]
+changelog_include = ["carta-ast", "carta-core", "carta-readers", "carta-writers"]
 git_tag_name = "v{{ version }}"
 
 # The remaining crates still publish to crates.io, but produce no separate changelog, tag, or
@@ -51,13 +51,6 @@ git_release_enable = false
 
 [[package]]
 name = "carta-writers"
-version_group = "carta"
-changelog_update = false
-git_tag_enable = false
-git_release_enable = false
-
-[[package]]
-name = "carta-cli"
 version_group = "carta"
 changelog_update = false
 git_tag_enable = false
