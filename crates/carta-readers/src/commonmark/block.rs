@@ -607,7 +607,9 @@ impl Parser {
         // the opening `|` line reinterprets it as a table header. Past the first line the block is
         // committed to being a line block.
         if matches!(self.kind(leaf), Some(Kind::LineBlock)) {
-            if !single_line(header) || !table::opens_table(header.trim_end(), &rest) {
+            if !single_line(header)
+                || !table::opens_table(header.trim_end(), &rest, self.greedy_paragraphs)
+            {
                 return false;
             }
             if let Some(node) = self.nodes.get_mut(leaf) {
@@ -617,7 +619,7 @@ impl Parser {
             self.append_text(leaf, "\n");
             return true;
         }
-        match table::classify_continuation(header, &rest) {
+        match table::classify_continuation(header, &rest, self.greedy_paragraphs) {
             table::Continuation::Absorb => {
                 self.append_text(leaf, &rest);
                 self.append_text(leaf, "\n");
@@ -1735,7 +1737,7 @@ impl Parser {
             return None;
         }
         if self.extensions.contains(Extension::PipeTables)
-            && table::try_parse(term_node.text.trim()).is_some()
+            && table::try_parse(term_node.text.trim(), self.greedy_paragraphs).is_some()
         {
             return None;
         }
@@ -2164,7 +2166,8 @@ impl Parser {
                 {
                     IrBlock::GridTable(Box::new(table))
                 } else if self.extensions.contains(Extension::PipeTables)
-                    && let Some((alignments, header, rows)) = table::try_parse(trimmed)
+                    && let Some((alignments, header, rows)) =
+                        table::try_parse(trimmed, self.greedy_paragraphs)
                 {
                     IrBlock::Table {
                         alignments,
