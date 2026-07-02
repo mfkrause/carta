@@ -220,7 +220,7 @@ impl Parser {
                         classes: Vec::new(),
                         attributes: Vec::new(),
                     };
-                    blocks.push(Block::Header(level, attr, inlines));
+                    blocks.push(Block::Header(level, Box::new(attr), inlines));
                     let (np, ls) = finish_inline_block(chars, closer_end);
                     pos = np;
                     line_start = ls;
@@ -506,7 +506,7 @@ impl Parser {
             }
             "pre" => {
                 let (inner, after) = enclosed(chars, after_open, "pre");
-                Some((Block::CodeBlock(Attr::default(), trim_code(&inner)), after))
+                Some((Block::CodeBlock(Box::default(), trim_code(&inner)), after))
             }
             "source" | "syntaxhighlight" => {
                 let (inner, after) = enclosed(chars, after_open, &name);
@@ -521,7 +521,7 @@ impl Parser {
                     classes,
                     attributes: Vec::new(),
                 };
-                Some((Block::CodeBlock(attr, trim_code(&inner)), after))
+                Some((Block::CodeBlock(Box::new(attr), trim_code(&inner)), after))
             }
             "ul" => Some(self.parse_html_list(chars, after_open, false, &raw_open, self_closing)),
             "ol" => Some(self.parse_html_list(chars, after_open, true, &raw_open, self_closing)),
@@ -1158,7 +1158,10 @@ impl Parser {
                     classes: vec![class.to_string()],
                     attributes: Vec::new(),
                 };
-                (vec![Inline::Span(attr, self.parse_inlines(&inner))], after)
+                (
+                    vec![Inline::Span(Box::new(attr), self.parse_inlines(&inner))],
+                    after,
+                )
             }
             None => (vec![raw_html(raw_open.to_string())], after_open),
         }
@@ -1187,12 +1190,12 @@ impl Parser {
         };
         Some((
             vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 text,
-                Target {
+                Box::new(Target {
                     url: encode_url_target(&url),
                     title: String::new(),
-                },
+                }),
             )],
             close + 1,
         ))
@@ -1228,12 +1231,12 @@ impl Parser {
                     attributes: Vec::new(),
                 };
                 self.categories.push(Inline::Link(
-                    attr,
+                    Box::new(attr),
                     text,
-                    Target {
+                    Box::new(Target {
                         url: wikilink_url(&target),
                         title,
-                    },
+                    }),
                 ));
                 return Some((Vec::new(), close + 2));
             }
@@ -1274,7 +1277,11 @@ impl Parser {
         };
         let url = wikilink_url(&target);
         Some((
-            vec![Inline::Link(attr, label, Target { url, title })],
+            vec![Inline::Link(
+                Box::new(attr),
+                label,
+                Box::new(Target { url, title }),
+            )],
             after,
         ))
     }
@@ -1326,7 +1333,11 @@ impl Parser {
             classes: Vec::new(),
             attributes,
         };
-        Some(Inline::Image(attr, alt, Target { url, title }))
+        Some(Inline::Image(
+            Box::new(attr),
+            alt,
+            Box::new(Target { url, title }),
+        ))
     }
 
     fn make_id(&mut self, inlines: &[Inline]) -> String {
@@ -1976,14 +1987,14 @@ fn preformat_transform(inlines: Vec<Inline>) -> Vec<Inline> {
             Inline::Space | Inline::SoftBreak => run.push('\u{a0}'),
             other => {
                 if !run.is_empty() {
-                    out.push(Inline::Code(Attr::default(), std::mem::take(&mut run)));
+                    out.push(Inline::Code(Box::default(), std::mem::take(&mut run)));
                 }
                 out.push(preformat_descend(other));
             }
         }
     }
     if !run.is_empty() {
-        out.push(Inline::Code(Attr::default(), run));
+        out.push(Inline::Code(Box::default(), run));
     }
     out
 }
@@ -2445,12 +2456,12 @@ fn bare_url(chars: &[char], i: usize) -> Option<(Inline, usize)> {
     let target = encode_url_target(&display);
     Some((
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             vec![Inline::Str(display)],
-            Target {
+            Box::new(Target {
                 url: target,
                 title: String::new(),
-            },
+            }),
         ),
         i + consumed,
     ))
@@ -2687,8 +2698,8 @@ fn lone_image_figure(inlines: &[Inline]) -> Option<Block> {
     };
     let image = Inline::Image(attr.clone(), Vec::new(), target.clone());
     Some(Block::Figure(
-        Attr::default(),
-        caption,
+        Box::default(),
+        Box::new(caption),
         vec![Block::Plain(vec![image])],
     ))
 }
@@ -3940,7 +3951,10 @@ fn verbatim_code(
                 classes: classes.iter().map(|s| (*s).to_string()).collect(),
                 attributes: Vec::new(),
             };
-            (vec![Inline::Code(attr, decode_entities(&inner))], after)
+            (
+                vec![Inline::Code(Box::new(attr), decode_entities(&inner))],
+                after,
+            )
         }
         None => (vec![raw_html(raw_open.to_string())], after_open),
     }
@@ -4539,11 +4553,11 @@ mod tests {
             parse("== Hello World =="),
             vec![Block::Header(
                 2,
-                Attr {
+                Box::new(Attr {
                     id: "hello_world".into(),
                     classes: vec![],
                     attributes: vec![],
-                },
+                }),
                 vec![
                     Inline::Str("Hello".into()),
                     Inline::Space,
@@ -4609,11 +4623,11 @@ mod tests {
             vec![
                 Block::Header(
                     2,
-                    Attr {
+                    Box::new(Attr {
                         id: "h".into(),
                         classes: vec![],
                         attributes: vec![],
-                    },
+                    }),
                     vec![Inline::Str("H".into())],
                 ),
                 Block::Para(vec![Inline::Str("=".into())]),
@@ -4652,16 +4666,16 @@ mod tests {
         assert_eq!(
             parse("[[Page]]s"),
             vec![Block::Para(vec![Inline::Link(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["wikilink".into()],
                     attributes: vec![],
-                },
+                }),
                 vec![Inline::Str("Pages".into())],
-                Target {
+                Box::new(Target {
                     url: "Page".into(),
                     title: "Page".into(),
-                },
+                }),
             )])]
         );
     }
@@ -4671,22 +4685,22 @@ mod tests {
         assert_eq!(
             parse("[[File:Foo.jpg|thumb|A caption]]"),
             vec![Block::Figure(
-                Attr::default(),
-                Caption {
+                Box::default(),
+                Box::new(Caption {
                     short: None,
                     long: vec![Block::Plain(vec![
                         Inline::Str("A".into()),
                         Inline::Space,
                         Inline::Str("caption".into()),
                     ])],
-                },
+                }),
                 vec![Block::Plain(vec![Inline::Image(
-                    Attr::default(),
+                    Box::default(),
                     vec![],
-                    Target {
+                    Box::new(Target {
                         url: "Foo.jpg".into(),
                         title: "A caption".into(),
-                    },
+                    }),
                 )])],
             )]
         );
@@ -4697,18 +4711,18 @@ mod tests {
         assert_eq!(
             parse("[[Image:My Photo.jpg]]"),
             vec![Block::Figure(
-                Attr::default(),
-                Caption {
+                Box::default(),
+                Box::new(Caption {
                     short: None,
                     long: vec![Block::Plain(vec![Inline::Str("My_Photo.jpg".into())])],
-                },
+                }),
                 vec![Block::Plain(vec![Inline::Image(
-                    Attr::default(),
+                    Box::default(),
                     vec![],
-                    Target {
+                    Box::new(Target {
                         url: "My_Photo.jpg".into(),
                         title: "My_Photo.jpg".into(),
-                    },
+                    }),
                 )])],
             )]
         );
@@ -4719,25 +4733,25 @@ mod tests {
         assert_eq!(
             parse("[[File:Foo.jpg|100x200px|cap]]"),
             vec![Block::Figure(
-                Attr::default(),
-                Caption {
+                Box::default(),
+                Box::new(Caption {
                     short: None,
                     long: vec![Block::Plain(vec![Inline::Str("cap".into())])],
-                },
+                }),
                 vec![Block::Plain(vec![Inline::Image(
-                    Attr {
+                    Box::new(Attr {
                         id: String::new(),
                         classes: vec![],
                         attributes: vec![
                             ("width".into(), "100".into()),
                             ("height".into(), "200".into()),
                         ],
-                    },
+                    }),
                     vec![],
-                    Target {
+                    Box::new(Target {
                         url: "Foo.jpg".into(),
                         title: "cap".into(),
-                    },
+                    }),
                 )])],
             )]
         );
@@ -4751,12 +4765,12 @@ mod tests {
                 Inline::Str("x".into()),
                 Inline::Space,
                 Inline::Image(
-                    Attr::default(),
+                    Box::default(),
                     vec![Inline::Str("cap".into())],
-                    Target {
+                    Box::new(Target {
                         url: "Foo.jpg".into(),
                         title: "cap".into(),
-                    },
+                    }),
                 ),
             ])]
         );
@@ -4767,16 +4781,16 @@ mod tests {
         assert_eq!(
             parse("[[File:]]"),
             vec![Block::Para(vec![Inline::Link(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["wikilink".into()],
                     attributes: vec![],
-                },
+                }),
                 vec![Inline::Str("File:".into())],
-                Target {
+                Box::new(Target {
                     url: "File:".into(),
                     title: "File:".into(),
-                },
+                }),
             )])]
         );
     }
@@ -4787,21 +4801,21 @@ mod tests {
             parse("[http://x.com lbl] [http://y.com]"),
             vec![Block::Para(vec![
                 Inline::Link(
-                    Attr::default(),
+                    Box::default(),
                     vec![Inline::Str("lbl".into())],
-                    Target {
+                    Box::new(Target {
                         url: "http://x.com".into(),
                         title: String::new(),
-                    },
+                    }),
                 ),
                 Inline::Space,
                 Inline::Link(
-                    Attr::default(),
+                    Box::default(),
                     vec![Inline::Str("1".into())],
-                    Target {
+                    Box::new(Target {
                         url: "http://y.com".into(),
                         title: String::new(),
-                    },
+                    }),
                 ),
             ])]
         );
@@ -4815,12 +4829,12 @@ mod tests {
                 Inline::Str("see".into()),
                 Inline::Space,
                 Inline::Link(
-                    Attr::default(),
+                    Box::default(),
                     vec![Inline::Str("http://x.com".into())],
-                    Target {
+                    Box::new(Target {
                         url: "http://x.com".into(),
                         title: String::new(),
-                    },
+                    }),
                 ),
                 Inline::Str(".".into()),
             ])]
@@ -4863,7 +4877,7 @@ mod tests {
         assert_eq!(
             parse("<code>a &amp; b</code>"),
             vec![Block::Para(vec![Inline::Code(
-                Attr::default(),
+                Box::default(),
                 "a & b".into()
             )])]
         );
@@ -4910,11 +4924,11 @@ mod tests {
         assert_eq!(
             parse("<syntaxhighlight lang=\"rust\">\nfn main(){}\n</syntaxhighlight>"),
             vec![Block::CodeBlock(
-                Attr {
+                Box::new(Attr {
                     id: String::new(),
                     classes: vec!["rust".into()],
                     attributes: vec![],
-                },
+                }),
                 "fn main(){}".into(),
             )]
         );
@@ -4934,7 +4948,7 @@ mod tests {
         assert_eq!(
             parse(" indented  line"),
             vec![Block::Para(vec![Inline::Code(
-                Attr::default(),
+                Box::default(),
                 "indented\u{a0}\u{a0}line".into()
             )])]
         );
@@ -4945,9 +4959,9 @@ mod tests {
         assert_eq!(
             parse(" a '''b''' c"),
             vec![Block::Para(vec![
-                Inline::Code(Attr::default(), "a\u{a0}".into()),
-                Inline::Strong(vec![Inline::Code(Attr::default(), "b".into())]),
-                Inline::Code(Attr::default(), "\u{a0}c".into()),
+                Inline::Code(Box::default(), "a\u{a0}".into()),
+                Inline::Strong(vec![Inline::Code(Box::default(), "b".into())]),
+                Inline::Code(Box::default(), "\u{a0}c".into()),
             ])]
         );
     }

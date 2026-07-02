@@ -107,12 +107,12 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
                     m.href
                 };
                 out.push(Inline::Link(
-                    attr,
+                    Box::new(attr),
                     vec![Inline::Str(label)],
-                    Target {
+                    Box::new(Target {
                         url,
                         title: String::new(),
-                    },
+                    }),
                 ));
             }
             emit_from = m.end;
@@ -441,12 +441,12 @@ mod tests {
     fn existing_links_are_not_rescanned() {
         // A link is never nested inside another link: a pre-formed Link is passed through verbatim.
         let inner = Inline::Link(
-            Attr::default(),
+            Box::default(),
             vec![Inline::Str("http://example.com".to_owned())],
-            Target {
+            Box::new(Target {
                 url: "http://example.com".to_owned(),
                 title: String::new(),
-            },
+            }),
         );
         let mut inlines = vec![inner.clone()];
         autolink_inlines(&mut inlines, false);
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn code_is_left_untouched() {
-        let code = Inline::Code(Attr::default(), "http://example.com".to_owned());
+        let code = Inline::Code(Box::default(), "http://example.com".to_owned());
         let mut inlines = vec![code.clone()];
         autolink_inlines(&mut inlines, false);
         assert_eq!(inlines, vec![code]);

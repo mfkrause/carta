@@ -185,7 +185,7 @@ impl Converter {
             BlockKind::Header(level) => {
                 let inlines = trim_inlines(self.build_inlines(&e.children));
                 let attr = self.header_attr(e, &inlines);
-                out.push(Block::Header(level, attr, inlines));
+                out.push(Block::Header(level, Box::new(attr), inlines));
             }
             BlockKind::BulletList => out.push(Block::BulletList(self.list_items(e))),
             BlockKind::OrderedList => {
@@ -201,7 +201,10 @@ impl Converter {
                     out.push(Block::LineBlock(self.line_block_lines(&e.children)));
                 } else if self.ext.contains(Extension::NativeDivs) {
                     let attr = div_attr(e, sectioning);
-                    out.push(Block::Div(attr, self.child_blocks(&e.children, false)));
+                    out.push(Block::Div(
+                        Box::new(attr),
+                        self.child_blocks(&e.children, false),
+                    ));
                 } else {
                     // `native_divs` off: the wrapper carries no document structure, so its content
                     // is spliced into the surrounding block flow.
@@ -292,7 +295,11 @@ impl Converter {
             }
             content_nodes.push(child);
         }
-        Block::Figure(attr, caption, self.blocks(&content_nodes, true))
+        Block::Figure(
+            Box::new(attr),
+            Box::new(caption),
+            self.blocks(&content_nodes, true),
+        )
     }
 
     fn code_block(e: &Element) -> Block {
@@ -317,7 +324,7 @@ impl Converter {
         if text.ends_with('\n') {
             text.pop();
         }
-        Block::CodeBlock(attr, text)
+        Block::CodeBlock(Box::new(attr), text)
     }
 
     fn table(&mut self, e: &Element) -> Block {
@@ -589,7 +596,7 @@ impl Converter {
                 } else if is_small_caps(e) {
                     out.push(Inline::SmallCaps(inner));
                 } else {
-                    out.push(Inline::Span(extract_attr(e, &[]), inner));
+                    out.push(Inline::Span(Box::new(extract_attr(e, &[])), inner));
                 }
             }
             InlineKind::Bdo => {
@@ -600,13 +607,13 @@ impl Converter {
                         classes: Vec::new(),
                         attributes: vec![("dir".to_string(), dir)],
                     };
-                    out.push(Inline::Span(attr, inner));
+                    out.push(Inline::Span(Box::new(attr), inner));
                 } else {
                     out.extend(inner);
                 }
             }
             InlineKind::SpanClass => {
-                let mut attr = extract_attr(e, &[]);
+                let mut attr = Box::new(extract_attr(e, &[]));
                 attr.classes.insert(0, e.name.clone());
                 out.push(Inline::Span(attr, self.build_inlines(&e.children)));
             }
@@ -675,7 +682,7 @@ impl Converter {
             self.in_code.set(previous);
             codify(out, inner, &attr);
         } else {
-            out.push(Inline::Code(attr, collect_text(e)));
+            out.push(Inline::Code(Box::new(attr), collect_text(e)));
         }
     }
 
@@ -698,9 +705,13 @@ impl Converter {
         }
         let anchor = if let Some(href) = attr_value(e, "href") {
             let title = attr_value(e, "title").unwrap_or_default();
-            Inline::Link(attr, trimmed, Target { url: href, title })
+            Inline::Link(
+                Box::new(attr),
+                trimmed,
+                Box::new(Target { url: href, title }),
+            )
         } else {
-            Inline::Span(attr, trimmed)
+            Inline::Span(Box::new(attr), trimmed)
         };
         out.push(anchor);
         if let Some(trail) = trailing {
@@ -716,7 +727,7 @@ fn codify(out: &mut Vec<Inline>, inlines: Vec<Inline>, attr: &Attr) {
     let mut run = String::new();
     let flush = |run: &mut String, out: &mut Vec<Inline>| {
         if !run.is_empty() {
-            out.push(Inline::Code(attr.clone(), std::mem::take(run)));
+            out.push(Inline::Code(Box::new(attr.clone()), std::mem::take(run)));
         }
     };
     for inline in inlines {
@@ -1205,7 +1216,11 @@ fn image(e: &Element) -> Inline {
     let title = attr_value(e, "title").unwrap_or_default();
     let alt = attr_value(e, "alt").unwrap_or_default();
     let attr = extract_attr(e, &["src", "title", "alt"]);
-    Inline::Image(attr, inlines_from_text(&alt), Target { url, title })
+    Inline::Image(
+        Box::new(attr),
+        inlines_from_text(&alt),
+        Box::new(Target { url, title }),
+    )
 }
 
 fn extract_attr(e: &Element, exclude: &[&str]) -> Attr {

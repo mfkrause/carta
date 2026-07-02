@@ -1257,10 +1257,10 @@ mod tests {
         assert_eq!(
             render(vec![Block::Header(
                 2,
-                Attr {
+                Box::new(Attr {
                     id: "intro".into(),
                     ..Attr::default()
-                },
+                }),
                 vec![str_inline("H")],
             )]),
             "== H\n<intro>"
@@ -1272,11 +1272,11 @@ mod tests {
         assert_eq!(
             render(vec![Block::Header(
                 1,
-                Attr {
+                Box::new(Attr {
                     id: "hidden".into(),
                     classes: vec!["unnumbered".into()],
                     ..Attr::default()
-                },
+                }),
                 vec![str_inline("Hidden")],
             )]),
             "#heading(level: 1, numbering: none)[Hidden]\n<hidden>"
@@ -1307,7 +1307,7 @@ mod tests {
     fn inline_code_uses_backticks() {
         assert_eq!(
             render(vec![para(vec![Inline::Code(
-                Attr::default(),
+                Box::default(),
                 "let x = 1;".into()
             )])]),
             "`let x = 1;`"
@@ -1317,10 +1317,7 @@ mod tests {
     #[test]
     fn inline_code_with_backtick_falls_back() {
         assert_eq!(
-            render(vec![para(vec![Inline::Code(
-                Attr::default(),
-                "a`b".into()
-            )])]),
+            render(vec![para(vec![Inline::Code(Box::default(), "a`b".into())])]),
             "#raw(\"a`b\")"
         );
     }
@@ -1385,10 +1382,10 @@ mod tests {
     fn span_label_at_start_anchors_with_zwsp() {
         assert_eq!(
             render(vec![para(vec![Inline::Span(
-                Attr {
+                Box::new(Attr {
                     id: "sid".into(),
                     ..Attr::default()
-                },
+                }),
                 vec![str_inline("a")],
             )])]),
             "\u{200b}a<sid>"
@@ -1402,10 +1399,10 @@ mod tests {
                 str_inline("a"),
                 Inline::Space,
                 Inline::Span(
-                    Attr {
+                    Box::new(Attr {
                         id: "s".into(),
                         ..Attr::default()
-                    },
+                    }),
                     vec![str_inline("styled")],
                 ),
                 Inline::Space,
@@ -1419,10 +1416,10 @@ mod tests {
     fn mark_span_highlights() {
         assert_eq!(
             render(vec![para(vec![Inline::Span(
-                Attr {
+                Box::new(Attr {
                     classes: vec!["mark".into()],
                     ..Attr::default()
-                },
+                }),
                 vec![str_inline("x")],
             )])]),
             "#highlight[x]"
@@ -1433,15 +1430,15 @@ mod tests {
     fn image_pixel_width_converts_to_inches() {
         assert_eq!(
             render(vec![para(vec![Inline::Image(
-                Attr {
+                Box::new(Attr {
                     attributes: vec![("width".into(), "200".into())],
                     ..Attr::default()
-                },
+                }),
                 vec![str_inline("alt")],
-                Target {
+                Box::new(Target {
                     url: "i.png".into(),
                     title: String::new(),
-                },
+                }),
             )])]),
             "#box(image(\"i.png\", width: 2.08333in, alt: \"alt\"))"
         );
@@ -1487,10 +1484,10 @@ mod tests {
     fn code_block_with_language() {
         assert_eq!(
             render(vec![Block::CodeBlock(
-                Attr {
+                Box::new(Attr {
                     classes: vec!["rust".into()],
                     ..Attr::default()
-                },
+                }),
                 "fn x() {}".into(),
             )]),
             "```rust\nfn x() {}\n```"

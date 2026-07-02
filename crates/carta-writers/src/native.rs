@@ -792,10 +792,10 @@ mod tests {
     fn header_with_attr() {
         let header = Block::Header(
             1,
-            Attr {
+            Box::new(Attr {
                 id: "hi".into(),
                 ..Attr::default()
-            },
+            }),
             vec![Inline::Str("Hi".into())],
         );
         assert_eq!(

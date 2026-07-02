@@ -1321,7 +1321,7 @@ mod tests {
     /// Render a single inline-code token as the writer would, with no surrounding inlines.
     fn code(value: &str) -> String {
         render(vec![para(vec![Inline::Code(
-            Attr::default(),
+            Box::default(),
             value.to_owned(),
         )])])
     }

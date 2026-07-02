@@ -7,7 +7,7 @@
 //! block phase reuses the link-reference-definition and unescaping scanners while collecting
 //! definitions.
 
-use carta_ast::{Attr, Inline, Target};
+use carta_ast::{Inline, Target};
 
 use super::LinkDef;
 
@@ -103,7 +103,7 @@ pub(crate) fn scan_autolink(chars: &[char], start: usize) -> Option<(Inline, usi
             title: String::new(),
         };
         return Some((
-            Inline::Link(Attr::default(), vec![Inline::Str(content)], target),
+            Inline::Link(Box::default(), vec![Inline::Str(content)], Box::new(target)),
             after,
         ));
     }
@@ -114,7 +114,7 @@ pub(crate) fn scan_autolink(chars: &[char], start: usize) -> Option<(Inline, usi
             title: String::new(),
         };
         return Some((
-            Inline::Link(Attr::default(), vec![Inline::Str(content)], target),
+            Inline::Link(Box::default(), vec![Inline::Str(content)], Box::new(target)),
             after,
         ));
     }

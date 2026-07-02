@@ -308,10 +308,10 @@ mod tests {
     fn header(level: i32, id: &str, title: &str) -> Block {
         Block::Header(
             level,
-            Attr {
+            Box::new(Attr {
                 id: id.to_owned(),
                 ..Attr::default()
-            },
+            }),
             vec![Inline::Str(title.to_owned())],
         )
     }
@@ -345,14 +345,14 @@ mod tests {
 
     #[test]
     fn code_block_marks_frame_fragile() {
-        let out = render(vec![Block::CodeBlock(Attr::default(), "x\n".to_owned())]);
+        let out = render(vec![Block::CodeBlock(Box::default(), "x\n".to_owned())]);
         assert!(out.starts_with("\\begin{frame}[fragile]"));
     }
 
     #[test]
     fn inline_code_marks_frame_fragile() {
         let out = render(vec![Block::Para(vec![Inline::Code(
-            Attr::default(),
+            Box::default(),
             "x".to_owned(),
         )])]);
         assert!(out.starts_with("\\begin{frame}[fragile]"));
@@ -378,7 +378,7 @@ mod tests {
         };
         attr.classes = vec!["allowframebreaks".to_owned(), "unknown".to_owned()];
         let out = render(vec![
-            Block::Header(6, attr, vec![Inline::Str("T".to_owned())]),
+            Block::Header(6, Box::new(attr), vec![Inline::Str("T".to_owned())]),
             para("y"),
         ]);
         assert!(out.starts_with("\\begin{frame}[allowframebreaks]{T}"));
@@ -391,10 +391,10 @@ mod tests {
 
     fn div(classes: &[&str], blocks: Vec<Block>) -> Block {
         Block::Div(
-            Attr {
+            Box::new(Attr {
                 classes: classes.iter().map(|class| (*class).to_owned()).collect(),
                 ..Attr::default()
-            },
+            }),
             blocks,
         )
     }

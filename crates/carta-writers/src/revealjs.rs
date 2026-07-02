@@ -263,10 +263,10 @@ mod tests {
     fn header(level: i32, id: &str, title: &str) -> Block {
         Block::Header(
             level,
-            Attr {
+            Box::new(Attr {
                 id: id.to_owned(),
                 ..Attr::default()
-            },
+            }),
             vec![Inline::Str(title.to_owned())],
         )
     }

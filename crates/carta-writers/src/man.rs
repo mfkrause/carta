@@ -1007,7 +1007,7 @@ mod tests {
     fn paragraph_after_header_omits_pp() {
         assert_eq!(
             render(vec![
-                Block::Header(1, Attr::default(), vec![s("H")]),
+                Block::Header(1, Box::default(), vec![s("H")]),
                 para(vec![s("body")]),
             ]),
             ".SH H\nbody"
@@ -1018,8 +1018,8 @@ mod tests {
     fn header_levels() {
         assert_eq!(
             render(vec![
-                Block::Header(1, Attr::default(), vec![s("A")]),
-                Block::Header(3, Attr::default(), vec![s("B")]),
+                Block::Header(1, Box::default(), vec![s("A")]),
+                Block::Header(3, Box::default(), vec![s("B")]),
             ]),
             ".SH A\n.SS B"
         );
@@ -1039,7 +1039,7 @@ mod tests {
     #[test]
     fn code_uses_mono_font() {
         assert_eq!(
-            render(vec![para(vec![Inline::Code(Attr::default(), "x".into())])]),
+            render(vec![para(vec![Inline::Code(Box::default(), "x".into())])]),
             ".PP\n\\f[CR]x\\f[R]"
         );
     }
@@ -1103,7 +1103,7 @@ mod tests {
     #[test]
     fn code_block_example_group() {
         assert_eq!(
-            render(vec![Block::CodeBlock(Attr::default(), "a\nb\n".into())]),
+            render(vec![Block::CodeBlock(Box::default(), "a\nb\n".into())]),
             ".IP\n.EX\na\nb\n.EE"
         );
     }
@@ -1157,12 +1157,12 @@ mod tests {
     fn image_renders_placeholder() {
         assert_eq!(
             render(vec![para(vec![Inline::Image(
-                Attr::default(),
+                Box::default(),
                 vec![],
-                Target {
+                Box::new(Target {
                     url: "i.png".into(),
                     title: String::new(),
-                },
+                }),
             )])]),
             ".PP\n[IMAGE: image]"
         );
@@ -1421,7 +1421,7 @@ mod tests {
         assert_eq!(
             render(vec![Block::Header(
                 1,
-                Attr::default(),
+                Box::default(),
                 vec![s("T"), Inline::Space, display_math("a^2")],
             )]),
             ".SH T \n.RS\n\\f[I]a\\f[R]^2^\n.RE"

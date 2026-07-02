@@ -137,7 +137,7 @@ impl Font {
 fn code_inline(inlines: &[Inline]) -> Inline {
     let mut text = String::new();
     collect_code_text(inlines, &mut text);
-    Inline::Code(Attr::default(), text)
+    Inline::Code(Box::default(), text)
 }
 
 fn collect_code_text(inlines: &[Inline], out: &mut String) {
@@ -391,10 +391,10 @@ impl Parser {
                     let id = self.headings.assign(&inlines);
                     blocks.push(Block::Header(
                         level,
-                        Attr {
+                        Box::new(Attr {
                             id,
                             ..Attr::default()
-                        },
+                        }),
                         inlines,
                     ));
                 }
@@ -659,7 +659,7 @@ impl Parser {
                 text_lines.push(flatten(&line, &self.strings));
             }
         }
-        Block::CodeBlock(Attr::default(), text_lines.join("\n"))
+        Block::CodeBlock(Box::default(), text_lines.join("\n"))
     }
 
     /// Parses a tbl table region (`.TS`/`.TE`) into a [`Block::Table`]. The region's structure is the
@@ -850,12 +850,12 @@ impl Parser {
         append_text(
             fill,
             vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 label,
-                Target {
+                Box::new(Target {
                     url,
                     title: String::new(),
-                },
+                }),
             )],
         );
         if !trailing.is_empty() {
@@ -2291,10 +2291,10 @@ mod tests {
             doc.blocks.first(),
             Some(&Block::Header(
                 1,
-                Attr {
+                Box::new(Attr {
                     id: "name".into(),
                     ..Attr::default()
-                },
+                }),
                 vec![Inline::Str("NAME".into())]
             ))
         );
@@ -2655,7 +2655,7 @@ mod tests {
         assert_eq!(
             doc.blocks.first(),
             Some(&Block::CodeBlock(
-                Attr::default(),
+                Box::default(),
                 "line one\n  indented".into()
             ))
         );
@@ -2666,7 +2666,7 @@ mod tests {
         let doc = read(".TH T 1\n.EX\n\\fBcode\\fR \\- here\n.EE\n");
         assert_eq!(
             doc.blocks.first(),
-            Some(&Block::CodeBlock(Attr::default(), "code - here".into()))
+            Some(&Block::CodeBlock(Box::default(), "code - here".into()))
         );
     }
 
@@ -2676,16 +2676,16 @@ mod tests {
         assert_eq!(
             doc.blocks.first(),
             Some(&Block::Para(vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 vec![
                     Inline::Str("the".into()),
                     Inline::Space,
                     Inline::Str("text".into()),
                 ],
-                Target {
+                Box::new(Target {
                     url: "https://example.com".into(),
                     title: String::new(),
-                },
+                }),
             )]))
         );
     }
@@ -2941,7 +2941,7 @@ mod tests {
             Some(&Block::Para(vec![
                 Inline::Str("plain".into()),
                 Inline::Space,
-                Inline::Code(Attr::default(), "mono".into()),
+                Inline::Code(Box::default(), "mono".into()),
                 Inline::Space,
                 Inline::Str("back".into()),
             ]))
@@ -2954,7 +2954,7 @@ mod tests {
         assert_eq!(
             doc.blocks.first(),
             Some(&Block::Para(vec![Inline::Strong(vec![Inline::Code(
-                Attr::default(),
+                Box::default(),
                 "mono".into()
             )])]))
         );

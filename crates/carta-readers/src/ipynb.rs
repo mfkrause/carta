@@ -272,9 +272,9 @@ fn cell_to_block(cell: &Value, language: &str, options: &ReaderOptions) -> Resul
     };
     let attr = cell_attr(cell, kind);
     let block = match kind {
-        "markdown" => Block::Div(attr, markdown_cell_blocks(cell, options)?),
-        "code" => Block::Div(attr, code_cell_blocks(cell, language)),
-        "raw" => Block::Div(attr, vec![raw_cell_block(cell)]),
+        "markdown" => Block::Div(Box::new(attr), markdown_cell_blocks(cell, options)?),
+        "code" => Block::Div(Box::new(attr), code_cell_blocks(cell, language)),
+        "raw" => Block::Div(Box::new(attr), vec![raw_cell_block(cell)]),
         _ => return Ok(None),
     };
     Ok(Some(block))
@@ -359,7 +359,7 @@ fn code_cell_blocks(cell: &Value, language: &str) -> Vec<Block> {
         classes: vec![language.to_owned()],
         attributes: Vec::new(),
     };
-    let mut blocks = vec![Block::CodeBlock(source_attr, source)];
+    let mut blocks = vec![Block::CodeBlock(Box::new(source_attr), source)];
     if let Some(Value::Array(outputs)) = cell.get("outputs") {
         for output in outputs {
             if let Some(block) = output_to_block(output) {
@@ -408,7 +408,7 @@ fn stream_output(output: &Value) -> Block {
         classes: vec!["output".to_owned(), "stream".to_owned(), name.to_owned()],
         attributes: Vec::new(),
     };
-    Block::Div(attr, vec![Block::CodeBlock(Attr::default(), text)])
+    Block::Div(Box::new(attr), vec![Block::CodeBlock(Box::default(), text)])
 }
 
 /// An `execute_result` or `display_data` output: the richest renderable bundle from its `data`,
@@ -429,7 +429,7 @@ fn result_output(output: &Value, is_result: bool) -> Block {
         attributes,
     };
     Block::Div(
-        attr,
+        Box::new(attr),
         data_to_blocks(output.get("data"), output.get("metadata")),
     )
 }
@@ -465,8 +465,8 @@ fn error_output(output: &Value) -> Block {
         attributes: vec![("ename".to_owned(), ename), ("evalue".to_owned(), evalue)],
     };
     Block::Div(
-        attr,
-        vec![Block::CodeBlock(Attr::default(), strip_ansi(&traceback))],
+        Box::new(attr),
+        vec![Block::CodeBlock(Box::default(), strip_ansi(&traceback))],
     )
 }
 
@@ -499,11 +499,11 @@ fn data_to_blocks(data: Option<&Value>, metadata: Option<&Value>) -> Vec<Block> 
 fn non_image_block(mime: &str, value: &Value) -> Block {
     if is_json_like(mime) {
         return Block::CodeBlock(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["json".to_owned()],
                 attributes: Vec::new(),
-            },
+            }),
             json_render(value),
         );
     }
@@ -514,7 +514,7 @@ fn non_image_block(mime: &str, value: &Value) -> Block {
             Block::RawBlock(Format("markdown".to_owned()), multiline_text(Some(value)))
         }
         // The fallthrough is plain text; the preference list only routes the cases above here.
-        _ => Block::CodeBlock(Attr::default(), strip_ansi(&multiline_text(Some(value)))),
+        _ => Block::CodeBlock(Box::default(), strip_ansi(&multiline_text(Some(value)))),
     }
 }
 
@@ -531,12 +531,12 @@ fn image_block(mime: &str, value: &Value, metadata: Option<&Value>) -> Block {
     };
     let name = format!("{}.{}", sha1_hex(&bytes), extension_for_mime(mime));
     Block::Para(vec![Inline::Image(
-        image_attr(mime, metadata),
+        Box::new(image_attr(mime, metadata)),
         Vec::new(),
-        Target {
+        Box::new(Target {
             url: name,
             title: String::new(),
-        },
+        }),
     )])
 }
 

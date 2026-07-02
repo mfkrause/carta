@@ -100,7 +100,7 @@ fn number_in(blocks: &mut [Block], counters: &mut Counters) {
                 if let Some(number) = counters.advance(*level, &attr.classes) {
                     attr.attributes.push(("number".to_owned(), number.clone()));
                     let span = Inline::Span(
-                        section_number_attr("header-section-number"),
+                        Box::new(section_number_attr("header-section-number")),
                         vec![Inline::Str(number)],
                     );
                     inlines.splice(0..0, [span, Inline::Space]);
@@ -208,7 +208,7 @@ fn toc_entry(
     let mut content = Vec::new();
     if let Some(number) = number.filter(|_| numbered) {
         content.push(Inline::Span(
-            section_number_attr("toc-section-number"),
+            Box::new(section_number_attr("toc-section-number")),
             vec![Inline::Str(number.to_owned())],
         ));
         content.push(Inline::Space);
@@ -227,12 +227,12 @@ fn toc_entry(
         attributes: Vec::new(),
     };
     vec![Inline::Link(
-        link_attr,
+        Box::new(link_attr),
         content,
-        Target {
+        Box::new(Target {
             url: format!("#{}", attr.id),
             title: String::new(),
-        },
+        }),
     )]
 }
 
@@ -282,11 +282,11 @@ mod tests {
     fn header(level: i32, classes: &[&str], text: &str) -> Block {
         Block::Header(
             level,
-            Attr {
+            Box::new(Attr {
                 id: text.to_lowercase().replace(' ', "-"),
                 classes: classes.iter().map(|class| (*class).to_owned()).collect(),
                 attributes: Vec::new(),
-            },
+            }),
             vec![Inline::Str(text.to_owned())],
         )
     }
@@ -450,18 +450,18 @@ mod tests {
     fn toc_drops_notes_and_unwraps_links() {
         let heading = Block::Header(
             1,
-            Attr {
+            Box::new(Attr {
                 id: "h".to_owned(),
                 ..Attr::default()
-            },
+            }),
             vec![
                 Inline::Link(
-                    Attr::default(),
+                    Box::default(),
                     vec![Inline::Str("text".to_owned())],
-                    Target {
+                    Box::new(Target {
                         url: "x".to_owned(),
                         title: String::new(),
-                    },
+                    }),
                 ),
                 Inline::Note(vec![Block::Para(vec![Inline::Str("note".to_owned())])]),
             ],
@@ -496,7 +496,7 @@ mod tests {
 
     #[test]
     fn toc_entry_without_an_id_is_plain_text() {
-        let heading = Block::Header(1, Attr::default(), vec![Inline::Str("Untitled".to_owned())]);
+        let heading = Block::Header(1, Box::default(), vec![Inline::Str("Untitled".to_owned())]);
         let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
             panic!("expected a contents list");
         };

@@ -616,7 +616,7 @@ mod tests {
         let [Block::Figure(attr, caption, body)] = result.as_slice() else {
             panic!("expected a single figure, got {result:?}");
         };
-        assert_eq!(*attr, carta_ast::Attr::default());
+        assert_eq!(*attr, Box::new(carta_ast::Attr::default()));
         assert!(caption.short.is_none());
         // The caption is a clone of the image's alt inlines wrapped in one `Plain`.
         let [Block::Plain(caption_inlines)] = caption.long.as_slice() else {

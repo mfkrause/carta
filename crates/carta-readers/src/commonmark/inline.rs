@@ -188,11 +188,13 @@ fn resolve_block(
             let (content, attr) = split_header_attr(text, ext);
             out.push(Block::Header(
                 *level,
-                attr,
+                Box::new(attr),
                 parse_inlines(content, refs, notes, ext),
             ));
         }
-        IrBlock::CodeBlock(attr, text) => out.push(Block::CodeBlock(attr.clone(), text.clone())),
+        IrBlock::CodeBlock(attr, text) => {
+            out.push(Block::CodeBlock(Box::new(attr.clone()), text.clone()));
+        }
         IrBlock::RawHtml(text) => {
             // In the Markdown dialect with `raw_html` off an HTML block degrades to an ordinary
             // paragraph of its literal text; the inline pass keeps the tags as text. The bare
@@ -212,7 +214,7 @@ fn resolve_block(
         IrBlock::ThematicBreak => out.push(Block::HorizontalRule),
         IrBlock::Div(attr, children) => {
             out.push(Block::Div(
-                attr.clone(),
+                Box::new(attr.clone()),
                 resolve_blocks(children, refs, notes, ext),
             ));
         }
@@ -294,7 +296,11 @@ fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
                 long: vec![Block::Plain(alt.clone())],
             };
             let image = Inline::Image(attr, alt, target);
-            Block::Figure(figure_attr, caption, vec![Block::Plain(vec![image])])
+            Block::Figure(
+                Box::new(figure_attr),
+                Box::new(caption),
+                vec![Block::Plain(vec![image])],
+            )
         }
         Ok([only]) => para(vec![only]),
         Err(inlines) => para(inlines),
@@ -1043,7 +1049,7 @@ impl InlineParser<'_> {
         };
         self.pos = index + 1;
         self.nodes.push(Node::Inline(Inline::Span(
-            attr,
+            Box::new(attr),
             vec![Inline::Str(codepoints.to_owned())],
         )));
         true
@@ -1410,7 +1416,7 @@ impl InlineParser<'_> {
                     }
                     let attr = self.take_code_attr();
                     self.nodes.push(Node::Inline(Inline::Code(
-                        attr,
+                        Box::new(attr),
                         normalize_code(&content, self.notes.markdown),
                     )));
                     return;
@@ -1860,7 +1866,8 @@ impl InlineParser<'_> {
         self.nodes.pop(); // remove the opener delimiter
         self.bracket_stack.retain(|&ni| ni < opener_index);
         let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
-        self.nodes.push(Node::Inline(Inline::Span(attr, content)));
+        self.nodes
+            .push(Node::Inline(Inline::Span(Box::new(attr), content)));
     }
 
     /// Turn an unmatched bracket opener back into the literal text it stands for.
@@ -2032,9 +2039,9 @@ impl InlineParser<'_> {
         self.bracket_stack.retain(|&ni| ni < opener_index);
         let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         let inline = if is_image {
-            Inline::Image(attr, content, target)
+            Inline::Image(Box::new(attr), content, Box::new(target))
         } else {
-            Inline::Link(attr, content, target)
+            Inline::Link(Box::new(attr), content, Box::new(target))
         };
         self.nodes.push(Node::Inline(inline));
     }
@@ -2594,11 +2601,11 @@ fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: bool) {
         process_emphasis(&mut inner, 0, ext, markdown);
         let content = collapse(inner);
         let span = Inline::Span(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["mark".to_string()],
                 attributes: Vec::new(),
-            },
+            }),
             content,
         );
         // After the drain, the closer sits directly after the opener.
@@ -3034,7 +3041,7 @@ fn pair_spans_level(
                         if f.0 == "html" && matches!(classify_span_tag(t), SpanTag::Close))
                     {
                         let _ = input.next();
-                        out.push(Inline::Span(attr, inner));
+                        out.push(Inline::Span(Box::new(attr), inner));
                     } else {
                         // No matching close at this level: the opener reverts to raw, and its
                         // gathered inner content rejoins the stream.
@@ -3520,11 +3527,11 @@ mod tests {
 
     fn emoji_span(name: &str, text: &str) -> Inline {
         Inline::Span(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["emoji".to_owned()],
                 attributes: vec![("data-emoji".to_owned(), name.to_owned())],
-            },
+            }),
             vec![Inline::Str(text.to_owned())],
         )
     }
@@ -3587,11 +3594,11 @@ mod tests {
 
     fn mark_span(content: Vec<Inline>) -> Inline {
         Inline::Span(
-            Attr {
+            Box::new(Attr {
                 id: String::new(),
                 classes: vec!["mark".to_owned()],
                 attributes: Vec::new(),
-            },
+            }),
             content,
         )
     }
@@ -3603,12 +3610,12 @@ mod tests {
         assert_eq!(
             parse_meta_inlines("[==hi==](u)", on, false),
             vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 vec![mark_span(vec![Inline::Str("hi".to_owned())])],
-                Target {
+                Box::new(Target {
                     url: "u".to_owned(),
                     title: String::new(),
-                },
+                }),
             )]
         );
     }
@@ -3625,7 +3632,7 @@ mod tests {
         assert_eq!(
             parse_meta_inlines("[a ==b== c]{.x}", on, false),
             vec![Inline::Span(
-                span_attr,
+                Box::new(span_attr),
                 vec![
                     Inline::Str("a".to_owned()),
                     Inline::Space,
@@ -3644,12 +3651,12 @@ mod tests {
         assert_eq!(
             parse_meta_inlines("[==hi==](u)", off, false),
             vec![Inline::Link(
-                Attr::default(),
+                Box::default(),
                 vec![Inline::Str("==hi==".to_owned())],
-                Target {
+                Box::new(Target {
                     url: "u".to_owned(),
                     title: String::new(),
-                },
+                }),
             )]
         );
     }
@@ -3907,23 +3914,23 @@ mod inline_tests {
 
     fn link(content: Vec<Inline>, url: &str) -> Inline {
         Inline::Link(
-            Attr::default(),
+            Box::default(),
             content,
-            Target {
+            Box::new(Target {
                 url: url.to_owned(),
                 title: String::new(),
-            },
+            }),
         )
     }
 
     fn image(alt: Vec<Inline>, url: &str) -> Inline {
         Inline::Image(
-            Attr::default(),
+            Box::default(),
             alt,
-            Target {
+            Box::new(Target {
                 url: url.to_owned(),
                 title: String::new(),
-            },
+            }),
         )
     }
 
@@ -4421,7 +4428,7 @@ mod inline_tests {
     // --- Attributes: spans, inline code, links ---
 
     fn span(attr: Attr, content: Vec<Inline>) -> Inline {
-        Inline::Span(attr, content)
+        Inline::Span(Box::new(attr), content)
     }
 
     fn attr(id: &str, classes: &[&str], kv: &[(&str, &str)]) -> Attr {
@@ -4484,13 +4491,16 @@ mod inline_tests {
     fn inline_code_takes_attributes() {
         assert_eq!(
             pe("`code`{.rust #x}", attrs()),
-            vec![Inline::Code(attr("x", &["rust"], &[]), "code".to_owned())]
+            vec![Inline::Code(
+                Box::new(attr("x", &["rust"], &[])),
+                "code".to_owned()
+            )]
         );
         // A space before the block leaves it unattached (no wrapper artifact is produced).
         assert_eq!(
             pe("`code` x", attrs()),
             vec![
-                Inline::Code(Attr::default(), "code".to_owned()),
+                Inline::Code(Box::default(), "code".to_owned()),
                 Inline::Space,
                 str("x")
             ]
@@ -4500,21 +4510,21 @@ mod inline_tests {
     #[test]
     fn link_and_image_take_attributes() {
         let link_with_attr = Inline::Link(
-            attr("home", &["external"], &[]),
+            Box::new(attr("home", &["external"], &[])),
             vec![str("t")],
-            Target {
+            Box::new(Target {
                 url: "u".to_owned(),
                 title: String::new(),
-            },
+            }),
         );
         assert_eq!(pe("[t](u){.external #home}", attrs()), vec![link_with_attr]);
         let image_with_attr = Inline::Image(
-            attr("", &[], &[("width", "200")]),
+            Box::new(attr("", &[], &[("width", "200")])),
             vec![str("a")],
-            Target {
+            Box::new(Target {
                 url: "i".to_owned(),
                 title: String::new(),
-            },
+            }),
         );
         assert_eq!(pe("![a](i){width=200}", attrs()), vec![image_with_attr]);
     }
@@ -4552,7 +4562,7 @@ mod inline_tests {
     }
 
     fn code(text: &str) -> Inline {
-        Inline::Code(Attr::default(), text.to_owned())
+        Inline::Code(Box::default(), text.to_owned())
     }
 
     #[test]
@@ -4606,10 +4616,10 @@ mod inline_tests {
         assert_eq!(
             pe("`x`{.c}", ext),
             vec![Inline::Code(
-                Attr {
+                Box::new(Attr {
                     classes: vec!["c".to_owned()],
                     ..Attr::default()
-                },
+                }),
                 "x".to_owned()
             )]
         );
