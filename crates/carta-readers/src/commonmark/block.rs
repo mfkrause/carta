@@ -449,7 +449,8 @@ impl Parser {
                     // Pull the definitions out for real now, then head or consume what remains. If
                     // nothing remains, the paragraph was pure definitions — it is consumed and this
                     // line is reparsed as ordinary content (not an underline).
-                    let remaining = self.extract_refs(&text);
+                    let column_zero = self.nodes.get(para).is_some_and(|node| node.indent == 0);
+                    let remaining = self.extract_refs(&text, column_zero);
                     if let Some(node) = self.nodes.get_mut(para) {
                         node.text = remaining;
                     }
@@ -2025,7 +2026,8 @@ impl Parser {
         for index in 0..self.nodes.len() {
             if matches!(self.kind(index), Some(Kind::Paragraph)) {
                 let text = self.node_text(index);
-                let stripped = self.extract_refs(&text);
+                let column_zero = self.nodes.get(index).is_some_and(|node| node.indent == 0);
+                let stripped = self.extract_refs(&text, column_zero);
                 if let Some(node) = self.nodes.get_mut(index) {
                     node.text = stripped;
                 }
@@ -2117,13 +2119,25 @@ impl Parser {
         self.nodes.get(index).map(|node| node.text.as_str())
     }
 
-    fn extract_refs(&mut self, text: &str) -> String {
+    /// Pull leading definitions off `text` and return what remains. Link reference definitions are
+    /// always eligible; an abbreviation definition (`abbreviations`) requires its host paragraph to
+    /// begin flush at the container's left edge, so `column_zero` gates it.
+    fn extract_refs(&mut self, text: &str, column_zero: bool) -> String {
+        let abbreviations = column_zero && self.extensions.contains(Extension::Abbreviations);
         let mut remaining = text;
-        while let Some((label, def, rest)) =
-            scan::parse_link_reference_definition(remaining, self.greedy_paragraphs)
-        {
-            self.refs.entry(label).or_insert(def);
-            remaining = rest;
+        loop {
+            if let Some((label, def, rest)) =
+                scan::parse_link_reference_definition(remaining, self.greedy_paragraphs)
+            {
+                self.refs.entry(label).or_insert(def);
+                remaining = rest;
+                continue;
+            }
+            if abbreviations && let Some(rest) = scan::parse_abbreviation_definition(remaining) {
+                remaining = rest;
+                continue;
+            }
+            break;
         }
         remaining.to_owned()
     }
@@ -4279,6 +4293,74 @@ mod dialect_tests {
         assert!(
             ordered_attrs(&blocks).is_none(),
             "CommonMark should not form a list from `#.`, got {blocks:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod abbreviation_tests {
+    use super::{IrBlock, parse};
+    use carta_core::{Extension, Extensions};
+
+    fn with_abbr(input: &str) -> Vec<IrBlock> {
+        parse(
+            input,
+            Extensions::from_list(&[Extension::Abbreviations]),
+            true,
+        )
+        .0
+    }
+
+    fn plain(input: &str) -> Vec<IrBlock> {
+        parse(input, Extensions::empty(), true).0
+    }
+
+    #[test]
+    fn a_definition_at_the_left_edge_is_consumed() {
+        let out = with_abbr("*[HTML]: markup\n\nBody.\n");
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(p)] if p == "Body."),
+            "definition should be dropped, leaving only the body: {out:?}"
+        );
+    }
+
+    #[test]
+    fn a_definition_is_stripped_from_a_paragraph_front() {
+        let out = with_abbr("*[HTML]: markup\nmore text\n");
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(p)] if p == "more text"),
+            "only the definition line should be removed: {out:?}"
+        );
+    }
+
+    #[test]
+    fn consecutive_definitions_are_all_consumed() {
+        let out = with_abbr("*[A]: x\n*[B]: y\nmore\n");
+        assert!(
+            matches!(out.as_slice(), [IrBlock::Para(p)] if p == "more"),
+            "both definitions should be removed: {out:?}"
+        );
+    }
+
+    #[test]
+    fn an_indented_definition_is_left_as_text() {
+        // A definition must sit flush at the container's left edge; one space in front keeps it a
+        // paragraph.
+        let out = with_abbr(" *[HTML]: markup\n\nBody.\n");
+        assert_eq!(
+            out.len(),
+            2,
+            "indented definition stays a paragraph: {out:?}"
+        );
+    }
+
+    #[test]
+    fn without_the_extension_a_definition_is_ordinary_text() {
+        let out = plain("*[HTML]: markup\n\nBody.\n");
+        assert_eq!(
+            out.len(),
+            2,
+            "no consumption without the extension: {out:?}"
         );
     }
 }
