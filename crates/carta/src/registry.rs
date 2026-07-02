@@ -11,21 +11,20 @@
 
 use carta_core::{AnyReader, AnyWriter, Error, Reader, Result, Writer};
 
-/// Wraps a constructor into the tagged dispatch enum according to its kind token, `text` for a
-/// text-shaped format and `bytes` for a byte-shaped one.
-macro_rules! dispatch_arm {
-    ($any:ident, text, $constructor:expr) => {
-        $any::Text(Box::new($constructor))
-    };
-    ($any:ident, bytes, $constructor:expr) => {
-        $any::Bytes(Box::new($constructor))
-    };
-}
-
 /// Expands one per-direction format table into its resolver and enumerators. Each entry reads
 /// `<feature> => <canonical> [| <alias>]* => <kind> <constructor>;`, where `<kind>` is `text` or
 /// `bytes`.
+///
+/// The `@wrap` internal rules box a constructor into the tagged dispatch enum by its kind token.
+/// Folding them in (rather than a standalone helper macro) keeps this macro invoked in every feature
+/// configuration, including the zero-format build where all resolver arms are `#[cfg]`-stripped.
 macro_rules! format_dispatch {
+    (@wrap $any:ident text $constructor:expr) => {
+        $any::Text(Box::new($constructor))
+    };
+    (@wrap $any:ident bytes $constructor:expr) => {
+        $any::Bytes(Box::new($constructor))
+    };
     (
         trait: $trait:ident;
         any: $any_enum:ident;
@@ -43,7 +42,7 @@ macro_rules! format_dispatch {
             match name {
                 $(
                     #[cfg(feature = $feature)]
-                    $canonical $(| $alias)* => Ok(dispatch_arm!($any_enum, $kind, $constructor)),
+                    $canonical $(| $alias)* => Ok(format_dispatch!(@wrap $any_enum $kind $constructor)),
                 )+
                 other if $recognizes(other) => Err(Error::FormatNotEnabled(other.to_owned())),
                 other => Err(Error::UnsupportedFormat(other.to_owned())),
