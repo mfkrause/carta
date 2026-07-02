@@ -468,13 +468,15 @@ fn parse_raw_region(chars: &[char], start: usize) -> Option<(Block, usize)> {
         RawKind::Code => {
             let class = code_language(&attr_text);
             let attr = Attr {
-                classes: class.into_iter().collect(),
+                classes: class.into_iter().map(Into::into).collect(),
                 ..Default::default()
             };
-            Block::CodeBlock(Box::new(attr), content)
+            Block::CodeBlock(Box::new(attr), content.into())
         }
-        RawKind::Html => Block::RawBlock(Format("html".to_string()), content),
-        RawKind::Php => Block::RawBlock(Format("html".to_string()), format!("<?php {content} ?>")),
+        RawKind::Html => Block::RawBlock(Format("html".into()), content.into()),
+        RawKind::Php => {
+            Block::RawBlock(Format("html".into()), format!("<?php {content} ?>").into())
+        }
     };
     Some((block, end))
 }
@@ -517,7 +519,7 @@ fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
         out.push('\n');
         *index += 1;
     }
-    Block::CodeBlock(Box::default(), out)
+    Block::CodeBlock(Box::default(), out.into())
 }
 
 /// Parse a thematically grouped run of list lines into one bullet or ordered list.
@@ -682,7 +684,7 @@ fn assign_heading_ids(
             Block::Header(_, attr, inlines) => {
                 let text = to_plain_text(inlines);
                 let text = if ascii { asciify(&text) } else { text };
-                attr.id = registry.assign(scheme, &text);
+                attr.id = registry.assign(scheme, &text).into();
             }
             Block::BlockQuote(children)
             | Block::Div(_, children)
@@ -892,7 +894,7 @@ fn scan_slice(chars: &[char], ctx: Ctx, depth: usize) -> Vec<Inline> {
 /// Push the buffered text as a `Str` and clear the buffer.
 fn flush(pending: &mut String, out: &mut Vec<Inline>) {
     if !pending.is_empty() {
-        out.push(Inline::Str(std::mem::take(pending)));
+        out.push(Inline::Str(std::mem::take(pending).into()));
     }
 }
 
@@ -1389,7 +1391,10 @@ fn parse_mono(
         if !closed {
             return None;
         }
-        return Some((Inline::Code(Box::default(), flatten_mono(&inner)), pos));
+        return Some((
+            Inline::Code(Box::default(), flatten_mono(&inner).into()),
+            pos,
+        ));
     }
     let close = find_subsequence(chars, begin + 2, "''")?;
     if close <= begin + 2 || is_ws_opt(chars.get(close - 1).copied()) {
@@ -1398,7 +1403,7 @@ fn parse_mono(
     let content = chars.get(begin + 2..close).unwrap_or(&[]);
     let inner = scan_slice(content, ctx, depth + 1);
     Some((
-        Inline::Code(Box::default(), to_plain_text(&inner)),
+        Inline::Code(Box::default(), to_plain_text(&inner).into()),
         close + 2,
     ))
 }
@@ -1470,7 +1475,10 @@ fn parse_display_math(chars: &[char], begin: usize) -> Option<(Inline, usize)> {
         return None;
     }
     let content: String = chars.get(begin + 2..close).unwrap_or(&[]).iter().collect();
-    Some((Inline::Math(MathType::DisplayMath, content), close + 2))
+    Some((
+        Inline::Math(MathType::DisplayMath, content.into()),
+        close + 2,
+    ))
 }
 
 /// A `$…$` inline-math span: the opener must be followed by a non-space, the closer preceded by a
@@ -1487,7 +1495,7 @@ fn parse_inline_math(chars: &[char], begin: usize) -> Option<(Inline, usize)> {
             && !chars.get(j + 1).is_some_and(char::is_ascii_digit)
         {
             let content: String = chars.get(begin + 1..j).unwrap_or(&[]).iter().collect();
-            return Some((Inline::Math(MathType::InlineMath, content), j + 1));
+            return Some((Inline::Math(MathType::InlineMath, content.into()), j + 1));
         }
         j += 1;
     }
@@ -1620,10 +1628,10 @@ fn try_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
     Some((
         Inline::Link(
             Box::default(),
-            vec![Inline::Str(url.clone())],
+            vec![Inline::Str(url.clone().into())],
             Box::new(Target {
-                url,
-                title: String::new(),
+                url: url.into(),
+                title: carta_ast::Text::default(),
             }),
         ),
         end,
@@ -1716,7 +1724,7 @@ fn tokenize_text(text: &str) -> Vec<Inline> {
     for c in text.chars() {
         if c.is_whitespace() {
             if !word.is_empty() {
-                out.push(Inline::Str(std::mem::take(&mut word)));
+                out.push(Inline::Str(std::mem::take(&mut word).into()));
             }
             let token = if c == '\n' {
                 Inline::SoftBreak
@@ -1731,7 +1739,7 @@ fn tokenize_text(text: &str) -> Vec<Inline> {
         }
     }
     if !word.is_empty() {
-        out.push(Inline::Str(word));
+        out.push(Inline::Str(word.into()));
     }
     out
 }
@@ -1756,15 +1764,15 @@ fn parse_link(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     // An explicit but empty label falls back to the target's auto-display text.
     let label_inlines = match label {
         Some(text) if !text.trim().is_empty() => tokenize_text(text.trim()),
-        _ => vec![Inline::Str(display)],
+        _ => vec![Inline::Str(display.into())],
     };
     Some((
         Inline::Link(
             Box::default(),
             label_inlines,
             Box::new(Target {
-                url,
-                title: String::new(),
+                url: url.into(),
+                title: carta_ast::Text::default(),
             }),
         ),
         close + 2,
@@ -1801,7 +1809,7 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     let trailing_space = spec.ends_with(char::is_whitespace);
     let mut classes = Vec::new();
     if let Some(class) = media_align(leading_space, trailing_space) {
-        classes.push(class.to_string());
+        classes.push(class.into());
     }
 
     let spec = spec.trim();
@@ -1817,12 +1825,12 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     // An explicit but empty caption falls back to the source's auto-display text.
     let alt = match caption {
         Some(text) if !text.trim().is_empty() => tokenize_text(text.trim()),
-        _ if is_external(id) => vec![Inline::Str(id.to_string())],
-        _ => vec![Inline::Str(display_id(id))],
+        _ if is_external(id) => vec![Inline::Str(id.into())],
+        _ => vec![Inline::Str(display_id(id).into())],
     };
     let target = Target {
-        url,
-        title: String::new(),
+        url: url.into(),
+        title: carta_ast::Text::default(),
     };
 
     let node = match query {
@@ -1847,7 +1855,10 @@ fn parse_media(chars: &[char], start: usize) -> Option<(Inline, usize)> {
             Inline::Image(
                 Box::new(Attr {
                     classes,
-                    attributes,
+                    attributes: attributes
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect(),
                     ..Default::default()
                 }),
                 alt,
@@ -2046,7 +2057,7 @@ fn parse_angle(
     if let Some((inner, end)) = tag_region(chars, begin, "<html>", "</html>") {
         let text: String = inner.iter().collect();
         return Some((
-            vec![Inline::RawInline(Format("html".to_string()), text)],
+            vec![Inline::RawInline(Format("html".into()), text.into())],
             end,
         ));
     }
@@ -2054,8 +2065,8 @@ fn parse_angle(
         let text: String = inner.iter().collect();
         return Some((
             vec![Inline::RawInline(
-                Format("html".to_string()),
-                format!("<?php {text} ?>"),
+                Format("html".into()),
+                format!("<?php {text} ?>").into(),
             )],
             end,
         ));
@@ -2102,10 +2113,10 @@ fn angle_email(chars: &[char], start: usize) -> Option<(Inline, usize)> {
     Some((
         Inline::Link(
             Box::default(),
-            vec![Inline::Str(inner)],
+            vec![Inline::Str(inner.into())],
             Box::new(Target {
-                url,
-                title: String::new(),
+                url: url.into(),
+                title: carta_ast::Text::default(),
             }),
         ),
         j + 1,

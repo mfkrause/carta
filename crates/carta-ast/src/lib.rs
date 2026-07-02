@@ -12,6 +12,11 @@ mod serde_impls;
 pub use ast::*;
 pub use codec::{from_json, to_json, to_json_writer};
 
+/// Formats a value (a `char`, an integer, …) directly into a [`Text`], keeping short results in
+/// inline storage. Re-exported here so downstream crates build `Text` values without naming the
+/// backing crate.
+pub use compact_str::ToCompactString;
+
 /// The JSON object key carrying the AST schema version.
 ///
 /// This is an opaque external protocol identifier, deliberately confined to this one constant; do

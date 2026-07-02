@@ -35,7 +35,10 @@ impl Reader for OpmlReader {
         }
         Ok(Document {
             api_version: carta_ast::ApiVersion::default(),
-            meta: build_meta(head),
+            meta: build_meta(head)
+                .into_iter()
+                .map(|(k, v)| (k.into(), v))
+                .collect(),
             blocks,
         })
     }
@@ -83,8 +86,8 @@ fn emit_outline(outline: &Element, level: i32, blocks: &mut Vec<Block>) -> Resul
             Box::default(),
             heading,
             Box::new(Target {
-                url,
-                title: String::new(),
+                url: url.into(),
+                title: carta_ast::Text::default(),
             }),
         )]
     } else {
@@ -159,7 +162,7 @@ fn tokenize_meta(text: &str) -> Vec<Inline> {
     while let Some(ch) = chars.next() {
         if ch.is_whitespace() {
             if !word.is_empty() {
-                out.push(Inline::Str(std::mem::take(&mut word)));
+                out.push(Inline::Str(std::mem::take(&mut word).into()));
             }
             let mut has_newline = ch == '\n' || ch == '\r';
             while let Some(&next) = chars.peek() {
@@ -179,7 +182,7 @@ fn tokenize_meta(text: &str) -> Vec<Inline> {
         }
     }
     if !word.is_empty() {
-        out.push(Inline::Str(word));
+        out.push(Inline::Str(word.into()));
     }
     out
 }
@@ -482,8 +485,8 @@ fn smart_inlines(inlines: Vec<Inline>) -> Vec<Inline> {
 /// [`pair_quotes`], which sees the whole run.
 fn fold_inline(inline: Inline) -> Inline {
     match inline {
-        Inline::Str(text) => Inline::Str(fold_text(&text)),
-        Inline::Code(attr, text) => Inline::Code(attr, smart_code(&text)),
+        Inline::Str(text) => Inline::Str(fold_text(&text).into()),
+        Inline::Code(attr, text) => Inline::Code(attr, smart_code(&text).into()),
         Inline::Emph(children) => Inline::Emph(smart_inlines(children)),
         Inline::Underline(children) => Inline::Underline(smart_inlines(children)),
         Inline::Strong(children) => Inline::Strong(smart_inlines(children)),
@@ -811,7 +814,7 @@ fn render_items(items: &[Item], cursor: &mut usize) -> Vec<Inline> {
     let mut pending = String::new();
     let flush = |pending: &mut String, out: &mut Vec<Inline>| {
         if !pending.is_empty() {
-            out.push(Inline::Str(std::mem::take(pending)));
+            out.push(Inline::Str(std::mem::take(pending).into()));
         }
     };
     while let Some(item) = items.get(*cursor) {
@@ -987,11 +990,11 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Strong(vec![Inline::Str("Bold".to_owned())]),
+                Inline::Strong(vec![Inline::Str("Bold".to_owned().into())]),
                 Inline::Space,
-                Inline::Str("and".to_owned()),
+                Inline::Str("and".to_owned().into()),
                 Inline::Space,
-                Inline::Emph(vec![Inline::Str("it".to_owned())]),
+                Inline::Emph(vec![Inline::Str("it".to_owned().into())]),
             ]
         );
     }
@@ -1004,15 +1007,15 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Str("a".to_owned()),
+                Inline::Str("a".to_owned().into()),
                 Inline::Space,
-                Inline::Code(Box::default(), "c".to_owned()),
+                Inline::Code(Box::default(), "c".to_owned().into()),
                 Inline::Space,
-                Inline::Str("b".to_owned()),
+                Inline::Str("b".to_owned().into()),
                 Inline::Space,
-                Inline::Str("&".to_owned()),
+                Inline::Str("&".to_owned().into()),
                 Inline::Space,
-                Inline::Str("z".to_owned()),
+                Inline::Str("z".to_owned().into()),
             ]
         );
     }
@@ -1025,7 +1028,7 @@ mod tests {
         assert_eq!(
             inlines,
             vec![Inline::Strong(vec![Inline::Emph(vec![Inline::Str(
-                "both".to_owned()
+                "both".to_owned().into()
             )])])]
         );
     }
@@ -1038,9 +1041,9 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Str("x".to_owned()),
-                Inline::Superscript(vec![Inline::Str("2".to_owned())]),
-                Inline::Subscript(vec![Inline::Str("n".to_owned())]),
+                Inline::Str("x".to_owned().into()),
+                Inline::Superscript(vec![Inline::Str("2".to_owned().into())]),
+                Inline::Subscript(vec![Inline::Str("n".to_owned().into())]),
             ]
         );
     }
@@ -1053,7 +1056,7 @@ mod tests {
         let Some(Inline::Link(_, label, target)) = inlines.first() else {
             panic!("expected a link");
         };
-        assert_eq!(label, &vec![Inline::Str("l".to_owned())]);
+        assert_eq!(label, &vec![Inline::Str("l".to_owned().into())]);
         assert_eq!(target.url, "http://e.com");
     }
 
@@ -1064,11 +1067,11 @@ mod tests {
         assert_eq!(
             inlines,
             vec![
-                Inline::Str("c".to_owned()),
+                Inline::Str("c".to_owned().into()),
                 Inline::Space,
-                Inline::Str("\u{a9}".to_owned()),
+                Inline::Str("\u{a9}".to_owned().into()),
                 Inline::Space,
-                Inline::Str("r".to_owned()),
+                Inline::Str("r".to_owned().into()),
             ]
         );
     }
@@ -1084,7 +1087,7 @@ mod tests {
         let Some(Inline::Link(_, label, target)) = inlines.first() else {
             panic!("expected a link heading");
         };
-        assert_eq!(label, &vec![Inline::Str("Site".to_owned())]);
+        assert_eq!(label, &vec![Inline::Str("Site".to_owned().into())]);
         assert_eq!(target.url, "http://e.com/p");
         assert_eq!(target.title, "");
     }
@@ -1108,7 +1111,7 @@ mod tests {
         let Some(Block::Header(_, _, inlines)) = document.blocks.first() else {
             panic!("expected a header");
         };
-        assert_eq!(inlines.as_slice(), [Inline::Str("Site".to_owned())]);
+        assert_eq!(inlines.as_slice(), [Inline::Str("Site".to_owned().into())]);
     }
 
     #[test]
@@ -1206,7 +1209,7 @@ mod tests {
             inlines,
             vec![Inline::Quoted(
                 QuoteType::DoubleQuote,
-                vec![Inline::Str("hi".to_owned())]
+                vec![Inline::Str("hi".to_owned().into())]
             )]
         );
     }
@@ -1218,7 +1221,7 @@ mod tests {
             inlines,
             vec![Inline::Quoted(
                 QuoteType::SingleQuote,
-                vec![Inline::Str("hi".to_owned())]
+                vec![Inline::Str("hi".to_owned().into())]
             )]
         );
     }
@@ -1226,7 +1229,7 @@ mod tests {
     #[test]
     fn text_attribute_curls_an_apostrophe() {
         let inlines = first_header_inlines(&outline("it&apos;s"));
-        assert_eq!(inlines, vec![Inline::Str("it\u{2019}s".to_owned())]);
+        assert_eq!(inlines, vec![Inline::Str("it\u{2019}s".to_owned().into())]);
     }
 
     #[test]
@@ -1235,7 +1238,9 @@ mod tests {
         // Three hyphens fold to an em dash, two to an en dash, three dots to an ellipsis.
         assert_eq!(
             inlines,
-            vec![Inline::Str("a\u{2014}b\u{2013}c\u{2026}d".to_owned())]
+            vec![Inline::Str(
+                "a\u{2014}b\u{2013}c\u{2026}d".to_owned().into()
+            )]
         );
     }
 
@@ -1266,10 +1271,13 @@ mod tests {
         let opener = first_header_inlines(&outline("&quot;open only"));
         assert_eq!(
             opener.first(),
-            Some(&Inline::Str("\u{201c}open".to_owned()))
+            Some(&Inline::Str("\u{201c}open".to_owned().into()))
         );
         let closer = first_header_inlines(&outline("close only&quot;"));
-        assert_eq!(closer.last(), Some(&Inline::Str("only\u{201d}".to_owned())));
+        assert_eq!(
+            closer.last(),
+            Some(&Inline::Str("only\u{201d}".to_owned().into()))
+        );
     }
 
     #[test]
@@ -1281,11 +1289,11 @@ mod tests {
             vec![
                 Inline::Quoted(
                     QuoteType::DoubleQuote,
-                    vec![Inline::Str("a".to_owned()), Inline::Space]
+                    vec![Inline::Str("a".to_owned().into()), Inline::Space]
                 ),
-                Inline::Str("b\u{201d}".to_owned()),
+                Inline::Str("b\u{201d}".to_owned().into()),
                 Inline::Space,
-                Inline::Str("c\u{201d}".to_owned()),
+                Inline::Str("c\u{201d}".to_owned().into()),
             ]
         );
     }
@@ -1298,11 +1306,14 @@ mod tests {
             vec![Inline::Quoted(
                 QuoteType::DoubleQuote,
                 vec![
-                    Inline::Str("a".to_owned()),
+                    Inline::Str("a".to_owned().into()),
                     Inline::Space,
-                    Inline::Quoted(QuoteType::SingleQuote, vec![Inline::Str("b".to_owned())]),
+                    Inline::Quoted(
+                        QuoteType::SingleQuote,
+                        vec![Inline::Str("b".to_owned().into())]
+                    ),
                     Inline::Space,
-                    Inline::Str("c".to_owned()),
+                    Inline::Str("c".to_owned().into()),
                 ]
             )]
         );
@@ -1311,7 +1322,10 @@ mod tests {
     #[test]
     fn two_straight_single_quotes_stay_apostrophes() {
         let inlines = first_header_inlines(&outline("&apos;&apos;"));
-        assert_eq!(inlines, vec![Inline::Str("\u{2019}\u{2019}".to_owned())]);
+        assert_eq!(
+            inlines,
+            vec![Inline::Str("\u{2019}\u{2019}".to_owned().into())]
+        );
     }
 
     #[test]
@@ -1320,7 +1334,10 @@ mod tests {
         // A matched pair inside a code span renders as its left and right glyphs, not a Quoted node.
         assert_eq!(
             inlines,
-            vec![Inline::Code(Box::default(), "\u{2018}q\u{2019}".to_owned())]
+            vec![Inline::Code(
+                Box::default(),
+                "\u{2018}q\u{2019}".to_owned().into()
+            )]
         );
     }
 
@@ -1331,7 +1348,7 @@ mod tests {
             inlines,
             vec![Inline::Code(
                 Box::default(),
-                "it\u{2019}s \u{2014} x".to_owned()
+                "it\u{2019}s \u{2014} x".to_owned().into()
             )]
         );
     }
@@ -1343,7 +1360,7 @@ mod tests {
             inlines,
             vec![Inline::Emph(vec![Inline::Quoted(
                 QuoteType::DoubleQuote,
-                vec![Inline::Str("hi".to_owned())]
+                vec![Inline::Str("hi".to_owned().into())]
             )])]
         );
     }
@@ -1370,7 +1387,7 @@ mod tests {
         let Some(Block::Para(inlines)) = document.blocks.get(1) else {
             panic!("expected a note paragraph");
         };
-        assert_eq!(inlines, &vec![Inline::Str("it\u{2019}s".to_owned())]);
+        assert_eq!(inlines, &vec![Inline::Str("it\u{2019}s".to_owned().into())]);
     }
 
     #[test]
@@ -1382,13 +1399,13 @@ mod tests {
         assert_eq!(
             title_inlines(&document),
             vec![
-                Inline::Str("\"a\"".to_owned()),
+                Inline::Str("\"a\"".to_owned().into()),
                 Inline::Space,
-                Inline::Str("---".to_owned()),
+                Inline::Str("---".to_owned().into()),
                 Inline::Space,
-                Inline::Str("it's".to_owned()),
+                Inline::Str("it's".to_owned().into()),
                 Inline::Space,
-                Inline::Str("...".to_owned()),
+                Inline::Str("...".to_owned().into()),
             ]
         );
     }
@@ -1400,9 +1417,9 @@ mod tests {
             title_inlines(&document),
             vec![
                 Inline::Space,
-                Inline::Str("a".to_owned()),
+                Inline::Str("a".to_owned().into()),
                 Inline::Space,
-                Inline::Str("b".to_owned()),
+                Inline::Str("b".to_owned().into()),
                 Inline::Space,
             ]
         );
@@ -1415,13 +1432,13 @@ mod tests {
         assert_eq!(
             title_inlines(&document),
             vec![
-                Inline::Str("line".to_owned()),
+                Inline::Str("line".to_owned().into()),
                 Inline::Space,
-                Inline::Str("one".to_owned()),
+                Inline::Str("one".to_owned().into()),
                 Inline::SoftBreak,
-                Inline::Str("line".to_owned()),
+                Inline::Str("line".to_owned().into()),
                 Inline::Space,
-                Inline::Str("two".to_owned()),
+                Inline::Str("two".to_owned().into()),
             ]
         );
     }

@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use carta_ast::{
-    Document, Inline, MetaValue, single_block_inlines, to_plain_inlines, to_plain_text,
+    Document, Inline, MetaValue, Text, single_block_inlines, to_plain_inlines, to_plain_text,
 };
 use carta_core::sections::build_toc;
 use carta_core::template::{Template, Value};
@@ -23,12 +23,16 @@ pub(crate) fn merge_metadata(document: &mut Document, options: &WriterOptions) {
     if options.metadata_defaults.is_empty() && options.metadata.is_empty() {
         return;
     }
-    let mut merged = options.metadata_defaults.clone();
+    let mut merged: BTreeMap<Text, MetaValue> = options
+        .metadata_defaults
+        .iter()
+        .map(|(key, value)| (Text::from(key.as_str()), value.clone()))
+        .collect();
     for (key, value) in std::mem::take(&mut document.meta) {
         merged.insert(key, value);
     }
     for (key, value) in &options.metadata {
-        merged.insert(key.clone(), value.clone());
+        merged.insert(Text::from(key.as_str()), value.clone());
     }
     document.meta = merged;
 }
@@ -114,8 +118,8 @@ fn build_context(
         } else {
             value_to_json(&meta_to_value(value, writer, options, json_mode)?)
         };
-        meta_json.insert(key.clone(), json);
-        context.insert(key.clone(), context_value);
+        meta_json.insert(key.to_string(), json);
+        context.insert(key.to_string(), context_value);
     }
     context.insert(
         "meta-json".to_owned(),
@@ -213,7 +217,7 @@ fn meta_to_value(
         MetaValue::MetaMap(map) => {
             let mut entries = BTreeMap::new();
             for (key, item) in map {
-                entries.insert(key.clone(), meta_to_value(item, writer, options, mode)?);
+                entries.insert(key.to_string(), meta_to_value(item, writer, options, mode)?);
             }
             Value::Map(entries)
         }
@@ -267,7 +271,7 @@ fn insert_identity_vars(
                     .source_name
                     .clone()
                     .filter(|name| !name.is_empty())
-                    .map(|name| vec![Inline::Str(name)])
+                    .map(|name| vec![Inline::Str(name.into())])
             } else {
                 Some(title)
             };
@@ -360,7 +364,7 @@ fn insert_output_vars(
 fn plain_meta(document: &Document, key: &str) -> String {
     match document.meta.get(key) {
         Some(MetaValue::MetaInlines(inlines)) => to_plain_text(inlines),
-        Some(MetaValue::MetaString(text)) => text.clone(),
+        Some(MetaValue::MetaString(text)) => text.to_string(),
         Some(MetaValue::MetaBlocks(blocks)) => to_plain_text(single_block_inlines(blocks)),
         _ => String::new(),
     }
@@ -385,7 +389,7 @@ fn author_plain_inlines(document: &Document) -> Vec<Vec<Inline>> {
     fn plain_one(value: &MetaValue) -> (String, Vec<Inline>) {
         match value {
             MetaValue::MetaInlines(inlines) => (to_plain_text(inlines), to_plain_inlines(inlines)),
-            MetaValue::MetaString(text) => (text.clone(), vec![Inline::Str(text.clone())]),
+            MetaValue::MetaString(text) => (text.to_string(), vec![Inline::Str(text.clone())]),
             MetaValue::MetaBlocks(blocks) => {
                 let inlines = single_block_inlines(blocks);
                 (to_plain_text(inlines), to_plain_inlines(inlines))

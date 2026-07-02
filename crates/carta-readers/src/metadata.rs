@@ -41,7 +41,9 @@ mod tests {
     use carta_ast::{Inline, MetaValue};
 
     fn emph(text: &str) -> MetaValue {
-        MetaValue::MetaInlines(vec![Inline::Emph(vec![Inline::Str(text.to_owned())])])
+        MetaValue::MetaInlines(vec![Inline::Emph(vec![Inline::Str(
+            text.to_owned().into(),
+        )])])
     }
 
     #[test]

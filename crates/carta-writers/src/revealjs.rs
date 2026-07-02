@@ -264,15 +264,15 @@ mod tests {
         Block::Header(
             level,
             Box::new(Attr {
-                id: id.to_owned(),
+                id: id.to_owned().into(),
                 ..Attr::default()
             }),
-            vec![Inline::Str(title.to_owned())],
+            vec![Inline::Str(title.to_owned().into())],
         )
     }
 
     fn para(text: &str) -> Block {
-        Block::Para(vec![Inline::Str(text.to_owned())])
+        Block::Para(vec![Inline::Str(text.to_owned().into())])
     }
 
     #[test]
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn footnotes_collect_into_a_trailing_section() {
         let out = render(vec![Block::Para(vec![
-            Inline::Str("x".to_owned()),
+            Inline::Str("x".to_owned().into()),
             Inline::Note(vec![para("note")]),
         ])]);
         assert!(out.contains("href=\"#/fn1\""));

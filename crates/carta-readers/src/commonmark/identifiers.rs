@@ -70,7 +70,7 @@ fn walk(blocks: &mut [Block], numbering: &mut HeaderNumbering) {
     for block in blocks {
         match block {
             Block::Header(_, attr, inlines) => {
-                attr.id = numbering.id_for(&attr.id, inlines);
+                attr.id = numbering.id_for(&attr.id, inlines).into();
             }
             Block::BlockQuote(children)
             | Block::Div(_, children)

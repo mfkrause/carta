@@ -146,7 +146,7 @@ pub(crate) fn parse_metadata_json(
 /// numbers parse as inline Markdown, booleans stay boolean, and arrays/objects recurse.
 fn json_to_meta(value: serde_json::Value, options: &ReaderOptions) -> MetaValue {
     match value {
-        serde_json::Value::Null => MetaValue::MetaString(String::new()),
+        serde_json::Value::Null => MetaValue::MetaString(carta_ast::Text::default()),
         serde_json::Value::Bool(b) => MetaValue::MetaBool(b),
         serde_json::Value::Number(n) => MetaValue::MetaInlines(parse_meta_inlines(
             &n.to_string(),
@@ -166,7 +166,7 @@ fn json_to_meta(value: serde_json::Value, options: &ReaderOptions) -> MetaValue 
         ),
         serde_json::Value::Object(map) => MetaValue::MetaMap(
             map.into_iter()
-                .map(|(key, item)| (key, json_to_meta(item, options)))
+                .map(|(key, item)| (key.into(), json_to_meta(item, options)))
                 .collect(),
         ),
     }
@@ -178,7 +178,7 @@ fn yaml_to_meta(value: Yaml, options: &ReaderOptions) -> MetaValue {
         Yaml::Mapping(entries) => MetaValue::MetaMap(
             entries
                 .into_iter()
-                .map(|(key, value)| (key, yaml_to_meta(value, options)))
+                .map(|(key, value)| (key.into(), yaml_to_meta(value, options)))
                 .collect(),
         ),
         Yaml::Sequence(items) => MetaValue::MetaList(
@@ -208,7 +208,7 @@ fn scalar_to_meta(scalar: Scalar, options: &ReaderOptions) -> MetaValue {
 
 fn plain_scalar_to_meta(text: &str, options: &ReaderOptions) -> MetaValue {
     if text.is_empty() || is_null(text) {
-        return MetaValue::MetaString(String::new());
+        return MetaValue::MetaString(carta_ast::Text::default());
     }
     if let Some(value) = as_bool(text) {
         return MetaValue::MetaBool(value);
@@ -371,7 +371,7 @@ fn insert_meta_field(meta: &mut BTreeMap<String, MetaValue>, key: &str, field: &
             if word_index > 0 {
                 inlines.push(Inline::Space);
             }
-            inlines.push(Inline::Str(word.to_owned()));
+            inlines.push(Inline::Str(word.into()));
         }
     }
     meta.insert(key.to_owned(), MetaValue::MetaInlines(inlines));
@@ -447,7 +447,7 @@ mod tests {
         assert_eq!(
             document.meta.get("title"),
             Some(&MetaValue::MetaInlines(vec![carta_ast::Inline::Str(
-                "T".to_owned()
+                "T".to_owned().into()
             )]))
         );
         assert!(matches!(document.blocks.as_slice(), [Block::Para(_)]));
@@ -483,7 +483,7 @@ mod tests {
             if index > 0 {
                 out.push(Inline::Space);
             }
-            out.push(Inline::Str((*word).to_owned()));
+            out.push(Inline::Str((*word).to_owned().into()));
         }
         MetaValue::MetaInlines(out)
     }
@@ -514,9 +514,9 @@ mod tests {
         assert_eq!(
             document.meta.get("author"),
             Some(&MetaValue::MetaInlines(vec![
-                Inline::Str("Jane".to_owned()),
+                Inline::Str("Jane".to_owned().into()),
                 Inline::SoftBreak,
-                Inline::Str("John".to_owned()),
+                Inline::Str("John".to_owned().into()),
             ]))
         );
     }

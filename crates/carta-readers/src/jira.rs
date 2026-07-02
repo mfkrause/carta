@@ -9,6 +9,7 @@
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
     ListNumberDelim, ListNumberStyle, Row, Table, TableBody, TableFoot, TableHead, Target,
+    ToCompactString,
 };
 use carta_core::{Reader, ReaderOptions, Result};
 
@@ -403,9 +404,9 @@ impl BlockParser<'_> {
         let close_line_end = self.line_end_from(close_line_start);
         self.pos = next_line_start(close_line_end, self.len());
         let attr = Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes: vec![("color".to_string(), value)],
+            attributes: vec![("color".into(), value.into())],
         };
         Some(Block::Div(Box::new(attr), inner))
     }
@@ -571,13 +572,16 @@ impl BlockParser<'_> {
         let content_start = next_line_start(open_line_end, self.len());
         let (classes, attributes) = verbatim_params(MacroKind::Code, params);
         let attr = Attr {
-            id: String::new(),
-            classes,
-            attributes,
+            id: carta_ast::Text::default(),
+            classes: classes.into_iter().map(Into::into).collect(),
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         };
         if let Some((content, resume)) = self.scan_code_content(content_start) {
             self.pos = resume;
-            Some(vec![Block::CodeBlock(Box::new(attr), content)])
+            Some(vec![Block::CodeBlock(Box::new(attr), content.into())])
         } else {
             self.pos = self.len();
             Some(Vec::new())
@@ -626,14 +630,17 @@ impl BlockParser<'_> {
         };
         let (classes, attributes) = verbatim_params(MacroKind::Noformat, params);
         let attr = Attr {
-            id: String::new(),
-            classes,
-            attributes,
+            id: carta_ast::Text::default(),
+            classes: classes.into_iter().map(Into::into).collect(),
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         };
         if let Some(close) = find_token(self.chars, content_start, CLOSE) {
             let content = slice_to_string(self.chars, content_start, close);
             self.pos = close + CLOSE.chars().count();
-            vec![Block::CodeBlock(Box::new(attr), content)]
+            vec![Block::CodeBlock(Box::new(attr), content.into())]
         } else {
             self.pos = self.len();
             Vec::new()
@@ -689,8 +696,8 @@ impl BlockParser<'_> {
         if let Some(title) = title {
             inner.push(Block::Div(
                 Box::new(Attr {
-                    id: String::new(),
-                    classes: vec!["panelheader".to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec!["panelheader".into()],
                     attributes: Vec::new(),
                 }),
                 vec![Block::Plain(vec![Inline::Strong(plain_inlines(&title))])],
@@ -699,9 +706,12 @@ impl BlockParser<'_> {
         inner.extend(parse_blocks_from_str(&content));
         Some(vec![Block::Div(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["panel".to_string()],
-                attributes,
+                id: carta_ast::Text::default(),
+                classes: vec!["panel".into()],
+                attributes: attributes
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
             }),
             inner,
         )])
@@ -987,7 +997,7 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
     for ch in text.chars() {
         if is_space(ch) {
             if !word.is_empty() {
-                out.push(Inline::Str(std::mem::take(&mut word)));
+                out.push(Inline::Str(std::mem::take(&mut word).into()));
             }
             if out.last() != Some(&Inline::Space) {
                 out.push(Inline::Space);
@@ -997,7 +1007,7 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
         }
     }
     if !word.is_empty() {
-        out.push(Inline::Str(word));
+        out.push(Inline::Str(word.into()));
     }
     out
 }
@@ -1038,7 +1048,7 @@ fn inlines_with(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usi
         return if text.is_empty() {
             Vec::new()
         } else {
-            vec![Inline::Str(text)]
+            vec![Inline::Str(text.into())]
         };
     }
     finalize(resolve(scan_tokens(chars, lo, hi, autolink, depth)))
@@ -1079,10 +1089,10 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
             let url = slice_to_string(chars, i, end);
             toks.push(Tok::Atom(Inline::Link(
                 Box::default(),
-                vec![Inline::Str(url.clone())],
+                vec![Inline::Str(url.clone().into())],
                 Box::new(Target {
-                    url,
-                    title: String::new(),
+                    url: url.into(),
+                    title: carta_ast::Text::default(),
                 }),
             )));
             i = end;
@@ -1429,8 +1439,8 @@ fn finalize(toks: Vec<Tok>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     for tok in toks {
         let inline = match tok {
-            Tok::Text(s) => Inline::Str(s),
-            Tok::Delim { marker, .. } => Inline::Str(marker.to_string()),
+            Tok::Text(s) => Inline::Str(s.into()),
+            Tok::Delim { marker, .. } => Inline::Str(marker.to_compact_string()),
             Tok::Atom(node) => node,
         };
         let inline = match out.last_mut() {
@@ -1634,7 +1644,7 @@ fn parse_brace_inline(
         let close = match_monospace_close(chars, i, hi)?;
         let inner = inlines_with(chars, i + 2, close, autolink, depth + 1);
         let text = carta_ast::to_plain_text(&inner);
-        return Some((Inline::Code(Box::default(), text), close + 2));
+        return Some((Inline::Code(Box::default(), text.into()), close + 2));
     }
 
     if matches_at(chars, i, "{color:") {
@@ -1644,9 +1654,9 @@ fn parse_brace_inline(
         let close = match_color_close(chars, value_end + 1, hi)?;
         let inner = inlines_with(chars, value_end + 1, close, autolink, depth + 1);
         let attr = Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes: vec![("color".to_string(), value)],
+            attributes: vec![("color".into(), value.into())],
         };
         return Some((Inline::Span(Box::new(attr), inner), close + "{color}".len()));
     }
@@ -1661,7 +1671,7 @@ fn parse_brace_inline(
             .filter(|c| !is_space(**c))
             .collect();
         let attr = Attr {
-            id: name,
+            id: name.into(),
             classes: Vec::new(),
             attributes: Vec::new(),
         };
@@ -1741,13 +1751,13 @@ fn parse_link(chars: &[char], i: usize, hi: usize, depth: usize) -> Option<(Inli
 
     let label = match label_range {
         Some((ls, le)) if le > ls => inlines_with(chars, ls, le, false, depth + 1),
-        _ => vec![Inline::Str(default_label)],
+        _ => vec![Inline::Str(default_label.into())],
     };
     let mut classes: Vec<String> = class.into_iter().map(str::to_string).collect();
     classes.extend(smart_class);
     let attr = Attr {
-        id: String::new(),
-        classes,
+        id: carta_ast::Text::default(),
+        classes: classes.into_iter().map(Into::into).collect(),
         attributes: Vec::new(),
     };
     Some((
@@ -1755,8 +1765,8 @@ fn parse_link(chars: &[char], i: usize, hi: usize, depth: usize) -> Option<(Inli
             Box::new(attr),
             label,
             Box::new(Target {
-                url,
-                title: String::new(),
+                url: url.into(),
+                title: carta_ast::Text::default(),
             }),
         ),
         close + 1,
@@ -1811,7 +1821,10 @@ fn parse_image(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
         Inline::Image(
             Box::new(attr),
             Vec::new(),
-            Box::new(Target { url: src, title }),
+            Box::new(Target {
+                url: src.into(),
+                title: title.into(),
+            }),
         ),
         close + 1,
     ))
@@ -1831,8 +1844,8 @@ fn image_properties(props: &str) -> Option<(Attr, String)> {
     if props == "thumbnail" {
         return Some((
             Attr {
-                id: String::new(),
-                classes: vec!["thumbnail".to_string()],
+                id: carta_ast::Text::default(),
+                classes: vec!["thumbnail".into()],
                 attributes: Vec::new(),
             },
             String::new(),
@@ -1858,9 +1871,12 @@ fn image_properties(props: &str) -> Option<(Attr, String)> {
     }
     Some((
         Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes,
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
         },
         title,
     ))
@@ -1984,7 +2000,7 @@ mod tests {
     }
 
     fn str_node(text: &str) -> Inline {
-        Inline::Str(text.to_string())
+        Inline::Str(text.to_string().into())
     }
 
     #[test]
@@ -2037,7 +2053,7 @@ mod tests {
     fn monospace_stringifies_inner_markup() {
         assert_eq!(
             para("{{a *b* c}}"),
-            vec![Inline::Code(Box::default(), "a b c".to_string())]
+            vec![Inline::Code(Box::default(), "a b c".to_string().into())]
         );
     }
 
@@ -2047,9 +2063,9 @@ mod tests {
             para("{color:red}x{color}"),
             vec![Inline::Span(
                 Box::new(Attr {
-                    id: String::new(),
+                    id: carta_ast::Text::default(),
                     classes: Vec::new(),
-                    attributes: vec![("color".to_string(), "red".to_string())],
+                    attributes: vec![("color".to_string().into(), "red".to_string().into())],
                 }),
                 vec![str_node("x")],
             )]
@@ -2059,9 +2075,9 @@ mod tests {
     #[test]
     fn color_block_wraps_in_div() {
         let attr = Attr {
-            id: String::new(),
+            id: carta_ast::Text::default(),
             classes: Vec::new(),
-            attributes: vec![("color".to_string(), "red".to_string())],
+            attributes: vec![("color".to_string().into(), "red".to_string().into())],
         };
         assert_eq!(
             blocks("{color:red}\nstuff\n{color}"),
@@ -2084,7 +2100,7 @@ mod tests {
             vec![
                 Inline::Span(
                     Box::new(Attr {
-                        id: "foo".to_string(),
+                        id: "foo".to_string().into(),
                         classes: Vec::new(),
                         attributes: Vec::new(),
                     }),
@@ -2186,8 +2202,8 @@ mod tests {
                 Box::default(),
                 vec![str_node("home")],
                 Box::new(Target {
-                    url: "http://example.com".to_string(),
-                    title: String::new(),
+                    url: "http://example.com".to_string().into(),
+                    title: carta_ast::Text::default(),
                 }),
             )]
         );
@@ -2201,8 +2217,8 @@ mod tests {
                 Box::default(),
                 vec![str_node("http://example.com")],
                 Box::new(Target {
-                    url: "http://example.com".to_string(),
-                    title: String::new(),
+                    url: "http://example.com".to_string().into(),
+                    title: carta_ast::Text::default(),
                 }),
             )]
         );
@@ -2214,14 +2230,14 @@ mod tests {
             para("[^file.txt]"),
             vec![Inline::Link(
                 Box::new(Attr {
-                    id: String::new(),
-                    classes: vec!["attachment".to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec!["attachment".to_string().into()],
                     attributes: Vec::new(),
                 }),
                 vec![str_node("file.txt")],
                 Box::new(Target {
-                    url: "file.txt".to_string(),
-                    title: String::new(),
+                    url: "file.txt".to_string().into(),
+                    title: carta_ast::Text::default(),
                 }),
             )]
         );
@@ -2238,8 +2254,8 @@ mod tests {
                     Box::default(),
                     vec![str_node("http://example.com")],
                     Box::new(Target {
-                        url: "http://example.com".to_string(),
-                        title: String::new(),
+                        url: "http://example.com".to_string().into(),
+                        title: carta_ast::Text::default(),
                     }),
                 ),
                 Inline::Space,
@@ -2254,17 +2270,17 @@ mod tests {
             para("!pic.png|align=right, vspace=4!"),
             vec![Inline::Image(
                 Box::new(Attr {
-                    id: String::new(),
+                    id: carta_ast::Text::default(),
                     classes: Vec::new(),
                     attributes: vec![
-                        ("align".to_string(), "right".to_string()),
-                        ("vspace".to_string(), "4".to_string()),
+                        ("align".to_string().into(), "right".to_string().into()),
+                        ("vspace".to_string().into(), "4".to_string().into()),
                     ],
                 }),
                 Vec::new(),
                 Box::new(Target {
-                    url: "pic.png".to_string(),
-                    title: String::new(),
+                    url: "pic.png".to_string().into(),
+                    title: carta_ast::Text::default(),
                 }),
             )]
         );
@@ -2276,14 +2292,14 @@ mod tests {
             para("!pic.png|thumbnail!"),
             vec![Inline::Image(
                 Box::new(Attr {
-                    id: String::new(),
-                    classes: vec!["thumbnail".to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec!["thumbnail".to_string().into()],
                     attributes: Vec::new(),
                 }),
                 Vec::new(),
                 Box::new(Target {
-                    url: "pic.png".to_string(),
-                    title: String::new(),
+                    url: "pic.png".to_string().into(),
+                    title: carta_ast::Text::default(),
                 }),
             )]
         );
@@ -2357,11 +2373,11 @@ mod tests {
             blocks("{code}\nint x = 1;\n{code}"),
             vec![Block::CodeBlock(
                 Box::new(Attr {
-                    id: String::new(),
-                    classes: vec!["java".to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec!["java".to_string().into()],
                     attributes: Vec::new(),
                 }),
-                "int x = 1;\n".to_string(),
+                "int x = 1;\n".to_string().into(),
             )]
         );
     }
@@ -2372,11 +2388,11 @@ mod tests {
             blocks("{code:python}\npass\n{code}"),
             vec![Block::CodeBlock(
                 Box::new(Attr {
-                    id: String::new(),
-                    classes: vec!["python".to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec!["python".to_string().into()],
                     attributes: Vec::new(),
                 }),
-                "pass\n".to_string(),
+                "pass\n".to_string().into(),
             )]
         );
     }
@@ -2385,7 +2401,7 @@ mod tests {
     fn noformat_has_no_language_class() {
         assert_eq!(
             blocks("{noformat}\nraw\n{noformat}"),
-            vec![Block::CodeBlock(Box::default(), "raw\n".to_string())]
+            vec![Block::CodeBlock(Box::default(), "raw\n".to_string().into())]
         );
     }
 
@@ -2410,15 +2426,15 @@ mod tests {
             blocks("{panel:title=Note}\nbody\n{panel}"),
             vec![Block::Div(
                 Box::new(Attr {
-                    id: String::new(),
-                    classes: vec!["panel".to_string()],
+                    id: carta_ast::Text::default(),
+                    classes: vec!["panel".to_string().into()],
                     attributes: Vec::new(),
                 }),
                 vec![
                     Block::Div(
                         Box::new(Attr {
-                            id: String::new(),
-                            classes: vec!["panelheader".to_string()],
+                            id: carta_ast::Text::default(),
+                            classes: vec!["panelheader".to_string().into()],
                             attributes: Vec::new(),
                         }),
                         vec![Block::Plain(vec![Inline::Strong(vec![str_node("Note")])])],

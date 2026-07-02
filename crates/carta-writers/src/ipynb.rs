@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use std::iter::Peekable;
 use std::str::Chars;
 
-use carta_ast::{Attr, Block, Document, Format, Inline, MetaValue, to_plain_text};
+use carta_ast::{Attr, Block, Document, Format, Inline, MetaValue, Text, to_plain_text};
 use carta_core::{Error, Extension, Extensions, Result, Writer, WriterOptions};
 
 use crate::markdown::MarkdownWriter;
@@ -152,7 +152,7 @@ fn code_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Result<Json
     for block in content {
         match block {
             Block::CodeBlock(_, text) if !found_source => {
-                source.clone_from(text);
+                source = text.to_string();
                 found_source = true;
             }
             Block::Div(output_attr, inner) if has_class(output_attr, "output") => {
@@ -184,7 +184,7 @@ fn raw_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
     let mut metadata = Vec::new();
     for block in content {
         if let Block::RawBlock(Format(format), text) = block {
-            source.clone_from(text);
+            source = text.to_string();
             metadata.push(("raw_mimetype".to_owned(), Json::Str(format_to_mime(format))));
             break;
         }
@@ -200,13 +200,12 @@ fn raw_cell(attr: &Attr, content: &[Block], counter: &mut usize) -> Json {
 
 /// Reconstructs an output object from an `output` div. The output kind is the div's second class.
 fn output_object(attr: &Attr, content: &[Block]) -> Result<Json> {
-    let output = match attr.classes.get(1).map(String::as_str) {
+    let output = match attr.classes.get(1).map(Text::as_str) {
         Some("stream") => {
             let name = attr
                 .classes
                 .get(2)
-                .cloned()
-                .unwrap_or_else(|| "stdout".to_owned());
+                .map_or_else(|| "stdout".to_owned(), ToString::to_string);
             Json::Object(vec![
                 ("output_type".to_owned(), Json::Str("stream".to_owned())),
                 ("name".to_owned(), Json::Str(name)),
@@ -292,7 +291,7 @@ fn data_bundle(content: &[Block]) -> Result<Json> {
 fn first_verbatim(content: &[Block]) -> String {
     for block in content {
         if let Block::CodeBlock(_, text) = block {
-            return text.clone();
+            return text.to_string();
         }
     }
     String::new()
@@ -308,25 +307,25 @@ fn image_url(inlines: &[Inline]) -> Option<&str> {
 
 /// Builds cell metadata from a div's key/value attributes, skipping the named keys. Each value is
 /// the attribute parsed as a JSON value, or the raw text when it is not valid JSON. Keys are ordered.
-fn attribute_metadata(attributes: &[(String, String)], skip: &[&str]) -> Json {
+fn attribute_metadata(attributes: &[(Text, Text)], skip: &[&str]) -> Json {
     let mut entries: Vec<(String, Json)> = attributes
         .iter()
         .filter(|(key, _)| !skip.contains(&key.as_str()))
-        .map(|(key, value)| (key.clone(), parse_metadata_value(value)))
+        .map(|(key, value)| (key.to_string(), parse_metadata_value(value)))
         .collect();
     entries.sort_by(|left, right| left.0.cmp(&right.0));
     Json::Object(entries)
 }
 
 /// Notebook metadata: the `jupyter` map minus the version keys, or empty when there is none.
-fn notebook_metadata(meta: &BTreeMap<String, MetaValue>) -> Json {
+fn notebook_metadata(meta: &BTreeMap<Text, MetaValue>) -> Json {
     let Some(MetaValue::MetaMap(map)) = meta.get("jupyter") else {
         return Json::Object(Vec::new());
     };
     let pairs = map
         .iter()
         .filter(|(key, _)| key.as_str() != "nbformat" && key.as_str() != "nbformat_minor")
-        .map(|(key, value)| (key.clone(), meta_to_json(value)))
+        .map(|(key, value)| (key.to_string(), meta_to_json(value)))
         .collect();
     Json::Object(pairs)
 }
@@ -336,12 +335,12 @@ fn meta_to_json(value: &MetaValue) -> Json {
     match value {
         MetaValue::MetaMap(map) => Json::Object(
             map.iter()
-                .map(|(key, value)| (key.clone(), meta_to_json(value)))
+                .map(|(key, value)| (key.to_string(), meta_to_json(value)))
                 .collect(),
         ),
         MetaValue::MetaList(values) => Json::Array(values.iter().map(meta_to_json).collect()),
         MetaValue::MetaBool(flag) => Json::Bool(*flag),
-        MetaValue::MetaString(text) => Json::Str(text.clone()),
+        MetaValue::MetaString(text) => Json::Str(text.to_string()),
         MetaValue::MetaInlines(inlines) => Json::Str(to_plain_text(inlines)),
         MetaValue::MetaBlocks(blocks) => Json::Str(meta_blocks_text(blocks)),
     }
@@ -355,7 +354,7 @@ fn meta_blocks_text(blocks: &[Block]) -> String {
             Block::Para(inlines) | Block::Plain(inlines) | Block::Header(_, _, inlines) => {
                 to_plain_text(inlines)
             }
-            Block::CodeBlock(_, text) | Block::RawBlock(_, text) => text.clone(),
+            Block::CodeBlock(_, text) | Block::RawBlock(_, text) => text.to_string(),
             _ => String::new(),
         })
         .collect::<Vec<_>>()
@@ -715,7 +714,7 @@ mod tests {
     use carta_ast::Inline;
 
     fn para(text: &str) -> Block {
-        Block::Para(vec![Inline::Str(text.to_owned())])
+        Block::Para(vec![Inline::Str(text.to_owned().into())])
     }
 
     fn write(blocks: Vec<Block>) -> String {
@@ -741,7 +740,11 @@ mod tests {
     #[test]
     fn loose_blocks_become_one_markdown_cell() {
         let notebook = write(vec![
-            Block::Header(1, Box::default(), vec![Inline::Str("Title".to_owned())]),
+            Block::Header(
+                1,
+                Box::default(),
+                vec![Inline::Str("Title".to_owned().into())],
+            ),
             para("Body."),
         ]);
         assert!(notebook.contains("\"cell_type\": \"markdown\""));
@@ -771,11 +774,14 @@ mod tests {
     fn cell_div_selects_kind_and_keeps_id() {
         let notebook = write(vec![Block::Div(
             Box::new(Attr {
-                id: "given".to_owned(),
-                classes: vec!["cell".to_owned(), "code".to_owned()],
-                attributes: vec![("execution_count".to_owned(), "7".to_owned())],
+                id: "given".to_owned().into(),
+                classes: vec!["cell".to_owned().into(), "code".to_owned().into()],
+                attributes: vec![("execution_count".to_owned().into(), "7".to_owned().into())],
             }),
-            vec![Block::CodeBlock(Box::default(), "print(1)".to_owned())],
+            vec![Block::CodeBlock(
+                Box::default(),
+                "print(1)".to_owned().into(),
+            )],
         )]);
         assert!(notebook.contains("\"cell_type\": \"code\""));
         assert!(notebook.contains("\"execution_count\": 7"));
@@ -788,13 +794,13 @@ mod tests {
     fn raw_cell_carries_mime_type() {
         let notebook = write(vec![Block::Div(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["cell".to_owned(), "raw".to_owned()],
+                id: String::new().into(),
+                classes: vec!["cell".to_owned().into(), "raw".to_owned().into()],
                 attributes: Vec::new(),
             }),
             vec![Block::RawBlock(
-                Format("html".to_owned()),
-                "<b>x</b>".to_owned(),
+                Format("html".to_owned().into()),
+                "<b>x</b>".to_owned().into(),
             )],
         )]);
         assert!(notebook.contains("\"cell_type\": \"raw\""));
@@ -806,13 +812,13 @@ mod tests {
     fn raw_cell_maps_asciidoc_mime() {
         let notebook = write(vec![Block::Div(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["cell".to_owned(), "raw".to_owned()],
+                id: String::new().into(),
+                classes: vec!["cell".to_owned().into(), "raw".to_owned().into()],
                 attributes: Vec::new(),
             }),
             vec![Block::RawBlock(
-                Format("asciidoc".to_owned()),
-                "[NOTE]\n====\nbody\n====".to_owned(),
+                Format("asciidoc".to_owned().into()),
+                "[NOTE]\n====\nbody\n====".to_owned().into(),
             )],
         )]);
         assert!(notebook.contains("\"cell_type\": \"raw\""));
@@ -823,34 +829,37 @@ mod tests {
     fn stream_and_error_outputs_round_trip() {
         let notebook = write(vec![Block::Div(
             Box::new(Attr {
-                id: String::new(),
-                classes: vec!["cell".to_owned(), "code".to_owned()],
+                id: String::new().into(),
+                classes: vec!["cell".to_owned().into(), "code".to_owned().into()],
                 attributes: Vec::new(),
             }),
             vec![
-                Block::CodeBlock(Box::default(), "x".to_owned()),
+                Block::CodeBlock(Box::default(), "x".to_owned().into()),
                 Block::Div(
                     Box::new(Attr {
-                        id: String::new(),
+                        id: String::new().into(),
                         classes: vec![
-                            "output".to_owned(),
-                            "stream".to_owned(),
-                            "stdout".to_owned(),
+                            "output".to_owned().into(),
+                            "stream".to_owned().into(),
+                            "stdout".to_owned().into(),
                         ],
                         attributes: Vec::new(),
                     }),
-                    vec![Block::CodeBlock(Box::default(), "hi\n".to_owned())],
+                    vec![Block::CodeBlock(Box::default(), "hi\n".to_owned().into())],
                 ),
                 Block::Div(
                     Box::new(Attr {
-                        id: String::new(),
-                        classes: vec!["output".to_owned(), "error".to_owned()],
+                        id: String::new().into(),
+                        classes: vec!["output".to_owned().into(), "error".to_owned().into()],
                         attributes: vec![
-                            ("ename".to_owned(), "ValueError".to_owned()),
-                            ("evalue".to_owned(), "bad".to_owned()),
+                            ("ename".to_owned().into(), "ValueError".to_owned().into()),
+                            ("evalue".to_owned().into(), "bad".to_owned().into()),
                         ],
                     }),
-                    vec![Block::CodeBlock(Box::default(), "trace\n".to_owned())],
+                    vec![Block::CodeBlock(
+                        Box::default(),
+                        "trace\n".to_owned().into(),
+                    )],
                 ),
             ],
         )]);
@@ -866,24 +875,27 @@ mod tests {
         let document = Document {
             blocks: vec![Block::Div(
                 Box::new(Attr {
-                    id: String::new(),
-                    classes: vec!["cell".to_owned(), "code".to_owned()],
+                    id: String::new().into(),
+                    classes: vec!["cell".to_owned().into(), "code".to_owned().into()],
                     attributes: Vec::new(),
                 }),
                 vec![
-                    Block::CodeBlock(Box::default(), "plot()".to_owned()),
+                    Block::CodeBlock(Box::default(), "plot()".to_owned().into()),
                     Block::Div(
                         Box::new(Attr {
-                            id: String::new(),
-                            classes: vec!["output".to_owned(), "display_data".to_owned()],
+                            id: String::new().into(),
+                            classes: vec![
+                                "output".to_owned().into(),
+                                "display_data".to_owned().into(),
+                            ],
                             attributes: Vec::new(),
                         }),
                         vec![Block::Para(vec![Inline::Image(
                             Box::default(),
                             Vec::new(),
                             Box::new(carta_ast::Target {
-                                url: "plot.png".to_owned(),
-                                title: String::new(),
+                                url: "plot.png".to_owned().into(),
+                                title: String::new().into(),
                             }),
                         )])],
                     ),
@@ -903,10 +915,10 @@ mod tests {
     #[test]
     fn metadata_attribute_values_are_typed() {
         let attributes = vec![
-            ("collapsed".to_owned(), "true".to_owned()),
-            ("count".to_owned(), "5".to_owned()),
-            ("name".to_owned(), "hello".to_owned()),
-            ("tags".to_owned(), "[\"a\",\"b\"]".to_owned()),
+            ("collapsed".to_owned().into(), "true".to_owned().into()),
+            ("count".to_owned().into(), "5".to_owned().into()),
+            ("name".to_owned().into(), "hello".to_owned().into()),
+            ("tags".to_owned().into(), "[\"a\",\"b\"]".to_owned().into()),
         ];
         let Json::Object(entries) = attribute_metadata(&attributes, &[]) else {
             panic!("expected object");
@@ -922,14 +934,17 @@ mod tests {
     #[test]
     fn notebook_metadata_drops_version_keys() {
         let mut jupyter = BTreeMap::new();
-        jupyter.insert("nbformat".to_owned(), MetaValue::MetaString("4".to_owned()));
         jupyter.insert(
-            "nbformat_minor".to_owned(),
-            MetaValue::MetaString("5".to_owned()),
+            "nbformat".to_owned().into(),
+            MetaValue::MetaString("4".to_owned().into()),
         );
-        jupyter.insert("kept".to_owned(), MetaValue::MetaBool(true));
+        jupyter.insert(
+            "nbformat_minor".to_owned().into(),
+            MetaValue::MetaString("5".to_owned().into()),
+        );
+        jupyter.insert("kept".to_owned().into(), MetaValue::MetaBool(true));
         let mut meta = BTreeMap::new();
-        meta.insert("jupyter".to_owned(), MetaValue::MetaMap(jupyter));
+        meta.insert("jupyter".to_owned().into(), MetaValue::MetaMap(jupyter));
 
         let Json::Object(pairs) = notebook_metadata(&meta) else {
             panic!("expected object");

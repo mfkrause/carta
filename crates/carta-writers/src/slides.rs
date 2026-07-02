@@ -187,15 +187,15 @@ mod tests {
         Block::Header(
             level,
             Box::new(Attr {
-                id: id.to_owned(),
+                id: id.to_owned().into(),
                 ..Attr::default()
             }),
-            vec![Inline::Str(id.to_owned())],
+            vec![Inline::Str(id.to_owned().into())],
         )
     }
 
     fn para(text: &str) -> Block {
-        Block::Para(vec![Inline::Str(text.to_owned())])
+        Block::Para(vec![Inline::Str(text.to_owned().into())])
     }
 
     #[test]

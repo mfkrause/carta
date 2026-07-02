@@ -7,7 +7,7 @@
 //! level, the result joined from the document's shallowest heading level — so a heading and its
 //! contents entry always carry the same number.
 
-use carta_ast::{Attr, Block, Inline, Target};
+use carta_ast::{Attr, Block, Inline, Target, Text};
 
 /// Headings range over levels 1 through 6.
 const MAX_LEVEL: usize = 6;
@@ -40,7 +40,7 @@ impl Counters {
     /// level 2 still numbers from `1`; a skipped level reads as a zero (`1` then a level-3 heading is
     /// `1.0.1`); and a heading deeper than the base level appearing before any heading reaches that
     /// base reads with leading zeros (a level-2 heading before the first level-1 heading is `0.1`).
-    fn advance(&mut self, level: i32, classes: &[String]) -> Option<String> {
+    fn advance(&mut self, level: i32, classes: &[Text]) -> Option<Text> {
         if classes.iter().any(|class| class == UNNUMBERED) {
             return None;
         }
@@ -60,7 +60,7 @@ impl Counters {
             .map(u32::to_string)
             .collect::<Vec<_>>()
             .join(".");
-        Some(number)
+        Some(number.into())
     }
 }
 
@@ -98,7 +98,7 @@ fn number_in(blocks: &mut [Block], counters: &mut Counters) {
         match block {
             Block::Header(level, attr, inlines) => {
                 if let Some(number) = counters.advance(*level, &attr.classes) {
-                    attr.attributes.push(("number".to_owned(), number.clone()));
+                    attr.attributes.push((Text::from("number"), number.clone()));
                     let span = Inline::Span(
                         Box::new(section_number_attr("header-section-number")),
                         vec![Inline::Str(number)],
@@ -209,7 +209,7 @@ fn toc_entry(
     if let Some(number) = number.filter(|_| numbered) {
         content.push(Inline::Span(
             Box::new(section_number_attr("toc-section-number")),
-            vec![Inline::Str(number.to_owned())],
+            vec![Inline::Str(number.into())],
         ));
         content.push(Inline::Space);
     }
@@ -219,9 +219,9 @@ fn toc_entry(
     }
     let link_attr = Attr {
         id: if anchors {
-            format!("toc-{}", attr.id)
+            format!("toc-{}", attr.id).into()
         } else {
-            String::new()
+            Text::default()
         },
         classes: Vec::new(),
         attributes: Vec::new(),
@@ -230,8 +230,8 @@ fn toc_entry(
         Box::new(link_attr),
         content,
         Box::new(Target {
-            url: format!("#{}", attr.id),
-            title: String::new(),
+            url: format!("#{}", attr.id).into(),
+            title: Text::default(),
         }),
     )]
 }
@@ -268,8 +268,8 @@ fn clean_toc_inlines(inlines: &[Inline]) -> Vec<Inline> {
 
 fn section_number_attr(class: &str) -> Attr {
     Attr {
-        id: String::new(),
-        classes: vec![class.to_owned()],
+        id: Text::default(),
+        classes: vec![class.into()],
         attributes: Vec::new(),
     }
 }
@@ -283,11 +283,11 @@ mod tests {
         Block::Header(
             level,
             Box::new(Attr {
-                id: text.to_lowercase().replace(' ', "-"),
-                classes: classes.iter().map(|class| (*class).to_owned()).collect(),
+                id: text.to_lowercase().replace(' ', "-").into(),
+                classes: classes.iter().map(|class| (*class).into()).collect(),
                 attributes: Vec::new(),
             }),
-            vec![Inline::Str(text.to_owned())],
+            vec![Inline::Str(text.into())],
         )
     }
 
@@ -296,7 +296,7 @@ mod tests {
             attr.attributes
                 .iter()
                 .find(|(key, _)| key == "number")
-                .map(|(_, value)| value.clone())
+                .map(|(_, value)| value.to_string())
         } else {
             None
         }
@@ -417,7 +417,7 @@ mod tests {
     fn empty_document_has_no_toc() {
         assert!(
             build_toc(
-                &[Block::Para(vec![Inline::Str("hi".to_owned())])],
+                &[Block::Para(vec![Inline::Str("hi".into())])],
                 3,
                 false,
                 true
@@ -451,19 +451,19 @@ mod tests {
         let heading = Block::Header(
             1,
             Box::new(Attr {
-                id: "h".to_owned(),
+                id: "h".into(),
                 ..Attr::default()
             }),
             vec![
                 Inline::Link(
                     Box::default(),
-                    vec![Inline::Str("text".to_owned())],
+                    vec![Inline::Str("text".into())],
                     Box::new(Target {
-                        url: "x".to_owned(),
-                        title: String::new(),
+                        url: "x".into(),
+                        title: Text::default(),
                     }),
                 ),
-                Inline::Note(vec![Block::Para(vec![Inline::Str("note".to_owned())])]),
+                Inline::Note(vec![Block::Para(vec![Inline::Str("note".into())])]),
             ],
         );
         let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
@@ -475,7 +475,7 @@ mod tests {
         let Some(Inline::Link(_, content, _)) = inlines.first() else {
             panic!("expected a link");
         };
-        assert_eq!(content, &vec![Inline::Str("text".to_owned())]);
+        assert_eq!(content, &vec![Inline::Str("text".into())]);
     }
 
     #[test]
@@ -496,13 +496,13 @@ mod tests {
 
     #[test]
     fn toc_entry_without_an_id_is_plain_text() {
-        let heading = Block::Header(1, Box::default(), vec![Inline::Str("Untitled".to_owned())]);
+        let heading = Block::Header(1, Box::default(), vec![Inline::Str("Untitled".into())]);
         let Some(Block::BulletList(items)) = build_toc(&[heading], 3, false, true) else {
             panic!("expected a contents list");
         };
         let Some(Block::Plain(inlines)) = items.first().and_then(|item| item.first()) else {
             panic!("expected a plain item");
         };
-        assert_eq!(inlines, &vec![Inline::Str("Untitled".to_owned())]);
+        assert_eq!(inlines, &vec![Inline::Str("Untitled".into())]);
     }
 }

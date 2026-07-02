@@ -8,8 +8,8 @@
 
 use carta_ast::{
     Attr, Block, Caption, ColWidth, Document, Format, Inline, ListAttributes, ListNumberDelim,
-    ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, Target, single_block_inlines,
-    slug, to_plain_text,
+    ListNumberStyle, MathType, MetaValue, QuoteType, Row, Table, Target, Text,
+    single_block_inlines, slug, to_plain_text,
 };
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
@@ -318,7 +318,7 @@ impl State {
                         pieces.push(Piece::Text(text));
                     }
                 }
-                pieces.push(Piece::Math(tex.clone()));
+                pieces.push(Piece::Math(tex.to_string()));
                 start = index + 1;
             }
         }
@@ -490,7 +490,7 @@ impl State {
             // The directive's alternate text is the image's, falling back to its title.
             let alt_text = to_plain_text(alt);
             let alt_text = if alt_text.is_empty() {
-                target.title.clone()
+                target.title.to_string()
             } else {
                 alt_text
             };
@@ -652,7 +652,7 @@ impl State {
             Inline::Math(_, tex) => out.push(word(format!(":math:`{tex}`"), true)),
             Inline::RawInline(format, text) => {
                 if format.0.eq_ignore_ascii_case("rst") {
-                    out.push(word(text.clone(), false));
+                    out.push(word(text.to_string(), false));
                 } else if format.0.eq_ignore_ascii_case("latex")
                     || format.0.eq_ignore_ascii_case("tex")
                 {
@@ -800,7 +800,7 @@ impl State {
             return;
         }
         if label_matches_url(&plain, &target.url) && is_standalone_uri(&target.url) {
-            out.push(word(target.url.clone(), true));
+            out.push(word(target.url.to_string(), true));
             return;
         }
         if !self.tokens_nested(label, true).iter().any(is_word_token) {
@@ -1787,14 +1787,14 @@ fn is_bare_title(attr: &Attr) -> bool {
     attr.id.is_empty()
         && attr.attributes.is_empty()
         && attr.classes.len() == 1
-        && attr.classes.first().map(String::as_str) == Some("title")
+        && attr.classes.first().map(Text::as_str) == Some("title")
 }
 
 /// The language argument of a code block: its first class that is not the line-numbering flag.
 fn code_language(attr: &Attr) -> Option<&str> {
     attr.classes
         .iter()
-        .map(String::as_str)
+        .map(Text::as_str)
         .find(|class| *class != "numberLines")
 }
 

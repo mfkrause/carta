@@ -491,7 +491,7 @@ impl State {
     fn image(&mut self, out: &mut Vec<Fragment>, font: Font, alt: &[Inline], target: &Target) {
         push_text(out, "[IMAGE: ");
         let caption: Vec<Inline> = if alt.is_empty() {
-            vec![Inline::Str("image".to_owned())]
+            vec![Inline::Str("image".into())]
         } else {
             alt.to_vec()
         };
@@ -990,7 +990,7 @@ mod tests {
     }
 
     fn s(text: &str) -> Inline {
-        Inline::Str(text.to_owned())
+        Inline::Str(text.to_owned().into())
     }
 
     #[test]
@@ -1161,7 +1161,7 @@ mod tests {
                 vec![],
                 Box::new(Target {
                     url: "i.png".into(),
-                    title: String::new(),
+                    title: String::new().into(),
                 }),
             )])]),
             ".PP\n[IMAGE: image]"
@@ -1297,11 +1297,11 @@ mod tests {
     }
 
     fn inline_math(tex: &str) -> Inline {
-        Inline::Math(MathType::InlineMath, tex.to_owned())
+        Inline::Math(MathType::InlineMath, tex.to_owned().into())
     }
 
     fn display_math(tex: &str) -> Inline {
-        Inline::Math(MathType::DisplayMath, tex.to_owned())
+        Inline::Math(MathType::DisplayMath, tex.to_owned().into())
     }
 
     #[test]
