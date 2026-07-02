@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Café,"},{"t":"Space"},{"t":"Str","c":"naïve,"},{"t":"Space"},{"t":"Str","c":"r̂ole,"},{"t":"Space"},{"t":"Str","c":"Straße,"},{"t":"Space"},{"t":"Str","c":"çedilla,"},{"t":"Space"},{"t":"Str","c":"š,"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"ñ."}]},{"t":"Para","c":[{"t":"Str","c":"Special"},{"t":"Space"},{"t":"Str","c":"glyphs:"},{"t":"Space"},{"t":"Str","c":"LaTeX,"},{"t":"Space"},{"t":"Str","c":"TeX,"},{"t":"Space"},{"t":"Str","c":"…,"},{"t":"Space"},{"t":"Str","c":"&"},{"t":"Space"},{"t":"Str","c":"ampersand,"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"§section."}]}]}

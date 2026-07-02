@@ -26,6 +26,8 @@ pub mod ipynb;
 pub mod jira;
 #[cfg(feature = "json")]
 pub mod json;
+#[cfg(feature = "latex")]
+pub mod latex;
 #[cfg(feature = "man")]
 pub mod man;
 #[cfg(feature = "mediawiki")]
@@ -36,6 +38,8 @@ pub mod metadata;
 pub mod native;
 #[cfg(feature = "opml")]
 pub mod opml;
+#[cfg(feature = "org")]
+pub mod org;
 #[cfg(feature = "rst")]
 pub mod rst;
 #[cfg(feature = "tsv")]
@@ -55,6 +59,8 @@ pub use ipynb::IpynbReader;
 pub use jira::JiraReader;
 #[cfg(feature = "json")]
 pub use json::JsonReader;
+#[cfg(feature = "latex")]
+pub use latex::LatexReader;
 #[cfg(feature = "man")]
 pub use man::ManReader;
 #[cfg(feature = "mediawiki")]
@@ -63,6 +69,8 @@ pub use mediawiki::MediawikiReader;
 pub use native::NativeReader;
 #[cfg(feature = "opml")]
 pub use opml::OpmlReader;
+#[cfg(feature = "org")]
+pub use org::OrgReader;
 #[cfg(feature = "rst")]
 pub use rst::RstReader;
 #[cfg(feature = "tsv")]

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[[file:u1][outer [[file:u2][inner]] end]]

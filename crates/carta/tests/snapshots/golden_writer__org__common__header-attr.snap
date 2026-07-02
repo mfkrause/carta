@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Titled
+:PROPERTIES:
+:CUSTOM_ID: anchor
+:CLASS: cls
+:key: val
+:END:

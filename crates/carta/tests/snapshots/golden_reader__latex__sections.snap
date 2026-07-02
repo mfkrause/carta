@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["introduction",[],[]],[{"t":"Str","c":"Introduction"}]]},{"t":"Para","c":[{"t":"Str","c":"Some"},{"t":"Space"},{"t":"Str","c":"introductory"},{"t":"Space"},{"t":"Str","c":"text."}]},{"t":"Header","c":[2,["background",[],[]],[{"t":"Str","c":"Background"}]]},{"t":"Para","c":[{"t":"Str","c":"More"},{"t":"Space"},{"t":"Str","c":"detail"},{"t":"Space"},{"t":"Str","c":"here."}]},{"t":"Header","c":[3,["fine-points",[],[]],[{"t":"Str","c":"Fine"},{"t":"Space"},{"t":"Str","c":"Points"}]]},{"t":"Para","c":[{"t":"Str","c":"Even"},{"t":"Space"},{"t":"Str","c":"more"},{"t":"Space"},{"t":"Str","c":"detail."}]},{"t":"Header","c":[1,["conclusion",[],[]],[{"t":"Str","c":"Conclusion"}]]},{"t":"Para","c":[{"t":"Str","c":"Final"},{"t":"Space"},{"t":"Str","c":"remarks."}]}]}

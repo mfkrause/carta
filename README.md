@@ -50,7 +50,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| LaTeX (`latex`) | ❌ | ✅ |
+| LaTeX (`latex`) | ✅ | ✅ |
 | Typst (`typst`) | ❌ | ✅ |
 | ConTeXt (`context`) | ➖ | ❌ |
 | Texinfo (`texinfo`) | ➖ | ❌ |
@@ -64,7 +64,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | AsciiDoc (`asciidoc`) | ❌ | ✅ |
 | AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ❌ |
 | Asciidoctor (`asciidoctor`) | ➖ | ❌ |
-| Org mode (`org`) | ❌ | ❌ |
+| Org mode (`org`) | ✅ | ✅ |
 | Textile (`textile`) | ❌ | ❌ |
 | Muse (`muse`) | ❌ | ❌ |
 | Haddock (`haddock`) | ❌ | ❌ |

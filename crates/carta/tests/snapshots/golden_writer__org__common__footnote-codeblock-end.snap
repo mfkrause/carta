@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+ref[fn:1]
+
+[fn:1] #+begin_example
+       code only
+       #+end_example
