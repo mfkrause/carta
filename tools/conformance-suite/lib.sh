@@ -27,7 +27,7 @@ require_tools() {
     missing=1
   fi
   if [ ! -x "$OX" ]; then
-    printf 'error: carta binary not found at %s\n  build it: cargo build -p carta-cli\n' "$OX" >&2
+    printf 'error: carta binary not found at %s\n  build it: cargo build -p carta\n' "$OX" >&2
     missing=1
   fi
   if ! command -v jq >/dev/null 2>&1; then

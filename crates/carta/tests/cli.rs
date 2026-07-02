@@ -1,7 +1,10 @@
 //! End-to-end tests for the `carta` binary: format dispatch, aliases, file vs stdin/stdout I/O,
 //! and the error paths. The binary is invoked as a subprocess (`CARGO_BIN_EXE_carta`); outputs are
 //! the writer's own deterministic text, so these run fully offline.
+//!
+//! Gated on `cli`: without that feature the binary is not built, so `CARGO_BIN_EXE_carta` is unset.
 
+#![cfg(feature = "cli")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fs;

@@ -69,7 +69,7 @@ require_tools() {
 # publish numbers from a stale or debug build.
 ensure_release_binary() {
   echo "building carta --release ..." >&2
-  if ! (cd "$ROOT" && cargo build --release -p carta-cli >&2); then
+  if ! (cd "$ROOT" && cargo build --release -p carta >&2); then
     echo "error: failed to build carta --release" >&2
     exit 1
   fi

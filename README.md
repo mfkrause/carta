@@ -155,10 +155,11 @@ and Windows (x86-64).
 With a Rust 1.93+ toolchain:
 
 ```sh
-cargo install carta-cli
+cargo install carta
 ```
 
-This installs the `carta` binary.
+This installs the `carta` binary. For a smaller build, pass `--no-default-features` with only the
+formats you need, e.g. `--features cli,read-commonmark,write-html`.
 
 ### From source
 
@@ -227,7 +228,7 @@ cargo clippy --all-targets          # lint
 cargo +nightly fuzz run commonmark  # fuzz a reader (see fuzz/README.md)
 ```
 
-The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and options), `carta-readers`, `carta-writers`, the `carta` library facade, and the `carta-cli` binary.
+The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and options), `carta-readers`, `carta-writers`, and `carta` — the library facade, which also ships the command-line binary behind its `cli` feature.
 
 ## License
 

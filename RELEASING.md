@@ -1,6 +1,6 @@
 # Releasing carta
 
-Releases are automated with [release-plz](https://release-plz.dev). All six crates share one
+Releases are automated with [release-plz](https://release-plz.dev). All five crates share one
 version and are released together; every crate is published to [crates.io](https://crates.io) and a
 single GitHub release carries prebuilt `carta` binaries.
 
@@ -53,8 +53,8 @@ same version — fix the problem and cut the next patch version for the remainde
 
 ### 2. Register Trusted Publishing (after `0.0.1` exists)
 
-For **each** of the six crates (`carta`, `carta-ast`, `carta-core`, `carta-readers`,
-`carta-writers`, `carta-cli`), on its crates.io page go to **Settings → Trusted Publishing → Add a
+For **each** of the five crates (`carta`, `carta-ast`, `carta-core`, `carta-readers`,
+`carta-writers`), on its crates.io page go to **Settings → Trusted Publishing → Add a
 new publisher** and enter:
 
 - Repository owner and name: `mfkrause/carta`
