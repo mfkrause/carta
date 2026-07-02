@@ -754,6 +754,9 @@ impl InlineParser<'_> {
                 '\n' => self.line_ending(),
                 '*' | '_' => self.emphasis_run(ch as u8),
                 '~' if self.ext.contains(Extension::Subscript)
+                    && self.ext.contains(Extension::ShortSubsuperscripts)
+                    && self.try_short_script('~') => {}
+                '~' if self.ext.contains(Extension::Subscript)
                     || self.ext.contains(Extension::Strikeout) =>
                 {
                     self.emphasis_run(b'~');
@@ -761,6 +764,9 @@ impl InlineParser<'_> {
                 '^' if self.ext.contains(Extension::InlineNotes)
                     && self.at(1) == Some('[')
                     && self.try_inline_note() => {}
+                '^' if self.ext.contains(Extension::Superscript)
+                    && self.ext.contains(Extension::ShortSubsuperscripts)
+                    && self.try_short_script('^') => {}
                 '^' if self.ext.contains(Extension::Superscript) => self.emphasis_run(b'^'),
                 '=' if self.ext.contains(Extension::Mark) => self.emphasis_run(b'='),
                 '@' if self.ext.contains(Extension::ExampleLists)
@@ -917,6 +923,63 @@ impl InlineParser<'_> {
             attr,
             vec![Inline::Str(codepoints.to_owned())],
         )));
+        true
+    }
+
+    /// Try a short sub/superscript at the cursor (`short_subsuperscripts`): a `~` or `^` directly
+    /// followed by a run of alphanumerics, taken as the sub/superscript content without a closing
+    /// delimiter. Within a caret's whitespace-bounded span the delimiters pair up left to right into
+    /// the delimited `^x^`/`~x~` form, which the delimiter stack resolves; the short form applies
+    /// only to an unpaired opener — an even number of matching delimiters precede it in the span and
+    /// none follow. An empty alphanumeric run (a delimiter met by a non-alphanumeric or the line's
+    /// end) is not a script.
+    fn try_short_script(&mut self, delimiter: char) -> bool {
+        let mut preceding = 0usize;
+        let mut behind = self.pos;
+        while behind > 0 {
+            match self.chars.get(behind - 1).copied() {
+                Some(ch) if ch.is_whitespace() => break,
+                Some(ch) => {
+                    if ch == delimiter {
+                        preceding += 1;
+                    }
+                    behind -= 1;
+                }
+                None => break,
+            }
+        }
+        // An odd count leaves this delimiter closing a prior opener, never starting a short script.
+        if preceding % 2 == 1 {
+            return false;
+        }
+        // An opener pairs into the delimited form when another matching delimiter follows in-span.
+        let mut ahead = self.pos + 1;
+        while let Some(&ch) = self.chars.get(ahead) {
+            if ch.is_whitespace() {
+                break;
+            }
+            if ch == delimiter {
+                return false;
+            }
+            ahead += 1;
+        }
+        let start = self.pos + 1;
+        let mut end = start;
+        while self.chars.get(end).is_some_and(|ch| ch.is_alphanumeric()) {
+            end += 1;
+        }
+        let content: String = match self.chars.get(start..end) {
+            Some(slice) if !slice.is_empty() => slice.iter().collect(),
+            _ => return false,
+        };
+        let inner = vec![Inline::Str(content)];
+        let node = if delimiter == '^' {
+            Inline::Superscript(inner)
+        } else {
+            Inline::Subscript(inner)
+        };
+        self.nodes.push(Node::Inline(node));
+        self.pos = end;
         true
     }
 
@@ -3927,6 +3990,50 @@ mod inline_tests {
         );
         // No inner whitespace: still a superscript.
         assert_eq!(pm("^ab^", ext), vec![Inline::Superscript(vec![str("ab")])]);
+    }
+
+    #[test]
+    fn short_subsuperscripts_consume_an_alphanumeric_run() {
+        let ext = exts(&[
+            Extension::Superscript,
+            Extension::Subscript,
+            Extension::ShortSubsuperscripts,
+        ]);
+        // A caret or tilde with an alphanumeric run and no closing delimiter is a short script.
+        assert_eq!(
+            pm("x^2y", ext),
+            vec![str("x"), Inline::Superscript(vec![str("2y")])]
+        );
+        assert_eq!(
+            pm("H~2O", ext),
+            vec![str("H"), Inline::Subscript(vec![str("2O")])]
+        );
+        // The run stops at the first non-alphanumeric character.
+        assert_eq!(
+            pm("x^2.5", ext),
+            vec![str("x"), Inline::Superscript(vec![str("2")]), str(".5")]
+        );
+        // A closing delimiter in the span forms the delimited pair instead; a leftover unpaired
+        // caret then still opens a short script.
+        assert_eq!(
+            pm("a^b^c", ext),
+            vec![str("a"), Inline::Superscript(vec![str("b")]), str("c")]
+        );
+        assert_eq!(
+            pm("a^b^c^d", ext),
+            vec![
+                str("a"),
+                Inline::Superscript(vec![str("b")]),
+                str("c"),
+                Inline::Superscript(vec![str("d")]),
+            ]
+        );
+        // A delimiter with no alphanumeric run is literal.
+        assert_eq!(pm("x^(2)", ext), vec![str("x^(2)")]);
+        assert_eq!(pm("foo^", ext), vec![str("foo^")]);
+        // Without the extension the short form does not fire.
+        let off = exts(&[Extension::Superscript, Extension::Subscript]);
+        assert_eq!(pm("x^2y", off), vec![str("x^2y")]);
     }
 
     #[test]
