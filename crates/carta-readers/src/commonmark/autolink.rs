@@ -43,7 +43,17 @@ pub(crate) fn autolink_inlines(inlines: &mut Vec<Inline>, markdown: bool) {
     let mut out = Vec::with_capacity(taken.len());
     for inline in taken {
         match inline {
-            Inline::Str(s) => split_text(&s, markdown, &mut out),
+            // Every match requires one of these literal substrings: a scheme URL needs `://` (the
+            // scheme set is exactly `https://`/`http://`/`ftp://`), a `www.` host needs `www.`, and
+            // an email needs `@`. A token containing none of them cannot autolink, so it passes
+            // through unscanned. If a new scheme without `//` is ever added, extend this trigger set.
+            Inline::Str(s) => {
+                if s.contains("://") || s.contains('@') || s.contains("www.") {
+                    split_text(&s, markdown, &mut out);
+                } else {
+                    out.push(Inline::Str(s));
+                }
+            }
             Inline::Emph(mut v) => out.push(Inline::Emph(recurse(&mut v, markdown))),
             Inline::Underline(mut v) => out.push(Inline::Underline(recurse(&mut v, markdown))),
             Inline::Strong(mut v) => out.push(Inline::Strong(recurse(&mut v, markdown))),
@@ -351,6 +361,13 @@ mod tests {
             .collect()
     }
 
+    /// Autolink a single text token, returning the resulting inlines.
+    fn autolinked(text: &str, markdown: bool) -> Vec<Inline> {
+        let mut inlines = vec![Inline::Str(text.to_owned())];
+        autolink_inlines(&mut inlines, markdown);
+        inlines
+    }
+
     fn host(s: &str) -> bool {
         valid_host(&s.chars().collect::<Vec<_>>())
     }
@@ -489,5 +506,78 @@ mod tests {
                 Vec::new()
             )]
         );
+    }
+
+    #[test]
+    fn trigger_gate_links_url_and_email_in_both_dialects() {
+        for markdown in [false, true] {
+            assert_eq!(
+                links_of(&autolinked("see https://example.com/x", markdown)),
+                vec![(
+                    "https://example.com/x".to_owned(),
+                    "https://example.com/x".to_owned()
+                )],
+                "url should link (markdown={markdown})"
+            );
+            assert_eq!(
+                links_of(&autolinked("a@b.com", markdown)),
+                vec![("a@b.com".to_owned(), "mailto:a@b.com".to_owned())],
+                "email should link (markdown={markdown})"
+            );
+        }
+    }
+
+    #[test]
+    fn trigger_gate_respects_www_dialect_split() {
+        assert_eq!(
+            links_of(&autolinked("www.example.com", false)),
+            vec![(
+                "www.example.com".to_owned(),
+                "http://www.example.com".to_owned()
+            )]
+        );
+        // The `www.` trigger is present in both dialects, but the markdown dialect does not link
+        // bare `www.` hosts, so the token must survive as a single unchanged `Str`.
+        assert_eq!(
+            autolinked("www.example.com", true),
+            vec![Inline::Str("www.example.com".to_owned())]
+        );
+    }
+
+    #[test]
+    fn trigger_gate_passes_plain_token_through_unchanged() {
+        assert_eq!(
+            autolinked("nothing-here", false),
+            vec![Inline::Str("nothing-here".to_owned())]
+        );
+    }
+
+    #[test]
+    fn trigger_gate_scans_but_does_not_link_non_matching_trigger_token() {
+        // Contains `://` and `@` triggers so the gate does not skip it, yet nothing matches.
+        assert_eq!(
+            autolinked("not:a//url @ alone", false),
+            vec![Inline::Str("not:a//url @ alone".to_owned())]
+        );
+    }
+
+    /// Report each `Link` in `inlines` as `(label, href)`.
+    fn links_of(inlines: &[Inline]) -> Vec<(String, String)> {
+        inlines
+            .iter()
+            .filter_map(|inline| match inline {
+                Inline::Link(_, label, target) => {
+                    let text: String = label
+                        .iter()
+                        .map(|i| match i {
+                            Inline::Str(s) => s.as_str(),
+                            _ => "",
+                        })
+                        .collect();
+                    Some((text, target.url.clone()))
+                }
+                _ => None,
+            })
+            .collect()
     }
 }
