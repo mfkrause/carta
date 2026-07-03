@@ -31,7 +31,7 @@ default = ["full", "cli"]
 # the standalone and metadata-file machinery the CLI drives — pair with format features (or `full`) to
 # choose what the binary can convert.
 cli = ["dep:clap", "standalone", "metadata-file"]
-full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "standalone", "metadata-file"]
+full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "standalone", "metadata-file"]
 # Standalone output: the template engine, context builder, document wrapping, default templates,
 # and the `-s`/`--template`/`-V`/`-M` inputs. Works with any reader/writer; no commonmark required.
 standalone = ["carta-core/template", "dep:serde_json"]
@@ -74,6 +74,7 @@ write-org = ["dep:carta-writers", "carta-writers/org"]
 write-beamer = ["dep:carta-writers", "carta-writers/beamer"]
 write-revealjs = ["dep:carta-writers", "carta-writers/revealjs"]
 write-ipynb = ["dep:carta-writers", "carta-writers/ipynb"]
+write-epub = ["dep:carta-writers", "carta-writers/epub"]
 
 [dependencies]
 carta-ast = { workspace = true }

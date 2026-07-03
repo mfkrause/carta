@@ -137,6 +137,8 @@ format_dispatch! {
     "write-beamer" => "beamer" => text carta_writers::BeamerWriter;
     "write-revealjs" => "revealjs" => text carta_writers::RevealjsWriter;
     "write-ipynb" => "ipynb" => text carta_writers::IpynbWriter;
+    "write-epub" => "epub" | "epub3" => bytes carta_writers::Epub3Writer;
+    "write-epub" => "epub2" => bytes carta_writers::Epub2Writer;
 }
 
 /// Resolves a format name to its boxed [`Reader`], the text-only view of [`any_reader_for`].

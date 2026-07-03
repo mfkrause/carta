@@ -6,7 +6,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use carta::{
-    Error, Output, ReaderOptions, WriterOptions, convert, convert_text, reader_for, writer_for,
+    Error, Output, ReaderOptions, WriterOptions, any_reader_for, any_writer_for, convert,
+    convert_text, reader_for, writer_for,
 };
 
 #[cfg(all(feature = "read-commonmark", feature = "write-html"))]
@@ -166,15 +167,17 @@ fn supported_input_formats_reflect_build() {
 
 #[test]
 fn every_supported_format_resolves() {
+    // Resolution is kind-agnostic: a supported format resolves whether it is text- or byte-shaped
+    // (`writer_for` deliberately rejects byte-shaped formats, so it cannot stand in here).
     for name in carta::supported_input_formats() {
         assert!(
-            reader_for(name).is_ok(),
+            any_reader_for(name).is_ok(),
             "input format {name} does not resolve"
         );
     }
     for name in carta::supported_output_formats() {
         assert!(
-            writer_for(name).is_ok(),
+            any_writer_for(name).is_ok(),
             "output format {name} does not resolve"
         );
     }
@@ -188,7 +191,7 @@ fn format_names_are_sorted_and_every_name_resolves() {
     assert_eq!(inputs, sorted, "input names are not sorted");
     for name in &inputs {
         assert!(
-            reader_for(name).is_ok(),
+            any_reader_for(name).is_ok(),
             "input name {name} does not resolve"
         );
     }
@@ -199,7 +202,7 @@ fn format_names_are_sorted_and_every_name_resolves() {
     assert_eq!(outputs, sorted, "output names are not sorted");
     for name in &outputs {
         assert!(
-            writer_for(name).is_ok(),
+            any_writer_for(name).is_ok(),
             "output name {name} does not resolve"
         );
     }
