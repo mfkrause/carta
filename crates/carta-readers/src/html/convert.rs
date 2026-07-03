@@ -69,6 +69,11 @@ fn text_inlines(e: &Element) -> Vec<Inline> {
 #[derive(Default)]
 pub(super) struct Converter {
     used_ids: BTreeSet<String>,
+    /// The next suffix to try for a given base, so a repeated collision resumes probing where the
+    /// last one left off instead of restarting at 1. A value here is only ever a lower bound:
+    /// `used_ids` remains the source of truth, since an explicit id can still occupy the next few
+    /// candidates.
+    next_id_suffix: BTreeMap<String, u32>,
     in_list_item: std::cell::Cell<bool>,
     /// When set, the inline finishing pass runs in code context: text becomes verbatim code, so
     /// `smart` emits curly glyphs in place of [`Inline::Quoted`] and the math forms are not scanned.
@@ -461,10 +466,11 @@ impl Converter {
         if self.used_ids.insert(base.clone()) {
             return base;
         }
-        let mut n = 1;
+        let mut n = self.next_id_suffix.get(&base).copied().unwrap_or(1);
         loop {
             let candidate = format!("{base}-{n}");
             if self.used_ids.insert(candidate.clone()) {
+                self.next_id_suffix.insert(base, n + 1);
                 return candidate;
             }
             n += 1;
