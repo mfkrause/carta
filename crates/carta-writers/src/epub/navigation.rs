@@ -6,7 +6,7 @@ use super::Version;
 use super::metadata::BookMeta;
 use super::pages::{BodyKind, inline_plain, xhtml_page};
 use crate::html::render_epub_inlines;
-use carta_ast::{Block, Inline};
+use carta_ast::{Attr, Block, Inline, Text};
 use carta_core::container::xml::{Element, escape_attribute, escape_text};
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -86,9 +86,11 @@ fn header_inlines(blocks: &[Block]) -> Vec<Inline> {
         .unwrap_or_default()
 }
 
-/// Whether a cover page is present, and so listed in the navigation landmarks.
+/// Which optional entries the navigation landmarks list carries alongside the title page: the cover
+/// page (when present) and the table of contents (when one was requested).
 pub(crate) struct Landmarks {
     pub cover: bool,
+    pub toc: bool,
 }
 
 /// Render the XHTML navigation document. In EPUB 3 it is the primary table of contents (a `<nav>`
@@ -150,7 +152,7 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
         let index = *counter;
         let mut href = String::new();
         escape_attribute(&format!("{}#{}", entry.file, entry.id), &mut href);
-        let text = render_epub_inlines(&entry.title, epub3);
+        let text = render_epub_inlines(&nav_label_inlines(&entry.title), epub3);
         let anchor = if text.is_empty() {
             format!("<a href=\"text/{href}\" />")
         } else {
@@ -163,7 +165,66 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
     out
 }
 
-/// The landmarks navigation listing the cover (when present) and the title page.
+/// Prepare a heading's inlines for a navigation label: drop footnotes and replace each link with its
+/// own content, since a nav anchor cannot nest another; relabel the body's section-number span with
+/// the navigation's own class. Everything else — emphasis, code, images (already pointing at their
+/// stored path) and raw inline markup — is carried through, recursing into styled spans.
+fn nav_label_inlines(inlines: &[Inline]) -> Vec<Inline> {
+    let mut out = Vec::new();
+    let mut after_number = false;
+    for inline in inlines {
+        // The separator a numbered heading places after its section number becomes a non-breaking
+        // space in the navigation, keeping the number joined to its title across a line wrap.
+        if after_number && matches!(inline, Inline::Space) {
+            out.push(Inline::Str(Text::from("\u{a0}")));
+            after_number = false;
+            continue;
+        }
+        after_number = false;
+        match inline {
+            Inline::Note(_) => {}
+            Inline::Link(_, inner, _) => out.extend(nav_label_inlines(inner)),
+            Inline::Span(attr, inner) => {
+                after_number = attr
+                    .classes
+                    .iter()
+                    .any(|class| class == "header-section-number");
+                let classes = attr
+                    .classes
+                    .iter()
+                    .map(|class| {
+                        if class == "header-section-number" {
+                            Text::from("section-header-number")
+                        } else {
+                            class.clone()
+                        }
+                    })
+                    .collect();
+                let attr = Attr {
+                    id: attr.id.clone(),
+                    classes,
+                    attributes: attr.attributes.clone(),
+                };
+                out.push(Inline::Span(Box::new(attr), nav_label_inlines(inner)));
+            }
+            Inline::Emph(inner) => out.push(Inline::Emph(nav_label_inlines(inner))),
+            Inline::Underline(inner) => out.push(Inline::Underline(nav_label_inlines(inner))),
+            Inline::Strong(inner) => out.push(Inline::Strong(nav_label_inlines(inner))),
+            Inline::Strikeout(inner) => out.push(Inline::Strikeout(nav_label_inlines(inner))),
+            Inline::Superscript(inner) => out.push(Inline::Superscript(nav_label_inlines(inner))),
+            Inline::Subscript(inner) => out.push(Inline::Subscript(nav_label_inlines(inner))),
+            Inline::SmallCaps(inner) => out.push(Inline::SmallCaps(nav_label_inlines(inner))),
+            Inline::Quoted(quote, inner) => {
+                out.push(Inline::Quoted(quote.clone(), nav_label_inlines(inner)));
+            }
+            other => out.push(other.clone()),
+        }
+    }
+    out
+}
+
+/// The landmarks navigation listing the cover (when present), the title page, and the table of
+/// contents (when one was requested).
 fn render_landmarks(landmarks: &Landmarks) -> String {
     let mut items = String::new();
     let _ = writeln!(
@@ -174,6 +235,12 @@ fn render_landmarks(landmarks: &Landmarks) -> String {
         let _ = writeln!(
             items,
             "    <li>\n      <a href=\"{COVER_HREF}\" epub:type=\"cover\">Cover</a>\n    </li>"
+        );
+    }
+    if landmarks.toc {
+        let _ = writeln!(
+            items,
+            "    <li>\n      <a href=\"#toc\" epub:type=\"toc\">Table of Contents</a>\n    </li>"
         );
     }
     format!(
@@ -190,7 +257,7 @@ pub(crate) fn toc_ncx(
     cover_id: Option<&str>,
 ) -> String {
     let mut head = Element::new("head")
-        .child(ncx_meta("dtb:uid", &meta.identifier))
+        .child(ncx_meta("dtb:uid", meta.primary_identifier()))
         // This reading system reports a single navigation level.
         .child(ncx_meta("dtb:depth", "1"))
         .child(ncx_meta("dtb:totalPageCount", "0"))

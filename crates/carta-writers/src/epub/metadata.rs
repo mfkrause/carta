@@ -4,7 +4,7 @@
 //! fields — title, authors, language, identifier, date and the rest. This module projects the map
 //! onto that set, filling in the deterministic defaults a container needs when a field is absent.
 
-use carta_ast::{Inline, MetaValue, Text, to_plain_text};
+use carta_ast::{Inline, MetaValue, QuoteType, Text};
 use carta_core::media::sha1_hex;
 use std::collections::BTreeMap;
 
@@ -28,6 +28,23 @@ pub(crate) struct Creator {
     pub role: Option<String>,
     /// The sortable form of the name (`Doe, Jane`), recorded when supplied.
     pub file_as: Option<String>,
+}
+
+/// One publication identifier: its value and, when the document named it, the identifier's scheme (a
+/// `DOI`, an `ISBN-13`, …). The scheme is recorded verbatim; the package document projects it as the
+/// scheme name in EPUB 2 and as its ONIX codelist-5 code in EPUB 3.
+#[derive(Debug, Clone)]
+pub(crate) struct Identifier {
+    pub text: String,
+    pub scheme: Option<String>,
+}
+
+impl Identifier {
+    /// The ONIX codelist-5 code recording what kind of identifier this is, present when a scheme was
+    /// named.
+    pub(crate) fn onix_code(&self) -> Option<String> {
+        self.scheme.as_deref().map(onix_code)
+    }
 }
 
 /// A publication metadata element carried through verbatim: one supplied by the Dublin Core fragment
@@ -54,7 +71,10 @@ pub(crate) struct BookMeta {
     pub publisher: Option<String>,
     pub rights_inlines: Option<Vec<Inline>>,
     pub rights_text: Option<String>,
-    pub identifier: String,
+    /// The publication identifiers, in document order. Always holds at least one: a stable generated
+    /// identifier stands in when the document names none. The first is the package's unique
+    /// identifier.
+    pub identifiers: Vec<Identifier>,
     /// Metadata elements carried through verbatim from the Dublin Core fragment.
     pub extra: Vec<ExtraMeta>,
 }
@@ -64,9 +84,10 @@ impl BookMeta {
     /// `content_seed` is hashed into a stable identifier when the document names none.
     pub(crate) fn from_meta(meta: &BTreeMap<Text, MetaValue>, content_seed: &str) -> Self {
         let title_inlines = meta.get("title").map(meta_inlines).unwrap_or_default();
-        let title_text = to_plain_text(&title_inlines);
+        let title_text = meta_plain_text(&title_inlines);
 
         let creators = collect_creators(meta);
+        let contributors = collect_contributors(meta);
 
         let language = meta
             .get("lang")
@@ -74,21 +95,17 @@ impl BookMeta {
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| DEFAULT_LANGUAGE.to_owned());
 
-        let identifier = meta
-            .get("identifier")
-            .map(meta_text)
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| content_uuid(content_seed));
+        let identifiers = collect_identifiers(meta, content_seed);
 
         let rights_inlines = meta.get("rights").map(meta_inlines);
-        let rights_text = rights_inlines.as_deref().map(to_plain_text);
+        let rights_text = rights_inlines.as_deref().map(meta_plain_text);
 
         Self {
             title_inlines,
             title_text,
             subtitle_inlines: meta.get("subtitle").map(meta_inlines),
             creators,
-            contributors: Vec::new(),
+            contributors,
             date: meta.get("date").map(meta_text).filter(|v| !v.is_empty()),
             language,
             subjects: collect_texts(meta.get("subject")),
@@ -102,9 +119,17 @@ impl BookMeta {
                 .filter(|v| !v.is_empty()),
             rights_inlines,
             rights_text,
-            identifier,
+            identifiers,
             extra: Vec::new(),
         }
+    }
+
+    /// The identifier the package's unique-identifier attribute points at: the first identifier's
+    /// value.
+    pub(crate) fn primary_identifier(&self) -> &str {
+        self.identifiers
+            .first()
+            .map_or("", |identifier| identifier.text.as_str())
     }
 
     /// The title where a non-empty name is required, falling back to [`UNTITLED`].
@@ -118,60 +143,146 @@ impl BookMeta {
 }
 
 /// The creators named by the metadata: each `author` entry, then each `creator` entry, in that
-/// order. An `author` is an authorship (`aut`); a `creator` may name its own role.
+/// order. An `author` names an authorship (`aut`) and is taken as plain text; a `creator` may
+/// instead be a structured entry naming its own role and sort name. Entries resolving to no name are
+/// dropped.
 fn collect_creators(meta: &BTreeMap<Text, MetaValue>) -> Vec<Creator> {
     let mut creators = Vec::new();
     for value in meta.get("author").into_iter().flat_map(meta_items) {
         let inlines = meta_inlines(value);
+        let text = meta_plain_text(&inlines);
+        if text.is_empty() {
+            continue;
+        }
         creators.push(Creator {
-            text: to_plain_text(&inlines),
             inlines,
+            text,
             role: Some("aut".to_owned()),
             file_as: None,
         });
     }
     for value in meta.get("creator").into_iter().flat_map(meta_items) {
-        creators.push(creator_from_value(value));
+        if let Some(creator) = agent_from_value(value, Some("aut")) {
+            creators.push(creator);
+        }
     }
     creators
 }
 
-/// One creator from a `creator` entry, honoring an explicit `role`/`text` map when present.
-fn creator_from_value(value: &MetaValue) -> Creator {
+/// The contributors named by the metadata: each `contributor` entry, structured or plain. A plain
+/// contributor names no role; a structured one may. Entries resolving to no name are dropped.
+fn collect_contributors(meta: &BTreeMap<Text, MetaValue>) -> Vec<Creator> {
+    meta.get("contributor")
+        .into_iter()
+        .flat_map(meta_items)
+        .filter_map(|value| agent_from_value(value, None))
+        .collect()
+}
+
+/// One agent from a `creator`/`contributor` entry, honoring an explicit `role`/`file-as`/`text` map
+/// when present, otherwise taking the value as the agent's name. `default_role` is the role a plain
+/// entry, or a structured entry that names none, takes — an authorship for creators, none for
+/// contributors. Returns `None` when the entry resolves to no name.
+fn agent_from_value(value: &MetaValue, default_role: Option<&str>) -> Option<Creator> {
     if let MetaValue::MetaMap(map) = value {
         let inlines = map.get("text").map(meta_inlines).unwrap_or_default();
+        let text = meta_plain_text(&inlines);
+        if text.is_empty() {
+            return None;
+        }
         let role = map
             .get("role")
             .map(meta_text)
             .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| "aut".to_owned());
+            .or_else(|| default_role.map(str::to_owned));
         let file_as = map
             .get("file-as")
             .map(meta_text)
             .filter(|value| !value.is_empty());
-        return Creator {
-            text: to_plain_text(&inlines),
+        return Some(Creator {
             inlines,
-            role: Some(role),
+            text,
+            role,
             file_as,
-        };
+        });
     }
     let inlines = meta_inlines(value);
-    Creator {
-        text: to_plain_text(&inlines),
-        inlines,
-        role: Some("aut".to_owned()),
-        file_as: None,
+    let text = meta_plain_text(&inlines);
+    if text.is_empty() {
+        return None;
     }
+    Some(Creator {
+        inlines,
+        text,
+        role: default_role.map(str::to_owned),
+        file_as: None,
+    })
 }
 
-/// The plain-text values a list-shaped field (subjects, …) contributes.
+/// The publication identifiers named by the metadata, in document order. A plain value gives a bare
+/// identifier; a structured `{scheme, text}` entry additionally records the scheme's ONIX code. When
+/// the document names none, a single stable identifier derived from the content stands in.
+fn collect_identifiers(meta: &BTreeMap<Text, MetaValue>, content_seed: &str) -> Vec<Identifier> {
+    let mut identifiers: Vec<Identifier> = meta
+        .get("identifier")
+        .into_iter()
+        .flat_map(meta_items)
+        .filter_map(identifier_from_value)
+        .collect();
+    if identifiers.is_empty() {
+        identifiers.push(Identifier {
+            text: content_uuid(content_seed),
+            scheme: None,
+        });
+    }
+    identifiers
+}
+
+/// One identifier from an `identifier` entry. A structured `{scheme, text}` entry records its named
+/// scheme; a bare value records none. Returns `None` when the entry resolves to no value.
+fn identifier_from_value(value: &MetaValue) -> Option<Identifier> {
+    if let MetaValue::MetaMap(map) = value {
+        let text = map
+            .get("text")
+            .map(meta_text)
+            .filter(|value| !value.is_empty())?;
+        let scheme = map.get("scheme").map(meta_text);
+        return Some(Identifier { text, scheme });
+    }
+    let text = meta_text(value);
+    if text.is_empty() {
+        return None;
+    }
+    Some(Identifier { text, scheme: None })
+}
+
+/// The ONIX codelist-5 code recording what kind of identifier a named scheme denotes. The mapping is
+/// exact and case-sensitive; any scheme without a listed code falls back to `01` ("proprietary").
+fn onix_code(scheme: &str) -> String {
+    let code = match scheme {
+        "ISBN-10" => "02",
+        "GTIN-13" => "03",
+        "UPC" => "04",
+        "ISMN-10" => "05",
+        "DOI" => "06",
+        "LCCN" => "13",
+        "GTIN-14" => "14",
+        "ISBN-13" => "15",
+        "URN" => "22",
+        "ISMN-13" => "25",
+        "ISBN-A" => "26",
+        _ => "01",
+    };
+    code.to_owned()
+}
+
+/// The plain-text values a list-shaped field (subjects, …) contributes, empty entries included so a
+/// deliberately blank value keeps its place.
 fn collect_texts(value: Option<&MetaValue>) -> Vec<String> {
     value
         .into_iter()
         .flat_map(meta_items)
         .map(meta_text)
-        .filter(|value| !value.is_empty())
         .collect()
 }
 
@@ -206,7 +317,47 @@ fn block_inlines(block: &carta_ast::Block) -> Vec<Inline> {
 
 /// A metadata value rendered as plain text.
 fn meta_text(value: &MetaValue) -> String {
-    to_plain_text(&meta_inlines(value))
+    meta_plain_text(&meta_inlines(value))
+}
+
+/// Render inlines to plain text, spelling smart quotes out as their glyphs — a double-quoted span as
+/// `\u{201c}…\u{201d}`, a single-quoted span as `\u{2018}…\u{2019}`. A title, name, or other metadata
+/// value carries its punctuation into the package document, where the quote characters must appear
+/// literally rather than being dropped with the quotation node.
+fn meta_plain_text(inlines: &[Inline]) -> String {
+    let mut out = String::new();
+    push_meta_plain_text(inlines, &mut out);
+    out
+}
+
+fn push_meta_plain_text(inlines: &[Inline], out: &mut String) {
+    for inline in inlines {
+        match inline {
+            Inline::Str(text) | Inline::Code(_, text) | Inline::Math(_, text) => out.push_str(text),
+            Inline::Space | Inline::SoftBreak | Inline::LineBreak => out.push(' '),
+            Inline::Quoted(quote, xs) => {
+                let (open, close) = match quote {
+                    QuoteType::DoubleQuote => ('\u{201c}', '\u{201d}'),
+                    QuoteType::SingleQuote => ('\u{2018}', '\u{2019}'),
+                };
+                out.push(open);
+                push_meta_plain_text(xs, out);
+                out.push(close);
+            }
+            Inline::Emph(xs)
+            | Inline::Underline(xs)
+            | Inline::Strong(xs)
+            | Inline::Strikeout(xs)
+            | Inline::Superscript(xs)
+            | Inline::Subscript(xs)
+            | Inline::SmallCaps(xs)
+            | Inline::Cite(_, xs)
+            | Inline::Link(_, xs, _)
+            | Inline::Image(_, xs, _)
+            | Inline::Span(_, xs) => push_meta_plain_text(xs, out),
+            Inline::RawInline(..) | Inline::Note(_) => {}
+        }
+    }
 }
 
 impl BookMeta {
@@ -218,9 +369,16 @@ impl BookMeta {
         let mut creators = Vec::new();
         let mut contributors = Vec::new();
         let mut subjects = Vec::new();
+        let mut identifiers = Vec::new();
         for element in parse_fragment(fragment) {
             match element.name.as_str() {
-                "dc:identifier" => self.identifier = element.text,
+                "dc:identifier" => {
+                    let scheme = element.attribute("opf:scheme").map(str::to_owned);
+                    identifiers.push(Identifier {
+                        text: element.text,
+                        scheme,
+                    });
+                }
                 "dc:title" => {
                     self.title_inlines = vec![Inline::Str(Text::from(element.text.clone()))];
                     self.title_text = element.text;
@@ -242,6 +400,9 @@ impl BookMeta {
                     text: element.text,
                 }),
             }
+        }
+        if !identifiers.is_empty() {
+            self.identifiers = identifiers;
         }
         if !creators.is_empty() {
             self.creators = creators;
@@ -481,4 +642,143 @@ fn content_uuid(seed: &str) -> String {
         group(4),
         group(12),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Inline, MetaValue, QuoteType, Text, collect_contributors, collect_creators,
+        collect_identifiers, collect_texts, identifier_from_value, meta_plain_text, onix_code,
+    };
+    use std::collections::BTreeMap;
+
+    fn meta_string(value: &str) -> MetaValue {
+        MetaValue::MetaString(Text::from(value))
+    }
+
+    fn meta_map(pairs: &[(&str, MetaValue)]) -> MetaValue {
+        MetaValue::MetaMap(
+            pairs
+                .iter()
+                .map(|(key, value)| (Text::from(*key), value.clone()))
+                .collect(),
+        )
+    }
+
+    fn meta_with(key: &str, value: MetaValue) -> BTreeMap<Text, MetaValue> {
+        let mut meta = BTreeMap::new();
+        meta.insert(Text::from(key), value);
+        meta
+    }
+
+    #[test]
+    fn onix_code_maps_known_schemes_case_sensitively() {
+        assert_eq!(onix_code("DOI"), "06");
+        assert_eq!(onix_code("ISBN-13"), "15");
+        assert_eq!(onix_code("ISBN-10"), "02");
+        assert_eq!(onix_code("URN"), "22");
+        // A miscased or unlisted scheme falls back to the proprietary code.
+        assert_eq!(onix_code("doi"), "01");
+        assert_eq!(onix_code("ISBN13"), "01");
+        assert_eq!(onix_code("something-else"), "01");
+    }
+
+    #[test]
+    fn identifier_from_map_records_scheme_and_onix_code() {
+        let value = meta_map(&[
+            ("scheme", meta_string("DOI")),
+            ("text", meta_string("10.1000/x")),
+        ]);
+        let identifier = identifier_from_value(&value).expect("an identifier");
+        assert_eq!(identifier.text, "10.1000/x");
+        assert_eq!(identifier.scheme.as_deref(), Some("DOI"));
+        assert_eq!(identifier.onix_code().as_deref(), Some("06"));
+    }
+
+    #[test]
+    fn identifier_from_plain_value_has_no_scheme() {
+        let identifier = identifier_from_value(&meta_string("book-1")).expect("an identifier");
+        assert_eq!(identifier.text, "book-1");
+        assert!(identifier.scheme.is_none());
+        assert!(identifier.onix_code().is_none());
+    }
+
+    #[test]
+    fn identifier_with_empty_text_is_dropped() {
+        let value = meta_map(&[("scheme", meta_string("DOI")), ("text", meta_string(""))]);
+        assert!(identifier_from_value(&value).is_none());
+        assert!(identifier_from_value(&meta_string("")).is_none());
+    }
+
+    #[test]
+    fn collect_identifiers_falls_back_to_a_content_identifier() {
+        let identifiers = collect_identifiers(&BTreeMap::new(), "seed");
+        let only = identifiers.first().expect("an identifier");
+        assert_eq!(identifiers.len(), 1);
+        assert!(only.text.starts_with("urn:uuid:"));
+        assert!(only.scheme.is_none());
+    }
+
+    #[test]
+    fn a_structured_author_resolves_to_no_name_and_is_dropped() {
+        let meta = meta_with(
+            "author",
+            MetaValue::MetaList(vec![
+                meta_string("Ada Lovelace"),
+                meta_map(&[("text", meta_string("Grace Hopper"))]),
+            ]),
+        );
+        let creators = collect_creators(&meta);
+        let only = creators.first().expect("a creator");
+        assert_eq!(creators.len(), 1);
+        assert_eq!(only.text, "Ada Lovelace");
+        assert_eq!(only.role.as_deref(), Some("aut"));
+    }
+
+    #[test]
+    fn a_structured_creator_names_its_role_and_sort_name() {
+        let meta = meta_with(
+            "creator",
+            meta_map(&[
+                ("text", meta_string("Jane Doe")),
+                ("role", meta_string("edt")),
+                ("file-as", meta_string("Doe, Jane")),
+            ]),
+        );
+        let creators = collect_creators(&meta);
+        let only = creators.first().expect("a creator");
+        assert_eq!(only.role.as_deref(), Some("edt"));
+        assert_eq!(only.file_as.as_deref(), Some("Doe, Jane"));
+    }
+
+    #[test]
+    fn a_plain_contributor_names_no_role() {
+        let meta = meta_with("contributor", meta_string("Ed Itor"));
+        let contributors = collect_contributors(&meta);
+        let only = contributors.first().expect("a contributor");
+        assert_eq!(only.text, "Ed Itor");
+        assert!(only.role.is_none());
+    }
+
+    #[test]
+    fn smart_quotes_render_as_glyphs() {
+        let inlines = vec![
+            Inline::Quoted(QuoteType::DoubleQuote, vec![Inline::Str(Text::from("Hi"))]),
+            Inline::Space,
+            Inline::Quoted(QuoteType::SingleQuote, vec![Inline::Str(Text::from("x"))]),
+        ];
+        assert_eq!(
+            meta_plain_text(&inlines),
+            "\u{201c}Hi\u{201d} \u{2018}x\u{2019}"
+        );
+    }
+
+    #[test]
+    fn empty_list_entries_keep_their_place() {
+        let value = MetaValue::MetaList(vec![meta_string(""), meta_string("Fiction")]);
+        assert_eq!(
+            collect_texts(Some(&value)),
+            vec![String::new(), "Fiction".to_owned()]
+        );
+    }
 }

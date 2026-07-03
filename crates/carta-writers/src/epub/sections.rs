@@ -28,6 +28,11 @@ pub(crate) fn make_sections(blocks: &[Block], title: &[Inline]) -> Vec<Block> {
         out.push(synthetic_section(title, preamble));
     }
     out.extend(build_sections(rest));
+    // A document with a title but no body still yields one chapter: an unnumbered leading section
+    // holding just the title, so the book has a first page rather than none.
+    if out.is_empty() && !title.is_empty() {
+        out.push(synthetic_section(title, &[]));
+    }
     out
 }
 

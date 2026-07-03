@@ -1143,7 +1143,9 @@ impl State {
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> String {
-    let alt_attr = if inlines.is_empty() {
+    // An EPUB page always carries an `alt` attribute — empty when the image has no description — as
+    // its XHTML profile expects; the other html flavors omit it when there is nothing to say.
+    let alt_attr = if inlines.is_empty() && !matches!(flavor, Flavor::Epub3 | Flavor::Epub2) {
         String::new()
     } else {
         format!("{BREAK}alt=\"{}\"", escape_attr(&to_plain_text(inlines)))
@@ -1358,6 +1360,14 @@ fn is_html4_universal_attribute(key: &str) -> bool {
     matches!(key, "style" | "title" | "lang" | "dir" | "align") || key.starts_with("on")
 }
 
+/// The presentational dimension attributes HTML4 admits on the elements that carry them — an image,
+/// a table cell or column: a pixel `width` or `height`. Percentage and length dimensions fold into a
+/// `style` declaration upstream, so only bare pixel counts reach the attribute renderer, where the
+/// strict XHTML 1.1 dialect would otherwise drop them as unknown.
+fn is_html4_dimension_attribute(key: &str) -> bool {
+    matches!(key, "width" | "height")
+}
+
 /// Render a table cell's attributes for the HTML4 dialect: id, class, an explicit `align="…"`
 /// attribute for the effective alignment, then the cell's own key/value pairs verbatim.
 fn cell_attr_html4(attr: &Attr, align: &Alignment, flavor: Flavor) -> String {
@@ -1452,7 +1462,11 @@ fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
             Flavor::Html5 | Flavor::Slides | Flavor::Epub3 if !is_known_attribute(key) => {
                 format!("data-{key}")
             }
-            Flavor::Epub2 if !is_html4_universal_attribute(key) => continue,
+            Flavor::Epub2
+                if !is_html4_universal_attribute(key) && !is_html4_dimension_attribute(key) =>
+            {
+                continue;
+            }
             _ => key.to_string(),
         };
         let _ = write!(out, "{BREAK}{name}=\"{}\"", escape_attr(value));
@@ -1507,14 +1521,24 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
                         column += 1;
                     }
                 }
-                // Without reflow each break point stands on its own — a source soft break starts a
-                // fresh line under Preserve, and every other break point is a literal space — so
-                // adjacent ones are not merged.
+                // Without wrapping a run of break points still collapses to a single space: two
+                // spaces left around a vanished inline — a dropped foreign raw inline, say — read as
+                // one, the way inter-word spacing always does.
+                WrapMode::None => {
+                    while let Some(BREAK | SOFT) = chars.clone().next() {
+                        chars.next();
+                    }
+                    out.push(' ');
+                    column += 1;
+                }
+                // Under Preserve each break point stands on its own — a source soft break starts a
+                // fresh line, and every other break point is a literal space — so adjacent ones are
+                // not merged.
                 WrapMode::Preserve if current == SOFT => {
                     out.push('\n');
                     column = 0;
                 }
-                WrapMode::None | WrapMode::Preserve => {
+                WrapMode::Preserve => {
                     out.push(' ');
                     column += 1;
                 }

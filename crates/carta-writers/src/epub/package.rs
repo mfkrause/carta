@@ -4,7 +4,7 @@
 //! how a creator's role is recorded, and the accessibility and modification metadata EPUB 3 adds.
 
 use super::Version;
-use super::metadata::{BookMeta, Creator};
+use super::metadata::{BookMeta, Creator, Identifier};
 use carta_core::container::xml::Element;
 
 /// The identifier the package's unique identifier attribute points at.
@@ -78,11 +78,9 @@ fn build_metadata(
         .attr("xmlns:dc", "http://purl.org/dc/elements/1.1/")
         .attr("xmlns:opf", "http://www.idpf.org/2007/opf");
 
-    block.push(
-        Element::new("dc:identifier")
-            .attr("id", IDENTIFIER_ID)
-            .text(&meta.identifier),
-    );
+    for (index, identifier) in meta.identifiers.iter().enumerate() {
+        push_identifier(&mut block, epub3, index, identifier);
+    }
     if !meta.title_text.is_empty() {
         block.push(
             Element::new("dc:title")
@@ -164,6 +162,35 @@ fn build_metadata(
     }
 
     block
+}
+
+/// Emit one publication identifier. A named scheme is projected as the scheme name in EPUB 2 (an
+/// `opf:scheme` attribute) and as its ONIX code in EPUB 3 (an `identifier-type` refinement pointing
+/// back at the element). The first identifier is the package's unique identifier, [`IDENTIFIER_ID`].
+fn push_identifier(block: &mut Element, epub3: bool, index: usize, identifier: &Identifier) {
+    let id = format!("epub-id-{}", index + 1);
+    if epub3 {
+        block.push(
+            Element::new("dc:identifier")
+                .attr("id", &id)
+                .text(&identifier.text),
+        );
+        if let Some(code) = identifier.onix_code() {
+            block.push(
+                Element::new("meta")
+                    .attr("refines", &format!("#{id}"))
+                    .attr("property", "identifier-type")
+                    .attr("scheme", "onix:codelist5")
+                    .text(&code),
+            );
+        }
+    } else {
+        let mut element = Element::new("dc:identifier").attr("id", &id);
+        if let Some(scheme) = &identifier.scheme {
+            element = element.attr("opf:scheme", scheme);
+        }
+        block.push(element.text(&identifier.text));
+    }
 }
 
 /// Emit one creator or contributor. EPUB 3 records the sortable name and role as `refines` metadata

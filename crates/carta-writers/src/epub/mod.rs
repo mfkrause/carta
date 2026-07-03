@@ -18,7 +18,7 @@ mod pages;
 mod sections;
 mod styles;
 
-use carta_ast::{Block, Document};
+use carta_ast::{Block, Document, Inline};
 use carta_core::container::zip::ZipArchive;
 use carta_core::media::{MediaItem, extension_for_mime};
 use carta_core::{BytesWriter, EpubOptions, Result, WriterOptions};
@@ -118,11 +118,15 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         .map_or(1, |level| i32::try_from(level).unwrap_or(i32::MAX));
     let toc_depth = options.toc_depth.unwrap_or(3);
 
-    // Turn the flat body into chapter files, keeping a map from each section to the file it lands in.
-    let (mut chapters, section_files, sectioned) = build_chapters(document, options, split_level);
-
-    // Collect the referenced images, the cover, and the embedded fonts into the container's resources.
-    let (media, cover, fonts) = gather_media(epub, &mut chapters, options);
+    // Structure the body into nested sections, then gather the referenced images — rewriting each
+    // reference to its stored path in place, so both the chapters and the navigation see the stored
+    // paths. Split into chapter files, record which file every identifier lands in, and rewrite the
+    // internal fragment links so each resolves across the split.
+    let mut sectioned = build_sectioned(document, options);
+    let (media, cover, fonts) = gather_media(epub, &mut sectioned, options);
+    let mut chapters = build_chapter_files(&sectioned, split_level);
+    let id_files = map_ids_to_files(&chapters);
+    rewrite_internal_links(&mut chapters, &id_files);
 
     // Render each chapter body, then seed the publication identifier from that content so a book
     // without an explicit identifier still gets a stable one.
@@ -151,24 +155,13 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         .collect();
 
     let title_page_doc = title_page(version, &doc_meta, meta.display_title(), &stylesheet_names);
-    let cover_page_doc = cover.as_ref().map(|cover| {
-        let href = media
-            .get(cover.media_index)
-            .map_or_else(String::new, |asset| format!("../{}", asset.href));
-        cover_page(
-            version,
-            &meta.language,
-            meta.display_title(),
-            &href,
-            cover.width,
-            cover.height,
-            &stylesheet_names,
-        )
-    });
+    let cover_page_doc =
+        render_cover_page(version, &meta, cover.as_ref(), &media, &stylesheet_names);
 
-    let toc_entries = collect_toc(&sectioned, &section_files, toc_depth);
+    let toc_entries = collect_toc(&sectioned, &id_files, toc_depth);
     let landmarks = Landmarks {
         cover: cover.is_some(),
+        toc: options.toc,
     };
     let nav_doc = nav_xhtml(
         version,
@@ -202,7 +195,7 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         cover.is_some(),
         epub3,
     );
-    let spine = build_spine(&chapters, &doc_meta, cover.is_some());
+    let spine = build_spine(&chapters, &doc_meta, cover.is_some(), options.toc);
     let opf = content_opf(
         version,
         &meta,
@@ -212,11 +205,67 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         &spine,
     );
 
+    pack_epub(&BookParts {
+        dir,
+        opf: &opf,
+        ncx: &ncx_doc,
+        nav: &nav_doc,
+        title_page: &title_page_doc,
+        cover_page: cover_page_doc.as_deref(),
+        stylesheets: &stylesheets,
+        media: &media,
+        fonts: &fonts,
+        chapters: &chapters,
+        chapter_pages: &chapter_pages,
+    })
+}
+
+/// The generated cover page, when the book has a cover image: an XHTML page displaying the image at
+/// its stored path, sized to its pixel dimensions.
+fn render_cover_page(
+    version: Version,
+    meta: &BookMeta,
+    cover: Option<&Cover>,
+    media: &[Asset],
+    stylesheet_names: &[String],
+) -> Option<String> {
+    let cover = cover?;
+    let href = media
+        .get(cover.media_index)
+        .map_or_else(String::new, |asset| format!("../{}", asset.href));
+    Some(cover_page(
+        version,
+        &meta.language,
+        meta.display_title(),
+        &href,
+        cover.width,
+        cover.height,
+        stylesheet_names,
+    ))
+}
+
+/// The rendered documents and binary resources an EPUB archive is assembled from.
+struct BookParts<'a> {
+    dir: &'a str,
+    opf: &'a str,
+    ncx: &'a str,
+    nav: &'a str,
+    title_page: &'a str,
+    cover_page: Option<&'a str>,
+    stylesheets: &'a [(String, String)],
+    media: &'a [Asset],
+    fonts: &'a [Asset],
+    chapters: &'a [Chapter],
+    chapter_pages: &'a [String],
+}
+
+/// Pack the rendered book into the archive in the fixed order a reading system expects: the
+/// uncompressed signature first, the container bookkeeping next, then the package, navigation, pages,
+/// stylesheets and resources.
+fn pack_epub(parts: &BookParts) -> Result<Vec<u8>> {
+    let dir = parts.dir;
     let container = container_xml(dir);
     let ibooks = ibooks_display_options();
-
-    // Pack in the fixed order a reading system expects: the uncompressed signature first, the
-    // container bookkeeping next, then the package, navigation, pages, stylesheets and resources.
     let mut zip = ZipArchive::new();
     zip.store("mimetype", b"application/epub+zip")?;
     zip.deflate("META-INF/container.xml", container.as_bytes())?;
@@ -224,42 +273,38 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         "META-INF/com.apple.ibooks.display-options.xml",
         ibooks.as_bytes(),
     )?;
-    zip.deflate(&join(dir, "content.opf"), opf.as_bytes())?;
-    zip.deflate(&join(dir, "toc.ncx"), ncx_doc.as_bytes())?;
-    zip.deflate(&join(dir, "nav.xhtml"), nav_doc.as_bytes())?;
+    zip.deflate(&join(dir, "content.opf"), parts.opf.as_bytes())?;
+    zip.deflate(&join(dir, "toc.ncx"), parts.ncx.as_bytes())?;
+    zip.deflate(&join(dir, "nav.xhtml"), parts.nav.as_bytes())?;
     zip.deflate(
         &join(dir, "text/title_page.xhtml"),
-        title_page_doc.as_bytes(),
+        parts.title_page.as_bytes(),
     )?;
-    for (name, contents) in &stylesheets {
+    for (name, contents) in parts.stylesheets {
         zip.deflate(&join(dir, &format!("styles/{name}")), contents.as_bytes())?;
     }
-    for asset in &media {
+    for asset in parts.media {
         zip.deflate(&join(dir, &asset.href), &asset.bytes)?;
     }
-    if let Some(page) = &cover_page_doc {
+    if let Some(page) = parts.cover_page {
         zip.deflate(&join(dir, "text/cover.xhtml"), page.as_bytes())?;
     }
-    for (chapter, page) in chapters.iter().zip(&chapter_pages) {
+    for (chapter, page) in parts.chapters.iter().zip(parts.chapter_pages) {
         zip.deflate(
             &join(dir, &format!("text/{}", chapter.file)),
             page.as_bytes(),
         )?;
     }
-    for font in &fonts {
+    for font in parts.fonts {
         zip.deflate(&join(dir, &font.href), &font.bytes)?;
     }
     zip.finish()
 }
 
-/// Split the document body into chapter files and record, for every section, the file it lands in so
-/// the table of contents can keep the original nesting even where a split lifted a subsection into a
-/// file of its own. Returns the chapters, that section-to-file map, and the sectioned block tree.
-fn build_chapters(
-    document: &Document,
-    options: &WriterOptions,
-    split_level: i32,
-) -> (Vec<Chapter>, BTreeMap<String, String>, Vec<Block>) {
+/// Structure the document body into the nested section tree an EPUB uses, applying section numbering
+/// first when requested. A document with a title but no body still yields a leading title section, so
+/// the book is never wholly empty.
+fn build_sectioned(document: &Document, options: &WriterOptions) -> Vec<Block> {
     let title_inlines = document
         .meta
         .get("title")
@@ -269,8 +314,12 @@ fn build_chapters(
     if options.number_sections {
         carta_core::sections::number_sections(&mut body);
     }
-    let sectioned = sections::make_sections(&body, &title_inlines);
-    let chapters: Vec<Chapter> = sections::split_chapters(sectioned.clone(), split_level)
+    sections::make_sections(&body, &title_inlines)
+}
+
+/// Split the sectioned block tree into chapter files, one block list per output XHTML page.
+fn build_chapter_files(sectioned: &[Block], split_level: i32) -> Vec<Chapter> {
+    sections::split_chapters(sectioned.to_vec(), split_level)
         .into_iter()
         .enumerate()
         .map(|(index, blocks)| {
@@ -281,24 +330,47 @@ fn build_chapters(
                 blocks,
             }
         })
-        .collect();
-
-    let mut section_files: BTreeMap<String, String> = BTreeMap::new();
-    for chapter in &chapters {
-        record_section_files(&chapter.blocks, &chapter.file, &mut section_files);
-    }
-    (chapters, section_files, sectioned)
+        .collect()
 }
 
-/// Gather the container's binary resources: the images the chapters reference (rewriting each
-/// reference to its stored path), the cover image, and the embedded fonts.
+/// Map every element identifier in the document to the chapter file that holds it, so a fragment link
+/// or a contents entry resolves across the split. Where an identifier somehow repeats, the first
+/// file it appears in wins.
+fn map_ids_to_files(chapters: &[Chapter]) -> BTreeMap<String, String> {
+    let mut map = BTreeMap::new();
+    for chapter in chapters {
+        record_ids(&chapter.blocks, &chapter.file, &mut map);
+    }
+    map
+}
+
+/// Rewrite each chapter's internal fragment links (`#id`) to point at the file that holds the target
+/// (`chNNN.xhtml#id`), so a link resolves after the body is split across files. A fragment whose
+/// identifier is defined nowhere is left as authored.
+fn rewrite_internal_links(chapters: &mut [Chapter], id_files: &BTreeMap<String, String>) {
+    for chapter in chapters {
+        carta_core::walk::for_each_link_target(&mut chapter.blocks, &mut |target| {
+            let rewritten = target
+                .url
+                .as_str()
+                .strip_prefix('#')
+                .and_then(|id| id_files.get(id).map(|file| format!("{file}#{id}")));
+            if let Some(url) = rewritten {
+                target.url = url.into();
+            }
+        });
+    }
+}
+
+/// Gather the container's binary resources: the images the body references (rewriting each reference
+/// to its stored path), the cover image, and the embedded fonts.
 fn gather_media(
     epub: &EpubOptions,
-    chapters: &mut [Chapter],
+    body: &mut [Block],
     options: &WriterOptions,
 ) -> (Vec<Asset>, Option<Cover>, Vec<Asset>) {
     let mut media: Vec<Asset> = Vec::new();
-    collect_images(chapters, options, &mut media);
+    collect_images(body, options, &mut media);
 
     // The cover image takes the next media slot; its page is built once the metadata is known.
     let cover = epub.cover_image.as_ref().map(|(name, bytes)| {
@@ -357,49 +429,45 @@ fn resolve_metadata(document: &Document, epub: &EpubOptions, seed: &str) -> (Boo
     (meta, doc_meta)
 }
 
-/// Collect every image the chapters reference into `media`, assigning each a `media/fileN.ext` name
-/// in order of first appearance, and rewrite each reference to point at the stored file.
-fn collect_images(chapters: &mut [Chapter], options: &WriterOptions, media: &mut Vec<Asset>) {
+/// Collect every image the body references into `media`, assigning each a `media/fileN.ext` name in
+/// order of first appearance, and rewrite each reference to point at the stored file.
+fn collect_images(body: &mut [Block], options: &WriterOptions, media: &mut Vec<Asset>) {
     let mut assigned: BTreeMap<String, usize> = BTreeMap::new();
-    for chapter in chapters.iter_mut() {
-        carta_core::walk::for_each_image_target(&mut chapter.blocks, &mut |target| {
-            let url = target.url.to_string();
-            if assigned.contains_key(&url) {
-                return;
-            }
-            let Some(item) = options.media.get(&url) else {
-                return;
-            };
-            let index = media.len();
-            let extension = image_extension(&url, item);
-            let file = format!("file{index}.{extension}");
-            media.push(Asset {
-                item_id: item_id_for(&file),
-                href: format!("media/{file}"),
-                media_type: item
-                    .mime
-                    .clone()
-                    .unwrap_or_else(|| image_media_type(&extension).to_owned()),
-                properties: None,
-                bytes: item.bytes.clone(),
-            });
-            assigned.insert(url, index);
+    carta_core::walk::for_each_image_target(body, &mut |target| {
+        let url = target.url.to_string();
+        if assigned.contains_key(&url) {
+            return;
+        }
+        let Some(item) = options.media.get(&url) else {
+            return;
+        };
+        let index = media.len();
+        let extension = image_extension(&url, item);
+        let file = format!("file{index}.{extension}");
+        media.push(Asset {
+            item_id: item_id_for(&file),
+            href: format!("media/{file}"),
+            media_type: item
+                .mime
+                .clone()
+                .unwrap_or_else(|| image_media_type(&extension).to_owned()),
+            properties: None,
+            bytes: item.bytes.clone(),
         });
-    }
-    for chapter in chapters.iter_mut() {
-        carta_core::walk::for_each_image_target(&mut chapter.blocks, &mut |target| {
-            if let Some(asset) = assigned
-                .get(target.url.as_str())
-                .and_then(|&i| media.get(i))
-            {
-                target.url = format!("../{}", asset.href).into();
-            } else if is_relative_resource(target.url.as_str()) {
-                // Chapters live one level down in `text/`; a relative resource that is not embedded
-                // still needs to climb back to the container root to resolve.
-                target.url = format!("../{}", target.url).into();
-            }
-        });
-    }
+        assigned.insert(url, index);
+    });
+    carta_core::walk::for_each_image_target(body, &mut |target| {
+        if let Some(asset) = assigned
+            .get(target.url.as_str())
+            .and_then(|&i| media.get(i))
+        {
+            target.url = format!("../{}", asset.href).into();
+        } else if is_relative_resource(target.url.as_str()) {
+            // Chapters live one level down in `text/`; a relative resource that is not embedded
+            // still needs to climb back to the container root to resolve.
+            target.url = format!("../{}", target.url).into();
+        }
+    });
 }
 
 /// Whether a reference is a working-directory-relative local path — one that a chapter, nested a
@@ -508,8 +576,14 @@ fn build_manifest(
     items
 }
 
-/// The spine, in reading order: the cover page (when present), the title page, then the chapters.
-fn build_spine(chapters: &[Chapter], meta: &BookMeta, has_cover: bool) -> Vec<SpineItem> {
+/// The spine, in reading order: the cover page (when present), the title page, the navigation
+/// document (when a table of contents was requested), then the chapters.
+fn build_spine(
+    chapters: &[Chapter],
+    meta: &BookMeta,
+    has_cover: bool,
+    toc: bool,
+) -> Vec<SpineItem> {
     let mut spine = Vec::new();
     if has_cover {
         spine.push(SpineItem {
@@ -525,6 +599,12 @@ fn build_spine(chapters: &[Chapter], meta: &BookMeta, has_cover: bool) -> Vec<Sp
             "no"
         }),
     });
+    if toc {
+        spine.push(SpineItem {
+            idref: String::from("nav"),
+            linear: None,
+        });
+    }
     for chapter in chapters {
         spine.push(SpineItem {
             idref: chapter.item_id.clone(),
@@ -560,17 +640,114 @@ fn item_id_for(basename: &str) -> String {
     basename.replace('.', "_")
 }
 
-/// Record which file each section landed in, descending through nested sections. Every section found
-/// within `blocks` is mapped to `file`.
-fn record_section_files(blocks: &[Block], file: &str, map: &mut BTreeMap<String, String>) {
+/// Record which file every identifier in `blocks` lands in — section wrappers, explicit divisions,
+/// headings, code and figures, and inline spans, links, images and code — descending through all
+/// nested content so the map covers every possible link target.
+fn record_ids(blocks: &[Block], file: &str, map: &mut BTreeMap<String, String>) {
     for block in blocks {
-        if let Block::Div(attr, children) = block {
-            if attr.classes.iter().any(|class| class == "section") {
-                map.insert(attr.id.to_string(), file.to_owned());
+        match block {
+            Block::Div(attr, children) => {
+                record_id(&attr.id, file, map);
+                record_ids(children, file, map);
             }
-            record_section_files(children, file, map);
+            Block::Header(_, attr, inlines) => {
+                record_id(&attr.id, file, map);
+                record_inline_ids(inlines, file, map);
+            }
+            Block::Plain(inlines) | Block::Para(inlines) => record_inline_ids(inlines, file, map),
+            Block::LineBlock(lines) => {
+                for line in lines {
+                    record_inline_ids(line, file, map);
+                }
+            }
+            Block::BlockQuote(inner) => record_ids(inner, file, map),
+            Block::OrderedList(_, items) | Block::BulletList(items) => {
+                for item in items {
+                    record_ids(item, file, map);
+                }
+            }
+            Block::DefinitionList(items) => {
+                for (term, definitions) in items {
+                    record_inline_ids(term, file, map);
+                    for definition in definitions {
+                        record_ids(definition, file, map);
+                    }
+                }
+            }
+            Block::CodeBlock(attr, _) => record_id(&attr.id, file, map),
+            Block::Figure(attr, caption, inner) => {
+                record_id(&attr.id, file, map);
+                if let Some(short) = &caption.short {
+                    record_inline_ids(short, file, map);
+                }
+                record_ids(&caption.long, file, map);
+                record_ids(inner, file, map);
+            }
+            Block::Table(table) => record_ids(&table_blocks(table), file, map),
+            Block::RawBlock(..) | Block::HorizontalRule => {}
         }
     }
+}
+
+/// Record the identifiers carried by the inline nodes that can bear one — spans, links, images and
+/// code — descending through every nested inline sequence.
+fn record_inline_ids(inlines: &[Inline], file: &str, map: &mut BTreeMap<String, String>) {
+    for inline in inlines {
+        match inline {
+            Inline::Span(attr, children)
+            | Inline::Link(attr, children, _)
+            | Inline::Image(attr, children, _) => {
+                record_id(&attr.id, file, map);
+                record_inline_ids(children, file, map);
+            }
+            Inline::Code(attr, _) => record_id(&attr.id, file, map),
+            Inline::Emph(children)
+            | Inline::Underline(children)
+            | Inline::Strong(children)
+            | Inline::Strikeout(children)
+            | Inline::Superscript(children)
+            | Inline::Subscript(children)
+            | Inline::SmallCaps(children)
+            | Inline::Quoted(_, children)
+            | Inline::Cite(_, children) => record_inline_ids(children, file, map),
+            Inline::Note(blocks) => record_ids(blocks, file, map),
+            Inline::Str(_)
+            | Inline::Space
+            | Inline::SoftBreak
+            | Inline::LineBreak
+            | Inline::Math(..)
+            | Inline::RawInline(..) => {}
+        }
+    }
+}
+
+/// Record one identifier against `file`, keeping the first file a repeated identifier appears in.
+fn record_id(id: &carta_ast::Text, file: &str, map: &mut BTreeMap<String, String>) {
+    if !id.is_empty() {
+        map.entry(id.to_string()).or_insert_with(|| file.to_owned());
+    }
+}
+
+/// The block content held within a table — its caption and every cell — gathered so identifier
+/// collection can descend into it with the ordinary block walk.
+fn table_blocks(table: &carta_ast::Table) -> Vec<Block> {
+    let mut blocks = table.caption.long.clone();
+    let row_groups = std::iter::once(&table.head.rows)
+        .chain(
+            table
+                .bodies
+                .iter()
+                .flat_map(|body| [&body.head, &body.body]),
+        )
+        .chain(std::iter::once(&table.foot.rows));
+    for rows in row_groups {
+        for row in rows {
+            for cell in &row.cells {
+                blocks.extend(cell.content.iter().cloned());
+            }
+        }
+    }
+    blocks
 }
 
 /// The final path component of `path`, treating both slash styles as separators.
