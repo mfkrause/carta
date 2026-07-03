@@ -388,8 +388,10 @@ impl BookMeta {
                     }
                 }
                 "dc:title" => {
-                    self.title_inlines = vec![Inline::Str(Text::from(element.text.clone()))];
-                    self.title_text = element.text;
+                    if !element.text.is_empty() {
+                        self.title_inlines = vec![Inline::Str(Text::from(element.text.clone()))];
+                        self.title_text = element.text;
+                    }
                 }
                 "dc:date" => {
                     if !element.text.is_empty() {
@@ -418,9 +420,21 @@ impl BookMeta {
                         self.rights_text = Some(element.text);
                     }
                 }
-                "dc:subject" => subjects.push(element.text),
-                "dc:creator" => creators.push(creator_from_element(&element)),
-                "dc:contributor" => contributors.push(creator_from_element(&element)),
+                "dc:subject" => {
+                    if !element.text.is_empty() {
+                        subjects.push(element.text);
+                    }
+                }
+                "dc:creator" => {
+                    if !element.text.is_empty() {
+                        creators.push(creator_from_element(&element));
+                    }
+                }
+                "dc:contributor" => {
+                    if !element.text.is_empty() {
+                        contributors.push(creator_from_element(&element));
+                    }
+                }
                 _ => self.extra.push(ExtraMeta {
                     name: element.name,
                     attributes: element.attributes,
@@ -971,5 +985,24 @@ mod tests {
         assert!(meta.contributors.is_empty());
         assert!(meta.subjects.is_empty());
         assert!(meta.extra.is_empty());
+    }
+
+    #[test]
+    fn apply_metadata_xml_ignores_empty_overrides() {
+        use super::BookMeta;
+        let source = meta_with("title", meta_string("Original"));
+        let mut meta = BookMeta::from_meta(&source, "seed");
+        // An empty recognized element is dropped rather than applied: it neither blanks the projected
+        // title nor pushes an empty subject, creator, or contributor over the projected values.
+        meta.apply_metadata_xml(concat!(
+            "<dc:title></dc:title>\n",
+            "<dc:subject></dc:subject>\n",
+            "<dc:creator></dc:creator>\n",
+            "<dc:contributor></dc:contributor>\n",
+        ));
+        assert_eq!(meta.title_text, "Original");
+        assert!(meta.subjects.is_empty());
+        assert!(meta.creators.is_empty());
+        assert!(meta.contributors.is_empty());
     }
 }
