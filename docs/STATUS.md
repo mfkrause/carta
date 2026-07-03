@@ -54,8 +54,6 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Doctest blocks (`>>>`) read as ordinary paragraphs.
 
 ### `ipynb` — ✅
-- Image outputs and inline cell attachments are decoded into the media bag under a content-addressed
-  name, which the writer re-embeds or `--extract-media` writes to disk.
 - nbformat v3 (worksheets) is reported as an unsupported format rather than read.
 - Lenient where the format is strict: a stream output with no `name`, a null `execution_count`, or a
   missing top-level `nbformat` are accepted rather than rejected.
@@ -161,12 +159,6 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 ### `native` — ✅
 
 ### `ipynb` — ✅
-- Image and attachment outputs re-embed their bytes from the media bag as a base64 `data` bundle
-  (SVG and other text payloads emit as source-line arrays); `--extract-media=DIR` instead writes each
-  resource to a file and rewrites the reference to point at it. An image whose bytes are absent from
-  the bag is reported as unrepresentable rather than emitted as a broken bundle.
-- An image output's display metadata (dimensions, background hint) rides on the image's attributes and
-  is restored as the output's `metadata`; a cell's `attachments` are keyed in sorted order.
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
 - Standalone (`-s`), TOC, and section numbering are no-ops.
 
