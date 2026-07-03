@@ -6,7 +6,7 @@
 //! chapter.
 
 use carta_ast::{Attr, Block, Inline, Text, slug, to_plain_text};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The `section` marker class an EPUB section wrapper carries; the HTML writer keys its
 /// `<section>` rendering off it.
@@ -26,8 +26,13 @@ pub(crate) fn make_sections(blocks: &[Block], title: &[Inline]) -> Vec<Block> {
     let (preamble, rest) = blocks.split_at(boundary);
     let mut out = Vec::new();
     // Track the identifiers assigned so far, so a section whose heading carries none is given a
-    // unique one rather than an empty string that no navigation link could target.
+    // unique one rather than an empty string that no navigation link could target. Seed it with
+    // every identifier the document already carries explicitly — on a heading or any other element —
+    // so a derived slug is disambiguated against them and cannot silently duplicate an author's own.
     let mut seen = BTreeSet::new();
+    let mut explicit = BTreeMap::new();
+    super::record_ids(blocks, "", &mut explicit);
+    seen.extend(explicit.into_keys());
     if !preamble.is_empty() {
         out.push(synthetic_section(title, preamble, &mut seen));
     }
@@ -168,11 +173,13 @@ fn section_level(attr: &Attr) -> Option<i32> {
         .find_map(|class| class.strip_prefix("level").and_then(|n| n.parse().ok()))
 }
 
-/// Whether a block is a section `Div` at the given nesting level.
-fn is_section_at(block: &Block, level: i32) -> bool {
+/// Whether a block is a section `Div` shallow enough to begin its own chapter file: one whose level
+/// is at or above the split level. Testing the level directly, rather than expecting the next level
+/// down, lifts a section out even where the heading levels jump (an `H1` straight to an `H3`).
+fn is_promotable_section(block: &Block, split_level: i32) -> bool {
     matches!(block, Block::Div(attr, _)
         if attr.classes.iter().any(|class| class == SECTION_CLASS)
-            && section_level(attr) == Some(level))
+            && section_level(attr).is_some_and(|level| level <= split_level))
 }
 
 /// Break the sectioned blocks into chapters, one block list per output file. A section at a level up
@@ -193,12 +200,14 @@ fn push_chapter(block: Block, split_level: i32, chapters: &mut Vec<Vec<Block>>) 
     if let Block::Div(attr, children) = &block
         && let Some(level) = section_level(attr)
         && level < split_level
-        && children.iter().any(|c| is_section_at(c, level + 1))
+        && children
+            .iter()
+            .any(|c| is_promotable_section(c, split_level))
     {
         let mut own = Vec::new();
         let mut nested = Vec::new();
         for child in children {
-            if is_section_at(child, level + 1) {
+            if is_promotable_section(child, split_level) {
                 nested.push(child.clone());
             } else {
                 own.push(child.clone());
@@ -289,5 +298,31 @@ mod tests {
             section_ids(&make_sections(&blocks, &[])),
             ["one", "one-1", "kept"]
         );
+    }
+
+    #[test]
+    fn derived_slug_avoids_a_later_explicit_id() {
+        // The second heading's explicit identifier is what the first heading's text would slug to;
+        // seeding it up front pushes the derived one aside instead of duplicating it.
+        let blocks = vec![
+            header(1, "", "Installation"),
+            header(1, "installation", "Setup"),
+        ];
+        assert_eq!(
+            section_ids(&make_sections(&blocks, &[])),
+            ["installation-1", "installation"]
+        );
+    }
+
+    #[test]
+    fn split_promotes_a_section_even_when_heading_levels_jump() {
+        use super::split_chapters;
+        // An H1 followed straight by an H3, with no H2 between them.
+        let blocks = vec![header(1, "", "Chapter"), header(3, "", "Deep")];
+        let sectioned = make_sections(&blocks, &[]);
+        // A split level deep enough to include the H3 still lifts it into its own chapter.
+        assert_eq!(split_chapters(sectioned.clone(), 3).len(), 2);
+        // A shallower split keeps the H3 within the H1's single file.
+        assert_eq!(split_chapters(sectioned, 1).len(), 1);
     }
 }

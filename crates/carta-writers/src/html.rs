@@ -264,19 +264,17 @@ pub(crate) fn render_epub_inlines(inlines: &[Inline], epub3: bool) -> String {
     };
     let mut out = String::new();
     state.inlines(&mut out, inlines);
-    strip_xml_invalid(out.replace([BREAK, SOFT], " "))
+    // Resolve the assembly sentinels the same way a chapter body does: under `None` reflow collapses
+    // each run of breakable spaces to a single ordinary one (never a line break), and restore decodes
+    // any content character that was protected from that pass — so a protected control character
+    // becomes its literal self and is then dropped as XML-invalid, rather than leaking its escape tag.
+    strip_xml_invalid(restore(&reflow(&out, WrapMode::None, FILL_COLUMN)))
 }
 
-/// Whether `ch` is permitted in XML 1.0 character data. Tab, newline and carriage return are the only
-/// C0 controls allowed; the rest — and the two `U+FFFE`/`U+FFFF` noncharacters — cannot appear in a
-/// conforming XML document even as a numeric character reference.
+/// The shared predicate for characters XML 1.0 permits; an EPUB page is XML, so the same rule that
+/// keeps the emitter well-formed governs what may survive in a chapter's rendered text.
 #[cfg(feature = "epub")]
-fn is_xml_char(ch: char) -> bool {
-    matches!(ch, '\t' | '\n' | '\r')
-        || ('\u{20}'..='\u{d7ff}').contains(&ch)
-        || ('\u{e000}'..='\u{fffd}').contains(&ch)
-        || ch >= '\u{10000}'
-}
+use carta_core::container::xml::is_xml_char;
 
 /// Drop characters XML forbids from an EPUB page's text. An EPUB chapter is XML, so a stray control
 /// character in the source — which no escaping can represent — is removed rather than emitted into a

@@ -4,9 +4,8 @@
 //! Both EPUB dialects are produced from the same pipeline. The document body is split into chapter
 //! files at a chosen heading level; each chapter is rendered to XHTML and wrapped in a page; the
 //! metadata becomes the package's Dublin Core record; and two tables of contents (the XHTML
-//! navigation document and the NCX) are derived from the chapter headings. [`Version::Epub3`] and
-//! [`Version::Epub2`] differ only in the package version, the navigation primacy, and the XHTML
-//! dialect of each page.
+//! navigation document and the NCX) are derived from the chapter headings. EPUB 3 and EPUB 2 differ
+//! only in the package version, the navigation primacy, and the XHTML dialect of each page.
 //!
 //! Output is byte-reproducible: the archive uses fixed timestamps, maps are ordered, and a missing
 //! publication identifier is derived from the content rather than generated at random.
@@ -172,20 +171,19 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         &stylesheet_names,
         options.source_name.as_deref(),
     );
-    // The navigation control file records the cover under an identifier derived from its source name.
-    let cover_ncx_id = epub.cover_image.as_ref().map(|(name, _)| item_id_for(name));
-    let ncx_doc = toc_ncx(&meta, &doc_meta, &toc_entries, cover_ncx_id.as_deref());
+    // Both the package and the navigation control file record the cover under the manifest id of
+    // its stored image, so each reference resolves to a listed item.
+    let cover_id = cover
+        .as_ref()
+        .and_then(|cover| media.get(cover.media_index))
+        .map(|asset| asset.item_id.clone());
+    let ncx_doc = toc_ncx(&meta, &doc_meta, &toc_entries, cover_id.as_deref());
 
     let modified = iso_from_epoch(epub.source_date_epoch.unwrap_or(1));
     let dates = Dates {
         publication: meta.date.clone().unwrap_or_else(|| modified.clone()),
         modified: if epub3 { Some(modified.clone()) } else { None },
     };
-
-    let cover_id = cover
-        .as_ref()
-        .and_then(|cover| media.get(cover.media_index))
-        .map(|asset| asset.item_id.clone());
 
     let manifest = build_manifest(
         &chapters,
@@ -396,11 +394,13 @@ fn gather_media(
         .fonts
         .iter()
         .map(|(name, bytes)| {
-            let base = basename(name);
+            // Sanitize the source name so the stored path and its href carry no space or other
+            // character that would need escaping, and derive the manifest id from that safe name.
+            let file = safe_filename(basename(name));
             Asset {
-                item_id: item_id_for(base),
-                href: format!("fonts/{base}"),
-                media_type: font_media_type(base).to_owned(),
+                item_id: item_id_for(&file),
+                href: format!("fonts/{file}"),
+                media_type: font_media_type(&file).to_owned(),
                 properties: None,
                 bytes: bytes.clone(),
             }
@@ -479,7 +479,18 @@ fn is_relative_resource(url: &str) -> bool {
         || url.starts_with('#')
         || url.starts_with("data:")
         || url.starts_with("//")
-        || url.contains("://"))
+        || url.contains("://")
+        || is_windows_drive_path(url))
+}
+
+/// Whether `url` begins with a Windows drive-letter root such as `C:\` or `C:/` — an absolute path
+/// that must not be treated as working-directory-relative and climbed with `../`.
+fn is_windows_drive_path(url: &str) -> bool {
+    let mut chars = url.chars();
+    matches!(
+        (chars.next(), chars.next(), chars.next()),
+        (Some(letter), Some(':'), Some('/' | '\\')) if letter.is_ascii_alphabetic()
+    )
 }
 
 /// The stylesheets linked from every page: the file names in link order, and each `(name, contents)`
@@ -591,9 +602,13 @@ fn build_spine(
             linear: None,
         });
     }
+    // The title page drops out of the linear reading order when it carries no content — but only
+    // when something else already stands in that order. A publication must keep at least one linear
+    // resource, so when nothing else would, the title page stays linear even if empty.
+    let another_linear = has_cover || toc || !chapters.is_empty();
     spine.push(SpineItem {
         idref: String::from("title_page_xhtml"),
-        linear: Some(if title_page_has_content(meta) {
+        linear: Some(if title_page_has_content(meta) || !another_linear {
             "yes"
         } else {
             "no"
@@ -635,9 +650,44 @@ fn join(dir: &str, rel: &str) -> String {
     }
 }
 
-/// The manifest id for a file, formed from its base name with each dot replaced by an underscore.
+/// The manifest id for a file: its base name reduced to a valid XML name. Every character that an
+/// XML name may not carry — a dot, a space, anything but an ASCII letter, digit, hyphen or
+/// underscore — becomes an underscore, and a leading character an XML name may not begin with (a
+/// digit or hyphen) is prefixed with one, so the result is always a usable id.
 fn item_id_for(basename: &str) -> String {
-    basename.replace('.', "_")
+    let mut id: String = basename
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if !id
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_')
+    {
+        id.insert(0, '_');
+    }
+    id
+}
+
+/// A file name safe to use as a container path and href without escaping: every character that is
+/// not an ASCII letter, digit, dot, hyphen or underscore is replaced with an underscore, so a name
+/// carrying spaces or reserved characters still yields a valid, unescaped path.
+fn safe_filename(name: &str) -> String {
+    name.chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 /// Record which file every identifier in `blocks` lands in — section wrappers, explicit divisions,
@@ -913,7 +963,7 @@ mod tests {
     use super::{
         basename, file_extension, font_media_type, gif_dimensions, image_dimensions,
         image_extension, image_media_type, is_relative_resource, iso_from_epoch, item_id_for, join,
-        jpeg_dimensions, png_dimensions,
+        jpeg_dimensions, png_dimensions, safe_filename,
     };
     use carta_core::media::{MediaItem, extension_for_mime};
 
@@ -995,6 +1045,26 @@ mod tests {
         assert!(!is_relative_resource("data:image/png;base64,AAAA"));
         assert!(!is_relative_resource("//cdn.example/pic.png"));
         assert!(!is_relative_resource("https://example.com/pic.png"));
+        assert!(!is_relative_resource("C:\\images\\pic.png"));
+        assert!(!is_relative_resource("C:/images/pic.png"));
+    }
+
+    #[test]
+    fn item_id_for_yields_a_valid_xml_name() {
+        // A dot becomes an underscore, keeping ordinary names stable.
+        assert_eq!(item_id_for("ch001.xhtml"), "ch001_xhtml");
+        // Spaces and other reserved characters are replaced.
+        assert_eq!(item_id_for("Source Serif.otf"), "Source_Serif_otf");
+        // A name an XML id may not begin with gains a leading underscore.
+        assert_eq!(item_id_for("2023.png"), "_2023_png");
+        assert_eq!(item_id_for("-dash"), "_-dash");
+    }
+
+    #[test]
+    fn safe_filename_replaces_reserved_characters() {
+        assert_eq!(safe_filename("Source Serif.otf"), "Source_Serif.otf");
+        assert_eq!(safe_filename("clean-name_1.ttf"), "clean-name_1.ttf");
+        assert_eq!(safe_filename("a/b?c.woff"), "a_b_c.woff");
     }
 
     #[test]

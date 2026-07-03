@@ -201,13 +201,26 @@ pub(crate) fn cover_page(
     height: u32,
     stylesheets: &[String],
 ) -> String {
-    let body = format!(
-        "<div id=\"cover-image\">\n\
-         <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\" width=\"100%\" height=\"100%\" viewBox=\"0 0 {width} {height}\" preserveAspectRatio=\"xMidYMid\">\n\
-         <image width=\"{width}\" height=\"{height}\" xlink:href=\"{image_href}\" />\n\
-         </svg>\n\
-         </div>"
-    );
+    // A known pixel size pins the SVG viewport to the image so it scales exactly; when the size is
+    // unknown — a vector or otherwise unmeasured format — the cover fills the viewport directly and
+    // the reading system scales the image to fit, rather than collapsing to a zero-sized box.
+    let body = if width == 0 || height == 0 {
+        format!(
+            "<div id=\"cover-image\">\n\
+             <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\" width=\"100%\" height=\"100%\" preserveAspectRatio=\"xMidYMid meet\">\n\
+             <image width=\"100%\" height=\"100%\" preserveAspectRatio=\"xMidYMid meet\" xlink:href=\"{image_href}\" />\n\
+             </svg>\n\
+             </div>"
+        )
+    } else {
+        format!(
+            "<div id=\"cover-image\">\n\
+             <svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\" width=\"100%\" height=\"100%\" viewBox=\"0 0 {width} {height}\" preserveAspectRatio=\"xMidYMid\">\n\
+             <image width=\"{width}\" height=\"{height}\" xlink:href=\"{image_href}\" />\n\
+             </svg>\n\
+             </div>"
+        )
+    };
     xhtml_page(
         version,
         lang,
@@ -257,4 +270,40 @@ pub(crate) fn ibooks_display_options() -> String {
 /// Used where a value must appear as an XML attribute or bare text.
 pub(crate) fn inline_plain(inlines: &[Inline]) -> String {
     carta_ast::to_plain_text(inlines)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Version, cover_page};
+
+    #[test]
+    fn cover_page_pins_the_viewport_to_a_known_size() {
+        let page = cover_page(
+            Version::Epub3,
+            "en",
+            "Title",
+            "../media/file0.png",
+            2,
+            3,
+            &[],
+        );
+        assert!(page.contains("viewBox=\"0 0 2 3\""));
+        assert!(page.contains("<image width=\"2\" height=\"3\""));
+    }
+
+    #[test]
+    fn cover_page_falls_back_to_full_bleed_without_a_known_size() {
+        let page = cover_page(
+            Version::Epub3,
+            "en",
+            "Title",
+            "../media/file0.svg",
+            0,
+            0,
+            &[],
+        );
+        // With no measurable size the fixed viewBox is dropped and the image fills the viewport.
+        assert!(!page.contains("viewBox"));
+        assert!(page.contains("<image width=\"100%\" height=\"100%\""));
+    }
 }

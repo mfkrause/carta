@@ -140,7 +140,12 @@ fn build_metadata(
     if let Some(rights) = &meta.rights_text {
         block.push(Element::new("dc:rights").text(rights));
     }
-    if let Some(cover) = cover_id {
+    // The cover pointer and the modified timestamp are singletons — `dcterms:modified` must occur
+    // exactly once. When a carried-through fragment already declares one, the generated one is
+    // skipped rather than emitted a second time.
+    if let Some(cover) = cover_id
+        && !extra_has_meta(meta, "name", "cover")
+    {
         block.push(
             Element::new("meta")
                 .attr("name", "cover")
@@ -149,7 +154,9 @@ fn build_metadata(
     }
 
     if epub3 {
-        if let Some(modified) = &dates.modified {
+        if let Some(modified) = &dates.modified
+            && !extra_has_meta(meta, "property", "dcterms:modified")
+        {
             block.push(
                 Element::new("meta")
                     .attr("property", "dcterms:modified")
@@ -162,6 +169,18 @@ fn build_metadata(
     }
 
     block
+}
+
+/// Whether the carried-through extra metadata already declares a `<meta>` element bearing the given
+/// attribute, so a generated singleton with the same role is not emitted a second time.
+fn extra_has_meta(meta: &BookMeta, attr_name: &str, attr_value: &str) -> bool {
+    meta.extra.iter().any(|extra| {
+        extra.name == "meta"
+            && extra
+                .attributes
+                .iter()
+                .any(|(key, value)| key == attr_name && value == attr_value)
+    })
 }
 
 /// Emit one publication identifier. A named scheme is projected as the scheme name in EPUB 2 (an

@@ -246,7 +246,10 @@ fn identifier_from_value(value: &MetaValue) -> Option<Identifier> {
             .get("text")
             .map(meta_text)
             .filter(|value| !value.is_empty())?;
-        let scheme = map.get("scheme").map(meta_text);
+        let scheme = map
+            .get("scheme")
+            .map(meta_text)
+            .filter(|value| !value.is_empty());
         return Some(Identifier { text, scheme });
     }
     let text = meta_text(value);
@@ -372,24 +375,48 @@ impl BookMeta {
         let mut identifiers = Vec::new();
         for element in parse_fragment(fragment) {
             match element.name.as_str() {
+                // An element that carries no text is dropped rather than applied: overriding a field
+                // with an empty value would blank a projected default (the language, the modified
+                // date) or emit an empty, schema-invalid Dublin Core element.
                 "dc:identifier" => {
-                    let scheme = element.attribute("opf:scheme").map(str::to_owned);
-                    identifiers.push(Identifier {
-                        text: element.text,
-                        scheme,
-                    });
+                    if !element.text.is_empty() {
+                        let scheme = element.attribute("opf:scheme").map(str::to_owned);
+                        identifiers.push(Identifier {
+                            text: element.text,
+                            scheme,
+                        });
+                    }
                 }
                 "dc:title" => {
                     self.title_inlines = vec![Inline::Str(Text::from(element.text.clone()))];
                     self.title_text = element.text;
                 }
-                "dc:date" => self.date = Some(element.text),
-                "dc:language" => self.language = element.text,
-                "dc:description" => self.description = Some(element.text),
-                "dc:publisher" => self.publisher = Some(element.text),
+                "dc:date" => {
+                    if !element.text.is_empty() {
+                        self.date = Some(element.text);
+                    }
+                }
+                "dc:language" => {
+                    if !element.text.is_empty() {
+                        self.language = element.text;
+                    }
+                }
+                "dc:description" => {
+                    if !element.text.is_empty() {
+                        self.description = Some(element.text);
+                    }
+                }
+                "dc:publisher" => {
+                    if !element.text.is_empty() {
+                        self.publisher = Some(element.text);
+                    }
+                }
                 "dc:rights" => {
-                    self.rights_inlines = Some(vec![Inline::Str(Text::from(element.text.clone()))]);
-                    self.rights_text = Some(element.text);
+                    if !element.text.is_empty() {
+                        self.rights_inlines =
+                            Some(vec![Inline::Str(Text::from(element.text.clone()))]);
+                        self.rights_text = Some(element.text);
+                    }
                 }
                 "dc:subject" => subjects.push(element.text),
                 "dc:creator" => creators.push(creator_from_element(&element)),
@@ -647,7 +674,7 @@ fn content_uuid(seed: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        Inline, MetaValue, QuoteType, Text, collect_contributors, collect_creators,
+        BookMeta, Inline, MetaValue, QuoteType, Text, collect_contributors, collect_creators,
         collect_identifiers, collect_texts, identifier_from_value, meta_plain_text, onix_code,
     };
     use std::collections::BTreeMap;
@@ -708,6 +735,46 @@ mod tests {
         let value = meta_map(&[("scheme", meta_string("DOI")), ("text", meta_string(""))]);
         assert!(identifier_from_value(&value).is_none());
         assert!(identifier_from_value(&meta_string("")).is_none());
+    }
+
+    #[test]
+    fn identifier_with_empty_scheme_records_no_scheme() {
+        let value = meta_map(&[("scheme", meta_string("")), ("text", meta_string("book-1"))]);
+        let identifier = identifier_from_value(&value).expect("an identifier");
+        assert_eq!(identifier.text, "book-1");
+        assert!(identifier.scheme.is_none());
+        assert!(identifier.onix_code().is_none());
+    }
+
+    #[test]
+    fn empty_fragment_fields_leave_projected_defaults_intact() {
+        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed");
+        let generated = meta.primary_identifier().to_owned();
+        assert!(generated.starts_with("urn:uuid:"));
+        meta.apply_metadata_xml(
+            "<dc:language></dc:language>\n\
+             <dc:identifier></dc:identifier>\n\
+             <dc:date></dc:date>\n\
+             <dc:publisher></dc:publisher>\n\
+             <dc:description></dc:description>\n\
+             <dc:rights></dc:rights>",
+        );
+        assert_eq!(meta.language, "en-US");
+        assert_eq!(meta.primary_identifier(), generated);
+        assert!(meta.date.is_none());
+        assert!(meta.publisher.is_none());
+        assert!(meta.description.is_none());
+        assert!(meta.rights_text.is_none());
+    }
+
+    #[test]
+    fn non_empty_fragment_fields_override_the_defaults() {
+        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed");
+        meta.apply_metadata_xml(
+            "<dc:language>fr</dc:language>\n<dc:identifier>urn:isbn:123</dc:identifier>",
+        );
+        assert_eq!(meta.language, "fr");
+        assert_eq!(meta.primary_identifier(), "urn:isbn:123");
     }
 
     #[test]

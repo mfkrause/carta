@@ -108,6 +108,18 @@ pub(crate) fn nav_xhtml(
     let epub3 = version.is_epub3();
     let mut counter = 0usize;
     let list = render_list(entries, epub3, &mut counter);
+    // A table-of-contents `<nav>` must hold exactly one non-empty `<ol>`. When the document has no
+    // sections to list, the list still points at the title page, so the navigation stays valid and
+    // the book keeps one reachable entry.
+    let list = if list.is_empty() {
+        let mut label = String::new();
+        escape_text(meta.display_title(), &mut label);
+        format!(
+            "<ol class=\"toc\"><li id=\"toc-li-1\"><a href=\"{TITLE_PAGE_HREF}\">{label}</a></li></ol>"
+        )
+    } else {
+        list
+    };
 
     let mut title = String::new();
     escape_text(meta.display_title(), &mut title);

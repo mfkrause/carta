@@ -167,20 +167,36 @@ impl Element {
     }
 }
 
-/// Escapes text content, the minimal set that keeps character data unambiguous.
+/// Whether `ch` may appear in an XML 1.0 document. Tab, newline and carriage return are the only
+/// C0 controls permitted; every other control below `U+0020`, the surrogate range, and the two
+/// `U+FFFE`/`U+FFFF` noncharacters are forbidden and cannot be represented even as a character
+/// reference. Characters failing this test are dropped by the escapers so the emitted markup stays
+/// well-formed whatever the caller supplies.
+#[must_use]
+pub fn is_xml_char(ch: char) -> bool {
+    matches!(ch, '\t' | '\n' | '\r')
+        || ('\u{20}'..='\u{d7ff}').contains(&ch)
+        || ('\u{e000}'..='\u{fffd}').contains(&ch)
+        || ch >= '\u{10000}'
+}
+
+/// Escapes text content, the minimal set that keeps character data unambiguous. Characters XML
+/// forbids are dropped, so the output is well-formed regardless of the input.
 pub fn escape_text(text: &str, out: &mut String) {
     for ch in text.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
-            other => out.push(other),
+            other if is_xml_char(other) => out.push(other),
+            _ => {}
         }
     }
 }
 
 /// Escapes an attribute value, additionally guarding the quote and whitespace that would break a
-/// double-quoted attribute.
+/// double-quoted attribute. Characters XML forbids are dropped, so the output is well-formed
+/// regardless of the input.
 pub fn escape_attribute(value: &str, out: &mut String) {
     for ch in value.chars() {
         match ch {
@@ -191,18 +207,41 @@ pub fn escape_attribute(value: &str, out: &mut String) {
             '\n' => out.push_str("&#10;"),
             '\r' => out.push_str("&#13;"),
             '\t' => out.push_str("&#9;"),
-            other => out.push(other),
+            other if is_xml_char(other) => out.push(other),
+            _ => {}
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Element;
+    use super::{Element, is_xml_char};
 
     #[test]
     fn empty_element_self_closes() {
         assert_eq!(Element::new("br").render(), "<br />");
+    }
+
+    #[test]
+    fn forbidden_control_chars_are_dropped_from_text_and_attributes() {
+        // NUL, start-of-heading, vertical tab, form feed and the U+FFFE noncharacter cannot appear
+        // in XML at all; tab, newline and carriage return are the only permitted C0 controls.
+        let element = Element::new("p")
+            .attr("data-x", "a\u{0}b\u{1}c\t")
+            .text("x\u{0}y\u{b}z\u{c}w\u{fffe}");
+        assert_eq!(element.render(), "<p data-x=\"abc&#9;\">xyzw</p>");
+    }
+
+    #[test]
+    fn xml_char_predicate_covers_the_char_production() {
+        for forbidden in [
+            '\u{0}', '\u{1}', '\u{8}', '\u{b}', '\u{c}', '\u{1f}', '\u{fffe}', '\u{ffff}',
+        ] {
+            assert!(!is_xml_char(forbidden), "{forbidden:?} must be rejected");
+        }
+        for allowed in ['\t', '\n', '\r', ' ', 'a', '\u{fffd}', '\u{10000}'] {
+            assert!(is_xml_char(allowed), "{allowed:?} must be accepted");
+        }
     }
 
     #[test]

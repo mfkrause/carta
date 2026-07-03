@@ -134,7 +134,8 @@ pub struct EpubOptions {
     /// Fonts to embed verbatim, each as `(file name, bytes)`. A stylesheet refers to them by name.
     pub fonts: Vec<(String, Vec<u8>)>,
 
-    /// User stylesheet contents, layered after the built-in stylesheet and linked from every page.
+    /// User stylesheet contents, linked from every page. When any are given they replace the
+    /// built-in stylesheet entirely; several are linked in order. Empty leaves the built-in in place.
     pub stylesheets: Vec<String>,
 
     /// A Dublin Core metadata fragment (bare `<dc:*>` elements) merged into the package metadata.
