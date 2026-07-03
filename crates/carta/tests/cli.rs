@@ -264,9 +264,11 @@ fn extract_media_writes_files_and_rewrites_references() {
     );
     assert!(result.success, "stderr: {}", result.stderr);
 
-    // The document's image reference is rewritten to the extracted file's path.
+    // The document's image reference is rewritten to the extracted file's path. The reference joins
+    // the directory to the name with a forward slash on every platform (a document link is URL-style,
+    // not an OS path), so it is built with the same join the writer uses rather than `Path::join`.
     let extracted = media_dir.join(&name);
-    let extracted_ref = extracted.to_string_lossy().into_owned();
+    let extracted_ref = carta::media::extracted_path(&media_dir.to_string_lossy(), &name);
     assert!(
         result.stdout.contains(&extracted_ref),
         "stdout missing extracted path {extracted_ref}:\n{}",
