@@ -121,6 +121,38 @@ pub enum WrapMode {
     Preserve,
 }
 
+/// Options for the EPUB container writer. Ignored by every other writer. The default is an empty
+/// book: no cover, no embedded fonts, the built-in stylesheet only, and chapters split at the top
+/// heading level.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct EpubOptions {
+    /// A cover image as `(file name, bytes)`. Produces a dedicated cover page and marks the image
+    /// as the publication cover.
+    pub cover_image: Option<(String, Vec<u8>)>,
+
+    /// Fonts to embed verbatim, each as `(file name, bytes)`. A stylesheet refers to them by name.
+    pub fonts: Vec<(String, Vec<u8>)>,
+
+    /// User stylesheet contents, layered after the built-in stylesheet and linked from every page.
+    pub stylesheets: Vec<String>,
+
+    /// A Dublin Core metadata fragment (bare `<dc:*>` elements) merged into the package metadata.
+    pub metadata_xml: Option<String>,
+
+    /// The container directory holding all publication content. `None` uses the conventional
+    /// `EPUB`; an empty string places the content at the archive root.
+    pub subdirectory: Option<String>,
+
+    /// The heading level at which the book is split into separate chapter files. `None` splits at
+    /// the top level, so each level-one heading starts a new file.
+    pub split_level: Option<usize>,
+
+    /// Seconds since the Unix epoch fixing the publication's modification timestamp. `None` uses a
+    /// fixed epoch so output stays byte-reproducible.
+    pub source_date_epoch: Option<i64>,
+}
+
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
@@ -132,6 +164,9 @@ pub struct WriterOptions {
     /// that re-embeds resource bytes — a notebook re-encoding its image outputs — reads them from
     /// here; most writers ignore it. Shared cheaply, so cloning the options does not copy the bytes.
     pub media: Arc<MediaBag>,
+
+    /// Options for the EPUB container writer; ignored by every other writer.
+    pub epub: EpubOptions,
 
     /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
     /// own line breaks preserved.
@@ -192,10 +227,11 @@ pub struct WriterOptions {
     #[cfg(feature = "template")]
     pub metadata_defaults: std::collections::BTreeMap<String, carta_ast::MetaValue>,
 
-    /// The source name an HTML-family standalone document falls back to for its `pagetitle` when no
-    /// `title` metadata is present: an input file's stem, or `-` for standard input. `None` outside
-    /// the command line, where there is no source name and the fallback is empty.
-    #[cfg(feature = "template")]
+    /// The source name a standalone document falls back to when no `title` metadata is present: an
+    /// input file's stem, or `-` for standard input. `None` outside the command line, where there is
+    /// no source name and the fallback is empty. Consumed by the HTML family (for its `pagetitle`)
+    /// and by the container writer (for the navigation document's title).
+    #[cfg(any(feature = "template", feature = "container"))]
     pub source_name: Option<String>,
 }
 
