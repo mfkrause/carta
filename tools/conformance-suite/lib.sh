@@ -87,6 +87,22 @@ compare_ipynb() {
   return 1
 }
 
+# Compare the media-bag-reconstructed fields of two notebook outputs: each rich output's `metadata`
+# object and each cell's `attachments` keys, in document order. Keys are compared as emitted (no
+# canonical sort), so a regression in either the metadata ordering or the attachment ordering shows
+# up. This isolates what the media bag drives on the write side — an image output's display metadata
+# and a cell's attachment table — from the cell source, minted ids, and non-image data bundles, whose
+# fidelity belongs to other surfaces. Brief diff + 1 on mismatch.
+compare_ipynb_media() {
+  local proj='[.cells[] | {output_metadata: [.outputs[]? | select(.metadata) | .metadata], attachment_keys: (.attachments // {} | keys_unsorted)}]'
+  local a="$WORK/.cmp.oracle.media.json" b="$WORK/.cmp.ox.media.json"
+  jq -c "$proj" "$1" >"$a" 2>/dev/null || { echo "oracle notebook unparsable"; return 1; }
+  jq -c "$proj" "$2" >"$b" 2>/dev/null || { echo "carta notebook unparsable"; return 1; }
+  cmp -s "$a" "$b" && return 0
+  diff "$a" "$b" | head -n 200
+  return 1
+}
+
 # Compare two files byte-for-byte, with no trailing-newline tolerance. Used where the output is
 # emitted verbatim (a filled template) and every byte — trailing newlines included — must agree.
 # Renders the diff through `cat -A` so whitespace and line ends are visible.
@@ -103,6 +119,23 @@ compare_text() {
   b=$(cat "$2"; printf x); b=${b%x}; b=${b%$'\n'}
   [ "$a" = "$b" ] && return 0
   diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") | head -n 200
+  return 1
+}
+
+# Compare two extracted-media directories byte-for-byte. Either side may be absent — a document that
+# carries no media extracts nothing — and both-absent counts as equal; one-absent is a mismatch.
+# Prints the differing entries (bounded) and returns 1 on any divergence.
+compare_dir() {
+  local a="$1" b="$2" a_has=0 b_has=0
+  [ -d "$a" ] && [ -n "$(ls -A "$a" 2>/dev/null)" ] && a_has=1
+  [ -d "$b" ] && [ -n "$(ls -A "$b" 2>/dev/null)" ] && b_has=1
+  [ "$a_has" = 0 ] && [ "$b_has" = 0 ] && return 0
+  if [ "$a_has" != "$b_has" ]; then
+    echo "extracted media present on one side only (oracle=$a_has carta=$b_has)"
+    return 1
+  fi
+  diff -qr "$a" "$b" >/dev/null 2>&1 && return 0
+  diff -qr "$a" "$b" 2>&1 | head -n 50
   return 1
 }
 

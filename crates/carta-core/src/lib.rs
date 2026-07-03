@@ -6,15 +6,19 @@
 
 use std::fmt;
 use std::io;
+use std::sync::Arc;
 
 use carta_ast::{Block, Document, Inline};
 
 pub mod extensions;
+pub mod media;
 pub mod sections;
 #[cfg(feature = "template")]
 pub mod template;
+pub mod walk;
 
 pub use extensions::{Extension, Extensions, presets};
+pub use media::{MediaBag, MediaItem};
 
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]
@@ -120,6 +124,11 @@ pub struct WriterOptions {
     /// Format extensions to enable.
     pub extensions: Extensions,
 
+    /// The embedded resources the document references by name but does not carry inline. A writer
+    /// that re-embeds resource bytes — a notebook re-encoding its image outputs — reads them from
+    /// here; most writers ignore it. Shared cheaply, so cloning the options does not copy the bytes.
+    pub media: Arc<MediaBag>,
+
     /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
     /// own line breaks preserved.
     pub wrap: WrapMode,
@@ -189,6 +198,17 @@ pub struct WriterOptions {
 /// Parses input text in some source format into the document model.
 pub trait Reader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document>;
+
+    /// Reads `input` into a document together with the embedded resources it references. The default
+    /// carries no resources; a container format — a notebook with image outputs — overrides this to
+    /// decode those bytes into the returned [`MediaBag`], and implements [`read`](Reader::read) by
+    /// discarding the bag.
+    ///
+    /// # Errors
+    /// Propagates any error from parsing the input.
+    fn read_media(&self, input: &str, options: &ReaderOptions) -> Result<(Document, MediaBag)> {
+        Ok((self.read(input, options)?, MediaBag::new()))
+    }
 }
 
 /// Which plain-text identity variables a writer's standalone template draws on. The document's
@@ -340,6 +360,15 @@ pub trait Writer {
 /// [`Reader`], for formats whose wire form is not text — zip containers and the like.
 pub trait BytesReader {
     fn read(&self, input: &[u8], options: &ReaderOptions) -> Result<Document>;
+
+    /// Reads `input` into a document together with the embedded resources it references. The
+    /// byte-shaped counterpart of [`Reader::read_media`]; the default carries no resources.
+    ///
+    /// # Errors
+    /// Propagates any error from parsing the input.
+    fn read_media(&self, input: &[u8], options: &ReaderOptions) -> Result<(Document, MediaBag)> {
+        Ok((self.read(input, options)?, MediaBag::new()))
+    }
 }
 
 /// Renders the document model into some target format's bytes. The byte-shaped counterpart of
@@ -386,6 +415,24 @@ impl AnyReader {
         match self {
             AnyReader::Text(reader) => reader.read(std::str::from_utf8(input)?, options),
             AnyReader::Bytes(reader) => reader.read(input, options),
+        }
+    }
+
+    /// Reads `input` into a document together with the embedded resources it references. A text
+    /// reader decodes the bytes as UTF-8 first; a byte reader takes the raw slice. A reader that
+    /// carries no resources returns an empty [`MediaBag`].
+    ///
+    /// # Errors
+    /// [`Error::InvalidUtf8`] if a text reader is handed input that is not valid UTF-8, plus any
+    /// error the underlying reader returns.
+    pub fn read_media(
+        &self,
+        input: &[u8],
+        options: &ReaderOptions,
+    ) -> Result<(Document, MediaBag)> {
+        match self {
+            AnyReader::Text(reader) => reader.read_media(std::str::from_utf8(input)?, options),
+            AnyReader::Bytes(reader) => reader.read_media(input, options),
         }
     }
 }
@@ -478,5 +525,14 @@ mod tests {
                 .read(&[0xff, 0xfe], &ReaderOptions::default())
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn default_read_media_carries_no_resources() {
+        let reader = AnyReader::Text(Box::new(EmptyTextReader));
+        let (_, media) = reader
+            .read_media(b"anything", &ReaderOptions::default())
+            .expect("read succeeds");
+        assert!(media.is_empty());
     }
 }

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"jupyter":{"t":"MetaMap","c":{"kernelspec":{"t":"MetaMap","c":{"display_name":{"t":"MetaString","c":"Python 3"},"language":{"t":"MetaString","c":"python"},"name":{"t":"MetaString","c":"python3"}}},"nbformat":{"t":"MetaString","c":"4"},"nbformat_minor":{"t":"MetaString","c":"5"}}}},"blocks":[{"t":"Div","c":[["order",["cell","markdown"],[]],[{"t":"Para","c":[{"t":"Str","c":"Two"},{"t":"Space"},{"t":"Str","c":"attachments,"},{"t":"Space"},{"t":"Str","c":"referenced"},{"t":"Space"},{"t":"Str","c":"out"},{"t":"Space"},{"t":"Str","c":"of"},{"t":"Space"},{"t":"Str","c":"key"},{"t":"Space"},{"t":"Str","c":"order:"}]},{"t":"Para","c":[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"beta"}],["order-beta.png",""]]}]},{"t":"Para","c":[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"alpha"}],["order-alpha.png",""]]}]}]]}]}

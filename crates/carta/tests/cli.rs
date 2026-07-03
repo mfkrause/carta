@@ -243,3 +243,38 @@ fn list_extensions_rejects_an_unknown_format() {
         result.stderr
     );
 }
+
+#[cfg(all(feature = "read-ipynb", feature = "write-markdown"))]
+#[test]
+fn extract_media_writes_files_and_rewrites_references() {
+    const NOTEBOOK: &str = r#"{"cells":[{"cell_type":"code","execution_count":1,"metadata":{},"outputs":[{"output_type":"display_data","data":{"image/png":"iVBORw0KGgoAAAANSUhEUg=="},"metadata":{}}],"source":["draw()"]}],"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"}},"nbformat":4,"nbformat_minor":5}"#;
+
+    // The extraction directory must be absolute: the subprocess resolves it against its own working
+    // directory, not this test's temp area.
+    let media_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("extract-media");
+    let _ = fs::remove_dir_all(&media_dir);
+
+    let bytes = carta::media::base64_decode("iVBORw0KGgoAAAANSUhEUg==").unwrap();
+    let name = carta::media::content_addressed_name("image/png", &bytes);
+
+    let extract_arg = format!("--extract-media={}", media_dir.display());
+    let result = run(
+        &["-f", "ipynb", "-t", "markdown", extract_arg.as_str()],
+        NOTEBOOK,
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+
+    // The document's image reference is rewritten to the extracted file's path. The reference joins
+    // the directory to the name with a forward slash on every platform (a document link is URL-style,
+    // not an OS path), so it is built with the same join the writer uses rather than `Path::join`.
+    let extracted = media_dir.join(&name);
+    let extracted_ref = carta::media::extracted_path(&media_dir.to_string_lossy(), &name);
+    assert!(
+        result.stdout.contains(&extracted_ref),
+        "stdout missing extracted path {extracted_ref}:\n{}",
+        result.stdout
+    );
+    // The bytes are written to that path verbatim, under the content-addressed name.
+    let written = fs::read(&extracted).expect("extracted media file");
+    assert_eq!(written, bytes);
+}

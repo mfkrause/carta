@@ -13,8 +13,11 @@ pub use carta_ast as ast;
 pub use carta_ast::Document;
 pub use carta_core::{
     AnyReader, AnyWriter, BytesReader, BytesWriter, Error, Extension, Extensions, MathMethod,
-    Output, Reader, ReaderOptions, Result, TocStyle, WrapMode, Writer, WriterOptions, presets,
+    MediaBag, MediaItem, Output, Reader, ReaderOptions, Result, TocStyle, WrapMode, Writer,
+    WriterOptions, media, presets,
 };
+
+use std::sync::Arc;
 
 mod format_spec;
 mod registry;
@@ -89,11 +92,28 @@ pub fn convert(
     reader_options: &ReaderOptions,
     writer_options: &WriterOptions,
 ) -> Result<Output> {
-    let (from_base, from_ext) = format_spec::parse_reader_format_spec(from)?;
-    let (to_base, to_ext) = parse_format_spec(to)?;
+    let (document, media) = read_document(from, input, reader_options)?;
+    render_document(to, document, media, writer_options)
+}
 
+/// Parses `input` in format `from` into the document model together with the embedded resources it
+/// references (a notebook's image outputs; empty for a format that carries none).
+///
+/// The reading half of [`convert`], exposed so a caller can inspect or transform the [`Document`] —
+/// and extract or rewrite its media — before rendering it with [`render_document`]. `from` may carry
+/// `+ext`/`-ext` toggles, merged with the extensions already in `reader_options`.
+///
+/// # Errors
+/// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
+/// [`Error::UnknownExtension`]) and any reader error, including [`Error::InvalidUtf8`] when a
+/// text-shaped reader is handed input that is not valid UTF-8.
+pub fn read_document(
+    from: &str,
+    input: &[u8],
+    reader_options: &ReaderOptions,
+) -> Result<(Document, MediaBag)> {
+    let (from_base, from_ext) = format_spec::parse_reader_format_spec(from)?;
     let reader = any_reader_for(&from_base)?;
-    let writer = any_writer_for(&to_base)?;
 
     let mut reader_options = reader_options.clone();
     reader_options.extensions = from_ext.union(reader_options.extensions);
@@ -101,17 +121,39 @@ pub fn convert(
     // preceding blank line, so a bare following line continues the paragraph rather than starting a
     // new block.
     reader_options.greedy_paragraphs |= from_base.starts_with("markdown");
+
+    reader.read_media(input, &reader_options)
+}
+
+/// Renders `document` into format `to`, returning text for a text target and bytes for a byte-shaped
+/// one. `media` supplies the embedded resources a re-embedding writer (a notebook re-encoding its
+/// image outputs) draws on; pass an empty bag when the document references none.
+///
+/// The writing half of [`convert`]. `to` may carry `+ext`/`-ext` toggles, merged with the extensions
+/// already in `writer_options`.
+///
+/// # Errors
+/// Propagates format-resolution errors ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`],
+/// [`Error::UnknownExtension`]) and any writer error encountered during rendering.
+pub fn render_document(
+    to: &str,
+    document: Document,
+    media: MediaBag,
+    writer_options: &WriterOptions,
+) -> Result<Output> {
+    let (to_base, to_ext) = parse_format_spec(to)?;
+    let writer = any_writer_for(&to_base)?;
+
     let mut writer_options = writer_options.clone();
     writer_options.extensions = to_ext.union(writer_options.extensions);
+    writer_options.media = Arc::new(media);
 
     #[cfg(feature = "standalone")]
     let document = {
-        let mut document = reader.read(input, &reader_options)?;
+        let mut document = document;
         standalone::merge_metadata(&mut document, &writer_options);
         document
     };
-    #[cfg(not(feature = "standalone"))]
-    let document = reader.read(input, &reader_options)?;
 
     // A byte-shaped writer owns its complete output: no template, standalone wrapping, or section
     // splicing decorates it.
