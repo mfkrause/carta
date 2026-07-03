@@ -53,6 +53,8 @@ pub mod beamer;
 pub mod commonmark;
 #[cfg(feature = "dokuwiki")]
 pub mod dokuwiki;
+#[cfg(feature = "epub")]
+pub mod epub;
 #[cfg(feature = "html")]
 pub mod html;
 #[cfg(feature = "ipynb")]
@@ -92,6 +94,8 @@ pub use beamer::BeamerWriter;
 pub use commonmark::CommonmarkWriter;
 #[cfg(feature = "dokuwiki")]
 pub use dokuwiki::DokuwikiWriter;
+#[cfg(feature = "epub")]
+pub use epub::{Epub2Writer, Epub3Writer};
 #[cfg(feature = "html")]
 pub use html::{Html4Writer, HtmlWriter};
 #[cfg(feature = "ipynb")]

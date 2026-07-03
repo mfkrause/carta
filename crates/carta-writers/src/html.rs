@@ -90,6 +90,28 @@ enum Flavor {
     // Constructed only by the slide writer; absent when its feature is sliced out of the build.
     #[allow(dead_code)]
     Slides,
+    /// The XHTML of an EPUB 3 chapter. Follows [`Flavor::Html5`] but wraps each section in a
+    /// `<section>` element (hoisting the heading's identifier onto it), and renders footnotes as
+    /// `<aside epub:type="footnote">` collected in an `epub:type="footnotes"` section, with the
+    /// reference links carrying `epub:type="noteref"`.
+    // Constructed only by the EPUB writer; absent when its feature is sliced out of the build.
+    #[allow(dead_code)]
+    Epub3,
+    /// The XHTML 1.1 of an EPUB 2 chapter. Follows [`Flavor::Html4`] for its presentational
+    /// element and attribute choices, but drops any attribute XHTML 1.1 does not admit, wraps each
+    /// section in `<div class="section">`, and renders footnotes as `<div>` items carrying a
+    /// leading back-reference link.
+    // Constructed only by the EPUB writer; absent when its feature is sliced out of the build.
+    #[allow(dead_code)]
+    Epub2,
+}
+
+impl Flavor {
+    /// Whether the dialect follows html5's element and attribute choices (as opposed to the
+    /// presentational html4 choices).
+    fn is_html5_family(self) -> bool {
+        matches!(self, Flavor::Html5 | Flavor::Slides | Flavor::Epub3)
+    }
 }
 
 /// The fragment-target prefix on a footnote link. The slide dialect routes links through the deck's
@@ -97,7 +119,7 @@ enum Flavor {
 fn fragment_prefix(flavor: Flavor) -> &'static str {
     match flavor {
         Flavor::Slides => "#/",
-        Flavor::Html5 | Flavor::Html4 => "#",
+        Flavor::Html5 | Flavor::Html4 | Flavor::Epub3 | Flavor::Epub2 => "#",
     }
 }
 
@@ -206,6 +228,43 @@ pub(crate) fn render_fragment(blocks: &[Block], wrap: WrapMode) -> String {
         FILL_COLUMN,
         MathOutput::Delimited,
     )
+}
+
+/// Render a chapter's blocks to the XHTML body fragment of an EPUB page. `epub3` selects the EPUB 3
+/// dialect (sectioning `<section>` elements, `<aside>` footnotes); otherwise the EPUB 2 dialect is
+/// used. Lines are not wrapped, matching a container whose pages are read by software, and the math
+/// presentation follows the chosen renderer. The fragment carries no trailing newline.
+// Used by the EPUB writer; unreferenced when its feature is sliced out of the build.
+#[cfg(feature = "epub")]
+pub(crate) fn render_epub_chapter(
+    blocks: &[Block],
+    epub3: bool,
+    options: &WriterOptions,
+) -> String {
+    let flavor = if epub3 { Flavor::Epub3 } else { Flavor::Epub2 };
+    render_with_flavor(
+        blocks,
+        flavor,
+        WrapMode::None,
+        fill_width(options),
+        math_output(options),
+    )
+}
+
+/// Render an inline sequence to a single line of EPUB XHTML, for a table-of-contents entry or a
+/// title-page field. `epub3` selects the EPUB 3 dialect; breakable spaces collapse to ordinary
+/// spaces.
+// Used by the EPUB writer; unreferenced when its feature is sliced out of the build.
+#[cfg(feature = "epub")]
+pub(crate) fn render_epub_inlines(inlines: &[Inline], epub3: bool) -> String {
+    let flavor = if epub3 { Flavor::Epub3 } else { Flavor::Epub2 };
+    let mut state = State {
+        flavor,
+        ..State::default()
+    };
+    let mut out = String::new();
+    state.inlines(&mut out, inlines);
+    out.replace([BREAK, SOFT], " ")
 }
 
 fn render_with_flavor(
@@ -360,13 +419,10 @@ impl State {
             }
             Block::Header(level, attr, inlines) => {
                 let tag = header_tag(*level);
-                let rendered = match self.flavor {
-                    Flavor::Html5 | Flavor::Slides => {
-                        render_attr(attr, AttrOrder::Header, self.flavor)
-                    }
-                    Flavor::Html4 => {
-                        render_attr(&heading_attr_html4(attr), AttrOrder::Header, self.flavor)
-                    }
+                let rendered = if self.flavor.is_html5_family() {
+                    render_attr(attr, AttrOrder::Header, self.flavor)
+                } else {
+                    render_attr(&heading_attr_html4(attr), AttrOrder::Header, self.flavor)
                 };
                 let _ = write!(out, "<{tag}{rendered}>");
                 self.inlines(out, inlines);
@@ -390,13 +446,38 @@ impl State {
             Block::OrderedList(attrs, items) => self.ordered_list(out, attrs, items),
             Block::DefinitionList(items) => self.definition_list(out, items),
             Block::Div(attr, blocks) => {
-                let _ = writeln!(
-                    out,
-                    "<div{}>",
-                    render_attr(attr, AttrOrder::Standard, self.flavor)
-                );
-                self.blocks(out, blocks);
-                out.push_str("\n</div>");
+                // An EPUB 3 chapter promotes a section wrapper (a div marked with the `section`
+                // class) to a `<section>` element, consuming that marker class; the heading's
+                // identifier already sits on the wrapper. Every other div renders as a `<div>`.
+                let section = self.flavor == Flavor::Epub3
+                    && attr.classes.iter().any(|class| class == "section");
+                if section {
+                    let stripped = Attr {
+                        id: attr.id.clone(),
+                        classes: attr
+                            .classes
+                            .iter()
+                            .filter(|class| class.as_str() != "section")
+                            .cloned()
+                            .collect(),
+                        attributes: attr.attributes.clone(),
+                    };
+                    let _ = writeln!(
+                        out,
+                        "<section{}>",
+                        render_attr(&stripped, AttrOrder::Standard, self.flavor)
+                    );
+                    self.blocks(out, blocks);
+                    out.push_str("\n</section>");
+                } else {
+                    let _ = writeln!(
+                        out,
+                        "<div{}>",
+                        render_attr(attr, AttrOrder::Standard, self.flavor)
+                    );
+                    self.blocks(out, blocks);
+                    out.push_str("\n</div>");
+                }
             }
             Block::Figure(attr, caption, blocks) => self.figure(out, attr, caption, blocks),
             Block::HorizontalRule => out.push_str("<hr />"),
@@ -423,17 +504,12 @@ impl State {
         if matches!(attrs.style, ListNumberStyle::Example) {
             out.push_str(" class=\"example\"");
         }
-        match self.flavor {
-            Flavor::Html5 | Flavor::Slides => {
-                if let Some(kind) = ordered_list_type(attrs.style) {
-                    let _ = write!(out, " type=\"{kind}\"");
-                }
+        if self.flavor.is_html5_family() {
+            if let Some(kind) = ordered_list_type(attrs.style) {
+                let _ = write!(out, " type=\"{kind}\"");
             }
-            Flavor::Html4 => {
-                if let Some(name) = list_style_type(attrs.style) {
-                    let _ = write!(out, " style=\"list-style-type: {name}\"");
-                }
-            }
+        } else if let Some(name) = list_style_type(attrs.style) {
+            let _ = write!(out, " style=\"list-style-type: {name}\"");
         }
         out.push_str(">\n");
         self.list_items(out, items);
@@ -498,9 +574,10 @@ impl State {
     }
 
     fn figure(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
-        match self.flavor {
-            Flavor::Html5 | Flavor::Slides => self.figure_html5(out, attr, caption, blocks),
-            Flavor::Html4 => self.figure_html4(out, attr, caption, blocks),
+        if self.flavor.is_html5_family() {
+            self.figure_html5(out, attr, caption, blocks);
+        } else {
+            self.figure_html4(out, attr, caption, blocks);
         }
     }
 
@@ -687,11 +764,10 @@ impl State {
         if cell.row_span != 1 {
             let _ = write!(out, "{BREAK}rowspan=\"{}\"", cell.row_span);
         }
-        match self.flavor {
-            Flavor::Html5 | Flavor::Slides => {
-                out.push_str(&cell_attr(&cell.attr, alignment_style(effective)));
-            }
-            Flavor::Html4 => out.push_str(&cell_attr_html4(&cell.attr, effective)),
+        if self.flavor.is_html5_family() {
+            out.push_str(&cell_attr(&cell.attr, alignment_style(effective)));
+        } else {
+            out.push_str(&cell_attr_html4(&cell.attr, effective, self.flavor));
         }
         out.push('>');
         self.blocks(out, &cell.content);
@@ -757,19 +833,18 @@ impl State {
             }
             Inline::Span(attr, inlines) => self.span(out, attr, inlines),
             Inline::Cite(citations, inlines) => {
-                match self.flavor {
-                    Flavor::Html5 | Flavor::Slides => {
-                        let ids: Vec<&str> = citations
-                            .iter()
-                            .map(|citation| citation.id.as_str())
-                            .collect();
-                        let _ = write!(
-                            out,
-                            "<span class=\"citation\"{BREAK}data-cites=\"{}\">",
-                            escape_attr(&ids.join(" "))
-                        );
-                    }
-                    Flavor::Html4 => out.push_str("<span class=\"citation\">"),
+                if self.flavor.is_html5_family() {
+                    let ids: Vec<&str> = citations
+                        .iter()
+                        .map(|citation| citation.id.as_str())
+                        .collect();
+                    let _ = write!(
+                        out,
+                        "<span class=\"citation\"{BREAK}data-cites=\"{}\">",
+                        escape_attr(&ids.join(" "))
+                    );
+                } else {
+                    out.push_str("<span class=\"citation\">");
                 }
                 self.inlines(out, inlines);
                 out.push_str("</span>");
@@ -790,18 +865,56 @@ impl State {
     /// nest inside it as bare elements. Classes preceding the first semantic one are dropped. With no
     /// semantic class the span renders as a generic `<span>`.
     fn span(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline]) {
+        // The `underline` class wraps the content in a bare `<u>` carrying no attributes; any
+        // remaining attributes fall to the enclosing element. Strip it and render the `<u>` as the
+        // innermost wrapper below.
+        let underline = attr.classes.iter().any(|class| class == "underline");
+        let stripped;
+        let attr = if underline {
+            stripped = Attr {
+                id: attr.id.clone(),
+                classes: attr
+                    .classes
+                    .iter()
+                    .filter(|class| class.as_str() != "underline")
+                    .cloned()
+                    .collect(),
+                attributes: attr.attributes.clone(),
+            };
+            &stripped
+        } else {
+            attr
+        };
+
         let first = attr
             .classes
             .iter()
             .position(|class| SEMANTIC_SPAN_TAGS.contains(&class.as_str()));
         let Some(first) = first else {
-            let _ = write!(
-                out,
-                "<span{}>",
-                render_attr(attr, AttrOrder::Standard, self.flavor)
-            );
+            // No dedicated element. A generic `<span>` wraps the content unless the only attribute
+            // was the consumed `underline`, leaving nothing to carry — then the bare `<u>` stands
+            // alone.
+            let bare_underline = underline
+                && attr.id.is_empty()
+                && attr.classes.is_empty()
+                && attr.attributes.is_empty();
+            if !bare_underline {
+                let _ = write!(
+                    out,
+                    "<span{}>",
+                    render_attr(attr, AttrOrder::Standard, self.flavor)
+                );
+            }
+            if underline {
+                out.push_str("<u>");
+            }
             self.inlines(out, inlines);
-            out.push_str("</span>");
+            if underline {
+                out.push_str("</u>");
+            }
+            if !bare_underline {
+                out.push_str("</span>");
+            }
             return;
         };
         let mut tags = Vec::new();
@@ -829,7 +942,13 @@ impl State {
                 let _ = write!(out, "<{tag}>");
             }
         }
+        if underline {
+            out.push_str("<u>");
+        }
         self.inlines(out, inlines);
+        if underline {
+            out.push_str("</u>");
+        }
         for tag in tags.iter().rev() {
             let _ = write!(out, "</{tag}>");
         }
@@ -862,24 +981,57 @@ impl State {
     fn note(&mut self, out: &mut String, blocks: &[Block]) {
         let number = self.footnotes.len() + 1;
         let prefix = fragment_prefix(self.flavor);
-        let backlink_role = match self.flavor {
-            Flavor::Html5 | Flavor::Slides => format!("{BREAK}role=\"doc-backlink\""),
-            Flavor::Html4 => String::new(),
-        };
-        let backlink = format!(
-            "<a{BREAK}href=\"{prefix}fnref{number}\"{BREAK}class=\"footnote-back\"{backlink_role}>\u{21a9}\u{fe0e}</a>"
-        );
-        let body = self.note_body(blocks, &backlink);
-        self.footnotes
-            .push(format!("<li{BREAK}id=\"fn{number}\">{body}</li>"));
-        let ref_role = match self.flavor {
-            Flavor::Html5 | Flavor::Slides => format!("{BREAK}role=\"doc-noteref\""),
-            Flavor::Html4 => String::new(),
-        };
-        let _ = write!(
-            out,
-            "<a{BREAK}href=\"{prefix}fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\"{ref_role}><sup>{number}</sup></a>"
-        );
+        match self.flavor {
+            Flavor::Epub3 => {
+                // The note becomes an `<aside>` gathered into the trailing footnote section; the
+                // reference is a plain link (no superscript) tagged as a note reference.
+                let mut body = String::new();
+                self.blocks(&mut body, blocks);
+                self.footnotes.push(format!(
+                    "<aside{BREAK}epub:type=\"footnote\"{BREAK}role=\"doc-footnote\"{BREAK}id=\"fn{number}\">\n{body}\n</aside>"
+                ));
+                let _ = write!(
+                    out,
+                    "<a{BREAK}href=\"{prefix}fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\"{BREAK}epub:type=\"noteref\"{BREAK}role=\"doc-noteref\">{number}</a>"
+                );
+            }
+            Flavor::Epub2 => {
+                // The note becomes a `<div>` whose first paragraph opens with a numbered
+                // back-reference link; the reference is a plain link (no superscript).
+                let backlink = format!(
+                    "<a{BREAK}href=\"{prefix}fnref{number}\"{BREAK}class=\"footnote-back\">{number}</a>. "
+                );
+                let body = self.note_body_epub2(blocks, &backlink);
+                self.footnotes
+                    .push(format!("<div{BREAK}id=\"fn{number}\">\n{body}\n</div>"));
+                let _ = write!(
+                    out,
+                    "<a{BREAK}href=\"{prefix}fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\">{number}</a>"
+                );
+            }
+            Flavor::Html5 | Flavor::Slides | Flavor::Html4 => {
+                let backlink_role = if self.flavor.is_html5_family() {
+                    format!("{BREAK}role=\"doc-backlink\"")
+                } else {
+                    String::new()
+                };
+                let backlink = format!(
+                    "<a{BREAK}href=\"{prefix}fnref{number}\"{BREAK}class=\"footnote-back\"{backlink_role}>\u{21a9}\u{fe0e}</a>"
+                );
+                let body = self.note_body(blocks, &backlink);
+                self.footnotes
+                    .push(format!("<li{BREAK}id=\"fn{number}\">{body}</li>"));
+                let ref_role = if self.flavor.is_html5_family() {
+                    format!("{BREAK}role=\"doc-noteref\"")
+                } else {
+                    String::new()
+                };
+                let _ = write!(
+                    out,
+                    "<a{BREAK}href=\"{prefix}fn{number}\"{BREAK}class=\"footnote-ref\"{BREAK}id=\"fnref{number}\"{ref_role}><sup>{number}</sup></a>"
+                );
+            }
+        }
     }
 
     /// Render a footnote's blocks, appending the backlink inline after the final block's content
@@ -912,6 +1064,38 @@ impl State {
         body
     }
 
+    /// Render an EPUB 2 footnote's blocks, opening the first paragraph (or plain block) with the
+    /// numbered back-reference link; any further blocks follow unchanged. A note that does not begin
+    /// with a paragraph gets the back-reference on a line of its own.
+    fn note_body_epub2(&mut self, blocks: &[Block], backlink: &str) -> String {
+        let mut body = String::new();
+        match blocks.split_first() {
+            Some((Block::Para(inlines), rest)) => {
+                body.push_str("<p>");
+                body.push_str(backlink);
+                self.inlines(&mut body, inlines);
+                body.push_str("</p>");
+                if !rest.is_empty() {
+                    body.push('\n');
+                    self.blocks(&mut body, rest);
+                }
+            }
+            Some((Block::Plain(inlines), rest)) => {
+                body.push_str(backlink);
+                self.inlines(&mut body, inlines);
+                if !rest.is_empty() {
+                    body.push('\n');
+                    self.blocks(&mut body, rest);
+                }
+            }
+            _ => {
+                let _ = writeln!(body, "<p>{}</p>", backlink.trim_end());
+                self.blocks(&mut body, blocks);
+            }
+        }
+        body
+    }
+
     fn push_footnote_section(&self, out: &mut String) {
         if self.footnotes.is_empty() {
             return;
@@ -929,6 +1113,18 @@ impl State {
                     "\n<div{BREAK}class=\"footnotes footnotes-end-of-document\">\n<hr />\n<ol>\n"
                 );
             }
+            Flavor::Epub3 => {
+                let _ = write!(
+                    out,
+                    "\n<section{BREAK}id=\"footnotes\"{BREAK}class=\"footnotes footnotes-end-of-document\"{BREAK}epub:type=\"footnotes\">\n<hr />\n"
+                );
+            }
+            Flavor::Epub2 => {
+                let _ = write!(
+                    out,
+                    "\n<div{BREAK}class=\"footnotes footnotes-end-of-document\">\n<hr />\n"
+                );
+            }
         }
         for (index, note) in self.footnotes.iter().enumerate() {
             if index > 0 {
@@ -939,6 +1135,8 @@ impl State {
         let close = match self.flavor {
             Flavor::Html5 | Flavor::Slides => "\n</ol>\n</section>",
             Flavor::Html4 => "\n</ol>\n</div>",
+            Flavor::Epub3 => "\n</section>",
+            Flavor::Epub2 => "\n</div>",
         };
         out.push_str(close);
     }
@@ -952,7 +1150,7 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> St
     };
     let source = match flavor {
         Flavor::Slides => "data-src",
-        Flavor::Html5 | Flavor::Html4 => "src",
+        Flavor::Html5 | Flavor::Html4 | Flavor::Epub3 | Flavor::Epub2 => "src",
     };
     format!(
         "<img{BREAK}{source}=\"{}\"{}{}{alt_attr}{BREAK}/>",
@@ -1008,12 +1206,10 @@ fn colgroup(specs: &[ColSpec], flavor: Flavor) -> String {
     let cols: Vec<String> = specs
         .iter()
         .map(|spec| match spec.width {
-            ColWidth::ColWidth(width) => match flavor {
-                Flavor::Html5 | Flavor::Slides => {
-                    format!("<col style=\"width: {}%\" />", width_percent(width))
-                }
-                Flavor::Html4 => format!("<col width=\"{}%\" />", width_percent(width)),
-            },
+            ColWidth::ColWidth(width) if flavor.is_html5_family() => {
+                format!("<col style=\"width: {}%\" />", width_percent(width))
+            }
+            ColWidth::ColWidth(width) => format!("<col width=\"{}%\" />", width_percent(width)),
             ColWidth::ColWidthDefault => "<col />".to_owned(),
         })
         .collect();
@@ -1164,14 +1360,14 @@ fn is_html4_universal_attribute(key: &str) -> bool {
 
 /// Render a table cell's attributes for the HTML4 dialect: id, class, an explicit `align="…"`
 /// attribute for the effective alignment, then the cell's own key/value pairs verbatim.
-fn cell_attr_html4(attr: &Attr, align: &Alignment) -> String {
+fn cell_attr_html4(attr: &Attr, align: &Alignment, flavor: Flavor) -> String {
     let id = render_id(&attr.id);
     let class = render_class(&attr.classes);
     let align_attr = match alignment_word(align) {
         Some(word) => format!("{BREAK}align=\"{word}\""),
         None => String::new(),
     };
-    let keyvals = render_keyvals(&attr.attributes, Flavor::Html4);
+    let keyvals = render_keyvals(&attr.attributes, flavor);
     format!("{id}{class}{align_attr}{keyvals}")
 }
 
@@ -1243,7 +1439,9 @@ fn render_class(classes: &[Text]) -> String {
 }
 
 /// Render an attribute set's key/value pairs. In the html5 dialect a non-standard key is carried
-/// through under a `data-` prefix; in html4 it is emitted by its bare name.
+/// through under a `data-` prefix; in html4 it is emitted by its bare name. The EPUB 2 dialect
+/// targets XHTML 1.1, which admits no such extension attributes, so any key that is not a universal
+/// html4 attribute is dropped rather than carried through.
 fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
     let mut out = String::new();
     for (key, value) in attributes {
@@ -1251,7 +1449,10 @@ fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
             continue;
         }
         let name = match flavor {
-            Flavor::Html5 | Flavor::Slides if !is_known_attribute(key) => format!("data-{key}"),
+            Flavor::Html5 | Flavor::Slides | Flavor::Epub3 if !is_known_attribute(key) => {
+                format!("data-{key}")
+            }
+            Flavor::Epub2 if !is_html4_universal_attribute(key) => continue,
             _ => key.to_string(),
         };
         let _ = write!(out, "{BREAK}{name}=\"{}\"", escape_attr(value));
