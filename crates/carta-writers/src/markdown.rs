@@ -23,14 +23,14 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
     body_rows, cell_inlines, dash_rule, display_width, escape_attr, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell, is_uri,
-    item_separator, label_matches_url, lay_row, measure_pieces, offset_as_i32, ordered_marker,
-    pad_align, pieces_nonempty, quote_marks, render_html_attr, table_form,
+    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell,
+    item_separator, lay_row, measure_pieces, offset_as_i32, ordered_marker, pad_align,
+    pieces_nonempty, quote_marks, render_html_attr, table_form,
 };
 use crate::grid;
 use crate::markdown_common::{
-    attr_is_empty, indent_code, is_autolink_class, is_html_format, longest_backtick_run,
-    needs_separator, offset_horizontal_rule, quote_block,
+    attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
+    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, quote_block,
 };
 
 /// The rendering configuration shared by every entry point and exposed to sibling writers that embed
@@ -2031,45 +2031,6 @@ fn downgrade_smart(text: &str) -> String {
         }
     }
     out
-}
-
-/// An inline code span, delimited by a backtick run one longer than the longest run it contains
-/// (at least one). A single space pads each side exactly when the content holds a backtick, so the
-/// delimiters and the embedded backtick stay distinct; content that merely has leading or trailing
-/// spaces (or is entirely spaces) is wrapped without extra padding.
-fn code_span(text: &str) -> String {
-    let max_run = longest_backtick_run(text);
-    let fence = "`".repeat((max_run + 1).max(1));
-    if max_run > 0 {
-        format!("{fence} {text} {fence}")
-    } else {
-        format!("{fence}{text}{fence}")
-    }
-}
-
-/// The `(url "title")` destination tail of a link or image, with the title omitted when empty.
-fn destination(target: &Target) -> String {
-    if target.title.is_empty() {
-        target.url.to_string()
-    } else {
-        format!("{} \"{}\"", target.url, target.title)
-    }
-}
-
-/// The angle-bracket autolink form when a link's single-`Str` text is the visible form of its URL —
-/// the URL itself or its percent-decoded form, for a genuine URI — or the address of a `mailto:`
-/// URL, else `None`. The angle-bracket form carries the encoded URL, not the decoded text.
-fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
-    let [Inline::Str(text)] = inlines else {
-        return None;
-    };
-    if is_uri(&target.url) && label_matches_url(text, &target.url) {
-        return Some(format!("<{}>", target.url));
-    }
-    if target.url == format!("mailto:{text}") {
-        return Some(format!("<{text}>"));
-    }
-    None
 }
 
 /// Flatten a figure caption's blocks into one inline sequence for the implicit-figure form: each

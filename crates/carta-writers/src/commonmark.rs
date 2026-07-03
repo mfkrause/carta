@@ -15,12 +15,12 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_groups, indent_block,
-    is_loose, is_uri, item_separator, label_matches_url, normalize_image_attr, offset_as_i32,
-    ordered_marker, quote_marks, render_html_attr,
+    is_loose, item_separator, normalize_image_attr, offset_as_i32, ordered_marker, quote_marks,
+    render_html_attr,
 };
 use crate::markdown_common::{
-    attr_is_empty, indent_code, is_autolink_class, is_html_format, longest_backtick_run,
-    needs_separator, offset_horizontal_rule, quote_block,
+    attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
+    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, quote_block,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -576,20 +576,6 @@ fn backtick_fence_len(text: &str) -> usize {
     (longest_backtick_run(text) + 1).max(3)
 }
 
-/// An inline code span, delimited by a backtick run one longer than the longest run it contains
-/// (at least one). A single space pads each side exactly when the content holds a backtick, so the
-/// delimiters and the embedded backtick stay distinct; content that merely has leading or trailing
-/// spaces (or is entirely spaces) is wrapped without extra padding.
-fn code_span(text: &str) -> String {
-    let max_run = longest_backtick_run(text);
-    let fence = "`".repeat((max_run + 1).max(1));
-    if max_run > 0 {
-        format!("{fence} {text} {fence}")
-    } else {
-        format!("{fence}{text}{fence}")
-    }
-}
-
 /// Append a raw-HTML run to the fill pieces. When `breakable`, the spaces separating a tag's
 /// attributes become wrap points so a long tag may fold across lines, while a space inside a quoted
 /// attribute value belongs to the value and stays put. Otherwise the run is one unbreakable piece.
@@ -626,31 +612,6 @@ fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
             out.push(Piece::Text(part.clone()));
         }
     }
-}
-
-/// The `(url "title")` destination tail of a link or image, with the title omitted when empty.
-fn destination(target: &Target) -> String {
-    if target.title.is_empty() {
-        target.url.to_string()
-    } else {
-        format!("{} \"{}\"", target.url, target.title)
-    }
-}
-
-/// The angle-bracket autolink form when a link's single-`Str` text is the visible form of its URL —
-/// the URL itself or its percent-decoded form, for a genuine URI — or the address of a `mailto:`
-/// URL, else `None`. The angle-bracket form carries the encoded URL, not the decoded text.
-fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
-    let [Inline::Str(text)] = inlines else {
-        return None;
-    };
-    if is_uri(&target.url) && label_matches_url(text, &target.url) {
-        return Some(format!("<{}>", target.url));
-    }
-    if target.url == format!("mailto:{text}") {
-        return Some(format!("<{text}>"));
-    }
-    None
 }
 
 /// The plain-text projection of an inline sequence, used for an image's `alt` attribute.
@@ -891,35 +852,10 @@ mod tests {
     }
 
     #[test]
-    fn autolink_for_uri_and_mailto() {
-        let uri = Target {
-            url: "http://example.com".into(),
-            title: String::new().into(),
-        };
-        assert_eq!(
-            autolink(&str_inlines("http://example.com"), &uri),
-            Some("<http://example.com>".to_owned())
-        );
-        let mail = Target {
-            url: "mailto:a@b.com".into(),
-            title: String::new().into(),
-        };
-        assert_eq!(
-            autolink(&str_inlines("a@b.com"), &mail),
-            Some("<a@b.com>".to_owned())
-        );
-        let plain = Target {
-            url: "http://other".into(),
-            title: String::new().into(),
-        };
-        assert_eq!(autolink(&str_inlines("text"), &plain), None);
-    }
-
-    #[test]
     fn uri_and_scheme_recognition() {
-        assert!(is_uri("http://example.com"));
-        assert!(!is_uri("noscheme"));
-        assert!(!is_uri("bogusscheme:rest"));
+        assert!(crate::common::is_uri("http://example.com"));
+        assert!(!crate::common::is_uri("noscheme"));
+        assert!(!crate::common::is_uri("bogusscheme:rest"));
         assert!(crate::common::is_known_scheme("HTTP"));
         assert!(crate::common::is_known_scheme("mailto"));
         assert!(!crate::common::is_known_scheme("nope"));
@@ -1139,26 +1075,6 @@ mod tests {
     }
 
     #[test]
-    fn code_span_pads_only_when_backtick_bearing() {
-        // Backtick-free content is wrapped with no padding, whatever its spacing.
-        assert_eq!(code_span(""), "``");
-        assert_eq!(code_span("plain"), "`plain`");
-        assert_eq!(code_span("   "), "`   `");
-        assert_eq!(code_span(" x "), "` x `");
-        assert_eq!(code_span(" and "), "` and `");
-        assert_eq!(code_span(" x"), "` x`");
-        assert_eq!(code_span("x "), "`x `");
-        // A backtick anywhere forces a single space of padding and a longer fence.
-        assert_eq!(code_span("`x"), "`` `x ``");
-        assert_eq!(code_span("x`"), "`` x` ``");
-        assert_eq!(code_span("`x`"), "`` `x` ``");
-        assert_eq!(code_span("a`b"), "`` a`b ``");
-        assert_eq!(code_span("a``b"), "``` a``b ```");
-        assert_eq!(code_span("`"), "`` ` ``");
-        assert_eq!(longest_backtick_run("a``b`c"), 2);
-    }
-
-    #[test]
     fn fenced_code_block_with_class() {
         let attr = Attr {
             classes: vec!["rust".into()],
@@ -1257,21 +1173,7 @@ mod tests {
     }
 
     #[test]
-    fn destination_and_title_helpers() {
-        assert_eq!(
-            destination(&Target {
-                url: "/p".into(),
-                title: String::new().into()
-            }),
-            "/p"
-        );
-        assert_eq!(
-            destination(&Target {
-                url: "/p".into(),
-                title: "T".into()
-            }),
-            "/p \"T\""
-        );
+    fn title_attr_helper() {
         assert_eq!(title_attr(&carta_ast::Text::default()), "");
         assert_eq!(title_attr(&"T".into()), " title=\"T\"");
     }
