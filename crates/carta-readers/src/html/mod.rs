@@ -1013,6 +1013,21 @@ mod tests {
         assert_eq!(ids, vec![String::new()]);
     }
 
+    #[test]
+    fn repeated_headings_resume_probing_from_the_last_issued_suffix() {
+        let ids = header_ids("<h2>Same</h2><h2>Same</h2><h2>Same</h2><h2>Same</h2>", &[]);
+        assert_eq!(ids, vec!["same", "same-1", "same-2", "same-3"]);
+    }
+
+    #[test]
+    fn repeated_headings_skip_an_id_reserved_by_an_explicit_heading() {
+        let ids = header_ids(
+            "<h2 id=\"same-2\">Explicit</h2><h2>Same</h2><h2>Same</h2><h2>Same</h2>",
+            &[],
+        );
+        assert_eq!(ids, vec!["same-2", "same", "same-1", "same-3"]);
+    }
+
     #[cfg(feature = "opml")]
     #[test]
     fn inline_fragment_parses_markup_and_trims_edges() {
