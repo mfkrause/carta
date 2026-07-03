@@ -201,12 +201,12 @@ mod tests {
         ])];
         let mut links = Vec::new();
         for_each_link_target(&mut blocks, &mut |target| {
-            links.push(target.url.to_string())
+            links.push(target.url.to_string());
         });
         assert_eq!(links, ["l", "n"]);
         let mut images = Vec::new();
         for_each_image_target(&mut blocks, &mut |target| {
-            images.push(target.url.to_string())
+            images.push(target.url.to_string());
         });
         assert_eq!(images, ["i"]);
     }
