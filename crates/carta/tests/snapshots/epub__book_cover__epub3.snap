@@ -100,7 +100,7 @@ application/epub+zip
     <meta name="dtb:depth" content="1" />
     <meta name="dtb:totalPageCount" content="0" />
     <meta name="dtb:maxPageNumber" content="0" />
-    <meta name="cover" content="cover_png" />
+    <meta name="cover" content="file0_png" />
   </head>
   <docTitle>
     <text>The Wonderful Journey</text>
@@ -313,7 +313,7 @@ aside[epub|type~="footnote"] { margin: 0.5em 0; }
 span.header-section-number::after { content: " "; }
 
 === EPUB/media/file0.png ===
-<29 bytes, binary>
+<29 bytes, binary sha1:ae3bc345a4bad96f>
 
 === EPUB/text/cover.xhtml ===
 <?xml version="1.0" encoding="UTF-8"?>

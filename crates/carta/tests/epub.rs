@@ -1,8 +1,10 @@
 //! Layer 1 golden tests for the EPUB container writer. Each fixture is read from Markdown, rendered
 //! to both EPUB dialects, and the archive is unpacked into a readable transcript — an entry listing
 //! followed by every text file's contents — that `insta` freezes. Binary resources are summarized by
-//! size, since their bytes are not reviewable. The output is byte-reproducible: the archive uses a
-//! fixed timestamp and a content-derived identifier, so these snapshots are stable across runs.
+//! size and a short content fingerprint, since their bytes are not reviewable — the fingerprint still
+//! pins the exact payload, so swapping two same-sized binaries is caught. The output is
+//! byte-reproducible: the archive uses a fixed timestamp and a content-derived identifier, so these
+//! snapshots are stable across runs.
 //!
 //! Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
 
@@ -18,6 +20,7 @@ use carta::{
     EpubOptions, MediaBag, Output, ReaderOptions, WriterOptions, read_document, render_document,
 };
 use carta_core::container::zip;
+use carta_core::media::sha1_hex;
 
 /// The directory holding the EPUB Markdown fixtures.
 fn fixtures_dir() -> PathBuf {
@@ -82,7 +85,12 @@ fn describe_archive(bytes: &[u8]) -> String {
                 out.push('\n');
             }
         } else {
-            let _ = writeln!(out, "<{} bytes, binary>", entry.data.len());
+            let fingerprint: String = sha1_hex(&entry.data).chars().take(16).collect();
+            let _ = writeln!(
+                out,
+                "<{} bytes, binary sha1:{fingerprint}>",
+                entry.data.len()
+            );
         }
     }
     out
@@ -249,4 +257,100 @@ fn epub_body_images_snapshot() {
         Output::Text(_) => panic!("an EPUB writer must produce bytes"),
     };
     insta::assert_snapshot!("body_images__epub3", describe_archive(&bytes));
+}
+
+/// An identifier borne by a span inside a table cell in one chapter still anchors a link authored in
+/// another. Identifier collection descends into table cells and link rewriting resolves the fragment
+/// to the file holding the cell, so the cross-chapter reference targets the right chapter document
+/// rather than dangling at an unresolved `#fragment`.
+#[test]
+fn epub_cross_chapter_table_cell_id_snapshot() {
+    let markdown = concat!(
+        "# Overview\n\n",
+        "Jump to the [definition](#term-widget) in the next chapter.\n\n",
+        "# Glossary\n\n",
+        "| Term | Meaning |\n",
+        "| --- | --- |\n",
+        "| [Widget]{#term-widget} | A small component. |\n",
+    );
+    let mut options = WriterOptions::default();
+    options.toc = true;
+    let bytes = epub_bytes(markdown, "epub3", &options);
+    insta::assert_snapshot!(
+        "cross_chapter_table_cell_id__epub3",
+        describe_archive(&bytes)
+    );
+}
+
+/// A control character an author slips into a heading must never reach the container: it would make
+/// the package, navigation and NCX documents ill-formed XML. Every XML-forbidden character is
+/// dropped on the way out, so no archive file carries one while the surrounding text survives.
+#[test]
+fn epub_strips_forbidden_control_characters() {
+    let markdown = "# Clean\u{b}Title\n\nA\u{b}body.\n";
+    let mut options = WriterOptions::default();
+    options.toc = true;
+    for target in ["epub3", "epub2"] {
+        let transcript = describe_archive(&epub_bytes(markdown, target, &options));
+        assert!(
+            !transcript.contains('\u{b}'),
+            "{target}: a forbidden control character reached the archive"
+        );
+        assert!(
+            transcript.contains("CleanTitle"),
+            "{target}: heading text was lost when the control character was dropped"
+        );
+    }
+}
+
+/// An empty document still yields a valid reading order: a publication must carry at least one linear
+/// spine item, so a reading system has a first page to open. Whether or not a table of contents is
+/// requested, not every spine item may be marked non-linear.
+#[test]
+fn epub_empty_document_keeps_a_linear_spine_item() {
+    for target in ["epub3", "epub2"] {
+        for toc in [true, false] {
+            let mut options = WriterOptions::default();
+            options.toc = toc;
+            let bytes = epub_bytes("", target, &options);
+            let entries = zip::read(&bytes).expect("valid epub archive");
+            let package = entries
+                .iter()
+                .find(|entry| entry.name.ends_with("content.opf"))
+                .expect("a package document");
+            let opf = String::from_utf8_lossy(&package.data);
+            let spine = opf
+                .split_once("<spine")
+                .and_then(|(_, rest)| rest.split_once("</spine>"))
+                .map(|(inner, _)| inner)
+                .expect("a spine element");
+            let itemrefs = spine.matches("<itemref").count();
+            let non_linear = spine.matches("linear=\"no\"").count();
+            assert!(itemrefs > 0, "{target}/toc={toc}: the spine is empty");
+            assert!(
+                itemrefs > non_linear,
+                "{target}/toc={toc}: every spine item is non-linear"
+            );
+        }
+    }
+}
+
+/// A font whose file name carries a space is stored under a sanitized path, so neither the archive
+/// entry nor its manifest href holds a character that would need escaping.
+#[test]
+fn epub_sanitizes_a_font_filename_with_spaces() {
+    let markdown = "# One\n\nBody.\n";
+    let mut epub = EpubOptions::default();
+    epub.fonts = vec![(String::from("Source Serif.otf"), b"otf-bytes".to_vec())];
+    let mut options = WriterOptions::default();
+    options.epub = epub;
+    let transcript = describe_archive(&epub_bytes(markdown, "epub3", &options));
+    assert!(
+        transcript.contains("fonts/Source_Serif.otf"),
+        "the font path was not sanitized:\n{transcript}"
+    );
+    assert!(
+        !transcript.contains("Source Serif.otf"),
+        "an unsanitized font path with a space leaked into the archive"
+    );
 }
