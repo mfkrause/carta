@@ -81,13 +81,13 @@ fn build_metadata(
     for (index, identifier) in meta.identifiers.iter().enumerate() {
         push_identifier(&mut block, epub3, index, identifier);
     }
-    if !meta.title_text.is_empty() {
-        block.push(
-            Element::new("dc:title")
-                .attr("id", "epub-title-1")
-                .text(&meta.title_text),
-        );
-    }
+    // A publication must name itself: `dc:title` is required, so an untitled document falls back to a
+    // placeholder rather than omitting the element and yielding an invalid package.
+    block.push(
+        Element::new("dc:title")
+            .attr("id", "epub-title-1")
+            .text(meta.display_title()),
+    );
     let date_id = if epub3 { "epub-date" } else { "epub-date-1" };
     block.push(
         Element::new("dc:date")

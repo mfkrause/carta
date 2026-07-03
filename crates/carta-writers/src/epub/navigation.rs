@@ -3,7 +3,7 @@
 //! tree of section entries collected from the document's section hierarchy.
 
 use super::Version;
-use super::metadata::BookMeta;
+use super::metadata::{BookMeta, UNTITLED};
 use super::pages::{BodyKind, inline_plain, xhtml_page};
 use crate::html::render_epub_inlines;
 use carta_ast::{Attr, Block, Inline, Text};
@@ -153,11 +153,10 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
         let mut href = String::new();
         escape_attribute(&format!("{}#{}", entry.file, entry.id), &mut href);
         let text = render_epub_inlines(&nav_label_inlines(&entry.title), epub3);
-        let anchor = if text.is_empty() {
-            format!("<a href=\"text/{href}\" />")
-        } else {
-            format!("<a href=\"text/{href}\">{text}</a>")
-        };
+        // A navigation anchor must carry text; an untitled section falls back to a placeholder rather
+        // than an empty link the reading system cannot label.
+        let label = if text.is_empty() { UNTITLED } else { &text };
+        let anchor = format!("<a href=\"text/{href}\">{label}</a>");
         let nested = render_list(&entry.children, epub3, counter);
         let _ = write!(out, "<li id=\"toc-li-{index}\">{anchor}{nested}</li>");
     }

@@ -14,7 +14,9 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use carta::{EpubOptions, Output, ReaderOptions, WriterOptions, read_document, render_document};
+use carta::{
+    EpubOptions, MediaBag, Output, ReaderOptions, WriterOptions, read_document, render_document,
+};
 use carta_core::container::zip;
 
 /// The directory holding the EPUB Markdown fixtures.
@@ -98,6 +100,26 @@ fn tiny_png() -> Vec<u8> {
     bytes
 }
 
+/// A minimal GIF header carrying a 10×20 logical screen, enough for the writer to read the stored
+/// image's dimensions. The bytes are kept verbatim.
+fn tiny_gif() -> Vec<u8> {
+    let mut bytes = b"GIF89a".to_vec();
+    bytes.extend_from_slice(&10u16.to_le_bytes());
+    bytes.extend_from_slice(&20u16.to_le_bytes());
+    bytes
+}
+
+/// A minimal JPEG carrying a start-of-frame with a 40×30 frame, enough for the writer to read the
+/// stored image's dimensions. The bytes are kept verbatim.
+fn tiny_jpeg() -> Vec<u8> {
+    vec![
+        0xff, 0xd8, // start of image
+        0xff, 0xc0, 0x00, 0x11, 0x08, // start of frame, precision 8
+        0x00, 0x1e, // height 30
+        0x00, 0x28, // width 40
+    ]
+}
+
 /// Each fixture, rendered to both dialects with a table of contents requested, exercises the shared
 /// pipeline end to end: metadata projection, chapter splitting, both navigation documents, the
 /// package document, and the fixed-order archive assembly.
@@ -125,6 +147,40 @@ fn epub_numbered_sections_snapshot() {
     insta::assert_snapshot!("book_numbered__epub3", describe_archive(&bytes));
 }
 
+/// Headings whose source carries no identifier — as bare `CommonMark` leaves them — must still yield
+/// live navigation targets. The writer derives each section's identifier from its heading text and
+/// disambiguates a repeated one with a numeric suffix; reading through `CommonMark` (which assigns no
+/// identifiers) freezes that derivation and the fallback on the second identical heading.
+#[test]
+fn epub_generated_identifiers_snapshot() {
+    let markdown = concat!(
+        "# Getting Started\n\n",
+        "An opening chapter with two subsections, neither carrying an identifier.\n\n",
+        "## Installation\n\n",
+        "Install steps.\n\n",
+        "## Configuration\n\n",
+        "Configuration steps.\n\n",
+        "# Getting Started\n\n",
+        "A second chapter reusing the first chapter's title.\n",
+    );
+    for dialect in ["epub3", "epub2"] {
+        let (document, media) =
+            read_document("commonmark", markdown.as_bytes(), &ReaderOptions::default())
+                .expect("read commonmark fixture");
+        let mut options = WriterOptions::default();
+        options.toc = true;
+        let bytes = match render_document(dialect, document, media, &options).expect("render epub")
+        {
+            Output::Bytes(bytes) => bytes,
+            Output::Text(_) => panic!("an EPUB writer must produce bytes"),
+        };
+        insta::assert_snapshot!(
+            format!("commonmark_generated_ids__{dialect}"),
+            describe_archive(&bytes)
+        );
+    }
+}
+
 /// A cover image adds a cover page, a `cover-image` manifest entry, a spine slot and reading-order
 /// landmarks; this freezes that whole cover machinery.
 #[test]
@@ -137,4 +193,60 @@ fn epub_with_cover_snapshot() {
     options.epub = epub;
     let bytes = epub_bytes(&markdown, "epub3", &options);
     insta::assert_snapshot!("book_cover__epub3", describe_archive(&bytes));
+}
+
+/// Embedded fonts, a replacement stylesheet, a custom container subdirectory, and a Dublin Core
+/// metadata fragment together exercise the resource and packaging options: the fonts are stored and
+/// manifested, the built-in stylesheet is replaced, every path moves under the chosen directory, and
+/// the fragment overrides the publication identifier and carries an extra element through to the
+/// package.
+#[test]
+fn epub_embedded_resources_snapshot() {
+    let markdown = fs::read_to_string(fixtures_dir().join("book.md")).expect("read book fixture");
+    let mut epub = EpubOptions::default();
+    epub.fonts = vec![
+        (String::from("SourceSerif.otf"), b"otf-font-bytes".to_vec()),
+        (String::from("SourceMono.ttf"), b"ttf-font-bytes".to_vec()),
+    ];
+    epub.stylesheets = vec![String::from("body { color: teal; }\n")];
+    epub.subdirectory = Some(String::from("OEBPS"));
+    epub.metadata_xml = Some(String::from(concat!(
+        "<dc:identifier opf:scheme=\"ISBN-13\">978-3-16-148410-0</dc:identifier>\n",
+        "<dc:source>Original manuscript</dc:source>\n",
+    )));
+    let mut options = WriterOptions::default();
+    options.toc = true;
+    options.epub = epub;
+    let bytes = epub_bytes(&markdown, "epub3", &options);
+    insta::assert_snapshot!("book_embedded_resources__epub3", describe_archive(&bytes));
+}
+
+/// Body images are stored under `media/` and their references rewritten: an embedded GIF and JPEG
+/// are sized from their headers and carried into the container, a remote reference is left as
+/// authored, and an unresolved relative reference is climbed back to the container root. A table
+/// carrying a cross-reference exercises identifier collection and link rewriting through table cells.
+#[test]
+fn epub_body_images_snapshot() {
+    let markdown = concat!(
+        "# Illustrated\n\n",
+        "A diagram: ![Diagram](diagram.gif)\n\n",
+        "A photo: ![Photo](photo.jpg)\n\n",
+        "Remote: ![Remote](https://example.com/remote.png)\n\n",
+        "Missing: ![Missing](assets/missing.png)\n\n",
+        "| Link | Note |\n",
+        "| --- | --- |\n",
+        "| [top](#illustrated) | see above |\n",
+    );
+    let mut media = MediaBag::new();
+    media.insert("diagram.gif", Some(String::from("image/gif")), tiny_gif());
+    media.insert("photo.jpg", Some(String::from("image/jpeg")), tiny_jpeg());
+    let (document, _) = read_document("markdown", markdown.as_bytes(), &ReaderOptions::default())
+        .expect("read markdown fixture");
+    let mut options = WriterOptions::default();
+    options.toc = true;
+    let bytes = match render_document("epub3", document, media, &options).expect("render epub") {
+        Output::Bytes(bytes) => bytes,
+        Output::Text(_) => panic!("an EPUB writer must produce bytes"),
+    };
+    insta::assert_snapshot!("body_images__epub3", describe_archive(&bytes));
 }

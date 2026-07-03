@@ -1,0 +1,244 @@
+---
+source: crates/carta/tests/epub.rs
+expression: describe_archive(&bytes)
+---
+=== entries ===
+mimetype (20 bytes)
+META-INF/container.xml (253 bytes)
+META-INF/com.apple.ibooks.display-options.xml (161 bytes)
+OEBPS/content.opf (3121 bytes)
+OEBPS/toc.ncx (1091 bytes)
+OEBPS/nav.xhtml (1044 bytes)
+OEBPS/text/title_page.xhtml (825 bytes)
+OEBPS/styles/stylesheet1.css (22 bytes)
+OEBPS/text/ch001.xhtml (1351 bytes)
+OEBPS/text/ch002.xhtml (569 bytes)
+OEBPS/fonts/SourceSerif.otf (14 bytes)
+OEBPS/fonts/SourceMono.ttf (14 bytes)
+
+=== mimetype ===
+application/epub+zip
+
+=== META-INF/container.xml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml" />
+  </rootfiles>
+</container>
+
+=== META-INF/com.apple.ibooks.display-options.xml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<display_options>
+  <platform name="*">
+    <option name="specified-fonts">true</option>
+  </platform>
+</display_options>
+
+=== OEBPS/content.opf ===
+<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="en-US" unique-identifier="epub-id-1" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:identifier id="epub-id-1">978-3-16-148410-0</dc:identifier>
+    <meta refines="#epub-id-1" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <dc:title id="epub-title-1">The Wonderful Journey</dc:title>
+    <dc:date id="epub-date">2024-05-01</dc:date>
+    <dc:language>en-US</dc:language>
+    <dc:creator id="epub-creator-1">L. Frank Baum</dc:creator>
+    <meta refines="#epub-creator-1" property="role" scheme="marc:relators">aut</meta>
+    <dc:creator id="epub-creator-2">Ozma of Oz</dc:creator>
+    <meta refines="#epub-creator-2" property="role" scheme="marc:relators">aut</meta>
+    <dc:creator id="epub-creator-3">Jane Editor</dc:creator>
+    <meta refines="#epub-creator-3" property="file-as">Editor, Jane</meta>
+    <meta refines="#epub-creator-3" property="role" scheme="marc:relators">edt</meta>
+    <dc:contributor id="epub-contributor-1">W. W. Denslow</dc:contributor>
+    <dc:subject id="subject-1">Fantasy</dc:subject>
+    <dc:subject id="subject-2">Adventure</dc:subject>
+    <dc:description>A “storybook” example for testing.</dc:description>
+    <dc:publisher>Emerald City Press</dc:publisher>
+    <dc:source>Original manuscript</dc:source>
+    <dc:rights>Public domain</dc:rights>
+    <meta property="dcterms:modified">1970-01-01T00:00:01Z</meta>
+    <meta property="schema:accessMode">textual</meta>
+    <meta property="schema:accessModeSufficient">textual</meta>
+    <meta property="schema:accessibilityFeature">alternativeText</meta>
+    <meta property="schema:accessibilityFeature">readingOrder</meta>
+    <meta property="schema:accessibilityFeature">structuralNavigation</meta>
+    <meta property="schema:accessibilityFeature">tableOfContents</meta>
+    <meta property="schema:accessibilityHazard">none</meta>
+  </metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" />
+    <item id="stylesheet1" href="styles/stylesheet1.css" media-type="text/css" />
+    <item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml" />
+    <item id="ch001_xhtml" href="text/ch001.xhtml" media-type="application/xhtml+xml" />
+    <item id="ch002_xhtml" href="text/ch002.xhtml" media-type="application/xhtml+xml" />
+    <item id="SourceSerif_otf" href="fonts/SourceSerif.otf" media-type="font/otf" />
+    <item id="SourceMono_ttf" href="fonts/SourceMono.ttf" media-type="font/ttf" />
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="title_page_xhtml" linear="yes" />
+    <itemref idref="nav" />
+    <itemref idref="ch001_xhtml" />
+    <itemref idref="ch002_xhtml" />
+  </spine>
+  <guide>
+    <reference type="toc" title="The Wonderful Journey" href="nav.xhtml" />
+  </guide>
+</package>
+
+=== OEBPS/toc.ncx ===
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="978-3-16-148410-0" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>The Wonderful Journey</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text>The Wonderful Journey</text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>Chapter One</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#ch-one" />
+      <navPoint id="navPoint-2">
+        <navLabel>
+          <text>A Subsection</text>
+        </navLabel>
+        <content src="text/ch001.xhtml#sub" />
+      </navPoint>
+    </navPoint>
+    <navPoint id="navPoint-3">
+      <navLabel>
+        <text>Chapter Two</text>
+      </navLabel>
+      <content src="text/ch002.xhtml#ch-two" />
+    </navPoint>
+  </navMap>
+</ncx>
+
+=== OEBPS/nav.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="carta" />
+  <title>The Wonderful Journey</title>
+  <style>
+  </style>
+  <link rel="stylesheet" type="text/css" href="styles/stylesheet1.css" />
+</head>
+<body epub:type="frontmatter">
+<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">The Wonderful Journey</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#ch-one">Chapter One</a><ol class="toc"><li id="toc-li-2"><a href="text/ch001.xhtml#sub">A Subsection</a></li></ol></li><li id="toc-li-3"><a href="text/ch002.xhtml#ch-two">Chapter Two</a></li></ol></nav>
+<nav epub:type="landmarks" id="landmarks" hidden="hidden">
+  <ol>
+    <li>
+      <a href="text/title_page.xhtml" epub:type="titlepage">Title Page</a>
+    </li>
+    <li>
+      <a href="#toc" epub:type="toc">Table of Contents</a>
+    </li>
+  </ol>
+</nav>
+</body>
+</html>
+
+=== OEBPS/text/title_page.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="carta" />
+  <title>The Wonderful Journey</title>
+  <style>
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body epub:type="frontmatter">
+<section epub:type="titlepage" class="titlepage">
+  <h1 class="title">The Wonderful Journey</h1>
+  <p class="subtitle">A Tale in Two Parts</p>
+  <p class="author">L. Frank Baum</p>
+  <p class="author">Ozma of Oz</p>
+  <p class="author">Jane Editor</p>
+  <p class="publisher">Emerald City Press</p>
+  <p class="date">2024-05-01</p>
+  <div class="rights">Public domain</div>
+</section>
+</body>
+</html>
+
+=== OEBPS/styles/stylesheet1.css ===
+body { color: teal; }
+
+=== OEBPS/text/ch001.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="carta" />
+  <title>ch001.xhtml</title>
+  <style>
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body epub:type="bodymatter">
+<section id="ch-one" class="level1">
+<h1>Chapter <a href="https://example.com/one">One</a></h1>
+<p>Once upon a time, in a land far away.<a href="#fn1" class="footnote-ref" id="fnref1" epub:type="noteref" role="doc-noteref">1</a> See also <a href="ch002.xhtml#ch-two">the second chapter</a> for how it ends.</p>
+<section id="sub" class="level2">
+<h2>A Subsection<a href="#fn2" class="footnote-ref" id="fnref2" epub:type="noteref" role="doc-noteref">2</a></h2>
+<p>Some <em>emphasis</em>, <code>inline code</code>, and a “quoted phrase”.</p>
+</section>
+</section>
+<section id="footnotes" class="footnotes footnotes-end-of-document" epub:type="footnotes">
+<hr />
+<aside epub:type="footnote" role="doc-footnote" id="fn1">
+<p>A footnote the navigation label must drop.</p>
+</aside>
+<aside epub:type="footnote" role="doc-footnote" id="fn2">
+<p>A footnote in a heading the navigation label must drop.</p>
+</aside>
+</section>
+</body>
+</html>
+
+=== OEBPS/text/ch002.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="carta" />
+  <title>ch002.xhtml</title>
+  <style>
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body epub:type="bodymatter">
+<section id="ch-two" class="level1">
+<h1>Chapter Two</h1>
+<p>The end. Back to <a href="ch001.xhtml#ch-one">Chapter One</a>.</p>
+</section>
+</body>
+</html>
+
+=== OEBPS/fonts/SourceSerif.otf ===
+<14 bytes, binary>
+
+=== OEBPS/fonts/SourceMono.ttf ===
+<14 bytes, binary>

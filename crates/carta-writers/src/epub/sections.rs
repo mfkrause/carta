@@ -6,6 +6,7 @@
 //! chapter.
 
 use carta_ast::{Attr, Block, Inline, Text, slug, to_plain_text};
+use std::collections::BTreeSet;
 
 /// The `section` marker class an EPUB section wrapper carries; the HTML writer keys its
 /// `<section>` rendering off it.
@@ -24,21 +25,24 @@ pub(crate) fn make_sections(blocks: &[Block], title: &[Inline]) -> Vec<Block> {
         .unwrap_or(blocks.len());
     let (preamble, rest) = blocks.split_at(boundary);
     let mut out = Vec::new();
+    // Track the identifiers assigned so far, so a section whose heading carries none is given a
+    // unique one rather than an empty string that no navigation link could target.
+    let mut seen = BTreeSet::new();
     if !preamble.is_empty() {
-        out.push(synthetic_section(title, preamble));
+        out.push(synthetic_section(title, preamble, &mut seen));
     }
-    out.extend(build_sections(rest));
+    out.extend(build_sections(rest, &mut seen));
     // A document with a title but no body still yields one chapter: an unnumbered leading section
     // holding just the title, so the book has a first page rather than none.
     if out.is_empty() && !title.is_empty() {
-        out.push(synthetic_section(title, &[]));
+        out.push(synthetic_section(title, &[], &mut seen));
     }
     out
 }
 
 /// Group a header-led block sequence into nested section `Div`s. A block that is not a header (the
 /// content directly under a section, before any sub-heading) is carried through unchanged.
-fn build_sections(blocks: &[Block]) -> Vec<Block> {
+fn build_sections(blocks: &[Block], seen: &mut BTreeSet<String>) -> Vec<Block> {
     let mut out = Vec::new();
     let mut remaining = blocks;
     while let Some((first, rest)) = remaining.split_first() {
@@ -48,7 +52,11 @@ fn build_sections(blocks: &[Block]) -> Vec<Block> {
                 .position(|block| matches!(block, Block::Header(inner, ..) if *inner <= *level))
                 .unwrap_or(rest.len());
             let (body, tail) = rest.split_at(end);
-            out.push(section_div(*level, attr, inlines, build_sections(body)));
+            // Resolve this section's identifier before its descendants', so a derived slug is made
+            // unique in document order.
+            let id = section_id(attr, inlines, seen);
+            let inner = build_sections(body, seen);
+            out.push(section_div(*level, attr, inlines, id, inner));
             remaining = tail;
         } else {
             out.push(first.clone());
@@ -58,15 +66,15 @@ fn build_sections(blocks: &[Block]) -> Vec<Block> {
     out
 }
 
-/// Build one section `Div` from a heading and its already-sectioned body.
-fn section_div(level: i32, attr: &Attr, inlines: &[Inline], body: Vec<Block>) -> Block {
+/// Build one section `Div` from a heading, its resolved identifier, and its already-sectioned body.
+fn section_div(level: i32, attr: &Attr, inlines: &[Inline], id: Text, body: Vec<Block>) -> Block {
     let mut classes = vec![
         Text::from(SECTION_CLASS),
         Text::from(format!("level{level}")),
     ];
     classes.extend(attr.classes.iter().cloned());
     let section_attr = Attr {
-        id: attr.id.clone(),
+        id,
         classes,
         attributes: attr.attributes.clone(),
     };
@@ -85,16 +93,50 @@ fn section_div(level: i32, attr: &Attr, inlines: &[Inline], body: Vec<Block>) ->
     Block::Div(Box::new(section_attr), children)
 }
 
+/// The identifier a section wrapper carries. A heading's own identifier is kept verbatim; a heading
+/// without one is given a slug derived from its text (falling back to `section` when that is empty),
+/// made unique against the identifiers already assigned so every navigation link has a live target.
+fn section_id(attr: &Attr, inlines: &[Inline], seen: &mut BTreeSet<String>) -> Text {
+    if !attr.id.is_empty() {
+        seen.insert(attr.id.to_string());
+        return attr.id.clone();
+    }
+    let derived = slug(&to_plain_text(inlines));
+    let base = if derived.is_empty() {
+        String::from("section")
+    } else {
+        derived
+    };
+    Text::from(unique_id(base, seen))
+}
+
+/// Return `base` if it is unused, otherwise `base-1`, `base-2`, … until one is free, recording the
+/// chosen identifier so later calls avoid it.
+fn unique_id(base: String, seen: &mut BTreeSet<String>) -> String {
+    if seen.insert(base.clone()) {
+        return base;
+    }
+    let mut suffix = 1u32;
+    loop {
+        let candidate = format!("{base}-{suffix}");
+        if seen.insert(candidate.clone()) {
+            return candidate;
+        }
+        suffix += 1;
+    }
+}
+
 /// The leading section that carries content appearing before the document's first heading. It is an
 /// `unnumbered` level-one section headed by the document title; with no title the heading is empty
 /// and the identifier falls back to `section`.
-fn synthetic_section(title: &[Inline], preamble: &[Block]) -> Block {
+fn synthetic_section(title: &[Inline], preamble: &[Block], seen: &mut BTreeSet<String>) -> Block {
     let derived = slug(&to_plain_text(title));
-    let id = if derived.is_empty() {
-        Text::from("section")
+    let base = if derived.is_empty() {
+        String::from("section")
     } else {
-        Text::from(derived)
+        derived
     };
+    let id = Text::from(unique_id(base, seen));
     let section_attr = Attr {
         id,
         classes: vec![
@@ -169,4 +211,83 @@ fn push_chapter(block: Block, split_level: i32, chapters: &mut Vec<Vec<Block>>) 
         return;
     }
     chapters.push(vec![block]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{make_sections, section_id, unique_id};
+    use carta_ast::{Attr, Block, Inline, Text};
+    use std::collections::BTreeSet;
+
+    fn heading(text: &str) -> Vec<Inline> {
+        vec![Inline::Str(Text::from(text))]
+    }
+
+    fn header(level: i32, id: &str, text: &str) -> Block {
+        Block::Header(
+            level,
+            Box::new(Attr {
+                id: Text::from(id),
+                ..Attr::default()
+            }),
+            heading(text),
+        )
+    }
+
+    /// The identifiers of the top-level section wrappers, in document order.
+    fn section_ids(blocks: &[Block]) -> Vec<String> {
+        blocks
+            .iter()
+            .filter_map(|block| match block {
+                Block::Div(attr, _) => Some(attr.id.to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn unique_id_suffixes_repeated_bases() {
+        let mut seen = BTreeSet::new();
+        assert_eq!(unique_id(String::from("intro"), &mut seen), "intro");
+        assert_eq!(unique_id(String::from("intro"), &mut seen), "intro-1");
+        assert_eq!(unique_id(String::from("intro"), &mut seen), "intro-2");
+        assert_eq!(unique_id(String::from("outro"), &mut seen), "outro");
+    }
+
+    #[test]
+    fn section_id_prefers_explicit_then_derives() {
+        let mut seen = BTreeSet::new();
+        let explicit = Attr {
+            id: Text::from("kept"),
+            ..Attr::default()
+        };
+        assert_eq!(
+            section_id(&explicit, &heading("Any Title"), &mut seen),
+            "kept"
+        );
+        let bare = Attr::default();
+        assert_eq!(
+            section_id(&bare, &heading("Getting Started"), &mut seen),
+            "getting-started"
+        );
+        assert_eq!(
+            section_id(&bare, &heading("Getting Started"), &mut seen),
+            "getting-started-1"
+        );
+        // A heading whose text yields no slug falls back to the generic identifier.
+        assert_eq!(section_id(&bare, &heading("!!!"), &mut seen), "section");
+    }
+
+    #[test]
+    fn make_sections_generates_and_disambiguates_ids() {
+        let blocks = vec![
+            header(1, "", "One"),
+            header(1, "", "One"),
+            header(1, "kept", "Three"),
+        ];
+        assert_eq!(
+            section_ids(&make_sections(&blocks, &[])),
+            ["one", "one-1", "kept"]
+        );
+    }
 }

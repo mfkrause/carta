@@ -242,13 +242,13 @@ pub(crate) fn render_epub_chapter(
     options: &WriterOptions,
 ) -> String {
     let flavor = if epub3 { Flavor::Epub3 } else { Flavor::Epub2 };
-    render_with_flavor(
+    strip_xml_invalid(render_with_flavor(
         blocks,
         flavor,
         WrapMode::None,
         fill_width(options),
         math_output(options),
-    )
+    ))
 }
 
 /// Render an inline sequence to a single line of EPUB XHTML, for a table-of-contents entry or a
@@ -264,7 +264,31 @@ pub(crate) fn render_epub_inlines(inlines: &[Inline], epub3: bool) -> String {
     };
     let mut out = String::new();
     state.inlines(&mut out, inlines);
-    out.replace([BREAK, SOFT], " ")
+    strip_xml_invalid(out.replace([BREAK, SOFT], " "))
+}
+
+/// Whether `ch` is permitted in XML 1.0 character data. Tab, newline and carriage return are the only
+/// C0 controls allowed; the rest — and the two `U+FFFE`/`U+FFFF` noncharacters — cannot appear in a
+/// conforming XML document even as a numeric character reference.
+#[cfg(feature = "epub")]
+fn is_xml_char(ch: char) -> bool {
+    matches!(ch, '\t' | '\n' | '\r')
+        || ('\u{20}'..='\u{d7ff}').contains(&ch)
+        || ('\u{e000}'..='\u{fffd}').contains(&ch)
+        || ch >= '\u{10000}'
+}
+
+/// Drop characters XML forbids from an EPUB page's text. An EPUB chapter is XML, so a stray control
+/// character in the source — which no escaping can represent — is removed rather than emitted into a
+/// document no reading system can parse. Most text is already clean, so the input is returned intact
+/// unless it actually carries a forbidden character.
+#[cfg(feature = "epub")]
+fn strip_xml_invalid(text: String) -> String {
+    if text.chars().all(is_xml_char) {
+        text
+    } else {
+        text.chars().filter(|&ch| is_xml_char(ch)).collect()
+    }
 }
 
 fn render_with_flavor(
@@ -1679,4 +1703,35 @@ fn fill_math(text: &str) -> String {
         .chars()
         .map(|ch| if ch == ' ' { BREAK } else { ch })
         .collect()
+}
+
+#[cfg(all(test, feature = "epub"))]
+mod tests {
+    use super::{is_xml_char, strip_xml_invalid};
+
+    #[test]
+    fn strips_forbidden_c0_controls_and_keeps_whitespace() {
+        // NUL, start-of-heading, bell and unit-separator are forbidden in XML and are dropped; tab,
+        // newline and carriage return are the permitted controls and survive.
+        let input = String::from("a\u{0}b\u{1}\u{7}c\u{1f}\td\r\ne");
+        assert_eq!(strip_xml_invalid(input), "abc\td\r\ne");
+    }
+
+    #[test]
+    fn returns_clean_text_unchanged() {
+        let input = String::from("plain text with unicode \u{2603} and a sum \u{2211}");
+        assert_eq!(strip_xml_invalid(input.clone()), input);
+    }
+
+    #[test]
+    fn classifies_boundary_code_points() {
+        for forbidden in [
+            '\u{0}', '\u{8}', '\u{b}', '\u{c}', '\u{1f}', '\u{fffe}', '\u{ffff}',
+        ] {
+            assert!(!is_xml_char(forbidden), "{forbidden:?} must be rejected");
+        }
+        for allowed in ['\t', '\n', '\r', ' ', 'a', '\u{fffd}', '\u{10000}'] {
+            assert!(is_xml_char(allowed), "{allowed:?} must be accepted");
+        }
+    }
 }

@@ -6,10 +6,10 @@ expression: describe_archive(&bytes)
 mimetype (20 bytes)
 META-INF/container.xml (252 bytes)
 META-INF/com.apple.ibooks.display-options.xml (161 bytes)
-EPUB/content.opf (1250 bytes)
+EPUB/content.opf (1302 bytes)
 EPUB/toc.ncx (928 bytes)
 EPUB/nav.xhtml (798 bytes)
-EPUB/text/title_page.xhtml (567 bytes)
+EPUB/text/title_page.xhtml (597 bytes)
 EPUB/styles/stylesheet1.css (3090 bytes)
 EPUB/text/ch001.xhtml (857 bytes)
 EPUB/text/ch002.xhtml (730 bytes)
@@ -38,6 +38,7 @@ application/epub+zip
 <package version="2.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="epub-id-1">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
     <dc:identifier id="epub-id-1">urn:uuid:cbc22564-bde7-61ac-bb49-29ca11bc1192</dc:identifier>
+    <dc:title id="epub-title-1">UNTITLED</dc:title>
     <dc:date id="epub-date-1">1970-01-01T00:00:01Z</dc:date>
     <dc:language>en-US</dc:language>
   </metadata>
@@ -126,6 +127,7 @@ application/epub+zip
   <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
 </head>
 <body>
+<div class="titlepage"></div>
 </body>
 </html>
 

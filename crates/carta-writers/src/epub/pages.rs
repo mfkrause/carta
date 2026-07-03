@@ -157,6 +157,10 @@ pub(crate) fn title_page(
             let _ = writeln!(inner, "{line}");
         }
         format!("<section epub:type=\"titlepage\" class=\"titlepage\">\n{inner}</section>")
+    } else if fields.is_empty() {
+        // XHTML 1.1 requires the body to hold at least one block element, so an untitled work whose
+        // title block is empty falls back to an empty container rather than a bare, invalid body.
+        String::from("<div class=\"titlepage\"></div>")
     } else {
         fields.join("\n")
     };

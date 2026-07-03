@@ -6,13 +6,12 @@ expression: describe_archive(&bytes)
 mimetype (20 bytes)
 META-INF/container.xml (252 bytes)
 META-INF/com.apple.ibooks.display-options.xml (161 bytes)
-EPUB/content.opf (1958 bytes)
-EPUB/toc.ncx (928 bytes)
-EPUB/nav.xhtml (943 bytes)
+EPUB/content.opf (1833 bytes)
+EPUB/toc.ncx (739 bytes)
+EPUB/nav.xhtml (853 bytes)
 EPUB/text/title_page.xhtml (489 bytes)
 EPUB/styles/stylesheet1.css (3090 bytes)
-EPUB/text/ch001.xhtml (717 bytes)
-EPUB/text/ch002.xhtml (590 bytes)
+EPUB/text/ch001.xhtml (882 bytes)
 
 === mimetype ===
 application/epub+zip
@@ -37,7 +36,7 @@ application/epub+zip
 <?xml version="1.0" encoding="UTF-8"?>
 <package version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="en-US" unique-identifier="epub-id-1" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
-    <dc:identifier id="epub-id-1">urn:uuid:8af1db6e-ea1a-983f-aeb6-3f33e337c7b6</dc:identifier>
+    <dc:identifier id="epub-id-1">urn:uuid:a9a43d5e-816e-ce70-c6ca-85f5a92cce46</dc:identifier>
     <dc:title id="epub-title-1">UNTITLED</dc:title>
     <dc:date id="epub-date">1970-01-01T00:00:01Z</dc:date>
     <dc:language>en-US</dc:language>
@@ -56,13 +55,11 @@ application/epub+zip
     <item id="stylesheet1" href="styles/stylesheet1.css" media-type="text/css" />
     <item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml" />
     <item id="ch001_xhtml" href="text/ch001.xhtml" media-type="application/xhtml+xml" />
-    <item id="ch002_xhtml" href="text/ch002.xhtml" media-type="application/xhtml+xml" />
   </manifest>
   <spine toc="ncx">
     <itemref idref="title_page_xhtml" linear="no" />
     <itemref idref="nav" />
     <itemref idref="ch001_xhtml" />
-    <itemref idref="ch002_xhtml" />
   </spine>
   <guide>
     <reference type="toc" title="UNTITLED" href="nav.xhtml" />
@@ -73,7 +70,7 @@ application/epub+zip
 <?xml version="1.0" encoding="UTF-8"?>
 <ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
   <head>
-    <meta name="dtb:uid" content="urn:uuid:8af1db6e-ea1a-983f-aeb6-3f33e337c7b6" />
+    <meta name="dtb:uid" content="urn:uuid:a9a43d5e-816e-ce70-c6ca-85f5a92cce46" />
     <meta name="dtb:depth" content="1" />
     <meta name="dtb:totalPageCount" content="0" />
     <meta name="dtb:maxPageNumber" content="0" />
@@ -90,15 +87,9 @@ application/epub+zip
     </navPoint>
     <navPoint id="navPoint-1">
       <navLabel>
-        <text>Getting Started</text>
+        <text></text>
       </navLabel>
-      <content src="text/ch001.xhtml#getting-started" />
-    </navPoint>
-    <navPoint id="navPoint-2">
-      <navLabel>
-        <text>Next Steps</text>
-      </navLabel>
-      <content src="text/ch002.xhtml#next-steps" />
+      <content src="text/ch001.xhtml#section" />
     </navPoint>
   </navMap>
 </ncx>
@@ -116,7 +107,7 @@ application/epub+zip
   <link rel="stylesheet" type="text/css" href="styles/stylesheet1.css" />
 </head>
 <body epub:type="frontmatter">
-<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">UNTITLED</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#getting-started">Getting Started</a></li><li id="toc-li-2"><a href="text/ch002.xhtml#next-steps">Next Steps</a></li></ol></nav>
+<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">UNTITLED</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#section">UNTITLED</a></li></ol></nav>
 <nav epub:type="landmarks" id="landmarks" hidden="hidden">
   <ol>
     <li>
@@ -284,33 +275,14 @@ span.header-section-number::after { content: " "; }
   <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
 </head>
 <body epub:type="bodymatter">
-<section id="getting-started" class="level1">
-<h1>Getting Started</h1>
-<p>A short document carrying no metadata at all: its publication identifier is derived from the content, and its title falls back to a placeholder.</p>
+<section id="section" class="level1 unnumbered">
+<h1 class="unnumbered"></h1>
+<p>A document with neither a title nor any heading. It becomes a single untitled section, so the package title and the one navigation entry both fall back to a placeholder rather than staying empty.</p>
 <ul>
-<li>A bullet</li>
-<li>Another bullet</li>
+<li>still has structure</li>
+<li>across a couple of list items</li>
 </ul>
-</section>
-</body>
-</html>
-
-=== EPUB/text/ch002.xhtml ===
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
-<head>
-  <meta charset="utf-8" />
-  <meta name="generator" content="carta" />
-  <title>ch002.xhtml</title>
-  <style>
-  </style>
-  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
-</head>
-<body epub:type="bodymatter">
-<section id="next-steps" class="level1">
-<h1>Next Steps</h1>
-<p>More prose, with a <code>code span</code> and some <strong>strong</strong> text.</p>
+<p>A closing paragraph with some <em>emphasis</em> to round out the content.</p>
 </section>
 </body>
 </html>

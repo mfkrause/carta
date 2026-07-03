@@ -6,13 +6,13 @@ expression: describe_archive(&bytes)
 mimetype (20 bytes)
 META-INF/container.xml (252 bytes)
 META-INF/com.apple.ibooks.display-options.xml (161 bytes)
-EPUB/content.opf (1958 bytes)
-EPUB/toc.ncx (928 bytes)
-EPUB/nav.xhtml (943 bytes)
-EPUB/text/title_page.xhtml (489 bytes)
+EPUB/content.opf (1979 bytes)
+EPUB/toc.ncx (1340 bytes)
+EPUB/nav.xhtml (1156 bytes)
+EPUB/text/title_page.xhtml (543 bytes)
 EPUB/styles/stylesheet1.css (3090 bytes)
-EPUB/text/ch001.xhtml (717 bytes)
-EPUB/text/ch002.xhtml (590 bytes)
+EPUB/text/ch001.xhtml (892 bytes)
+EPUB/text/ch002.xhtml (664 bytes)
 
 === mimetype ===
 application/epub+zip
@@ -35,12 +35,12 @@ application/epub+zip
 
 === EPUB/content.opf ===
 <?xml version="1.0" encoding="UTF-8"?>
-<package version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="en-US" unique-identifier="epub-id-1" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="en" unique-identifier="epub-id-1" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
-    <dc:identifier id="epub-id-1">urn:uuid:8af1db6e-ea1a-983f-aeb6-3f33e337c7b6</dc:identifier>
-    <dc:title id="epub-title-1">UNTITLED</dc:title>
+    <dc:identifier id="epub-id-1">urn:uuid:99da6226-ac9a-c77d-52e7-da254e3b5436</dc:identifier>
+    <dc:title id="epub-title-1">Generated Identifiers</dc:title>
     <dc:date id="epub-date">1970-01-01T00:00:01Z</dc:date>
-    <dc:language>en-US</dc:language>
+    <dc:language>en</dc:language>
     <meta property="dcterms:modified">1970-01-01T00:00:01Z</meta>
     <meta property="schema:accessMode">textual</meta>
     <meta property="schema:accessModeSufficient">textual</meta>
@@ -59,13 +59,13 @@ application/epub+zip
     <item id="ch002_xhtml" href="text/ch002.xhtml" media-type="application/xhtml+xml" />
   </manifest>
   <spine toc="ncx">
-    <itemref idref="title_page_xhtml" linear="no" />
+    <itemref idref="title_page_xhtml" linear="yes" />
     <itemref idref="nav" />
     <itemref idref="ch001_xhtml" />
     <itemref idref="ch002_xhtml" />
   </spine>
   <guide>
-    <reference type="toc" title="UNTITLED" href="nav.xhtml" />
+    <reference type="toc" title="Generated Identifiers" href="nav.xhtml" />
   </guide>
 </package>
 
@@ -73,18 +73,18 @@ application/epub+zip
 <?xml version="1.0" encoding="UTF-8"?>
 <ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
   <head>
-    <meta name="dtb:uid" content="urn:uuid:8af1db6e-ea1a-983f-aeb6-3f33e337c7b6" />
+    <meta name="dtb:uid" content="urn:uuid:99da6226-ac9a-c77d-52e7-da254e3b5436" />
     <meta name="dtb:depth" content="1" />
     <meta name="dtb:totalPageCount" content="0" />
     <meta name="dtb:maxPageNumber" content="0" />
   </head>
   <docTitle>
-    <text>UNTITLED</text>
+    <text>Generated Identifiers</text>
   </docTitle>
   <navMap>
     <navPoint id="navPoint-0">
       <navLabel>
-        <text></text>
+        <text>Generated Identifiers</text>
       </navLabel>
       <content src="text/title_page.xhtml" />
     </navPoint>
@@ -93,12 +93,24 @@ application/epub+zip
         <text>Getting Started</text>
       </navLabel>
       <content src="text/ch001.xhtml#getting-started" />
+      <navPoint id="navPoint-2">
+        <navLabel>
+          <text>Installation</text>
+        </navLabel>
+        <content src="text/ch001.xhtml#installation" />
+      </navPoint>
+      <navPoint id="navPoint-3">
+        <navLabel>
+          <text>Configuration</text>
+        </navLabel>
+        <content src="text/ch001.xhtml#configuration" />
+      </navPoint>
     </navPoint>
-    <navPoint id="navPoint-2">
+    <navPoint id="navPoint-4">
       <navLabel>
-        <text>Next Steps</text>
+        <text>Getting Started</text>
       </navLabel>
-      <content src="text/ch002.xhtml#next-steps" />
+      <content src="text/ch002.xhtml#getting-started-1" />
     </navPoint>
   </navMap>
 </ncx>
@@ -106,17 +118,17 @@ application/epub+zip
 === EPUB/nav.xhtml ===
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="generator" content="carta" />
-  <title>UNTITLED</title>
+  <title>Generated Identifiers</title>
   <style>
   </style>
   <link rel="stylesheet" type="text/css" href="styles/stylesheet1.css" />
 </head>
 <body epub:type="frontmatter">
-<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">UNTITLED</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#getting-started">Getting Started</a></li><li id="toc-li-2"><a href="text/ch002.xhtml#next-steps">Next Steps</a></li></ol></nav>
+<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">Generated Identifiers</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#getting-started">Getting Started</a><ol class="toc"><li id="toc-li-2"><a href="text/ch001.xhtml#installation">Installation</a></li><li id="toc-li-3"><a href="text/ch001.xhtml#configuration">Configuration</a></li></ol></li><li id="toc-li-4"><a href="text/ch002.xhtml#getting-started-1">Getting Started</a></li></ol></nav>
 <nav epub:type="landmarks" id="landmarks" hidden="hidden">
   <ol>
     <li>
@@ -133,17 +145,18 @@ application/epub+zip
 === EPUB/text/title_page.xhtml ===
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="generator" content="carta" />
-  <title>UNTITLED</title>
+  <title>Generated Identifiers</title>
   <style>
   </style>
   <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
 </head>
 <body epub:type="frontmatter">
 <section epub:type="titlepage" class="titlepage">
+  <h1 class="title">Generated Identifiers</h1>
 </section>
 </body>
 </html>
@@ -274,7 +287,7 @@ span.header-section-number::after { content: " "; }
 === EPUB/text/ch001.xhtml ===
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="generator" content="carta" />
@@ -286,11 +299,15 @@ span.header-section-number::after { content: " "; }
 <body epub:type="bodymatter">
 <section id="getting-started" class="level1">
 <h1>Getting Started</h1>
-<p>A short document carrying no metadata at all: its publication identifier is derived from the content, and its title falls back to a placeholder.</p>
-<ul>
-<li>A bullet</li>
-<li>Another bullet</li>
-</ul>
+<p>An opening chapter with two subsections, none of which sets an explicit identifier, so each section identifier is generated from the heading text.</p>
+<section id="installation" class="level2">
+<h2>Installation</h2>
+<p>The install steps live here.</p>
+</section>
+<section id="configuration" class="level2">
+<h2>Configuration</h2>
+<p>The configuration steps live here.</p>
+</section>
 </section>
 </body>
 </html>
@@ -298,7 +315,7 @@ span.header-section-number::after { content: " "; }
 === EPUB/text/ch002.xhtml ===
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="generator" content="carta" />
@@ -308,9 +325,9 @@ span.header-section-number::after { content: " "; }
   <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
 </head>
 <body epub:type="bodymatter">
-<section id="next-steps" class="level1">
-<h1>Next Steps</h1>
-<p>More prose, with a <code>code span</code> and some <strong>strong</strong> text.</p>
+<section id="getting-started-1" class="level1">
+<h1>Getting Started</h1>
+<p>A second chapter that reuses the first chapter’s title, so its generated identifier is disambiguated from the first rather than colliding with it.</p>
 </section>
 </body>
 </html>
