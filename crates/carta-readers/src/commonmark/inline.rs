@@ -4670,6 +4670,27 @@ mod inline_tests {
         assert_eq!(p("`a ``b``"), vec![str("`a"), Inline::Space, code("b")]);
     }
 
+    #[test]
+    fn code_span_repeated_failures_of_one_length_skip_the_rescan() {
+        // An escape consumes the backslash plus the first backtick of a raw run, so the opener
+        // that follows is the run's suffix — its length (2 here) need not equal any raw run's
+        // length. The first length-2 opener's close search fails to end-of-input (every raw run
+        // is length 3) and is remembered; the second length-2 opener skips the rescan and emits
+        // its backticks literally, identical to what the full scan would produce.
+        assert_eq!(
+            p("\\``` x \\``` x"),
+            vec![
+                str("```"),
+                Inline::Space,
+                str("x"),
+                Inline::Space,
+                str("```"),
+                Inline::Space,
+                str("x"),
+            ]
+        );
+    }
+
     // --- Inline raw TeX and backslash math ---
 
     fn tex(source: &str) -> Inline {
