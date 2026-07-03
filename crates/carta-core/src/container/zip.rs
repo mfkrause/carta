@@ -198,6 +198,8 @@ pub fn read(archive: &[u8]) -> Result<Vec<ZipEntry>> {
         let method = u16_at(archive, pos + 10)?;
         let compressed_size =
             usize::try_from(u32_at(archive, pos + 20)?).map_err(|_| corrupt("size too large"))?;
+        let uncompressed_size =
+            usize::try_from(u32_at(archive, pos + 24)?).map_err(|_| corrupt("size too large"))?;
         let name_len = usize::from(u16_at(archive, pos + 28)?);
         let extra_len = usize::from(u16_at(archive, pos + 30)?);
         let comment_len = usize::from(u16_at(archive, pos + 32)?);
@@ -223,8 +225,18 @@ pub fn read(archive: &[u8]) -> Result<Vec<ZipEntry>> {
 
         let data = match method {
             METHOD_STORE => raw.to_vec(),
-            METHOD_DEFLATE => miniz_oxide::inflate::decompress_to_vec(raw)
-                .map_err(|_| corrupt("DEFLATE decode failed"))?,
+            // Decompress no further than the central directory's declared uncompressed size, so a
+            // crafted entry whose tiny payload would otherwise inflate without bound cannot exhaust
+            // memory; a result that disagrees with the declared size marks a corrupt archive.
+            METHOD_DEFLATE => {
+                let out =
+                    miniz_oxide::inflate::decompress_to_vec_with_limit(raw, uncompressed_size)
+                        .map_err(|_| corrupt("DEFLATE decode failed"))?;
+                if out.len() != uncompressed_size {
+                    return Err(corrupt("DEFLATE size disagrees with declared size"));
+                }
+                out
+            }
             other => return Err(corrupt(&format!("unsupported compression method {other}"))),
         };
         entries.push(ZipEntry { name, data });
@@ -380,5 +392,23 @@ mod tests {
     fn read_rejects_truncated_archive() {
         assert!(read(b"not a zip").is_err());
         assert!(read(b"").is_err());
+    }
+
+    #[test]
+    fn read_rejects_deflate_exceeding_declared_size() {
+        // A deflated entry whose central-directory record understates the uncompressed size is
+        // rejected rather than inflated past that bound — the guard against a decompression bomb
+        // that would otherwise expand a tiny payload into an unbounded allocation.
+        let mut archive = ZipArchive::new();
+        archive
+            .deflate("big", b"AAAAAAAAAAAAAAAA".repeat(64).as_slice())
+            .expect("deflate");
+        let mut bytes = archive.finish().expect("finish");
+        let central = bytes
+            .windows(4)
+            .position(|window| window == [0x50, 0x4b, 0x01, 0x02])
+            .expect("central-directory header");
+        bytes[central + 24..central + 28].copy_from_slice(&4u32.to_le_bytes());
+        assert!(read(&bytes).is_err());
     }
 }
