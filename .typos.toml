@@ -34,6 +34,9 @@ extend-ignore-identifiers-re = ['^[0-9a-f]{7,40}$']
 [default.extend-words]
 # Document-format vocabulary that is not a typo
 fb2 = "fb2"
+# EPUB's Open Packaging Format: the `opf` XML namespace prefix carries the package metadata
+# attributes (opf:role, opf:file-as) an EPUB 2 Dublin Core record uses.
+opf = "opf"
 # amsmath environment for a single multi-line equation; spelled without the second "i".
 multline = "multline"
 # LaTeX enumerate counter names emitted by the LaTeX writer (\alph, \Alph).

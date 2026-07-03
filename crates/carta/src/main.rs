@@ -13,8 +13,8 @@ use std::process::ExitCode;
 
 use carta::ast::{Block, MetaValue};
 use carta::{
-    Error, MathMethod, MediaBag, Output, ReaderOptions, Result, WrapMode, WriterOptions, media,
-    read_document, render_document,
+    EpubOptions, Error, MathMethod, MediaBag, Output, ReaderOptions, Result, WrapMode,
+    WriterOptions, media, read_document, render_document, walk,
 };
 use clap::{ArgAction, Parser};
 
@@ -93,6 +93,32 @@ struct Cli {
     /// sit below the document's own metadata.
     #[arg(long = "metadata-file", value_name = "FILE")]
     metadata_file: Vec<PathBuf>,
+    /// Style an EPUB with this stylesheet, embedded in the book and linked from every page in place
+    /// of the built-in one. Repeatable; several sheets are linked in order.
+    #[arg(
+        short = 'c',
+        long = "css",
+        visible_alias = "stylesheet",
+        value_name = "FILE"
+    )]
+    css: Vec<PathBuf>,
+    /// Use this image as an EPUB's cover, generating a dedicated cover page.
+    #[arg(long = "epub-cover-image", value_name = "FILE")]
+    epub_cover_image: Option<PathBuf>,
+    /// Embed this font file in an EPUB. Repeatable.
+    #[arg(long = "epub-embed-font", value_name = "FILE")]
+    epub_embed_font: Vec<PathBuf>,
+    /// Merge Dublin Core metadata from this XML file into an EPUB's package document.
+    #[arg(long = "epub-metadata", value_name = "FILE")]
+    epub_metadata: Option<PathBuf>,
+    /// Hold an EPUB's content in this container subdirectory (default `EPUB`; empty for the archive
+    /// root).
+    #[arg(long = "epub-subdirectory", value_name = "DIRNAME")]
+    epub_subdirectory: Option<String>,
+    /// Split the document into separate files at this heading level (EPUB). `--epub-chapter-level` is
+    /// an accepted alias.
+    #[arg(long = "split-level", visible_alias = "epub-chapter-level", value_name = "N", value_parser = parse_split_level)]
+    split_level: Option<usize>,
     /// List the input formats this build supports and exit.
     #[arg(long = "list-input-formats")]
     list_input_formats: bool,
@@ -182,12 +208,15 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
     writer_options.source_name = Some(source_name(cli.input.as_deref()));
+    if embeds_resources(to) {
+        writer_options.epub = epub_options(cli)?;
+    }
 
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
     let verbatim = cli.standalone || cli.template.is_some();
 
     let (mut document, resources) = read_document(from, &input, &ReaderOptions::default())?;
-    let resources = match &cli.extract_media {
+    let mut resources = match &cli.extract_media {
         // Extraction turns the embedded resources into external files the document points at, so the
         // writer no longer re-embeds them: it renders against an empty bag.
         Some(dir) => {
@@ -196,8 +225,102 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         }
         None => resources,
     };
+    // A container format embeds the resources it references; pull the local ones off disk so the
+    // writer can pack them.
+    if cli.extract_media.is_none() && embeds_resources(to) {
+        embed_local_media(&mut document.blocks, &mut resources);
+    }
     let output = render_document(to, document, resources, &writer_options)?;
     write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+/// Whether the target format packs the resources a document references into its output, so those
+/// resources must be resolved before rendering.
+fn embeds_resources(to: &str) -> bool {
+    to.starts_with("epub")
+}
+
+/// Assemble the EPUB writer options from the command line: stylesheets, cover image, embedded fonts,
+/// the Dublin Core metadata fragment, the container subdirectory, the chapter split level, and the
+/// reproducible-build timestamp. Each referenced file is read from disk here.
+fn epub_options(cli: &Cli) -> Result<EpubOptions> {
+    let mut epub = EpubOptions::default();
+    for path in &cli.css {
+        epub.stylesheets.push(fs::read_to_string(path)?);
+    }
+    if let Some(path) = &cli.epub_cover_image {
+        epub.cover_image = Some((base_name(path), fs::read(path)?));
+    }
+    for path in &cli.epub_embed_font {
+        epub.fonts.push((base_name(path), fs::read(path)?));
+    }
+    if let Some(path) = &cli.epub_metadata {
+        epub.metadata_xml = Some(fs::read_to_string(path)?);
+    }
+    epub.subdirectory.clone_from(&cli.epub_subdirectory);
+    epub.split_level = cli.split_level;
+    epub.source_date_epoch = source_date_epoch();
+    Ok(epub)
+}
+
+/// The final component of a path, as an owned string; empty when the path has none.
+fn base_name(path: &Path) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// The reproducible-build timestamp, in seconds since the Unix epoch, read from `SOURCE_DATE_EPOCH`.
+/// An unset or unparsable value leaves the writer's fixed default in place.
+fn source_date_epoch() -> Option<i64> {
+    std::env::var("SOURCE_DATE_EPOCH")
+        .ok()
+        .and_then(|value| value.trim().parse::<i64>().ok())
+}
+
+/// Read each local image the document references from disk — relative to the working directory —
+/// into `media`, so a container writer embeds it. References already carried inline, and remote or
+/// `data:` references, are left untouched; a reference whose file is missing is left as written.
+fn embed_local_media(blocks: &mut [Block], media: &mut MediaBag) {
+    let mut references: Vec<String> = Vec::new();
+    walk::for_each_image_target(blocks, &mut |target| {
+        let url = target.url.to_string();
+        if !references.contains(&url) {
+            references.push(url);
+        }
+    });
+    for url in references {
+        if media.contains(&url) || is_remote_reference(&url) {
+            continue;
+        }
+        if let Ok(bytes) = fs::read(&url) {
+            let mime = mime_from_extension(Path::new(&url));
+            media.insert(url, mime, bytes);
+        }
+    }
+}
+
+/// Whether a reference points outside the local filesystem — a URL or an inline `data:` payload.
+fn is_remote_reference(url: &str) -> bool {
+    url.starts_with("data:") || url.starts_with("//") || url.contains("://")
+}
+
+/// The image MIME type implied by a path's extension, or `None` when it is not a recognized image.
+fn mime_from_extension(path: &Path) -> Option<String> {
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())?
+        .to_ascii_lowercase();
+    let mime = match extension.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        _ => return None,
+    };
+    Some(mime.to_owned())
 }
 
 /// Writes every resource in `media` to a file under `dir` (`<dir>/<name>`, creating parent
@@ -273,6 +396,13 @@ fn parse_wrap(value: &str) -> std::result::Result<WrapMode, String> {
 fn parse_toc_depth(value: &str) -> std::result::Result<usize, String> {
     match value.parse::<usize>() {
         Ok(depth @ 1..=6) => Ok(depth),
+        _ => Err(format!("'{value}' is not a heading level between 1 and 6")),
+    }
+}
+
+fn parse_split_level(value: &str) -> std::result::Result<usize, String> {
+    match value.parse::<usize>() {
+        Ok(level @ 1..=6) => Ok(level),
         _ => Err(format!("'{value}' is not a heading level between 1 and 6")),
     }
 }

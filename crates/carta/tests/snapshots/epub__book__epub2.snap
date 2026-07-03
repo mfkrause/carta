@@ -1,0 +1,333 @@
+---
+source: crates/carta/tests/epub.rs
+expression: describe_archive(&bytes)
+---
+=== entries ===
+mimetype (20 bytes)
+META-INF/container.xml (252 bytes)
+META-INF/com.apple.ibooks.display-options.xml (161 bytes)
+EPUB/content.opf (1997 bytes)
+EPUB/toc.ncx (1089 bytes)
+EPUB/nav.xhtml (899 bytes)
+EPUB/text/title_page.xhtml (903 bytes)
+EPUB/styles/stylesheet1.css (3090 bytes)
+EPUB/text/ch001.xhtml (1372 bytes)
+EPUB/text/ch002.xhtml (709 bytes)
+
+=== mimetype ===
+application/epub+zip
+
+=== META-INF/container.xml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="EPUB/content.opf" media-type="application/oebps-package+xml" />
+  </rootfiles>
+</container>
+
+=== META-INF/com.apple.ibooks.display-options.xml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<display_options>
+  <platform name="*">
+    <option name="specified-fonts">true</option>
+  </platform>
+</display_options>
+
+=== EPUB/content.opf ===
+<?xml version="1.0" encoding="UTF-8"?>
+<package version="2.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="epub-id-1">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:identifier id="epub-id-1" opf:scheme="DOI">10.1000/journey</dc:identifier>
+    <dc:identifier id="epub-id-2" opf:scheme="ISBN-13">9781234567897</dc:identifier>
+    <dc:title id="epub-title-1">The Wonderful Journey</dc:title>
+    <dc:date id="epub-date-1">2024-05-01</dc:date>
+    <dc:language>en-US</dc:language>
+    <dc:creator id="epub-creator-1" opf:role="aut">L. Frank Baum</dc:creator>
+    <dc:creator id="epub-creator-2" opf:role="aut">Ozma of Oz</dc:creator>
+    <dc:creator id="epub-creator-3" opf:file-as="Editor, Jane" opf:role="edt">Jane Editor</dc:creator>
+    <dc:contributor id="epub-contributor-1">W. W. Denslow</dc:contributor>
+    <dc:subject id="subject-1">Fantasy</dc:subject>
+    <dc:subject id="subject-2">Adventure</dc:subject>
+    <dc:description>A “storybook” example for testing.</dc:description>
+    <dc:publisher>Emerald City Press</dc:publisher>
+    <dc:rights>Public domain</dc:rights>
+  </metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" />
+    <item id="stylesheet1" href="styles/stylesheet1.css" media-type="text/css" />
+    <item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml" />
+    <item id="ch001_xhtml" href="text/ch001.xhtml" media-type="application/xhtml+xml" />
+    <item id="ch002_xhtml" href="text/ch002.xhtml" media-type="application/xhtml+xml" />
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="title_page_xhtml" linear="yes" />
+    <itemref idref="nav" />
+    <itemref idref="ch001_xhtml" />
+    <itemref idref="ch002_xhtml" />
+  </spine>
+  <guide>
+    <reference type="toc" title="The Wonderful Journey" href="nav.xhtml" />
+  </guide>
+</package>
+
+=== EPUB/toc.ncx ===
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="10.1000/journey" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>The Wonderful Journey</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text>The Wonderful Journey</text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>Chapter One</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#ch-one" />
+      <navPoint id="navPoint-2">
+        <navLabel>
+          <text>A Subsection</text>
+        </navLabel>
+        <content src="text/ch001.xhtml#sub" />
+      </navPoint>
+    </navPoint>
+    <navPoint id="navPoint-3">
+      <navLabel>
+        <text>Chapter Two</text>
+      </navLabel>
+      <content src="text/ch002.xhtml#ch-two" />
+    </navPoint>
+  </navMap>
+</ncx>
+
+=== EPUB/nav.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="carta" />
+  <title>The Wonderful Journey</title>
+  <style type="text/css">
+  </style>
+  <link rel="stylesheet" type="text/css" href="styles/stylesheet1.css" />
+</head>
+<body>
+<div id="toc"><h1 id="toc-title">The Wonderful Journey</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#ch-one">Chapter One</a><ol class="toc"><li id="toc-li-2"><a href="text/ch001.xhtml#sub">A Subsection</a></li></ol></li><li id="toc-li-3"><a href="text/ch002.xhtml#ch-two">Chapter Two</a></li></ol></div>
+</body>
+</html>
+
+=== EPUB/text/title_page.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="carta" />
+  <title>The Wonderful Journey</title>
+  <style type="text/css">
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body>
+  <h1 class="title">The Wonderful Journey</h1>
+  <p class="subtitle">A Tale in Two Parts</p>
+  <p class="author">L. Frank Baum</p>
+  <p class="author">Ozma of Oz</p>
+  <p class="author">Jane Editor</p>
+  <p class="publisher">Emerald City Press</p>
+  <p class="date">2024-05-01</p>
+  <div class="rights">Public domain</div>
+</body>
+</html>
+
+=== EPUB/styles/stylesheet1.css ===
+/* Built-in stylesheet for a generated publication. */
+
+@namespace epub "http://www.idpf.org/2007/ops";
+
+body {
+  margin: 5%;
+  padding: 0;
+  line-height: 1.5;
+  text-align: justify;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: bold;
+  line-height: 1.2;
+  text-align: left;
+  page-break-after: avoid;
+}
+
+h1 { font-size: 1.6em; margin: 1em 0 0.5em; }
+h2 { font-size: 1.4em; margin: 1em 0 0.5em; }
+h3 { font-size: 1.2em; margin: 1em 0 0.5em; }
+h4, h5, h6 { font-size: 1em; margin: 1em 0 0.5em; }
+
+p {
+  margin: 0;
+  text-indent: 1.5em;
+  widows: 2;
+  orphans: 2;
+}
+
+/* The first paragraph after a heading or a break is not indented. */
+h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p,
+hr + p, blockquote + p, pre + p, figure + p, div.rights p {
+  text-indent: 0;
+}
+
+a { color: inherit; text-decoration: underline; }
+a:link, a:visited { color: inherit; }
+
+/* Title page. */
+section.titlepage, body > h1.title {
+  text-align: center;
+}
+h1.title { margin-top: 2em; }
+p.subtitle { font-size: 1.2em; font-style: italic; text-align: center; }
+p.author { margin: 0.5em 0 0; text-align: center; }
+p.publisher, p.date { text-align: center; }
+div.rights { margin-top: 2em; font-size: 0.9em; text-align: center; }
+
+/* Quotations. */
+blockquote {
+  margin: 1em 1.5em;
+  padding: 0;
+  font-style: italic;
+}
+
+/* Code. */
+code {
+  font-family: monospace, monospace;
+  white-space: pre-wrap;
+}
+pre {
+  margin: 1em 0;
+  padding: 0.5em;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-size: 0.9em;
+}
+pre code { white-space: inherit; }
+div.sourceCode { overflow: auto; }
+
+/* Lists. */
+ul, ol { margin: 1em 0; padding-left: 1.5em; }
+li { margin: 0.2em 0; }
+ul.task-list { list-style: none; padding-left: 1em; }
+ul.task-list li input[type="checkbox"] { margin: 0 0.5em 0 -1.4em; }
+
+/* Definition lists. */
+dt { font-weight: bold; }
+dd { margin: 0 0 0.5em 1.5em; }
+
+/* Figures and images. */
+img { max-width: 100%; }
+figure { margin: 1em 0; text-align: center; page-break-inside: avoid; }
+figcaption { font-size: 0.9em; font-style: italic; text-align: center; }
+
+/* Tables. */
+table {
+  margin: 1em auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+th, td { padding: 0.3em 0.6em; border-bottom: 1px solid currentColor; }
+th { border-bottom: 2px solid currentColor; text-align: left; }
+caption { font-style: italic; margin-bottom: 0.4em; }
+
+/* Horizontal rule. */
+hr {
+  border: none;
+  border-top: 1px solid currentColor;
+  margin: 1.5em 0;
+}
+
+/* Inline emphasis variants. */
+span.smallcaps { font-variant: small-caps; }
+span.underline { text-decoration: underline; }
+mark { background: none; }
+
+/* Multi-column blocks. */
+div.columns { display: flex; gap: 1em; }
+div.column { flex: 1; }
+
+/* Footnotes. */
+a.footnote-ref, a.footnote-back { text-decoration: none; vertical-align: super; font-size: 0.8em; }
+section.footnotes, div.footnotes { margin-top: 2em; font-size: 0.9em; }
+section.footnotes { border-top: 1px solid currentColor; }
+aside[epub|type~="footnote"] { margin: 0.5em 0; }
+
+/* Numbered heading prefixes. */
+span.header-section-number::after { content: " "; }
+
+=== EPUB/text/ch001.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="carta" />
+  <title>ch001.xhtml</title>
+  <style type="text/css">
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body>
+<div id="ch-one" class="section level1">
+<h1>Chapter <a href="https://example.com/one">One</a></h1>
+<p>Once upon a time, in a land far away.<a href="#fn1" class="footnote-ref" id="fnref1">1</a> See also <a href="ch002.xhtml#ch-two">the second chapter</a> for how it ends.</p>
+<div id="sub" class="section level2">
+<h2>A Subsection<a href="#fn2" class="footnote-ref" id="fnref2">2</a></h2>
+<p>Some <em>emphasis</em>, <code>inline code</code>, and a “quoted phrase”.</p>
+</div>
+</div>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<div id="fn1">
+<p><a href="#fnref1" class="footnote-back">1</a>. A footnote the navigation label must drop.</p>
+</div>
+<div id="fn2">
+<p><a href="#fnref2" class="footnote-back">2</a>. A footnote in a heading the navigation label must drop.</p>
+</div>
+</div>
+</body>
+</html>
+
+=== EPUB/text/ch002.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="carta" />
+  <title>ch002.xhtml</title>
+  <style type="text/css">
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body>
+<div id="ch-two" class="section level1">
+<h1>Chapter Two</h1>
+<p>The end. Back to <a href="ch001.xhtml#ch-one">Chapter One</a>.</p>
+</div>
+</body>
+</html>

@@ -3,7 +3,8 @@
 #
 # Usage:
 #   run.sh <surface> [arg]   run one surface (reader|writer|e2e|roundtrip|commands|extensions|
-#                            templates|standalone|media), optional arg narrows it (a format or target)
+#                            templates|standalone|media|epub), optional arg narrows it (a format,
+#                            target, or group)
 #   run.sh all               run every surface
 #
 # Each surface prints one `RESULT <surface> <group> pass=N fail=N err=N skip=N` line per group and
@@ -13,7 +14,7 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SURFACES="reader writer e2e roundtrip commands extensions templates standalone media"
+SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub"
 
 run_one() {
   local surface="$1"

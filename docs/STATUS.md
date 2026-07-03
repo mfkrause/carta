@@ -162,9 +162,16 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
 - Standalone (`-s`), TOC, and section numbering are no-ops.
 
+### `epub` (+ `epub2`, `epub3`) — ✅
+- EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u`
+  element, block content in a table caption, an empty table, a task-list checkbox) are represented
+  only under EPUB 3's XHTML5 content model.
+- A resource that cannot be fetched offline — a remote image, an absent local image, or a link to a
+  nonexistent target — yields a dangling reference.
+
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
-`csljson`, `docbook` (+ `4`, `5`), `docx`, `dzslides`, `epub` (+ `2`, `3`), `fb2`, `haddock`,
+`csljson`, `docbook` (+ `4`, `5`), `docx`, `dzslides`, `fb2`, `haddock`,
 `icml`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
 `odt`, `opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
 `vimdoc`, `xml`, `xwiki`, `zimwiki`.

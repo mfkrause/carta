@@ -21,8 +21,9 @@ all-features = true
 workspace = true
 
 [features]
-default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "org", "beamer", "revealjs", "ipynb"]
+default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "org", "beamer", "revealjs", "ipynb", "epub"]
 html = ["dep:unicode-general-category"]
+epub = ["html", "carta-core/container"]
 json = []
 plain = []
 latex = []

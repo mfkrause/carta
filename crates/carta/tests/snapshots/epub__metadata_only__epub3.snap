@@ -1,0 +1,286 @@
+---
+source: crates/carta/tests/epub.rs
+expression: describe_archive(&bytes)
+---
+=== entries ===
+mimetype (20 bytes)
+META-INF/container.xml (252 bytes)
+META-INF/com.apple.ibooks.display-options.xml (161 bytes)
+EPUB/content.opf (2007 bytes)
+EPUB/toc.ncx (800 bytes)
+EPUB/nav.xhtml (898 bytes)
+EPUB/text/title_page.xhtml (585 bytes)
+EPUB/styles/stylesheet1.css (3090 bytes)
+EPUB/text/ch001.xhtml (550 bytes)
+
+=== mimetype ===
+application/epub+zip
+
+=== META-INF/container.xml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="EPUB/content.opf" media-type="application/oebps-package+xml" />
+  </rootfiles>
+</container>
+
+=== META-INF/com.apple.ibooks.display-options.xml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<display_options>
+  <platform name="*">
+    <option name="specified-fonts">true</option>
+  </platform>
+</display_options>
+
+=== EPUB/content.opf ===
+<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="en-US" unique-identifier="epub-id-1" prefix="ibooks: http://vocabulary.itunes.apple.com/rdf/ibooks/vocabulary-extensions-1.0/">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:identifier id="epub-id-1">urn:uuid:88d0cda3-cc7e-e08b-a04c-bf4421df077d</dc:identifier>
+    <dc:title id="epub-title-1">A Book With No Body</dc:title>
+    <dc:date id="epub-date">1970-01-01T00:00:01Z</dc:date>
+    <dc:language>en-US</dc:language>
+    <dc:creator id="epub-creator-1">Solitary Author</dc:creator>
+    <meta refines="#epub-creator-1" property="role" scheme="marc:relators">aut</meta>
+    <meta property="dcterms:modified">1970-01-01T00:00:01Z</meta>
+    <meta property="schema:accessMode">textual</meta>
+    <meta property="schema:accessModeSufficient">textual</meta>
+    <meta property="schema:accessibilityFeature">alternativeText</meta>
+    <meta property="schema:accessibilityFeature">readingOrder</meta>
+    <meta property="schema:accessibilityFeature">structuralNavigation</meta>
+    <meta property="schema:accessibilityFeature">tableOfContents</meta>
+    <meta property="schema:accessibilityHazard">none</meta>
+  </metadata>
+  <manifest>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav" />
+    <item id="stylesheet1" href="styles/stylesheet1.css" media-type="text/css" />
+    <item id="title_page_xhtml" href="text/title_page.xhtml" media-type="application/xhtml+xml" />
+    <item id="ch001_xhtml" href="text/ch001.xhtml" media-type="application/xhtml+xml" />
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="title_page_xhtml" linear="yes" />
+    <itemref idref="nav" />
+    <itemref idref="ch001_xhtml" />
+  </spine>
+  <guide>
+    <reference type="toc" title="A Book With No Body" href="nav.xhtml" />
+  </guide>
+</package>
+
+=== EPUB/toc.ncx ===
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:88d0cda3-cc7e-e08b-a04c-bf4421df077d" />
+    <meta name="dtb:depth" content="1" />
+    <meta name="dtb:totalPageCount" content="0" />
+    <meta name="dtb:maxPageNumber" content="0" />
+  </head>
+  <docTitle>
+    <text>A Book With No Body</text>
+  </docTitle>
+  <navMap>
+    <navPoint id="navPoint-0">
+      <navLabel>
+        <text>A Book With No Body</text>
+      </navLabel>
+      <content src="text/title_page.xhtml" />
+    </navPoint>
+    <navPoint id="navPoint-1">
+      <navLabel>
+        <text>A Book With No Body</text>
+      </navLabel>
+      <content src="text/ch001.xhtml#a-book-with-no-body" />
+    </navPoint>
+  </navMap>
+</ncx>
+
+=== EPUB/nav.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="carta" />
+  <title>A Book With No Body</title>
+  <style>
+  </style>
+  <link rel="stylesheet" type="text/css" href="styles/stylesheet1.css" />
+</head>
+<body epub:type="frontmatter">
+<nav epub:type="toc" role="doc-toc" id="toc"><h1 id="toc-title">A Book With No Body</h1><ol class="toc"><li id="toc-li-1"><a href="text/ch001.xhtml#a-book-with-no-body">A Book With No Body</a></li></ol></nav>
+<nav epub:type="landmarks" id="landmarks" hidden="hidden">
+  <ol>
+    <li>
+      <a href="text/title_page.xhtml" epub:type="titlepage">Title Page</a>
+    </li>
+    <li>
+      <a href="#toc" epub:type="toc">Table of Contents</a>
+    </li>
+  </ol>
+</nav>
+</body>
+</html>
+
+=== EPUB/text/title_page.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="carta" />
+  <title>A Book With No Body</title>
+  <style>
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body epub:type="frontmatter">
+<section epub:type="titlepage" class="titlepage">
+  <h1 class="title">A Book With No Body</h1>
+  <p class="author">Solitary Author</p>
+</section>
+</body>
+</html>
+
+=== EPUB/styles/stylesheet1.css ===
+/* Built-in stylesheet for a generated publication. */
+
+@namespace epub "http://www.idpf.org/2007/ops";
+
+body {
+  margin: 5%;
+  padding: 0;
+  line-height: 1.5;
+  text-align: justify;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: bold;
+  line-height: 1.2;
+  text-align: left;
+  page-break-after: avoid;
+}
+
+h1 { font-size: 1.6em; margin: 1em 0 0.5em; }
+h2 { font-size: 1.4em; margin: 1em 0 0.5em; }
+h3 { font-size: 1.2em; margin: 1em 0 0.5em; }
+h4, h5, h6 { font-size: 1em; margin: 1em 0 0.5em; }
+
+p {
+  margin: 0;
+  text-indent: 1.5em;
+  widows: 2;
+  orphans: 2;
+}
+
+/* The first paragraph after a heading or a break is not indented. */
+h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p,
+hr + p, blockquote + p, pre + p, figure + p, div.rights p {
+  text-indent: 0;
+}
+
+a { color: inherit; text-decoration: underline; }
+a:link, a:visited { color: inherit; }
+
+/* Title page. */
+section.titlepage, body > h1.title {
+  text-align: center;
+}
+h1.title { margin-top: 2em; }
+p.subtitle { font-size: 1.2em; font-style: italic; text-align: center; }
+p.author { margin: 0.5em 0 0; text-align: center; }
+p.publisher, p.date { text-align: center; }
+div.rights { margin-top: 2em; font-size: 0.9em; text-align: center; }
+
+/* Quotations. */
+blockquote {
+  margin: 1em 1.5em;
+  padding: 0;
+  font-style: italic;
+}
+
+/* Code. */
+code {
+  font-family: monospace, monospace;
+  white-space: pre-wrap;
+}
+pre {
+  margin: 1em 0;
+  padding: 0.5em;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-size: 0.9em;
+}
+pre code { white-space: inherit; }
+div.sourceCode { overflow: auto; }
+
+/* Lists. */
+ul, ol { margin: 1em 0; padding-left: 1.5em; }
+li { margin: 0.2em 0; }
+ul.task-list { list-style: none; padding-left: 1em; }
+ul.task-list li input[type="checkbox"] { margin: 0 0.5em 0 -1.4em; }
+
+/* Definition lists. */
+dt { font-weight: bold; }
+dd { margin: 0 0 0.5em 1.5em; }
+
+/* Figures and images. */
+img { max-width: 100%; }
+figure { margin: 1em 0; text-align: center; page-break-inside: avoid; }
+figcaption { font-size: 0.9em; font-style: italic; text-align: center; }
+
+/* Tables. */
+table {
+  margin: 1em auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+th, td { padding: 0.3em 0.6em; border-bottom: 1px solid currentColor; }
+th { border-bottom: 2px solid currentColor; text-align: left; }
+caption { font-style: italic; margin-bottom: 0.4em; }
+
+/* Horizontal rule. */
+hr {
+  border: none;
+  border-top: 1px solid currentColor;
+  margin: 1.5em 0;
+}
+
+/* Inline emphasis variants. */
+span.smallcaps { font-variant: small-caps; }
+span.underline { text-decoration: underline; }
+mark { background: none; }
+
+/* Multi-column blocks. */
+div.columns { display: flex; gap: 1em; }
+div.column { flex: 1; }
+
+/* Footnotes. */
+a.footnote-ref, a.footnote-back { text-decoration: none; vertical-align: super; font-size: 0.8em; }
+section.footnotes, div.footnotes { margin-top: 2em; font-size: 0.9em; }
+section.footnotes { border-top: 1px solid currentColor; }
+aside[epub|type~="footnote"] { margin: 0.5em 0; }
+
+/* Numbered heading prefixes. */
+span.header-section-number::after { content: " "; }
+
+=== EPUB/text/ch001.xhtml ===
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="carta" />
+  <title>ch001.xhtml</title>
+  <style>
+  </style>
+  <link rel="stylesheet" type="text/css" href="../styles/stylesheet1.css" />
+</head>
+<body epub:type="bodymatter">
+<section id="a-book-with-no-body" class="level1 unnumbered">
+<h1 class="unnumbered">A Book With No Body</h1>
+</section>
+</body>
+</html>

@@ -113,7 +113,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | Word (`docx`) | ❌ | ❌ |
 | OpenDocument Text (`odt`) | ❌ | ❌ |
 | OpenDocument (`opendocument`) | ➖ | ❌ |
-| EPUB (`epub`, `epub2`, `epub3`) | ❌ | ❌ |
+| EPUB (`epub`, `epub2`, `epub3`) | ❌ | ✅ |
 | Jupyter Notebook (`ipynb`) | ✅ | ✅ |
 | FictionBook2 (`fb2`) | ❌ | ❌ |
 | InDesign ICML (`icml`) | ➖ | ❌ |
