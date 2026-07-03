@@ -1,0 +1,24 @@
+.TH T 1
+.SH MACRO CONDITIONALS
+.de INNER
+inner text
+..
+.de OUTER
+before
+.INNER
+after
+..
+.OUTER
+.de COND
+.ie n kept
+.el dropped
+..
+.COND
+following text
+.de LABEL
+.UR https://example.com
+first
+..
+.LABEL
+second
+.UE

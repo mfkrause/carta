@@ -231,6 +231,11 @@ impl HeadingIds {
 struct Parser {
     lines: Vec<String>,
     pos: usize,
+    /// Lines from an in-progress macro expansion, not yet consumed. The logical current line is
+    /// this queue's front when non-empty, else `lines[pos]` — expanding a macro call pushes its
+    /// body here instead of splicing it into `lines`, so expansion cost is independent of how much
+    /// of the document remains unparsed.
+    pending: std::collections::VecDeque<String>,
     meta: BTreeMap<String, MetaValue>,
     headings: HeadingIds,
     /// Named strings interpolated by `\*`: the predefined groff set, extended by `.ds`.
@@ -246,6 +251,7 @@ impl Parser {
         Self {
             lines,
             pos: 0,
+            pending: std::collections::VecDeque::new(),
             meta: BTreeMap::new(),
             headings: HeadingIds::new(extensions),
             strings: predefined_strings(),
@@ -255,11 +261,16 @@ impl Parser {
     }
 
     fn peek(&self) -> Option<&str> {
-        self.lines.get(self.pos).map(String::as_str)
+        self.pending
+            .front()
+            .map(String::as_str)
+            .or_else(|| self.lines.get(self.pos).map(String::as_str))
     }
 
     fn advance(&mut self) {
-        self.pos += 1;
+        if self.pending.pop_front().is_none() {
+            self.pos += 1;
+        }
     }
 
     /// The control-line request name of the line at `pos`, if it is a non-comment control line.
@@ -273,6 +284,9 @@ impl Parser {
 
     /// Consumes and returns the next line, if any.
     fn take_line(&mut self) -> Option<String> {
+        if let Some(line) = self.pending.pop_front() {
+            return Some(line);
+        }
         let line = self.lines.get(self.pos).cloned();
         if line.is_some() {
             self.pos += 1;
@@ -286,6 +300,8 @@ impl Parser {
         let content = content.trim_start_matches([' ', '\t']);
         if content.is_empty() {
             self.advance();
+        } else if let Some(slot) = self.pending.front_mut() {
+            content.clone_into(slot);
         } else if let Some(slot) = self.lines.get_mut(self.pos) {
             content.clone_into(slot);
         } else {
@@ -568,14 +584,16 @@ impl Parser {
                         self.advance();
                     }
                 }
-                // A call to a user-defined macro splices its expanded body in at the current
-                // position so the spliced lines are parsed in place.
+                // A call to a user-defined macro queues its expanded body ahead of the current
+                // position so the queued lines are parsed in place, before the base document
+                // resumes.
                 _ if self.macros.contains_key(name) => {
                     self.advance();
                     let args = split_args(rest);
                     let expansion = self.expand_macro_call(name, &args);
-                    let at = self.pos;
-                    self.lines.splice(at..at, expansion);
+                    for line in expansion.into_iter().rev() {
+                        self.pending.push_front(line);
+                    }
                 }
                 // An empty request (a bare control character) or one named only with control
                 // characters (`.`, `..`, `'`) is a no-op that leaves the open paragraph filling.
@@ -816,15 +834,16 @@ impl Parser {
     /// up to a `.UE`/`.ME` terminator. A request inside the label, or end of input before the
     /// terminator, makes the label non-plain, so the link is abandoned.
     fn link_label_is_plain(&self) -> bool {
-        let mut index = self.pos;
-        while let Some(line) = self.lines.get(index) {
+        let lookahead = self
+            .pending
+            .iter()
+            .chain(self.lines.get(self.pos..).into_iter().flatten());
+        for line in lookahead {
             if is_comment(line) {
-                index += 1;
                 continue;
             }
-            match control_parts(line) {
-                Some((name, _)) => return matches!(name, "UE" | "ME"),
-                None => index += 1,
+            if let Some((name, _)) = control_parts(line) {
+                return matches!(name, "UE" | "ME");
             }
         }
         false
@@ -2979,6 +2998,76 @@ mod tests {
                 Inline::Str("Bob.".into()),
             ]))
         );
+    }
+
+    #[test]
+    fn multi_line_macro_expansion_fills_like_inline_text() {
+        let inline = read(".TH T 1\nfirst line\nsecond line\n");
+        let via_macro = read(".TH T 1\n.de M\nfirst line\nsecond line\n..\n.M\n");
+        assert_eq!(inline.blocks, via_macro.blocks);
+    }
+
+    #[test]
+    fn nested_macro_call_expands_in_place_preserving_order() {
+        let doc =
+            read(".TH T 1\n.de INNER\nmiddle\n..\n.de OUTER\nbefore\n.INNER\nafter\n..\n.OUTER\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("before".into()),
+                Inline::Space,
+                Inline::Str("middle".into()),
+                Inline::Space,
+                Inline::Str("after".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn macro_expansion_seam_keeps_base_lines_in_order() {
+        let doc = read(".TH T 1\n.de M\nexpanded\n..\n.M\nbase line\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("expanded".into()),
+                Inline::Space,
+                Inline::Str("base".into()),
+                Inline::Space,
+                Inline::Str("line".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn conditional_inside_macro_expansion_reprocesses_the_queued_line() {
+        // `.ie`/`.el` reprocess the *queued* expansion line in place; the base document's
+        // following line must survive untouched.
+        let doc = read(".TH T 1\n.de M\n.ie n kept\n.el dropped\n..\n.M\nbase line\n");
+        assert_eq!(
+            doc.blocks.first(),
+            Some(&Block::Para(vec![
+                Inline::Str("kept".into()),
+                Inline::Space,
+                Inline::Str("base".into()),
+                Inline::Space,
+                Inline::Str("line".into()),
+            ]))
+        );
+    }
+
+    #[test]
+    fn link_label_spanning_macro_expansion_and_base_document_is_recognized() {
+        // The label opens inside a macro expansion (queued) and its terminator sits in the base
+        // document (unqueued); the lookahead must chain across that seam to find it.
+        let doc =
+            read(".TH T 1\n.de LABEL\n.UR https://example.com\nfirst\n..\n.LABEL\nsecond\n.UE\n");
+        let Some(Block::Para(inlines)) = doc.blocks.first() else {
+            panic!("expected a paragraph");
+        };
+        assert!(matches!(
+            inlines.first(),
+            Some(Inline::Link(_, _, target)) if target.url == "https://example.com"
+        ));
     }
 
     #[test]
