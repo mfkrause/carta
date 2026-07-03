@@ -408,7 +408,10 @@ mod tests {
             .windows(4)
             .position(|window| window == [0x50, 0x4b, 0x01, 0x02])
             .expect("central-directory header");
-        bytes[central + 24..central + 28].copy_from_slice(&4u32.to_le_bytes());
+        bytes
+            .get_mut(central + 24..central + 28)
+            .expect("uncompressed-size field")
+            .copy_from_slice(&4u32.to_le_bytes());
         assert!(read(&bytes).is_err());
     }
 }
