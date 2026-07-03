@@ -163,34 +163,11 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Standalone (`-s`), TOC, and section numbering are no-ops.
 
 ### `epub` (+ `epub2`, `epub3`) — ✅
-A packaged container: the document is split into chapter files, wrapped in a package document, a
-navigation document (EPUB 3) and an NCX (EPUB 2), then zipped with the `mimetype` stored first.
-Honors a cover image, embedded fonts, extra stylesheets, a `<dc:*>` metadata fragment, the content
-subdirectory, and the chapter split level, and embeds referenced images as manifest resources.
-Output is byte-reproducible — the modification timestamp comes from `SOURCE_DATE_EPOCH` (a fixed
-epoch when unset) and an unset identifier becomes a content-hash `urn:uuid`.
-
-Where a plain rendering would produce an invalid package, the writer deviates to stay
-specification-valid:
-- An untitled work is still given a `dc:title`, since a package without one is invalid.
-- A heading carrying no identifier is assigned one derived from its text and de-duplicated in
-  document order, so every navigation link resolves rather than pointing at an empty `#` target.
-- Every navigation anchor carries text; an empty anchor is invalid.
-- An untitled EPUB 2 title page carries a placeholder block, since an empty XHTML 1.1 body is invalid.
-- XML-invalid control characters are dropped from content, since they otherwise make the archive
-  unopenable.
-
-Two constructs have no faithful XHTML form; rather than reproduce a broken rendering, the writer:
-- emits an absolute image URL verbatim, instead of prefixing the chapter-relative `../` that would
-  corrupt it into a `../https://…` path;
-- drops a raw LaTeX block entirely, leaving no stray blank line where it stood.
-
-Known limitations:
-- EPUB 2 wraps content in XHTML 1.1, which cannot represent some constructs a modern reading system
-  handles — a list `start` attribute, a `mark` or `u` element, block content in a table caption, an
-  empty table, or a task-list checkbox validate cleanly only under EPUB 3's XHTML5 content model.
-- A source naming a resource that cannot be fetched offline — a remote image, an absent local image,
-  or a link to a nonexistent target — yields a dangling reference no writer can embed.
+- EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u`
+  element, block content in a table caption, an empty table, a task-list checkbox) are represented
+  only under EPUB 3's XHTML5 content model.
+- A resource that cannot be fetched offline — a remote image, an absent local image, or a link to a
+  nonexistent target — yields a dangling reference.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
