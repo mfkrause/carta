@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use carta_ast::{Block, Document, Inline};
 
+#[cfg(feature = "container")]
+pub mod container;
 pub mod extensions;
 pub mod media;
 pub mod sections;
@@ -47,6 +49,8 @@ pub enum Error {
     Template(String),
     #[error("cannot represent this content in the target format: {0}")]
     Unrepresentable(String),
+    #[error("container error: {0}")]
+    Container(String),
 }
 
 #[cfg(feature = "template")]

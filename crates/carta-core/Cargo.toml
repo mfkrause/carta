@@ -24,8 +24,12 @@ workspace = true
 # The standalone template engine (`carta_core::template`). Off by default; enabled by `carta`'s
 # `standalone` feature.
 template = []
+# Packaging primitives for container formats (`carta_core::container`): the ZIP builder/reader and
+# XML emitter. Off by default; enabled by `carta`'s `write-epub` feature. Pulls in DEFLATE support.
+container = ["dep:miniz_oxide"]
 
 [dependencies]
 carta-ast = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+miniz_oxide = { workspace = true, optional = true }
