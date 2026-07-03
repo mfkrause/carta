@@ -18,7 +18,6 @@
 //! dialect uses native disambiguation for every slug shape (so its GitHub-slug variant still maps an
 //! empty slug to `section`), while the bare `CommonMark` engine pairs the GitHub slug with count-suffix.
 
-#[cfg(any(feature = "commonmark", feature = "rst", feature = "dokuwiki"))]
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
@@ -190,6 +189,11 @@ pub(crate) struct IdRegistry {
     /// Per-base occurrence counts, used by the count-suffix strategy.
     #[cfg(any(feature = "commonmark", feature = "rst", feature = "dokuwiki"))]
     counts: BTreeMap<String, u32>,
+    /// The next suffix to try for a given `(base, separator)`, used by the increment-until-unique
+    /// strategy so a repeated collision resumes probing where the last one left off instead of
+    /// restarting at 1. A value here is only ever a lower bound: `seen` remains the source of truth,
+    /// since an explicit id can still occupy the next few candidates.
+    next_suffix: BTreeMap<(String, char), u32>,
 }
 
 impl IdRegistry {
@@ -240,10 +244,12 @@ impl IdRegistry {
         if self.seen.insert(base.clone()) {
             return base;
         }
-        let mut suffix = 1u32;
+        let key = (base.clone(), separator);
+        let mut suffix = self.next_suffix.get(&key).copied().unwrap_or(1);
         loop {
             let candidate = format!("{base}{separator}{suffix}");
             if self.seen.insert(candidate.clone()) {
+                self.next_suffix.insert(key, suffix + 1);
                 return candidate;
             }
             suffix += 1;
@@ -342,6 +348,77 @@ mod tests {
         let mut registry = IdRegistry::default();
         registry.reserve(IdScheme::Gfm, "intro");
         assert_eq!(registry.assign(IdScheme::Gfm, "Intro"), "intro");
+    }
+
+    #[test]
+    fn assign_with_separator_resumes_probing_from_the_last_issued_suffix() {
+        let mut registry = IdRegistry::default();
+        assert_eq!(
+            registry.assign_with_separator("base".to_owned(), '-'),
+            "base"
+        );
+        for suffix in 1..5 {
+            assert_eq!(
+                registry.assign_with_separator("base".to_owned(), '-'),
+                format!("base-{suffix}")
+            );
+        }
+    }
+
+    #[test]
+    fn assign_with_separator_skips_a_reserved_suffix_exactly_once() {
+        let mut registry = IdRegistry::default();
+        registry.seen.insert("base-2".to_owned());
+        assert_eq!(
+            registry.assign_with_separator("base".to_owned(), '-'),
+            "base"
+        );
+        assert_eq!(
+            registry.assign_with_separator("base".to_owned(), '-'),
+            "base-1"
+        );
+        assert_eq!(
+            registry.assign_with_separator("base".to_owned(), '-'),
+            "base-3"
+        );
+    }
+
+    #[test]
+    fn assign_with_separator_stays_consistent_when_a_reservation_lands_on_the_memo() {
+        let mut registry = IdRegistry::default();
+        assert_eq!(
+            registry.assign_with_separator("base".to_owned(), '-'),
+            "base"
+        );
+        assert_eq!(
+            registry.assign_with_separator("base".to_owned(), '-'),
+            "base-1"
+        );
+        // The memo now points at suffix 2; reserve that exact candidate before the next assignment.
+        registry.seen.insert("base-2".to_owned());
+        assert_eq!(
+            registry.assign_with_separator("base".to_owned(), '-'),
+            "base-3"
+        );
+    }
+
+    #[test]
+    fn assign_with_separator_keys_the_memo_by_separator() {
+        let mut registry = IdRegistry::default();
+        assert_eq!(
+            registry.assign_with_separator("same".to_owned(), '-'),
+            "same"
+        );
+        assert_eq!(
+            registry.assign_with_separator("same".to_owned(), '-'),
+            "same-1"
+        );
+        // The `_` separator has its own memo, so it starts probing at 1, not at the `-` memo's 2 — the
+        // bare `same` is already in `seen`, so `same_1` is the first available `_` candidate.
+        assert_eq!(
+            registry.assign_with_separator("same".to_owned(), '_'),
+            "same_1"
+        );
     }
 
     #[cfg(feature = "man")]
