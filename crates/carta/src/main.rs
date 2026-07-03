@@ -11,8 +11,11 @@ use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use carta::ast::MetaValue;
-use carta::{Error, MathMethod, Output, ReaderOptions, Result, WrapMode, WriterOptions, convert};
+use carta::ast::{Block, MetaValue};
+use carta::{
+    Error, MathMethod, MediaBag, Output, ReaderOptions, Result, WrapMode, WriterOptions, media,
+    read_document, render_document,
+};
 use clap::{ArgAction, Parser};
 
 const LIST_FLAGS: [&str; 4] = [
@@ -42,6 +45,10 @@ struct Cli {
     /// Write output to this file instead of stdout.
     #[arg(short = 'o', long = "output")]
     output: Option<PathBuf>,
+    /// Extract the input's embedded media to this directory, writing each resource as a file and
+    /// rewriting the document's references to point at the extracted files.
+    #[arg(long = "extract-media", value_name = "DIR")]
+    extract_media: Option<PathBuf>,
     /// Produce a standalone document, wrapping the body in the format's template.
     #[arg(short = 's', long = "standalone")]
     standalone: bool,
@@ -179,8 +186,32 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
     let verbatim = cli.standalone || cli.template.is_some();
 
-    let output = convert(from, to, &input, &ReaderOptions::default(), &writer_options)?;
+    let (mut document, resources) = read_document(from, &input, &ReaderOptions::default())?;
+    let resources = match &cli.extract_media {
+        // Extraction turns the embedded resources into external files the document points at, so the
+        // writer no longer re-embeds them: it renders against an empty bag.
+        Some(dir) => {
+            extract_media(dir, &resources, &mut document.blocks)?;
+            MediaBag::new()
+        }
+        None => resources,
+    };
+    let output = render_document(to, document, resources, &writer_options)?;
     write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+/// Writes every resource in `media` to a file under `dir` (`<dir>/<name>`, creating parent
+/// directories) and rewrites the document's references to those resources to point at the files.
+fn extract_media(dir: &Path, media: &MediaBag, blocks: &mut [Block]) -> Result<()> {
+    for (name, item) in media.iter() {
+        let path = dir.join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, &item.bytes)?;
+    }
+    media::rewrite_extracted_references(blocks, media, &dir.to_string_lossy());
+    Ok(())
 }
 
 /// The title an HTML-family standalone document falls back to when no `title` metadata is present:

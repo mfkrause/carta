@@ -114,7 +114,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | OpenDocument Text (`odt`) | ❌ | ❌ |
 | OpenDocument (`opendocument`) | ➖ | ❌ |
 | EPUB (`epub`, `epub2`, `epub3`) | ❌ | ❌ |
-| Jupyter Notebook (`ipynb`) | ✅ | 🚧 |
+| Jupyter Notebook (`ipynb`) | ✅ | ✅ |
 | FictionBook2 (`fb2`) | ❌ | ❌ |
 | InDesign ICML (`icml`) | ➖ | ❌ |
 | Rich Text Format (`rtf`) | ❌ | ❌ |
@@ -197,6 +197,9 @@ carta -f commonmark -t html -s --toc --number-sections input.md -o output.html
 
 # render HTML math with MathJax (or --katex)
 carta -f commonmark -t html -s --mathjax input.md -o output.html
+
+# extract a notebook's embedded images to files, rewriting the references
+carta -f ipynb -t markdown --extract-media=media notebook.ipynb -o notebook.md
 
 # discover what this build supports
 carta --list-input-formats
