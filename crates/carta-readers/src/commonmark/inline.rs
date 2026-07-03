@@ -6,7 +6,7 @@
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
 
 use std::cell::Cell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell as TableCell, Citation, CitationMode, ColSpec, ColWidth,
@@ -54,6 +54,20 @@ struct RefContext<'a> {
     cite_count: &'a Cell<i32>,
 }
 
+/// One heading's inline parse, cached under its raw (unparsed) content string, keyed with a queue
+/// so repeated identical heading text pops its own matching entry rather than reusing one that
+/// belongs to a different occurrence.
+type HeaderParseCache = BTreeMap<String, VecDeque<Vec<Inline>>>;
+
+/// Whether a heading's raw content parses identically under every `RefContext` this reader ever
+/// builds. Reference links, footnote references, and citations are the only inline constructs
+/// that consult `RefContext`'s reference-scoped fields (`by_id`, `defined`'s effect on notes,
+/// `cite_count`, and `refs` itself), and they are triggered only by `[`, `^`, and `@`
+/// respectively. Content with none of those characters is safe to parse once and reuse.
+fn heading_content_is_context_independent(content: &str) -> bool {
+    !content.contains(['[', '@', '^'])
+}
+
 /// Resolve the whole document: collect the headings reachable by implicit reference, then each
 /// footnote definition's body (where nested references collapse to empty), then the body itself
 /// (where references become notes).
@@ -72,6 +86,9 @@ pub(crate) fn resolve_document(
     // count, raised in reading order across the whole document body.
     let scratch_count = Cell::new(0);
     let body_count = Cell::new(0);
+    // Headings whose content is context-independent (see `heading_content_is_context_independent`)
+    // are parsed once here and reused by the body pass instead of being parsed twice.
+    let mut header_parse_cache: HeaderParseCache = BTreeMap::new();
     // Headings register their references up front so a reference resolves to a heading anywhere in
     // the document, including one that appears later or inside a footnote definition.
     if ext.contains(Extension::ImplicitHeaderReferences) {
@@ -83,7 +100,7 @@ pub(crate) fn resolve_document(
             examples,
             cite_count: &scratch_count,
         };
-        register_header_references(ir, &mut refs, probe, ext);
+        register_header_references(ir, &mut refs, probe, ext, &mut header_parse_cache);
     }
     let in_def = RefContext {
         defined: &defined,
@@ -95,7 +112,12 @@ pub(crate) fn resolve_document(
     };
     let by_id: BTreeMap<String, Vec<Block>> = footnotes
         .iter()
-        .map(|(key, body)| (key.clone(), resolve_blocks(body, &refs, in_def, ext)))
+        .map(|(key, body)| {
+            (
+                key.clone(),
+                resolve_blocks(body, &refs, in_def, ext, &mut header_parse_cache),
+            )
+        })
         .collect();
     let top = RefContext {
         defined: &defined,
@@ -105,7 +127,7 @@ pub(crate) fn resolve_document(
         examples,
         cite_count: &body_count,
     };
-    let mut blocks = resolve_blocks(ir, &refs, top, ext);
+    let mut blocks = resolve_blocks(ir, &refs, top, ext, &mut header_parse_cache);
     super::identifiers::assign_header_identifiers(&mut blocks, ext, markdown);
     blocks
 }
@@ -120,9 +142,10 @@ fn register_header_references(
     refs: &mut RefMap,
     notes: RefContext,
     ext: Extensions,
+    cache: &mut HeaderParseCache,
 ) {
     let mut numbering = HeaderNumbering::new(ext, notes.markdown);
-    gather_headers(ir, refs, notes, ext, &mut numbering);
+    gather_headers(ir, refs, notes, ext, &mut numbering, cache);
 }
 
 fn gather_headers(
@@ -131,6 +154,7 @@ fn gather_headers(
     notes: RefContext,
     ext: Extensions,
     numbering: &mut HeaderNumbering,
+    cache: &mut HeaderParseCache,
 ) {
     for block in ir {
         match block {
@@ -142,19 +166,25 @@ fn gather_headers(
                     url: format!("#{id}"),
                     title: String::new(),
                 });
+                if heading_content_is_context_independent(content) {
+                    cache
+                        .entry(content.to_owned())
+                        .or_default()
+                        .push_back(inlines);
+                }
             }
             IrBlock::Div(_, children) | IrBlock::BlockQuote(children) => {
-                gather_headers(children, refs, notes, ext, numbering);
+                gather_headers(children, refs, notes, ext, numbering, cache);
             }
             IrBlock::BulletList(items) | IrBlock::OrderedList(_, items) => {
                 for item in items {
-                    gather_headers(item, refs, notes, ext, numbering);
+                    gather_headers(item, refs, notes, ext, numbering, cache);
                 }
             }
             IrBlock::DefinitionList(items) => {
                 for item in items {
                     for definition in &item.definitions {
-                        gather_headers(definition, refs, notes, ext, numbering);
+                        gather_headers(definition, refs, notes, ext, numbering, cache);
                     }
                 }
             }
@@ -163,10 +193,16 @@ fn gather_headers(
     }
 }
 
-fn resolve_blocks(ir: &[IrBlock], refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Block> {
+fn resolve_blocks(
+    ir: &[IrBlock],
+    refs: &RefMap,
+    notes: RefContext,
+    ext: Extensions,
+    cache: &mut HeaderParseCache,
+) -> Vec<Block> {
     let mut out = Vec::with_capacity(ir.len());
     for block in ir {
-        resolve_block(block, refs, notes, ext, &mut out);
+        resolve_block(block, refs, notes, ext, cache, &mut out);
     }
     out
 }
@@ -176,6 +212,7 @@ fn resolve_block(
     refs: &RefMap,
     notes: RefContext,
     ext: Extensions,
+    cache: &mut HeaderParseCache,
     out: &mut Vec<Block>,
 ) {
     match block {
@@ -186,11 +223,18 @@ fn resolve_block(
         IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, notes, ext))),
         IrBlock::Heading(level, text) => {
             let (content, attr) = split_header_attr(text, ext);
-            out.push(Block::Header(
-                *level,
-                Box::new(attr),
-                parse_inlines(content, refs, notes, ext),
-            ));
+            // A heading's content that is safe to cache (see
+            // `heading_content_is_context_independent`) was already parsed once by the reference
+            // pre-pass; reuse that parse instead of running the inline scan again.
+            let inlines = if heading_content_is_context_independent(content) {
+                cache
+                    .get_mut(content)
+                    .and_then(VecDeque::pop_front)
+                    .unwrap_or_else(|| parse_inlines(content, refs, notes, ext))
+            } else {
+                parse_inlines(content, refs, notes, ext)
+            };
+            out.push(Block::Header(*level, Box::new(attr), inlines));
         }
         IrBlock::CodeBlock(attr, text) => {
             out.push(Block::CodeBlock(
@@ -218,12 +262,12 @@ fn resolve_block(
         IrBlock::Div(attr, children) => {
             out.push(Block::Div(
                 Box::new(attr.clone()),
-                resolve_blocks(children, refs, notes, ext),
+                resolve_blocks(children, refs, notes, ext, cache),
             ));
         }
         IrBlock::BlockQuote(children) => {
             out.push(Block::BlockQuote(resolve_blocks(
-                children, refs, notes, ext,
+                children, refs, notes, ext, cache,
             )));
         }
         IrBlock::LineBlock(lines) => out.push(Block::LineBlock(
@@ -240,18 +284,18 @@ fn resolve_block(
                     let definitions = item
                         .definitions
                         .iter()
-                        .map(|blocks| resolve_blocks(blocks, refs, notes, ext))
+                        .map(|blocks| resolve_blocks(blocks, refs, notes, ext, cache))
                         .collect();
                     (term, definitions)
                 })
                 .collect(),
         )),
-        IrBlock::BulletList(items) => resolve_bullet_list(items, refs, notes, ext, out),
+        IrBlock::BulletList(items) => resolve_bullet_list(items, refs, notes, ext, cache, out),
         IrBlock::OrderedList(attrs, items) => out.push(Block::OrderedList(
             attrs.clone(),
             items
                 .iter()
-                .map(|i| resolve_blocks(i, refs, notes, ext))
+                .map(|i| resolve_blocks(i, refs, notes, ext, cache))
                 .collect(),
         )),
         IrBlock::Table {
@@ -523,6 +567,7 @@ fn resolve_bullet_list(
     refs: &RefMap,
     notes: RefContext,
     ext: Extensions,
+    cache: &mut HeaderParseCache,
     out: &mut Vec<Block>,
 ) {
     let task_lists = ext.contains(Extension::TaskLists);
@@ -540,7 +585,7 @@ fn resolve_bullet_list(
             out.push(Block::BulletList(std::mem::take(&mut run)));
         }
         run_is_task = Some(is_task);
-        run.push(resolve_item(item, marker.as_ref(), refs, notes, ext));
+        run.push(resolve_item(item, marker.as_ref(), refs, notes, ext, cache));
     }
     if !run.is_empty() {
         out.push(Block::BulletList(run));
@@ -555,14 +600,15 @@ fn resolve_item(
     refs: &RefMap,
     notes: RefContext,
     ext: Extensions,
+    cache: &mut HeaderParseCache,
 ) -> Vec<Block> {
     let mut out = Vec::new();
     let mut blocks = item.iter();
     if let Some(first) = blocks.next() {
-        resolve_block(marker.unwrap_or(first), refs, notes, ext, &mut out);
+        resolve_block(marker.unwrap_or(first), refs, notes, ext, cache, &mut out);
     }
     for block in blocks {
-        resolve_block(block, refs, notes, ext, &mut out);
+        resolve_block(block, refs, notes, ext, cache, &mut out);
     }
     out
 }
@@ -3857,11 +3903,14 @@ mod tests {
 #[cfg(test)]
 mod inline_tests {
     use std::cell::Cell;
-    use std::collections::{BTreeMap, BTreeSet};
+    use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
     use carta_ast::{Attr, Block, Citation, CitationMode, Inline, Target};
 
-    use super::{ExampleMap, LinkDef, RefContext, RefMap, parse_inlines};
+    use super::{
+        ExampleMap, HeaderNumbering, HeaderParseCache, IrBlock, LinkDef, RefContext, RefMap,
+        gather_headers, heading_content_is_context_independent, parse_inlines, resolve_block,
+    };
     use carta_core::{Extension, Extensions};
 
     static NO_DEFINED: BTreeSet<String> = BTreeSet::new();
@@ -5402,6 +5451,81 @@ mod inline_tests {
                 )],
                 "http://x.com",
             )]
+        );
+    }
+
+    #[test]
+    fn heading_content_is_context_independent_gates_on_ref_trigger_chars() {
+        assert!(heading_content_is_context_independent("Installation"));
+        assert!(heading_content_is_context_independent("API reference"));
+        assert!(!heading_content_is_context_independent("About @doe99"));
+        assert!(!heading_content_is_context_independent("Title[^1]"));
+        assert!(!heading_content_is_context_independent("See [spec]"));
+    }
+
+    #[test]
+    fn a_context_independent_heading_is_parsed_once_and_reused_by_the_body_pass() {
+        let ir = vec![IrBlock::Heading(1, "Installation".to_owned())];
+        let mut refs = empty_refs();
+        let mut cache: HeaderParseCache = BTreeMap::new();
+        let mut numbering = HeaderNumbering::new(no_ext(), false);
+        gather_headers(
+            &ir,
+            &mut refs,
+            no_notes(),
+            no_ext(),
+            &mut numbering,
+            &mut cache,
+        );
+
+        let queued = cache
+            .get("Installation")
+            .expect("the pre-pass should have cached the heading's parse");
+        assert_eq!(queued.len(), 1);
+
+        let heading = ir.first().expect("one heading in the IR");
+        let mut out = Vec::new();
+        resolve_block(heading, &refs, no_notes(), no_ext(), &mut cache, &mut out);
+
+        // The body pass popped the pre-pass's parse instead of running the inline scan again.
+        assert!(cache.get("Installation").is_none_or(VecDeque::is_empty));
+        assert_eq!(
+            out,
+            vec![Block::Header(1, Box::default(), p("Installation"))]
+        );
+    }
+
+    #[test]
+    fn a_second_identical_heading_pops_its_own_queued_parse() {
+        let ir = vec![
+            IrBlock::Heading(1, "Dup".to_owned()),
+            IrBlock::Heading(1, "Dup".to_owned()),
+        ];
+        let mut refs = empty_refs();
+        let mut cache: HeaderParseCache = BTreeMap::new();
+        let mut numbering = HeaderNumbering::new(no_ext(), false);
+        gather_headers(
+            &ir,
+            &mut refs,
+            no_notes(),
+            no_ext(),
+            &mut numbering,
+            &mut cache,
+        );
+        assert_eq!(cache.get("Dup").map(VecDeque::len), Some(2));
+
+        let mut out = Vec::new();
+        for block in &ir {
+            resolve_block(block, &refs, no_notes(), no_ext(), &mut cache, &mut out);
+        }
+
+        assert!(cache.get("Dup").is_none_or(VecDeque::is_empty));
+        assert_eq!(
+            out,
+            vec![
+                Block::Header(1, Box::default(), p("Dup")),
+                Block::Header(1, Box::default(), p("Dup")),
+            ]
         );
     }
 }
