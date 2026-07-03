@@ -1,9 +1,29 @@
-# Writer features not yet implemented for a target. One entry per line; blank lines and lines
-# beginning with `#` are ignored. An entry is either `target<TAB>feature` (the whole `corpus/ast/`
-# subdirectory) or `target<TAB>feature/case` (a single case stem within it, for when only one case
-# in an otherwise-passing directory depends on a missing feature). Both the Rust golden-writer test
-# and the shell conformance suite read this file and skip the listed cases, reporting the skip
-# count. Delete a line when its writer path lands, and the corpus case activates automatically.
+# Corpus cases a target skips in the differential comparison. One entry per line; blank lines and
+# lines beginning with `#` are ignored. An entry is either `target<TAB>feature` (the whole
+# `corpus/ast/` subdirectory) or `target<TAB>feature/case` (a single case stem within it, for when
+# only one case in an otherwise-passing directory is skipped). Both the Rust golden-writer test and
+# the shell conformance suite read this file and skip the listed cases, reporting the skip count.
+#
+# Most entries mark a writer path not yet implemented — delete the line when it lands and the corpus
+# case activates automatically. A few mark an intentional divergence in the differential comparison,
+# where a byte-for-byte match would demand wrong output or the difference is a negligible cosmetic
+# artifact; those are documented under the relevant format in docs/STATUS.md and are expected to stay.
 latex	task-list
 beamer	task-list
 man	common/code-block-lang
+
+# Intentional EPUB divergences (see docs/STATUS.md → EPUB):
+# - image-external: an absolute image URL is emitted verbatim rather than resolved against the
+#   chapter directory; prefixing a chapter-relative `../` onto it would yield a broken
+#   `../https://…` path, so the case is not compared.
+# - raw-latex-block: a raw LaTeX block has no XHTML representation and is dropped, leaving no stray
+#   whitespace where it stood — a negligible cosmetic difference not worth comparing.
+# - literal-control-chars: characters the XML specification forbids are stripped from the text, since
+#   an XHTML document that contains them is not well-formed and cannot be opened; a byte comparison
+#   is meaningless when leaving them in produces an archive no reading system can parse.
+epub3	common/image-external
+epub2	common/image-external
+epub3	common/raw-latex-block
+epub2	common/raw-latex-block
+epub3	common/literal-control-chars
+epub2	common/literal-control-chars

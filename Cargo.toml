@@ -24,6 +24,7 @@ unicode-general-category = "1"
 unicode-normalization = "0.1"
 caseless = "0.2"
 compact_str = { version = "0.9", features = ["serde"] }
+miniz_oxide = "0.8"
 insta = "1"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 

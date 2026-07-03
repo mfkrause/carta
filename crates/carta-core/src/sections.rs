@@ -97,8 +97,19 @@ fn number_in(blocks: &mut [Block], counters: &mut Counters) {
     for block in blocks {
         match block {
             Block::Header(level, attr, inlines) => {
-                if let Some(number) = counters.advance(*level, &attr.classes) {
-                    attr.attributes.push((Text::from("number"), number.clone()));
+                if let Some(computed) = counters.advance(*level, &attr.classes) {
+                    // A heading may carry its own `number` — an authored override. It keeps its slot
+                    // in the sequence (the counters still advance), but the authored value is shown
+                    // and no second `number` is added.
+                    let number = if let Some((_, value)) =
+                        attr.attributes.iter().find(|(key, _)| key == "number")
+                    {
+                        value.clone()
+                    } else {
+                        attr.attributes
+                            .push((Text::from("number"), computed.clone()));
+                        computed
+                    };
                     let span = Inline::Span(
                         Box::new(section_number_attr("header-section-number")),
                         vec![Inline::Str(number)],
@@ -389,6 +400,44 @@ mod tests {
             Some(Inline::Span(attr, _)) if attr.classes == ["header-section-number"]
         ));
         assert!(matches!(inlines.get(1), Some(Inline::Space)));
+    }
+
+    #[test]
+    fn explicit_number_is_kept_and_still_advances_the_counter() {
+        let explicit = Block::Header(
+            2,
+            Box::new(Attr {
+                id: "c".into(),
+                classes: Vec::new(),
+                attributes: vec![("number".into(), "7.3".into())],
+            }),
+            vec![Inline::Str("C".into())],
+        );
+        let mut blocks = vec![
+            header(1, &[], "A"),
+            header(2, &[], "B"),
+            explicit,
+            header(2, &[], "D"),
+        ];
+        number_sections(&mut blocks);
+        // The authored number shows verbatim without a duplicate attribute, and the sibling after it
+        // keeps counting as though it had advanced normally.
+        assert_eq!(number_at(&blocks, 2), Some("7.3".to_owned()));
+        assert_eq!(number_at(&blocks, 3), Some("1.3".to_owned()));
+        let Some(Block::Header(_, attr, inlines)) = blocks.get(2) else {
+            panic!("expected a header");
+        };
+        assert_eq!(
+            attr.attributes
+                .iter()
+                .filter(|(key, _)| key == "number")
+                .count(),
+            1
+        );
+        assert!(matches!(
+            inlines.first(),
+            Some(Inline::Span(_, span)) if span == &vec![Inline::Str("7.3".into())]
+        ));
     }
 
     #[test]
