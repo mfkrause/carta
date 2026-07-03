@@ -781,4 +781,128 @@ mod tests {
             vec![String::new(), "Fiction".to_owned()]
         );
     }
+
+    #[test]
+    fn meta_inlines_renders_each_value_shape() {
+        use super::meta_inlines;
+        use carta_ast::Block;
+        // A block-shaped value contributes each paragraph's inlines; other blocks contribute nothing.
+        let blocks = MetaValue::MetaBlocks(vec![
+            Block::Para(vec![Inline::Str(Text::from("para"))]),
+            Block::HorizontalRule,
+        ]);
+        assert_eq!(meta_plain_text(&meta_inlines(&blocks)), "para");
+        // A boolean renders its literal spelling.
+        assert_eq!(
+            meta_plain_text(&meta_inlines(&MetaValue::MetaBool(true))),
+            "true"
+        );
+        // A list flattens each element in order.
+        let list = MetaValue::MetaList(vec![meta_string("a"), meta_string("b")]);
+        assert_eq!(meta_plain_text(&meta_inlines(&list)), "ab");
+        // A map carries no inline rendering of its own.
+        assert!(meta_inlines(&meta_map(&[("k", meta_string("v"))])).is_empty());
+    }
+
+    #[test]
+    fn plain_text_flattens_formatting_and_drops_opaque_inlines() {
+        use carta_ast::{Format, Target};
+        let inlines = vec![
+            Inline::Emph(vec![Inline::Str(Text::from("a"))]),
+            Inline::Strong(vec![Inline::Str(Text::from("b"))]),
+            Inline::Link(
+                Box::default(),
+                vec![Inline::Str(Text::from("c"))],
+                Box::<Target>::default(),
+            ),
+            Inline::Code(Box::default(), Text::from("d")),
+            // A raw span and a footnote carry no plain-text value into a package field.
+            Inline::RawInline(Format(Text::from("html")), Text::from("<x>")),
+            Inline::Note(Vec::new()),
+        ];
+        assert_eq!(meta_plain_text(&inlines), "abcd");
+    }
+
+    #[test]
+    fn apply_metadata_xml_projects_every_dublin_core_element() {
+        use super::BookMeta;
+        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed");
+        assert_eq!(meta.language, "en-US");
+        let fragment = concat!(
+            "<!-- a leading comment is skipped -->\n",
+            "<?xml-stylesheet type=\"text/css\"?>\n",
+            "<dc:identifier opf:scheme=\"DOI\">10.1000/xyz</dc:identifier>\n",
+            "<dc:title>Overridden &amp; Titled</dc:title>\n",
+            "<dc:date>2020-01-02</dc:date>\n",
+            "<dc:language>fr</dc:language>\n",
+            "<dc:description>A short &lt;book&gt; & more</dc:description>\n",
+            "<dc:publisher>Press &frac; House</dc:publisher>\n",
+            "<dc:rights>&quot;Quoted&quot; &apos;x&apos;</dc:rights>\n",
+            "<dc:subject class='sci'>Science</dc:subject>\n",
+            "<dc:subject>Fiction</dc:subject>\n",
+            "<dc:creator opf:role=\"aut\" opf:file-as=\"Doe, Jane\">Jane Doe</dc:creator>\n",
+            "<dc:contributor opf:role=\"edt\">Ed Itor</dc:contributor>\n",
+            "<meta name=\"cover\" content=\"cover-image\" />\n",
+            "<meta property=\"custom:field\">custom value</meta>\n",
+        );
+        meta.apply_metadata_xml(fragment);
+
+        // A supplied identifier replaces the generated one and carries its scheme's ONIX code.
+        assert_eq!(meta.identifiers.len(), 1);
+        assert_eq!(meta.primary_identifier(), "10.1000/xyz");
+        let identifier = meta.identifiers.first().expect("an identifier");
+        assert_eq!(identifier.onix_code().as_deref(), Some("06"));
+
+        assert_eq!(meta.title_text, "Overridden & Titled");
+        assert_eq!(meta.date.as_deref(), Some("2020-01-02"));
+        assert_eq!(meta.language, "fr");
+        // Every predefined entity resolves; a bare `&` and an unknown entity are left as written.
+        assert_eq!(meta.description.as_deref(), Some("A short <book> & more"));
+        assert_eq!(meta.publisher.as_deref(), Some("Press &frac; House"));
+        assert_eq!(meta.rights_text.as_deref(), Some("\"Quoted\" 'x'"));
+        assert_eq!(
+            meta.subjects,
+            vec!["Science".to_owned(), "Fiction".to_owned()]
+        );
+
+        assert_eq!(meta.creators.len(), 1);
+        let creator = meta.creators.first().expect("a creator");
+        assert_eq!(creator.text, "Jane Doe");
+        assert_eq!(creator.role.as_deref(), Some("aut"));
+        assert_eq!(creator.file_as.as_deref(), Some("Doe, Jane"));
+
+        assert_eq!(meta.contributors.len(), 1);
+        let contributor = meta.contributors.first().expect("a contributor");
+        assert_eq!(contributor.role.as_deref(), Some("edt"));
+
+        // Elements with no dedicated field are carried through verbatim, self-closing ones included.
+        assert_eq!(meta.extra.len(), 2);
+        let cover = meta.extra.first().expect("first extra");
+        assert_eq!(cover.name, "meta");
+        assert!(cover.text.is_empty());
+        assert_eq!(
+            cover.attributes,
+            vec![
+                ("name".to_owned(), "cover".to_owned()),
+                ("content".to_owned(), "cover-image".to_owned()),
+            ]
+        );
+        let custom = meta.extra.get(1).expect("second extra");
+        assert_eq!(custom.text, "custom value");
+    }
+
+    #[test]
+    fn apply_metadata_xml_leaves_projection_intact_when_it_names_nothing() {
+        use super::BookMeta;
+        let source = meta_with("title", meta_string("Original"));
+        let mut meta = BookMeta::from_meta(&source, "seed");
+        let identifier_count = meta.identifiers.len();
+        meta.apply_metadata_xml("   \n<!-- nothing to project -->\n  ");
+        assert_eq!(meta.title_text, "Original");
+        assert_eq!(meta.identifiers.len(), identifier_count);
+        assert!(meta.creators.is_empty());
+        assert!(meta.contributors.is_empty());
+        assert!(meta.subjects.is_empty());
+        assert!(meta.extra.is_empty());
+    }
 }

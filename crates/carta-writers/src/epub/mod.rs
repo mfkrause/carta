@@ -907,3 +907,113 @@ fn read_le_u16(bytes: &[u8], offset: usize) -> Option<u16> {
     let array: [u8; 2] = bytes.get(offset..offset + 2)?.try_into().ok()?;
     Some(u16::from_le_bytes(array))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        basename, file_extension, font_media_type, gif_dimensions, image_dimensions,
+        image_extension, image_media_type, is_relative_resource, iso_from_epoch, item_id_for, join,
+        jpeg_dimensions, png_dimensions,
+    };
+    use carta_core::media::{MediaItem, extension_for_mime};
+
+    #[test]
+    fn png_dimensions_reads_the_ihdr_header() {
+        let bytes = [
+            0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, // signature
+            0, 0, 0, 13, b'I', b'H', b'D', b'R', // IHDR chunk header
+            0, 0, 0, 2, // width
+            0, 0, 0, 3, // height
+        ];
+        assert_eq!(png_dimensions(&bytes), Some((2, 3)));
+        assert_eq!(png_dimensions(b"not a png"), None);
+    }
+
+    #[test]
+    fn gif_dimensions_reads_the_screen_descriptor() {
+        let bytes = [b'G', b'I', b'F', b'8', b'9', b'a', 0x0a, 0x00, 0x14, 0x00];
+        assert_eq!(gif_dimensions(&bytes), Some((10, 20)));
+        assert_eq!(gif_dimensions(b"GIF"), None);
+        assert_eq!(gif_dimensions(b"XXXXXX....."), None);
+    }
+
+    #[test]
+    fn jpeg_dimensions_skips_to_the_start_of_frame() {
+        // An APP0 segment (with a length payload) precedes the start-of-frame marker, which the scan
+        // steps over before reading the frame's height and width.
+        let bytes = [
+            0xff, 0xd8, // start of image
+            0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, // APP0 segment, length 4
+            0xff, 0xc0, 0x00, 0x11, 0x08, // start of frame, precision 8
+            0x00, 0x1e, // height 30
+            0x00, 0x28, // width 40
+        ];
+        assert_eq!(jpeg_dimensions(&bytes), Some((40, 30)));
+        assert_eq!(jpeg_dimensions(b"not a jpeg"), None);
+    }
+
+    #[test]
+    fn image_dimensions_is_zero_for_an_unrecognized_format() {
+        assert_eq!(image_dimensions(b"neither png nor gif nor jpeg"), (0, 0));
+    }
+
+    #[test]
+    fn image_extension_prefers_a_plain_url_extension_then_the_mime_type() {
+        let gif = MediaItem {
+            mime: Some(String::from("image/gif")),
+            bytes: Vec::new(),
+        };
+        // A plain word extension on the URL is kept, lowercased.
+        assert_eq!(image_extension("photo.JPG", &gif), "jpg");
+        // A URL without a usable extension falls back to the one its MIME type implies.
+        assert_eq!(
+            image_extension("noextension", &gif),
+            extension_for_mime("image/gif")
+        );
+    }
+
+    #[test]
+    fn media_types_map_by_extension() {
+        assert_eq!(image_media_type("png"), "image/png");
+        assert_eq!(image_media_type("jpeg"), "image/jpeg");
+        assert_eq!(image_media_type("svg"), "image/svg+xml");
+        assert_eq!(image_media_type("webp"), "image/webp");
+        assert_eq!(image_media_type("xyz"), "application/octet-stream");
+        assert_eq!(font_media_type("Regular.otf"), "font/otf");
+        assert_eq!(font_media_type("Regular.ttf"), "font/ttf");
+        assert_eq!(font_media_type("Regular.woff"), "font/woff");
+        assert_eq!(font_media_type("Regular.woff2"), "font/woff2");
+        assert_eq!(font_media_type("Regular.bin"), "application/octet-stream");
+    }
+
+    #[test]
+    fn only_working_directory_relative_paths_need_climbing() {
+        assert!(is_relative_resource("media/pic.png"));
+        assert!(!is_relative_resource(""));
+        assert!(!is_relative_resource("/absolute.png"));
+        assert!(!is_relative_resource("#fragment"));
+        assert!(!is_relative_resource("data:image/png;base64,AAAA"));
+        assert!(!is_relative_resource("//cdn.example/pic.png"));
+        assert!(!is_relative_resource("https://example.com/pic.png"));
+    }
+
+    #[test]
+    fn path_helpers_split_and_join() {
+        assert_eq!(join("EPUB", "content.opf"), "EPUB/content.opf");
+        assert_eq!(join("", "content.opf"), "content.opf");
+        assert_eq!(basename("a/b/c.png"), "c.png");
+        assert_eq!(basename("a\\b.png"), "b.png");
+        assert_eq!(basename("plain"), "plain");
+        assert_eq!(file_extension("Cover.PNG"), "png");
+        assert_eq!(file_extension("archive.tar.gz"), "gz");
+        assert_eq!(file_extension("noextension"), "");
+        assert_eq!(item_id_for("ch001.xhtml"), "ch001_xhtml");
+    }
+
+    #[test]
+    fn epoch_formats_as_an_iso_instant() {
+        assert_eq!(iso_from_epoch(0), "1970-01-01T00:00:00Z");
+        assert_eq!(iso_from_epoch(1), "1970-01-01T00:00:01Z");
+        assert_eq!(iso_from_epoch(1_700_000_000), "2023-11-14T22:13:20Z");
+    }
+}
