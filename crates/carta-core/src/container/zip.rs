@@ -204,17 +204,21 @@ pub fn read(archive: &[u8]) -> Result<Vec<ZipEntry>> {
         let local_offset =
             usize::try_from(u32_at(archive, pos + 42)?).map_err(|_| corrupt("offset too large"))?;
 
+        let name_start = add(pos, CENTRAL_HEADER_LEN)?;
         let name_bytes = archive
-            .get(pos + CENTRAL_HEADER_LEN..pos + CENTRAL_HEADER_LEN + name_len)
+            .get(name_start..add(name_start, name_len)?)
             .ok_or_else(|| corrupt("truncated central-directory name"))?;
         let name =
             String::from_utf8(name_bytes.to_vec()).map_err(|_| corrupt("non-UTF-8 entry name"))?;
 
-        let local_name_len = usize::from(u16_at(archive, local_offset + 26)?);
-        let local_extra_len = usize::from(u16_at(archive, local_offset + 28)?);
-        let data_start = local_offset + LOCAL_HEADER_LEN + local_name_len + local_extra_len;
+        let local_name_len = usize::from(u16_at(archive, add(local_offset, 26)?)?);
+        let local_extra_len = usize::from(u16_at(archive, add(local_offset, 28)?)?);
+        let data_start = add(
+            add(add(local_offset, LOCAL_HEADER_LEN)?, local_name_len)?,
+            local_extra_len,
+        )?;
         let raw = archive
-            .get(data_start..data_start + compressed_size)
+            .get(data_start..add(data_start, compressed_size)?)
             .ok_or_else(|| corrupt("truncated entry data"))?;
 
         let data = match method {
@@ -224,9 +228,20 @@ pub fn read(archive: &[u8]) -> Result<Vec<ZipEntry>> {
             other => return Err(corrupt(&format!("unsupported compression method {other}"))),
         };
         entries.push(ZipEntry { name, data });
-        pos += CENTRAL_HEADER_LEN + name_len + extra_len + comment_len;
+        pos = add(
+            add(add(add(pos, CENTRAL_HEADER_LEN)?, name_len)?, extra_len)?,
+            comment_len,
+        )?;
     }
     Ok(entries)
+}
+
+/// Add two archive offsets, mapping overflow to a corrupt-archive error. An offset and a length
+/// taken from a hostile archive can sum past the address space; without this the addition would wrap
+/// in release (yielding an in-range slice of the wrong bytes) or panic in debug.
+fn add(a: usize, b: usize) -> Result<usize> {
+    a.checked_add(b)
+        .ok_or_else(|| corrupt("archive offset out of range"))
 }
 
 fn find_eocd(buf: &[u8]) -> Option<usize> {
