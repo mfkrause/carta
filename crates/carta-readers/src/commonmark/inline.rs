@@ -767,6 +767,7 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
         ext,
         bracket_stack: Vec::new(),
         interesting: interesting_chars(ext),
+        backtick_no_close: BTreeMap::new(),
     };
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
@@ -812,6 +813,10 @@ struct InlineParser<'a> {
     /// For each ASCII code, whether a character can start a syntactic construct under the active
     /// extensions. Everything else is ordinary text a run scan can skip over in one step.
     interesting: [bool; 128],
+    /// Backtick run lengths for which a close search already failed, each with the position the
+    /// failed search started from. A search to end-of-input that failed from `p` also fails from
+    /// any later position, so an equal-length opener past `p` skips the scan.
+    backtick_no_close: BTreeMap<usize, usize>,
 }
 
 /// The ASCII characters that can begin an inline construct under `ext`; every other character is
@@ -1397,37 +1402,45 @@ impl InlineParser<'_> {
         let start = self.pos;
         let open = backtick_run_len(self.chars, self.pos);
         self.pos += open;
-        // Find a closing run of exactly `open` backticks.
-        let mut scan = self.pos;
-        while scan < self.chars.len() {
-            if self.chars.get(scan).copied() == Some('`') {
-                let close = backtick_run_len(self.chars, scan);
-                if close == open {
-                    let content: String = self
-                        .chars
-                        .get(self.pos..scan)
-                        .map(|s| s.iter().collect())
-                        .unwrap_or_default();
-                    self.pos = scan + close;
-                    if let Some((format, next)) = self.scan_raw_format() {
-                        self.pos = next;
-                        self.nodes.push(Node::Inline(Inline::RawInline(
-                            carta_ast::Format(format.into()),
+        // If a same-length close search already failed from at or before `start`, it fails again.
+        let already_failed = self
+            .backtick_no_close
+            .get(&open)
+            .is_some_and(|&failed_from| failed_from <= start);
+        if !already_failed {
+            // Find a closing run of exactly `open` backticks.
+            let mut scan = self.pos;
+            while scan < self.chars.len() {
+                if self.chars.get(scan).copied() == Some('`') {
+                    let close = backtick_run_len(self.chars, scan);
+                    if close == open {
+                        let content: String = self
+                            .chars
+                            .get(self.pos..scan)
+                            .map(|s| s.iter().collect())
+                            .unwrap_or_default();
+                        self.pos = scan + close;
+                        if let Some((format, next)) = self.scan_raw_format() {
+                            self.pos = next;
+                            self.nodes.push(Node::Inline(Inline::RawInline(
+                                carta_ast::Format(format.into()),
+                                normalize_code(&content, self.notes.markdown).into(),
+                            )));
+                            return;
+                        }
+                        let attr = self.take_code_attr();
+                        self.nodes.push(Node::Inline(Inline::Code(
+                            Box::new(attr),
                             normalize_code(&content, self.notes.markdown).into(),
                         )));
                         return;
                     }
-                    let attr = self.take_code_attr();
-                    self.nodes.push(Node::Inline(Inline::Code(
-                        Box::new(attr),
-                        normalize_code(&content, self.notes.markdown).into(),
-                    )));
-                    return;
+                    scan += close;
+                } else {
+                    scan += 1;
                 }
-                scan += close;
-            } else {
-                scan += 1;
             }
+            self.backtick_no_close.insert(open, start);
         }
         // No closing run: emit the opening backticks literally.
         let literal: String = self
@@ -4636,6 +4649,25 @@ mod inline_tests {
     #[test]
     fn raw_attribute_off_leaves_marker_literal() {
         assert_eq!(p("`<b>`{=html}"), vec![code("<b>"), str("{=html}")]);
+    }
+
+    #[test]
+    fn code_span_matches_equal_length_closer() {
+        assert_eq!(p("`a`"), vec![code("a")]);
+    }
+
+    #[test]
+    fn code_span_with_no_closer_stays_literal() {
+        assert_eq!(p("`a"), vec![str("`a")]);
+    }
+
+    #[test]
+    fn code_span_failed_search_does_not_mask_a_different_length_match() {
+        // The length-1 opener's close search runs to end-of-buffer and fails (no lone backtick
+        // follows), which the parser remembers for length 1. The length-2 span that comes right
+        // after must still match: the memo is keyed by run length, so a failure recorded for one
+        // length must not suppress the scan for another.
+        assert_eq!(p("`a ``b``"), vec![str("`a"), Inline::Space, code("b")]);
     }
 
     // --- Inline raw TeX and backslash math ---
