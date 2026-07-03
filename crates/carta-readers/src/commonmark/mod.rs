@@ -862,6 +862,104 @@ mod tests {
         );
     }
 
+    #[test]
+    fn implicit_header_references_plain_heading_matches_an_ordinary_paragraph_parse() {
+        let result = blocks_with_many("# Simple title\n\nSimple title\n", HEADER_REFS);
+        let [
+            Block::Header(_, _, header_inlines),
+            Block::Para(para_inlines),
+        ] = result.as_slice()
+        else {
+            panic!("expected a heading then a paragraph, got {result:?}");
+        };
+        // The heading's content has no reference/citation/note trigger character, so its parse is
+        // reused from the pre-pass rather than reparsed; it still matches an ordinary parse of the
+        // same text.
+        assert_eq!(header_inlines, para_inlines);
+    }
+
+    fn cite_note_nums(blocks: &[Block]) -> Vec<i32> {
+        fn collect(inlines: &[Inline], out: &mut Vec<i32>) {
+            for inline in inlines {
+                if let Inline::Cite(citations, _) = inline {
+                    out.extend(citations.iter().map(|c| c.note_num));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for block in blocks {
+            match block {
+                Block::Header(_, _, inlines) | Block::Para(inlines) => collect(inlines, &mut out),
+                _ => {}
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn implicit_header_references_heading_with_a_citation_is_not_cached() {
+        let result = blocks_with_many(
+            "# About @doe99\n\nSee @smith too.\n",
+            &[
+                Extension::GfmAutoIdentifiers,
+                Extension::ImplicitHeaderReferences,
+                Extension::Citations,
+            ],
+        );
+        // The heading's content contains `@`, so the pre-pass parse (built against a scratch
+        // citation count) is not reused; the body pass reparses it against the body's running
+        // count, so the heading's citation is numbered first and the paragraph's second.
+        assert_eq!(cite_note_nums(&result), [1, 2]);
+    }
+
+    #[test]
+    fn implicit_header_references_heading_with_a_footnote_resolves_in_the_body_pass() {
+        let result = blocks_with_many(
+            "# Title[^1]\n\n[^1]: the note body\n",
+            &[
+                Extension::GfmAutoIdentifiers,
+                Extension::ImplicitHeaderReferences,
+                Extension::Footnotes,
+            ],
+        );
+        let [Block::Header(_, _, inlines)] = result.as_slice() else {
+            panic!("expected a single heading, got {result:?}");
+        };
+        let note = inlines
+            .iter()
+            .find_map(|inline| match inline {
+                Inline::Note(blocks) => Some(blocks.clone()),
+                _ => None,
+            })
+            .expect("a note should be present");
+        // The heading's content contains `^`, so the pre-pass parse (built with no footnote bodies
+        // available) is not reused; the body pass sees the real footnote body.
+        assert!(matches!(note.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn implicit_header_references_heading_referencing_a_later_heading_resolves_in_the_body_pass() {
+        let result = blocks_with_many("# See [Later Heading]\n\n# Later Heading\n", HEADER_REFS);
+        let [Block::Header(_, _, inlines), _] = result.as_slice() else {
+            panic!("expected two headings, got {result:?}");
+        };
+        // The heading's content contains `[`, so the pre-pass parse (built before the later
+        // heading had registered its own reference) is not reused; the body pass sees the full
+        // reference map and resolves the link.
+        assert!(matches!(inlines.as_slice(), [.., Inline::Link(..)]));
+    }
+
+    #[test]
+    fn implicit_header_references_duplicate_headings_both_resolve_and_get_disambiguated_ids() {
+        let result = blocks_with_many("# Dup\n\n# Dup\n", HEADER_REFS);
+        assert_eq!(header_ids(&result), ["dup", "dup-1"]);
+        let [Block::Header(_, _, first), Block::Header(_, _, second)] = result.as_slice() else {
+            panic!("expected two headings, got {result:?}");
+        };
+        // Both occurrences pop their own queued parse and resolve identically.
+        assert_eq!(first, second);
+    }
+
     const LINE_BLOCKS: &[Extension] = &[Extension::LineBlocks];
     const LINE_BLOCKS_TABLES: &[Extension] = &[Extension::LineBlocks, Extension::PipeTables];
 
