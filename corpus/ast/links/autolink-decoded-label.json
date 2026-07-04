@@ -1,0 +1,61 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Link",
+          "c": [
+            [
+              "",
+              [],
+              []
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "http://example.com/a%20b"
+              }
+            ],
+            [
+              "http://example.com/a%20b",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Link",
+          "c": [
+            [
+              "",
+              [],
+              []
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "http://example.com/a b"
+              }
+            ],
+            [
+              "http://example.com/a%20b",
+              ""
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+`x <http://example.com/>`__
+
+`y <http://example.com/>`__

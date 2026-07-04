@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "x" ]
+        ( "http://example.com/" , "a\"b title" )
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "y" ]
+        ( "http://example.com/" , "a\"b'c title" )
+    ]
+]

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\href{http://example.com/}{x}
+
+\href{http://example.com/}{y}
+\end{frame}

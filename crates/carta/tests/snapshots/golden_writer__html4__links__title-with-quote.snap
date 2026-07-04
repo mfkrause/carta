@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><a href="http://example.com/" title="a&quot;b title">x</a></p>
+<p><a href="http://example.com/" title="a&quot;b&#39;c title">y</a></p>
