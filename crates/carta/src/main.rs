@@ -260,6 +260,7 @@ fn epub_options(cli: &Cli) -> Result<EpubOptions> {
     epub.subdirectory.clone_from(&cli.epub_subdirectory);
     epub.split_level = cli.split_level;
     epub.source_date_epoch = source_date_epoch();
+    epub.locale = std::env::var("LANG").ok();
     Ok(epub)
 }
 

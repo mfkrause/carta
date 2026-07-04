@@ -152,6 +152,11 @@ pub struct EpubOptions {
     /// Seconds since the Unix epoch fixing the publication's modification timestamp. `None` uses a
     /// fixed epoch so output stays byte-reproducible.
     pub source_date_epoch: Option<i64>,
+
+    /// The process locale (the `LANG` environment variable) whose language tag stands in when the
+    /// document names no `lang`. `None` falls back to `en-US`, keeping output independent of the
+    /// environment.
+    pub locale: Option<String>,
 }
 
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
