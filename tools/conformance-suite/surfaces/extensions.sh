@@ -22,11 +22,14 @@ EXTENSIONS_RS="$ROOT/crates/carta-core/src/extensions.rs"
 READER_SRC="$ROOT/crates/carta-readers/src"
 TEXT_EXT="$CORPUS/text-ext"
 
-# Variant -> token, straight from the `Variant => "token",` rows of the define_extensions! table.
-declare -A TOKEN
-while read -r variant token; do
-  [ -n "$variant" ] && TOKEN["$variant"]="$token"
-done < <(sed -nE 's/^[[:space:]]+([A-Z][A-Za-z]+)[[:space:]]*=>[[:space:]]*"([a-z_]+)".*/\1 \2/p' "$EXTENSIONS_RS")
+# Variant -> token rows, straight from the `Variant => "token",` rows of the define_extensions!
+# table. Kept as plain lines rather than an associative array so the script runs under the bash 3.2
+# that macOS ships.
+TOKEN_ROWS="$(sed -nE 's/^[[:space:]]+([A-Z][A-Za-z]+)[[:space:]]*=>[[:space:]]*"([a-z_]+)".*/\1 \2/p' "$EXTENSIONS_RS")"
+
+token_for_variant() {
+  printf '%s\n' "$TOKEN_ROWS" | awk -v variant="$1" '$1 == variant { print $2; exit }'
+}
 
 # Every extension token an existing text-ext spec dir exercises (split each spec on +/-, drop the
 # leading base-format segment).
@@ -41,7 +44,7 @@ conf_reset "extensions-coverage"
 # A grepped name counts as honored only when it is a real variant (in TOKEN), which filters out the
 # `ALL`/`COUNT` associated constants that share the `Extension::` prefix.
 for variant in $(grep -rhoE 'Extension::[A-Z][A-Za-z]+' "$READER_SRC" | sed 's/Extension:://' | sort -u); do
-  token="${TOKEN[$variant]:-}"
+  token="$(token_for_variant "$variant")"
   [ -n "$token" ] || continue
   if printf '%s\n' "$covered" | grep -Fxq "$token"; then
     PASS=$((PASS + 1))
