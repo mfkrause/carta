@@ -260,6 +260,17 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     write_output(cli.output.as_deref(), &output, verbatim)
 }
 
+/// Read `path` to a string, treating its absence as a miss rather than an error: `Ok(None)` when the
+/// file does not exist, any other I/O failure propagated. Templates are looked up across several
+/// locations in turn, so a missing candidate is expected.
+fn try_read(path: &Path) -> Result<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(source) => Ok(Some(source)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
 /// Resolve the standalone template the writer options should carry.
 ///
 /// A `--template` argument is a file path, or — failing that — a name looked up under the data
@@ -281,10 +292,8 @@ fn resolve_template(
     {
         let dir = dir.join("templates");
         let extension = default_template_extension(to_base);
-        match fs::read_to_string(dir.join(format!("default.{extension}"))) {
-            Ok(source) => return Ok(Some((source, dir, extension.to_owned()))),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
+        if let Some(source) = try_read(&dir.join(format!("default.{extension}")))? {
+            return Ok(Some((source, dir, extension.to_owned())));
         }
     }
     Ok(None)
@@ -302,17 +311,13 @@ fn resolve_named_template(
         .and_then(|ext| ext.to_str())
         .unwrap_or("")
         .to_owned();
-    match fs::read_to_string(name) {
-        Ok(source) => return Ok((source, template_dir(name), extension)),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
+    if let Some(source) = try_read(name)? {
+        return Ok((source, template_dir(name), extension));
     }
     if let Some(dir) = data_dir {
         let dir = dir.join("templates");
-        match fs::read_to_string(dir.join(name)) {
-            Ok(source) => return Ok((source, dir, extension)),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
+        if let Some(source) = try_read(&dir.join(name))? {
+            return Ok((source, dir, extension));
         }
     }
     Err(Error::Template(format!(
