@@ -2585,7 +2585,7 @@ fn substitute_macro(body: &str, args: &[String]) -> String {
     while let Some(c) = chars.next() {
         if c == '#' {
             match chars.peek() {
-                Some(d) if d.is_ascii_digit() => {
+                Some(d) if matches!(d, '1'..='9') => {
                     let idx = (*d as usize) - ('1' as usize);
                     chars.next();
                     if let Some(arg) = args.get(idx) {
@@ -3071,6 +3071,14 @@ mod tests {
                 .map(|(k, v)| (k.into(), v.into()))
                 .collect(),
         }
+    }
+
+    // `#0` is not a parameter reference: only `#1`…`#9` are. A `#0` in a macro body is emitted
+    // verbatim rather than triggering an out-of-range parameter lookup.
+    #[test]
+    fn substitute_macro_preserves_non_parameter_hash_zero() {
+        let expanded = substitute_macro("a#0b", &["Y".to_owned()]);
+        assert_eq!(expanded, "a#0b");
     }
 
     // A numbered display environment is captured as display math whose body preserves the full
