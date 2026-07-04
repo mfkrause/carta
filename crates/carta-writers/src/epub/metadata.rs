@@ -8,9 +8,23 @@ use carta_ast::{Inline, MetaValue, QuoteType, Text};
 use carta_core::media::sha1_hex;
 use std::collections::BTreeMap;
 
-/// The language tag used when the document names none. EPUB requires exactly one language, so a
-/// value is always emitted.
-const DEFAULT_LANGUAGE: &str = "en-US";
+/// The language tag used when neither the document nor the process locale names one. EPUB requires
+/// exactly one language, so a value is always emitted.
+pub(crate) const DEFAULT_LANGUAGE: &str = "en-US";
+
+/// The language a locale value (the `LANG` environment variable) implies: the tag before any
+/// charset (`.UTF-8`) or modifier (`@euro`) suffix, with `_` separators written as `-`. A set but
+/// empty locale yields an empty language; only an absent locale falls back to [`DEFAULT_LANGUAGE`].
+pub(crate) fn language_from_locale(locale: Option<&str>) -> String {
+    match locale {
+        None => DEFAULT_LANGUAGE.to_owned(),
+        Some(value) => value
+            .split(['.', '@'])
+            .next()
+            .unwrap_or(value)
+            .replace('_', "-"),
+    }
+}
 
 /// The document title shown where a package requires a non-empty name (the navigation heading, the
 /// NCX document title, the reading-order guide) but the document supplies none.
@@ -81,8 +95,13 @@ pub(crate) struct BookMeta {
 
 impl BookMeta {
     /// Project the document's metadata map onto the publication fields, resolving each default. The
-    /// `content_seed` is hashed into a stable identifier when the document names none.
-    pub(crate) fn from_meta(meta: &BTreeMap<Text, MetaValue>, content_seed: &str) -> Self {
+    /// `content_seed` is hashed into a stable identifier when the document names none;
+    /// `fallback_language` is recorded when the document names no `lang`.
+    pub(crate) fn from_meta(
+        meta: &BTreeMap<Text, MetaValue>,
+        content_seed: &str,
+        fallback_language: &str,
+    ) -> Self {
         let title_inlines = meta.get("title").map(meta_inlines).unwrap_or_default();
         let title_text = meta_plain_text(&title_inlines);
 
@@ -93,7 +112,7 @@ impl BookMeta {
             .get("lang")
             .map(meta_text)
             .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_LANGUAGE.to_owned());
+            .unwrap_or_else(|| fallback_language.to_owned());
 
         let identifiers = collect_identifiers(meta, content_seed);
 
@@ -688,8 +707,9 @@ fn content_uuid(seed: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        BookMeta, Inline, MetaValue, QuoteType, Text, collect_contributors, collect_creators,
-        collect_identifiers, collect_texts, identifier_from_value, meta_plain_text, onix_code,
+        BookMeta, DEFAULT_LANGUAGE, Inline, MetaValue, QuoteType, Text, collect_contributors,
+        collect_creators, collect_identifiers, collect_texts, identifier_from_value,
+        language_from_locale, meta_plain_text, onix_code,
     };
     use std::collections::BTreeMap;
 
@@ -762,7 +782,7 @@ mod tests {
 
     #[test]
     fn empty_fragment_fields_leave_projected_defaults_intact() {
-        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed");
+        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed", DEFAULT_LANGUAGE);
         let generated = meta.primary_identifier().to_owned();
         assert!(generated.starts_with("urn:uuid:"));
         meta.apply_metadata_xml(
@@ -782,8 +802,20 @@ mod tests {
     }
 
     #[test]
+    fn language_from_locale_reduces_the_tag_and_defaults_only_when_absent() {
+        assert_eq!(language_from_locale(None), "en-US");
+        assert_eq!(language_from_locale(Some("")), "");
+        assert_eq!(language_from_locale(Some("C")), "C");
+        assert_eq!(language_from_locale(Some("C.UTF-8")), "C");
+        assert_eq!(language_from_locale(Some("POSIX")), "POSIX");
+        assert_eq!(language_from_locale(Some("en_US.UTF-8")), "en-US");
+        assert_eq!(language_from_locale(Some("de_AT.UTF-8@euro")), "de-AT");
+        assert_eq!(language_from_locale(Some("fr")), "fr");
+    }
+
+    #[test]
     fn non_empty_fragment_fields_override_the_defaults() {
-        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed");
+        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed", DEFAULT_LANGUAGE);
         meta.apply_metadata_xml(
             "<dc:language>fr</dc:language>\n<dc:identifier>urn:isbn:123</dc:identifier>",
         );
@@ -907,7 +939,7 @@ mod tests {
     #[test]
     fn apply_metadata_xml_projects_every_dublin_core_element() {
         use super::BookMeta;
-        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed");
+        let mut meta = BookMeta::from_meta(&BTreeMap::new(), "seed", DEFAULT_LANGUAGE);
         assert_eq!(meta.language, "en-US");
         let fragment = concat!(
             "<!-- a leading comment is skipped -->\n",
@@ -976,7 +1008,7 @@ mod tests {
     fn apply_metadata_xml_leaves_projection_intact_when_it_names_nothing() {
         use super::BookMeta;
         let source = meta_with("title", meta_string("Original"));
-        let mut meta = BookMeta::from_meta(&source, "seed");
+        let mut meta = BookMeta::from_meta(&source, "seed", DEFAULT_LANGUAGE);
         let identifier_count = meta.identifiers.len();
         meta.apply_metadata_xml("   \n<!-- nothing to project -->\n  ");
         assert_eq!(meta.title_text, "Original");
@@ -991,7 +1023,7 @@ mod tests {
     fn apply_metadata_xml_ignores_empty_overrides() {
         use super::BookMeta;
         let source = meta_with("title", meta_string("Original"));
-        let mut meta = BookMeta::from_meta(&source, "seed");
+        let mut meta = BookMeta::from_meta(&source, "seed", DEFAULT_LANGUAGE);
         // An empty recognized element is dropped rather than applied: it neither blanks the projected
         // title nor pushes an empty subject, creator, or contributor over the projected values.
         meta.apply_metadata_xml(concat!(

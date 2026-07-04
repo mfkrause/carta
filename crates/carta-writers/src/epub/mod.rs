@@ -417,7 +417,8 @@ fn gather_media(
 /// The resolved language, however, is one value applied to every document, so the package view's
 /// language flows back to the document view. Returns `(package, document)`.
 fn resolve_metadata(document: &Document, epub: &EpubOptions, seed: &str) -> (BookMeta, BookMeta) {
-    let doc_meta = BookMeta::from_meta(&document.meta, seed);
+    let fallback_language = metadata::language_from_locale(epub.locale.as_deref());
+    let doc_meta = BookMeta::from_meta(&document.meta, seed, &fallback_language);
     let mut meta = doc_meta.clone();
     if let Some(fragment) = &epub.metadata_xml {
         meta.apply_metadata_xml(fragment);
