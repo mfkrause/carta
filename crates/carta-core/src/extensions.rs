@@ -7,12 +7,12 @@
 /// Generates the [`Extension`] enum together with the `ALL`/`COUNT`/`name` metadata, keeping the
 /// variant list as the single source of truth for the bitset sizing in [`Extensions`].
 macro_rules! define_extensions {
-    ($($variant:ident => $name:literal),+ $(,)?) => {
+    ($($(#[$attribute:meta])* $variant:ident => $name:literal),+ $(,)?) => {
         /// A single format extension. Each variant's position in [`Extension::ALL`] is its bit
         /// index in [`Extensions`].
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         #[non_exhaustive]
-        pub enum Extension { $($variant),+ }
+        pub enum Extension { $($(#[$attribute])* $variant),+ }
 
         impl Extension {
             /// Every extension, in declaration order.
@@ -36,136 +36,169 @@ macro_rules! define_extensions {
 }
 
 define_extensions! {
+    /// Straight quotes, `...`, `--`, and `---` become curly quotes, an ellipsis, and en/em dashes.
     Smart => "smart",
+    /// `~~text~~` strikeout spans.
     Strikeout => "strikeout",
+    /// `^text^` superscript spans.
     Superscript => "superscript",
+    /// `~text~` subscript spans.
     Subscript => "subscript",
+    /// Pipe tables: `|`-separated cells with a delimiter row carrying the column alignments.
     PipeTables => "pipe_tables",
+    /// `[^label]` footnote references with separately defined note bodies.
     Footnotes => "footnotes",
+    /// `- [ ]` / `- [x]` task-list items.
     TaskLists => "task_lists",
+    /// A bare absolute URI or `www.` address in running text becomes a link.
     Autolink => "autolink_bare_uris",
+    /// `$…$` inline and `$$…$$` display math.
     TexMathDollars => "tex_math_dollars",
+    /// `:::`-fenced divs carrying an attribute block or a bare class name.
     FencedDivs => "fenced_divs",
+    /// `[text]{.class}` spans: bracketed text followed by an attribute block.
     BracketedSpans => "bracketed_spans",
+    /// Every newline within a paragraph is a hard line break.
     HardLineBreaks => "hard_line_breaks",
+    /// Raw HTML tags and blocks are carried through rather than treated as text.
     RawHtml => "raw_html",
-    // Attribute-bearing syntax: `{#id .class key=val}` on headers, code, links/images, and spans.
+    /// A `{#id .class key=val}` attribute block on a header line.
     HeaderAttributes => "header_attributes",
+    /// An attribute block on a fenced code block's opening line.
     FencedCodeAttributes => "fenced_code_attributes",
+    /// An attribute block after an inline code span.
     InlineCodeAttributes => "inline_code_attributes",
+    /// An attribute block after a link or image.
     LinkAttributes => "link_attributes",
-    // The combined attribute toggle (enables the attribute syntaxes as a group).
+    /// The combined attribute toggle: the attribute syntaxes enabled as a group.
     Attributes => "attributes",
-    // Block constructs.
+    /// Definition lists: a term line followed by `:`-marked definition blocks.
     DefinitionLists => "definition_lists",
+    /// Grid tables drawn with `+---+` cell borders.
     GridTables => "grid_tables",
+    /// Multiline tables, whose cells may continue across several source lines.
     MultilineTables => "multiline_tables",
+    /// Simple tables: columns aligned under a dashed header line.
     SimpleTables => "simple_tables",
+    /// A `Table:` (or bare `:`) caption line attached to a table.
     TableCaptions => "table_captions",
+    /// `|`-prefixed line blocks, preserving the source's line divisions.
     LineBlocks => "line_blocks",
-    // List-marker richness.
+    /// Ordered-list markers beyond decimal numbers: letters, roman numerals, and `)` delimiters.
     FancyLists => "fancy_lists",
+    /// `(@label)` example lists, numbered sequentially across the whole document.
     ExampleLists => "example_lists",
+    /// An ordered list starts at the number its first marker carries rather than 1.
     Startnum => "startnum",
-    // Document metadata.
+    /// A `---`-delimited YAML metadata block.
     YamlMetadataBlock => "yaml_metadata_block",
+    /// A `%`-prefixed title/author/date block at the top of the document.
     PandocTitleBlock => "pandoc_title_block",
-    // Header identifiers and the references they enable.
+    /// A header without an explicit identifier gets one derived from its text.
     AutoIdentifiers => "auto_identifiers",
+    /// Derived header identifiers use the `GitHub` slug form: lowercased, punctuation dropped,
+    /// spaces to hyphens.
     GfmAutoIdentifiers => "gfm_auto_identifiers",
-    // Fold a derived identifier down to ASCII, dropping diacritics before the slug is formed.
+    /// Fold a derived identifier down to ASCII, dropping diacritics before the slug is formed.
     AsciiIdentifiers => "ascii_identifiers",
-    // A header's explicit identifier is written in MultiMarkdown's trailing `[id]` form rather than
-    // the `{#id}` attribute block.
+    /// A header's explicit identifier is written in `MultiMarkdown`'s trailing `[id]` form rather
+    /// than the `{#id}` attribute block.
     MmdHeaderIdentifiers => "mmd_header_identifiers",
+    /// A header's own text works as a reference-link label for that header.
     ImplicitHeaderReferences => "implicit_header_references",
-    // Bare images with a caption become figures.
+    /// A bare image with a caption becomes a figure.
     ImplicitFigures => "implicit_figures",
-    // Raw passthrough: `` `code`{=fmt} `` inline and ```` ```{=fmt} ```` fenced blocks.
+    /// Raw passthrough: `` `code`{=fmt} `` inline and ```` ```{=fmt} ```` fenced blocks.
     RawAttribute => "raw_attribute",
-    // A `^[…]` inline note expands to a footnote in place.
+    /// A `^[…]` inline note expands to a footnote in place.
     InlineNotes => "inline_notes",
-    // Block-level `<div>`/inline `<span>` HTML become `Div`/`Span`, with markdown parsed inside.
+    /// A block-level `<div>` becomes a `Div`, with Markdown parsed inside.
     NativeDivs => "native_divs",
+    /// An inline `<span>` becomes a `Span`, with Markdown parsed inside.
     NativeSpans => "native_spans",
-    // Markdown is parsed inside block-level HTML, which is otherwise split tag-by-tag.
+    /// Markdown is parsed inside block-level HTML, which is otherwise split tag-by-tag.
     MarkdownInHtmlBlocks => "markdown_in_html_blocks",
-    // A `<div>`/`<span>` emitted for a div/span carries a `data-markdown="1"` marker so its contents
-    // are still parsed as Markdown; this also forces a div with no native syntax into an HTML wrap.
+    /// A `<div>`/`<span>` emitted for a div/span carries a `data-markdown="1"` marker so its
+    /// contents are still parsed as Markdown; this also forces a div with no native syntax into an
+    /// HTML wrap.
     MarkdownAttribute => "markdown_attribute",
-    // Inline raw TeX (`\command{…}`, `\begin{env}…\end{env}`) passes through verbatim.
+    /// Inline raw `TeX` (`\command{…}`, `\begin{env}…\end{env}`) passes through verbatim.
     RawTex => "raw_tex",
-    // `[@key]` / `@key` citation references.
+    /// `[@key]` / `@key` citation references.
     Citations => "citations",
-    // An attribute block on a table's caption line attaches to the table.
+    /// An attribute block on a table's caption line attaches to the table.
     TableAttributes => "table_attributes",
-    // A blank line is required before a blockquote / header, so neither interrupts a paragraph.
+    /// A blank line is required before a blockquote, so one never interrupts a paragraph.
     BlankBeforeBlockquote => "blank_before_blockquote",
+    /// A blank line is required before a header, so one never interrupts a paragraph.
     BlankBeforeHeader => "blank_before_header",
-    // `==text==` highlight spans.
+    /// `==text==` highlight spans.
     Mark => "mark",
-    // `:name:` emoji shortcodes.
+    /// `:name:` emoji shortcodes.
     Emoji => "emoji",
-    // `> [!NOTE]`-style admonition blockquotes become classed divs.
+    /// `> [!NOTE]`-style admonition blockquotes become classed divs.
     Alerts => "alerts",
-    // Single- and double-backslash math delimiters: `\(…\)`/`\[…\]` and `\\(…\\)`/`\\[…\\]`.
+    /// `\(…\)` inline and `\[…\]` display math delimiters.
     TexMathSingleBackslash => "tex_math_single_backslash",
+    /// `\\(…\\)` inline and `\\[…\\]` display math delimiters.
     TexMathDoubleBackslash => "tex_math_double_backslash",
-    // Code-block surface: backtick-fenced ```` ``` ```` and tilde-fenced `~~~` blocks. When neither is
-    // available the writer drops to the four-space indented form.
+    /// Tilde-fenced (`~~~`) code blocks; with no fence form available, code is written in the
+    /// four-space indented form.
     FencedCodeBlocks => "fenced_code_blocks",
+    /// Backtick-fenced code blocks.
     BacktickCodeBlocks => "backtick_code_blocks",
-    // GitHub math surface: inline `` $`…`$ `` and a ```` ```math ```` display block, as opposed to the
-    // `$…$`/`$$…$$` dollar form.
+    /// The `GitHub` math surface: inline `` $`…`$ `` and a ```` ```math ```` display block, as
+    /// opposed to the `$…$`/`$$…$$` dollar form.
     TexMathGfm => "tex_math_gfm",
-    // A backslash at a line's end is a hard line break, written as a trailing `\`; without it the
-    // writer falls back to two trailing spaces.
+    /// A backslash at a line's end is a hard line break, written as a trailing `\`; without it the
+    /// writer falls back to two trailing spaces.
     EscapedLineBreaks => "escaped_line_breaks",
-    // An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
-    // without it every `_` is escaped so the strict reader cannot start emphasis mid-word.
+    /// An underscore inside a word opens no emphasis, so the writer leaves intra-word `_` literal;
+    /// without it every `_` is escaped so a strict reader cannot start emphasis mid-word.
     IntrawordUnderscores => "intraword_underscores",
-    // A list may begin directly after a paragraph line with no intervening blank line, interrupting
-    // it; without it a list marker on the line after a paragraph folds into that paragraph.
+    /// A list may begin directly after a paragraph line with no intervening blank line,
+    /// interrupting it; without it a list marker on the line after a paragraph folds into that
+    /// paragraph.
     ListsWithoutPrecedingBlankline => "lists_without_preceding_blankline",
-    // `*[SHY]: Soft hyphen` abbreviation definitions, applied to later occurrences of the term.
+    /// `*[SHY]: Soft hyphen` abbreviation definitions, applied to later occurrences of the term.
     Abbreviations => "abbreviations",
-    // A backslash escapes any symbol, not only the ASCII-punctuation subset.
+    /// A backslash escapes any symbol, not only the ASCII-punctuation subset.
     AllSymbolsEscapable => "all_symbols_escapable",
-    // A backslash before `<` or `>` escapes the angle bracket.
+    /// A backslash before `<` or `>` escapes the angle bracket.
     AngleBracketsEscapable => "angle_brackets_escapable",
-    // Line breaks between East Asian wide characters carry no width and are dropped.
+    /// Line breaks between East Asian wide characters carry no width and are dropped.
     EastAsianLineBreaks => "east_asian_line_breaks",
-    // An indented code block requires four spaces of indentation rather than one tab stop.
+    /// An indented code block requires four spaces of indentation rather than one tab stop.
     FourSpaceRule => "four_space_rule",
-    // Typographic conventions of the Project Gutenberg style for plain-text output.
+    /// Typographic conventions of the Project Gutenberg style for plain-text output.
     Gutenberg => "gutenberg",
-    // Soft line breaks within a paragraph are discarded rather than kept as spaces.
+    /// Soft line breaks within a paragraph are discarded rather than kept as spaces.
     IgnoreLineBreaks => "ignore_line_breaks",
-    // User-defined LaTeX macros are expanded in math and raw TeX.
+    /// User-defined `LaTeX` macros are expanded in math and raw `TeX`.
     LatexMacros => "latex_macros",
-    // Bird-track (`> `) literate-program code sections.
+    /// Bird-track (`> `) literate-program code sections.
     LiterateHaskell => "literate_haskell",
-    // An attribute block following a link or image in the MultiMarkdown position.
+    /// An attribute block following a link or image in the `MultiMarkdown` position.
     MmdLinkAttributes => "mmd_link_attributes",
-    // A MultiMarkdown metadata block at the top of the document.
+    /// A `MultiMarkdown` metadata block at the top of the document.
     MmdTitleBlock => "mmd_title_block",
-    // `-` and `--` map to en/em dashes under the older dash convention.
+    /// `-` and `--` map to en/em dashes under the older dash convention.
     OldDashes => "old_dashes",
-    // A raw block or inline may be written directly as Markdown for round-tripping.
+    /// A raw block or inline may be written directly as Markdown for round-tripping.
     RawMarkdown => "raw_markdown",
-    // Relative paths in links and images are rebased onto the source file's location.
+    /// Relative paths in links and images are rebased onto the source file's location.
     RebaseRelativePaths => "rebase_relative_paths",
-    // `~x` / `^x` subscript and superscript bind only the single following character.
+    /// `~x` / `^x` subscript and superscript bind only the single following character.
     ShortSubsuperscripts => "short_subsuperscripts",
-    // A defined label may be referenced by `[label]` alone, with no following `[]` or `(…)`.
+    /// A defined label may be referenced by `[label]` alone, with no following `[]` or `(…)`.
     ShortcutReferenceLinks => "shortcut_reference_links",
-    // An ATX header requires a space between the opening `#` run and the heading text.
+    /// An ATX header requires a space between the opening `#` run and the heading text.
     SpaceInAtxHeader => "space_in_atx_header",
-    // A reference link's label and its following `[id]` may be separated by whitespace.
+    /// A reference link's label and its following `[id]` may be separated by whitespace.
     SpacedReferenceLinks => "spaced_reference_links",
-    // `[[target|title]]` wiki links, with the title following the pipe.
+    /// `[[target|title]]` wiki links, with the title following the pipe.
     WikilinksTitleAfterPipe => "wikilinks_title_after_pipe",
-    // `[[title|target]]` wiki links, with the title preceding the pipe.
+    /// `[[title|target]]` wiki links, with the title preceding the pipe.
     WikilinksTitleBeforePipe => "wikilinks_title_before_pipe",
 }
 

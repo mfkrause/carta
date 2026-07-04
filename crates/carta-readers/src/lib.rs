@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //! Input-format readers. Each module parses a source format's text into the document model
 //! ([`carta_ast::Document`]) via the [`carta_core::Reader`] trait.
 

@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //! Output-format writers. Each module renders the document model ([`carta_ast::Document`]) into a
 //! target format's text via the [`carta_core::Writer`] trait.
 

@@ -16,6 +16,7 @@ publish.workspace = true
 # docs.rs builds default features only; enable all so every writer is documented.
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true
