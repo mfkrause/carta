@@ -15,6 +15,10 @@
 //! Both entry points are panic-free and bounded against pathological nesting.
 
 mod inlines;
+// The OMML backend lowers the same expression tree into Office Math markup for the word-processing
+// writer. That writer is not yet wired to this entry point, so it is unused in current builds.
+#[allow(dead_code)]
+mod omml;
 mod parse;
 mod symbols;
 mod typst;
