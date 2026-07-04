@@ -16,7 +16,8 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, GridSlot, RowSpanGrid, display_width, is_known_scheme, ordered_marker,
+    FILL_COLUMN, GridSlot, RowSpanGrid, display_width, is_known_scheme, label_matches_url,
+    ordered_marker,
 };
 
 /// Renders a document to roff man source (no trailing newline).
@@ -480,7 +481,7 @@ impl State {
         };
         let label = to_plain_text(items);
         let mut control = format!("\\c\n.{request} {}\n", escape_url(&address));
-        if !label.is_empty() && label != target.url && label != address {
+        if !label.is_empty() && !label_matches_url(&label, &target.url) && label != address {
             control.push_str(&self.fill_inlines(items));
             control.push('\n');
         }
@@ -1425,6 +1426,50 @@ mod tests {
                 vec![s("T"), Inline::Space, display_math("a^2")],
             )]),
             ".SH T \n.RS\n\\f[I]a\\f[R]^2^\n.RE"
+        );
+    }
+
+    fn link(label: Vec<Inline>, url: &str) -> Inline {
+        Inline::Link(
+            Box::default(),
+            label,
+            Box::new(Target {
+                url: url.into(),
+                title: String::new().into(),
+            }),
+        )
+    }
+
+    #[test]
+    fn decoded_label_link_drops_the_label() {
+        assert_eq!(
+            render(vec![para(vec![link(
+                vec![s("http://e.com/a b")],
+                "http://e.com/a%20b"
+            )])]),
+            ".PP\n\\c\n.UR http://e.com/a%20b\n.UE \\c"
+        );
+    }
+
+    #[test]
+    fn exact_label_link_drops_the_label() {
+        assert_eq!(
+            render(vec![para(vec![link(
+                vec![s("http://e.com/a%20b")],
+                "http://e.com/a%20b"
+            )])]),
+            ".PP\n\\c\n.UR http://e.com/a%20b\n.UE \\c"
+        );
+    }
+
+    #[test]
+    fn distinct_label_link_keeps_the_label() {
+        assert_eq!(
+            render(vec![para(vec![link(
+                vec![s("click")],
+                "http://e.com/a%20b"
+            )])]),
+            ".PP\n\\c\n.UR http://e.com/a%20b\nclick\n.UE \\c"
         );
     }
 }

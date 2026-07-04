@@ -14,7 +14,7 @@ use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, attribute_value, display_width, fill,
-    fill_offset, is_uri_scheme, split_length_unit,
+    fill_offset, is_uri_scheme, label_matches_url, split_length_unit,
 };
 
 /// Renders a document to `AsciiDoc` markup.
@@ -556,7 +556,7 @@ impl State {
     fn link(&mut self, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
         let url = &target.url;
         let scheme = url_scheme(url);
-        let bare = to_plain_text(inlines) == *url
+        let bare = label_matches_url(&to_plain_text(inlines), url)
             && !url.contains(char::is_whitespace)
             && scheme != Some("mailto");
         if bare {
@@ -985,4 +985,64 @@ fn indent(body: &str, prefix: &str) -> String {
         out.push_str(line);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render(inlines: Vec<Inline>) -> String {
+        let document = Document {
+            blocks: vec![Block::Para(inlines)],
+            ..Document::default()
+        };
+        AsciidocWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap()
+    }
+
+    fn s(text: &str) -> Inline {
+        Inline::Str(text.to_owned().into())
+    }
+
+    fn link(label: Vec<Inline>, url: &str) -> Inline {
+        Inline::Link(
+            Box::default(),
+            label,
+            Box::new(Target {
+                url: url.into(),
+                title: String::new().into(),
+            }),
+        )
+    }
+
+    #[test]
+    fn decoded_label_link_renders_bare() {
+        assert_eq!(
+            render(vec![link(
+                vec![s("http://e.com/a b")],
+                "http://e.com/a%20b"
+            )]),
+            "http://e.com/a%20b"
+        );
+    }
+
+    #[test]
+    fn exact_label_link_renders_bare() {
+        assert_eq!(
+            render(vec![link(
+                vec![s("http://e.com/a%20b")],
+                "http://e.com/a%20b"
+            )]),
+            "http://e.com/a%20b"
+        );
+    }
+
+    #[test]
+    fn distinct_label_link_renders_explicit() {
+        assert_eq!(
+            render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
+            "http://e.com/a%20b[click]"
+        );
+    }
 }

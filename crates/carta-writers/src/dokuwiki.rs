@@ -15,7 +15,8 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    self, GridSlot, RawTrim, RowSpanGrid, attribute_value, quote_marks, split_length_unit,
+    self, GridSlot, RawTrim, RowSpanGrid, attribute_value, label_matches_url, quote_marks,
+    split_length_unit,
 };
 
 /// Columns each level of list nesting adds, and the base indent of a top-level list line.
@@ -365,12 +366,13 @@ fn bare_inline(inline: &Inline) -> String {
     }
 }
 
-/// A link. When the destination equals its plain-text label exactly (and carries no space), the URL
-/// stands alone; a `mailto:` link with an all-text label renders in angle brackets; otherwise the
-/// `[[destination|label]]` form is used, with one leading `/` trimmed from the destination.
+/// A link. When the label is the destination's visible form — its exact text or its percent-decoded
+/// text — and the destination carries no space, the URL stands alone; a `mailto:` link with an
+/// all-text label renders in angle brackets; otherwise the `[[destination|label]]` form is used,
+/// with one leading `/` trimmed from the destination.
 fn link(inlines: &[Inline], target: &Target, wrap: WrapMode) -> String {
     let plain = to_plain_text(inlines);
-    if plain == target.url && !target.url.contains(' ') {
+    if label_matches_url(&plain, &target.url) && !target.url.contains(' ') {
         return target.url.to_string();
     }
     if target.url.starts_with("mailto:") && !inlines.is_empty() && is_all_text(inlines) {
@@ -689,5 +691,65 @@ fn pad_cell(text: &str, width: usize, align: &Alignment) -> String {
             let right = total - left;
             format!("{}{text}{}", " ".repeat(left), " ".repeat(right))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render(inlines: Vec<Inline>) -> String {
+        let document = Document {
+            blocks: vec![Block::Para(inlines)],
+            ..Document::default()
+        };
+        DokuwikiWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap()
+    }
+
+    fn s(text: &str) -> Inline {
+        Inline::Str(text.to_owned().into())
+    }
+
+    fn link(label: Vec<Inline>, url: &str) -> Inline {
+        Inline::Link(
+            Box::default(),
+            label,
+            Box::new(Target {
+                url: url.into(),
+                title: String::new().into(),
+            }),
+        )
+    }
+
+    #[test]
+    fn decoded_label_link_renders_bare() {
+        assert_eq!(
+            render(vec![link(
+                vec![s("http://e.com/a b")],
+                "http://e.com/a%20b"
+            )]),
+            "http://e.com/a%20b"
+        );
+    }
+
+    #[test]
+    fn exact_label_link_renders_bare() {
+        assert_eq!(
+            render(vec![link(
+                vec![s("http://e.com/a%20b")],
+                "http://e.com/a%20b"
+            )]),
+            "http://e.com/a%20b"
+        );
+    }
+
+    #[test]
+    fn distinct_label_link_renders_explicit() {
+        assert_eq!(
+            render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
+            "[[http://e.com/a%20b|click]]"
+        );
     }
 }
