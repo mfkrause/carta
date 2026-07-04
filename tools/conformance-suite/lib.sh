@@ -16,7 +16,12 @@ OX="${CARTA_BIN:-$ROOT/target/debug/carta}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
 EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"
-WORK="${CONF_WORK:-${TMPDIR:-/tmp}/carta-conformance}"
+# Scratch lives in a per-run directory so two concurrent suite runs (e.g. two worktrees) never
+# clobber each other's comparison files. run.sh mints one dir and exports CONF_WORK so every surface
+# child shares it (and thus the extracted-spec cache); a direct surface invocation lands here and
+# mints its own. An explicit CONF_WORK always wins. Not auto-deleted — the per-surface .log files
+# must survive the run for failure inspection; OS tmp reaping reclaims them.
+WORK="${CONF_WORK:-$(mktemp -d "${TMPDIR:-/tmp}/carta-conformance.XXXXXX")}"
 mkdir -p "$WORK"
 
 # Fail loudly with provisioning instructions when a prerequisite is missing.

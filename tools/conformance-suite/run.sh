@@ -16,6 +16,14 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub"
 
+# Mint one scratch directory per top-level invocation and export it so every surface child (run as a
+# separate process below) shares the same dir — and thus the extracted-spec cache reader/e2e reuse.
+# Two concurrent runs get distinct dirs and cannot clobber each other. An explicit CONF_WORK wins.
+if [ -z "${CONF_WORK:-}" ]; then
+  CONF_WORK="$(mktemp -d "${TMPDIR:-/tmp}/carta-conformance.XXXXXX")"
+  export CONF_WORK
+fi
+
 run_one() {
   local surface="$1"
   shift
