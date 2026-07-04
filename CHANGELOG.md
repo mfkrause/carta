@@ -32,11 +32,7 @@ curated in the release pull request, so there is no manually maintained _Unrelea
 ### Other
 
 - document the public API and enable docs.rs feature banners
-- typo
-- typo
-- minor updates/fixes
 - *(corpus)* cover quoted titles, padded code spans, and decoded autolink labels
-- update README header
 - *(readers)* dedup the scheme table, entity scanner, and heading-id disambiguation ([#49](https://github.com/mfkrause/carta/pull/49))
 - *(writers)* split the shared helper module into cohesive submodules ([#63](https://github.com/mfkrause/carta/pull/63))
 - *(writers)* share the identical markdown-family block helpers ([#48](https://github.com/mfkrause/carta/pull/48))
