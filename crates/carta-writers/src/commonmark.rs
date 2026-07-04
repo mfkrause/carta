@@ -20,7 +20,8 @@ use crate::common::{
 };
 use crate::markdown_common::{
     attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
-    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, quote_block,
+    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, push_html,
+    quote_block,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -578,44 +579,6 @@ fn code_block(attr: &Attr, text: &str) -> String {
 /// content, and at least three.
 fn backtick_fence_len(text: &str) -> usize {
     (longest_backtick_run(text) + 1).max(3)
-}
-
-/// Append a raw-HTML run to the fill pieces. When `breakable`, the spaces separating a tag's
-/// attributes become wrap points so a long tag may fold across lines, while a space inside a quoted
-/// attribute value belongs to the value and stays put. Otherwise the run is one unbreakable piece.
-/// Either way a non-space run abutting the next piece (a tag's `>` and the text after it) stays one
-/// word.
-fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
-    if !breakable {
-        out.push(Piece::Text(html.to_owned()));
-        return;
-    }
-    let mut tokens: Vec<String> = vec![String::new()];
-    let mut in_quote = false;
-    for ch in html.chars() {
-        match ch {
-            '"' => {
-                in_quote = !in_quote;
-                if let Some(last) = tokens.last_mut() {
-                    last.push(ch);
-                }
-            }
-            ' ' if !in_quote => tokens.push(String::new()),
-            _ => {
-                if let Some(last) = tokens.last_mut() {
-                    last.push(ch);
-                }
-            }
-        }
-    }
-    for (index, part) in tokens.iter().enumerate() {
-        if index > 0 {
-            out.push(Piece::Space);
-        }
-        if !part.is_empty() {
-            out.push(Piece::Text(part.clone()));
-        }
-    }
 }
 
 /// The plain-text projection of an inline sequence, used for an image's `alt` attribute.

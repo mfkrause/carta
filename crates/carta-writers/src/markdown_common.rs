@@ -4,7 +4,7 @@
 
 use carta_ast::{Attr, Block, Format, Inline, Target};
 
-use crate::common::{is_uri, label_matches_url};
+use crate::common::{Piece, is_uri, label_matches_url};
 
 /// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
 /// the first: two lists of the same kind would merge into one, and an indented code block following
@@ -136,6 +136,44 @@ pub(crate) fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
         return Some(format!("<{text}>"));
     }
     None
+}
+
+/// Append a raw-HTML run to the fill pieces. When `breakable`, the spaces separating a tag's
+/// attributes become wrap points so a long tag may fold across lines, while a space inside a quoted
+/// attribute value belongs to the value and stays put. Otherwise the run is one unbreakable piece.
+/// Either way a non-space run abutting the next piece (a tag's `>` and the text after it) stays one
+/// word.
+pub(crate) fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
+    if !breakable {
+        out.push(Piece::Text(html.to_owned()));
+        return;
+    }
+    let mut tokens: Vec<String> = vec![String::new()];
+    let mut in_quote = false;
+    for ch in html.chars() {
+        match ch {
+            '"' => {
+                in_quote = !in_quote;
+                if let Some(last) = tokens.last_mut() {
+                    last.push(ch);
+                }
+            }
+            ' ' if !in_quote => tokens.push(String::new()),
+            _ => {
+                if let Some(last) = tokens.last_mut() {
+                    last.push(ch);
+                }
+            }
+        }
+    }
+    for (index, part) in tokens.iter().enumerate() {
+        if index > 0 {
+            out.push(Piece::Space);
+        }
+        if !part.is_empty() {
+            out.push(Piece::Text(part.clone()));
+        }
+    }
 }
 
 #[cfg(test)]

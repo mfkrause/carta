@@ -30,7 +30,8 @@ use crate::common::{
 use crate::grid;
 use crate::markdown_common::{
     attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
-    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, quote_block,
+    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, push_html,
+    quote_block,
 };
 
 /// The rendering configuration shared by every entry point and exposed to sibling writers that embed
@@ -523,6 +524,9 @@ struct State {
     wrap: WrapMode,
     width: usize,
     footnotes: Vec<String>,
+    /// Whether rendering is inside an HTML `<a>` fallback's label, where a nested link must
+    /// downgrade to a `<span>` (HTML forbids an anchor inside an anchor).
+    in_anchor: bool,
 }
 
 impl State {
@@ -532,6 +536,7 @@ impl State {
             wrap,
             width,
             footnotes: Vec::new(),
+            in_anchor: false,
         }
     }
 
@@ -1656,6 +1661,16 @@ impl State {
     }
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
+        if self.in_anchor {
+            push_html(
+                out,
+                &format!("<span{}>", render_html_fragment_attr(attr)),
+                true,
+            );
+            self.extend_pieces(inlines, out);
+            out.push(Piece::Text("</span>".to_owned()));
+            return;
+        }
         if (attr_is_empty(attr) || is_autolink_class(attr))
             && let Some(autolink) = autolink(inlines, target)
         {
@@ -1663,13 +1678,19 @@ impl State {
             return;
         }
         if !self.config.has(Extension::LinkAttributes) && !attr_is_empty(attr) {
-            out.push(Piece::Text(format!(
-                "<a href=\"{}\"{}{}>",
-                escape_html_attr(&target.url),
-                render_html_fragment_attr(attr),
-                title_attr(&target.title)
-            )));
+            push_html(
+                out,
+                &format!(
+                    "<a href=\"{}\"{}{}>",
+                    escape_html_attr(&target.url),
+                    render_html_fragment_attr(attr),
+                    title_attr(&target.title)
+                ),
+                true,
+            );
+            self.in_anchor = true;
             self.extend_pieces(inlines, out);
+            self.in_anchor = false;
             out.push(Piece::Text("</a>".to_owned()));
             return;
         }
