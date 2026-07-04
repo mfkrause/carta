@@ -63,13 +63,14 @@ pub(crate) fn render(
     let context = build_context(document, writer, body, options)?;
 
     let dir = options.template_dir.clone();
+    let datadir = options.template_datadir.clone();
     // A partial inherits the including template's extension; a built-in default has no file, so the
     // format name stands in (its own templates avoid partials, so this only guides user overrides).
     let ext = options
         .template_ext
         .clone()
         .unwrap_or_else(|| to_base.to_owned());
-    let resolve = move |name: &str| resolve_partial(dir.as_deref(), &ext, name);
+    let resolve = move |name: &str| resolve_partial(dir.as_deref(), datadir.as_deref(), &ext, name);
     let mut output = template.render(&context, &resolve)?;
     // A block-level body or metadata value ends in a blank line, so a run of newlines can pile up at
     // the very end of the document; it collapses to a single trailing newline. Output that ends at a
@@ -429,15 +430,24 @@ fn overlay_variables(context: &mut BTreeMap<String, Value>, variables: &[(String
     }
 }
 
-/// Resolve a partial `$name()$` to its source text by reading from `dir`. A name carrying its own
-/// extension is read verbatim; otherwise it takes the including template's extension `ext`, or is
-/// looked up bare when that extension is empty (the including template had none).
-fn resolve_partial(dir: Option<&Path>, ext: &str, name: &str) -> Option<String> {
-    let dir = dir?;
+/// Resolve a partial `$name()$` to its source text. A name carrying its own extension is read
+/// verbatim; otherwise it takes the including template's extension `ext`, or is looked up bare when
+/// that extension is empty (the including template had none). The including template's own directory
+/// `dir` is consulted first; a shared `datadir` of partials supplies those common to several
+/// templates.
+fn resolve_partial(
+    dir: Option<&Path>,
+    datadir: Option<&Path>,
+    ext: &str,
+    name: &str,
+) -> Option<String> {
     let filename = if ext.is_empty() || Path::new(name).extension().is_some() {
         name.to_owned()
     } else {
         format!("{name}.{ext}")
     };
-    std::fs::read_to_string(dir.join(filename)).ok()
+    dir.and_then(|dir| std::fs::read_to_string(dir.join(&filename)).ok())
+        .or_else(|| {
+            datadir.and_then(|datadir| std::fs::read_to_string(datadir.join(&filename)).ok())
+        })
 }

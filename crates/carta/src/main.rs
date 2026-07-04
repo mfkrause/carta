@@ -18,6 +18,9 @@ use carta::{
 };
 use clap::{ArgAction, Parser};
 
+mod datadir;
+mod filters;
+
 const LIST_FLAGS: [&str; 4] = [
     "list_input_formats",
     "list_output_formats",
@@ -93,6 +96,15 @@ struct Cli {
     /// sit below the document's own metadata.
     #[arg(long = "metadata-file", value_name = "FILE")]
     metadata_file: Vec<PathBuf>,
+    /// Transform the document through this JSON filter before writing: a program that reads the
+    /// document as JSON on stdin, receives the output format name as its argument, and writes the
+    /// transformed JSON on stdout. Repeatable; filters run in the order given.
+    #[arg(short = 'F', long = "filter", value_name = "PROGRAM")]
+    filter: Vec<String>,
+    /// Search this directory for user data — filters in `filters/`, templates in `templates/` —
+    /// before the built-in locations. Defaults to `$XDG_DATA_HOME/carta` (or `~/.local/share/carta`).
+    #[arg(long = "data-dir", value_name = "DIR")]
+    data_dir: Option<PathBuf>,
     /// Style an EPUB with this stylesheet, embedded in the book and linked from every page in place
     /// of the built-in one. Repeatable; several sheets are linked in order.
     #[arg(
@@ -152,11 +164,12 @@ fn main() -> ExitCode {
 }
 
 /// Maps a conversion error to a process exit status. A toggle naming an extension the format does
-/// not accept gets its own status, distinct from the generic failure code, so callers can tell an
-/// unsupported-extension request apart from other errors.
+/// not accept, and a filter failure, each get their own status distinct from the generic failure
+/// code, so callers can tell those requests apart from other errors.
 fn exit_code(error: &Error) -> ExitCode {
     match error {
         Error::UnsupportedExtension { .. } => ExitCode::from(23),
+        Error::Filter(_) => ExitCode::from(83),
         _ => ExitCode::FAILURE,
     }
 }
@@ -185,19 +198,19 @@ fn run(cli: &Cli) -> Result<()> {
 
 fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let input = read_input(cli.input.as_deref())?;
+    // The base output format, without its `+ext`/`-ext` toggles: the name passed to each filter and
+    // the format whose default template a data-directory override replaces.
+    let to_base = carta::parse_format_spec(to)?.0;
+    let data_dir = datadir::resolve(cli.data_dir.as_deref());
 
     let mut writer_options = WriterOptions::default();
     writer_options.standalone = cli.standalone;
-    if let Some(path) = &cli.template {
-        writer_options.template = Some(fs::read_to_string(path)?);
-        writer_options.template_dir = Some(template_dir(path));
-        writer_options.template_ext = Some(
-            path.extension()
-                .and_then(|ext| ext.to_str())
-                .unwrap_or("")
-                .to_owned(),
-        );
+    if let Some((source, dir, ext)) = resolve_template(cli, &to_base, data_dir.as_deref())? {
+        writer_options.template = Some(source);
+        writer_options.template_dir = Some(dir);
+        writer_options.template_ext = Some(ext);
     }
+    writer_options.template_datadir = data_dir.as_ref().map(|dir| dir.join("templates"));
     writer_options.wrap = cli.wrap;
     writer_options.columns = cli.columns;
     writer_options.number_sections = cli.number_sections;
@@ -216,6 +229,14 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let verbatim = cli.standalone || cli.template.is_some();
 
     let (mut document, resources) = read_document(from, &input, &ReaderOptions::default())?;
+
+    // Fold the metadata layers into the document before any filter runs, so a filter observes the
+    // same metadata the writer will, and can delete or rewrite it. The layers are then cleared so
+    // rendering does not apply them a second time (which would resurrect a filter-deleted `-M` key).
+    carta::merge_metadata(&mut document, &writer_options);
+    writer_options.metadata.clear();
+    writer_options.metadata_defaults.clear();
+
     let mut resources = match &cli.extract_media {
         // Extraction turns the embedded resources into external files the document points at, so the
         // writer no longer re-embeds them: it renders against an empty bag.
@@ -225,6 +246,11 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         }
         None => resources,
     };
+
+    // Filters run after extraction (so they see the rewritten resource references) and before a
+    // container packs its media (so resources a filter introduces are still gathered).
+    filters::run(&mut document, &cli.filter, &to_base, data_dir.as_deref())?;
+
     // A container format embeds the resources it references; pull the local ones off disk so the
     // writer can pack them.
     if cli.extract_media.is_none() && embeds_resources(to) {
@@ -232,6 +258,78 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     }
     let output = render_document(to, document, resources, &writer_options)?;
     write_output(cli.output.as_deref(), &output, verbatim)
+}
+
+/// Resolve the standalone template the writer options should carry.
+///
+/// A `--template` argument is a file path, or — failing that — a name looked up under the data
+/// directory's `templates/`. With no `--template` but standalone output requested, a
+/// `templates/default.<ext>` in the data directory overrides the format's built-in template, where
+/// `<ext>` is the format's template extension. Returns the template source together with the
+/// directory its partials resolve against and the extension they inherit; `None` leaves the built-in
+/// default in place.
+fn resolve_template(
+    cli: &Cli,
+    to_base: &str,
+    data_dir: Option<&Path>,
+) -> Result<Option<(String, PathBuf, String)>> {
+    if let Some(name) = &cli.template {
+        return resolve_named_template(name, data_dir).map(Some);
+    }
+    if cli.standalone
+        && let Some(dir) = data_dir
+    {
+        let dir = dir.join("templates");
+        let extension = default_template_extension(to_base);
+        match fs::read_to_string(dir.join(format!("default.{extension}"))) {
+            Ok(source) => return Ok(Some((source, dir, extension.to_owned()))),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(None)
+}
+
+/// Resolve a `--template NAME`: read `NAME` as a file path, or — when that names nothing — a file of
+/// that name under the data directory's `templates/`. The partial directory is the template's own
+/// parent (or the data `templates/`), and partials inherit the template's file extension.
+fn resolve_named_template(
+    name: &Path,
+    data_dir: Option<&Path>,
+) -> Result<(String, PathBuf, String)> {
+    let extension = name
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_owned();
+    match fs::read_to_string(name) {
+        Ok(source) => return Ok((source, template_dir(name), extension)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    if let Some(dir) = data_dir {
+        let dir = dir.join("templates");
+        match fs::read_to_string(dir.join(name)) {
+            Ok(source) => return Ok((source, dir, extension)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Err(Error::Template(format!(
+        "could not find template '{}'",
+        name.display()
+    )))
+}
+
+/// The file extension of a format's default template. Most formats name it after themselves; the
+/// HTML family shares one template per major version, and `gfm` shares the `commonmark` template.
+fn default_template_extension(to_base: &str) -> &str {
+    match to_base {
+        "html" | "html5" => "html5",
+        "html4" => "html4",
+        "gfm" => "commonmark",
+        other => other,
+    }
 }
 
 /// Whether the target format packs the resources a document references into its output, so those

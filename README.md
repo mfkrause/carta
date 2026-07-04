@@ -201,6 +201,9 @@ carta -f commonmark -t html -s --mathjax input.md -o output.html
 # extract a notebook's embedded images to files, rewriting the references
 carta -f ipynb -t markdown --extract-media=media notebook.ipynb -o notebook.md
 
+# transform the document through a JSON filter before writing (repeatable, applied in order)
+carta -f commonmark -t html -F ./my-filter.py input.md -o output.html
+
 # discover what this build supports
 carta --list-input-formats
 carta --list-output-formats
