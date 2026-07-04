@@ -240,6 +240,6 @@ Notes list gaps and limitations only.
 | Filters (Lua / JSON) | ❌ | — |
 | Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | `--mathjax` / `--katex` select the HTML renderer. With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no MathML, webtex, or default plain-HTML renderer yet. |
 | Writer extension toggles | ✅ | `rst` does not yet backslash-escape literal ASCII `--`/`...` under the non-default `+smart`. |
-| Embed resources / extract media | ❌ | — |
+| Embed resources / extract media | ✅ | — |
 | Multiple inputs / defaults files (`--defaults`) | ❌ | CLI takes one input. |
 | CLI introspection (`--list-input-formats`, `--list-extensions`, …) | ✅ | — |
