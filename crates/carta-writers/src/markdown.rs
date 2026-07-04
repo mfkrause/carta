@@ -23,14 +23,14 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
     body_rows, cell_inlines, dash_rule, display_width, escape_attr, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell, is_uri,
+    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell,
     item_separator, lay_row, measure_pieces, offset_as_i32, ordered_marker, pad_align,
     pieces_nonempty, quote_marks, render_html_attr, table_form,
 };
 use crate::grid;
 use crate::markdown_common::{
-    attr_is_empty, indent_code, is_autolink_class, is_html_format, longest_backtick_run,
-    needs_separator, offset_horizontal_rule, quote_block,
+    attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
+    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, quote_block,
 };
 
 /// The rendering configuration shared by every entry point and exposed to sibling writers that embed
@@ -2031,43 +2031,6 @@ fn downgrade_smart(text: &str) -> String {
         }
     }
     out
-}
-
-fn code_span(text: &str) -> String {
-    let max_run = longest_backtick_run(text);
-    let fence = "`".repeat((max_run + 1).max(1));
-    let needs_padding = max_run > 0
-        || (text.starts_with(' ') && text.ends_with(' ') && text.chars().any(|ch| ch != ' '));
-    if needs_padding {
-        format!("{fence} {text} {fence}")
-    } else {
-        format!("{fence}{text}{fence}")
-    }
-}
-
-fn destination(target: &Target) -> String {
-    if target.title.is_empty() {
-        target.url.to_string()
-    } else {
-        format!("{} \"{}\"", target.url, escape_title(&target.title))
-    }
-}
-
-fn escape_title(title: &str) -> String {
-    title.replace('"', "\\\"")
-}
-
-fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
-    let [Inline::Str(text)] = inlines else {
-        return None;
-    };
-    if target.url == *text && is_uri(text) {
-        return Some(format!("<{text}>"));
-    }
-    if target.url == format!("mailto:{text}") {
-        return Some(format!("<{text}>"));
-    }
-    None
 }
 
 /// Flatten a figure caption's blocks into one inline sequence for the implicit-figure form: each

@@ -2,7 +2,9 @@
 //! engine and the multi-dialect Markdown engine render these constructs identically, so the layout
 //! and escaping logic lives here once.
 
-use carta_ast::{Attr, Block, Format};
+use carta_ast::{Attr, Block, Format, Inline, Target};
+
+use crate::common::{is_uri, label_matches_url};
 
 /// Whether an HTML comment must separate two consecutive blocks so the second is not absorbed into
 /// the first: two lists of the same kind would merge into one, and an indented code block following
@@ -95,4 +97,137 @@ pub(crate) fn is_autolink_class(attr: &Attr) -> bool {
     attr.id.is_empty()
         && attr.attributes.is_empty()
         && matches!(attr.classes.as_slice(), [class] if class == "uri" || class == "email")
+}
+
+/// An inline code span, delimited by a backtick run one longer than the longest run it contains
+/// (at least one). A single space pads each side exactly when the content holds a backtick, so the
+/// delimiters and the embedded backtick stay distinct; content that merely has leading or trailing
+/// spaces (or is entirely spaces) is wrapped without extra padding.
+pub(crate) fn code_span(text: &str) -> String {
+    let max_run = longest_backtick_run(text);
+    let fence = "`".repeat((max_run + 1).max(1));
+    if max_run > 0 {
+        format!("{fence} {text} {fence}")
+    } else {
+        format!("{fence}{text}{fence}")
+    }
+}
+
+/// The `(url "title")` destination tail of a link or image, with the title omitted when empty.
+pub(crate) fn destination(target: &Target) -> String {
+    if target.title.is_empty() {
+        target.url.to_string()
+    } else {
+        format!("{} \"{}\"", target.url, target.title)
+    }
+}
+
+/// The angle-bracket autolink form when a link's single-`Str` text is the visible form of its URL —
+/// the URL itself or its percent-decoded form, for a genuine URI — or the address of a `mailto:`
+/// URL, else `None`. The angle-bracket form carries the encoded URL, not the decoded text.
+pub(crate) fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
+    let [Inline::Str(text)] = inlines else {
+        return None;
+    };
+    if is_uri(&target.url) && label_matches_url(text, &target.url) {
+        return Some(format!("<{}>", target.url));
+    }
+    if target.url == format!("mailto:{text}") {
+        return Some(format!("<{text}>"));
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn str_inlines(text: &str) -> Vec<Inline> {
+        vec![Inline::Str(text.to_owned().into())]
+    }
+
+    #[test]
+    fn code_span_pads_only_when_backtick_bearing() {
+        // Backtick-free content is wrapped with no padding, whatever its spacing.
+        assert_eq!(code_span(""), "``");
+        assert_eq!(code_span("plain"), "`plain`");
+        assert_eq!(code_span("   "), "`   `");
+        assert_eq!(code_span(" x "), "` x `");
+        assert_eq!(code_span(" and "), "` and `");
+        assert_eq!(code_span(" x"), "` x`");
+        assert_eq!(code_span("x "), "`x `");
+        // A backtick anywhere forces a single space of padding and a longer fence.
+        assert_eq!(code_span("`x"), "`` `x ``");
+        assert_eq!(code_span("x`"), "`` x` ``");
+        assert_eq!(code_span("`x`"), "`` `x` ``");
+        assert_eq!(code_span("a`b"), "`` a`b ``");
+        assert_eq!(code_span("a``b"), "``` a``b ```");
+        assert_eq!(code_span("`"), "`` ` ``");
+        assert_eq!(longest_backtick_run("a``b`c"), 2);
+    }
+
+    #[test]
+    fn destination_writes_title_verbatim() {
+        assert_eq!(
+            destination(&Target {
+                url: "/p".into(),
+                title: String::new().into()
+            }),
+            "/p"
+        );
+        assert_eq!(
+            destination(&Target {
+                url: "/p".into(),
+                title: "T".into()
+            }),
+            "/p \"T\""
+        );
+        // A quote in the title passes through unescaped between the delimiting quotes.
+        assert_eq!(
+            destination(&Target {
+                url: "/p".into(),
+                title: "a\"b".into()
+            }),
+            "/p \"a\"b\""
+        );
+    }
+
+    #[test]
+    fn autolink_for_uri_and_mailto() {
+        let uri = Target {
+            url: "http://example.com".into(),
+            title: String::new().into(),
+        };
+        assert_eq!(
+            autolink(&str_inlines("http://example.com"), &uri),
+            Some("<http://example.com>".to_owned())
+        );
+        let mail = Target {
+            url: "mailto:a@b.com".into(),
+            title: String::new().into(),
+        };
+        assert_eq!(
+            autolink(&str_inlines("a@b.com"), &mail),
+            Some("<a@b.com>".to_owned())
+        );
+        let plain = Target {
+            url: "http://other".into(),
+            title: String::new().into(),
+        };
+        assert_eq!(autolink(&str_inlines("text"), &plain), None);
+    }
+
+    #[test]
+    fn autolink_accepts_percent_decoded_label() {
+        let target = Target {
+            url: "http://e.com/a%20b".into(),
+            title: String::new().into(),
+        };
+        // The percent-decoded visible form of the URL still yields the angle-bracket form, which
+        // carries the encoded URL.
+        assert_eq!(
+            autolink(&str_inlines("http://e.com/a b"), &target),
+            Some("<http://e.com/a%20b>".to_owned())
+        );
+    }
 }
