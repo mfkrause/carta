@@ -813,7 +813,7 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
         ext,
         bracket_stack: Vec::new(),
         interesting: interesting_chars(ext),
-        backtick_no_close: BTreeMap::new(),
+        backtick_runs: None,
     };
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
@@ -859,10 +859,12 @@ struct InlineParser<'a> {
     /// For each ASCII code, whether a character can start a syntactic construct under the active
     /// extensions. Everything else is ordinary text a run scan can skip over in one step.
     interesting: [bool; 128],
-    /// Backtick run lengths for which a close search already failed, each with the position the
-    /// failed search started from. A search to end-of-input that failed from `p` also fails from
-    /// any later position, so an equal-length opener past `p` skips the scan.
-    backtick_no_close: BTreeMap<usize, usize>,
+    /// Start positions of every maximal backtick run in `chars`, grouped by run length and
+    /// ascending within each group. Built lazily on the first code-span attempt (`None` until
+    /// then, so backtick-free text pays nothing) and immutable afterwards: it stays valid because
+    /// `chars` never changes during inline parsing. A feature that mutated the buffer mid-parse
+    /// would have to rebuild it.
+    backtick_runs: Option<BTreeMap<usize, Vec<usize>>>,
 }
 
 /// The ASCII characters that can begin an inline construct under `ext`; every other character is
@@ -1448,45 +1450,27 @@ impl InlineParser<'_> {
         let start = self.pos;
         let open = backtick_run_len(self.chars, self.pos);
         self.pos += open;
-        // If a same-length close search already failed from at or before `start`, it fails again.
-        let already_failed = self
-            .backtick_no_close
-            .get(&open)
-            .is_some_and(|&failed_from| failed_from <= start);
-        if !already_failed {
-            // Find a closing run of exactly `open` backticks.
-            let mut scan = self.pos;
-            while scan < self.chars.len() {
-                if self.chars.get(scan).copied() == Some('`') {
-                    let close = backtick_run_len(self.chars, scan);
-                    if close == open {
-                        let content: String = self
-                            .chars
-                            .get(self.pos..scan)
-                            .map(|s| s.iter().collect())
-                            .unwrap_or_default();
-                        self.pos = scan + close;
-                        if let Some((format, next)) = self.scan_raw_format() {
-                            self.pos = next;
-                            self.nodes.push(Node::Inline(Inline::RawInline(
-                                carta_ast::Format(format.into()),
-                                normalize_code(&content, self.notes.markdown).into(),
-                            )));
-                            return;
-                        }
-                        let attr = self.take_code_attr();
-                        self.nodes.push(Node::Inline(Inline::Code(
-                            Box::new(attr),
-                            normalize_code(&content, self.notes.markdown).into(),
-                        )));
-                        return;
-                    }
-                    scan += close;
-                } else {
-                    scan += 1;
-                }
+        if let Some(close) = self.next_backtick_run(open, self.pos) {
+            let content: String = self
+                .chars
+                .get(self.pos..close)
+                .map(|s| s.iter().collect())
+                .unwrap_or_default();
+            self.pos = close + open;
+            if let Some((format, next)) = self.scan_raw_format() {
+                self.pos = next;
+                self.nodes.push(Node::Inline(Inline::RawInline(
+                    carta_ast::Format(format.into()),
+                    normalize_code(&content, self.notes.markdown).into(),
+                )));
+                return;
             }
-            self.backtick_no_close.insert(open, start);
+            let attr = self.take_code_attr();
+            self.nodes.push(Node::Inline(Inline::Code(
+                Box::new(attr),
+                normalize_code(&content, self.notes.markdown).into(),
+            )));
+            return;
         }
         // No closing run: emit the opening backticks literally.
         let literal: String = self
@@ -1495,6 +1479,31 @@ impl InlineParser<'_> {
             .map(|s| s.iter().collect())
             .unwrap_or_default();
         self.push_str(&literal);
+    }
+
+    /// The start of the first maximal run of exactly `len` backticks at or after `from`, or `None`
+    /// if the buffer holds no such run. Backed by a per-buffer index of every maximal run's start
+    /// keyed by run length; the index is built once on first use and then binary-searched, so a
+    /// close search costs O(log n) rather than a scan to end-of-buffer.
+    fn next_backtick_run(&mut self, len: usize, from: usize) -> Option<usize> {
+        let chars = self.chars;
+        let runs = self.backtick_runs.get_or_insert_with(|| {
+            let mut index: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+            let mut scan = 0;
+            while scan < chars.len() {
+                if chars.get(scan) == Some(&'`') {
+                    let run = backtick_run_len(chars, scan);
+                    index.entry(run).or_default().push(scan);
+                    scan += run;
+                } else {
+                    scan += 1;
+                }
+            }
+            index
+        });
+        let positions = runs.get(&len)?;
+        let at = positions.partition_point(|&p| p < from);
+        positions.get(at).copied()
     }
 
     /// Parse `$…$` (inline) or `$$…$$` (display) TeX math at the cursor.
@@ -4712,20 +4721,17 @@ mod inline_tests {
 
     #[test]
     fn code_span_failed_search_does_not_mask_a_different_length_match() {
-        // The length-1 opener's close search runs to end-of-buffer and fails (no lone backtick
-        // follows), which the parser remembers for length 1. The length-2 span that comes right
-        // after must still match: the memo is keyed by run length, so a failure recorded for one
-        // length must not suppress the scan for another.
+        // The length-1 opener finds no lone-backtick closer and stays literal; the length-2 span
+        // that comes right after must still match, since the close index is keyed by run length
+        // and one length's absence does not suppress another's.
         assert_eq!(p("`a ``b``"), vec![str("`a"), Inline::Space, code("b")]);
     }
 
     #[test]
-    fn code_span_repeated_failures_of_one_length_skip_the_rescan() {
-        // An escape consumes the backslash plus the first backtick of a raw run, so the opener
-        // that follows is the run's suffix — its length (2 here) need not equal any raw run's
-        // length. The first length-2 opener's close search fails to end-of-input (every raw run
-        // is length 3) and is remembered; the second length-2 opener skips the rescan and emits
-        // its backticks literally, identical to what the full scan would produce.
+    fn code_span_opener_is_a_run_suffix_stays_literal() {
+        // An escape consumes the backslash plus the first backtick of a run, so the opener that
+        // follows is the run's suffix — its length (2 here) need not equal any run's full length.
+        // No length-2 run closes it, so both openers emit their backticks literally.
         assert_eq!(
             p("\\``` x \\``` x"),
             vec![
@@ -4738,6 +4744,44 @@ mod inline_tests {
                 str("x"),
             ]
         );
+    }
+
+    #[test]
+    fn code_span_distinct_run_lengths_all_resolve() {
+        // Strictly increasing, distinct run lengths with no closers — the correctness face of the
+        // adversarial quadratic input: every opener stays literal and the text between is intact.
+        assert_eq!(
+            p("`a ``b ```c"),
+            vec![
+                str("`a"),
+                Inline::Space,
+                str("``b"),
+                Inline::Space,
+                str("```c"),
+            ]
+        );
+    }
+
+    #[test]
+    fn code_span_close_before_cursor_is_not_reused() {
+        // The second span's close search must start at its own opener, never returning the first
+        // span's already-consumed closer that lies before the cursor.
+        assert_eq!(p("`a` `b`"), vec![code("a"), Inline::Space, code("b")]);
+    }
+
+    #[test]
+    fn code_span_runs_at_buffer_ends_match() {
+        // Opener at position 0 and closer as the final characters of the buffer.
+        assert_eq!(p("``a``"), vec![code("a")]);
+    }
+
+    #[test]
+    fn code_span_index_matches_scan_on_tricky_buffers() {
+        // Nested lengths, adjacent runs of different lengths, and a triple-adjacency opener where a
+        // shorter inner run precedes the matching closer. Expected values encoded literally.
+        assert_eq!(p("``x`y``"), vec![code("x`y")]);
+        assert_eq!(p("`a ``b`` c`"), vec![code("a ``b`` c")]);
+        assert_eq!(p("``a` b``"), vec![code("a` b")]);
     }
 
     // --- Inline raw TeX and backslash math ---
