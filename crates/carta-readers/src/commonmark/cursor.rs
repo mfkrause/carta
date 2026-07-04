@@ -744,7 +744,7 @@ fn roman_value(run: &[u8]) -> Option<i32> {
 
     // Thousands: any number of `m`.
     while lower.get(pos) == Some(&b'm') {
-        total += 1000;
+        total = total.checked_add(1000)?;
         pos += 1;
     }
     total += take_roman_place(&lower, &mut pos, b'c', b'd', b'm', 100);
@@ -813,4 +813,22 @@ fn rest_is_blank(bytes: &[u8], start: usize) -> bool {
         .flatten()
         .take_while(|byte| **byte != b'\n')
         .all(|byte| matches!(byte, b' ' | b'\t'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roman_value_reads_thousands() {
+        assert_eq!(roman_value(b"mm"), Some(2000));
+    }
+
+    // A roman run long enough to overflow the thousands accumulator is not a valid enumerator: the
+    // checked add yields `None` rather than panicking under overflow checks.
+    #[test]
+    fn roman_value_rejects_oversized_run() {
+        let run = vec![b'm'; 3_000_000];
+        assert_eq!(roman_value(&run), None);
+    }
 }
