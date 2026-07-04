@@ -51,6 +51,8 @@ pub enum Error {
     Unrepresentable(String),
     #[error("container error: {0}")]
     Container(String),
+    #[error("filter error: {0}")]
+    Filter(String),
 }
 
 #[cfg(feature = "template")]
@@ -210,6 +212,11 @@ pub struct WriterOptions {
     /// Directory used to resolve template partials (`$name()$`).
     #[cfg(feature = "template")]
     pub template_dir: Option<std::path::PathBuf>,
+
+    /// A shared directory of partials (`$name()$`) consulted when a partial is not found beside the
+    /// including template — the data directory's `templates/`. `None` when no data directory applies.
+    #[cfg(feature = "template")]
+    pub template_datadir: Option<std::path::PathBuf>,
 
     /// Extension a partial (`$name()$`) inherits from the including template: the `--template`
     /// file's own extension, so the same partial name resolves to the same kind of file whatever

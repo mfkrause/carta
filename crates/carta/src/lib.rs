@@ -199,6 +199,20 @@ pub fn render_document(
     Ok(Output::Text(body))
 }
 
+/// Folds the extra metadata layers carried in `writer_options` into `document.meta`: the
+/// metadata-file defaults sit below the document's own values, and the `-M` layer above them.
+///
+/// [`render_document`] does this itself just before writing, so a direct conversion needs no separate
+/// call. It is exposed for a caller that transforms the document between [`read_document`] and
+/// [`render_document`] — running it through a filter — and wants the transform to observe the same
+/// merged metadata the writer will. Such a caller merges here, then clears
+/// [`WriterOptions::metadata`] and [`WriterOptions::metadata_defaults`] so rendering does not layer
+/// them a second time.
+#[cfg(feature = "standalone")]
+pub fn merge_metadata(document: &mut Document, writer_options: &WriterOptions) {
+    standalone::merge_metadata(document, writer_options);
+}
+
 /// Parses a metadata file into a metadata map, for use as `WriterOptions::metadata_defaults`.
 ///
 /// Scalar values are parsed as inline Markdown (independent of the document's own input format), so a
