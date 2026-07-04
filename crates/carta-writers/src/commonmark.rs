@@ -14,9 +14,9 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, escape_attr, fill, fill_groups, indent_block,
+    FILL_COLUMN, NotesHost, Piece, append_notes, escape_html_attr, fill, fill_groups, indent_block,
     is_loose, item_separator, normalize_image_attr, offset_as_i32, ordered_marker, quote_marks,
-    render_html_attr,
+    render_html_attr, render_html_fragment_attr,
 };
 use crate::markdown_common::{
     attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
@@ -420,7 +420,11 @@ impl State {
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
         if self.in_anchor {
-            push_html(out, &format!("<span{}>", render_html_attr(attr)), true);
+            push_html(
+                out,
+                &format!("<span{}>", render_html_fragment_attr(attr)),
+                true,
+            );
             self.extend_pieces(inlines, out, false);
             out.push(Piece::Text("</span>".to_owned()));
             return;
@@ -441,8 +445,8 @@ impl State {
                 out,
                 &format!(
                     "<a href=\"{}\"{}{}>",
-                    escape_attr(&target.url),
-                    render_html_attr(attr),
+                    escape_html_attr(&target.url),
+                    render_html_fragment_attr(attr),
                     title_attr(&target.title)
                 ),
                 true,
@@ -465,15 +469,15 @@ impl State {
         let alt_attr = if inlines.is_empty() {
             String::new()
         } else {
-            format!(" alt=\"{}\"", escape_attr(&alt_text(inlines)))
+            format!(" alt=\"{}\"", escape_html_attr(&alt_text(inlines)))
         };
         push_html(
             out,
             &format!(
                 "<img src=\"{}\"{}{}{alt_attr} />",
-                escape_attr(&target.url),
+                escape_html_attr(&target.url),
                 title_attr(&target.title),
-                render_html_attr(&normalize_image_attr(attr)),
+                render_html_fragment_attr(&normalize_image_attr(attr)),
             ),
             true,
         );
@@ -623,7 +627,7 @@ fn title_attr(title: &Text) -> String {
     if title.is_empty() {
         String::new()
     } else {
-        format!(" title=\"{}\"", escape_attr(title))
+        format!(" title=\"{}\"", escape_html_attr(title))
     }
 }
 

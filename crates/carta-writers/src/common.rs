@@ -1430,6 +1430,24 @@ pub(crate) fn escape_attr(text: &str) -> String {
     escape_xml(text, true)
 }
 
+/// Escape an HTML attribute value where both quote characters are entity-encoded: `&`, `<`, `>`,
+/// and `"` to their named entities and `'` to `&#39;`. Link and image attribute values take this
+/// form; `<div>` and `<span>` wrapper attributes keep the single quote literal via [`escape_attr`].
+pub(crate) fn escape_html_attr(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
 /// One column slot of a laid-out row: the start of a cell, or a column covered by a column or row
 /// span (or a column the row's cells never reached). A consumer renders a covered slot as its own
 /// filler placeholder.
@@ -1547,8 +1565,18 @@ impl RowSpanGrid {
 /// Render an [`Attr`] to an HTML attribute string (a leading space per attribute, empty when blank):
 /// `id`, then `class`, then key/value pairs, with unrecognized keys `data-` prefixed.
 pub(crate) fn render_html_attr(attr: &Attr) -> String {
+    render_attr_tokens(attr, escape_attr)
+}
+
+/// As [`render_html_attr`], but entity-encoding both quote characters in each value — the escaping
+/// a link or image tag's attributes take in HTML fragments embedded in text output.
+pub(crate) fn render_html_fragment_attr(attr: &Attr) -> String {
+    render_attr_tokens(attr, escape_html_attr)
+}
+
+fn render_attr_tokens(attr: &Attr, escaper: fn(&str) -> String) -> String {
     let mut out = String::new();
-    for token in html_attr_tokens(attr) {
+    for token in html_attr_tokens(attr, escaper) {
         out.push(' ');
         out.push_str(&token);
     }
@@ -1556,18 +1584,15 @@ pub(crate) fn render_html_attr(attr: &Attr) -> String {
 }
 
 /// The HTML attribute string as individual `name="value"` tokens, in the order [`render_html_attr`]
-/// emits them. Each token is one unbreakable unit, which lets a caller fill an opening tag to a
-/// column width without splitting inside an attribute.
-pub(crate) fn html_attr_tokens(attr: &Attr) -> Vec<String> {
+/// emits them, with each value run through `escaper`. Each token is one unbreakable unit, which
+/// lets a caller fill an opening tag to a column width without splitting inside an attribute.
+fn html_attr_tokens(attr: &Attr, escaper: fn(&str) -> String) -> Vec<String> {
     let mut tokens = Vec::new();
     if !attr.id.is_empty() {
-        tokens.push(format!("id=\"{}\"", escape_attr(&attr.id)));
+        tokens.push(format!("id=\"{}\"", escaper(&attr.id)));
     }
     if !attr.classes.is_empty() {
-        tokens.push(format!(
-            "class=\"{}\"",
-            escape_attr(&attr.classes.join(" "))
-        ));
+        tokens.push(format!("class=\"{}\"", escaper(&attr.classes.join(" "))));
     }
     for (key, value) in &attr.attributes {
         let name = if is_known_attribute(key) {
@@ -1575,7 +1600,7 @@ pub(crate) fn html_attr_tokens(attr: &Attr) -> Vec<String> {
         } else {
             format!("data-{key}")
         };
-        tokens.push(format!("{name}=\"{}\"", escape_attr(value)));
+        tokens.push(format!("{name}=\"{}\"", escaper(value)));
     }
     tokens
 }
@@ -2090,6 +2115,9 @@ mod tests {
         assert_eq!(escape_xml("\"q\"", false), "\"q\"");
         assert_eq!(escape_xml("\"q\"", true), "&quot;q&quot;");
         assert_eq!(escape_attr("<\"&>"), "&lt;&quot;&amp;&gt;");
+        assert_eq!(escape_attr("a'b"), "a'b");
+        assert_eq!(escape_html_attr("<\"&>"), "&lt;&quot;&amp;&gt;");
+        assert_eq!(escape_html_attr("a'b"), "a&#39;b");
     }
 
     #[test]
@@ -2241,6 +2269,24 @@ mod tests {
             " id=\"x&lt;\" class=\"a b\" href=\"/p?q=1&amp;r=2\" data-wibble=\"v\""
         );
         assert_eq!(render_html_attr(&Attr::default()), "");
+    }
+
+    #[test]
+    fn render_html_attr_variants_split_on_the_single_quote() {
+        let attr = Attr {
+            id: "a'b".into(),
+            classes: vec!["c'd".into()],
+            attributes: vec![("k".into(), "v'w".into())],
+        };
+        assert_eq!(
+            render_html_attr(&attr),
+            " id=\"a'b\" class=\"c'd\" data-k=\"v'w\""
+        );
+        assert_eq!(
+            render_html_fragment_attr(&attr),
+            " id=\"a&#39;b\" class=\"c&#39;d\" data-k=\"v&#39;w\""
+        );
+        assert_eq!(render_html_fragment_attr(&Attr::default()), "");
     }
 
     #[test]
