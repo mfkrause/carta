@@ -30,7 +30,7 @@ When a group records a `fail` or `err`, the surface prints the path to its full 
 
 ```
 RESULT writer html pass=120 fail=3 err=0 skip=5
-  details: /tmp/carta-conformance/writer-html.log
+  details: /tmp/carta-conformance.a1B2c3/writer-html.log
 ```
 
 Each log entry carries the case label, the two exact `repro:` invocations (oracle and carta), and the full diff (bounded at 200 lines). The workflow to iterate on one divergence:
@@ -62,7 +62,7 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 ## Environment
 
 - `CARTA_BIN` — path to the carta binary (default `target/debug/carta`).
-- `CONF_WORK` — scratch + per-case diff logs (default `$TMPDIR/carta-conformance`).
+- `CONF_WORK` — scratch + per-case diff logs. Defaults to a fresh per-run directory (`$TMPDIR/carta-conformance.XXXXXX`) so concurrent runs never collide; set it to pin a fixed location. Not auto-deleted, so the `.log` files survive for inspection.
 
 ## Surfaces
 
