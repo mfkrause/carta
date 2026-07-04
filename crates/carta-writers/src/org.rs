@@ -16,7 +16,7 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_hang,
-    indent_block, item_separator, offset_as_i32, quote_marks,
+    indent_block, item_separator, label_matches_url, offset_as_i32, quote_marks,
 };
 
 /// Number of dashes emitted for a horizontal rule.
@@ -582,11 +582,11 @@ impl State {
         if let [Inline::Image(_, _, inner)] = label {
             return format!("[[{}][{}]]", org_path(&target.url), image(inner));
         }
-        let path = org_path(&target.url);
-        if to_plain_text(label) == target.url {
-            format!("[[{path}]]")
+        let plain = to_plain_text(label);
+        if label_matches_url(&plain, &target.url) {
+            format!("[[{}]]", org_path(&plain))
         } else {
-            format!("[[{path}][{}]]", self.flat(label))
+            format!("[[{}][{}]]", org_path(&target.url), self.flat(label))
         }
     }
 
@@ -947,4 +947,64 @@ fn render_row(cells: &[String], widths: &[usize]) -> String {
 fn render_rule(widths: &[usize]) -> String {
     let parts: Vec<String> = widths.iter().map(|width| "-".repeat(width + 2)).collect();
     format!("|{}|", parts.join("+"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render(inlines: Vec<Inline>) -> String {
+        let document = Document {
+            blocks: vec![Block::Para(inlines)],
+            ..Document::default()
+        };
+        OrgWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap()
+    }
+
+    fn s(text: &str) -> Inline {
+        Inline::Str(text.to_owned().into())
+    }
+
+    fn link(label: Vec<Inline>, url: &str) -> Inline {
+        Inline::Link(
+            Box::default(),
+            label,
+            Box::new(Target {
+                url: url.into(),
+                title: String::new().into(),
+            }),
+        )
+    }
+
+    #[test]
+    fn decoded_label_link_renders_single_segment() {
+        assert_eq!(
+            render(vec![link(
+                vec![s("http://e.com/a b")],
+                "http://e.com/a%20b"
+            )]),
+            "[[http://e.com/a b]]"
+        );
+    }
+
+    #[test]
+    fn exact_label_link_renders_single_segment() {
+        assert_eq!(
+            render(vec![link(
+                vec![s("http://e.com/a%20b")],
+                "http://e.com/a%20b"
+            )]),
+            "[[http://e.com/a%20b]]"
+        );
+    }
+
+    #[test]
+    fn distinct_label_link_renders_two_segments() {
+        assert_eq!(
+            render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
+            "[[http://e.com/a%20b][click]]"
+        );
+    }
 }
