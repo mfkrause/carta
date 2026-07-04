@@ -4088,6 +4088,44 @@ mod inline_tests {
         assert_eq!(p("_a_b"), vec![str("_a_b")]);
     }
 
+    #[test]
+    fn emphasis_flanks_across_multi_byte_neighbors() {
+        // `*` pairs intraword, so multi-byte word characters around the delimiters behave like
+        // ASCII ones.
+        assert_eq!(
+            p("α*β*γ"),
+            vec![str("α"), Inline::Emph(vec![str("β")]), str("γ")]
+        );
+    }
+
+    #[test]
+    fn emphasis_with_multi_byte_content_at_input_edges() {
+        // The opener sits at the very start of the input and the closer at its very end, so both
+        // boundary lookups run against the buffer's edges.
+        assert_eq!(p("*β*"), vec![Inline::Emph(vec![str("β")])]);
+    }
+
+    #[test]
+    fn emphasis_between_emoji_neighbors() {
+        // An emoji is a symbol (punctuation for flanking purposes), not a word character, so the
+        // run still opens and closes around it.
+        assert_eq!(
+            p("😀*a*😀"),
+            vec![str("😀"), Inline::Emph(vec![str("a")]), str("😀")]
+        );
+    }
+
+    #[test]
+    fn underscore_intraword_stays_literal_with_multi_byte_neighbors() {
+        // The word-character test before and after a `_` run reads whole characters, not bytes.
+        assert_eq!(p("α_β_γ"), vec![str("α_β_γ")]);
+    }
+
+    #[test]
+    fn empty_input_parses_to_nothing() {
+        assert_eq!(p(""), Vec::new());
+    }
+
     // --- Links and images ---
 
     #[test]

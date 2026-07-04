@@ -259,3 +259,57 @@ pub(crate) fn is_unicode_whitespace(ch: char) -> bool {
         || ch == '\r'
         || ch.is_whitespace()
 }
+
+#[cfg(all(test, feature = "commonmark"))]
+mod tests {
+    use super::{scan_display_math_bytes, scan_inline_math_bytes};
+
+    #[test]
+    fn inline_math_spans_multi_byte_content() {
+        // The content and the returned end position are byte offsets; the closing `$` follows a
+        // multi-byte character.
+        assert_eq!(
+            scan_inline_math_bytes("$αβ$", 0),
+            Some(("αβ".to_owned(), 6))
+        );
+    }
+
+    #[test]
+    fn inline_math_opens_after_a_multi_byte_neighbor() {
+        // The opener sits at a byte offset past a multi-byte character.
+        assert_eq!(scan_inline_math_bytes("é$β$", 2), Some(("β".to_owned(), 6)));
+    }
+
+    #[test]
+    fn inline_math_escape_hops_over_a_multi_byte_character() {
+        // A backslash escapes the following character whole, so an escaped multi-byte character
+        // never leaves the cursor mid-character.
+        assert_eq!(
+            scan_inline_math_bytes("$\\éx$", 0),
+            Some(("\\éx".to_owned(), 6))
+        );
+    }
+
+    #[test]
+    fn inline_math_rejects_ill_flanked_closers() {
+        // Whitespace before the closing `$`, a digit after it, or whitespace after the opener each
+        // void the span.
+        assert_eq!(scan_inline_math_bytes("$x $", 0), None);
+        assert_eq!(scan_inline_math_bytes("$x$5", 0), None);
+        assert_eq!(scan_inline_math_bytes("$ x$", 0), None);
+    }
+
+    #[test]
+    fn display_math_spans_multi_byte_content() {
+        assert_eq!(
+            scan_display_math_bytes("$$α+β$$", 0),
+            Some(("α+β".to_owned(), 9))
+        );
+    }
+
+    #[test]
+    fn display_math_without_a_closer_is_not_math() {
+        // A lone `$` after multi-byte content does not close a `$$` opener.
+        assert_eq!(scan_display_math_bytes("$$αβ$", 0), None);
+    }
+}
