@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[x](http://example.com/ "a"b title")
+
+[y](http://example.com/ "a"b'c title")

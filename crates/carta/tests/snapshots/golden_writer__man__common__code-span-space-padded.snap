@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+\f[CR] x \f[R]
+.PP
+\f[CR] \f[R]
+.PP
+\f[CR]\(gax\f[R]

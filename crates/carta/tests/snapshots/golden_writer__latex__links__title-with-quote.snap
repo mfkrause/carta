@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\href{http://example.com/}{x}
+
+\href{http://example.com/}{y}
