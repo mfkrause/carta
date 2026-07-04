@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //! The carta abstract syntax tree: the document model and its JSON interchange format.
 //!
 //! This AST is the single contract between readers and writers.

@@ -41,6 +41,7 @@ carta-writers = { path = "crates/carta-writers", version = "0.0.2" }
 unsafe_code = "deny"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(docsrs)"] }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

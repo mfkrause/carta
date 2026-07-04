@@ -58,23 +58,31 @@ impl Default for ApiVersion {
 /// A whole document: schema version, metadata, and the block sequence.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Document {
+    /// The AST schema version the document carries.
     pub api_version: ApiVersion,
+    /// Document metadata, keyed by field name.
     pub meta: BTreeMap<Text, MetaValue>,
+    /// The document body.
     pub blocks: Vec<Block>,
 }
 
 /// Identifier, classes, and ordered key/value pairs attached to many nodes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Attr {
+    /// The element's identifier (the `#id` of an attribute block).
     pub id: Text,
+    /// The element's classes, in source order.
     pub classes: Vec<Text>,
+    /// The remaining key/value pairs, in source order.
     pub attributes: Vec<(Text, Text)>,
 }
 
 /// A link or image destination: URL and title.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Target {
+    /// The destination URL.
     pub url: Text,
+    /// The destination's title; empty when the source carried none.
     pub title: Text,
 }
 
@@ -85,50 +93,87 @@ pub struct Target {
 pub struct Format(pub Text);
 
 node_enum! {
+    /// A block-level node of the document body.
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(tag = "t", content = "c")]
     pub enum Block {
+        /// Inline content standing alone without paragraph semantics (a tight list item, a
+        /// table cell).
         Plain(Vec<Inline>),
+        /// A paragraph.
         Para(Vec<Inline>),
+        /// A sequence of lines whose divisions are preserved.
         LineBlock(Vec<Vec<Inline>>),
+        /// A block of verbatim code with its attributes.
         CodeBlock(Box<Attr>, Text),
+        /// Verbatim content in the named format, emitted only by that format's writers.
         RawBlock(Format, Text),
+        /// A quoted block sequence.
         BlockQuote(Vec<Block>),
+        /// A numbered list: the marker configuration plus one block sequence per item.
         OrderedList(ListAttributes, Vec<Vec<Block>>),
+        /// A bulleted list: one block sequence per item.
         BulletList(Vec<Vec<Block>>),
+        /// A definition list: each entry pairs a term with its definition bodies.
         DefinitionList(Vec<(Vec<Inline>, Vec<Vec<Block>>)>),
+        /// A section heading: level, attributes, and heading text.
         Header(i32, Box<Attr>, Vec<Inline>),
+        /// A thematic break.
         HorizontalRule,
+        /// A table; see [`Table`].
         Table(Box<Table>),
+        /// A figure: attributes, caption, and content.
         Figure(Box<Attr>, Box<Caption>, Vec<Block>),
+        /// A generic attributed block container.
         Div(Box<Attr>, Vec<Block>),
     }
     tags: BLOCK_TAGS
 }
 
 node_enum! {
+    /// An inline node: a piece of text or an intra-paragraph construct.
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(tag = "t", content = "c")]
     pub enum Inline {
+        /// A run of text.
         Str(Text),
+        /// Emphasized content, conventionally italic.
         Emph(Vec<Inline>),
+        /// Underlined content.
         Underline(Vec<Inline>),
+        /// Strong content, conventionally bold.
         Strong(Vec<Inline>),
+        /// Struck-out content.
         Strikeout(Vec<Inline>),
+        /// Superscripted content.
         Superscript(Vec<Inline>),
+        /// Subscripted content.
         Subscript(Vec<Inline>),
+        /// Small-caps content.
         SmallCaps(Vec<Inline>),
+        /// Quoted content, with the quotation-mark kind alongside.
         Quoted(QuoteType, Vec<Inline>),
+        /// A citation: the references cited plus the source text they were written as.
         Cite(Vec<Citation>, Vec<Inline>),
+        /// A span of verbatim code with its attributes.
         Code(Box<Attr>, Text),
+        /// An inter-word space.
         Space,
+        /// A soft line break: a source newline that renders as breakable space.
         SoftBreak,
+        /// A hard line break.
         LineBreak,
+        /// A math payload, inline or display.
         Math(MathType, Text),
+        /// Verbatim content in the named format, emitted only by that format's writers.
         RawInline(Format, Text),
+        /// A link: attributes, link text, and destination.
         Link(Box<Attr>, Vec<Inline>, Box<Target>),
+        /// An image: attributes, alt text, and source.
         Image(Box<Attr>, Vec<Inline>, Box<Target>),
+        /// A footnote or endnote holding block content.
         Note(Vec<Block>),
+        /// A generic attributed inline container.
         Span(Box<Attr>, Vec<Inline>),
     }
     tags: INLINE_TAGS
@@ -139,57 +184,87 @@ node_enum! {
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
     #[serde(tag = "t", content = "c")]
     pub enum MetaValue {
+        /// A nested map of metadata values.
         MetaMap(BTreeMap<Text, MetaValue>),
+        /// A list of metadata values.
         MetaList(Vec<MetaValue>),
+        /// A boolean.
         MetaBool(bool),
+        /// A plain string.
         MetaString(Text),
+        /// Inline markup content.
         MetaInlines(Vec<Inline>),
+        /// Block-level content.
         MetaBlocks(Vec<Block>),
     }
     tags: META_VALUE_TAGS
 }
 
+/// The quotation-mark kind of an [`Inline::Quoted`] span.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum QuoteType {
+    /// Single quotes.
     SingleQuote,
+    /// Double quotes.
     DoubleQuote,
 }
 
+/// Whether an [`Inline::Math`] payload renders within the line or as its own display block.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum MathType {
+    /// Math rendered within the line of text.
     InlineMath,
+    /// Math rendered as its own display block.
     DisplayMath,
 }
 
+/// The numeral style of an ordered list's markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum ListNumberStyle {
+    /// The target format's default style.
     DefaultStyle,
+    /// `(@)` example-list numbering, sequential across the whole document.
     Example,
+    /// Decimal numbers.
     Decimal,
+    /// Lowercase roman numerals.
     LowerRoman,
+    /// Uppercase roman numerals.
     UpperRoman,
+    /// Lowercase letters.
     LowerAlpha,
+    /// Uppercase letters.
     UpperAlpha,
 }
 
+/// The punctuation around an ordered list's markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum ListNumberDelim {
+    /// The target format's default delimiter.
     DefaultDelim,
+    /// A trailing period: `1.`.
     Period,
+    /// A trailing parenthesis: `1)`.
     OneParen,
+    /// Enclosing parentheses: `(1)`.
     TwoParens,
 }
 
+/// The horizontal alignment of a table column or cell.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum Alignment {
+    /// Left-aligned.
     AlignLeft,
+    /// Right-aligned.
     AlignRight,
+    /// Centered.
     AlignCenter,
+    /// The target format's default alignment.
     AlignDefault,
 }
 
@@ -197,39 +272,55 @@ pub enum Alignment {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ColWidth {
+    /// An explicit fraction of the available width.
     ColWidth(f64),
+    /// The renderer's default width.
     ColWidthDefault,
 }
 
+/// How a citation is rendered relative to the sentence around it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t")]
 pub enum CitationMode {
+    /// The author's name reads as part of the sentence, with the year set off from it.
     AuthorInText,
+    /// The author's name is omitted, leaving only the year and any locator.
     SuppressAuthor,
+    /// The whole citation is set off from the sentence, conventionally in parentheses.
     NormalCitation,
 }
 
 /// The leading-marker configuration of an ordered list: start number, numeral style, delimiter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListAttributes {
+    /// The number the first item carries.
     pub start: i32,
+    /// The numeral style of the markers.
     pub style: ListNumberStyle,
+    /// The punctuation around the markers.
     pub delim: ListNumberDelim,
 }
 
+/// One cited reference within an [`Inline::Cite`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Citation {
+    /// The citation key identifying the referenced source.
     #[serde(rename = "citationId")]
     pub id: Text,
+    /// Inline content preceding the key inside the citation (e.g. `see`).
     #[serde(rename = "citationPrefix")]
     pub prefix: Vec<Inline>,
+    /// Inline content following the key inside the citation (e.g. a locator such as `p. 12`).
     #[serde(rename = "citationSuffix")]
     pub suffix: Vec<Inline>,
+    /// How the citation is rendered relative to the surrounding sentence.
     #[serde(rename = "citationMode")]
     pub mode: CitationMode,
+    /// The sequence number of the note the citation belongs to; `0` before citations are processed.
     #[serde(rename = "citationNoteNum")]
     pub note_num: i32,
+    /// An occurrence hash assigned by a citation processor; `0` before citations are processed.
     #[serde(rename = "citationHash")]
     pub hash: i32,
 }
@@ -237,13 +328,19 @@ pub struct Citation {
 /// A table (or figure) caption: an optional short form plus the full block-level caption.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Caption {
+    /// The optional short form, for contexts where the full caption does not fit (a list of
+    /// tables, say).
     pub short: Option<Vec<Inline>>,
+    /// The full caption content.
     pub long: Vec<Block>,
 }
 
+/// One table column's specification.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColSpec {
+    /// The column's horizontal alignment.
     pub align: Alignment,
+    /// The column's width.
     pub width: ColWidth,
 }
 
@@ -253,46 +350,72 @@ pub struct ColSpec {
 /// variants set each enum's size.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Table {
+    /// The table's attributes.
     pub attr: Attr,
+    /// The table's caption.
     pub caption: Caption,
+    /// Per-column alignment and width, in column order.
     pub col_specs: Vec<ColSpec>,
+    /// The header section.
     pub head: TableHead,
+    /// The body sections; a table may carry several.
     pub bodies: Vec<TableBody>,
+    /// The footer section.
     pub foot: TableFoot,
 }
 
+/// A table's header section.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TableHead {
+    /// The section's attributes.
     pub attr: Attr,
+    /// The header rows.
     pub rows: Vec<Row>,
 }
 
+/// One body section of a table.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TableBody {
+    /// The section's attributes.
     pub attr: Attr,
+    /// How many leading columns of each row act as row headers.
     pub row_head_columns: i32,
+    /// Header rows specific to this body section.
     pub head: Vec<Row>,
+    /// The section's content rows.
     pub body: Vec<Row>,
 }
 
+/// A table's footer section.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TableFoot {
+    /// The section's attributes.
     pub attr: Attr,
+    /// The footer rows.
     pub rows: Vec<Row>,
 }
 
+/// One table row.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Row {
+    /// The row's attributes.
     pub attr: Attr,
+    /// The row's cells, in column order.
     pub cells: Vec<Cell>,
 }
 
+/// One table cell.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cell {
+    /// The cell's attributes.
     pub attr: Attr,
+    /// The cell's horizontal alignment; [`Alignment::AlignDefault`] defers to the column's.
     pub align: Alignment,
+    /// How many rows the cell spans.
     pub row_span: i32,
+    /// How many columns the cell spans.
     pub col_span: i32,
+    /// The cell's block content.
     pub content: Vec<Block>,
 }
 

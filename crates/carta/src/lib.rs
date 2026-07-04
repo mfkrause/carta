@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_docs)]
 //! carta — a document converter library.
 //!
 //! The public entry points: [`convert`] handles any format pair, taking raw bytes and returning an
@@ -209,6 +211,7 @@ pub fn render_document(
 /// [`WriterOptions::metadata`] and [`WriterOptions::metadata_defaults`] so rendering does not layer
 /// them a second time.
 #[cfg(feature = "standalone")]
+#[cfg_attr(docsrs, doc(cfg(feature = "standalone")))]
 pub fn merge_metadata(document: &mut Document, writer_options: &WriterOptions) {
     standalone::merge_metadata(document, writer_options);
 }
@@ -222,6 +225,7 @@ pub fn merge_metadata(document: &mut Document, writer_options: &WriterOptions) {
 /// # Errors
 /// [`Error::InvalidMetadata`] if the content does not parse as the selected format.
 #[cfg(feature = "metadata-file")]
+#[cfg_attr(docsrs, doc(cfg(feature = "metadata-file")))]
 pub fn parse_metadata_file(
     content: &str,
     json: bool,

@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_docs)]
 //! Shared carta core: the conversion traits, their option types, and the common error type.
 //!
 //! [`Reader`] turns input text into a [`Document`]; [`Writer`] turns a [`Document`] back into
@@ -11,11 +13,13 @@ use std::sync::Arc;
 use carta_ast::{Block, Document, Inline};
 
 #[cfg(feature = "container")]
+#[cfg_attr(docsrs, doc(cfg(feature = "container")))]
 pub mod container;
 pub mod extensions;
 pub mod media;
 pub mod sections;
 #[cfg(feature = "template")]
+#[cfg_attr(docsrs, doc(cfg(feature = "template")))]
 pub mod template;
 pub mod walk;
 
@@ -25,32 +29,50 @@ pub use media::{MediaBag, MediaItem};
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// JSON input or output could not be (de)serialized.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    /// An I/O operation failed.
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),
+    /// Input handed to a text reader was not valid UTF-8.
     #[error("input is not valid UTF-8: {0}")]
     InvalidUtf8(#[from] std::str::Utf8Error),
+    /// A text-only API was asked for a format whose output is binary; use the byte-capable API.
     #[error("format '{0}' converts binary data; use the byte-capable API (convert)")]
     BinaryFormat(String),
+    /// The named format is not recognized.
     #[error("unsupported format: {0}")]
     UnsupportedFormat(String),
+    /// The named format is recognized but not compiled into this build.
     #[error("format '{0}' is recognized but not enabled in this build")]
     FormatNotEnabled(String),
+    /// A `+`/`-` toggle named an extension that is not modeled.
     #[error("unknown extension: {0}")]
     UnknownExtension(String),
+    /// A modeled extension does not apply to the given format.
     #[error(
         "The extension '{extension}' is not supported for {format}.\nUse --list-extensions={format} to list supported extensions."
     )]
-    UnsupportedExtension { extension: String, format: String },
+    UnsupportedExtension {
+        /// The extension the format does not support.
+        extension: String,
+        /// The format that does not support the extension.
+        format: String,
+    },
+    /// Document metadata could not be parsed.
     #[error("invalid document metadata: {0}")]
     InvalidMetadata(String),
+    /// A standalone template failed to parse or render.
     #[error("template error: {0}")]
     Template(String),
+    /// The document holds content the target format cannot represent.
     #[error("cannot represent this content in the target format: {0}")]
     Unrepresentable(String),
+    /// Building or reading a container archive failed.
     #[error("container error: {0}")]
     Container(String),
+    /// A document filter failed to run or returned an unusable result.
     #[error("filter error: {0}")]
     Filter(String),
 }
@@ -202,20 +224,24 @@ pub struct WriterOptions {
     /// Emit a complete document by wrapping the rendered body in the target format's template,
     /// rather than a bare fragment.
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub standalone: bool,
 
     /// Template source overriding the format's built-in default. Its presence implies standalone
     /// output.
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub template: Option<String>,
 
     /// Directory used to resolve template partials (`$name()$`).
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub template_dir: Option<std::path::PathBuf>,
 
     /// A shared directory of partials (`$name()$`) consulted when a partial is not found beside the
     /// including template — the data directory's `templates/`. `None` when no data directory applies.
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub template_datadir: Option<std::path::PathBuf>,
 
     /// Extension a partial (`$name()$`) inherits from the including template: the `--template`
@@ -223,21 +249,25 @@ pub struct WriterOptions {
     /// the output format. An empty string means the template file had no extension (the partial is
     /// looked up bare). Absent for a built-in default, where the format name is used instead.
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub template_ext: Option<String>,
 
     /// Raw template variables, in order; a repeated key accumulates into a list. Inserted verbatim
     /// (unescaped) at the highest precedence when building the template context.
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub variables: Vec<(String, String)>,
 
     /// Metadata layered *above* the document's own (the `-M` layer): each key replaces the reader's
     /// value for that key when the context is built.
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub metadata: std::collections::BTreeMap<String, carta_ast::MetaValue>,
 
     /// Metadata layered *below* the document's own (the metadata-file layer): supplies defaults the
     /// reader's values and `-M` override.
     #[cfg(feature = "template")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub metadata_defaults: std::collections::BTreeMap<String, carta_ast::MetaValue>,
 
     /// The source name a standalone document falls back to when no `title` metadata is present: an
@@ -245,11 +275,16 @@ pub struct WriterOptions {
     /// no source name and the fallback is empty. Consumed by the HTML family (for its `pagetitle`)
     /// and by the container writer (for the navigation document's title).
     #[cfg(any(feature = "template", feature = "container"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "template", feature = "container"))))]
     pub source_name: Option<String>,
 }
 
 /// Parses input text in some source format into the document model.
 pub trait Reader {
+    /// Parses `input` text into a document.
+    ///
+    /// # Errors
+    /// Propagates any error from parsing the input.
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document>;
 
     /// Reads `input` into a document together with the embedded resources it references. The default
@@ -284,6 +319,10 @@ pub enum MetaVarStyle {
 ///
 /// The returned string carries no trailing newline; the CLI appends exactly one.
 pub trait Writer {
+    /// Renders `document` into this format's text.
+    ///
+    /// # Errors
+    /// Propagates any error from rendering the document.
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String>;
 
     /// Render an inline sequence in this format, for interpolating inline metadata (a `title`, an
@@ -412,6 +451,10 @@ pub trait Writer {
 /// Parses input bytes in some source format into the document model. The byte-shaped counterpart of
 /// [`Reader`], for formats whose wire form is not text — zip containers and the like.
 pub trait BytesReader {
+    /// Parses `input` bytes into a document.
+    ///
+    /// # Errors
+    /// Propagates any error from parsing the input.
     fn read(&self, input: &[u8], options: &ReaderOptions) -> Result<Document>;
 
     /// Reads `input` into a document together with the embedded resources it references. The
@@ -431,19 +474,27 @@ pub trait BytesReader {
 /// container writer produces a complete document by construction. Hooks are added when a real format
 /// needs them.
 pub trait BytesWriter {
+    /// Renders `document` into this format's bytes.
+    ///
+    /// # Errors
+    /// Propagates any error from rendering the document.
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>>;
 }
 
 /// The output of a conversion: text from a text writer, bytes from a byte-shaped writer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Output {
+    /// Text produced by a text-shaped writer.
     Text(String),
+    /// Bytes produced by a byte-shaped writer.
     Bytes(Vec<u8>),
 }
 
 /// A resolved reader, either text-shaped ([`Reader`]) or byte-shaped ([`BytesReader`]).
 pub enum AnyReader {
+    /// A text-shaped reader; input is decoded as UTF-8 before parsing.
     Text(Box<dyn Reader>),
+    /// A byte-shaped reader; input is parsed from raw bytes.
     Bytes(Box<dyn BytesReader>),
 }
 
@@ -492,7 +543,9 @@ impl AnyReader {
 
 /// A resolved writer, either text-shaped ([`Writer`]) or byte-shaped ([`BytesWriter`]).
 pub enum AnyWriter {
+    /// A text-shaped writer; rendering produces a string.
     Text(Box<dyn Writer>),
+    /// A byte-shaped writer; rendering produces raw bytes.
     Bytes(Box<dyn BytesWriter>),
 }
 
