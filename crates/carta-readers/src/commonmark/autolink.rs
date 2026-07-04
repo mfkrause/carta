@@ -16,8 +16,6 @@
 
 use carta_ast::{Attr, Inline, Target};
 
-use super::scan::matches_at;
-
 /// Whether a matched autolink is a URL or an email address; selects its dialect class.
 #[derive(Clone, Copy)]
 enum Kind {
@@ -86,20 +84,18 @@ struct Match {
 
 /// Scan one text token, emitting `Str` for the gaps and `Link` for each autolink found.
 fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
-    let chars: Vec<char> = text.chars().collect();
-    let len = chars.len();
+    let len = text.len();
     let mut i = 0;
     let mut emit_from = 0;
     while i < len {
         // A bare `www.` host (no scheme) autolinks only in the strict dialect; the Markdown dialect
         // links scheme URLs and emails alone.
-        let found = match_url(&chars, i)
-            .or_else(|| (!markdown).then(|| match_www(&chars, i)).flatten())
-            .or_else(|| match_email(&chars, i, emit_from, markdown));
+        let found = match_url(text, i)
+            .or_else(|| (!markdown).then(|| match_www(text, i)).flatten())
+            .or_else(|| match_email(text, i, emit_from, markdown));
         if let Some(m) = found {
-            push_text(&chars, emit_from, m.start, out);
-            if let Some(span) = chars.get(m.start..m.end) {
-                let label: String = span.iter().collect();
+            push_text(text, emit_from, m.start, out);
+            if let Some(span) = text.get(m.start..m.end) {
                 let attr = if markdown {
                     Attr {
                         id: carta_ast::Text::default(),
@@ -118,7 +114,7 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
                 };
                 out.push(Inline::Link(
                     Box::new(attr),
-                    vec![Inline::Str(label.into())],
+                    vec![Inline::Str(span.into())],
                     Box::new(Target {
                         url: url.into(),
                         title: carta_ast::Text::default(),
@@ -128,35 +124,45 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
             emit_from = m.end;
             i = m.end;
         } else {
-            i += 1;
+            i += char_at(text, i).map_or(1, char::len_utf8);
         }
     }
-    push_text(&chars, emit_from, len, out);
+    push_text(text, emit_from, len, out);
 }
 
-fn push_text(chars: &[char], a: usize, b: usize, out: &mut Vec<Inline>) {
-    if let Some(slice) = chars.get(a..b)
+/// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
+fn char_at(text: &str, at: usize) -> Option<char> {
+    text.get(at..).and_then(|rest| rest.chars().next())
+}
+
+/// The character ending just before byte offset `at`, or `None` at the start of `text`.
+fn char_before(text: &str, at: usize) -> Option<char> {
+    text.get(..at).and_then(|head| head.chars().next_back())
+}
+
+fn push_text(text: &str, a: usize, b: usize, out: &mut Vec<Inline>) {
+    if let Some(slice) = text.get(a..b)
         && !slice.is_empty()
     {
-        out.push(Inline::Str(slice.iter().collect()));
+        out.push(Inline::Str(slice.into()));
     }
 }
 
-fn match_url(chars: &[char], i: usize) -> Option<Match> {
-    if alnum_before(chars, i) {
+fn match_url(text: &str, i: usize) -> Option<Match> {
+    if alnum_before(text, i) {
         return None;
     }
-    let scheme_len = url_scheme_len(chars, i)?;
+    let scheme_len = url_scheme_len(text, i)?;
     let content_start = i + scheme_len;
-    let scan_end = forward_scan(chars, i);
-    if !valid_host(chars.get(content_start..scan_end)?) {
+    let scan_end = forward_scan(text, i);
+    if !valid_host(text.get(content_start..scan_end)?) {
         return None;
     }
-    let end = trim_trailing(chars, content_start, scan_end);
+    let end = trim_trailing(text, content_start, scan_end);
     if end <= content_start {
         return None;
     }
-    let href: String = chars.get(i..end)?.iter().collect();
+    let href = text.get(i..end)?.to_owned();
     Some(Match {
         start: i,
         end,
@@ -170,19 +176,19 @@ fn match_url(chars: &[char], i: usize) -> Option<Match> {
 /// such prefix whose labels are non-empty and end in neither `-` nor `_`. It is usable when that
 /// prefix holds at least two labels. Whatever follows the domain (port, path, an extra dot) is not
 /// examined here — it stays part of the link.
-fn valid_host(rest: &[char]) -> bool {
+fn valid_host(rest: &str) -> bool {
     let mut labels = 0;
     let mut i = 0;
     loop {
         let start = i;
-        while rest.get(i).is_some_and(|&c| is_label_char(c)) {
-            i += 1;
+        while char_at(rest, i).is_some_and(is_label_char) {
+            i += char_at(rest, i).map_or(1, char::len_utf8);
         }
-        if i == start || matches!(rest.get(i - 1), Some('-' | '_')) {
+        if i == start || matches!(char_before(rest, i), Some('-' | '_')) {
             break;
         }
         labels += 1;
-        if rest.get(i) != Some(&'.') {
+        if char_at(rest, i) != Some('.') {
             break;
         }
         i += 1;
@@ -194,20 +200,20 @@ fn is_label_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '-' | '_')
 }
 
-fn match_www(chars: &[char], i: usize) -> Option<Match> {
-    if alnum_before(chars, i) || !matches_at(chars, i, "www.") {
+fn match_www(text: &str, i: usize) -> Option<Match> {
+    if alnum_before(text, i) || !text.get(i..).is_some_and(|rest| rest.starts_with("www.")) {
         return None;
     }
     let content_start = i + 4;
-    let scan_end = forward_scan(chars, i);
-    if !valid_host(chars.get(i..scan_end)?) {
+    let scan_end = forward_scan(text, i);
+    if !valid_host(text.get(i..scan_end)?) {
         return None;
     }
-    let end = trim_trailing(chars, content_start, scan_end);
+    let end = trim_trailing(text, content_start, scan_end);
     if end <= content_start {
         return None;
     }
-    let label: String = chars.get(i..end)?.iter().collect();
+    let label = text.get(i..end)?;
     let href = format!("http://{label}");
     Some(Match {
         start: i,
@@ -222,14 +228,14 @@ fn match_www(chars: &[char], i: usize) -> Option<Match> {
 /// domain extends right over `[A-Za-z0-9._-]` and must end on an alphanumeric with no empty label.
 /// The strict dialect additionally requires the domain to be dotted; the Markdown dialect accepts a
 /// single-label domain such as `5@home`.
-fn match_email(chars: &[char], at: usize, lower: usize, markdown: bool) -> Option<Match> {
-    if chars.get(at) != Some(&'@') {
+fn match_email(text: &str, at: usize, lower: usize, markdown: bool) -> Option<Match> {
+    if char_at(text, at) != Some('@') {
         return None;
     }
     let mut start = at;
     while start > lower {
-        match chars.get(start - 1) {
-            Some(&c) if is_local_char(c) => start -= 1,
+        match char_before(text, start) {
+            Some(c) if is_local_char(c) => start -= c.len_utf8(),
             _ => break,
         }
     }
@@ -237,19 +243,22 @@ fn match_email(chars: &[char], at: usize, lower: usize, markdown: bool) -> Optio
         return None;
     }
     let mut end = at + 1;
-    while chars.get(end).is_some_and(|&c| is_domain_char(c)) {
-        end += 1;
+    while char_at(text, end).is_some_and(is_domain_char) {
+        end += char_at(text, end).map_or(1, char::len_utf8);
     }
-    while end > at + 1 && chars.get(end - 1) == Some(&'.') {
+    while end > at + 1 && char_before(text, end) == Some('.') {
         end -= 1;
     }
-    let domain = chars.get(at + 1..end)?;
-    let ends_alnum = domain.last().is_some_and(char::is_ascii_alphanumeric);
-    let dotted_ok = markdown || domain.contains(&'.');
-    if !dotted_ok || !ends_alnum || domain.windows(2).any(|w| matches!(w, ['.', '.'])) {
+    let domain = text.get(at + 1..end)?;
+    let ends_alnum = domain
+        .chars()
+        .next_back()
+        .is_some_and(|c| c.is_ascii_alphanumeric());
+    let dotted_ok = markdown || domain.contains('.');
+    if !dotted_ok || !ends_alnum || domain.contains("..") {
         return None;
     }
-    let label: String = chars.get(start..end)?.iter().collect();
+    let label = text.get(start..end)?.to_owned();
     let href = format!("mailto:{label}");
     Some(Match {
         start,
@@ -261,10 +270,10 @@ fn match_email(chars: &[char], at: usize, lower: usize, markdown: bool) -> Optio
 
 /// Walk the URL run forward from `from`, stopping at whitespace or `<`, at an unbalanced `)`, or at a
 /// `]` outside any parenthesis. Returns the index just past the last character of the run.
-fn forward_scan(chars: &[char], from: usize) -> usize {
+fn forward_scan(text: &str, from: usize) -> usize {
     let mut depth: i32 = 0;
     let mut j = from;
-    while let Some(&c) = chars.get(j) {
+    while let Some(c) = char_at(text, j) {
         if c.is_whitespace() || c == '<' {
             break;
         }
@@ -274,23 +283,23 @@ fn forward_scan(chars: &[char], from: usize) -> usize {
             ')' => depth -= 1,
             _ => {}
         }
-        j += 1;
+        j += c.len_utf8();
     }
     j
 }
 
 /// Drop trailing punctuation from a URL run, never trimming below `min` (the start of the host).
 /// A trailing `;` takes its preceding `&entity;` with it when one is present.
-fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
+fn trim_trailing(text: &str, min: usize, mut end: usize) -> usize {
     while end > min {
-        match chars.get(end - 1) {
+        match char_before(text, end) {
             Some('!' | '"' | '\'' | '*' | ',' | '.' | ':' | '?' | '_' | '~') => end -= 1,
             Some(';') => {
                 let mut j = end - 1;
-                while j > min && chars.get(j - 1).is_some_and(|&c| is_entity_char(c)) {
-                    j -= 1;
+                while j > min && char_before(text, j).is_some_and(is_entity_char) {
+                    j -= char_before(text, j).map_or(1, char::len_utf8);
                 }
-                end = if j > min && chars.get(j - 1) == Some(&'&') {
+                end = if j > min && char_before(text, j) == Some('&') {
                     j - 1
                 } else {
                     end - 1
@@ -302,17 +311,15 @@ fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
     end
 }
 
-fn url_scheme_len(chars: &[char], i: usize) -> Option<usize> {
+fn url_scheme_len(text: &str, i: usize) -> Option<usize> {
     ["https://", "http://", "ftp://"]
         .into_iter()
-        .find(|scheme| matches_at(chars, i, scheme))
+        .find(|scheme| text.get(i..).is_some_and(|rest| rest.starts_with(scheme)))
         .map(str::len)
 }
 
-fn alnum_before(chars: &[char], i: usize) -> bool {
-    i.checked_sub(1)
-        .and_then(|p| chars.get(p))
-        .is_some_and(|c| c.is_alphanumeric())
+fn alnum_before(text: &str, i: usize) -> bool {
+    char_before(text, i).is_some_and(char::is_alphanumeric)
 }
 
 fn is_local_char(c: char) -> bool {
@@ -373,11 +380,11 @@ mod tests {
     }
 
     fn host(s: &str) -> bool {
-        valid_host(&s.chars().collect::<Vec<_>>())
+        valid_host(s)
     }
 
     fn scan(s: &str) -> usize {
-        forward_scan(&s.chars().collect::<Vec<_>>(), 0)
+        forward_scan(s, 0)
     }
 
     #[test]
@@ -411,10 +418,10 @@ mod tests {
 
     #[test]
     fn trim_trailing_drops_punctuation_and_entities() {
-        let chars: Vec<char> = "http://e.com/p.,".chars().collect();
-        assert_eq!(trim_trailing(&chars, 7, chars.len()), 14); // drops the trailing '.' and ','
-        let ent: Vec<char> = "http://e.com/p&amp;".chars().collect();
-        assert_eq!(trim_trailing(&ent, 7, ent.len()), 14); // a trailing '&entity;' goes whole
+        let url = "http://e.com/p.,";
+        assert_eq!(trim_trailing(url, 7, url.len()), 14); // drops the trailing '.' and ','
+        let ent = "http://e.com/p&amp;";
+        assert_eq!(trim_trailing(ent, 7, ent.len()), 14); // a trailing '&entity;' goes whole
     }
 
     #[test]
