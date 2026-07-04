@@ -57,6 +57,17 @@ jobs:
         # the next night; the committed seeds are added read-only. -timeout / -rss_limit_mb turn a
         # hang or runaway allocation into a reported crash instead of a silently stuck runner.
         # Pin the gnu target: musl links libc statically and the sanitizer cannot instrument it.
+        #
+        # malloc_context_size=0 stops ASan from recording a call stack for every allocation. Those
+        # stacks are interned forever in ASan's stack depot, so on an allocation-heavy recursive
+        # parser the depot alone ratchets process RSS past -rss_limit_mb over a long run and
+        # libFuzzer reports a phantom OOM against whatever innocent unit it happens to be running
+        # (this is exactly how the dokuwiki job went red nightly). The stacks only decorate ASan's
+        # "allocated by" notes on memory-bug reports — panics, the finding class that matters for
+        # pure-Rust readers, are unaffected — and any reproducer can be replayed locally with
+        # default options when those notes are wanted.
+        env:
+          ASAN_OPTIONS: malloc_context_size=0
         run: |
           mkdir -p fuzz/corpus/${{ matrix.target }}
           cargo +nightly fuzz run ${{ matrix.target }} \

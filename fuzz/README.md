@@ -72,6 +72,16 @@ from then on.
 Both pass `-timeout=10 -rss_limit_mb=2048`: `-max_total_time` is only checked between units, so
 these bound a single hanging or memory-hungry input instead of letting it stall the runner.
 
+The nightly run additionally sets `ASAN_OPTIONS=malloc_context_size=0`. By default ASan records
+a call stack for every allocation and interns it forever in its stack depot; an allocation-heavy
+recursive parser produces so many unique stacks that the depot alone ratchets process RSS past
+`-rss_limit_mb` over a long run, and libFuzzer then reports a phantom OOM whose reproducer
+replays clean. The recorded stacks only enrich the "allocated by" notes on ASan memory-bug
+reports — they play no part in catching panics, hangs, or real per-input OOMs — so the nightly
+trades them away for a stable RSS baseline. Replay a reproducer locally without the variable to
+get the notes back. The per-PR replay executes each seed just once per process, so it never
+accumulates enough stacks to need this.
+
 Adding a reader means wiring four places — a target in `fuzz_targets/`, a `[[bin]]` in
 `Cargo.toml`, a seed under `seeds/`, and both workflow matrices. The offline test
 `crates/carta/tests/fuzz_wiring.rs` asserts they stay in agreement, so a missing piece fails at
