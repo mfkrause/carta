@@ -804,7 +804,7 @@ impl State {
 
     fn inline(&mut self, out: &mut String, inline: &Inline) {
         match inline {
-            Inline::Str(text) => out.push_str(&escape_text(text)),
+            Inline::Str(text) => escape_text_into(out, text),
             Inline::Emph(inlines) => self.wrap(out, "em", inlines),
             Inline::Strong(inlines) => self.wrap(out, "strong", inlines),
             Inline::Strikeout(inlines) => self.wrap(out, "del", inlines),
@@ -1605,6 +1605,13 @@ fn is_zero_width(ch: char) -> bool {
 /// when `single_quote` is set.
 fn escape(text: &str, double_quote: bool, single_quote: bool) -> String {
     let mut out = String::with_capacity(text.len());
+    escape_into(&mut out, text, double_quote, single_quote);
+    out
+}
+
+/// Escape `text` directly into `out`, avoiding the throwaway allocation of [`escape`] on the hot
+/// text-run path.
+fn escape_into(out: &mut String, text: &str, double_quote: bool, single_quote: bool) {
     for ch in text.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
@@ -1612,10 +1619,9 @@ fn escape(text: &str, double_quote: bool, single_quote: bool) -> String {
             '>' => out.push_str("&gt;"),
             '"' if double_quote => out.push_str("&quot;"),
             '\'' if single_quote => out.push_str("&#39;"),
-            _ => protect_char(ch, &mut out),
+            _ => protect_char(ch, out),
         }
     }
-    out
 }
 
 /// Encode the assembly sentinels so a literal occurrence in document content survives [`reflow`]
@@ -1680,6 +1686,12 @@ fn restore(text: &str) -> String {
 /// Escape running text and inline code, which leave both quote characters literal.
 fn escape_text(text: &str) -> String {
     escape(text, false, false)
+}
+
+/// Escape running text directly into `out`, the [`escape_text`] policy without the intermediate
+/// allocation.
+fn escape_text_into(out: &mut String, text: &str) {
+    escape_into(out, text, false, false);
 }
 
 /// Escape an attribute value, where both quote characters must be entity-encoded. The same policy
