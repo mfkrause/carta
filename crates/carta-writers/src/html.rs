@@ -1682,10 +1682,10 @@ fn escape_text(text: &str) -> String {
     escape(text, false, false)
 }
 
-/// Escape an attribute value, where the double quote must be entity-encoded. The same policy applies
-/// to a `<pre><code>` block's body.
+/// Escape an attribute value, where both quote characters must be entity-encoded. The same policy
+/// applies to a `<pre><code>` block's body.
 fn escape_attr(text: &str) -> String {
-    escape(text, true, false)
+    escape(text, true, true)
 }
 
 /// Escape the body of a math span, where both quote characters must be entity-encoded so the verbatim
@@ -1701,6 +1701,21 @@ fn fill_math(text: &str) -> String {
         .chars()
         .map(|ch| if ch == ' ' { BREAK } else { ch })
         .collect()
+}
+
+#[cfg(test)]
+mod escaping_tests {
+    use super::{escape_attr, escape_text};
+
+    #[test]
+    fn attribute_values_and_code_block_bodies_entity_encode_both_quotes() {
+        assert_eq!(escape_attr("a\"b'c<&>"), "a&quot;b&#39;c&lt;&amp;&gt;");
+    }
+
+    #[test]
+    fn running_text_and_inline_code_keep_both_quotes_literal() {
+        assert_eq!(escape_text("a\"b'c<&>"), "a\"b'c&lt;&amp;&gt;");
+    }
 }
 
 #[cfg(all(test, feature = "epub"))]

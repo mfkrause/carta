@@ -22,10 +22,10 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
-    body_rows, cell_inlines, dash_rule, display_width, escape_attr, extend_multiline_body, fill,
-    fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell,
+    body_rows, cell_inlines, dash_rule, display_width, escape_html_attr, extend_multiline_body,
+    fill, fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell,
     item_separator, lay_row, measure_pieces, offset_as_i32, ordered_marker, pad_align,
-    pieces_nonempty, quote_marks, render_html_attr, table_form,
+    pieces_nonempty, quote_marks, render_html_attr, render_html_fragment_attr, table_form,
 };
 use crate::grid;
 use crate::markdown_common::{
@@ -1665,8 +1665,8 @@ impl State {
         if !self.config.has(Extension::LinkAttributes) && !attr_is_empty(attr) {
             out.push(Piece::Text(format!(
                 "<a href=\"{}\"{}{}>",
-                escape_attr(&target.url),
-                render_html_attr(attr),
+                escape_html_attr(&target.url),
+                render_html_fragment_attr(attr),
                 title_attr(&target.title)
             )));
             self.extend_pieces(inlines, out);
@@ -2070,7 +2070,7 @@ fn title_attr(title: &Text) -> String {
     if title.is_empty() {
         String::new()
     } else {
-        format!(" title=\"{}\"", escape_attr(title))
+        format!(" title=\"{}\"", escape_html_attr(title))
     }
 }
 
@@ -2081,13 +2081,13 @@ fn image_html(attr: &Attr, inlines: &[Inline], target: &Target) -> String {
     let alt_attr = if alt.is_empty() {
         String::new()
     } else {
-        format!(" alt=\"{}\"", escape_attr(&alt))
+        format!(" alt=\"{}\"", escape_html_attr(&alt))
     };
     format!(
         "<img src=\"{}\"{}{}{alt_attr} />",
-        escape_attr(&target.url),
+        escape_html_attr(&target.url),
         title_attr(&target.title),
-        render_html_attr(attr),
+        render_html_fragment_attr(attr),
     )
 }
 
