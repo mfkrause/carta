@@ -15,7 +15,7 @@
 </div>
 
 > [!WARNING]
-> carta is a **prototype under active development**. Only a small slice of pandoc's formats is implemented today, the API is unstable, and it is not yet ready for production use.
+> carta is an **early-stage alpha under active development**. Only all of of pandoc's formats are implemented yet and the API is still unstable.
 
 ## Goals
 
