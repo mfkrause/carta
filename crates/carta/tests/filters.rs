@@ -24,7 +24,21 @@ struct Output {
 }
 
 fn run(args: &[&str], stdin: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_carta"))
+    run_in_dir(None, args, stdin)
+}
+
+/// Like `run`, but with the child's working directory set to `dir`, so working-directory filter
+/// resolution can be exercised deterministically.
+fn run_in(dir: &Path, args: &[&str], stdin: &str) -> Output {
+    run_in_dir(Some(dir), args, stdin)
+}
+
+fn run_in_dir(dir: Option<&Path>, args: &[&str], stdin: &str) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_carta"));
+    if let Some(dir) = dir {
+        command.current_dir(dir);
+    }
+    let mut child = command
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -183,6 +197,37 @@ fn a_data_directory_filter_resolves_by_bare_name() {
     );
     assert!(result.success, "stderr: {}", result.stderr);
     assert_eq!(result.stdout, "<p>a DONE here</p>\n");
+}
+
+#[test]
+fn a_working_directory_filter_takes_precedence_over_the_data_directory() {
+    let dir = work_dir("filter-cwd-precedence");
+    let data = dir.join("data");
+    let filters = data.join("filters");
+    fs::create_dir_all(&filters).unwrap();
+    // The same bare name lives in both the data directory and the working directory, each tagging the
+    // document differently so the winner is unambiguous. The working-directory copy takes precedence.
+    write_exec(&filters.join("dup"), "#!/bin/sh\nsed 's/TOKEN/DATADIR/g'\n");
+    let cwd = dir.join("cwd");
+    fs::create_dir_all(&cwd).unwrap();
+    write_exec(&cwd.join("dup"), "#!/bin/sh\nsed 's/TOKEN/WORKDIR/g'\n");
+
+    let result = run_in(
+        &cwd,
+        &[
+            "--data-dir",
+            data.to_str().unwrap(),
+            "-f",
+            "commonmark",
+            "-t",
+            "html",
+            "-F",
+            "dup",
+        ],
+        "a TOKEN here\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<p>a WORKDIR here</p>\n");
 }
 
 #[test]

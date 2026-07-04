@@ -4,10 +4,10 @@
 //! transformed document as JSON on standard output, receiving the output format name as its sole
 //! argument. Filters apply in order, each one seeing the previous one's result.
 //!
-//! A bare filter name (one with no path component) is resolved against the data directory's
-//! `filters/` first, then the working directory, then the executable search path. A resolved file
-//! that lacks the executable bit is run through an interpreter chosen from its extension, so a
-//! `filter.py` runs even without a shebang or `+x`.
+//! A bare filter name (one with no path component) is resolved against the working directory first,
+//! then the data directory's `filters/`, then the executable search path. A resolved file that lacks
+//! the executable bit is run through an interpreter chosen from its extension, so a `filter.py` runs
+//! even without a shebang or `+x`.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -16,8 +16,8 @@ use std::process::{Command, Stdio};
 use carta::{Document, Error, Result};
 
 /// Runs `document` through each filter in turn. `format` is the output format name passed to every
-/// filter as its argument; `data_dir`, when set, has its `filters/` subdirectory searched before the
-/// working directory and executable path.
+/// filter as its argument; `data_dir`, when set, has its `filters/` subdirectory searched after the
+/// working directory but before the executable path.
 ///
 /// # Errors
 /// [`Error::Filter`] if a filter cannot be launched, exits unsuccessfully, or emits output that is
@@ -110,22 +110,22 @@ enum Target {
 }
 
 fn resolve(filter: &str, data_dir: Option<&Path>) -> Target {
-    // A name with a path component addresses a file directly. A bare name is looked up in the data
-    // directory's `filters/`, then the working directory, and finally left for the executable search
-    // path.
+    // A name with a path component addresses a file directly. A bare name is looked up in the working
+    // directory first, then the data directory's `filters/`, and finally left for the executable
+    // search path.
     if has_separator(filter) {
         return Target::File(PathBuf::from(filter));
+    }
+    if Path::new(filter).is_file() {
+        // Give the command an explicit relative path so it runs the working-directory file rather
+        // than searching the executable path for the bare name.
+        return Target::File(Path::new(".").join(filter));
     }
     if let Some(dir) = data_dir {
         let candidate = dir.join("filters").join(filter);
         if candidate.is_file() {
             return Target::File(candidate);
         }
-    }
-    if Path::new(filter).is_file() {
-        // Give the command an explicit relative path so it runs the working-directory file rather
-        // than searching the executable path for the bare name.
-        return Target::File(Path::new(".").join(filter));
     }
     Target::Search(filter.to_owned())
 }
@@ -173,8 +173,15 @@ fn is_executable(path: &Path) -> bool {
 
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
-    // Without a Unix executable bit, defer to the OS loader, which keys on the extension (`.exe`, …).
-    path.is_file()
+    // Without a Unix executable bit, only a native executable image runs directly. A script — a file
+    // whose extension names an interpreter — must not short-circuit here, or the interpreter fallback
+    // in `command_for_file` would never be reached and the OS would be asked to launch the script
+    // itself.
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(str::to_ascii_lowercase);
+    matches!(extension.as_deref(), Some("exe" | "com" | "bat" | "cmd"))
 }
 
 #[cfg(test)]
