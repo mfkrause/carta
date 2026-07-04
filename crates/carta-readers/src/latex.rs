@@ -40,8 +40,7 @@ impl Reader for LatexReader {
         let base_level = base_section_level(body);
 
         let mut parser = Parser {
-            chars: Vec::new(),
-            pos: 0,
+            frames: Vec::new(),
             ext,
             smart: ext.contains(Extension::Smart),
             meta: BTreeMap::new(),
@@ -51,18 +50,17 @@ impl Reader for LatexReader {
             in_figure: false,
             in_float: false,
             expand_depth: 0,
+            total_expansions: 0,
             last_ws_had_newline: false,
         };
 
         // The preamble contributes metadata and macro definitions but no blocks.
         if let Some(preamble) = preamble {
-            parser.chars = preamble.chars().collect();
-            parser.pos = 0;
+            parser.set_source(preamble);
             let _ = parser.parse_blocks(&Stop::Eof);
         }
 
-        parser.chars = body.chars().collect();
-        parser.pos = 0;
+        parser.set_source(body);
         let blocks = parser.parse_blocks(&Stop::Env("document"));
 
         Ok(Document {
@@ -144,11 +142,20 @@ struct Macro {
     body: String,
 }
 
+/// One level of input the cursor reads from: a character buffer and a position within it. The
+/// bottom frame holds the source text; each macro expansion pushes a new frame that is read to
+/// exhaustion, then popped, so the expansion's characters are consumed in place of the invocation.
+struct Frame {
+    chars: Vec<char>,
+    pos: usize,
+}
+
 /// The character cursor and parse state.
 #[allow(clippy::struct_excessive_bools)]
 struct Parser {
-    chars: Vec<char>,
-    pos: usize,
+    /// The input-frame stack: the bottom frame is the source text, and each frame above it is a
+    /// pending macro expansion still being read. Never empty; the bottom frame is never popped.
+    frames: Vec<Frame>,
     ext: Extensions,
     smart: bool,
     meta: BTreeMap<String, MetaValue>,
@@ -163,8 +170,12 @@ struct Parser {
     /// Whether the current context is a float body, where `\caption` ends a paragraph so it can be
     /// hoisted out as the float's caption.
     in_float: bool,
-    /// Current macro-expansion nesting depth, bounded to stop runaway recursive expansions.
+    /// Current macro-expansion nesting depth (the number of live expansion frames), bounded to stop
+    /// runaway recursive expansions.
     expand_depth: u32,
+    /// Total macro expansions performed by this parser, bounded to stop a branching macro from doing
+    /// exponential work while staying under the nesting cap.
+    total_expansions: u32,
     /// Whether the most recently consumed inter-word whitespace contained a newline, so the gap
     /// renders as a soft break rather than a plain space.
     last_ws_had_newline: bool,
@@ -185,27 +196,75 @@ enum InlineStop {
     QuoteDouble,
 }
 
+/// Bounds macro-expansion nesting depth (how deeply expansions may recurse into one another).
 const MAX_EXPAND_DEPTH: u32 = 200;
 
+/// Bounds the total number of expansions one parser may perform (its overall work budget).
+const MAX_TOTAL_EXPANSIONS: u32 = 100_000;
+
 impl Parser {
+    /// Replaces the frame stack with a single bottom frame over `source`, resetting the cursor and
+    /// the expansion nesting depth. Macro definitions and the total-expansion budget carry over.
+    fn set_source(&mut self, source: &str) {
+        self.frames = vec![Frame {
+            chars: source.chars().collect(),
+            pos: 0,
+        }];
+        self.expand_depth = 0;
+    }
+
+    /// Pops expansion frames that have been read to exhaustion, decrementing the nesting depth for
+    /// each. The bottom frame (the source) is never popped, so at least one frame always remains.
+    fn drop_exhausted_frames(&mut self) {
+        while self.frames.len() > 1 {
+            match self.frames.last() {
+                Some(frame) if frame.pos >= frame.chars.len() => {
+                    self.frames.pop();
+                    self.expand_depth = self.expand_depth.saturating_sub(1);
+                }
+                _ => break,
+            }
+        }
+    }
+
     fn cur(&self) -> Option<char> {
-        self.chars.get(self.pos).copied()
+        self.frames
+            .iter()
+            .rev()
+            .find_map(|frame| frame.chars.get(frame.pos).copied())
     }
 
     fn at(&self, offset: usize) -> Option<char> {
-        self.chars.get(self.pos + offset).copied()
+        let mut remaining = offset;
+        for frame in self.frames.iter().rev() {
+            let available = frame.chars.len().saturating_sub(frame.pos);
+            if remaining < available {
+                return frame.chars.get(frame.pos + remaining).copied();
+            }
+            remaining -= available;
+        }
+        None
     }
 
     fn bump(&mut self) -> Option<char> {
-        let c = self.cur();
+        self.drop_exhausted_frames();
+        let frame = self.frames.last_mut()?;
+        let c = frame.chars.get(frame.pos).copied();
         if c.is_some() {
-            self.pos += 1;
+            frame.pos += 1;
         }
         c
     }
 
+    /// Advances the cursor by `n` characters, crossing frame boundaries as needed.
+    fn advance_chars(&mut self, n: usize) {
+        for _ in 0..n {
+            self.bump();
+        }
+    }
+
     fn eof(&self) -> bool {
-        self.pos >= self.chars.len()
+        self.cur().is_none()
     }
 
     /// Whether the cursor is at the literal string `s`.
@@ -216,7 +275,7 @@ impl Parser {
     /// Consumes the literal `s` if the cursor is at it.
     fn eat(&mut self, s: &str) -> bool {
         if self.looking_at(s) {
-            self.pos += s.chars().count();
+            self.advance_chars(s.chars().count());
             true
         } else {
             false
@@ -366,7 +425,7 @@ impl Parser {
             }
             return Some(self.parse_environment(&env));
         }
-        // A macro that expands is spliced in place, then re-examined.
+        // A macro that expands is read from its expansion frame, then re-examined.
         if self.try_expand_macro() {
             return self.parse_block_construct();
         }
@@ -1548,8 +1607,10 @@ impl Parser {
     /// (metadata and heading ids). It never inherits float context.
     fn child(&self, source: &str, in_figure: bool) -> Parser {
         Parser {
-            chars: source.chars().collect(),
-            pos: 0,
+            frames: vec![Frame {
+                chars: source.chars().collect(),
+                pos: 0,
+            }],
             ext: self.ext,
             smart: self.smart,
             meta: BTreeMap::new(),
@@ -1559,6 +1620,7 @@ impl Parser {
             in_figure,
             in_float: false,
             expand_depth: self.expand_depth,
+            total_expansions: 0,
             last_ws_had_newline: false,
         }
     }
@@ -1603,7 +1665,7 @@ impl Parser {
         let mut text = String::new();
         while !self.eof() {
             if self.looking_at(close) {
-                self.pos += close.chars().count();
+                self.advance_chars(close.chars().count());
                 break;
             }
             // A backslash escape keeps its following character, so `\$` does not end `$` math.
@@ -1805,10 +1867,13 @@ impl Parser {
     // --- Macros ----------------------------------------------------------------------------------
 
     /// Parses a macro definition. With macro expansion enabled the definition is recorded for later
-    /// splicing and contributes no block; with it disabled the definition is left in the output as a
+    /// expansion and contributes no block; with it disabled the definition is left in the output as a
     /// raw LaTeX block, preserving its source verbatim.
     fn parse_macro_definition(&mut self, name: &str) -> Vec<Block> {
-        let start = self.pos;
+        // The verbatim-capture branch below runs only with `Extension::LatexMacros` disabled, when no
+        // expansion frame is ever pushed, so exactly one frame is live throughout this call and `start`
+        // indexes the same buffer as the final position.
+        let start = self.frames.last().map_or(0, |frame| frame.pos);
         self.consume_control_word();
         if self.cur() == Some('*') {
             self.bump();
@@ -1845,8 +1910,9 @@ impl Parser {
             return Vec::new();
         }
         let raw: String = self
-            .chars
-            .get(start..self.pos)
+            .frames
+            .last()
+            .and_then(|frame| frame.chars.get(start..frame.pos))
             .unwrap_or_default()
             .iter()
             .collect();
@@ -1897,19 +1963,22 @@ impl Parser {
         );
     }
 
-    /// If the cursor is at a user macro invocation, splices its expansion into the source. Returns
-    /// whether an expansion occurred.
+    /// If the cursor is at a user macro invocation, pushes its expansion as a new input frame for the
+    /// cursor to read next. Returns whether an expansion occurred.
     fn try_expand_macro(&mut self) -> bool {
-        if !self.ext.contains(Extension::LatexMacros) || self.expand_depth >= MAX_EXPAND_DEPTH {
+        if !self.ext.contains(Extension::LatexMacros)
+            || self.expand_depth >= MAX_EXPAND_DEPTH
+            || self.total_expansions >= MAX_TOTAL_EXPANSIONS
+        {
             return false;
         }
         let Some(name) = self.peek_control_word() else {
             return false;
         };
-        let Some(mac) = self.macros.get(&name).cloned() else {
+        let macros = Rc::clone(&self.macros);
+        let Some(mac) = macros.get(&name) else {
             return false;
         };
-        let start = self.pos;
         self.consume_control_word();
         let mut args = Vec::new();
         let mut mandatory = mac.args;
@@ -1928,12 +1997,18 @@ impl Parser {
                 None => args.push(String::new()),
             }
         }
+        // Arguments are consumed from the stream before the expansion frame is pushed, so `#n`
+        // captures the invocation's own arguments and the cursor resumes at the source position where
+        // consumption stopped once the expansion frame is exhausted.
         let expanded = substitute_macro(&mac.body, &args);
-        // Replace the consumed invocation with its expansion.
-        let expanded_chars: Vec<char> = expanded.chars().collect();
-        self.chars.splice(start..self.pos, expanded_chars);
-        self.pos = start;
-        self.expand_depth += 1;
+        if !expanded.is_empty() {
+            self.frames.push(Frame {
+                chars: expanded.chars().collect(),
+                pos: 0,
+            });
+            self.expand_depth += 1;
+        }
+        self.total_expansions += 1;
         true
     }
 
@@ -3090,7 +3165,7 @@ mod tests {
     }
 
     // With macro expansion off, a definition is preserved verbatim as a raw block rather than
-    // recorded for splicing, so no expansion silently changes the text.
+    // recorded for expansion, so no expansion silently changes the text.
     #[test]
     fn macro_definition_preserved_verbatim_when_expansion_disabled() {
         let ext = Extensions::from_list(&[Extension::Smart, Extension::AutoIdentifiers]);
@@ -3101,6 +3176,90 @@ mod tests {
                 Format("latex".to_owned().into()),
                 "\\newcommand{\\foo}{bar}".to_owned().into(),
             )],
+        );
+    }
+
+    /// The concatenated plain text of every paragraph a source parses to.
+    fn plain_text(input: &str) -> String {
+        parse(input)
+            .iter()
+            .filter_map(|block| match block {
+                Block::Para(inlines) => Some(to_plain_text(inlines)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn simple_macro_expands_to_its_body() {
+        assert_eq!(plain_text("\\newcommand{\\x}{Y}\n\n\\x\n"), "Y");
+    }
+
+    #[test]
+    fn macro_optional_argument_defaults_when_absent() {
+        assert_eq!(
+            plain_text("\\newcommand{\\x}[2][d]{#1#2}\n\n\\x{B}\n"),
+            "dB"
+        );
+        assert_eq!(
+            plain_text("\\newcommand{\\x}[2][d]{#1#2}\n\n\\x[A]{B}\n"),
+            "AB",
+        );
+    }
+
+    #[test]
+    fn macro_body_invoking_another_macro_expands_fully() {
+        assert_eq!(
+            plain_text("\\newcommand{\\a}{\\b}\n\\newcommand{\\b}{Z}\n\n\\a\n"),
+            "Z",
+        );
+    }
+
+    // A long sequence of nested invocations all expand: the nesting depth is released after each
+    // invocation, so it does not accumulate across the sequence and hit the nesting cap.
+    #[test]
+    fn nested_invocations_do_not_accumulate_depth() {
+        let mut source = String::from("\\newcommand{\\a}{\\b}\n\\newcommand{\\b}{Z}\n\n");
+        for _ in 0..300 {
+            source.push_str("\\a ");
+        }
+        assert_eq!(plain_text(&source).matches('Z').count(), 300);
+    }
+
+    // More than 200 sequential invocations all expand: expansion is not capped by a total count.
+    #[test]
+    fn many_sequential_invocations_all_expand() {
+        let mut source = String::from("\\newcommand{\\hi}{Hello}\n\n");
+        for _ in 0..300 {
+            source.push_str("\\hi ");
+        }
+        assert_eq!(plain_text(&source).matches("Hello").count(), 300);
+    }
+
+    // A self-recursive macro is stopped by the nesting-depth guard and returns without panicking.
+    #[test]
+    fn self_recursive_macro_terminates() {
+        let _ = parse("\\newcommand{\\x}{\\x}\n\n\\x\n");
+    }
+
+    // A macro whose expansion ends mid-construct is completed by the following source text: the
+    // command reads its argument across the frame boundary, matching the flattened source.
+    #[test]
+    fn expansion_completed_by_following_source_matches_flattened() {
+        assert_eq!(
+            parse("\\newcommand{\\bo}{\\textbf}\n\n\\bo{word}\n"),
+            parse("\\textbf{word}\n"),
+        );
+    }
+
+    // An expansion frame that empties right before `\end{...}` pops cleanly at the environment
+    // boundary, matching the flattened source.
+    #[test]
+    fn expansion_ending_at_environment_boundary_matches_flattened() {
+        assert_eq!(
+            parse("\\newcommand{\\c}{content}\n\n\\begin{quote}\\c\\end{quote}\n"),
+            parse("\\begin{quote}content\\end{quote}\n"),
         );
     }
 }
