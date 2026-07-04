@@ -1,11 +1,10 @@
-//! Shared raw-text scanners over character slices, used by both parsing phases.
+//! Shared raw-text scanners over string slices, used by both parsing phases.
 //!
-//! These are pure functions: given a `&[char]` (or `&str`) and a start index, each recognizes one
-//! construct — an autolink, a raw inline HTML tag, a character reference, a link destination /
-//! title / label, or a full link reference definition — and returns the parsed value together with
-//! the index just past it. They hold no parser state. The inline phase drives most of them; the
-//! block phase reuses the link-reference-definition and unescaping scanners while collecting
-//! definitions.
+//! These are pure functions: given a `&str` and a start byte offset, each recognizes one construct
+//! — an autolink, a raw inline HTML tag, a character reference, a link destination / title / label,
+//! or a full link reference definition — and returns the parsed value together with the byte offset
+//! just past it. They hold no parser state. The inline phase drives most of them; the block phase
+//! reuses the link-reference-definition and unescaping scanners while collecting definitions.
 
 use carta_ast::{Inline, Target};
 
@@ -77,29 +76,34 @@ pub(crate) fn is_ascii_punctuation(ch: char) -> bool {
     )
 }
 
-pub(crate) fn scan_autolink(chars: &[char], start: usize) -> Option<(Inline, usize)> {
-    if chars.get(start).copied() != Some('<') {
+/// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
+fn char_at(text: &str, at: usize) -> Option<char> {
+    text.get(at..).and_then(|rest| rest.chars().next())
+}
+
+pub(crate) fn scan_autolink(text: &str, start: usize) -> Option<(Inline, usize)> {
+    if char_at(text, start) != Some('<') {
         return None;
     }
-    let mut end = start + 1;
-    let mut content = String::new();
-    while let Some(&ch) = chars.get(end) {
+    let content_start = start + 1;
+    let mut end = content_start;
+    while let Some(ch) = char_at(text, end) {
         if ch == '>' {
             break;
         }
         if ch == '<' || ch.is_whitespace() {
             return None;
         }
-        content.push(ch);
-        end += 1;
+        end += ch.len_utf8();
     }
-    if chars.get(end).copied() != Some('>') {
+    if char_at(text, end) != Some('>') {
         return None;
     }
+    let content = text.get(content_start..end)?;
     let after = end + 1;
-    if is_uri_autolink(&content) {
+    if is_uri_autolink(content) {
         let target = Target {
-            url: content.clone().into(),
+            url: content.into(),
             title: carta_ast::Text::default(),
         };
         return Some((
@@ -111,7 +115,7 @@ pub(crate) fn scan_autolink(chars: &[char], start: usize) -> Option<(Inline, usi
             after,
         ));
     }
-    if is_email_autolink(&content) {
+    if is_email_autolink(content) {
         let url = format!("mailto:{content}");
         let target = Target {
             url: url.into(),
@@ -160,190 +164,180 @@ fn is_email_autolink(text: &str) -> bool {
 
 /// Recognize raw inline HTML at `start` (an open/closing tag, comment, processing instruction,
 /// declaration, or CDATA section) per spec §6.6. Returns the verbatim text and the end position.
-pub(crate) fn scan_html_tag(chars: &[char], start: usize) -> Option<(String, usize)> {
-    let end = match_html(chars, start)?;
-    let text: String = chars.get(start..end)?.iter().collect();
-    Some((text, end))
+pub(crate) fn scan_html_tag(text: &str, start: usize) -> Option<(String, usize)> {
+    let end = match_html(text, start)?;
+    Some((text.get(start..end)?.to_owned(), end))
 }
 
-fn match_html(chars: &[char], start: usize) -> Option<usize> {
-    if chars.get(start).copied() != Some('<') {
+fn match_html(text: &str, start: usize) -> Option<usize> {
+    if char_at(text, start) != Some('<') {
         return None;
     }
-    match chars.get(start + 1).copied()? {
-        '/' => match_closing_tag(chars, start + 2),
-        '?' => match_until(chars, start + 2, "?>"),
-        '!' => match_declaration(chars, start),
-        c if c.is_ascii_alphabetic() => match_open_tag(chars, start + 1),
+    match char_at(text, start + 1)? {
+        '/' => match_closing_tag(text, start + 2),
+        '?' => match_until(text, start + 2, "?>"),
+        '!' => match_declaration(text, start),
+        c if c.is_ascii_alphabetic() => match_open_tag(text, start + 1),
         _ => None,
     }
 }
 
-fn match_open_tag(chars: &[char], mut index: usize) -> Option<usize> {
-    index = match_tag_name(chars, index)?;
-    while let Some(next) = match_attribute(chars, index) {
+fn match_open_tag(text: &str, mut index: usize) -> Option<usize> {
+    index = match_tag_name(text, index)?;
+    while let Some(next) = match_attribute(text, index) {
         index = next;
     }
-    index = skip_html_whitespace(chars, index);
-    if chars.get(index).copied() == Some('/') {
+    index = skip_html_whitespace(text, index);
+    if char_at(text, index) == Some('/') {
         index += 1;
     }
-    (chars.get(index).copied() == Some('>')).then_some(index + 1)
+    (char_at(text, index) == Some('>')).then_some(index + 1)
 }
 
-fn match_closing_tag(chars: &[char], index: usize) -> Option<usize> {
-    let index = skip_html_whitespace(chars, match_tag_name(chars, index)?);
-    (chars.get(index).copied() == Some('>')).then_some(index + 1)
+fn match_closing_tag(text: &str, index: usize) -> Option<usize> {
+    let index = skip_html_whitespace(text, match_tag_name(text, index)?);
+    (char_at(text, index) == Some('>')).then_some(index + 1)
 }
 
 /// A comment (`<!-->`, `<!--->`, or `<!--` … `-->`), CDATA section, or declaration. `start` points
 /// at `<`; the following `!` is already known.
-fn match_declaration(chars: &[char], start: usize) -> Option<usize> {
+fn match_declaration(text: &str, start: usize) -> Option<usize> {
     let body = start + 2;
-    if chars.get(body).copied() == Some('-') && chars.get(body + 1).copied() == Some('-') {
+    if char_at(text, body) == Some('-') && char_at(text, body + 1) == Some('-') {
         let after = body + 2;
-        if chars.get(after).copied() == Some('>') {
+        if char_at(text, after) == Some('>') {
             return Some(after + 1);
         }
-        if chars.get(after).copied() == Some('-') && chars.get(after + 1).copied() == Some('>') {
+        if char_at(text, after) == Some('-') && char_at(text, after + 1) == Some('>') {
             return Some(after + 2);
         }
-        return match_until(chars, after, "-->");
+        return match_until(text, after, "-->");
     }
-    if matches_at(chars, body, "[CDATA[") {
-        return match_until(chars, body + 7, "]]>");
-    }
-    if chars
-        .get(body)
-        .copied()
-        .is_some_and(|c| c.is_ascii_alphabetic())
+    if text
+        .get(body..)
+        .is_some_and(|rest| rest.starts_with("[CDATA["))
     {
-        return match_until_char(chars, body + 1, '>');
+        return match_until(text, body + 7, "]]>");
+    }
+    if char_at(text, body).is_some_and(|c| c.is_ascii_alphabetic()) {
+        return match_until_char(text, body + 1, '>');
     }
     None
 }
 
-fn match_tag_name(chars: &[char], index: usize) -> Option<usize> {
-    if !chars.get(index).copied()?.is_ascii_alphabetic() {
+fn match_tag_name(text: &str, index: usize) -> Option<usize> {
+    if !char_at(text, index)?.is_ascii_alphabetic() {
         return None;
     }
     let mut end = index + 1;
-    while chars
-        .get(end)
-        .copied()
-        .is_some_and(|c| c.is_ascii_alphanumeric() || c == '-')
-    {
-        end += 1;
+    while let Some(c) = char_at(text, end) {
+        if c.is_ascii_alphanumeric() || c == '-' {
+            end += c.len_utf8();
+        } else {
+            break;
+        }
     }
     Some(end)
 }
 
 /// An attribute: at least one whitespace, an attribute name, then an optional value specification.
-fn match_attribute(chars: &[char], index: usize) -> Option<usize> {
-    let after_space = skip_html_whitespace(chars, index);
+fn match_attribute(text: &str, index: usize) -> Option<usize> {
+    let after_space = skip_html_whitespace(text, index);
     if after_space == index {
         return None;
     }
-    let mut end = match_attribute_name(chars, after_space)?;
-    if let Some(next) = match_attribute_value_spec(chars, end) {
+    let mut end = match_attribute_name(text, after_space)?;
+    if let Some(next) = match_attribute_value_spec(text, end) {
         end = next;
     }
     Some(end)
 }
 
-fn match_attribute_name(chars: &[char], index: usize) -> Option<usize> {
-    let first = chars.get(index).copied()?;
+fn match_attribute_name(text: &str, index: usize) -> Option<usize> {
+    let first = char_at(text, index)?;
     if !(first.is_ascii_alphabetic() || first == '_' || first == ':') {
         return None;
     }
     let mut end = index + 1;
-    while chars
-        .get(end)
-        .copied()
-        .is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '-'))
-    {
-        end += 1;
+    while let Some(c) = char_at(text, end) {
+        if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '-') {
+            end += c.len_utf8();
+        } else {
+            break;
+        }
     }
     Some(end)
 }
 
-fn match_attribute_value_spec(chars: &[char], index: usize) -> Option<usize> {
-    let equals = skip_html_whitespace(chars, index);
-    if chars.get(equals).copied() != Some('=') {
+fn match_attribute_value_spec(text: &str, index: usize) -> Option<usize> {
+    let equals = skip_html_whitespace(text, index);
+    if char_at(text, equals) != Some('=') {
         return None;
     }
-    let value = skip_html_whitespace(chars, equals + 1);
-    match_attribute_value(chars, value)
+    let value = skip_html_whitespace(text, equals + 1);
+    match_attribute_value(text, value)
 }
 
-fn match_attribute_value(chars: &[char], index: usize) -> Option<usize> {
-    match chars.get(index).copied()? {
-        '\'' => match_until_char(chars, index + 1, '\''),
-        '"' => match_until_char(chars, index + 1, '"'),
+fn match_attribute_value(text: &str, index: usize) -> Option<usize> {
+    match char_at(text, index)? {
+        '\'' => match_until_char(text, index + 1, '\''),
+        '"' => match_until_char(text, index + 1, '"'),
         _ => {
             let mut end = index;
-            while chars.get(end).copied().is_some_and(|c| {
-                !matches!(
+            while let Some(c) = char_at(text, end) {
+                if matches!(
                     c,
                     ' ' | '\t' | '\n' | '\r' | '"' | '\'' | '=' | '<' | '>' | '`'
-                )
-            }) {
-                end += 1;
+                ) {
+                    break;
+                }
+                end += c.len_utf8();
             }
             (end != index).then_some(end)
         }
     }
 }
 
-fn skip_html_whitespace(chars: &[char], mut index: usize) -> usize {
-    while matches!(chars.get(index).copied(), Some(' ' | '\t' | '\n' | '\r')) {
+fn skip_html_whitespace(text: &str, mut index: usize) -> usize {
+    while matches!(char_at(text, index), Some(' ' | '\t' | '\n' | '\r')) {
         index += 1;
     }
     index
 }
 
-pub(crate) fn matches_at(chars: &[char], index: usize, needle: &str) -> bool {
-    needle
-        .chars()
-        .enumerate()
-        .all(|(offset, c)| chars.get(index + offset).copied() == Some(c))
-}
-
 /// Position just past the first occurrence of `needle` at or after `from`, or `None` if absent.
-fn match_until(chars: &[char], from: usize, needle: &str) -> Option<usize> {
-    let pattern: Vec<char> = needle.chars().collect();
-    let mut index = from;
-    while index + pattern.len() <= chars.len() {
-        if chars.get(index..index + pattern.len()) == Some(pattern.as_slice()) {
-            return Some(index + pattern.len());
-        }
-        index += 1;
-    }
-    None
+fn match_until(text: &str, from: usize, needle: &str) -> Option<usize> {
+    text.get(from..)
+        .and_then(|rest| rest.find(needle))
+        .map(|offset| from + offset + needle.len())
 }
 
-fn match_until_char(chars: &[char], from: usize, needle: char) -> Option<usize> {
-    let mut index = from;
-    while let Some(c) = chars.get(index).copied() {
-        if c == needle {
-            return Some(index + 1);
-        }
-        index += 1;
-    }
-    None
+fn match_until_char(text: &str, from: usize, needle: char) -> Option<usize> {
+    text.get(from..)
+        .and_then(|rest| rest.find(needle))
+        .map(|offset| from + offset + needle.len_utf8())
 }
 
-pub(crate) fn scan_entity(chars: &[char], start: usize) -> Option<(String, usize)> {
-    if chars.get(start).copied() != Some('&') {
+pub(crate) fn scan_entity(text: &str, start: usize) -> Option<(String, usize)> {
+    if char_at(text, start) != Some('&') {
         return None;
     }
-    let semi =
-        (start + 1..(start + 33).min(chars.len())).find(|&i| chars.get(i).copied() == Some(';'))?;
-    let body: String = chars
-        .get(start + 1..semi)
-        .map(|s| s.iter().collect())
-        .unwrap_or_default();
-    let decoded = decode_entity(&body)?;
+    // A character reference's body runs at most 32 characters before the closing `;`.
+    let mut index = start + 1;
+    let mut semi = None;
+    for _ in 0..32 {
+        match char_at(text, index) {
+            Some(';') => {
+                semi = Some(index);
+                break;
+            }
+            Some(c) => index += c.len_utf8(),
+            None => break,
+        }
+    }
+    let semi = semi?;
+    let body = text.get(start + 1..semi)?;
+    let decoded = decode_entity(body)?;
     Some((decoded, semi + 1))
 }
 
@@ -368,20 +362,20 @@ fn decode_entity(body: &str) -> Option<String> {
 }
 
 /// Scan an inline link tail `(url "title")` beginning at `pos` (which points at `(`).
-pub(crate) fn scan_inline_target(chars: &[char], pos: usize) -> Option<(Target, usize)> {
+pub(crate) fn scan_inline_target(text: &str, pos: usize) -> Option<(Target, usize)> {
     let mut index = pos + 1;
-    skip_inline_whitespace(chars, &mut index);
-    let (url, next) = scan_destination(chars, index)?;
+    skip_inline_whitespace(text, &mut index);
+    let (url, next) = scan_destination(text, index)?;
     index = next;
-    skip_inline_whitespace(chars, &mut index);
+    skip_inline_whitespace(text, &mut index);
     let mut title = String::new();
-    if matches!(chars.get(index).copied(), Some('"' | '\'' | '(')) {
-        let (parsed, after) = scan_title(chars, index)?;
+    if matches!(char_at(text, index), Some('"' | '\'' | '(')) {
+        let (parsed, after) = scan_title(text, index)?;
         title = parsed;
         index = after;
-        skip_inline_whitespace(chars, &mut index);
+        skip_inline_whitespace(text, &mut index);
     }
-    if chars.get(index).copied() != Some(')') {
+    if char_at(text, index) != Some(')') {
         return None;
     }
     Some((
@@ -393,27 +387,24 @@ pub(crate) fn scan_inline_target(chars: &[char], pos: usize) -> Option<(Target, 
     ))
 }
 
-fn scan_destination(chars: &[char], start: usize) -> Option<(String, usize)> {
+fn scan_destination(text: &str, start: usize) -> Option<(String, usize)> {
     let mut index = start;
-    if chars.get(index).copied() == Some('<') {
+    if char_at(text, index) == Some('<') {
         index += 1;
         let mut out = String::new();
-        while let Some(&ch) = chars.get(index) {
+        while let Some(ch) = char_at(text, index) {
             match ch {
                 '>' => return Some((out, index + 1)),
                 '<' | '\n' => return None,
-                '\\' if chars
-                    .get(index + 1)
-                    .is_some_and(|c| is_ascii_punctuation(*c)) =>
-                {
-                    if let Some(&next) = chars.get(index + 1) {
+                '\\' if char_at(text, index + 1).is_some_and(is_ascii_punctuation) => {
+                    if let Some(next) = char_at(text, index + 1) {
                         out.push(next);
+                        index += 1 + next.len_utf8();
                     }
-                    index += 2;
                 }
                 _ => {
                     out.push(ch);
-                    index += 1;
+                    index += ch.len_utf8();
                 }
             }
         }
@@ -421,7 +412,7 @@ fn scan_destination(chars: &[char], start: usize) -> Option<(String, usize)> {
     }
     let mut out = String::new();
     let mut depth = 0;
-    while let Some(&ch) = chars.get(index) {
+    while let Some(ch) = char_at(text, index) {
         match ch {
             ' ' => break,
             c if c.is_control() => break,
@@ -438,18 +429,15 @@ fn scan_destination(chars: &[char], start: usize) -> Option<(String, usize)> {
                 out.push(')');
                 index += 1;
             }
-            '\\' if chars
-                .get(index + 1)
-                .is_some_and(|c| is_ascii_punctuation(*c)) =>
-            {
-                if let Some(&next) = chars.get(index + 1) {
+            '\\' if char_at(text, index + 1).is_some_and(is_ascii_punctuation) => {
+                if let Some(next) = char_at(text, index + 1) {
                     out.push(next);
+                    index += 1 + next.len_utf8();
                 }
-                index += 2;
             }
             _ => {
                 out.push(ch);
-                index += 1;
+                index += ch.len_utf8();
             }
         }
     }
@@ -462,8 +450,8 @@ fn scan_destination(chars: &[char], start: usize) -> Option<(String, usize)> {
     Some((out, index))
 }
 
-fn scan_title(chars: &[char], start: usize) -> Option<(String, usize)> {
-    let open = chars.get(start).copied()?;
+fn scan_title(text: &str, start: usize) -> Option<(String, usize)> {
+    let open = char_at(text, start)?;
     let close = match open {
         '"' => '"',
         '\'' => '\'',
@@ -472,59 +460,53 @@ fn scan_title(chars: &[char], start: usize) -> Option<(String, usize)> {
     };
     let mut index = start + 1;
     let mut out = String::new();
-    while let Some(&ch) = chars.get(index) {
+    while let Some(ch) = char_at(text, index) {
         if ch == close {
             return Some((out, index + 1));
         }
         if ch == '\\'
-            && chars
-                .get(index + 1)
-                .is_some_and(|c| is_ascii_punctuation(*c))
+            && let Some(next) = char_at(text, index + 1)
+            && is_ascii_punctuation(next)
         {
-            if let Some(&next) = chars.get(index + 1) {
-                out.push(next);
-            }
-            index += 2;
+            out.push(next);
+            index += 1 + next.len_utf8();
             continue;
         }
         out.push(ch);
-        index += 1;
+        index += ch.len_utf8();
     }
     None
 }
 
 /// Scan a `[label]` immediately following a `]`, returning the raw label and the next position.
-pub(crate) fn scan_following_label(chars: &[char], pos: usize) -> Option<(String, usize)> {
-    if chars.get(pos).copied() != Some('[') {
+pub(crate) fn scan_following_label(text: &str, pos: usize) -> Option<(String, usize)> {
+    if char_at(text, pos) != Some('[') {
         return None;
     }
     let mut index = pos + 1;
     let mut out = String::new();
-    while let Some(&ch) = chars.get(index) {
+    while let Some(ch) = char_at(text, index) {
         match ch {
             ']' => return Some((out, index + 1)),
             '[' => return None,
-            '\\' if chars
-                .get(index + 1)
-                .is_some_and(|c| is_ascii_punctuation(*c)) =>
-            {
+            '\\' if char_at(text, index + 1).is_some_and(is_ascii_punctuation) => {
                 out.push('\\');
-                if let Some(&next) = chars.get(index + 1) {
+                if let Some(next) = char_at(text, index + 1) {
                     out.push(next);
+                    index += 1 + next.len_utf8();
                 }
-                index += 2;
             }
             _ => {
                 out.push(ch);
-                index += 1;
+                index += ch.len_utf8();
             }
         }
     }
     None
 }
 
-fn skip_inline_whitespace(chars: &[char], index: &mut usize) {
-    while matches!(chars.get(*index).copied(), Some(' ' | '\t' | '\n')) {
+fn skip_inline_whitespace(text: &str, index: &mut usize) {
+    while matches!(char_at(text, *index), Some(' ' | '\t' | '\n')) {
         *index += 1;
     }
 }
@@ -538,27 +520,26 @@ pub(crate) fn normalize_label(label: &str) -> String {
 
 /// Remove backslash escapes of ASCII punctuation from a string, leaving other backslashes intact.
 pub(crate) fn unescape_string(text: &str) -> String {
-    let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
     let mut index = 0;
-    while let Some(&ch) = chars.get(index) {
+    while let Some(ch) = char_at(text, index) {
         if ch == '\\'
-            && let Some(&next) = chars.get(index + 1)
+            && let Some(next) = char_at(text, index + 1)
             && is_ascii_punctuation(next)
         {
             out.push(next);
-            index += 2;
+            index += 1 + next.len_utf8();
             continue;
         }
         if ch == '&'
-            && let Some((decoded, next)) = scan_entity(&chars, index)
+            && let Some((decoded, next)) = scan_entity(text, index)
         {
             out.push_str(&decoded);
             index = next;
             continue;
         }
         out.push(ch);
-        index += 1;
+        index += ch.len_utf8();
     }
     out
 }
@@ -572,16 +553,15 @@ pub(crate) fn parse_link_reference_definition(
     text: &str,
     markdown: bool,
 ) -> Option<(String, LinkDef, &str)> {
-    let chars: Vec<char> = text.chars().collect();
     let mut index = 0;
-    skip_spaces_up_to_three(&chars, &mut index);
-    if chars.get(index).copied() != Some('[') {
+    skip_spaces_up_to_three(text, &mut index);
+    if char_at(text, index) != Some('[') {
         return None;
     }
     index += 1;
     let mut label = String::new();
     let mut closed = false;
-    while let Some(&ch) = chars.get(index) {
+    while let Some(ch) = char_at(text, index) {
         match ch {
             ']' => {
                 closed = true;
@@ -589,52 +569,49 @@ pub(crate) fn parse_link_reference_definition(
                 break;
             }
             '[' => return None,
-            '\\' if chars
-                .get(index + 1)
-                .is_some_and(|c| is_ascii_punctuation(*c)) =>
-            {
+            '\\' if char_at(text, index + 1).is_some_and(is_ascii_punctuation) => {
                 label.push('\\');
-                if let Some(&next) = chars.get(index + 1) {
+                if let Some(next) = char_at(text, index + 1) {
                     label.push(next);
+                    index += 1 + next.len_utf8();
                 }
-                index += 2;
             }
             _ => {
                 label.push(ch);
-                index += 1;
+                index += ch.len_utf8();
             }
         }
     }
-    if !closed || chars.get(index).copied() != Some(':') {
+    if !closed || char_at(text, index) != Some(':') {
         return None;
     }
     index += 1;
-    skip_inline_whitespace_no_double_newline(&chars, &mut index)?;
-    let angle = chars.get(index).copied() == Some('<');
+    skip_inline_whitespace_no_double_newline(text, &mut index)?;
+    let angle = char_at(text, index) == Some('<');
 
     let (url, title) = if markdown && !angle {
-        let (url, same_line_title, line_end) = scan_markdown_reference_body(&chars, index)?;
+        let (url, same_line_title, line_end) = scan_markdown_reference_body(text, index)?;
         index = line_end;
         if let Some(title) = same_line_title {
             (url, title)
         } else {
-            let (title, end) = scan_following_title(&chars, index)?;
+            let (title, end) = scan_following_title(text, index)?;
             index = end;
             (url, title)
         }
     } else {
-        let (url, next) = scan_destination(&chars, index)?;
+        let (url, next) = scan_destination(text, index)?;
         // A bare (non-angle) destination must be non-empty; `<>` is a valid empty destination.
         if url.is_empty() && !angle {
             return None;
         }
-        let (title, end) = scan_following_title(&chars, next)?;
+        let (title, end) = scan_following_title(text, next)?;
         index = end;
         (url, title)
     };
 
     // Consume the trailing newline.
-    if chars.get(index).copied() == Some('\n') {
+    if char_at(text, index) == Some('\n') {
         index += 1;
     }
 
@@ -646,10 +623,7 @@ pub(crate) fn parse_link_reference_definition(
         url: unescape_string(&url),
         title: unescape_string(&title),
     };
-    let consumed_bytes: usize = chars
-        .get(..index)
-        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
-    let rest = text.get(consumed_bytes..).unwrap_or("");
+    let rest = text.get(index..).unwrap_or("");
     Some((normalized, def, rest))
 }
 
@@ -660,19 +634,18 @@ pub(crate) fn parse_link_reference_definition(
 /// the term is affected — so this returns just the unconsumed remainder of `text`, or `None` when the
 /// line does not open a definition.
 pub(crate) fn parse_abbreviation_definition(text: &str) -> Option<&str> {
-    let chars: Vec<char> = text.chars().collect();
     let mut index = 0;
-    if chars.get(index).copied() != Some('*') {
+    if char_at(text, index) != Some('*') {
         return None;
     }
     index += 1;
-    if chars.get(index).copied() != Some('[') {
+    if char_at(text, index) != Some('[') {
         return None;
     }
     index += 1;
     let mut depth = 1;
     loop {
-        match chars.get(index).copied() {
+        match char_at(text, index) {
             None | Some('\n') => return None,
             Some('[') => {
                 depth += 1;
@@ -685,32 +658,29 @@ pub(crate) fn parse_abbreviation_definition(text: &str) -> Option<&str> {
                     break;
                 }
             }
-            Some(_) => index += 1,
+            Some(c) => index += c.len_utf8(),
         }
     }
-    if chars.get(index).copied() != Some(':') {
+    if char_at(text, index) != Some(':') {
         return None;
     }
-    while let Some(&ch) = chars.get(index) {
-        index += 1;
+    while let Some(ch) = char_at(text, index) {
+        index += ch.len_utf8();
         if ch == '\n' {
             break;
         }
     }
-    let consumed_bytes: usize = chars
-        .get(..index)
-        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
-    Some(text.get(consumed_bytes..).unwrap_or(""))
+    Some(text.get(index..).unwrap_or(""))
 }
 
 /// After a destination ending at `after_dest`, scan an optional title separated from it by
 /// whitespace and at most one newline. Returns the title (empty when absent) together with the
 /// index at the end of the definition's last line. Returns `None` when non-whitespace other than a
 /// well-formed title follows the destination, which invalidates the whole definition.
-fn scan_following_title(chars: &[char], after_dest: usize) -> Option<(String, usize)> {
+fn scan_following_title(text: &str, after_dest: usize) -> Option<(String, usize)> {
     let mut probe = after_dest;
     let mut newlines = 0;
-    while let Some(ch) = chars.get(probe).copied() {
+    while let Some(ch) = char_at(text, probe) {
         match ch {
             ' ' | '\t' => probe += 1,
             '\n' if newlines == 0 => {
@@ -722,18 +692,18 @@ fn scan_following_title(chars: &[char], after_dest: usize) -> Option<(String, us
     }
     let separated = probe > after_dest;
     if separated
-        && matches!(chars.get(probe).copied(), Some('"' | '\'' | '('))
-        && let Some((parsed, after)) = scan_title(chars, probe)
+        && matches!(char_at(text, probe), Some('"' | '\'' | '('))
+        && let Some((parsed, after)) = scan_title(text, probe)
     {
         let mut tail = after;
-        skip_blanks_to_line_end(chars, &mut tail);
-        if at_line_end(chars, tail) {
+        skip_blanks_to_line_end(text, &mut tail);
+        if at_line_end(text, tail) {
             return Some((parsed, tail));
         }
     }
     let mut index = after_dest;
-    skip_blanks_to_line_end(chars, &mut index);
-    if !at_line_end(chars, index) {
+    skip_blanks_to_line_end(text, &mut index);
+    if !at_line_end(text, index) {
         return None;
     }
     Some((String::new(), index))
@@ -756,16 +726,16 @@ enum TitleScan {
 /// non-whitespace after that, the definition is invalid. A quote whose closing delimiter abuts more
 /// text is not a title token at all and reverts to literal destination text, whereas a parenthesized
 /// run in that position still invalidates the definition.
-fn try_reference_title(chars: &[char], at: usize) -> TitleScan {
-    let Some(opener @ ('"' | '\'' | '(')) = chars.get(at).copied() else {
+fn try_reference_title(text: &str, at: usize) -> TitleScan {
+    let Some(opener @ ('"' | '\'' | '(')) = char_at(text, at) else {
         return TitleScan::Absent;
     };
-    match scan_title(chars, at) {
+    match scan_title(text, at) {
         Some((parsed, after)) => {
-            if at_line_end(chars, after) || matches!(chars.get(after).copied(), Some(' ' | '\t')) {
+            if at_line_end(text, after) || matches!(char_at(text, after), Some(' ' | '\t')) {
                 let mut tail = after;
-                skip_blanks_to_line_end(chars, &mut tail);
-                if at_line_end(chars, tail) {
+                skip_blanks_to_line_end(text, &mut tail);
+                if at_line_end(text, tail) {
                     TitleScan::Title(parsed, tail)
                 } else {
                     TitleScan::Reject
@@ -787,11 +757,11 @@ fn try_reference_title(chars: &[char], at: usize) -> TitleScan {
 /// title when one ends the line, and the index at line end. Returns `None` when the line cannot form
 /// a valid definition (a parenthesized title not at the line's end).
 fn scan_markdown_reference_body(
-    chars: &[char],
+    text: &str,
     start: usize,
 ) -> Option<(String, Option<String>, usize)> {
     let mut index = start;
-    match try_reference_title(chars, index) {
+    match try_reference_title(text, index) {
         TitleScan::Title(parsed, end) => return Some((String::new(), Some(parsed), end)),
         TitleScan::Reject => return None,
         TitleScan::Literal | TitleScan::Absent => {}
@@ -799,7 +769,7 @@ fn scan_markdown_reference_body(
     let mut url = String::new();
     let mut depth: usize = 0;
     loop {
-        match chars.get(index).copied() {
+        match char_at(text, index) {
             None | Some('\n') => break,
             Some('(') => {
                 depth += 1;
@@ -811,31 +781,26 @@ fn scan_markdown_reference_body(
                 url.push(')');
                 index += 1;
             }
-            Some('\\') if matches!(chars.get(index + 1).copied(), Some(' ' | '\t')) => {
+            Some('\\') if matches!(char_at(text, index + 1), Some(' ' | '\t')) => {
                 url.push(' ');
                 index += 2;
             }
-            Some('\\')
-                if chars
-                    .get(index + 1)
-                    .copied()
-                    .is_some_and(is_ascii_punctuation) =>
-            {
+            Some('\\') if char_at(text, index + 1).is_some_and(is_ascii_punctuation) => {
                 url.push('\\');
-                if let Some(&next) = chars.get(index + 1) {
+                if let Some(next) = char_at(text, index + 1) {
                     url.push(next);
+                    index += 1 + next.len_utf8();
                 }
-                index += 2;
             }
             Some(' ' | '\t') => {
                 let mut after = index;
-                skip_blanks_to_line_end(chars, &mut after);
-                if at_line_end(chars, after) {
+                skip_blanks_to_line_end(text, &mut after);
+                if at_line_end(text, after) {
                     index = after;
                     break;
                 }
                 if depth == 0 {
-                    match try_reference_title(chars, after) {
+                    match try_reference_title(text, after) {
                         TitleScan::Title(parsed, end) => return Some((url, Some(parsed), end)),
                         TitleScan::Reject => return None,
                         TitleScan::Literal | TitleScan::Absent => {
@@ -850,24 +815,24 @@ fn scan_markdown_reference_body(
             }
             Some(ch) => {
                 url.push(ch);
-                index += 1;
+                index += ch.len_utf8();
             }
         }
     }
     Some((url, None, index))
 }
 
-fn skip_spaces_up_to_three(chars: &[char], index: &mut usize) {
+fn skip_spaces_up_to_three(text: &str, index: &mut usize) {
     let mut count = 0;
-    while count < 3 && chars.get(*index).copied() == Some(' ') {
+    while count < 3 && char_at(text, *index) == Some(' ') {
         *index += 1;
         count += 1;
     }
 }
 
-fn skip_inline_whitespace_no_double_newline(chars: &[char], index: &mut usize) -> Option<()> {
+fn skip_inline_whitespace_no_double_newline(text: &str, index: &mut usize) -> Option<()> {
     let mut newlines = 0;
-    while let Some(&ch) = chars.get(*index) {
+    while let Some(ch) = char_at(text, *index) {
         match ch {
             ' ' | '\t' => *index += 1,
             '\n' => {
@@ -883,14 +848,14 @@ fn skip_inline_whitespace_no_double_newline(chars: &[char], index: &mut usize) -
     Some(())
 }
 
-fn skip_blanks_to_line_end(chars: &[char], index: &mut usize) {
-    while matches!(chars.get(*index).copied(), Some(' ' | '\t')) {
+fn skip_blanks_to_line_end(text: &str, index: &mut usize) {
+    while matches!(char_at(text, *index), Some(' ' | '\t')) {
         *index += 1;
     }
 }
 
-fn at_line_end(chars: &[char], index: usize) -> bool {
-    matches!(chars.get(index).copied(), None | Some('\n'))
+fn at_line_end(text: &str, index: usize) -> bool {
+    matches!(char_at(text, index), None | Some('\n'))
 }
 
 #[cfg(test)]

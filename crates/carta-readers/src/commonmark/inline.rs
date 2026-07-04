@@ -647,27 +647,20 @@ fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
     if ext.contains(Extension::HeaderAttributes) || ext.contains(Extension::Attributes) {
         let trimmed = text.trim_end();
         if trimmed.ends_with('}') {
-            let chars: Vec<char> = trimmed.chars().collect();
-            for start in (0..chars.len()).rev() {
-                if chars.get(start) != Some(&'{') {
+            for (start, ch) in trimmed.char_indices().rev() {
+                if ch != '{' {
                     continue;
                 }
                 // The block must be set off from the heading text by whitespace, else it belongs to
                 // the preceding word rather than the heading.
-                let preceded_by_space = start == 0
-                    || chars
-                        .get(start - 1)
-                        .copied()
-                        .is_some_and(is_unicode_whitespace);
+                let preceded_by_space =
+                    start == 0 || char_before(trimmed, start).is_some_and(is_unicode_whitespace);
                 if preceded_by_space
-                    && let Some((attr, end)) = attr::parse_attributes_chars(&chars, start)
-                    && end == chars.len()
+                    && let Some((attr, end)) = attr::parse_attributes_bytes(trimmed, start)
+                    && end == trimmed.len()
                     && attr::is_non_empty(&attr)
                 {
-                    let byte_start: usize = chars
-                        .get(..start)
-                        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
-                    let content = text.get(..byte_start).unwrap_or(text).trim_end();
+                    let content = text.get(..start).unwrap_or(text).trim_end();
                     return (content, attr);
                 }
             }
@@ -698,14 +691,14 @@ fn split_mmd_header_id(text: &str) -> Option<(&str, String)> {
     if !trimmed.ends_with(']') {
         return None;
     }
-    let chars: Vec<char> = trimmed.chars().collect();
-    let close = chars.len().checked_sub(1)?;
+    // The closing `]` is ASCII, so it occupies the final byte of `trimmed`.
+    let close = trimmed.len().checked_sub(1)?;
     let mut depth = 0i32;
     let mut open = None;
-    for i in (0..chars.len()).rev() {
-        match chars.get(i).copied() {
-            Some(']') => depth += 1,
-            Some('[') => {
+    for (i, ch) in trimmed.char_indices().rev() {
+        match ch {
+            ']' => depth += 1,
+            '[' => {
                 depth -= 1;
                 if depth == 0 {
                     open = Some(i);
@@ -719,27 +712,23 @@ fn split_mmd_header_id(text: &str) -> Option<(&str, String)> {
     // A bracket group directly before the label (only whitespace between) makes the pair a
     // reference-link construct, not an identifier.
     let mut before = open;
-    while before > 0
-        && chars
-            .get(before - 1)
-            .copied()
-            .is_some_and(is_unicode_whitespace)
-    {
-        before -= 1;
+    while let Some(c) = char_before(trimmed, before) {
+        if c.is_whitespace() {
+            before -= c.len_utf8();
+        } else {
+            break;
+        }
     }
-    if before > 0 && chars.get(before - 1) == Some(&']') {
+    if char_before(trimmed, before) == Some(']') {
         return None;
     }
-    let id: String = chars
+    let id: String = trimmed
         .get(open + 1..close)?
-        .iter()
+        .chars()
         .filter(|c| !c.is_whitespace())
-        .flat_map(|c| c.to_lowercase())
+        .flat_map(char::to_lowercase)
         .collect();
-    let byte_open: usize = chars
-        .get(..open)
-        .map_or(0, |s| s.iter().map(|c| c.len_utf8()).sum());
-    let content = text.get(..byte_open).unwrap_or(text).trim_end();
+    let content = text.get(..open).unwrap_or(text).trim_end();
     Some((content, id))
 }
 
@@ -801,11 +790,20 @@ fn resolve_inline_nodes(mut nodes: Vec<Node>, ext: Extensions, markdown: bool) -
     collapse(nodes)
 }
 
+/// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
+fn char_at(text: &str, at: usize) -> Option<char> {
+    text.get(at..).and_then(|rest| rest.chars().next())
+}
+
+/// The character ending just before byte offset `at`, or `None` at the start of `text`.
+fn char_before(text: &str, at: usize) -> Option<char> {
+    text.get(..at).and_then(|head| head.chars().next_back())
+}
+
 #[allow(clippy::similar_names)]
 fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Inline> {
-    let chars: Vec<char> = text.chars().collect();
     let mut parser = InlineParser {
-        chars: &chars,
+        text,
         pos: 0,
         nodes: Vec::new(),
         refs,
@@ -847,7 +845,8 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) ->
 }
 
 struct InlineParser<'a> {
-    chars: &'a [char],
+    text: &'a str,
+    /// Cursor as a byte offset into `text`; every mutation lands on a UTF-8 character boundary.
     pos: usize,
     nodes: Vec<Node>,
     refs: &'a RefMap,
@@ -859,11 +858,11 @@ struct InlineParser<'a> {
     /// For each ASCII code, whether a character can start a syntactic construct under the active
     /// extensions. Everything else is ordinary text a run scan can skip over in one step.
     interesting: [bool; 128],
-    /// Start positions of every maximal backtick run in `chars`, grouped by run length and
-    /// ascending within each group. Built lazily on the first code-span attempt (`None` until
-    /// then, so backtick-free text pays nothing) and immutable afterwards: it stays valid because
-    /// `chars` never changes during inline parsing. A feature that mutated the buffer mid-parse
-    /// would have to rebuild it.
+    /// Byte offsets of every maximal backtick run in `text`, grouped by run length and ascending
+    /// within each group. Built lazily on the first code-span attempt (`None` until then, so
+    /// backtick-free text pays nothing) and immutable afterwards: it stays valid because `text`
+    /// never changes during inline parsing. A feature that mutated the buffer mid-parse would have
+    /// to rebuild it.
     backtick_runs: Option<BTreeMap<usize, Vec<usize>>>,
 }
 
@@ -892,11 +891,13 @@ fn interesting_chars(ext: Extensions) -> [bool; 128] {
 
 impl InlineParser<'_> {
     fn peek(&self) -> Option<char> {
-        self.chars.get(self.pos).copied()
+        char_at(self.text, self.pos)
     }
 
     fn at(&self, offset: usize) -> Option<char> {
-        self.chars.get(self.pos + offset).copied()
+        self.text
+            .get(self.pos..)
+            .and_then(|rest| rest.chars().nth(offset))
     }
 
     fn is_interesting(&self, ch: char) -> bool {
@@ -907,18 +908,32 @@ impl InlineParser<'_> {
             .unwrap_or(false)
     }
 
+    /// Whether the byte at `pos` begins an interesting construct. Every interesting trigger is an
+    /// ASCII character, so a byte `>= 128` (any part of a multi-byte character) is never a boundary
+    /// this scan stops on — the run scan can advance one byte at a time and still break only on a
+    /// character boundary.
+    fn interesting_byte(&self, byte: u8) -> bool {
+        byte < 128
+            && self
+                .interesting
+                .get(usize::from(byte))
+                .copied()
+                .unwrap_or(false)
+    }
+
     fn run(&mut self) {
         while let Some(ch) = self.peek() {
             if !self.is_interesting(ch) {
                 let start = self.pos;
-                while let Some(&next) = self.chars.get(self.pos) {
-                    if self.is_interesting(next) {
+                let bytes = self.text.as_bytes();
+                while let Some(&next) = bytes.get(self.pos) {
+                    if self.interesting_byte(next) {
                         break;
                     }
                     self.pos += 1;
                 }
-                if let Some(run) = self.chars.get(start..self.pos) {
-                    self.push_chars(run);
+                if let Some(run) = self.text.get(start..self.pos) {
+                    self.push_str(run);
                 }
                 continue;
             }
@@ -965,7 +980,7 @@ impl InlineParser<'_> {
                 }
                 ']' => self.close_bracket(),
                 _ => {
-                    self.pos += 1;
+                    self.pos += ch.len_utf8();
                     self.push_text(ch);
                 }
             }
@@ -988,14 +1003,6 @@ impl InlineParser<'_> {
         }
     }
 
-    fn push_chars(&mut self, run: &[char]) {
-        if let Some(Node::Text(text)) = self.nodes.last_mut() {
-            text.extend(run.iter());
-        } else {
-            self.nodes.push(Node::Text(run.iter().collect()));
-        }
-    }
-
     /// Resolve an `@` at the cursor. An example-list label assigned a number becomes that number; a
     /// well-formed citation key becomes a bare author-in-text `Cite`; anything else leaves the `@`
     /// as literal text, so the rest of the run reparses normally.
@@ -1014,23 +1021,24 @@ impl InlineParser<'_> {
     /// item is replaced with that number and the cursor advances past it, returning `true`. An
     /// undefined or empty label leaves the cursor in place and returns `false`.
     fn try_example_ref(&mut self) -> bool {
-        let mut len = 0;
+        // The `@` and every label character (`[0-9A-Za-z_-]`) are ASCII, so byte and character
+        // offsets coincide across the label.
+        let name_start = self.pos + 1;
+        let mut end = name_start;
         while matches!(
-            self.at(1 + len),
+            char_at(self.text, end),
             Some('0'..='9' | 'a'..='z' | 'A'..='Z' | '-' | '_')
         ) {
-            len += 1;
+            end += 1;
         }
-        if len == 0 {
+        if end == name_start {
             return false;
         }
-        let label: String = self
-            .chars
-            .get(self.pos + 1..self.pos + 1 + len)
-            .map(|run| run.iter().collect())
-            .unwrap_or_default();
-        if let Some(number) = self.notes.examples.get(&label) {
-            self.pos += 1 + len;
+        let Some(label) = self.text.get(name_start..end) else {
+            return false;
+        };
+        if let Some(number) = self.notes.examples.get(label) {
+            self.pos = end;
             self.push_str(&number.to_string());
             return true;
         }
@@ -1043,10 +1051,10 @@ impl InlineParser<'_> {
     /// single-entry `Cite` is pushed whose fallback text is the literal `@key`. Returns `false`
     /// (without advancing) otherwise, leaving the `@` for literal handling.
     fn try_bare_citation(&mut self) -> bool {
-        if self.pos > 0 && matches!(self.chars.get(self.pos - 1), Some(c) if is_citation_word(*c)) {
+        if matches!(char_before(self.text, self.pos), Some(c) if is_citation_word(c)) {
             return false;
         }
-        let Some((id, next)) = scan_citation_id(self.chars, self.pos + 1) else {
+        let Some((id, next)) = scan_citation_id(self.text, self.pos + 1) else {
             return false;
         };
         let note_num = self.bump_cite_count();
@@ -1080,22 +1088,22 @@ impl InlineParser<'_> {
     /// past the closing `:` and `true` is returned. An unrecognized name (or no closing `:`) leaves
     /// the leading `:` untouched and returns `false`, so the run reparses as literal text.
     fn try_emoji(&mut self) -> bool {
+        // The `:` delimiters and every name character (`[0-9A-Za-z_+-]`) are ASCII.
         let name_start = self.pos + 1;
         let mut index = name_start;
         while matches!(
-            self.chars.get(index),
+            char_at(self.text, index),
             Some('0'..='9' | 'a'..='z' | 'A'..='Z' | '_' | '+' | '-')
         ) {
             index += 1;
         }
-        if index == name_start || self.chars.get(index) != Some(&':') {
+        if index == name_start || char_at(self.text, index) != Some(':') {
             return false;
         }
-        let name: String = match self.chars.get(name_start..index) {
-            Some(slice) => slice.iter().collect(),
-            None => return false,
+        let Some(name) = self.text.get(name_start..index) else {
+            return false;
         };
-        let Some(codepoints) = emoji::lookup(&name) else {
+        let Some(codepoints) = emoji::lookup(name) else {
             return false;
         };
         let attr = Attr {
@@ -1121,40 +1129,42 @@ impl InlineParser<'_> {
     fn try_short_script(&mut self, delimiter: char) -> bool {
         let mut preceding = 0usize;
         let mut behind = self.pos;
-        while behind > 0 {
-            match self.chars.get(behind - 1).copied() {
-                Some(ch) if ch.is_whitespace() => break,
-                Some(ch) => {
-                    if ch == delimiter {
-                        preceding += 1;
-                    }
-                    behind -= 1;
-                }
-                None => break,
+        while let Some(ch) = char_before(self.text, behind) {
+            if ch.is_whitespace() {
+                break;
             }
+            if ch == delimiter {
+                preceding += 1;
+            }
+            behind -= ch.len_utf8();
         }
         // An odd count leaves this delimiter closing a prior opener, never starting a short script.
         if preceding % 2 == 1 {
             return false;
         }
         // An opener pairs into the delimited form when another matching delimiter follows in-span.
+        // The delimiter (`~`/`^`) is ASCII, so the span begins one byte past the cursor.
         let mut ahead = self.pos + 1;
-        while let Some(&ch) = self.chars.get(ahead) {
+        while let Some(ch) = char_at(self.text, ahead) {
             if ch.is_whitespace() {
                 break;
             }
             if ch == delimiter {
                 return false;
             }
-            ahead += 1;
+            ahead += ch.len_utf8();
         }
         let start = self.pos + 1;
         let mut end = start;
-        while self.chars.get(end).is_some_and(|ch| ch.is_alphanumeric()) {
-            end += 1;
+        while let Some(ch) = char_at(self.text, end) {
+            if ch.is_alphanumeric() {
+                end += ch.len_utf8();
+            } else {
+                break;
+            }
         }
-        let content: String = match self.chars.get(start..end) {
-            Some(slice) if !slice.is_empty() => slice.iter().collect(),
+        let content = match self.text.get(start..end) {
+            Some(slice) if !slice.is_empty() => slice,
             _ => return false,
         };
         let inner = vec![Inline::Str(content.into())];
@@ -1222,14 +1232,14 @@ impl InlineParser<'_> {
     /// Returns `true` (and advances past the closer) on a match, leaving a fallback escape otherwise.
     fn try_backslash_math(&mut self) -> bool {
         if self.ext.contains(Extension::TexMathDoubleBackslash)
-            && self.chars.get(self.pos) == Some(&'\\')
-            && self.chars.get(self.pos + 1) == Some(&'\\')
+            && char_at(self.text, self.pos) == Some('\\')
+            && char_at(self.text, self.pos + 1) == Some('\\')
             && self.scan_backslash_math(2)
         {
             return true;
         }
         if self.ext.contains(Extension::TexMathSingleBackslash)
-            && self.chars.get(self.pos) == Some(&'\\')
+            && char_at(self.text, self.pos) == Some('\\')
             && self.scan_backslash_math(1)
         {
             return true;
@@ -1238,9 +1248,9 @@ impl InlineParser<'_> {
     }
 
     /// Scan a backslash math span at the cursor (on the first backslash), pushing a `Math` node and
-    /// advancing past the closer on a match. See [`crate::inline_scan::scan_backslash_math`].
+    /// advancing past the closer on a match. See [`crate::inline_scan::scan_backslash_math_bytes`].
     fn scan_backslash_math(&mut self, slashes: usize) -> bool {
-        match crate::inline_scan::scan_backslash_math(self.chars, self.pos, slashes) {
+        match crate::inline_scan::scan_backslash_math_bytes(self.text, self.pos, slashes) {
             Some((math_type, content, next)) => {
                 self.pos = next;
                 self.nodes
@@ -1269,16 +1279,18 @@ impl InlineParser<'_> {
         if !self.ext.contains(Extension::RawTex) {
             return false;
         }
-        if self.chars.get(self.pos) != Some(&'\\') {
+        if char_at(self.text, self.pos) != Some('\\') {
             return false;
         }
+        // The leading `\` and the command name (ASCII letters and digits) are single-byte, so
+        // byte and character offsets coincide up to `i`.
         let mut i = self.pos + 1;
-        if !self.chars.get(i).is_some_and(char::is_ascii_alphabetic) {
+        if !char_at(self.text, i).is_some_and(|c| c.is_ascii_alphabetic()) {
             return false;
         }
         i += 1;
         let mut name_all_letters = true;
-        while let Some(&ch) = self.chars.get(i) {
+        while let Some(ch) = char_at(self.text, i) {
             if ch.is_ascii_alphabetic() {
                 i += 1;
             } else if ch.is_ascii_digit() {
@@ -1290,17 +1302,17 @@ impl InlineParser<'_> {
         }
         // `\begin`/`\end` are raw TeX only as a complete, matched environment, never as bare
         // commands: capture the whole `\begin{ENV}`…`\end{ENV}`, or leave the text literal.
-        let name = self.chars.get(self.pos + 1..i);
-        if name.is_some_and(|n| "begin".chars().eq(n.iter().copied())) {
+        let name = self.text.get(self.pos + 1..i);
+        if name == Some("begin") {
             return self.try_raw_tex_environment(i);
         }
-        if name.is_some_and(|n| "end".chars().eq(n.iter().copied())) {
+        if name == Some("end") {
             return false;
         }
         // Consume argument groups. A `{`-group must balance or the entire command reverts to text.
         let mut had_group = false;
         loop {
-            match self.chars.get(i).copied() {
+            match char_at(self.text, i) {
                 Some('{') => match self.scan_balanced_group(i, '{', '}') {
                     Some(end) => {
                         i = end;
@@ -1322,13 +1334,13 @@ impl InlineParser<'_> {
         // A bare command whose name is all letters (no argument groups, no digits) absorbs a
         // trailing run of spaces and tabs.
         if !had_group && name_all_letters {
-            while matches!(self.chars.get(i).copied(), Some(' ' | '\t')) {
+            while matches!(char_at(self.text, i), Some(' ' | '\t')) {
                 i += 1;
             }
         }
 
-        let source: String = match self.chars.get(self.pos..i) {
-            Some(slice) => slice.iter().collect(),
+        let source = match self.text.get(self.pos..i) {
+            Some(slice) => slice.to_owned(),
             None => return false,
         };
         self.pos = i;
@@ -1345,21 +1357,22 @@ impl InlineParser<'_> {
     /// depth to zero. Without a `{ENV}` group or a matching close the `\begin` is not raw TeX and
     /// the call reverts to literal text by returning `false`.
     fn try_raw_tex_environment(&mut self, name_end: usize) -> bool {
-        if self.chars.get(name_end).copied() != Some('{') {
+        if char_at(self.text, name_end) != Some('{') {
             return false;
         }
         let Some(group_end) = self.scan_balanced_group(name_end, '{', '}') else {
             return false;
         };
-        let env: Vec<char> = match self.chars.get(name_end + 1..group_end - 1) {
-            Some(slice) => slice.to_vec(),
-            None => return false,
-        };
-        let Some(end) = self.scan_environment_close(group_end, &env) else {
+        // `group_end` sits just past the closing `}` (ASCII), so `group_end - 1` is its byte offset
+        // and `name_end + 1` the byte past the opening `{`.
+        let Some(env) = self.text.get(name_end + 1..group_end - 1) else {
             return false;
         };
-        let source: String = match self.chars.get(self.pos..end) {
-            Some(slice) => slice.iter().collect(),
+        let Some(end) = self.scan_environment_close(group_end, env) else {
+            return false;
+        };
+        let source = match self.text.get(self.pos..end) {
+            Some(slice) => slice.to_owned(),
             None => return false,
         };
         self.pos = end;
@@ -1372,11 +1385,11 @@ impl InlineParser<'_> {
 
     /// From `from`, find the index just past the `\end{ENV}` that closes an open `\begin{ENV}`,
     /// tracking nested same-name environments by depth. `None` when no matching close is found.
-    fn scan_environment_close(&self, from: usize, env: &[char]) -> Option<usize> {
+    fn scan_environment_close(&self, from: usize, env: &str) -> Option<usize> {
         let mut depth = 1usize;
         let mut i = from;
-        while i < self.chars.len() {
-            if self.chars.get(i).copied() == Some('\\') {
+        while let Some(ch) = char_at(self.text, i) {
+            if ch == '\\' {
                 if let Some(after) = self.match_environment_marker(i, "begin", env) {
                     depth += 1;
                     i = after;
@@ -1391,36 +1404,36 @@ impl InlineParser<'_> {
                     continue;
                 }
             }
-            i += 1;
+            i += ch.len_utf8();
         }
         None
     }
 
     /// If the characters at `at` spell `\KEYWORD{ENV}` (e.g. `\end{equation}`), return the index
     /// just past the closing brace; otherwise `None`.
-    fn match_environment_marker(&self, at: usize, keyword: &str, env: &[char]) -> Option<usize> {
+    fn match_environment_marker(&self, at: usize, keyword: &str, env: &str) -> Option<usize> {
         let mut i = at;
-        if self.chars.get(i).copied() != Some('\\') {
+        if char_at(self.text, i) != Some('\\') {
             return None;
         }
         i += 1;
         for kc in keyword.chars() {
-            if self.chars.get(i).copied() != Some(kc) {
+            if char_at(self.text, i) != Some(kc) {
                 return None;
             }
-            i += 1;
+            i += kc.len_utf8();
         }
-        if self.chars.get(i).copied() != Some('{') {
+        if char_at(self.text, i) != Some('{') {
             return None;
         }
         i += 1;
-        for &ec in env {
-            if self.chars.get(i).copied() != Some(ec) {
+        for ec in env.chars() {
+            if char_at(self.text, i) != Some(ec) {
                 return None;
             }
-            i += 1;
+            i += ec.len_utf8();
         }
-        if self.chars.get(i).copied() != Some('}') {
+        if char_at(self.text, i) != Some('}') {
             return None;
         }
         Some(i + 1)
@@ -1428,11 +1441,11 @@ impl InlineParser<'_> {
 
     /// Scan a balanced group `open`…`close` starting at index `start` (which must hold `open`),
     /// returning the index just past the matching `close`, or `None` if it never closes. Nested
-    /// same-kind delimiters are tracked by depth.
+    /// same-kind delimiters are tracked by depth. `open` and `close` are ASCII delimiters.
     fn scan_balanced_group(&self, start: usize, open: char, close: char) -> Option<usize> {
         let mut depth = 0usize;
         let mut i = start;
-        while let Some(&ch) = self.chars.get(i) {
+        while let Some(ch) = char_at(self.text, i) {
             if ch == open {
                 depth += 1;
             } else if ch == close {
@@ -1441,20 +1454,20 @@ impl InlineParser<'_> {
                     return Some(i + 1);
                 }
             }
-            i += 1;
+            i += ch.len_utf8();
         }
         None
     }
 
     fn code_span(&mut self) {
         let start = self.pos;
-        let open = backtick_run_len(self.chars, self.pos);
+        let open = backtick_run_len(self.text, self.pos);
         self.pos += open;
         if let Some(close) = self.next_backtick_run(open, self.pos) {
-            let content: String = self
-                .chars
+            let content = self
+                .text
                 .get(self.pos..close)
-                .map(|s| s.iter().collect())
+                .map(str::to_owned)
                 .unwrap_or_default();
             self.pos = close + open;
             if let Some((format, next)) = self.scan_raw_format() {
@@ -1473,10 +1486,10 @@ impl InlineParser<'_> {
             return;
         }
         // No closing run: emit the opening backticks literally.
-        let literal: String = self
-            .chars
+        let literal = self
+            .text
             .get(start..self.pos)
-            .map(|s| s.iter().collect())
+            .map(str::to_owned)
             .unwrap_or_default();
         self.push_str(&literal);
     }
@@ -1486,13 +1499,16 @@ impl InlineParser<'_> {
     /// keyed by run length; the index is built once on first use and then binary-searched, so a
     /// close search costs O(log n) rather than a scan to end-of-buffer.
     fn next_backtick_run(&mut self, len: usize, from: usize) -> Option<usize> {
-        let chars = self.chars;
+        let text = self.text;
         let runs = self.backtick_runs.get_or_insert_with(|| {
             let mut index: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+            let bytes = text.as_bytes();
             let mut scan = 0;
-            while scan < chars.len() {
-                if chars.get(scan) == Some(&'`') {
-                    let run = backtick_run_len(chars, scan);
+            while scan < bytes.len() {
+                // The backtick is ASCII, so advancing one byte over any non-backtick byte (including
+                // every byte of a multi-byte character) never lands mid-run or records a false start.
+                if bytes.get(scan) == Some(&b'`') {
+                    let run = backtick_run_len(text, scan);
                     index.entry(run).or_default().push(scan);
                     scan += run;
                 } else {
@@ -1516,7 +1532,7 @@ impl InlineParser<'_> {
     fn dollar_math(&mut self) {
         if self.at(1) == Some('$') {
             if let Some((content, next)) =
-                crate::inline_scan::scan_display_math(self.chars, self.pos)
+                crate::inline_scan::scan_display_math_bytes(self.text, self.pos)
             {
                 self.pos = next;
                 self.nodes.push(Node::Inline(Inline::Math(
@@ -1526,7 +1542,7 @@ impl InlineParser<'_> {
                 return;
             }
         } else if let Some((content, next)) =
-            crate::inline_scan::scan_inline_math(self.chars, self.pos)
+            crate::inline_scan::scan_inline_math_bytes(self.text, self.pos)
         {
             self.pos = next;
             self.nodes.push(Node::Inline(Inline::Math(
@@ -1540,7 +1556,7 @@ impl InlineParser<'_> {
     }
 
     fn left_angle(&mut self) {
-        if let Some((inline, next)) = scan_autolink(self.chars, self.pos) {
+        if let Some((inline, next)) = scan_autolink(self.text, self.pos) {
             self.pos = next;
             // The markdown dialect tags an explicit angle autolink with a `uri` or `email` class
             // and percent-encodes its destination; the strict dialect leaves it unclassed and
@@ -1554,7 +1570,7 @@ impl InlineParser<'_> {
             self.nodes.push(Node::Inline(inline));
             return;
         }
-        if let Some((html, next)) = scan_html_tag(self.chars, self.pos) {
+        if let Some((html, next)) = scan_html_tag(self.text, self.pos) {
             self.pos = next;
             // In the Markdown dialect with `raw_html` off the tag is still recognized as a unit but
             // kept as literal text rather than a passthrough span. The bare CommonMark engine always
@@ -1574,7 +1590,7 @@ impl InlineParser<'_> {
     }
 
     fn entity(&mut self) {
-        if let Some((decoded, next)) = scan_entity(self.chars, self.pos) {
+        if let Some((decoded, next)) = scan_entity(self.text, self.pos) {
             self.pos = next;
             self.push_str(&decoded);
         } else {
@@ -1611,12 +1627,9 @@ impl InlineParser<'_> {
         while self.peek() == Some(ch as char) {
             self.pos += 1;
         }
+        // The delimiter is ASCII, so the run's byte length equals its character count.
         let count = self.pos - start;
-        let before = if start == 0 {
-            None
-        } else {
-            self.chars.get(start - 1).copied()
-        };
+        let before = char_before(self.text, start);
         let after = self.peek();
         // With `intraword_underscores` off in the Markdown dialect, a `_` run pairs like `*`,
         // emphasizing even between word characters; otherwise the CommonMark `_` rule keeps an
@@ -1766,8 +1779,7 @@ impl InlineParser<'_> {
     /// the brackets for literal handling) when the content is not a citation list.
     fn try_bracket_citation(&mut self, opener_index: usize, is_image: bool) -> bool {
         let raw = self.raw_label(opener_index);
-        let raw_chars: Vec<char> = raw.chars().collect();
-        let Some(segments) = split_citation_segments(&raw_chars) else {
+        let Some(segments) = split_citation_segments(&raw) else {
             return false;
         };
         // Scanning the interior may have counted bare citations that are about to be discarded with
@@ -1783,7 +1795,7 @@ impl InlineParser<'_> {
         self.bump_cite_count();
         let mut citations = Vec::with_capacity(segments.len());
         for segment in &segments {
-            let Some(entry) = self.parse_citation_entry(&raw_chars, segment.clone()) else {
+            let Some(entry) = self.parse_citation_entry(&raw, segment.clone()) else {
                 return false;
             };
             citations.push(entry);
@@ -1807,15 +1819,11 @@ impl InlineParser<'_> {
     /// text before it as the prefix and the text after as the suffix. A `-` directly before the key
     /// (itself at the segment start or preceded by whitespace) suppresses the author. Returns `None`
     /// when the segment holds no top-level key.
-    fn parse_citation_entry(
-        &self,
-        chars: &[char],
-        range: std::ops::Range<usize>,
-    ) -> Option<Citation> {
-        let key = find_citation_key(chars, range.clone())?;
+    fn parse_citation_entry(&self, raw: &str, range: std::ops::Range<usize>) -> Option<Citation> {
+        let key = find_citation_key(raw, range.clone())?;
         let prefix_end = if key.suppress { key.dash } else { key.at };
-        let prefix_src: String = chars.get(range.start..prefix_end)?.iter().collect();
-        let suffix_src: String = chars.get(key.id_end..range.end)?.iter().collect();
+        let prefix_src = raw.get(range.start..prefix_end)?;
+        let suffix_src = raw.get(key.id_end..range.end)?;
         let mode = if key.suppress {
             CitationMode::SuppressAuthor
         } else {
@@ -1852,8 +1860,8 @@ impl InlineParser<'_> {
     /// [`Attr`], with the position past the last block. An empty block (`{}`) alone is not consumed;
     /// a space between blocks ends the run.
     fn scan_attr_block(&self) -> Option<(Attr, usize)> {
-        let (mut merged, mut next) = attr::parse_attributes_chars(self.chars, self.pos)?;
-        while let Some((more, after)) = attr::parse_attributes_chars(self.chars, next) {
+        let (mut merged, mut next) = attr::parse_attributes_bytes(self.text, self.pos)?;
+        while let Some((more, after)) = attr::parse_attributes_bytes(self.text, next) {
             attr::merge(&mut merged, more);
             next = after;
         }
@@ -1869,25 +1877,25 @@ impl InlineParser<'_> {
         if !self.ext.contains(Extension::RawAttribute) {
             return None;
         }
-        if self.chars.get(self.pos).copied() != Some('{') {
+        if char_at(self.text, self.pos) != Some('{') {
             return None;
         }
         let mut index = self.pos + 1;
-        while let Some(&ch) = self.chars.get(index) {
+        while let Some(ch) = char_at(self.text, index) {
             if ch == ' ' || ch == '\t' {
                 index += 1;
             } else {
                 break;
             }
         }
-        if self.chars.get(index).copied() != Some('=') {
+        if char_at(self.text, index) != Some('=') {
             return None;
         }
         index += 1;
         let format_start = index;
-        while let Some(&ch) = self.chars.get(index) {
+        while let Some(ch) = char_at(self.text, index) {
             if is_format_name_char(ch) {
-                index += 1;
+                index += ch.len_utf8();
             } else {
                 break;
             }
@@ -1895,15 +1903,15 @@ impl InlineParser<'_> {
         if index == format_start {
             return None;
         }
-        let format: String = self.chars.get(format_start..index)?.iter().collect();
-        while let Some(&ch) = self.chars.get(index) {
+        let format = self.text.get(format_start..index)?.to_owned();
+        while let Some(ch) = char_at(self.text, index) {
             if ch == ' ' || ch == '\t' {
                 index += 1;
             } else {
                 break;
             }
         }
-        if self.chars.get(index).copied() != Some('}') {
+        if char_at(self.text, index) != Some('}') {
             return None;
         }
         Some((format, index + 1))
@@ -1980,9 +1988,9 @@ impl InlineParser<'_> {
             // The markdown dialect lets an unbracketed destination hold spaces and balanced
             // parentheses; the strict dialect ends a destination at the first space.
             let scanned = if self.notes.markdown {
-                scan_markdown_inline_target(self.chars, self.pos)
+                scan_markdown_inline_target(self.text, self.pos)
             } else {
-                scan_inline_target(self.chars, self.pos)
+                scan_inline_target(self.text, self.pos)
             };
             if let Some((target, next)) = scanned {
                 return Explicit::Target(target, next);
@@ -1994,14 +2002,11 @@ impl InlineParser<'_> {
         // target handled above.
         let mut label_start = self.pos;
         if self.ext.contains(Extension::SpacedReferenceLinks) {
-            while matches!(
-                self.chars.get(label_start).copied(),
-                Some(' ' | '\t' | '\n')
-            ) {
+            while matches!(char_at(self.text, label_start), Some(' ' | '\t' | '\n')) {
                 label_start += 1;
             }
         }
-        if let Some((label, next)) = scan_following_label(self.chars, label_start) {
+        if let Some((label, next)) = scan_following_label(self.text, label_start) {
             let key = if label.is_empty() {
                 normalize_label(&self.raw_label(opener_index))
             } else {
@@ -2021,9 +2026,10 @@ impl InlineParser<'_> {
             Some(Node::Delimiter(d)) => d.text_start,
             _ => return String::new(),
         };
-        self.chars
+        // The closing `]` is ASCII, so its byte offset is `self.pos - 1`.
+        self.text
             .get(start..self.pos.saturating_sub(1))
-            .map(|s| s.iter().collect())
+            .map(str::to_owned)
             .unwrap_or_default()
     }
 
@@ -2064,13 +2070,14 @@ impl InlineParser<'_> {
     /// becomes a single-paragraph `Note`. Returns `false` without advancing when the bracket has no
     /// balanced closer, leaving the `^` for literal/superscript handling.
     fn try_inline_note(&mut self) -> bool {
-        // self.pos is the caret; the `[` sits at self.pos + 1. Walk forward tracking bracket depth.
+        // self.pos is the caret; the `[` sits at self.pos + 1 (the `^` is ASCII). Walk forward
+        // tracking bracket depth.
         let mut depth = 0usize;
         let mut index = self.pos + 1;
         let mut end = None;
-        while let Some(&ch) = self.chars.get(index) {
+        while let Some(ch) = char_at(self.text, index) {
             match ch {
-                '\\' => index += 2,
+                '\\' => index += 1 + char_at(self.text, index + 1).map_or(0, char::len_utf8),
                 '[' => {
                     depth += 1;
                     index += 1;
@@ -2083,16 +2090,18 @@ impl InlineParser<'_> {
                         break;
                     }
                 }
-                _ => index += 1,
+                _ => index += ch.len_utf8(),
             }
         }
         let Some(end) = end else {
             return false;
         };
-        let inner: String = self
-            .chars
+        // The bracket content lies between `[` (at self.pos + 1) and the closing `]` (ASCII, at
+        // end - 1).
+        let inner = self
+            .text
             .get(self.pos + 2..end.saturating_sub(1))
-            .map(|run| run.iter().collect())
+            .map(str::to_owned)
             .unwrap_or_default();
         let inlines = parse_inlines(&inner, self.refs, self.notes, self.ext);
         self.pos = end;
@@ -2181,36 +2190,37 @@ fn is_citation_key_start(ch: char) -> bool {
 /// `:`, and `/` extend it only when another key character follows, so a trailing `-key.` keeps the
 /// `key` but drops the `.`. Returns the key text and the index just past it, or `None` when no key
 /// begins at `start`.
-fn scan_citation_id(chars: &[char], start: usize) -> Option<(String, usize)> {
-    let first = chars.get(start).copied()?;
+fn scan_citation_id(text: &str, start: usize) -> Option<(String, usize)> {
+    let first = char_at(text, start)?;
     if !is_citation_key_start(first) {
         return None;
     }
-    let mut end = start + 1;
-    while let Some(&ch) = chars.get(end) {
+    let mut end = start + first.len_utf8();
+    while let Some(ch) = char_at(text, end) {
         if is_citation_key_start(ch) {
-            end += 1;
+            end += ch.len_utf8();
         } else if matches!(ch, '-' | '.' | ':' | '/')
-            && matches!(chars.get(end + 1), Some(&next) if is_citation_key_start(next))
+            // The internal punctuation is ASCII, so the following key character begins one byte on.
+            && matches!(char_at(text, end + 1), Some(next) if is_citation_key_start(next))
         {
-            end += 2;
+            end += 1 + char_at(text, end + 1).map_or(0, char::len_utf8);
         } else {
             break;
         }
     }
-    let id: String = chars.get(start..end)?.iter().collect();
+    let id = text.get(start..end)?.to_owned();
     Some((id, end))
 }
 
 /// Advance past one escape, backtick code span, or bracket at `index`, updating bracket `depth` and
 /// returning the next index. Returns `None` when the character is none of those — the caller then
 /// inspects it for a top-level delimiter (`;` or `@`) and advances itself.
-fn step_citation_scan(chars: &[char], index: usize, depth: &mut usize) -> Option<usize> {
-    match chars.get(index) {
-        Some('\\') => Some(index + 2),
+fn step_citation_scan(text: &str, index: usize, depth: &mut usize) -> Option<usize> {
+    match char_at(text, index) {
+        Some('\\') => Some(index + 1 + char_at(text, index + 1).map_or(0, char::len_utf8)),
         Some('`') => {
-            let run = backtick_run_len(chars, index);
-            Some(skip_code_span(chars, index, run))
+            let run = backtick_run_len(text, index);
+            Some(skip_code_span(text, index, run))
         }
         Some('[') => {
             *depth += 1;
@@ -2228,31 +2238,31 @@ fn step_citation_scan(chars: &[char], index: usize, depth: &mut usize) -> Option
 /// a nested `[...]` or a backtick code span does not split. Returns `None` when the content is not a
 /// citation list: it has no `@` at all, or any segment is empty (including a leading or trailing
 /// empty segment from a stray semicolon).
-fn split_citation_segments(chars: &[char]) -> Option<Vec<std::ops::Range<usize>>> {
-    if !chars.contains(&'@') {
+fn split_citation_segments(text: &str) -> Option<Vec<std::ops::Range<usize>>> {
+    if !text.contains('@') {
         return None;
     }
     let mut segments = Vec::new();
     let mut start = 0;
     let mut index = 0;
     let mut depth = 0usize;
-    while index < chars.len() {
-        if let Some(next) = step_citation_scan(chars, index, &mut depth) {
+    while index < text.len() {
+        if let Some(next) = step_citation_scan(text, index, &mut depth) {
             index = next;
-        } else if chars.get(index) == Some(&';') && depth == 0 {
+        } else if char_at(text, index) == Some(';') && depth == 0 {
             segments.push(start..index);
             start = index + 1;
             index += 1;
         } else {
-            index += 1;
+            index += char_at(text, index).map_or(1, char::len_utf8);
         }
     }
-    segments.push(start..chars.len());
+    segments.push(start..text.len());
     // An empty segment (a stray `;`, or whitespace-only between separators) is not a citation list.
     for segment in &segments {
-        if chars
+        if text
             .get(segment.clone())
-            .is_none_or(|s| s.iter().all(|c| c.is_whitespace()))
+            .is_none_or(|s| s.chars().all(char::is_whitespace))
         {
             return None;
         }
@@ -2260,10 +2270,11 @@ fn split_citation_segments(chars: &[char]) -> Option<Vec<std::ops::Range<usize>>
     Some(segments)
 }
 
-/// The length of the backtick run starting at `index`.
-fn backtick_run_len(chars: &[char], index: usize) -> usize {
+/// The length in bytes of the backtick run starting at byte offset `index`.
+fn backtick_run_len(text: &str, index: usize) -> usize {
+    let bytes = text.as_bytes();
     let mut len = 0;
-    while chars.get(index + len) == Some(&'`') {
+    while bytes.get(index + len) == Some(&b'`') {
         len += 1;
     }
     len
@@ -2272,11 +2283,12 @@ fn backtick_run_len(chars: &[char], index: usize) -> usize {
 /// Skip past a code span opened by `run` backticks at `index`, returning the index just past its
 /// closing run. With no matching closer the backticks are not a code span and only the opening run
 /// is skipped.
-fn skip_code_span(chars: &[char], index: usize, run: usize) -> usize {
+fn skip_code_span(text: &str, index: usize, run: usize) -> usize {
+    let bytes = text.as_bytes();
     let mut scan = index + run;
-    while scan < chars.len() {
-        if chars.get(scan) == Some(&'`') {
-            let closer = backtick_run_len(chars, scan);
+    while scan < bytes.len() {
+        if bytes.get(scan) == Some(&b'`') {
+            let closer = backtick_run_len(text, scan);
             if closer == run {
                 return scan + closer;
             }
@@ -2302,22 +2314,24 @@ struct CitationKey {
 /// backtick code span, immediately followed by a key. A `-` directly before the `@`, itself at the
 /// segment start or preceded by whitespace, marks author suppression. Returns `None` when no such
 /// key is present.
-fn find_citation_key(chars: &[char], range: std::ops::Range<usize>) -> Option<CitationKey> {
+fn find_citation_key(text: &str, range: std::ops::Range<usize>) -> Option<CitationKey> {
     let mut index = range.start;
     let mut depth = 0usize;
     while index < range.end {
-        if let Some(next) = step_citation_scan(chars, index, &mut depth) {
+        if let Some(next) = step_citation_scan(text, index, &mut depth) {
             index = next;
             continue;
         }
         if depth == 0
-            && chars.get(index) == Some(&'@')
-            && let Some((id, id_end)) = scan_citation_id(chars, index + 1)
+            && char_at(text, index) == Some('@')
+            && let Some((id, id_end)) = scan_citation_id(text, index + 1)
         {
-            let dash_before = index > range.start && chars.get(index - 1) == Some(&'-');
+            // A `-` is ASCII, so when it precedes the `@` it sits at byte `index - 1`, and the
+            // character before it ends at `index - 1`.
+            let dash_before = index > range.start && char_before(text, index) == Some('-');
             let dash_anchored = dash_before
                 && (index - 1 == range.start
-                    || chars.get(index - 2).is_some_and(|c| c.is_whitespace()));
+                    || char_before(text, index - 1).is_some_and(char::is_whitespace));
             let suppress = dash_anchored;
             return Some(CitationKey {
                 at: index,
@@ -2327,7 +2341,7 @@ fn find_citation_key(chars: &[char], range: std::ops::Range<usize>) -> Option<Ci
                 suppress,
             });
         }
-        index += 1;
+        index += char_at(text, index).map_or(1, char::len_utf8);
     }
     None
 }
@@ -2782,19 +2796,19 @@ fn match_use_count(
 /// runs until the parenthesis that balances the link's opener, save for a trailing quoted title
 /// separated by whitespace. Returns `None` when the parentheses are unbalanced or a quoted title is
 /// not immediately followed by the closing parenthesis. `pos` points at the opening `(`.
-fn scan_markdown_inline_target(chars: &[char], pos: usize) -> Option<(Target, usize)> {
+fn scan_markdown_inline_target(text: &str, pos: usize) -> Option<(Target, usize)> {
     let mut index = pos + 1;
-    skip_target_whitespace(chars, &mut index);
-    if chars.get(index).copied() == Some('<') {
+    skip_target_whitespace(text, &mut index);
+    if char_at(text, index) == Some('<') {
         // The angle-bracketed form has no special space handling; defer to the shared scanner,
         // which already reads `<...>` destinations and an optional title.
-        return scan_inline_target(chars, pos);
+        return scan_inline_target(text, pos);
     }
     let mut url = String::new();
     let mut title = String::new();
     let mut depth: usize = 0;
     loop {
-        match chars.get(index).copied() {
+        match char_at(text, index) {
             None => return None,
             Some(')') if depth == 0 => {
                 index += 1;
@@ -2812,26 +2826,21 @@ fn scan_markdown_inline_target(chars: &[char], pos: usize) -> Option<(Target, us
             }
             // An escaped space is always part of the destination — never a title separator — and
             // encodes as `%20` like any other destination space.
-            Some('\\') if matches!(chars.get(index + 1).copied(), Some(' ' | '\t')) => {
+            Some('\\') if matches!(char_at(text, index + 1), Some(' ' | '\t')) => {
                 url.push_str("%20");
                 index += 2;
             }
-            Some('\\')
-                if chars
-                    .get(index + 1)
-                    .copied()
-                    .is_some_and(is_ascii_punctuation) =>
-            {
-                if let Some(&next) = chars.get(index + 1) {
+            Some('\\') if char_at(text, index + 1).is_some_and(is_ascii_punctuation) => {
+                if let Some(next) = char_at(text, index + 1) {
                     url.push('\\');
                     url.push(next);
+                    index += 1 + next.len_utf8();
                 }
-                index += 2;
             }
             Some(ch) if ch == ' ' || ch == '\t' => {
                 let mut after = index;
-                skip_target_whitespace(chars, &mut after);
-                match chars.get(after).copied() {
+                skip_target_whitespace(text, &mut after);
+                match char_at(text, after) {
                     // Trailing whitespace before the closing parenthesis ends the destination.
                     Some(')') if depth == 0 => {
                         index = after;
@@ -2839,10 +2848,10 @@ fn scan_markdown_inline_target(chars: &[char], pos: usize) -> Option<(Target, us
                     // A quoted title separated by whitespace ends the destination. It must be the
                     // last element before the closing parenthesis, else the whole tail fails.
                     Some('"' | '\'') if depth == 0 => {
-                        let (parsed, mut close) = scan_target_title(chars, after)?;
+                        let (parsed, mut close) = scan_target_title(text, after)?;
                         title = parsed;
-                        skip_target_whitespace(chars, &mut close);
-                        if chars.get(close).copied() != Some(')') {
+                        skip_target_whitespace(text, &mut close);
+                        if char_at(text, close) != Some(')') {
                             return None;
                         }
                         index = close + 1;
@@ -2858,7 +2867,7 @@ fn scan_markdown_inline_target(chars: &[char], pos: usize) -> Option<(Target, us
             }
             Some(ch) => {
                 url.push(ch);
-                index += 1;
+                index += ch.len_utf8();
             }
         }
     }
@@ -2872,40 +2881,36 @@ fn scan_markdown_inline_target(chars: &[char], pos: usize) -> Option<(Target, us
 }
 
 /// Advance `index` past a run of spaces and tabs.
-fn skip_target_whitespace(chars: &[char], index: &mut usize) {
-    while matches!(chars.get(*index).copied(), Some(' ' | '\t')) {
+fn skip_target_whitespace(text: &str, index: &mut usize) {
+    while matches!(char_at(text, *index), Some(' ' | '\t')) {
         *index += 1;
     }
 }
 
 /// Scan a quoted link title starting at `start` (a `"` or `'`), returning its raw content and the
 /// index just past the closing quote. A backslash escapes the following punctuation character.
-fn scan_target_title(chars: &[char], start: usize) -> Option<(String, usize)> {
-    let close = chars.get(start).copied()?;
+fn scan_target_title(text: &str, start: usize) -> Option<(String, usize)> {
+    let close = char_at(text, start)?;
     if close != '"' && close != '\'' {
         return None;
     }
     let mut index = start + 1;
     let mut out = String::new();
-    while let Some(&ch) = chars.get(index) {
+    while let Some(ch) = char_at(text, index) {
         if ch == close {
             return Some((out, index + 1));
         }
         if ch == '\\'
-            && chars
-                .get(index + 1)
-                .copied()
-                .is_some_and(is_ascii_punctuation)
+            && let Some(next) = char_at(text, index + 1)
+            && is_ascii_punctuation(next)
         {
-            if let Some(&next) = chars.get(index + 1) {
-                out.push('\\');
-                out.push(next);
-            }
-            index += 2;
+            out.push('\\');
+            out.push(next);
+            index += 1 + next.len_utf8();
             continue;
         }
         out.push(ch);
-        index += 1;
+        index += ch.len_utf8();
     }
     None
 }
@@ -3186,39 +3191,39 @@ fn classify_span_tag(raw: &str) -> SpanTag {
     if !opens_span_tag(raw) {
         return SpanTag::Other;
     }
-    let chars: Vec<char> = raw.chars().collect();
-    if chars.get(1).copied() == Some('/') {
+    if char_at(raw, 1) == Some('/') {
         // `</span>` with optional trailing whitespace before `>`.
         let mut i = 2;
-        if !matches_name(&chars, &mut i, "span") {
+        if !matches_name(raw, &mut i, "span") {
             return SpanTag::Other;
         }
-        while matches!(chars.get(i).copied(), Some(' ' | '\t' | '\n')) {
+        while matches!(char_at(raw, i), Some(' ' | '\t' | '\n')) {
             i += 1;
         }
-        if chars.get(i).copied() == Some('>') && i + 1 == chars.len() {
+        if char_at(raw, i) == Some('>') && i + 1 == raw.len() {
             return SpanTag::Close;
         }
         return SpanTag::Other;
     }
     let mut i = 1;
-    if !matches_name(&chars, &mut i, "span") {
+    if !matches_name(raw, &mut i, "span") {
         return SpanTag::Other;
     }
     // A name character right after `span` means a different tag (`<spanner>`).
-    if matches!(chars.get(i).copied(), Some(c) if c.is_ascii_alphanumeric() || c == '-') {
+    if matches!(char_at(raw, i), Some(c) if c.is_ascii_alphanumeric() || c == '-') {
         return SpanTag::Other;
     }
-    match parse_span_attributes(&chars, i) {
+    match parse_span_attributes(raw, i) {
         Some(attr) => SpanTag::Open(attr),
         None => SpanTag::Other,
     }
 }
 
-/// Match the literal `name` case-insensitively at `*i`, advancing `*i` past it on success.
-fn matches_name(chars: &[char], i: &mut usize, name: &str) -> bool {
+/// Match the literal `name` case-insensitively at `*i`, advancing `*i` past it on success. `name`
+/// is ASCII, so its character offsets are byte offsets.
+fn matches_name(text: &str, i: &mut usize, name: &str) -> bool {
     for (offset, expected) in name.chars().enumerate() {
-        match chars.get(*i + offset).copied() {
+        match char_at(text, *i + offset) {
             Some(c) if c.eq_ignore_ascii_case(&expected) => {}
             _ => return false,
         }
@@ -3232,17 +3237,17 @@ fn matches_name(chars: &[char], i: &mut usize, name: &str) -> bool {
 /// becomes the identifier and a `class` attribute splits into classes; only the first of each is
 /// kept. Every other attribute becomes a key/value pair in source order; a valueless attribute
 /// carries an empty value. Entity and numeric character references in values are decoded.
-fn parse_span_attributes(chars: &[char], start: usize) -> Option<Attr> {
+fn parse_span_attributes(text: &str, start: usize) -> Option<Attr> {
     let mut attr = Attr::default();
     let mut seen_class = false;
     let mut i = start;
     loop {
         let ws_start = i;
-        while matches!(chars.get(i).copied(), Some(' ' | '\t' | '\n')) {
+        while matches!(char_at(text, i), Some(' ' | '\t' | '\n')) {
             i += 1;
         }
-        match chars.get(i).copied() {
-            Some('>') if i + 1 == chars.len() => return Some(attr),
+        match char_at(text, i) {
+            Some('>') if i + 1 == text.len() => return Some(attr),
             // A self-closing tag has no content to wrap.
             Some('/') => return None,
             _ => {}
@@ -3253,7 +3258,7 @@ fn parse_span_attributes(chars: &[char], start: usize) -> Option<Attr> {
         }
         let name_start = i;
         while matches!(
-            chars.get(i).copied(),
+            char_at(text, i),
             Some(c) if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':' | '.')
         ) {
             i += 1;
@@ -3261,19 +3266,19 @@ fn parse_span_attributes(chars: &[char], start: usize) -> Option<Attr> {
         if i == name_start {
             return None;
         }
-        let name: String = chars.get(name_start..i)?.iter().collect();
+        let name = text.get(name_start..i)?.to_owned();
         let mut value = String::new();
         // Optional `= value` with whitespace allowed around `=`.
         let mut after = i;
-        while matches!(chars.get(after).copied(), Some(' ' | '\t' | '\n')) {
+        while matches!(char_at(text, after), Some(' ' | '\t' | '\n')) {
             after += 1;
         }
-        if chars.get(after).copied() == Some('=') {
+        if char_at(text, after) == Some('=') {
             after += 1;
-            while matches!(chars.get(after).copied(), Some(' ' | '\t' | '\n')) {
+            while matches!(char_at(text, after), Some(' ' | '\t' | '\n')) {
                 after += 1;
             }
-            let (parsed, next) = read_attr_value(chars, after)?;
+            let (parsed, next) = read_attr_value(text, after)?;
             value = parsed;
             i = next;
         } else {
@@ -3299,17 +3304,17 @@ fn parse_span_attributes(chars: &[char], start: usize) -> Option<Attr> {
 /// Read an HTML attribute value at `start`: a double- or single-quoted string, or an unquoted run.
 /// Returns the decoded value and the index just past it. Character references inside the value are
 /// decoded.
-fn read_attr_value(chars: &[char], start: usize) -> Option<(String, usize)> {
-    let quote = chars.get(start).copied();
+fn read_attr_value(text: &str, start: usize) -> Option<(String, usize)> {
+    let quote = char_at(text, start);
     if matches!(quote, Some('"' | '\'')) {
         let quote = quote?;
         let mut i = start + 1;
         let mut out = String::new();
         loop {
-            match chars.get(i).copied() {
+            match char_at(text, i) {
                 Some(c) if c == quote => return Some((out, i + 1)),
                 Some('&') => {
-                    if let Some((decoded, next)) = scan_entity(chars, i) {
+                    if let Some((decoded, next)) = scan_entity(text, i) {
                         out.push_str(&decoded);
                         i = next;
                     } else {
@@ -3319,7 +3324,7 @@ fn read_attr_value(chars: &[char], start: usize) -> Option<(String, usize)> {
                 }
                 Some(c) => {
                     out.push(c);
-                    i += 1;
+                    i += c.len_utf8();
                 }
                 None => return None,
             }
@@ -3328,19 +3333,19 @@ fn read_attr_value(chars: &[char], start: usize) -> Option<(String, usize)> {
     // Unquoted value: a run with no whitespace, quotes, `=`, `<`, `>`, or backtick.
     let mut i = start;
     let mut out = String::new();
-    while let Some(c) = chars.get(i).copied() {
+    while let Some(c) = char_at(text, i) {
         if matches!(c, ' ' | '\t' | '\n' | '"' | '\'' | '=' | '<' | '>' | '`') {
             break;
         }
         if c == '&'
-            && let Some((decoded, next)) = scan_entity(chars, i)
+            && let Some((decoded, next)) = scan_entity(text, i)
         {
             out.push_str(&decoded);
             i = next;
             continue;
         }
         out.push(c);
-        i += 1;
+        i += c.len_utf8();
     }
     if out.is_empty() {
         return None;

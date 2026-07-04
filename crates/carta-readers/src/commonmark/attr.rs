@@ -16,47 +16,43 @@ pub(crate) enum IdPolicy {
     Last,
 }
 
+/// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
+fn char_at(text: &str, at: usize) -> Option<char> {
+    text.get(at..).and_then(|rest| rest.chars().next())
+}
+
 /// Parse an attribute block at the start of `s`, which must begin with `{`. Returns the parsed
 /// [`Attr`] and the number of bytes consumed (both braces included), or `None` when `s` does not open
 /// a well-formed block (a bare-word token, or no closing brace). A repeated `#id` keeps the last.
 pub(crate) fn parse_attributes(s: &str) -> Option<(Attr, usize)> {
-    parse_attributes_with(s, IdPolicy::Last)
+    parse_attributes_bytes_with(s, 0, IdPolicy::Last)
 }
 
 /// Like [`parse_attributes`], but a repeated `#id` keeps the first.
 pub(crate) fn parse_attributes_first_id(s: &str) -> Option<(Attr, usize)> {
-    parse_attributes_with(s, IdPolicy::First)
+    parse_attributes_bytes_with(s, 0, IdPolicy::First)
 }
 
-fn parse_attributes_with(s: &str, policy: IdPolicy) -> Option<(Attr, usize)> {
-    let chars: Vec<char> = s.chars().collect();
-    let (attr, end) = parse_attributes_chars_with(&chars, 0, policy)?;
-    let consumed = chars
-        .get(..end)
-        .map_or(0, |head| head.iter().map(|ch| ch.len_utf8()).sum());
-    Some((attr, consumed))
-}
-
-/// Parse an attribute block at `chars[start..]`, which must begin with `{`. Returns the parsed
-/// [`Attr`] and the char index just past the closing brace, or `None` when the block is not
+/// Parse an attribute block at byte offset `start` in `text`, which must begin with `{`. Returns the
+/// parsed [`Attr`] and the byte offset just past the closing brace, or `None` when the block is not
 /// well-formed (a bare-word token, or no closing brace). A repeated `#id` keeps the last.
-pub(crate) fn parse_attributes_chars(chars: &[char], start: usize) -> Option<(Attr, usize)> {
-    parse_attributes_chars_with(chars, start, IdPolicy::Last)
+pub(crate) fn parse_attributes_bytes(text: &str, start: usize) -> Option<(Attr, usize)> {
+    parse_attributes_bytes_with(text, start, IdPolicy::Last)
 }
 
-fn parse_attributes_chars_with(
-    chars: &[char],
+fn parse_attributes_bytes_with(
+    text: &str,
     start: usize,
     policy: IdPolicy,
 ) -> Option<(Attr, usize)> {
-    if chars.get(start).copied() != Some('{') {
+    if char_at(text, start) != Some('{') {
         return None;
     }
     let mut index = start + 1;
     let mut attr = Attr::default();
     loop {
-        skip_ws(chars, &mut index);
-        match chars.get(index).copied() {
+        skip_ws(text, &mut index);
+        match char_at(text, index) {
             None => return None,
             Some('}') => {
                 index += 1;
@@ -64,7 +60,7 @@ fn parse_attributes_chars_with(
             }
             Some('#') => {
                 index += 1;
-                let id = read_token(chars, &mut index);
+                let id = read_token(text, &mut index);
                 if id.is_empty() {
                     return None;
                 }
@@ -74,19 +70,19 @@ fn parse_attributes_chars_with(
             }
             Some('.') => {
                 index += 1;
-                let class = read_token(chars, &mut index);
+                let class = read_token(text, &mut index);
                 if class.is_empty() {
                     return None;
                 }
                 attr.classes.push(class.into());
             }
             Some(_) => {
-                let key = read_key(chars, &mut index);
-                if key.is_empty() || chars.get(index).copied() != Some('=') {
+                let key = read_key(text, &mut index);
+                if key.is_empty() || char_at(text, index) != Some('=') {
                     return None;
                 }
                 index += 1;
-                let value = read_value(chars, &mut index);
+                let value = read_value(text, &mut index);
                 attr.attributes.push((key.into(), value.into()));
             }
         }
@@ -114,47 +110,53 @@ fn is_token_end(ch: char) -> bool {
     matches!(ch, ' ' | '\t' | '\n' | '}')
 }
 
-fn skip_ws(chars: &[char], index: &mut usize) {
-    while matches!(chars.get(*index).copied(), Some(' ' | '\t' | '\n')) {
+fn skip_ws(text: &str, index: &mut usize) {
+    while matches!(char_at(text, *index), Some(' ' | '\t' | '\n')) {
         *index += 1;
     }
 }
 
 /// Read an identifier or class token: everything up to whitespace or the closing brace.
-fn read_token(chars: &[char], index: &mut usize) -> String {
+fn read_token(text: &str, index: &mut usize) -> String {
     let mut out = String::new();
-    while let Some(&ch) = chars.get(*index).filter(|&&c| !is_token_end(c)) {
+    while let Some(ch) = char_at(text, *index) {
+        if is_token_end(ch) {
+            break;
+        }
         out.push(ch);
-        *index += 1;
+        *index += ch.len_utf8();
     }
     out
 }
 
 /// Read a key: everything up to `=`, whitespace, or the closing brace.
-fn read_key(chars: &[char], index: &mut usize) -> String {
+fn read_key(text: &str, index: &mut usize) -> String {
     let mut out = String::new();
-    while let Some(&ch) = chars.get(*index).filter(|&&c| c != '=' && !is_token_end(c)) {
+    while let Some(ch) = char_at(text, *index) {
+        if ch == '=' || is_token_end(ch) {
+            break;
+        }
         out.push(ch);
-        *index += 1;
+        *index += ch.len_utf8();
     }
     out
 }
 
 /// Read a value: a quoted string (with backslash escapes) or a bare run up to whitespace/`}`.
-fn read_value(chars: &[char], index: &mut usize) -> String {
-    match chars.get(*index).copied() {
+fn read_value(text: &str, index: &mut usize) -> String {
+    match char_at(text, *index) {
         Some(quote @ ('"' | '\'')) => {
             *index += 1;
             let mut out = String::new();
-            while let Some(&ch) = chars.get(*index) {
+            while let Some(ch) = char_at(text, *index) {
                 if ch == '\\'
-                    && let Some(&escaped) = chars.get(*index + 1)
+                    && let Some(escaped) = char_at(text, *index + 1)
                 {
                     out.push(escaped);
-                    *index += 2;
+                    *index += 1 + escaped.len_utf8();
                     continue;
                 }
-                *index += 1;
+                *index += ch.len_utf8();
                 if ch == quote {
                     break;
                 }
@@ -162,7 +164,7 @@ fn read_value(chars: &[char], index: &mut usize) -> String {
             }
             out
         }
-        _ => read_token(chars, index),
+        _ => read_token(text, index),
     }
 }
 
