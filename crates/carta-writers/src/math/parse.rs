@@ -681,7 +681,7 @@ fn parse_macro_definition(tokens: &[Token], start: usize) -> Option<(String, Mac
         params = count;
         skip_spaces(tokens, &mut pos);
         // An optional-argument default (`\newcommand{\x}[1][d]{…}`) is a shape this does not model;
-        // leaving it unexpanded keeps the whole expression verbatim rather than mis-substituting.
+        // leaving it unexpanded keeps the whole expression verbatim rather than substituting wrongly.
         if matches!(tokens.get(pos), Some(Token::Char('['))) {
             return None;
         }
