@@ -1,21 +1,20 @@
 # AGENTS.md — carta
 
-carta is a **lightweight, performant reimplementation of pandoc in Rust**. Its primary goals are higher performance and smaller bundle size compared to pandoc, while retaining format and extension feature parity. Once parity has been achieved, the secondary goal is to extend format support and to build on top of it. 
+carta is a **lightweight, performant rewrite of pandoc in Rust**.
 
-## The rule that overrides everything: clean-room
+## Clean room
 
-- **Never read pandoc's source code** (Haskell or otherwise) — not for reference, not to resolve ambiguity, not ever.
+- **Never read pandoc's source code**, not for reference, not ever.
 - **Never copy pandoc's test fixtures** into this repo.
-- **Never translate pandoc line-by-line**, and never commit any pandoc-derived code.
 - **Never refer to "pandoc" or an "oracle" in any source file**, not even in comments or Markdown files (see below).
 - **Allowed sources of truth, in order:** (1) public format specifications (CommonMark, LaTeX, reStructuredText, …); (2) pandoc's documented JSON AST contract; (3) observable CLI behavior of the pinned pandoc binary — run it, diff the output.
-- pandoc is / can be installed to gitignored `.oracle/`. Its outputs are golden values; generated fixtures are **never committed**.
+- pandoc is / can be installed to gitignored `.oracle/`.
 
 ## Source hygiene — no upstream provenance
 
-carta must read as an independent, original implementation. The name "pandoc", the phrases "reference implementation", "port", "clean-room", "derived from", or any other hint of upstream provenance may appear **only** in: `AGENTS.md`, `README.md`, `docs/**`, the conformance tooling (`tools/**`), the vendored-spec attributions (`vendor/**`), and `corpus/README.md`. Every other file — all product source, Cargo manifests, build and CI config, and the corpus data files themselves (`corpus/ast/**`, `corpus/text/**`) — must contain none of it: not in identifiers, comments, doc-comments, or package descriptions. The corpus data files are inputs we author and own, so they carry no upstream provenance.
+The name "pandoc", the phrases "reference implementation", "port", "clean-room", "derived from", or any other hint of upstream provenance may appear **only** in: `AGENTS.md`, `README.md`, `docs/**`, the conformance tooling (`tools/**`), the vendored-spec attributions (`vendor/**`), and `corpus/README.md`. Every other file — all product source, Cargo manifests, build and CI config, etc. — must contain none of it: not in identifiers, comments, doc-comments, or package descriptions.
 
-This extends past the upstream's *name* to any phrasing that frames the code as matching, imitating, or being derived from an external implementation — even an unnamed one. In product source, **state behavior as the code's own design**: assert what the code does, never that it reproduces what some other tool does. Banned in product source (non-exhaustive):
+This extends past the upstream's *name* to any phrasing that frames the code as matching, imitating, or being derived from an external implementation, even an unnamed one. In product source, **state behavior as the code's own design**: assert what the code does, never that it reproduces what some other tool does. Banned in product source (non-exhaustive):
 - "the reference writer/binary/tool"
 - "the pinned binary"
 - "the oracle"
@@ -26,34 +25,21 @@ This extends past the upstream's *name* to any phrasing that frames the code as 
 - "observable contract"
 - "a quirk of the reference X reproduced here"
 
-Rewrite each as a plain statement of the rule (*"a loose list's items are separated with a blank line"*, not *"matching how the reference writer separates items"*).
+A few external formats embed the upstream name in their own wire vocabulary. Those literals are unavoidable for interoperability and are the **only** sanctioned occurrences in product source. Treat each as an opaque external-format token, confined to the single site that emits or parses it — never let the name spread beyond these:
+- `pandoc-api-version` — the JSON interchange root key; a single named constant in `carta-ast`.
+- `Pandoc` — the native format's top-level constructor; a parse literal in the native reader.
+- `\pandocbounded` — a LaTeX macro emitted to bound oversized images; a literal in the LaTeX writer.
 
-The test is meaning, not substring: ordinary domain vocabulary that happens to reuse these words is fine — CommonMark's "link reference definition" and "character reference", Rust "references", the "pinned toolchain" (the Rust toolchain) carry no upstream provenance and stay. Ban the *hint*, not the word.
-
-- The root AST type is `Document`, never `Pandoc`.
-- A few external formats embed the upstream name in their own wire vocabulary. Those literals are unavoidable for interoperability and are the **only** sanctioned occurrences in product source. Treat each as an opaque external-format token, confined to the single site that emits or parses it — never let the name spread beyond these:
-  - `pandoc-api-version` — the JSON interchange root key; a single named constant in `carta-ast`.
-  - `Pandoc` — the native format's top-level constructor; a parse literal in the native reader.
-  - `\pandocbounded` — a LaTeX macro emitted to bound oversized images; a literal in the LaTeX writer.
-
-  Sanctioning a new such literal takes the same justification: it is part of an external format's
-  published wire form and cannot be expressed any other way.
-- Keep commit messages absolutely provenance-neutral too.
+Keep commit messages absolutely provenance-neutral too.
 
 ## Code style
 
 - Idiomatic, safe Rust. **Near-zero `unsafe`**; any `unsafe` needs a `// SAFETY:` comment and a real justification.
 - Names: complete words, concise, specific — understandable without prior knowledge of the codebase.
 - Comments only when the *why* isn't obvious (non-obvious logic, deliberate deviation, unavoidable gotcha). Never restate the code; never narrate change history.
-- Make invalid states unrepresentable (the Block/Inline split is the canonical example).
-- **No panics in shipped paths.** No `.unwrap()`, `.expect()`, `panic!`, `unreachable!`, or slice indexing (`xs[i]`) in reader/writer/library code — a converter ingests arbitrary input, so a panic is a correctness bug and a DoS. Return `Result` and propagate with `?`; index with `.get()`. Lint-enforced (clippy restriction lints); allowed in tests. `todo!("…")` is the one sanctioned **temporary** panic — it marks tracked, unfinished work.
-- **Deterministic output.** Output must be byte-reproducible across runs. Use ordered maps for any map in the AST or writers — pandoc's `Meta` serializes in sorted-key order, so `BTreeMap` matches it; never `HashMap` (its iteration order is randomized and would produce flaky diffs). Verify the exact ordering against the pinned binary, don't assume.
-
-## Correctness bar
-
-- **Differential parity with pandoc is the bar**, not (only) "tests pass".
-- Track unfinished work as `todo!("…")`; grep them as IOUs before calling a unit done.
-- Keep units small enough that a human can actually review them.
+- Make invalid states unrepresentable.
+- **No panics in shipped paths.** No `.unwrap()`, `.expect()`, `panic!`, `unreachable!`, or slice indexing (`xs[i]`) in reader/writer/library code — a converter ingests arbitrary input, so a panic is a correctness bug and a DoS. Return `Result` and propagate with `?`; index with `.get()`. Lint-enforced (clippy restriction lints); allowed in tests.
+- **Deterministic output.** Output must be byte-reproducible across runs. Use ordered maps for any map in the AST or writers.
 
 ### Test architecture — four layers
 
@@ -78,15 +64,6 @@ Tests are split so the everyday suite is **fully offline** and oracle-backed par
 - Fetch pandoc's test corpus: `tools/fetch-pandoc-tests.sh` (sparse, gitignored, **test files only — no source**; see below)
 - One-time dev setup (git hooks + tool check): `tools/dev-setup.sh`
 
-## Testing against pandoc's own tests
-
-We reuse pandoc's *test data*, never its test *harness* or implementation. Two layers:
-
-- **Command tests** (`test/command/*.md`) — declarative: a pandoc invocation + input + expected output. The conformance suite's `commands` surface parses them and substitutes the `carta` binary for `pandoc`, then diffs (skipping and counting tests that use formats/flags carta does not yet support). Directly reusable.
-- **Golden data files** (`*.native`, `*.md`, `*.html`, …) — reused as inputs only. The input→expected wiring lives in pandoc's Haskell test modules, which we do **not** read; instead the pinned binary regenerates the expected output live. One oracle, no source — nothing committed.
-
-`tools/fetch-pandoc-tests.sh` pulls the corpus **at the git tag matching the pinned binary** (so embedded golden values are exactly that binary's output — no version-drift false positives), via a sparse partial checkout of `test/`, so that we do not pull any `.hs` source files.
-
 ## Status docs
 
 Two files track feature parity and must stay in sync with the code:
@@ -94,7 +71,7 @@ Two files track feature parity and must stay in sync with the code:
 - `README.md` — the `## Status` table (format-level reader/writer support).
 - `docs/STATUS.md` — per-format detail: extensions honored, known gaps, and the parity backlog.
 
-Whenever you implement, extend, or change support for a format, extension, or cross-cutting feature (standalone output, TOC, citations, …), update **both** files in the same change. A new `Extension` variant, a newly honored extension, a resolved `todo!`, or a status transition (in progress → complete) each warrant an edit.
+Whenever you implement, extend, or change support for a format, extension, or cross-cutting feature (standalone output, TOC, citations, …), update **both** files in the same change.
 
 ## Git guardrails
 
@@ -105,4 +82,4 @@ The repo may be edited by several agents at once. Touch only what you own, and n
 - **No history rewrites on shared branches; never force-push.** Rewriting your own commits on a local, unshared branch is allowed only when explicitly asked.
 - Branch off `main` for non-trivial changes; don't commit directly to `main`.
 - **Conventional Commits, one logical change per commit.** Commit each relevant piece of work as you finish it, with a subject of the form `<type>[(scope)][!]: <description>` (types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, plus additional repo-specifics ones called `wip` for WIP and `sec` for security). The `commit-msg` hook enforces this.
-- Commit freely as you go; **push only when asked.** Never leave uncommitted changes behind.
+- Commit freely as you go; **push only when asked.**
