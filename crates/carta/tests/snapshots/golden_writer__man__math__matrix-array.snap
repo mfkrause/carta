@@ -1,6 +1,0 @@
----
-source: crates/carta/tests/golden_writer.rs
-expression: output
----
-.PP
-$\(rsbegin{array}{cc}a & b \(rs\(rs c & d\(rsend{array}$ $\(rsbegin{array}{ccc}1 & 2 & 3 \(rs\(rs 4 & 5 & 6\(rsend{array}$

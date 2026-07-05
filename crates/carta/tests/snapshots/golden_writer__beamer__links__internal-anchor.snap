@@ -1,9 +1,0 @@
----
-source: crates/carta/tests/golden_writer.rs
-expression: output
----
-\begin{frame}{Section One}
-\protect\phantomsection\label{section-one}
-Back to \hyperref[section-one]{the section}, or an
-\href{https://example.org/docs}{outside page}.
-\end{frame}
