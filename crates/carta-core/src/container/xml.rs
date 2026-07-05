@@ -316,6 +316,35 @@ mod tests {
     }
 
     #[test]
+    fn raw_fragments_emit_verbatim_and_unescaped() {
+        // A raw fragment passes through both compact render paths byte-for-byte: no escaping of its
+        // markup, interleaved with escaped sibling text.
+        let element = Element::new("w:p")
+            .text("a < b")
+            .raw("<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>");
+        assert_eq!(
+            element.render(),
+            "<w:p>a &lt; b<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></w:p>"
+        );
+    }
+
+    #[test]
+    fn pretty_layout_treats_raw_only_content_as_multi_line() {
+        // A raw fragment may itself hold elements, so an element whose only content is raw takes the
+        // indented multi-line layout rather than the single-line text form.
+        let doc = Element::new("root")
+            .raw("<child/>")
+            .render_document_pretty();
+        assert_eq!(
+            doc,
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+             <root>\n  \
+             <child/>\n\
+             </root>\n"
+        );
+    }
+
+    #[test]
     fn pretty_layout_indents_element_children_and_inlines_text() {
         let doc = Element::new("root")
             .child(Element::new("group").child(Element::new("item").attr("id", "1").text("hi")))
