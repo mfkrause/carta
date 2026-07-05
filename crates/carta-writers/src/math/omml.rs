@@ -771,8 +771,6 @@ fn flag(name: &'static str) -> Element {
     Element::new(name).attr("m:val", "1")
 }
 
-/// Lower a control-sequence nucleus: an inter-atom spacing, a Greek letter, a symbol, or a named
-/// operator. An unknown command has no rendering and reports the expression unconvertible.
 /// Whether a body is a limit-class operator whose subscript centers beneath it in display mode: a
 /// named operator like `\lim` or `\max`, or a starred `\operatorname*{…}`.
 fn is_limit_function(body: &Body) -> bool {
@@ -833,6 +831,8 @@ fn stacked_limits(
     content.into_iter().next()
 }
 
+/// Lower a control-sequence nucleus: an inter-atom spacing, a Greek letter, a symbol, or a named
+/// operator. An unknown command has no rendering and reports the expression unconvertible.
 fn command_nucleus(name: &str, style: Style) -> Option<Vec<Element>> {
     if let Some((text, upright)) = spacing(name) {
         let properties = upright.then(|| properties(vec![style_value("p")]));
