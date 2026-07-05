@@ -97,7 +97,7 @@ def keep(text, preserve):
     return text if (text and (not is_ws(text) or preserve)) else ''
 
 
-def ser(el, out):
+def serialize(el, out):
     if not isinstance(el.tag, str) or el.tag in DROP:
         return
     preserve = el.attrib.get(PRESERVE) == 'preserve'
@@ -105,6 +105,8 @@ def ser(el, out):
     for k, v in sorted((qname(k), v) for k, v in el.attrib.items()):
         out.append(' %s="%s"' % (k, esc_attr(v)))
     text = keep(el.text, preserve)
+    # An element left with nothing but dropped nodes canonicalizes the same as a genuinely empty one,
+    # so the ignored bookmarks and section geometry stay invisible to the comparison.
     kids = [c for c in el if isinstance(c.tag, str) and c.tag not in DROP]
     if not text and not kids:
         out.append('/>')
@@ -112,7 +114,7 @@ def ser(el, out):
     out.append('>')
     out.append(esc_text(text))
     for c in el:
-        ser(c, out)
+        serialize(c, out)
         out.append(esc_text(keep(c.tail, preserve)))
     out.append('</' + qname(el.tag) + '>')
 
@@ -124,7 +126,7 @@ except Exception as e:  # a malformed part must surface as a divergence, not a c
     sys.exit(0)
 
 out = []
-ser(root, out)
+serialize(root, out)
 s = ''.join(out)
 # A property date is reproducible but free; fold it so only its presence and placement are compared.
 s = re.sub(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', 'TIMESTAMP', s)
