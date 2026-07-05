@@ -170,98 +170,31 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   nonexistent target — yields a dangling reference.
 
 ### `docx` — ✅
-- The Office Open XML package is assembled deterministically: the document body, its relationship
-  graphs, list numbering, footnotes, comments, embedded images, the styling parts, and the core/custom
-  properties, all with fixed timestamps and a fixed epoch (`SOURCE_DATE_EPOCH` overrides it).
-  `--reference-doc` supplies the styling parts (styles, settings, fonts, theme) so generated content
-  adopts a look while the body stays carta's.
-- Rendered today: paragraphs and the first/body paragraph alternation, headings with bookmarks, block
-  quotes, code blocks, line blocks, horizontal rules, and the full inline set — emphasis, strong,
-  underline, strikeout, small caps, super/subscript, inline code, and smart quotes — coalesced into
-  runs. Wide East-Asian glyphs additionally carry an East-Asian font hint on their run. Equations
-  render as Office Math: fractions (bar and linear `tfrac`) and roots, sub/superscripts and
-  integral/sum limits, matrices and the `array` environment (each column laid out with its own
-  `l`/`r`/`c` alignment; a horizontal rule such as `\hline` inside a matrix or array is dropped and
-  the surrounding cells still lay out), accents and horizontal
-  braces (`overbrace`, `underbrace`, with their optional labels), over/under stacking (`overset`,
-  `underset`, `stackrel`), modular-arithmetic notation (`pmod`, `mod`, `bmod`, `pod`), extensible
-  arrows (`xrightarrow`, `xleftarrow`), struck-through negations (`\not`, using a precomposed glyph
-  where one exists and a combining solidus otherwise), cancellations (`cancel`, `bcancel`,
-  `xcancel`), bordered boxes (`boxed`), scalable delimiters (`\left…\right`, including a `\middle`
-  separator emitted as a bar) and explicitly sized delimiters (`\big`, `\Big`, `\bigg`, `\Bigg` and
-  their paired forms) drawn as a growing delimiter fence around their content, and the aligned
-  environments (`aligned`, `align`, `eqnarray`, `gather`, `flalign`): a form with alignment points
-  lays out as a multi-column equation grid, and one without any as a right-justified single-column
-  matrix. A display
-  equation set among text in the same paragraph is lifted into its own centered equation paragraph,
-  with the flanking text kept in paragraphs of its own. Metadata routes to the document core
-  properties (title, author, subject, keywords,
-  language), and every other metadata field becomes a named custom document property; a document
-  carrying a title, authors or a date also opens with a styled title block
-  (`Title`/`Author`/`Date` paragraphs).
-- Bullet, ordered and definition lists render with their numbering: each list binds to a definition
-  keyed by its marker style, delimiter and start, nested lists deepen the indent level, and a
-  default-styled list cycles its marker format by depth (decimal, lowercase letter, lowercase roman).
-  A task list — every item opening with a checkbox — drops the checkbox glyph from the text and
-  instead draws each item's marker as a checked or unchecked box through a numbering definition
-  dedicated to that state. Every later block of a list item — a further paragraph, a code block, a heading, a block quote, or a
-  nested table — carries the list numbering through, a nested table taking an indent that grows with
-  its depth; an item that opens with a nested list emits an empty numbered lead paragraph first.
-  Tables lay out as a grid — column widths
-  from the column fractions, repeating header rows, footer rows, per-column and per-cell alignment, and
-  row/column spans with their merge-continuation cells — with the caption above. A cell whose last
-  block is a table is closed with a trailing empty paragraph, and a cell whose content renders to
-  nothing is given a single filler paragraph, both as the format requires. Footnotes emit a
-  numbered reference and a footnote entry. A comment range — a `comment-start`/`comment-end` span pair
-  — brackets its text with the comment markers and records the comment, with its author, date and
-  initials, in the comments part. A tracked insertion or deletion (a span classed `insertion` or
-  `deletion`) renders as a `w:ins` or `w:del` revision carrying its author and date, a deletion keeping
-  its text as deleted-text runs. The entries of a bibliography — the div identified as `refs` — take the
-  `Bibliography` paragraph style. A figure lays out as a framed, captioned block; an image
-  resolves to a drawing sized from an explicit width or height — a length, or a width given as a
-  percentage of the page's text width, capped at the image's natural width — and otherwise from the
-  image's own resolution, when its bytes are available, degrading to its descriptive text otherwise. A link wraps its content in a hyperlink styled with the link character
-  style: an external destination is reached through a relationship recorded for the document and its
-  notes, and a `#`-prefixed destination points at the in-document bookmark of that name. Headings,
-  code blocks, divs, spans, tables and figures that carry an identifier each emit a bookmark spanning
-  their content, so a cross-reference resolves to them; an identifier that does not begin with a
-  letter or exceeds the length limit is replaced by a stable hashed name, applied identically to the
-  bookmark and to any link that targets it.
-- Extension toggles, reached through the target spec (`docx+…`): `native_numbering` gives each figure
-  and table a Word sequence field and a numbered caption label (`Figure N: …`, `Table N: …`) with a
-  bookmark to reference; `empty_paragraphs` keeps an empty paragraph the writer otherwise drops. A
-  `custom-style` attribute always carries through, so the `styles` toggle names behavior that is on by
-  default: on a div it sets the paragraph style of the blocks it wraps, on a span the run style; a code
-  block keeps its verbatim style regardless. `auto_identifiers` is the only default-on extension.
-- A code block's contents are emitted as plain verbatim runs, with no per-token character styles, so
-  the language is never colored — syntax highlighting is a project-wide feature not yet built for any
-  writer (see the cross-cutting features table below), and this writer takes the same verbatim stance.
-- Minor divergences that remain, none of which materially affects default-styled output:
-  - A metadata keywords list is joined with `; ` in the core properties rather than the `, ` that
-    part's convention uses.
-  - A `lang` value carried by a span or div is dropped rather than set as a run language property.
-  - A `dir=rtl` carried by a span or div is dropped rather than set as a run right-to-left property,
-    with a paragraph bidi property added when it sits on a div.
-  - An image wrapped in a link takes the hyperlink character style on its picture run, which a bare
-    picture run does not carry.
-  - The same image file referenced several times is embedded once per reference — a separate media
-    part and relationship each — rather than deduplicated to a single shared part.
-  - An empty fenced code block emits a stray empty verbatim run inside its paragraph rather than
-    leaving the paragraph with no run.
-  - A paragraph that ends in an inline equation — whether the equation renders to Office Math or,
-    when it cannot be parsed, falls back to its raw dollar-delimited text — omits the trailing
-    zero-width-space run that anchors such a paragraph.
-  - Under `native_numbering`, a figure or table whose caption is present but empty (a `Plain` or
-    `Para` holding no inline content, which non-Markdown readers can produce) emits no caption at all
-    rather than the numbered caption label.
-  - `\phantom` renders as its raw dollar-delimited text rather than an invisible phantom spacing box.
-  - `\overparen` and `\underparen` render as their raw dollar-delimited text rather than a
-    group-character parenthesis set over or under the base.
-  - The `\limits` and `\nolimits` modifiers on a big operator or integral are ignored, so limit
-    placement stays at the operator's default (an integral keeps side scripts, a sum keeps under/over
-    scripts).
-  - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
-    surrounding spacing differs.
+- A metadata keywords list is joined with `; ` in the core properties rather than the `, ` that
+  part's convention uses.
+- A `lang` value carried by a span or div is dropped rather than set as a run language property.
+- A `dir=rtl` carried by a span or div is dropped rather than set as a run right-to-left property,
+  with a paragraph bidi property added when it sits on a div.
+- An image wrapped in a link takes the hyperlink character style on its picture run, which a bare
+  picture run does not carry.
+- The same image file referenced several times is embedded once per reference — a separate media
+  part and relationship each — rather than deduplicated to a single shared part.
+- An empty fenced code block emits a stray empty verbatim run inside its paragraph rather than
+  leaving the paragraph with no run.
+- A paragraph that ends in an inline equation — whether the equation renders to Office Math or, when
+  it cannot be parsed, falls back to its raw dollar-delimited text — omits the trailing
+  zero-width-space run that anchors such a paragraph.
+- Under `native_numbering`, a figure or table whose caption is present but empty (a `Plain` or `Para`
+  holding no inline content, which non-Markdown readers can produce) emits no caption at all rather
+  than the numbered caption label.
+- `\phantom` renders as its raw dollar-delimited text rather than an invisible phantom spacing box.
+- `\overparen` and `\underparen` render as their raw dollar-delimited text rather than a
+  group-character parenthesis set over or under the base.
+- The `\limits` and `\nolimits` modifiers on a big operator or integral are ignored, so limit
+  placement stays at the operator's default (an integral keeps side scripts, a sum keeps under/over
+  scripts).
+- `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
+  surrounding spacing differs.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
