@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+| A                      | B      | C  | D  |
+|------------------------+--------+----+----|
+| #+begin_html           | \vskip | -  | ok |
+|   <!-- placeholder --> |        | -  |    |
+| #+end_html             |        |    |    |

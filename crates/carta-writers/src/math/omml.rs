@@ -12,8 +12,10 @@
 //! carries an explicit style property — `<m:sty m:val="p"/>` forces upright, and a styled-alphabet
 //! wrapper (`\mathbb`, `\mathbf`, …) spells out its bold/italic and script variant on every run.
 
+use super::inlines::NegatedBase;
 use super::parse::{
-    self, Atom, BinomKind, Body, Delim, GridKind, MatrixDelim, RunScript, ScriptKind, TextPiece,
+    self, Atom, BinomKind, Body, BraceKind, ColumnAlign, Delim, FracStyle, GridKind, MatrixDelim,
+    ModKind, RunScript, ScriptKind, ScriptRun, StackSide, TextPiece,
 };
 use super::symbols;
 
@@ -32,7 +34,7 @@ const ZERO_WIDTH_SPACE: &str = "\u{200B}";
 /// the verbatim source.
 pub(crate) fn to_omml(tex: &str, display: bool) -> Option<String> {
     let atoms = parse::parse(tex)?;
-    let body = lower_seq(&atoms, Style::PLAIN, 0)?;
+    let body = lower_seq(&atoms, Style::PLAIN, 0, display)?;
     let math = wrap("m:oMath", body);
     let root = if display {
         Element::new("m:oMathPara")
@@ -271,41 +273,154 @@ fn leaf(text: &str, ink: Ink, style: Style) -> Element {
 // Sequence and atom lowering
 // ----------------------------------------------------------------------------
 
+/// The side of a growing fence a sized delimiter forms: an opening delimiter starts one, a closing
+/// delimiter seals one.
+#[derive(Clone, Copy, PartialEq)]
+enum FenceSide {
+    Open,
+    Close,
+}
+
+/// The fence side a sized delimiter (`\big(`, `\Bigg\rangle`, …) forms, when it is one that pairs.
+/// Ordinary, relational, and punctuation followers, the plain double bar, and the backslash never
+/// pair and so return `None` — each renders as its plain upright glyph.
+fn big_delim_side(inner: &Body) -> Option<FenceSide> {
+    match inner {
+        Body::Char(c) => match c {
+            '(' | '[' | '|' => Some(FenceSide::Open),
+            ')' | ']' => Some(FenceSide::Close),
+            _ => None,
+        },
+        Body::Command(name) => match name.as_str() {
+            "{" | "lbrace" | "lVert" | "lvert" | "langle" | "lfloor" | "lceil" | "lbrack" => {
+                Some(FenceSide::Open)
+            }
+            "}" | "rbrace" | "vert" | "Vert" | "rVert" | "rvert" | "rangle" | "rfloor"
+            | "rceil" | "rbrack" => Some(FenceSide::Close),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The glyph a sized delimiter renders, used as a fence's begin or end character.
+fn big_delim_glyph(inner: &Body) -> Option<String> {
+    match inner {
+        Body::Char(c) => Some(char_glyph(*c).0),
+        Body::Command(name) => Some(command_glyph(name)?.0),
+        _ => None,
+    }
+}
+
+/// One open fence still gathering the run it encloses, held until a closing delimiter seals it.
+struct FenceFrame<'a> {
+    open_glyph: String,
+    open_body: &'a Body,
+    content: Vec<Element>,
+}
+
+/// The run the next element joins: the innermost open fence's content, or the top-level run when no
+/// fence is open.
+fn fence_target<'t>(
+    out: &'t mut Vec<Element>,
+    fences: &'t mut Vec<FenceFrame<'_>>,
+) -> &'t mut Vec<Element> {
+    match fences.last_mut() {
+        Some(frame) => &mut frame.content,
+        None => out,
+    }
+}
+
 /// Lower a run of atoms to a run of elements, folding an n-ary operator together with the operand
-/// that follows it.
-fn lower_seq(atoms: &[Atom], style: Style, depth: usize) -> Option<Vec<Element>> {
+/// that follows it and enclosing each matched pair of sized delimiters in a growing fence.
+fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Option<Vec<Element>> {
     if depth > MAX_DEPTH {
         return None;
     }
     let mut out = Vec::new();
+    let mut fences: Vec<FenceFrame<'_>> = Vec::new();
     let mut index = 0;
     while let Some(atom) = atoms.get(index) {
+        // A scriptless sized delimiter that pairs opens or seals a fence: an opener starts a new
+        // fence, a closer seals it around the run since the nearest still-open opener. A closer with
+        // no open fence, and any delimiter that does not pair, falls through to render as plain text.
+        if let Body::Big(_, inner) = &atom.body
+            && atom.sub.is_none()
+            && atom.sup.is_none()
+            && atom.siblings.is_empty()
+            && let Some(side) = big_delim_side(&inner.body)
+        {
+            match side {
+                FenceSide::Open => {
+                    fences.push(FenceFrame {
+                        open_glyph: big_delim_glyph(&inner.body)?,
+                        open_body: &inner.body,
+                        content: Vec::new(),
+                    });
+                    index += 1;
+                    continue;
+                }
+                FenceSide::Close => {
+                    if let Some(frame) = fences.pop() {
+                        let close = big_delim_glyph(&inner.body)?;
+                        let element = fence(&frame.open_glyph, &close, frame.content);
+                        fence_target(&mut out, &mut fences).push(element);
+                        index += 1;
+                        continue;
+                    }
+                }
+            }
+        }
         if let Some((glyph, limit_location)) = n_ary_operator(&atom.body)
             && (atom.sub.is_some() || atom.sup.is_some())
             && atom.siblings.is_empty()
         {
             let operand = atoms.get(index + 1);
-            out.push(n_ary_element(
-                glyph,
-                limit_location,
-                atom,
-                operand,
-                style,
-                depth,
-            )?);
+            let element = n_ary_element(glyph, limit_location, atom, operand, style, depth)?;
+            fence_target(&mut out, &mut fences).push(element);
             index += if operand.is_some() { 2 } else { 1 };
             continue;
         }
-        out.append(&mut lower_atom(atom, style, depth)?);
+        let mut lowered = lower_atom(atom, style, depth, display)?;
+        fence_target(&mut out, &mut fences).append(&mut lowered);
         index += 1;
+    }
+    // An opener never sealed reverts to plain text, set ahead of the run it had begun to enclose.
+    while let Some(frame) = fences.pop() {
+        let mut literal = nucleus(frame.open_body, style, depth)?;
+        let mut content = frame.content;
+        let target = fence_target(&mut out, &mut fences);
+        target.append(&mut literal);
+        target.append(&mut content);
     }
     Some(out)
 }
 
 /// Lower one atom: its nucleus wrapped by whatever script chain it carries.
-fn lower_atom(atom: &Atom, style: Style, depth: usize) -> Option<Vec<Element>> {
-    let base = nucleus(&atom.body, style, depth)?;
-    let runs = atom.script_runs();
+fn lower_atom(atom: &Atom, style: Style, depth: usize, display: bool) -> Option<Vec<Element>> {
+    let mut base = nucleus(&atom.body, style, depth)?;
+    let mut runs = atom.script_runs();
+    // In display mode a limit-stacking operator sets its scripts beneath and above it rather than to
+    // its sides: a named limit operator (`\lim`, `\max`, `\operatorname*{…}`) and a large set/logic
+    // operator (`\bigcup`, `\bigwedge`, …) both place their scripts as stacked limits.
+    if display
+        && atom.siblings.is_empty()
+        && stacks_display_limits(&atom.body)
+        && (atom.sub.is_some() || atom.sup.is_some())
+    {
+        return Some(vec![stacked_limits(
+            base,
+            atom.sub.as_deref(),
+            atom.sup.as_deref(),
+            style,
+            depth,
+        )?]);
+    }
+    // A horizontal brace turns its matching-side label — a superscript over an over-brace, a
+    // subscript under an under-brace — into the brace's limit rather than an ordinary script.
+    if let Body::Brace(kind, _) = &atom.body {
+        base = brace_label(*kind, base, &mut runs, style, depth)?;
+    }
     if runs.is_empty() {
         return Some(base);
     }
@@ -357,7 +472,7 @@ fn apply_scripts(
 
 /// Lower the atoms of a script slot, filling an empty slot with a zero-width space.
 fn script_slot(atoms: &[Atom], style: Style, depth: usize) -> Option<Vec<Element>> {
-    Some(non_empty(lower_seq(atoms, style, depth + 1)?))
+    Some(non_empty(lower_seq(atoms, style, depth + 1, false)?))
 }
 
 /// Lower an atom's nucleus (its body without scripts) to zero or more runs.
@@ -372,39 +487,352 @@ fn nucleus(body: &Body, style: Style, depth: usize) -> Option<Vec<Element>> {
         Body::Prime(count) => Some(vec![leaf(&prime_marks(*count), Ink::Upright, style)]),
         Body::ColonEq => Some(vec![colon_equals(style)]),
         Body::Command(name) => command_nucleus(name, style),
-        Body::Group(atoms) => lower_seq(atoms, style, depth + 1),
-        Body::Frac(numerator, denominator) => {
-            Some(vec![fraction(numerator, denominator, "bar", style, depth)?])
+        Body::Group(atoms) => lower_seq(atoms, style, depth + 1, false),
+        Body::Frac(frac_style, numerator, denominator) => {
+            let kind = match frac_style {
+                FracStyle::Bar => "bar",
+                FracStyle::Linear => "lin",
+            };
+            Some(vec![fraction(numerator, denominator, kind, style, depth)?])
         }
         Body::Sqrt(index, radicand) => {
             Some(vec![radical(index.as_deref(), radicand, style, depth)?])
         }
         Body::Accent(name, base) => Some(vec![accent(name, base, style, depth)?]),
-        Body::Styled(name, argument) => match styled_style(name, style) {
-            Some(inner) => lower_seq(argument, inner, depth + 1),
-            None => None,
-        },
+        Body::Styled(name, argument) => {
+            if let Some(strike) = cancel_strike(name) {
+                Some(vec![cancel(strike, argument, style, depth)?])
+            } else if name == "boxed" {
+                Some(vec![border_box(argument, style, depth)?])
+            } else {
+                match styled_style(name, style) {
+                    Some(inner) => lower_seq(argument, inner, depth + 1, false),
+                    None => None,
+                }
+            }
+        }
         Body::Text(name, pieces) => text(name, pieces, depth),
         Body::Binom(kind, top, bottom) => Some(vec![binomial(*kind, top, bottom, style, depth)?]),
         Body::Matrix(delimiter, rows) => Some(vec![matrix(*delimiter, rows, style, depth)?]),
         Body::Delimited(open, close, content) => {
             Some(vec![delimited(*open, *close, content, style, depth)?])
         }
-        Body::Grid(kind, rows) => grid(*kind, rows, style, depth),
+        Body::Grid(kind, aligns, rows) => grid(*kind, aligns, rows, style, depth),
         Body::Big(_, inner) => nucleus(&inner.body, style, depth),
         Body::Label(_) => Some(Vec::new()),
-        Body::Middle(_, _)
-        | Body::Mod(_, _)
-        | Body::Negated(_)
-        | Body::NegatedGroup(_)
-        | Body::Brace(_, _)
-        | Body::Stack(_, _, _)
-        | Body::ExtArrow(_, _, _) => None,
+        Body::Mod(kind, argument) => modulo(*kind, argument.as_deref(), style, depth),
+        Body::Negated(base) => negated(base),
+        Body::NegatedGroup(atoms) => Some(vec![negated_group(atoms, style, depth)?]),
+        Body::Brace(kind, group) => Some(vec![brace(*kind, group, style, depth)?]),
+        Body::Stack(side, mark, base) => Some(vec![stack(*side, mark, base, style, depth)?]),
+        Body::ExtArrow(arrow, below, above) => Some(vec![ext_arrow(
+            arrow,
+            below.as_deref(),
+            above,
+            style,
+            depth,
+        )?]),
+        // A `\middle` divider is only meaningful inside a `\left … \right` fence, handled there.
+        Body::Middle(_, _) => None,
     }
+}
+
+/// The run-properties element that forces a run upright (`<m:sty m:val="p"/>`), the shape non-letter
+/// operators and spelled-out words take.
+fn upright_props() -> Element {
+    properties(vec![style_value("p")])
+}
+
+/// Lower a horizontal brace without its label: an over-brace as a top group character, an under-brace
+/// as a lower limit carrying the bottom brace glyph.
+fn brace(kind: BraceKind, group: &[Atom], style: Style, depth: usize) -> Option<Element> {
+    let body = wrap("m:e", non_empty(lower_seq(group, style, depth + 1, false)?));
+    Some(match kind {
+        BraceKind::Over => Element::new("m:groupChr")
+            .child(
+                Element::new("m:groupChrPr")
+                    .child(Element::new("m:chr").attr("m:val", "\u{23DE}"))
+                    .child(Element::new("m:pos").attr("m:val", "top"))
+                    .child(Element::new("m:vertJc").attr("m:val", "bot")),
+            )
+            .child(body),
+        BraceKind::Under => Element::new("m:limLow")
+            .child(body)
+            .child(wrap("m:lim", vec![run("\u{23DF}", Some(upright_props()))])),
+    })
+}
+
+/// Wrap a lowered brace in its labelled limit, consuming the matching-side script. A superscript on an
+/// over-brace or a subscript on an under-brace becomes the limit; any other scripts stay to be
+/// applied as ordinary scripts on the labelled brace.
+fn brace_label(
+    kind: BraceKind,
+    base: Vec<Element>,
+    runs: &mut Vec<ScriptRun<'_>>,
+    style: Style,
+    depth: usize,
+) -> Option<Vec<Element>> {
+    let matching = match kind {
+        BraceKind::Over => ScriptKind::Sup,
+        BraceKind::Under => ScriptKind::Sub,
+    };
+    let mut label = None;
+    for run in runs.iter_mut() {
+        if let Some(index) = run
+            .scripts
+            .iter()
+            .position(|script| script.kind == matching)
+        {
+            label = Some(run.scripts.remove(index).atoms);
+            break;
+        }
+    }
+    runs.retain(|run| !run.scripts.is_empty());
+    match label {
+        Some(atoms) => {
+            let wrapper = match kind {
+                BraceKind::Over => "m:limUpp",
+                BraceKind::Under => "m:limLow",
+            };
+            Some(vec![
+                Element::new(wrapper)
+                    .child(wrap("m:e", non_empty(base)))
+                    .child(wrap("m:lim", script_slot(atoms, style, depth)?)),
+            ])
+        }
+        None => Some(base),
+    }
+}
+
+/// Lower a two-dimensional stack: the mark set as a limit over (or under) the base.
+fn stack(
+    side: StackSide,
+    mark: &[Atom],
+    base: &[Atom],
+    style: Style,
+    depth: usize,
+) -> Option<Element> {
+    let wrapper = match side {
+        StackSide::Over => "m:limUpp",
+        StackSide::Under => "m:limLow",
+    };
+    Some(
+        Element::new(wrapper)
+            .child(wrap("m:e", script_slot(base, style, depth)?))
+            .child(wrap("m:lim", script_slot(mark, style, depth)?)),
+    )
+}
+
+/// Lower an extensible arrow: the arrow glyph carrying the mandatory over-label as an upper limit,
+/// wrapped in a lower limit when an under-label is present.
+fn ext_arrow(
+    arrow: &str,
+    below: Option<&[Atom]>,
+    above: &[Atom],
+    style: Style,
+    depth: usize,
+) -> Option<Element> {
+    let glyph = match arrow {
+        "arrow.r" => "\u{2192}",
+        "arrow.l" => "\u{2190}",
+        _ => return None,
+    };
+    let upper = Element::new("m:limUpp")
+        .child(wrap("m:e", vec![run(glyph, Some(upright_props()))]))
+        .child(wrap("m:lim", script_slot(above, style, depth)?));
+    Some(match below {
+        Some(below) => Element::new("m:limLow")
+            .child(wrap("m:e", vec![upper]))
+            .child(wrap("m:lim", script_slot(below, style, depth)?)),
+        None => upper,
+    })
+}
+
+/// Lower a modulo operator to its run sequence: a leading space, an optional opening parenthesis, the
+/// `mod` word (for every form but `\pod`), a following space, the bracketed modulus for the
+/// parenthesised forms, and a closing parenthesis. `\mod` leads with a three-per-em space; the others
+/// with a four-per-em space.
+fn modulo(
+    kind: ModKind,
+    argument: Option<&[Atom]>,
+    style: Style,
+    depth: usize,
+) -> Option<Vec<Element>> {
+    let lead = if matches!(kind, ModKind::Mod) {
+        "\u{2004}"
+    } else {
+        "\u{2005}"
+    };
+    let parenthesised = matches!(kind, ModKind::Pmod | ModKind::Pod);
+    let mut out = vec![run(lead, None)];
+    if parenthesised {
+        out.push(run("(", Some(upright_props())));
+    }
+    if !matches!(kind, ModKind::Pod) {
+        out.push(run("mod", Some(upright_props())));
+        out.push(run("\u{2005}", None));
+    }
+    if let Some(argument) = argument {
+        out.append(&mut lower_seq(argument, style, depth + 1, false)?);
+    }
+    if parenthesised {
+        out.push(run(")", Some(upright_props())));
+    }
+    Some(out)
+}
+
+/// Lower a `\not`-negated base. A relation with a precomposed negated glyph strikes bare; a relation
+/// struck by a combining long solidus takes operator-emulation spacing inside a box; a letter,
+/// delimiter, or digit carries the solidus in its ordinary styling. An unnegatable base has no
+/// rendering and reports the expression unconvertible.
+fn negated(base: &str) -> Option<Vec<Element>> {
+    if symbols::is_unnegatable(base) {
+        return None;
+    }
+    if let Some(glyph) = symbols::negated_relation(base) {
+        return Some(vec![run(glyph, Some(upright_props()))]);
+    }
+    Some(match super::inlines::negated_base(base)? {
+        NegatedBase::Relation(mut glyph) => {
+            glyph.push('\u{0338}');
+            vec![operator_box(run(&glyph, Some(upright_props())))]
+        }
+        // A struck-through letter or symbol keeps its ordinary run styling; only relations gain the
+        // operator box, so both non-relation bases render the same way here.
+        NegatedBase::Italic(mut glyph) | NegatedBase::Upright(mut glyph) => {
+            glyph.push('\u{0338}');
+            vec![run(&glyph, None)]
+        }
+    })
+}
+
+/// Wrap a run in an operator-emulation box, giving the struck relation inside it relation spacing
+/// against its neighbours.
+fn operator_box(inner: Element) -> Element {
+    Element::new("m:box")
+        .child(Element::new("m:boxPr").child(Element::new("m:opEmu").attr("m:val", "on")))
+        .child(wrap("m:e", vec![inner]))
+}
+
+/// Lower a `\not` over a braced group: the group under a combining-long-solidus accent.
+fn negated_group(atoms: &[Atom], style: Style, depth: usize) -> Option<Element> {
+    Some(
+        Element::new("m:acc")
+            .child(Element::new("m:accPr").child(Element::new("m:chr").attr("m:val", "\u{0338}")))
+            .child(wrap("m:e", script_slot(atoms, style, depth)?)),
+    )
+}
+
+/// The diagonal a `\cancel`-family command strikes through its argument.
+#[derive(Clone, Copy)]
+enum CancelStrike {
+    /// `\cancel`: a rising strike from bottom-left to top-right.
+    Rising,
+    /// `\bcancel`: a falling strike from top-left to bottom-right.
+    Falling,
+    /// `\xcancel`: both diagonals.
+    Cross,
+}
+
+/// The cancel-family strike a command draws, or `None` when it is an ordinary styled wrapper.
+fn cancel_strike(name: &str) -> Option<CancelStrike> {
+    match name {
+        "cancel" => Some(CancelStrike::Rising),
+        "bcancel" => Some(CancelStrike::Falling),
+        "xcancel" => Some(CancelStrike::Cross),
+        _ => None,
+    }
+}
+
+/// Lower a cancel-family command: its argument in a border box whose four sides are hidden, struck by
+/// the requested diagonal(s).
+fn cancel(strike: CancelStrike, argument: &[Atom], style: Style, depth: usize) -> Option<Element> {
+    let mut border = Element::new("m:borderBoxPr")
+        .child(flag("m:hideTop"))
+        .child(flag("m:hideBot"))
+        .child(flag("m:hideLeft"))
+        .child(flag("m:hideRight"));
+    border = match strike {
+        CancelStrike::Rising => border.child(flag("m:strikeBLTR")),
+        CancelStrike::Falling => border.child(flag("m:strikeTLBR")),
+        CancelStrike::Cross => border
+            .child(flag("m:strikeBLTR"))
+            .child(flag("m:strikeTLBR")),
+    };
+    Some(
+        Element::new("m:borderBox")
+            .child(border)
+            .child(wrap("m:e", script_slot(argument, style, depth)?)),
+    )
+}
+
+/// A boolean OMML flag element, set on: `<name m:val="1"/>`.
+fn flag(name: &'static str) -> Element {
+    Element::new(name).attr("m:val", "1")
 }
 
 /// Lower a control-sequence nucleus: an inter-atom spacing, a Greek letter, a symbol, or a named
 /// operator. An unknown command has no rendering and reports the expression unconvertible.
+/// Whether a body is a limit-class operator whose subscript centers beneath it in display mode: a
+/// named operator like `\lim` or `\max`, or a starred `\operatorname*{…}`.
+fn is_limit_function(body: &Body) -> bool {
+    match body {
+        Body::Command(name) => symbols::named_function(name).is_some_and(|(_, limits)| limits),
+        Body::Text(name, _) => name == "operatorname*",
+        _ => false,
+    }
+}
+
+/// Whether an operator stacks its scripts as limits beneath and above it in display mode: a named
+/// limit operator (`\lim`, `\max`, …) or one of the large set/logic operators that set their bounds
+/// over and under the glyph. The large product-style operators (`\bigoplus`, `\bigotimes`, …) keep
+/// their scripts to the side instead and are deliberately excluded.
+fn stacks_display_limits(body: &Body) -> bool {
+    if is_limit_function(body) {
+        return true;
+    }
+    match body {
+        Body::Command(name) => {
+            matches!(
+                name.as_str(),
+                "bigcup" | "bigcap" | "bigvee" | "bigwedge" | "bigsqcup"
+            )
+        }
+        Body::Char(c) => matches!(
+            c,
+            '\u{22C3}' | '\u{22C2}' | '\u{22C1}' | '\u{22C0}' | '\u{2A06}'
+        ),
+        _ => false,
+    }
+}
+
+/// Set an operator's scripts as stacked limits: a subscript becomes a lower limit under the operator,
+/// a superscript an upper limit over it, and a pair nests the upper limit inside the lower one.
+fn stacked_limits(
+    base: Vec<Element>,
+    sub: Option<&[Atom]>,
+    sup: Option<&[Atom]>,
+    style: Style,
+    depth: usize,
+) -> Option<Element> {
+    let mut content = non_empty(base);
+    if let Some(sup) = sup {
+        content = vec![
+            Element::new("m:limUpp")
+                .child(wrap("m:e", content))
+                .child(wrap("m:lim", script_slot(sup, style, depth)?)),
+        ];
+    }
+    if let Some(sub) = sub {
+        return Some(
+            Element::new("m:limLow")
+                .child(wrap("m:e", content))
+                .child(wrap("m:lim", script_slot(sub, style, depth)?)),
+        );
+    }
+    content.into_iter().next()
+}
+
 fn command_nucleus(name: &str, style: Style) -> Option<Vec<Element>> {
     if let Some((text, upright)) = spacing(name) {
         let properties = upright.then(|| properties(vec![style_value("p")]));
@@ -420,6 +848,10 @@ fn command_nucleus(name: &str, style: Style) -> Option<Vec<Element>> {
 
 /// A single source character's glyph text and ink.
 fn char_glyph(c: char) -> (String, Ink) {
+    // In math a hyphen-minus is the subtraction/negation operator, drawn with the minus-sign glyph.
+    if c == '-' {
+        return ("\u{2212}".to_string(), Ink::Upright);
+    }
     let ink = if c.is_ascii_digit() {
         Ink::Digit
     } else if c.is_ascii_alphabetic() || is_lowercase_greek(c) {
@@ -554,7 +986,7 @@ fn n_ary_element(
     let sub = optional_slot(atom.sub.as_deref(), style, depth)?;
     let sup = optional_slot(atom.sup.as_deref(), style, depth)?;
     let operand = match operand {
-        Some(operand) => non_empty(lower_atom(operand, style, depth + 1)?),
+        Some(operand) => non_empty(lower_atom(operand, style, depth + 1, false)?),
         None => vec![filler()],
     };
     Some(
@@ -679,7 +1111,8 @@ fn binomial(
     Some(fence(open, close, vec![stack]))
 }
 
-/// A stretchable delimiter fence around some content.
+/// A stretchable delimiter fence around some content. An empty fence keeps an empty content slot
+/// rather than a filler, since the delimiters alone convey the grouping.
 fn fence(open: &str, close: &str, content: Vec<Element>) -> Element {
     Element::new("m:d")
         .child(
@@ -689,7 +1122,7 @@ fn fence(open: &str, close: &str, content: Vec<Element>) -> Element {
                 .child(Element::new("m:endChr").attr("m:val", close))
                 .child(Element::new("m:grow")),
         )
-        .child(wrap("m:e", non_empty(content)))
+        .child(wrap("m:e", content))
 }
 
 fn delimited(
@@ -699,17 +1132,45 @@ fn delimited(
     style: Style,
     depth: usize,
 ) -> Option<Element> {
-    // A `\middle` divider would split the fence into several slots, which this single-slot fence
-    // cannot represent, so such a group falls back to verbatim.
-    if content
-        .iter()
-        .any(|atom| matches!(atom.body, Body::Middle(_, _)))
-    {
-        return None;
-    }
     let open = open.map_or("", |delimiter| delimiter_glyph(delimiter, true));
     let close = close.map_or("", |delimiter| delimiter_glyph(delimiter, false));
-    Some(fence(open, close, lower_seq(content, style, depth + 1)?))
+
+    // A `\middle` divider partitions the fence into consecutive slots separated by its glyph.
+    let mut separator = "";
+    let mut slots: Vec<Vec<Element>> = Vec::new();
+    let mut start = 0usize;
+    for (index, atom) in content.iter().enumerate() {
+        if let Body::Middle(divider, open_side) = &atom.body {
+            separator = divider.map_or("", |delimiter| delimiter_glyph(delimiter, *open_side));
+            slots.push(lower_seq(
+                content.get(start..index)?,
+                style,
+                depth + 1,
+                false,
+            )?);
+            start = index + 1;
+        }
+    }
+    if slots.is_empty() {
+        return Some(fence(
+            open,
+            close,
+            lower_seq(content, style, depth + 1, false)?,
+        ));
+    }
+    slots.push(lower_seq(content.get(start..)?, style, depth + 1, false)?);
+
+    let mut element = Element::new("m:d").child(
+        Element::new("m:dPr")
+            .child(Element::new("m:begChr").attr("m:val", open))
+            .child(Element::new("m:sepChr").attr("m:val", separator))
+            .child(Element::new("m:endChr").attr("m:val", close))
+            .child(Element::new("m:grow")),
+    );
+    for slot in slots {
+        element = element.child(wrap("m:e", non_empty(slot)));
+    }
+    Some(element)
 }
 
 /// The glyph a stretchable delimiter renders on its opening or closing side.
@@ -733,13 +1194,21 @@ fn side(open: bool, opening: &'static str, closing: &'static str) -> &'static st
     if open { opening } else { closing }
 }
 
+/// A boxed expression, framed on all four sides.
+fn border_box(argument: &[Atom], style: Style, depth: usize) -> Option<Element> {
+    Some(Element::new("m:borderBox").child(wrap(
+        "m:e",
+        non_empty(lower_seq(argument, style, depth + 1, false)?),
+    )))
+}
+
 fn matrix(
     delimiter: MatrixDelim,
     rows: &[Vec<Vec<Atom>>],
     style: Style,
     depth: usize,
 ) -> Option<Element> {
-    let grid = grid_body(rows, "center", style, depth)?;
+    let grid = grid_body(rows, ColumnJustify::Center, style, depth)?;
     Some(match delimiter {
         MatrixDelim::None => grid,
         MatrixDelim::Paren => fence("(", ")", vec![grid]),
@@ -750,35 +1219,116 @@ fn matrix(
     })
 }
 
-/// Lower a grid environment: a case block fenced with a left brace, a stacked substack, or an
-/// aligned block set as an equation array.
+/// The per-column horizontal justification of a matrix, indexed left to right.
+#[derive(Clone, Copy)]
+enum ColumnJustify<'a> {
+    /// Every column centered.
+    Center,
+    /// Every column left-justified.
+    Left,
+    /// Every column right-justified.
+    Right,
+    /// Right, center, left, repeating — each successive alignment marker meets a column boundary.
+    RightCenterLeft,
+    /// Left, right, repeating — the two edges of a flush-both-sides layout.
+    LeftRight,
+    /// Each column set to the justification an array's column specification declares for it; columns
+    /// past the end of the specification center.
+    Explicit(&'a [ColumnAlign]),
+}
+
+impl ColumnJustify<'_> {
+    fn at(self, column: usize) -> &'static str {
+        match self {
+            ColumnJustify::Center => "center",
+            ColumnJustify::Left => "left",
+            ColumnJustify::Right => "right",
+            ColumnJustify::RightCenterLeft => match column % 3 {
+                0 => "right",
+                1 => "center",
+                _ => "left",
+            },
+            ColumnJustify::LeftRight => {
+                if column.is_multiple_of(2) {
+                    "left"
+                } else {
+                    "right"
+                }
+            }
+            ColumnJustify::Explicit(aligns) => match aligns.get(column) {
+                Some(ColumnAlign::Left) => "left",
+                Some(ColumnAlign::Right) => "right",
+                _ => "center",
+            },
+        }
+    }
+}
+
+/// Lower a grid environment. A case block is fenced with a left brace; a substack, an array, and the
+/// centered stacking environments are centered matrices; an aligned block with alignment markers is
+/// an equation array whose cells are joined by the marker, and one without is a right-justified
+/// single-column matrix; the flush environments are matrices whose columns cycle through a
+/// justification pattern so each alignment marker meets a column boundary.
 fn grid(
     kind: GridKind,
+    aligns: &[ColumnAlign],
     rows: &[Vec<Vec<Atom>>],
     style: Style,
     depth: usize,
 ) -> Option<Vec<Element>> {
     Some(match kind {
-        GridKind::Cases => vec![fence("{", "", vec![grid_body(rows, "left", style, depth)?])],
-        GridKind::Substack => vec![grid_body(rows, "center", style, depth)?],
-        GridKind::Aligned => vec![equation_array(rows, style, depth)?],
+        GridKind::Cases => {
+            vec![fence(
+                "{",
+                "",
+                vec![grid_body(rows, ColumnJustify::Left, style, depth)?],
+            )]
+        }
+        GridKind::Array => {
+            let justification = if aligns.is_empty() {
+                ColumnJustify::Center
+            } else {
+                ColumnJustify::Explicit(aligns)
+            };
+            vec![grid_body(rows, justification, style, depth)?]
+        }
+        GridKind::Substack | GridKind::Gathered => {
+            vec![grid_body(rows, ColumnJustify::Center, style, depth)?]
+        }
+        // With alignment markers each line's cells join into an equation-array line; with none — a
+        // single column of expressions — the block is instead a right-justified single-column matrix.
+        GridKind::Aligned => {
+            let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
+            if columns <= 1 {
+                vec![grid_body(rows, ColumnJustify::Right, style, depth)?]
+            } else {
+                vec![equation_array(rows, style, depth)?]
+            }
+        }
+        GridKind::Eqnarray => vec![grid_body(
+            rows,
+            ColumnJustify::RightCenterLeft,
+            style,
+            depth,
+        )?],
+        GridKind::Flalign => vec![grid_body(rows, ColumnJustify::LeftRight, style, depth)?],
     })
 }
 
 /// The `<m:m>` matrix body: column properties for the widest row, then a matrix row per source row.
 fn grid_body(
     rows: &[Vec<Vec<Atom>>],
-    justification: &'static str,
+    justification: ColumnJustify<'_>,
     style: Style,
     depth: usize,
 ) -> Option<Element> {
     let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
     let mut column_properties = Element::new("m:mcs");
-    for _ in 0..columns {
+    for column in 0..columns {
         column_properties = column_properties.child(
             Element::new("m:mc").child(
                 Element::new("m:mcPr")
-                    .child(Element::new("m:mcJc").attr("m:val", justification))
+                    .child(Element::new("m:mcJc").attr("m:val", justification.at(column)))
                     .child(Element::new("m:count").attr("m:val", "1")),
             ),
         );
@@ -809,7 +1359,7 @@ fn equation_array(rows: &[Vec<Vec<Atom>>], style: Style, depth: usize) -> Option
             if column > 0 {
                 line.push(run("&", None));
             }
-            line.append(&mut lower_seq(cell, style, depth + 1)?);
+            line.append(&mut lower_seq(cell, style, depth + 1, false)?);
         }
         array = array.child(wrap("m:e", non_empty(line)));
     }
@@ -822,7 +1372,7 @@ fn equation_array(rows: &[Vec<Vec<Atom>>], style: Style, depth: usize) -> Option
 
 /// The style a styled-alphabet or math-class wrapper imposes on its argument. A class wrapper sets
 /// its argument upright; an alphabet wrapper selects a script variant and bold/italic axes. An
-/// unsupported presentation wrapper (`\phantom`, `\boxed`, …) reports the expression unconvertible.
+/// unsupported presentation wrapper (`\phantom`, …) reports the expression unconvertible.
 fn styled_style(name: &str, current: Style) -> Option<Style> {
     let base = Style::WRAPPER;
     Some(match name {
@@ -902,7 +1452,7 @@ fn styled_style(name: &str, current: Style) -> Option<Style> {
 /// each literal run in normal text with the wrapper's formatting and switches back to math mode for
 /// any embedded sub-expression.
 fn text(name: &str, pieces: &[TextPiece], depth: usize) -> Option<Vec<Element>> {
-    if name == "operatorname" {
+    if name == "operatorname" || name == "operatorname*" {
         let mut word = String::new();
         for piece in pieces {
             match piece {
@@ -921,7 +1471,9 @@ fn text(name: &str, pieces: &[TextPiece], depth: usize) -> Option<Vec<Element>> 
             TextPiece::Space(space) => {
                 out.push(leaf(&space.codepoint().to_string(), Ink::Upright, style));
             }
-            TextPiece::Math(atoms) => out.append(&mut lower_seq(atoms, Style::PLAIN, depth + 1)?),
+            TextPiece::Math(atoms) => {
+                out.append(&mut lower_seq(atoms, Style::PLAIN, depth + 1, false)?);
+            }
         }
     }
     Some(out)

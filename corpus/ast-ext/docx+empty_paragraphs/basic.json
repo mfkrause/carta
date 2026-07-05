@@ -1,0 +1,33 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "First."
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": []
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Second."
+        }
+      ]
+    }
+  ]
+}

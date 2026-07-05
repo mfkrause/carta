@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+a (mod  n) a mod  b a mod  b a (n)

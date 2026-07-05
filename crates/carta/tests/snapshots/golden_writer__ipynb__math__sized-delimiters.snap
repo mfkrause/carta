@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "$\\big( x \\big)$ $\\Big[ \\big\\{ y \\big\\} \\Big]$\n",
+    "$\\bigg\\langle v \\bigg\\rangle$ $\\big( a \\big/ b$\n",
+    "\n",
+    "$$\\Bigg( \\sum_{i} a_i \\Bigg)$$"
+   ],
+   "id": "9f9e8ba6-b1b7-4532-8fb0-e3fc189a4fe4"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

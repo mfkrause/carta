@@ -1,0 +1,115 @@
+---
+source: crates/carta/tests/docx.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+<w:body>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="FirstParagraph" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">Over the reals</w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve"> </w:t>
+</w:r>
+<m:oMath>
+<m:r>
+<m:rPr>
+<m:scr m:val="double-struck" />
+<m:sty m:val="p" />
+</m:rPr>
+<m:t>R</m:t>
+</m:r>
+<m:r>
+<m:rPr>
+<m:sty m:val="p" />
+</m:rPr>
+<m:t>×</m:t>
+</m:r>
+<m:r>
+<m:rPr>
+<m:scr m:val="double-struck" />
+<m:sty m:val="p" />
+</m:rPr>
+<m:t>R</m:t>
+</m:r>
+</m:oMath>
+<w:r>
+<w:t xml:space="preserve"> </w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve">we work.</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BodyText" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">The power</w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve"> </w:t>
+</w:r>
+<m:oMath>
+<m:sSup>
+<m:e>
+<m:r>
+<m:t>x</m:t>
+</m:r>
+</m:e>
+<m:sup>
+<m:r>
+<m:t>3</m:t>
+</m:r>
+</m:sup>
+</m:sSup>
+</m:oMath>
+<w:r>
+<w:t xml:space="preserve"> </w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve">is cubic.</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BodyText" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">The rebound</w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve"> </w:t>
+</w:r>
+<m:oMath>
+<m:sSub>
+<m:e>
+<m:r>
+<m:t>α</m:t>
+</m:r>
+</m:e>
+<m:sub>
+<m:r>
+<m:t>2</m:t>
+</m:r>
+</m:sub>
+</m:sSub>
+</m:oMath>
+<w:r>
+<w:t xml:space="preserve"> </w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve">is alpha.</w:t>
+</w:r>
+</w:p>
+<w:sectPr>
+<w:footnotePr>
+<w:numRestart w:val="eachSect" />
+</w:footnotePr>
+</w:sectPr>
+</w:body>
+</w:document>

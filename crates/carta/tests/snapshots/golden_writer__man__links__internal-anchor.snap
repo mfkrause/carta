@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.SH Section One
+Back to the section, or an \c
+.UR https://example.org/docs
+outside page
+.UE \c
+\&.

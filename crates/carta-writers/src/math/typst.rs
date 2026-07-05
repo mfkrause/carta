@@ -108,7 +108,7 @@ fn first_label(atoms: &[Atom]) -> Option<&str> {
 
 /// Search a body's nested atom lists (the cells of a grid or matrix) for an equation `\label`.
 fn label_in_body(body: &Body) -> Option<&str> {
-    let (Body::Grid(_, rows) | Body::Matrix(_, rows)) = body else {
+    let (Body::Grid(_, _, rows) | Body::Matrix(_, rows)) = body else {
         return None;
     };
     rows.iter().flatten().find_map(|cell| first_label(cell))
@@ -502,7 +502,7 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
             Some(format!("#scale(x: {scale}%, y: {scale}%)[{inner}]"))
         }
         Body::Stack(side, mark, base) => stack_str(display, *side, mark, base),
-        Body::Grid(kind, rows) => grid_str(display, *kind, rows),
+        Body::Grid(kind, _, rows) => grid_str(display, *kind, rows),
         Body::ExtArrow(arrow, below, above) => {
             ext_arrow_str(display, arrow, below.as_deref(), above)
         }
@@ -523,7 +523,7 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
             let content = lower(display, inner)?;
             Some(format!("{}({content})", brace_func(*kind)))
         }
-        Body::Frac(num, den) => frac_str(display, num, den),
+        Body::Frac(_, num, den) => frac_str(display, num, den),
         Body::Sqrt(index, radicand) => {
             let inner = lower(display, radicand)?;
             match index {
@@ -623,7 +623,12 @@ fn grid_str(display: bool, kind: GridKind, rows: &[Vec<Vec<Atom>>]) -> Option<St
             }
             Some(format!("cases(delim: \"{{\", {})", row_strs.join(", ")))
         }
-        GridKind::Aligned | GridKind::Substack => {
+        GridKind::Aligned
+        | GridKind::Array
+        | GridKind::Substack
+        | GridKind::Gathered
+        | GridKind::Eqnarray
+        | GridKind::Flalign => {
             let mut row_strs = Vec::new();
             for row in rows {
                 let mut cells = Vec::new();
@@ -779,7 +784,16 @@ fn fused_grid_str(
         Body::Group(inner) => sole_unscripted_atom(inner)?,
         _ => atom,
     };
-    let (Body::Matrix(MatrixDelim::None, rows) | Body::Grid(GridKind::Aligned, rows)) = &atom.body
+    let (Body::Matrix(MatrixDelim::None, rows)
+    | Body::Grid(
+        GridKind::Aligned
+        | GridKind::Array
+        | GridKind::Gathered
+        | GridKind::Eqnarray
+        | GridKind::Flalign,
+        _,
+        rows,
+    )) = &atom.body
     else {
         return None;
     };
@@ -1152,9 +1166,10 @@ fn operator_name(atoms: &[Atom]) -> Option<String> {
 
 fn text_str(display: bool, name: &str, content: &[TextPiece]) -> Option<String> {
     // `\operatorname` folds any spacing into its single run, so it renders as one identifier or quoted
-    // string over the whole content. Every other wrapper applies its formatting to each run, with the
-    // spacing emitted as a Typst spacing token between them.
-    if name == "operatorname" {
+    // string over the whole content. The starred `\operatorname*` differs only in how a display-mode
+    // subscript is placed, which the flat text form does not carry, so it renders the same here. Every
+    // other wrapper applies its formatting to each run, with spacing emitted as a token between them.
+    if name == "operatorname" || name == "operatorname*" {
         let text = text_run_text(content);
         let s = if super::symbols::named_function(&text).is_some() {
             text

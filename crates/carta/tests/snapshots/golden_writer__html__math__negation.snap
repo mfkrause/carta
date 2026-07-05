@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><span class="math inline">\(\not= b\)</span> <span
+class="math inline">\(\not&lt; c\)</span> <span
+class="math inline">\(\not\subset B\)</span> <span
+class="math inline">\(\not\vdash \phi\)</span> <span
+class="math inline">\(\not\rightarrow\)</span> <span
+class="math inline">\(\not a\)</span></p>

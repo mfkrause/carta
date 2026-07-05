@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+:math:`a \pmod{n}` :math:`a \mod b` :math:`a \bmod b` :math:`a \pod{n}`

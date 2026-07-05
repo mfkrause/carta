@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<outline text="Section One" _note="Back to [the section](#section-one), or an [outside&#10;page](https://example.org/docs).">
+</outline>

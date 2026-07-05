@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"\\begin{aligned} x^2 + 1 \\\\ \\frac{a}{b} \\end{aligned}"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"\\begin{aligned} a &= b + c \\\\ d &= e \\end{aligned}"]}]},{"t":"Para","c":[{"t":"Str","c":"stack"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\begin{aligned} p \\\\ q \\\\ r \\end{aligned}"]}]}]}

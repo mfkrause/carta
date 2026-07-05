@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$`\begin{array}{cc}a & b \\ c & d\end{array}`$
+$`\begin{array}{ccc}1 & 2 & 3 \\ 4 & 5 & 6\end{array}`$

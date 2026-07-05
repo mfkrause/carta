@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+$\(rsoverbrace{a+b}$ $\(rsunderbrace{x+y+z}$ $\(rsoverbrace{a+b}\(ha{n}$ $\(rsunderbrace{x+y}_{k}$

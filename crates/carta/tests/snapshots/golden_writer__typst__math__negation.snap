@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$eq.not b$ $lt.not c$ $subset.not B$ $⊬ phi.alt$ $↛$ $"a̸"$

@@ -1,0 +1,162 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "BlockQuote",
+      "c": [
+        {
+          "t": "BulletList",
+          "c": [
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "one"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "Para",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "two"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "BlockQuote",
+      "c": [
+        {
+          "t": "BulletList",
+          "c": [
+            [
+              {
+                "t": "Plain",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "a"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "Plain",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "b"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "BlockQuote",
+      "c": [
+        {
+          "t": "OrderedList",
+          "c": [
+            [
+              1,
+              {
+                "t": "Decimal"
+              },
+              {
+                "t": "Period"
+              }
+            ],
+            [
+              [
+                {
+                  "t": "Para",
+                  "c": [
+                    {
+                      "t": "Str",
+                      "c": "x"
+                    }
+                  ]
+                }
+              ],
+              [
+                {
+                  "t": "Para",
+                  "c": [
+                    {
+                      "t": "Str",
+                      "c": "y"
+                    }
+                  ]
+                }
+              ]
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "t": "DefinitionList",
+      "c": [
+        [
+          [
+            {
+              "t": "Str",
+              "c": "Term"
+            }
+          ],
+          [
+            [
+              {
+                "t": "BulletList",
+                "c": [
+                  [
+                    {
+                      "t": "Para",
+                      "c": [
+                        {
+                          "t": "Str",
+                          "c": "d1"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "t": "Para",
+                      "c": [
+                        {
+                          "t": "Str",
+                          "c": "d2"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ]
+          ]
+        ]
+      ]
+    }
+  ]
+}

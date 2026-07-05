@@ -8,11 +8,13 @@
 /// The XML declaration a document part begins with.
 pub const DECLARATION: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 
-/// A node within an [`Element`]: a child element or escaped text.
+/// A node within an [`Element`]: a child element, escaped text, or a pre-serialized raw fragment
+/// emitted verbatim.
 #[derive(Debug, Clone)]
 enum Node {
     Element(Element),
     Text(String),
+    Raw(String),
 }
 
 /// An XML element with ordered attributes and children.
@@ -58,6 +60,38 @@ impl Element {
     /// Appends a child element in place.
     pub fn push(&mut self, child: Element) {
         self.children.push(Node::Element(child));
+    }
+
+    /// Appends a pre-serialized markup fragment, emitted verbatim with no escaping. The caller owns
+    /// the fragment's well-formedness; this is for passing through markup already in the target
+    /// vocabulary (raw passthrough, a math fragment built elsewhere).
+    #[must_use]
+    pub fn raw(mut self, fragment: &str) -> Self {
+        self.children.push(Node::Raw(fragment.to_owned()));
+        self
+    }
+
+    /// Appends a pre-serialized markup fragment in place, emitted verbatim with no escaping.
+    pub fn push_raw(&mut self, fragment: &str) {
+        self.children.push(Node::Raw(fragment.to_owned()));
+    }
+
+    /// The tag name of the last child element, ignoring trailing text and raw fragments. `None` when
+    /// there is no child element. Lets a caller enforce a schema rule about what an element may end
+    /// on (a table cell, for one, must end on a paragraph).
+    #[must_use]
+    pub fn last_child_element_name(&self) -> Option<&str> {
+        self.children.iter().rev().find_map(|node| match node {
+            Node::Element(element) => Some(element.name.as_str()),
+            _ => None,
+        })
+    }
+
+    /// The number of children, elements and text and raw fragments alike. Lets a caller snapshot an
+    /// element's contents before appending to it and so learn whether the append produced anything.
+    #[must_use]
+    pub fn child_count(&self) -> usize {
+        self.children.len()
     }
 
     /// Serializes this element and its descendants. No XML declaration is prepended; a caller that
@@ -111,6 +145,7 @@ impl Element {
             match child {
                 Node::Element(element) => element.render_into(out),
                 Node::Text(text) => escape_text(text, out),
+                Node::Raw(fragment) => out.push_str(fragment),
             }
         }
         out.push_str("</");
@@ -127,14 +162,18 @@ impl Element {
             out.push_str(" />");
             return;
         }
-        // An element whose content is purely text stays on one line; only child elements force the
-        // indented, multi-line layout.
-        if !self.children.iter().any(|c| matches!(c, Node::Element(_))) {
+        // An element whose content is purely text stays on one line; child elements and raw
+        // fragments (which may themselves hold elements) force the indented, multi-line layout.
+        if !self
+            .children
+            .iter()
+            .any(|c| matches!(c, Node::Element(_) | Node::Raw(_)))
+        {
             out.push('>');
             for child in &self.children {
                 match child {
                     Node::Text(text) => escape_text(text, out),
-                    Node::Element(_) => {}
+                    Node::Element(_) | Node::Raw(_) => {}
                 }
             }
             out.push_str("</");
@@ -154,6 +193,13 @@ impl Element {
                         out.push_str("  ");
                     }
                     escape_text(text, out);
+                    out.push('\n');
+                }
+                Node::Raw(fragment) => {
+                    for _ in 0..=depth {
+                        out.push_str("  ");
+                    }
+                    out.push_str(fragment);
                     out.push('\n');
                 }
             }

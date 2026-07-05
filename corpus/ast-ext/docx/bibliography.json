@@ -1,0 +1,102 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Header",
+      "c": [
+        1,
+        [
+          "bibliography",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "References"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "refs",
+          [
+            "references",
+            "csl-bib-body"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Div",
+            "c": [
+              [
+                "ref-smith2020",
+                [
+                  "csl-entry"
+                ],
+                []
+              ],
+              [
+                {
+                  "t": "Para",
+                  "c": [
+                    {
+                      "t": "Str",
+                      "c": "Smith, J. (2020). "
+                    },
+                    {
+                      "t": "Emph",
+                      "c": [
+                        {
+                          "t": "Str",
+                          "c": "A Title"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "Str",
+                      "c": "."
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "t": "Div",
+            "c": [
+              [
+                "ref-doe2019",
+                [
+                  "csl-entry"
+                ],
+                []
+              ],
+              [
+                {
+                  "t": "Para",
+                  "c": [
+                    {
+                      "t": "Str",
+                      "c": "Doe, A. (2019). Another work."
+                    }
+                  ]
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  ]
+}

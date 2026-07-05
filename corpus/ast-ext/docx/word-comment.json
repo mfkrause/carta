@@ -1,0 +1,174 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "The"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [
+                "comment-start"
+              ],
+              [
+                [
+                  "id",
+                  "0"
+                ],
+                [
+                  "author",
+                  "Alice"
+                ],
+                [
+                  "date",
+                  "2020-01-01T09:00:00Z"
+                ]
+              ]
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "This"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "needs"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "work."
+              }
+            ]
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "first"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "range"
+        },
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [
+                "comment-end"
+              ],
+              [
+                [
+                  "id",
+                  "0"
+                ]
+              ]
+            ],
+            []
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "and"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [
+                "comment-start"
+              ],
+              [
+                [
+                  "id",
+                  "1"
+                ],
+                [
+                  "author",
+                  "Bob"
+                ]
+              ]
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "Second"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "note."
+              }
+            ]
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "second"
+        },
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [
+                "comment-end"
+              ],
+              [
+                [
+                  "id",
+                  "1"
+                ]
+              ]
+            ],
+            []
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "."
+        }
+      ]
+    }
+  ]
+}

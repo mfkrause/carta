@@ -304,7 +304,7 @@ fn ends_with_intrinsic_thin_space(atom: &Atom) -> bool {
         && atom.siblings.is_empty()
         && match &atom.body {
             Body::Command(name) => symbols::named_function(name).is_some(),
-            Body::Text(name, _) => name == "operatorname",
+            Body::Text(name, _) => name == "operatorname" || name == "operatorname*",
             _ => false,
         }
 }
@@ -383,13 +383,13 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
         // Two-dimensional constructs never linearise. A `\not` over a braced group has no linear
         // overlay, so it falls back to verbatim alongside them.
         Body::NegatedGroup(_)
-        | Body::Frac(_, _)
+        | Body::Frac(_, _, _)
         | Body::Sqrt(_, _)
         | Body::Binom(_, _, _)
         | Body::Matrix(_, _)
         | Body::Brace(_, _)
         | Body::Stack(_, _, _)
-        | Body::Grid(_, _)
+        | Body::Grid(_, _, _)
         | Body::ExtArrow(_, _, _) => None,
     }
 }
@@ -430,7 +430,7 @@ fn render_negated(base: &str) -> Option<(Vec<Inline>, Class, bool, bool)> {
 }
 
 /// How a `\not` base is struck through, with its plain (unstruck) glyph.
-enum NegatedBase {
+pub(super) enum NegatedBase {
     /// A relation base: the combining solidus sits on it and it keeps relation spacing.
     Relation(String),
     /// A letter, Greek letter, or delimiter base: the struck glyph is set in variable italics and
@@ -442,7 +442,7 @@ enum NegatedBase {
 
 /// Classify a `\not` base and resolve its plain glyph, or `None` when the base carries no meaningful
 /// strike-through (a binary or large operator, an ordinary symbol, or punctuation).
-fn negated_base(base: &str) -> Option<NegatedBase> {
+pub(super) fn negated_base(base: &str) -> Option<NegatedBase> {
     if let Some(c) = single_char(base) {
         if c.is_ascii_digit() {
             return Some(NegatedBase::Upright(c.to_string()));
@@ -554,7 +554,7 @@ fn delim_glyph(delim: Delim, side: DelimSide) -> &'static str {
 fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class, bool, bool)> {
     // The wrapper's formatting applies to each literal run independently, so a spacing inside the
     // wrapper produces a separately-wrapped run on either side; the spacing itself is a bare glyph.
-    let intrinsic_thin = name == "operatorname";
+    let intrinsic_thin = name == "operatorname" || name == "operatorname*";
     let mut inlines = Vec::new();
     for piece in content {
         match piece {
@@ -576,7 +576,7 @@ fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class,
 fn wrap_text_run(name: &str, run: &str) -> Option<Vec<Inline>> {
     let text = Inline::Str(run.into());
     let wrapped = match name {
-        "text" | "textrm" | "textsf" | "mbox" | "operatorname" => vec![text],
+        "text" | "textrm" | "textsf" | "mbox" | "operatorname" | "operatorname*" => vec![text],
         "textbf" => vec![Inline::Strong(vec![text])],
         "textit" => vec![Inline::Emph(vec![text])],
         // Typewriter text renders as a code span over the run.

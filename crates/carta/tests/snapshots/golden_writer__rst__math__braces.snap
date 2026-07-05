@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+:math:`\overbrace{a+b}` :math:`\underbrace{x+y+z}`
+:math:`\overbrace{a+b}^{n}` :math:`\underbrace{x+y}_{k}`

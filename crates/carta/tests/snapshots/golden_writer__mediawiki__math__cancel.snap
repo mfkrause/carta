@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<math display="inline">\cancel{x}</math> <math display="inline">\bcancel{y+z}</math> <math display="inline">\xcancel{abc}</math>

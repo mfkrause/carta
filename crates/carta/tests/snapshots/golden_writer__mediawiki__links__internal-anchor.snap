@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<span id="section-one"></span>
+= Section One =
+
+Back to [[#section-one|the section]], or an [https://example.org/docs outside page].

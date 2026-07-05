@@ -13,7 +13,7 @@ use std::process::ExitCode;
 
 use carta::ast::{Block, MetaValue};
 use carta::{
-    EpubOptions, Error, MathMethod, MediaBag, Output, ReaderOptions, Result, WrapMode,
+    DocxOptions, EpubOptions, Error, MathMethod, MediaBag, Output, ReaderOptions, Result, WrapMode,
     WriterOptions, media, read_document, render_document, walk,
 };
 use clap::{ArgAction, Parser};
@@ -131,6 +131,10 @@ struct Cli {
     /// an accepted alias.
     #[arg(long = "split-level", visible_alias = "epub-chapter-level", value_name = "N", value_parser = parse_split_level)]
     split_level: Option<usize>,
+    /// Style a DOCX from this reference document: its styling parts and document template are reused,
+    /// and the converted content is generated into it.
+    #[arg(long = "reference-doc", value_name = "FILE")]
+    reference_doc: Option<PathBuf>,
     /// List the input formats this build supports and exit.
     #[arg(long = "list-input-formats")]
     list_input_formats: bool,
@@ -221,7 +225,9 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
     writer_options.source_name = Some(source_name(cli.input.as_deref()));
-    if embeds_resources(to) {
+    if is_docx(to) {
+        writer_options.docx = docx_options(cli)?;
+    } else if embeds_resources(to) {
         writer_options.epub = epub_options(cli)?;
     }
 
@@ -340,7 +346,12 @@ fn default_template_extension(to_base: &str) -> &str {
 /// Whether the target format packs the resources a document references into its output, so those
 /// resources must be resolved before rendering.
 fn embeds_resources(to: &str) -> bool {
-    to.starts_with("epub")
+    to.starts_with("epub") || is_docx(to)
+}
+
+/// Whether the target format is DOCX (any extension toggles follow the base name).
+fn is_docx(to: &str) -> bool {
+    to.starts_with("docx")
 }
 
 /// Assemble the EPUB writer options from the command line: stylesheets, cover image, embedded fonts,
@@ -365,6 +376,18 @@ fn epub_options(cli: &Cli) -> Result<EpubOptions> {
     epub.source_date_epoch = source_date_epoch();
     epub.locale = std::env::var("LANG").ok();
     Ok(epub)
+}
+
+/// Assemble the DOCX writer options from the command line: the reference document read from disk,
+/// and the reproducible-build timestamp and locale fallback shared with the EPUB writer.
+fn docx_options(cli: &Cli) -> Result<DocxOptions> {
+    let mut docx = DocxOptions::default();
+    if let Some(path) = &cli.reference_doc {
+        docx.reference_doc = Some(fs::read(path)?);
+    }
+    docx.source_date_epoch = source_date_epoch();
+    docx.locale = std::env::var("LANG").ok();
+    Ok(docx)
 }
 
 /// The final component of a path, as an owned string; empty when the path has none.

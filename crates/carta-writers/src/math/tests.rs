@@ -3822,10 +3822,16 @@ fn an_empty_label_carries_no_reference() {
 }
 
 #[test]
-fn an_annotation_after_content_falls_back_to_verbatim() {
-    // Past the leading run these commands are ordinary unknown control sequences.
-    assert_eq!(to_typst("x \\label{foo}"), None);
-    assert_eq!(to_typst("x \\nonumber"), None);
+fn a_trailing_annotation_is_stripped_like_a_leading_one() {
+    // An equation-numbering annotation labels the whole expression, so it is consumed wherever it
+    // sits — after the content just as before it — rather than left as an unknown control sequence.
+    // A trailing `\label` still lifts to a reference; `\nonumber` and `\tag` drop without a trace.
+    assert_eq!(
+        typst_labeled("x \\label{foo}"),
+        Some(("x".into(), Some("<foo>".into())))
+    );
+    assert_eq!(typst_labeled("x \\nonumber"), Some(("x".into(), None)));
+    assert_eq!(typst_labeled("x \\tag{1}"), Some(("x".into(), None)));
 }
 
 #[test]

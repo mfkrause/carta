@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section id="section-one" class="slide level1">
+<h1>Section One</h1>
+<p>Back to <a href="#section-one">the section</a>, or an <a
+href="https://example.org/docs">outside page</a>.</p>
+</section>

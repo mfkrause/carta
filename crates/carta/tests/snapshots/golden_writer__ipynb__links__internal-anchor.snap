@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Section One\n",
+    "\n",
+    "Back to [the section](#section-one), or an [outside\n",
+    "page](https://example.org/docs)."
+   ],
+   "id": "83220331-1802-40df-b0a9-0b2dd524227a"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

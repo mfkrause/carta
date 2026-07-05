@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+latexmath:[\cancel{x}] latexmath:[\bcancel{y+z}]
+latexmath:[\xcancel{abc}]

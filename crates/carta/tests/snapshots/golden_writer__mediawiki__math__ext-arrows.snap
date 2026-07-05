@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<math display="inline">\xrightarrow{f}</math> <math display="inline">\xleftarrow{g}</math> <math display="inline">\xrightarrow[u]{f}</math>

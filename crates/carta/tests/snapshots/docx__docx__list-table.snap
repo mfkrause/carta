@@ -1,0 +1,89 @@
+---
+source: crates/carta/tests/docx.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+<w:body>
+<w:p>
+<w:pPr>
+<w:numPr>
+<w:ilvl w:val="0" />
+<w:numId w:val="1001" />
+</w:numPr>
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">Item with a table.</w:t>
+</w:r>
+</w:p>
+<w:tbl>
+<w:tblPr>
+<w:tblStyle w:val="Table" />
+<w:tblW w:type="auto" w:w="0" />
+<w:jc w:val="left" />
+<w:tblInd w:w="720" w:type="dxa" />
+<w:tblLook w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="0" w:val="0020" />
+</w:tblPr>
+<w:tblGrid>
+<w:gridCol w:w="3960" />
+<w:gridCol w:w="3960" />
+</w:tblGrid>
+<w:tr>
+<w:trPr>
+<w:tblHeader w:val="on" />
+</w:trPr>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">A</w:t>
+</w:r>
+</w:p>
+</w:tc>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">B</w:t>
+</w:r>
+</w:p>
+</w:tc>
+</w:tr>
+<w:tr>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">1</w:t>
+</w:r>
+</w:p>
+</w:tc>
+<w:tc>
+<w:tcPr />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Compact" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">2</w:t>
+</w:r>
+</w:p>
+</w:tc>
+</w:tr>
+</w:tbl>
+<w:sectPr>
+<w:footnotePr>
+<w:numRestart w:val="eachSect" />
+</w:footnotePr>
+</w:sectPr>
+</w:body>
+</w:document>

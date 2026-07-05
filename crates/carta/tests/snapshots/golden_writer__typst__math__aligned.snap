@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$ x^2 + 1\
+a / b $
+
+$ a & = b + c\
+d & = e $
+
+stack $p\
+q\
+r$

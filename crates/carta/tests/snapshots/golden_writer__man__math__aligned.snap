@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.RS
+$$\(rsbegin{aligned} x\(ha2 + 1 \(rs\(rs \(rsfrac{a}{b} \(rsend{aligned}$$
+.RE
+.PP
+.RS
+$$\(rsbegin{aligned} a &= b + c \(rs\(rs d &= e \(rsend{aligned}$$
+.RE
+.PP
+stack $\(rsbegin{aligned} p \(rs\(rs q \(rs\(rs r \(rsend{aligned}$

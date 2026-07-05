@@ -17,6 +17,7 @@ mod pages;
 mod sections;
 mod styles;
 
+use crate::image_size::image_dimensions;
 use carta_ast::{Block, Document, Inline};
 use carta_core::container::zip::ZipArchive;
 use carta_core::media::{MediaItem, extension_for_mime};
@@ -880,133 +881,13 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (year, month, day)
 }
 
-/// The pixel dimensions of an image, read from its header. Returns `(0, 0)` for a format that is not
-/// recognized or a header that is too short to parse.
-fn image_dimensions(bytes: &[u8]) -> (u32, u32) {
-    png_dimensions(bytes)
-        .or_else(|| gif_dimensions(bytes))
-        .or_else(|| jpeg_dimensions(bytes))
-        .unwrap_or((0, 0))
-}
-
-/// The dimensions in a PNG's `IHDR` chunk, or `None` when the signature does not match.
-fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
-    const SIGNATURE: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
-    if bytes.get(..8) != Some(SIGNATURE) {
-        return None;
-    }
-    Some((read_be_u32(bytes, 16)?, read_be_u32(bytes, 20)?))
-}
-
-/// The dimensions in a GIF's logical screen descriptor, or `None` when the signature does not match.
-fn gif_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
-    let header = bytes.get(..6)?;
-    if header != b"GIF87a".as_slice() && header != b"GIF89a".as_slice() {
-        return None;
-    }
-    Some((
-        u32::from(read_le_u16(bytes, 6)?),
-        u32::from(read_le_u16(bytes, 8)?),
-    ))
-}
-
-/// The dimensions in a JPEG's first frame header, or `None` when the marker structure does not match.
-fn jpeg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
-    if bytes.get(..2) != Some([0xff, 0xd8].as_slice()) {
-        return None;
-    }
-    let mut offset = 2usize;
-    loop {
-        let mut marker = *bytes.get(offset)?;
-        // A marker is introduced by one or more 0xff fill bytes.
-        while marker == 0xff {
-            offset = offset.checked_add(1)?;
-            marker = *bytes.get(offset)?;
-        }
-        offset = offset.checked_add(1)?;
-        // Restart, start-of-image, end-of-image and temporary markers carry no length payload.
-        if (0xd0..=0xd9).contains(&marker) || marker == 0x01 {
-            continue;
-        }
-        let length = usize::from(read_be_u16(bytes, offset)?);
-        // A start-of-frame marker holds the frame dimensions; the four Huffman/arithmetic table
-        // markers in the same range do not.
-        let is_frame = (0xc0..=0xcf).contains(&marker) && !matches!(marker, 0xc4 | 0xc8 | 0xcc);
-        if is_frame {
-            let height = read_be_u16(bytes, offset + 3)?;
-            let width = read_be_u16(bytes, offset + 5)?;
-            return Some((u32::from(width), u32::from(height)));
-        }
-        offset = offset.checked_add(length)?;
-    }
-}
-
-/// A big-endian `u32` at `offset`, or `None` when the slice is too short.
-fn read_be_u32(bytes: &[u8], offset: usize) -> Option<u32> {
-    let array: [u8; 4] = bytes.get(offset..offset + 4)?.try_into().ok()?;
-    Some(u32::from_be_bytes(array))
-}
-
-/// A big-endian `u16` at `offset`, or `None` when the slice is too short.
-fn read_be_u16(bytes: &[u8], offset: usize) -> Option<u16> {
-    let array: [u8; 2] = bytes.get(offset..offset + 2)?.try_into().ok()?;
-    Some(u16::from_be_bytes(array))
-}
-
-/// A little-endian `u16` at `offset`, or `None` when the slice is too short.
-fn read_le_u16(bytes: &[u8], offset: usize) -> Option<u16> {
-    let array: [u8; 2] = bytes.get(offset..offset + 2)?.try_into().ok()?;
-    Some(u16::from_le_bytes(array))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        basename, file_extension, font_media_type, gif_dimensions, image_dimensions,
-        image_extension, image_media_type, is_relative_resource, iso_from_epoch, item_id_for, join,
-        jpeg_dimensions, png_dimensions, safe_filename,
+        basename, file_extension, font_media_type, image_extension, image_media_type,
+        is_relative_resource, iso_from_epoch, item_id_for, join, safe_filename,
     };
     use carta_core::media::{MediaItem, extension_for_mime};
-
-    #[test]
-    fn png_dimensions_reads_the_ihdr_header() {
-        let bytes = [
-            0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, // signature
-            0, 0, 0, 13, b'I', b'H', b'D', b'R', // IHDR chunk header
-            0, 0, 0, 2, // width
-            0, 0, 0, 3, // height
-        ];
-        assert_eq!(png_dimensions(&bytes), Some((2, 3)));
-        assert_eq!(png_dimensions(b"not a png"), None);
-    }
-
-    #[test]
-    fn gif_dimensions_reads_the_screen_descriptor() {
-        let bytes = [b'G', b'I', b'F', b'8', b'9', b'a', 0x0a, 0x00, 0x14, 0x00];
-        assert_eq!(gif_dimensions(&bytes), Some((10, 20)));
-        assert_eq!(gif_dimensions(b"GIF"), None);
-        assert_eq!(gif_dimensions(b"XXXXXX....."), None);
-    }
-
-    #[test]
-    fn jpeg_dimensions_skips_to_the_start_of_frame() {
-        // An APP0 segment (with a length payload) precedes the start-of-frame marker, which the scan
-        // steps over before reading the frame's height and width.
-        let bytes = [
-            0xff, 0xd8, // start of image
-            0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, // APP0 segment, length 4
-            0xff, 0xc0, 0x00, 0x11, 0x08, // start of frame, precision 8
-            0x00, 0x1e, // height 30
-            0x00, 0x28, // width 40
-        ];
-        assert_eq!(jpeg_dimensions(&bytes), Some((40, 30)));
-        assert_eq!(jpeg_dimensions(b"not a jpeg"), None);
-    }
-
-    #[test]
-    fn image_dimensions_is_zero_for_an_unrecognized_format() {
-        assert_eq!(image_dimensions(b"neither png nor gif nor jpeg"), (0, 0));
-    }
 
     #[test]
     fn image_extension_prefers_a_plain_url_extension_then_the_mime_type() {
