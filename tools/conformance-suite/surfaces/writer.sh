@@ -48,6 +48,9 @@ if [ "$EXT_RUN" = 1 ] && [ -d "$CORPUS/ast-ext" ]; then
     [ -d "$spec_dir" ] || continue
     spec="$(basename "$spec_dir")"
     base="${spec%%[+-]*}"
+    # Binary, package-shaped targets (docx, epub) have no text form to diff and carry their own
+    # surface; skip their extension-toggle directories here rather than render them as text.
+    case "$base" in docx | epub | epub2 | epub3) continue ;; esac
     norm="$(oracle_norm "$base")"
     mode="$(compare_mode "$base")"
     for input in "$spec_dir"/*.json; do
