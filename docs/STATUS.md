@@ -169,7 +169,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - A resource that cannot be fetched offline — a remote image, an absent local image, or a link to a
   nonexistent target — yields a dangling reference.
 
-### `docx` — 🚧
+### `docx` — ✅
 - The Office Open XML package is assembled deterministically: the document body, its relationship
   graphs, list numbering, footnotes, comments, embedded images, the styling parts, and the core/custom
   properties, all with fixed timestamps and a fixed epoch (`SOURCE_DATE_EPOCH` overrides it).
@@ -233,9 +233,9 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   `custom-style` attribute always carries through, so the `styles` toggle names behavior that is on by
   default: on a div it sets the paragraph style of the blocks it wraps, on a span the run style; a code
   block keeps its verbatim style regardless. `auto_identifiers` is the only default-on extension.
-- The one gap still holding the writer short of general use is syntax highlighting: a code block's
-  contents are emitted as plain verbatim runs, with no per-token character styles, so the language is
-  never colored.
+- A code block's contents are emitted as plain verbatim runs, with no per-token character styles, so
+  the language is never colored — syntax highlighting is a project-wide feature not yet built for any
+  writer (see the cross-cutting features table below), and this writer takes the same verbatim stance.
 - Minor divergences that remain, none of which materially affects default-styled output:
   - A metadata keywords list is joined with `; ` in the core properties rather than the `, ` that
     part's convention uses.

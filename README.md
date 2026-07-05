@@ -110,7 +110,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 
 | Format | Reader | Writer |
 | --- | :---: | :---: |
-| Word (`docx`) | ❌ | 🚧 |
+| Word (`docx`) | ❌ | ✅ |
 | OpenDocument Text (`odt`) | ❌ | ❌ |
 | OpenDocument (`opendocument`) | ➖ | ❌ |
 | EPUB (`epub`, `epub2`, `epub3`) | ❌ | ✅ |
