@@ -740,6 +740,9 @@ enum Node {
     SoftBreak,
     LineBreak,
     Delimiter(Delimiter),
+    /// A slot vacated during emphasis resolution: its former content was folded into a wrapping
+    /// inline. Emitted by [`process_emphasis`] and dropped by [`collapse`].
+    Empty,
 }
 
 // The flags are independent properties of a delimiter run, not a state enum.
@@ -2354,14 +2357,23 @@ fn def_target(def: &LinkDef) -> Target {
 }
 
 /// A record in the delimiter list used by [`process_emphasis`].
+///
+/// Entries are held in a `Vec` whose indices are stable for the lifetime of one resolution pass —
+/// an entry is never moved or removed, only unlinked. `prev`/`next` thread the still-active entries
+/// into a doubly-linked list; consuming a matched pair unlinks the delimiters between and around it
+/// in O(1), so the pass stays linear on delimiter-heavy input.
 #[derive(Debug, Clone)]
 struct DelimEntry {
-    /// Index into `nodes` where this delimiter lives.
+    /// Index into `nodes` where this delimiter lives. Stable: nodes are never spliced during a pass.
     node_index: usize,
     ch: u8,
     count: usize,
     can_open: bool,
     can_close: bool,
+    /// Previous still-active entry (a smaller `delims` index), or `None` at the list head.
+    prev: Option<usize>,
+    /// Next still-active entry (a larger `delims` index), or `None` at the list tail.
+    next: Option<usize>,
 }
 
 /// Resolve emphasis/strong (`*`/`_`) and format (`~`/`^`) delimiters in `nodes`, starting at
@@ -2376,7 +2388,7 @@ struct DelimEntry {
 // `opener_di` (delimiter-list index) and `opener_ni` (node index) are intentionally close names
 // for two distinct indices into two distinct arrays.
 #[allow(clippy::similar_names, clippy::too_many_lines)]
-fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions, markdown: bool) {
+fn process_emphasis(nodes: &mut [Node], stack_bottom: usize, ext: Extensions, markdown: bool) {
     // Build the delimiter list: one entry per Node::Delimiter in [stack_bottom..] that is an
     // emphasis-class delimiter (not a bracket opener).
     let mut delims: Vec<DelimEntry> = nodes
@@ -2390,10 +2402,22 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
                 count: d.count,
                 can_open: d.can_open,
                 can_close: d.can_close,
+                prev: None,
+                next: None,
             }),
             _ => None,
         })
         .collect();
+
+    // Thread every entry into one doubly-linked list, in build order.
+    let count = delims.len();
+    for (i, entry) in delims.iter_mut().enumerate() {
+        entry.prev = i.checked_sub(1);
+        entry.next = (i + 1 < count).then_some(i + 1);
+    }
+    // `head` is the first still-active entry; it moves forward only when the entry at the front is
+    // unlinked. Used solely for the final sweep that literalizes leftover delimiters.
+    let mut head: Option<usize> = (count > 0).then_some(0);
 
     // `openers_bottom[bucket]` is the minimum delimiter-list index to search for an opener.
     //
@@ -2408,10 +2432,10 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
     // identically.
     let mut openers_bottom = std::collections::BTreeMap::<(u8, usize, bool, bool), usize>::new();
 
-    let mut current = 0usize; // index into `delims`, advances only forward
+    let mut current: Option<usize> = head; // active-list cursor, walks forward via `next`
 
-    while current < delims.len() {
-        let Some(current_entry) = delims.get(current) else {
+    while let Some(cur) = current {
+        let Some(current_entry) = delims.get(cur) else {
             break;
         };
         let (closer_ch, closer_count, closer_can_open, closer_can_close) = (
@@ -2421,8 +2445,10 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
             current_entry.can_close,
         );
         let closer_ni = current_entry.node_index;
+        let cur_next = current_entry.next;
+        let scan_start = current_entry.prev;
         if !closer_can_close {
-            current += 1;
+            current = cur_next;
             continue;
         }
 
@@ -2434,21 +2460,26 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
         );
         let bottom = *openers_bottom.get(&bucket).unwrap_or(&0);
 
-        // Scan backward from just before `current` down to `bottom` for a matching opener.
+        // Scan backward through active openers, down to and including `bottom`, for a match.
         let mut found: Option<usize> = None; // delimiter-list index of the matched opener
-        let mut scan = current;
-        while scan > bottom {
-            scan -= 1;
-            let Some(entry) = delims.get(scan) else {
+        let mut scan = scan_start;
+        while let Some(si) = scan {
+            if si < bottom {
+                break;
+            }
+            let Some(entry) = delims.get(si) else {
                 break;
             };
+            let scan_prev = entry.prev;
             if !entry.can_open || entry.ch != closer_ch {
+                scan = scan_prev;
                 continue;
             }
             // The markdown dialect treats an emphasis run of four or more `*`/`_` as inert: it
             // opens no emphasis and stays literal. Only runs of one to three open (one emphasis,
             // one strong, or a strong wrapping an emphasis).
             if markdown && markdown_opener_inert(closer_ch, entry.count) {
+                scan = scan_prev;
                 continue;
             }
             // Rule of 3 and match_use_count check — we need a temporary Delimiter value to
@@ -2458,6 +2489,7 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
             else {
                 // `match_use_count` rejected this opener; keep scanning — do not advance
                 // `openers_bottom` for this slot just because one opener was rejected.
+                scan = scan_prev;
                 continue;
             };
             // Re-derive the Delimiter from `nodes` for the rule-of-3 check.
@@ -2474,6 +2506,7 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
                     && rejects_inner_space(closer_ch, use_count)
                     && nodes.get(ni + 1..closer_ni).is_some_and(nodes_carry_break)
                 {
+                    scan = scan_prev;
                     continue;
                 }
                 // In markdown a single `*`/`_` and a doubled one never pair across an emphasis run:
@@ -2481,27 +2514,29 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
                 // marker), and vice versa, so the run stays literal.
                 if markdown && markdown_emphasis_runs_mismatch(closer_ch, entry.count, closer_count)
                 {
+                    scan = scan_prev;
                     continue;
                 }
-                found = Some(scan);
+                found = Some(si);
                 break;
             }
+            scan = scan_prev;
         }
 
         let Some(opener_di) = found else {
             // No opener found: advance openers_bottom to exclude this closer's position in future
-            // searches for the same bucket.
-            openers_bottom.insert(bucket, current);
+            // searches for the same bucket. Node indices are stable, so no adjustment is needed on
+            // later matches.
+            openers_bottom.insert(bucket, cur);
             // A delimiter that can't open is now known to be inert as a closer too.
             if !closer_can_open {
-                // convert_delimiter_to_text replaces the node variant in-place; no index shift.
                 convert_delimiter_to_text(nodes, closer_ni);
             }
-            current += 1;
+            current = cur_next;
             continue;
         };
 
-        // --- Match found: splice nodes and update the delimiter list ---
+        // --- Match found: fold the inner span into a wrapping inline, leaving node indices stable ---
 
         let Some(opener_entry) = delims.get(opener_di) else {
             break;
@@ -2512,142 +2547,105 @@ fn process_emphasis(nodes: &mut Vec<Node>, stack_bottom: usize, ext: Extensions,
         let use_count =
             match_use_count_md(opener_count, closer_count, closer_ch, ext, markdown).unwrap_or(1);
 
-        // Drain all nodes strictly between opener and closer into `content`, collapse, and wrap.
-        let inner: Vec<Node> = nodes.drain(opener_ni + 1..closer_ni).collect();
+        // Move the nodes strictly between opener and closer into the wrapped inline, leaving
+        // tombstones behind so every surviving delimiter keeps its node_index.
+        let mut inner: Vec<Node> = Vec::new();
+        for slot in nodes
+            .get_mut(opener_ni + 1..closer_ni)
+            .into_iter()
+            .flatten()
+        {
+            inner.push(std::mem::replace(slot, Node::Empty));
+        }
         let content = collapse(inner);
         let wrapped = wrap_emphasis(closer_ch, use_count, content);
-        // Insert the wrapped inline where the inner content was.
-        nodes.insert(opener_ni + 1, Node::Inline(wrapped));
+        // The opener and closer are separate runs, so at least one node sits between them: this
+        // slot is never the closer's own node.
+        if let Some(slot) = nodes.get_mut(opener_ni + 1) {
+            *slot = Node::Inline(wrapped);
+        }
 
-        // After drain(opener_ni+1..closer_ni) and insert(opener_ni+1), the closer node is at
-        // opener_ni + 2. We then conditionally remove the closer and opener delimiter nodes,
-        // which shifts remaining node_index values. Track all of that in one place.
-        let new_closer_ni = opener_ni + 2;
-
-        // Decrement delimiter counts (closer first; it's at the higher index).
-        decrement_delimiter(nodes, new_closer_ni, use_count);
+        // Decrement both runs; mirror the change into the list entries.
+        decrement_delimiter(nodes, closer_ni, use_count);
         decrement_delimiter(nodes, opener_ni, use_count);
-
-        // Reflect decrements back into `delims`.
         let new_closer_count = closer_count.saturating_sub(use_count);
         let new_opener_count = opener_count.saturating_sub(use_count);
-        if let Some(e) = delims.get_mut(current) {
+        if let Some(e) = delims.get_mut(cur) {
             e.count = new_closer_count;
         }
         if let Some(e) = delims.get_mut(opener_di) {
             e.count = new_opener_count;
         }
 
-        // Drop emptied delimiter nodes from `nodes`, highest index first so lower indices hold.
+        // The list entry following the closer — the resume point when both runs are spent.
+        let after_closer = delims.get(cur).and_then(|e| e.next);
+
+        // Unlink every delimiter strictly between opener and closer at once: they were folded into
+        // the wrap and can never match again.
+        if let Some(e) = delims.get_mut(opener_di) {
+            e.next = Some(cur);
+        }
+        if let Some(e) = delims.get_mut(cur) {
+            e.prev = Some(opener_di);
+        }
+
+        // Unlink a spent run and blank its node. Closer first (it is the higher node index).
         let closer_empty = new_closer_count == 0;
         let opener_empty = new_opener_count == 0;
         if closer_empty {
-            nodes.remove(new_closer_ni);
+            unlink_delim(&mut delims, &mut head, cur);
+            if let Some(slot) = nodes.get_mut(closer_ni) {
+                *slot = Node::Empty;
+            }
         }
         if opener_empty {
-            nodes.remove(opener_ni);
-        }
-
-        // Compute the total shift experienced by node indices that were strictly above closer_ni
-        // in the original node vector, after all four operations (drain, insert, remove×0/1/2):
-        //
-        //   drain(opener_ni+1..closer_ni): removes (closer_ni - opener_ni - 1) nodes above opener_ni
-        //   insert at opener_ni+1: adds 1 node above opener_ni
-        //   remove(new_closer_ni) if closer_empty: removes 1 node that was at new_closer_ni
-        //   remove(opener_ni) if opener_empty: removes 1 node at opener_ni (below closer)
-        //
-        // For a node_index N > closer_ni (i.e., above the old closer):
-        //   after drain+insert: new pos = N + opener_ni - closer_ni + 2
-        //   after remove(closer) if empty: -1
-        //   after remove(opener) if empty: -1
-        // Total shift = (opener_ni - closer_ni + 2) - closer_empty - opener_empty.
-        let above_shift = 2_isize + (opener_ni.cast_signed() - closer_ni.cast_signed())
-            - isize::from(closer_empty)
-            - isize::from(opener_empty);
-
-        // The surviving closer's final node_index (only relevant when !closer_empty):
-        //   after drain+insert it's at new_closer_ni = opener_ni+2;
-        //   after remove(opener) if empty: it shifts to opener_ni+1.
-        let final_closer_ni = opener_ni + 1 + usize::from(!opener_empty);
-
-        // Update the delimiter list:
-        // Step A: remove inner delimiter entries (consumed into the wrapped span).
-        delims.drain(opener_di + 1..current);
-        // After this drain, the old `current` entry is now at opener_di + 1.
-        let current_di_after = opener_di + 1;
-
-        // Step B: remove the closer and opener entries from `delims` if they are now empty.
-        // Closer is at current_di_after; remove it first (higher index).
-        if closer_empty {
-            delims.remove(current_di_after);
-        }
-        if opener_empty {
-            delims.remove(opener_di);
-        }
-
-        // Step C: update node_index for all surviving entries.
-        //
-        // After Steps A and B, `delims` contains no entries for the now-wrapped inner span.
-        // The surviving delimiter entries fall into three groups:
-        //   1. Entries at or before opener_di with node_index <= opener_ni: unchanged.
-        //   2. The surviving opener (if !opener_empty) at delimiter index opener_di,
-        //      node_index = opener_ni: already correct.
-        //   3. The surviving closer (if !closer_empty): node_index must be final_closer_ni.
-        //   4. Entries after the match with node_index > closer_ni: shift by above_shift.
-        //
-        // Determine where the "entries after the match" start in the updated delimiter list.
-        let first_after_di = match (opener_empty, closer_empty) {
-            (true, true) => opener_di,
-            (false, true) => opener_di + 1, // opener at opener_di; nothing else in the region
-            (true, false) => {
-                // closer survived at opener_di; update its node_index.
-                if let Some(e) = delims.get_mut(opener_di) {
-                    e.node_index = final_closer_ni;
-                }
-                opener_di + 1
+            unlink_delim(&mut delims, &mut head, opener_di);
+            if let Some(slot) = nodes.get_mut(opener_ni) {
+                *slot = Node::Empty;
             }
-            (false, false) => {
-                // opener at opener_di; closer at opener_di + 1; update closer's node_index.
-                if let Some(e) = delims.get_mut(opener_di + 1) {
-                    e.node_index = final_closer_ni;
-                }
-                opener_di + 2
-            }
+        }
+
+        // Resume at the surviving opener if it lives (it may match a still-earlier closer), else the
+        // surviving closer (it may match a still-earlier opener), else the entry past the closer.
+        current = if !opener_empty {
+            Some(opener_di)
+        } else if !closer_empty {
+            Some(cur)
+        } else {
+            after_closer
         };
-
-        // Apply the total shift to all entries that come after the match region.
-        if above_shift != 0 {
-            for entry in delims.get_mut(first_after_di..).into_iter().flatten() {
-                entry.node_index =
-                    usize::try_from(entry.node_index.cast_signed() + above_shift).unwrap_or(0);
-            }
-        }
-
-        // Adjust `openers_bottom` for the delimiter-list compaction that just happened.
-        //
-        // After `delims.drain(opener_di+1..current)` + conditional removes:
-        //   - Values <= opener_di: unchanged.
-        //   - Values in (opener_di, current): pointed into the now-removed inner span → clamp to
-        //     opener_di (those openers no longer exist in the list).
-        //   - Values >= current: shifted down by (current - opener_di - 1) for the drain, then
-        //     by -1 for each removed endpoint (closer and/or opener).
-        let inner_drain = current - opener_di - 1;
-        let endpoint_removes = usize::from(closer_empty) + usize::from(opener_empty);
-        for v in openers_bottom.values_mut() {
-            if *v > opener_di && *v < current {
-                *v = opener_di;
-            } else if *v >= current {
-                *v = v.saturating_sub(inner_drain + endpoint_removes);
-            }
-        }
-
-        // Resume from opener_di: the surviving closer (if any) may still match further openers.
-        current = opener_di;
     }
 
-    // Any leftover delimiters become literal text.
-    for entry in &delims {
+    // Any delimiter still on the active list never matched: it reverts to literal text.
+    let mut leftover = head;
+    while let Some(i) = leftover {
+        let Some(entry) = delims.get(i) else {
+            break;
+        };
+        let next = entry.next;
         convert_delimiter_to_text(nodes, entry.node_index);
+        leftover = next;
+    }
+}
+
+/// Unlink `i` from the doubly-linked delimiter list, advancing `head` if `i` was at the front.
+fn unlink_delim(delims: &mut [DelimEntry], head: &mut Option<usize>, i: usize) {
+    let (prev, next) = match delims.get(i) {
+        Some(entry) => (entry.prev, entry.next),
+        None => return,
+    };
+    match prev {
+        Some(pi) => {
+            if let Some(prev_entry) = delims.get_mut(pi) {
+                prev_entry.next = next;
+            }
+        }
+        None => *head = next,
+    }
+    if let Some(ni) = next
+        && let Some(next_entry) = delims.get_mut(ni)
+    {
+        next_entry.prev = prev;
     }
 }
 
@@ -3012,7 +3010,7 @@ fn nodes_carry_break(nodes: &[Node]) -> bool {
         Node::Text(text) => text.chars().any(|c| c == ' ' || c == '\t'),
         Node::SoftBreak | Node::LineBreak => true,
         Node::Inline(inline) => inline_carries_break(inline),
-        Node::Delimiter(_) => false,
+        Node::Delimiter(_) | Node::Empty => false,
     })
 }
 
@@ -3413,6 +3411,7 @@ fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
                 flush(&mut text, &mut out);
                 out.push(Inline::LineBreak);
             }
+            Node::Empty => {}
         }
     }
     flush(&mut text, &mut out);
@@ -3911,6 +3910,147 @@ mod tests {
         // Unknown fill characters are not markers.
         assert_eq!(task_marker_replacement("[y] no"), None);
         assert_eq!(task_marker_replacement("plain"), None);
+    }
+
+    fn str_node(text: &str) -> Inline {
+        Inline::Str(text.to_owned().into())
+    }
+
+    fn emph(content: Vec<Inline>) -> Inline {
+        Inline::Emph(content)
+    }
+
+    fn strong(content: Vec<Inline>) -> Inline {
+        Inline::Strong(content)
+    }
+
+    fn commonmark(text: &str) -> Vec<Inline> {
+        parse_meta_inlines(text, Extensions::empty(), false)
+    }
+
+    #[test]
+    fn triple_run_nests_strong_inside_emph() {
+        assert_eq!(
+            commonmark("***a***"),
+            vec![emph(vec![strong(vec![str_node("a")])])]
+        );
+    }
+
+    #[test]
+    fn triple_run_markdown_dialect_nests_emph_inside_strong() {
+        assert_eq!(
+            parse_meta_inlines("***a***", Extensions::empty(), true),
+            vec![strong(vec![emph(vec![str_node("a")])])]
+        );
+    }
+
+    #[test]
+    fn strong_wraps_inner_emph_and_text() {
+        assert_eq!(
+            commonmark("**a *b* c**"),
+            vec![strong(vec![
+                str_node("a"),
+                Inline::Space,
+                emph(vec![str_node("b")]),
+                Inline::Space,
+                str_node("c"),
+            ])]
+        );
+    }
+
+    #[test]
+    fn emph_then_trailing_strong() {
+        assert_eq!(
+            commonmark("*a**b***"),
+            vec![emph(vec![str_node("a"), strong(vec![str_node("b")])])]
+        );
+    }
+
+    #[test]
+    fn mixed_underscore_inside_asterisk() {
+        assert_eq!(
+            commonmark("*a _b_ a*"),
+            vec![emph(vec![
+                str_node("a"),
+                Inline::Space,
+                emph(vec![str_node("b")]),
+                Inline::Space,
+                str_node("a"),
+            ])]
+        );
+    }
+
+    #[test]
+    fn unmatched_leading_run_stays_literal() {
+        assert_eq!(
+            commonmark("***a*"),
+            vec![str_node("**"), emph(vec![str_node("a")])]
+        );
+    }
+
+    #[test]
+    fn adjacent_emphasis_chain() {
+        assert_eq!(
+            commonmark("*a*a*a*"),
+            vec![
+                emph(vec![str_node("a")]),
+                str_node("a"),
+                emph(vec![str_node("a")]),
+            ]
+        );
+    }
+
+    #[test]
+    fn adjacent_emphasis_chain_ten() {
+        let mut expected = Vec::new();
+        for _ in 0..5 {
+            expected.push(emph(vec![str_node("a")]));
+            expected.push(str_node("a"));
+        }
+        assert_eq!(commonmark("*a*a*a*a*a*a*a*a*a*a"), expected);
+    }
+
+    #[test]
+    fn strikeout_and_mark_side_by_side() {
+        let ext = exts(&[Extension::Strikeout, Extension::Mark]);
+        assert_eq!(
+            parse_meta_inlines("~~x~~ and ==y==", ext, false),
+            vec![
+                Inline::Strikeout(vec![str_node("x")]),
+                Inline::Space,
+                str_node("and"),
+                Inline::Space,
+                mark_span(vec![str_node("y")]),
+            ]
+        );
+    }
+
+    #[test]
+    fn subscript_run() {
+        let ext = exts(&[Extension::Subscript]);
+        assert_eq!(
+            parse_meta_inlines("H~2~O", ext, false),
+            vec![
+                str_node("H"),
+                Inline::Subscript(vec![str_node("2")]),
+                str_node("O"),
+            ]
+        );
+    }
+
+    #[test]
+    fn mark_wraps_inner_strong() {
+        let ext = exts(&[Extension::Mark]);
+        assert_eq!(
+            parse_meta_inlines("==a **b** c==", ext, false),
+            vec![mark_span(vec![
+                str_node("a"),
+                Inline::Space,
+                strong(vec![str_node("b")]),
+                Inline::Space,
+                str_node("c"),
+            ])]
+        );
     }
 }
 
