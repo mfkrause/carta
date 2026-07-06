@@ -514,8 +514,14 @@ fn skip_inline_whitespace(text: &str, index: &mut usize) {
 /// Normalize a link label per the spec: trim, collapse internal whitespace to single spaces, and
 /// apply Unicode case folding (so e.g. `ẞ` and `SS` match).
 pub(crate) fn normalize_label(label: &str) -> String {
-    let collapsed = label.split_whitespace().collect::<Vec<_>>().join(" ");
-    caseless::default_case_fold_str(&collapsed)
+    // Whitespace collapse is only needed when the label carries whitespace; otherwise case-fold the
+    // input directly and skip the intermediate split/join allocation.
+    if label.chars().any(char::is_whitespace) {
+        let collapsed = label.split_whitespace().collect::<Vec<_>>().join(" ");
+        caseless::default_case_fold_str(&collapsed)
+    } else {
+        caseless::default_case_fold_str(label)
+    }
 }
 
 /// Remove backslash escapes of ASCII punctuation from a string, leaving other backslashes intact.
@@ -914,5 +920,20 @@ mod tests {
         assert_eq!(parse_abbreviation_definition("*[HTML] : x"), None);
         assert_eq!(parse_abbreviation_definition("*[HTML: x\nmore"), None);
         assert_eq!(parse_abbreviation_definition("*[HTML] x"), None);
+    }
+
+    use super::normalize_label;
+
+    #[test]
+    fn normalize_label_folds_case_and_collapses_whitespace() {
+        // No-whitespace labels take the fast path; both paths must fold case identically.
+        assert_eq!(normalize_label("Foo"), "foo");
+        assert_eq!(normalize_label("SS"), "ss");
+        assert_eq!(normalize_label("\u{1e9e}"), "ss");
+        // Internal, leading, and trailing whitespace collapse to single spaces and trim.
+        assert_eq!(normalize_label("  Foo   Bar\tBaz\n"), "foo bar baz");
+        assert_eq!(normalize_label("no\u{2003}break"), "no break");
+        // A label that is only whitespace collapses to empty.
+        assert_eq!(normalize_label("  \t\n "), "");
     }
 }
