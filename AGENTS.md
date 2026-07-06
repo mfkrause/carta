@@ -47,7 +47,7 @@ Tests are split so the everyday suite is **fully offline** and oracle-backed par
 
 - **Layer 0 — unit tests.** In-crate `#[cfg(test)]` modules over pure helpers and parser internals.
 - **Layer 1 — golden snapshots.** `insta` snapshots of carta's **own** output, committed under `crates/carta/tests/snapshots/` and reviewed with `cargo insta review`. Readers: `corpus/text/<fmt>/*` → snapshot AST JSON. Writers: `corpus/ast/<feature>/*` → snapshot each target (minus `corpus/exclusions.tsv`). Plus the relocated offline identity tests (JSON codec in `carta-ast`, the native round-trip and spec-parse safety in `carta`).
-- **Layer 2 — conformance suite.** `tools/conformance-suite/run.sh` — shell, **not** part of `cargo test`. It runs the built `carta` and the pinned pandoc oracle and diffs them across five surfaces (`reader|writer|e2e|roundtrip|commands`) over `corpus/`, the 652 vendored CommonMark spec examples, and the fetched pandoc corpus. Requires `.oracle/` and `jq`.
+- **Layer 2 — conformance suite.** `tools/conformance-suite/run.sh` — shell, **not** part of `cargo test`. It runs the built `carta` and the pinned pandoc oracle and diffs them across eleven surfaces (`reader|writer|e2e|roundtrip|commands|extensions|templates|standalone|media|epub|docx`) over `corpus/`, the 652 vendored CommonMark spec examples, and the fetched pandoc corpus. Requires `.oracle/` and `jq`.
 - **Layer 3 — fuzz.** Reader panic-safety (nightly + `cargo-fuzz`).
 
 ### Commands
