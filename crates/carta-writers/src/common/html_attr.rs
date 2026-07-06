@@ -95,7 +95,7 @@ pub(crate) fn is_known_attribute(name: &str) -> bool {
     name.starts_with("data-")
         || name.starts_with("aria-")
         || matches!(name, "epub:type" | "xml:lang" | "xmlns")
-        || HTML_ATTRIBUTES.contains(&name)
+        || HTML_ATTRIBUTES.binary_search(&name).is_ok()
 }
 
 /// HTML attribute names emitted verbatim; any other key/value attribute is `data-` prefixed.
@@ -323,6 +323,14 @@ mod tests {
         assert_eq!(escape_attr("a'b"), "a'b");
         assert_eq!(escape_html_attr("<\"&>"), "&lt;&quot;&amp;&gt;");
         assert_eq!(escape_html_attr("a'b"), "a&#39;b");
+    }
+
+    #[test]
+    fn html_attributes_table_is_sorted() {
+        assert!(
+            HTML_ATTRIBUTES.is_sorted(),
+            "HTML_ATTRIBUTES must stay sorted for the binary search in is_known_attribute"
+        );
     }
 
     #[test]
