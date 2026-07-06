@@ -145,7 +145,7 @@ pub(crate) fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
 /// word.
 pub(crate) fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
     if !breakable {
-        out.push(Piece::Text(html.to_owned()));
+        out.push(Piece::text(html.to_owned()));
         return;
     }
     let mut tokens: Vec<String> = vec![String::new()];
@@ -171,7 +171,7 @@ pub(crate) fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
             out.push(Piece::Space);
         }
         if !part.is_empty() {
-            out.push(Piece::Text(part.clone()));
+            out.push(Piece::text(part.clone()));
         }
     }
 }

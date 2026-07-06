@@ -471,7 +471,7 @@ impl State {
                 return;
             }
             Inline::LineBreak => {
-                out.push(Piece::Text(" +".to_owned()));
+                out.push(Piece::text(" +"));
                 out.push(Piece::Hard);
                 return;
             }
@@ -479,7 +479,7 @@ impl State {
             Inline::RawInline(format, text) => {
                 let rendered = common::raw_passthrough(format, text, "asciidoc", RawTrim::DropOne);
                 if !rendered.is_empty() {
-                    out.push(Piece::Text(rendered));
+                    out.push(Piece::text(rendered));
                 }
                 return;
             }
@@ -497,7 +497,7 @@ impl State {
             }
             Inline::Note(blocks) => self.note(blocks),
         };
-        out.push(Piece::Text(text));
+        out.push(Piece::text(text));
     }
 
     /// Render an inline sequence wrapped in `open`/`close` delimiters while keeping its internal
@@ -511,18 +511,18 @@ impl State {
         {
             Some(first) => {
                 if let Some(Piece::Text(text)) = body.get_mut(first) {
-                    *text = format!("{open}{text}");
+                    *text = format!("{open}{text}").into();
                 }
                 if let Some(Piece::Text(text)) = body
                     .iter_mut()
                     .rev()
                     .find(|piece| matches!(piece, Piece::Text(_)))
                 {
-                    text.push_str(close);
+                    *text = format!("{text}{close}").into();
                 }
                 out.append(&mut body);
             }
-            None => out.push(Piece::Text(format!("{open}{close}"))),
+            None => out.push(Piece::text(format!("{open}{close}"))),
         }
     }
 
@@ -560,7 +560,7 @@ impl State {
             && !url.contains(char::is_whitespace)
             && scheme != Some("mailto");
         if bare {
-            out.push(Piece::Text(url.to_string()));
+            out.push(Piece::text(url.to_string()));
             return;
         }
         let prefix = if scheme.is_some_and(is_autolink_scheme) {
@@ -576,18 +576,18 @@ impl State {
         match first_text {
             Some(index) => {
                 if let Some(Piece::Text(text)) = label.get_mut(index) {
-                    *text = format!("{opening}{text}");
+                    *text = format!("{opening}{text}").into();
                 }
                 if let Some(Piece::Text(text)) = label
                     .iter_mut()
                     .rev()
                     .find(|piece| matches!(piece, Piece::Text(_)))
                 {
-                    text.push(']');
+                    *text = format!("{text}]").into();
                 }
                 out.append(&mut label);
             }
-            None => out.push(Piece::Text(format!("{opening}]"))),
+            None => out.push(Piece::text(format!("{opening}]"))),
         }
     }
 

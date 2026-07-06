@@ -501,26 +501,26 @@ impl State {
 
     fn piece(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
         match inline {
-            Inline::Str(text) => out.push(Piece::Text(special_strings(text))),
+            Inline::Str(text) => out.push(Piece::text(special_strings(text))),
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
-                out.push(Piece::Text("\\\\".to_string()));
+                out.push(Piece::text("\\\\"));
                 out.push(Piece::Hard);
             }
-            Inline::Emph(content) => out.push(Piece::Text(format!("/{}/", self.flat(content)))),
-            Inline::Strong(content) => out.push(Piece::Text(format!("*{}*", self.flat(content)))),
+            Inline::Emph(content) => out.push(Piece::text(format!("/{}/", self.flat(content)))),
+            Inline::Strong(content) => out.push(Piece::text(format!("*{}*", self.flat(content)))),
             Inline::Underline(content) => {
-                out.push(Piece::Text(format!("_{}_", self.flat(content))));
+                out.push(Piece::text(format!("_{}_", self.flat(content))));
             }
             Inline::Strikeout(content) => {
-                out.push(Piece::Text(format!("+{}+", self.flat(content))));
+                out.push(Piece::text(format!("+{}+", self.flat(content))));
             }
             Inline::Superscript(content) => {
-                out.push(Piece::Text(format!("^{{{}}}", self.flat(content))));
+                out.push(Piece::text(format!("^{{{}}}", self.flat(content))));
             }
             Inline::Subscript(content) => {
-                out.push(Piece::Text(format!("_{{{}}}", self.flat(content))));
+                out.push(Piece::text(format!("_{{{}}}", self.flat(content))));
             }
             Inline::SmallCaps(content) | Inline::Span(_, content) => {
                 for inner in content {
@@ -529,36 +529,36 @@ impl State {
             }
             Inline::Quoted(kind, content) => {
                 let (open, close) = self.quote_glyphs(kind);
-                out.push(Piece::Text(open.to_string()));
+                out.push(Piece::text(open.to_string()));
                 for inner in content {
                     self.piece(inner, out);
                 }
-                out.push(Piece::Text(close.to_string()));
+                out.push(Piece::text(close.to_string()));
             }
-            Inline::Code(_, text) => out.push(Piece::Text(format!("={text}="))),
+            Inline::Code(_, text) => out.push(Piece::text(format!("={text}="))),
             Inline::Math(MathType::InlineMath, text) => {
-                out.push(Piece::Text(format!("\\({text}\\)")));
+                out.push(Piece::text(format!("\\({text}\\)")));
             }
             Inline::Math(MathType::DisplayMath, text) => {
-                out.push(Piece::Text(format!("\\[{text}\\]")));
+                out.push(Piece::text(format!("\\[{text}\\]")));
             }
             Inline::RawInline(format, text) => {
                 if is_raw_org(format) {
-                    out.push(Piece::Text(text.to_string()));
+                    out.push(Piece::text(text.to_string()));
                 }
             }
-            Inline::Link(_, label, target) => out.push(Piece::Text(self.link(label, target))),
-            Inline::Image(_, _, target) => out.push(Piece::Text(image(target))),
+            Inline::Link(_, label, target) => out.push(Piece::text(self.link(label, target))),
+            Inline::Image(_, _, target) => out.push(Piece::text(image(target))),
             Inline::Cite(citations, fallback) => {
                 if self.citations {
-                    out.push(Piece::Text(self.citation(citations)));
+                    out.push(Piece::text(self.citation(citations)));
                 } else {
                     for inner in fallback {
                         self.piece(inner, out);
                     }
                 }
             }
-            Inline::Note(blocks) => out.push(Piece::Text(self.record_note(blocks))),
+            Inline::Note(blocks) => out.push(Piece::text(self.record_note(blocks))),
         }
     }
 

@@ -5,6 +5,7 @@
 
 use super::display_width;
 use carta_core::WrapMode;
+use std::borrow::Cow;
 
 /// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
@@ -13,12 +14,20 @@ pub(crate) const FILL_COLUMN: usize = 72;
 /// soft line break from the source, or a forced line break.
 #[derive(Debug, Clone)]
 pub(crate) enum Piece {
-    Text(String),
+    Text(Cow<'static, str>),
     Space,
     /// A soft line break in the source. Under [`WrapMode::Preserve`] it stays a line break; under
     /// [`WrapMode::Auto`] and [`WrapMode::None`] it is inter-word space like [`Piece::Space`].
     Soft,
     Hard,
+}
+
+impl Piece {
+    /// A text piece from a static literal (borrowed, allocation-free) or an owned string (moved in),
+    /// without an intervening copy.
+    pub(crate) fn text(value: impl Into<Cow<'static, str>>) -> Self {
+        Piece::Text(value.into())
+    }
 }
 
 /// Greedily fill inline pieces to `width` columns: a breakable space becomes a line break when
@@ -191,6 +200,7 @@ fn fill_core(
         }
         match pieces.get(index) {
             Some(Piece::Text(text)) => {
+                let text = text.as_ref();
                 word.push(text);
                 word_width += display_width(text);
             }

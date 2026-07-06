@@ -1034,7 +1034,7 @@ impl State {
         let mut pieces: Vec<Piece> = Vec::new();
         for block in &caption.long {
             if !pieces.is_empty() {
-                pieces.push(Piece::Text(self.config.hard_break().to_owned()));
+                pieces.push(Piece::text(self.config.hard_break()));
                 pieces.push(Piece::Hard);
             }
             self.extend_pieces(block_inlines(block), &mut pieces);
@@ -1044,7 +1044,7 @@ impl State {
         }
         if let Some(suffix) = attribute_suffix(attr) {
             pieces.push(Piece::Space);
-            pieces.push(Piece::Text(suffix));
+            pieces.push(Piece::text(suffix));
         }
         Some(fill(&pieces, width, self.wrap))
     }
@@ -1362,7 +1362,7 @@ impl State {
         let mut pieces: Vec<Piece> = Vec::new();
         for block in &table.caption.long {
             if !pieces.is_empty() {
-                pieces.push(Piece::Text(self.config.hard_break().to_owned()));
+                pieces.push(Piece::text(self.config.hard_break()));
                 pieces.push(Piece::Hard);
             }
             self.extend_pieces(block_inlines(block), &mut pieces);
@@ -1372,7 +1372,7 @@ impl State {
         }
         if let Some(suffix) = attribute_suffix(&table.attr) {
             pieces.push(Piece::Space);
-            pieces.push(Piece::Text(suffix));
+            pieces.push(Piece::text(suffix));
         }
         let body = fill_offset(&pieces, width.saturating_sub(base), 2, self.wrap);
         let first = format!("{}: ", " ".repeat(base));
@@ -1404,7 +1404,7 @@ impl State {
                 && let Some(prefix) = text.strip_suffix('!')
                 && matches!(inlines.get(position + 1), Some(Inline::Link(..)))
             {
-                out.push(Piece::Text(format!("{}\\!", self.escape_str(prefix))));
+                out.push(Piece::text(format!("{}\\!", self.escape_str(prefix))));
                 continue;
             }
             self.inline(inline, out);
@@ -1413,7 +1413,7 @@ impl State {
 
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
         match inline {
-            Inline::Str(text) => out.push(Piece::Text(self.escape_str(text))),
+            Inline::Str(text) => out.push(Piece::text(self.escape_str(text))),
             Inline::Emph(inlines) => self.wrap_markup("*", inlines, out),
             Inline::Strong(inlines) => self.wrap_markup("**", inlines, out),
             Inline::Strikeout(inlines) => {
@@ -1448,9 +1448,9 @@ impl State {
                 if self.config.span_syntax() {
                     self.wrap_span(&smallcaps_attr(), inlines, out);
                 } else {
-                    out.push(Piece::Text("<span class=\"smallcaps\">".to_owned()));
+                    out.push(Piece::text("<span class=\"smallcaps\">"));
                     self.extend_pieces(inlines, out);
-                    out.push(Piece::Text("</span>".to_owned()));
+                    out.push(Piece::text("</span>"));
                 }
             }
             Inline::Quoted(kind, inlines) => {
@@ -1459,16 +1459,16 @@ impl State {
                 } else {
                     quote_marks(kind)
                 };
-                out.push(Piece::Text(open.to_string()));
+                out.push(Piece::text(open.to_string()));
                 self.extend_pieces(inlines, out);
-                out.push(Piece::Text(close.to_string()));
+                out.push(Piece::text(close.to_string()));
             }
             Inline::Cite(citations, inlines) => self.cite(citations, inlines, out),
-            Inline::Code(_, text) => out.push(Piece::Text(code_span(text))),
+            Inline::Code(_, text) => out.push(Piece::text(code_span(text))),
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
-                out.push(Piece::Text(self.config.hard_break().to_owned()));
+                out.push(Piece::text(self.config.hard_break()));
                 out.push(Piece::Hard);
             }
             Inline::Math(kind, text) => self.math(kind, text, out),
@@ -1481,14 +1481,14 @@ impl State {
                 } else if self.config.span_syntax() {
                     self.wrap_span(attr, inlines, out);
                 } else {
-                    out.push(Piece::Text(format!("<span{}>", render_html_attr(attr))));
+                    out.push(Piece::text(format!("<span{}>", render_html_attr(attr))));
                     self.extend_pieces(inlines, out);
-                    out.push(Piece::Text("</span>".to_owned()));
+                    out.push(Piece::text("</span>"));
                 }
             }
             Inline::Note(blocks) => {
                 let marker = self.record_note(blocks);
-                out.push(Piece::Text(marker));
+                out.push(Piece::text(marker));
             }
         }
     }
@@ -1504,7 +1504,7 @@ impl State {
                 MathType::InlineMath => format!("$`{text}`$"),
                 MathType::DisplayMath => format!("``` math\n{text}\n```"),
             };
-            out.push(Piece::Text(rendered));
+            out.push(Piece::text(rendered));
             return;
         }
         if self.config.has(Extension::TexMathDollars) {
@@ -1512,7 +1512,7 @@ impl State {
                 MathType::InlineMath => format!("${text}$"),
                 MathType::DisplayMath => format!("$${text}$$"),
             };
-            out.push(Piece::Text(rendered));
+            out.push(Piece::text(rendered));
             return;
         }
         if self.config.has(Extension::TexMathSingleBackslash) {
@@ -1520,7 +1520,7 @@ impl State {
                 MathType::InlineMath => format!("\\({text}\\)"),
                 MathType::DisplayMath => format!("\\[{text}\\]"),
             };
-            out.push(Piece::Text(rendered));
+            out.push(Piece::text(rendered));
             return;
         }
         if self.config.has(Extension::TexMathDoubleBackslash) {
@@ -1528,7 +1528,7 @@ impl State {
                 MathType::InlineMath => format!("\\\\({text}\\\\)"),
                 MathType::DisplayMath => format!("\\\\[{text}\\\\]"),
             };
-            out.push(Piece::Text(rendered));
+            out.push(Piece::text(rendered));
             return;
         }
         if matches!(kind, MathType::DisplayMath) {
@@ -1571,12 +1571,12 @@ impl State {
     fn raw_inline(&mut self, format: &Format, text: &str, out: &mut Vec<Piece>) {
         if !self.config.has(Extension::RawAttribute) {
             if is_html_format(format) {
-                out.push(Piece::Text(text.to_owned()));
+                out.push(Piece::text(text.to_owned()));
             }
             return;
         }
         let fence = "`".repeat((longest_backtick_run(text) + 1).max(1));
-        out.push(Piece::Text(format!(
+        out.push(Piece::text(format!(
             "{fence}{text}{fence}{{={}}}",
             format.0
         )));
@@ -1590,7 +1590,7 @@ impl State {
             return;
         }
         let text = self.render_citations(citations);
-        out.push(Piece::Text(text));
+        out.push(Piece::text(text));
     }
 
     fn render_citations(&mut self, citations: &[Citation]) -> String {
@@ -1644,21 +1644,21 @@ impl State {
     }
 
     fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
-        out.push(Piece::Text(marker.to_owned()));
+        out.push(Piece::text(marker.to_owned()));
         self.extend_pieces(inlines, out);
-        out.push(Piece::Text(marker.to_owned()));
+        out.push(Piece::text(marker.to_owned()));
     }
 
     fn wrap_tag(&mut self, tag: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
-        out.push(Piece::Text(format!("<{tag}>")));
+        out.push(Piece::text(format!("<{tag}>")));
         self.extend_pieces(inlines, out);
-        out.push(Piece::Text(format!("</{tag}>")));
+        out.push(Piece::text(format!("</{tag}>")));
     }
 
     fn wrap_span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
-        out.push(Piece::Text("[".to_owned()));
+        out.push(Piece::text("["));
         self.extend_pieces(inlines, out);
-        out.push(Piece::Text(format!("]{{{}}}", attr_body(attr))));
+        out.push(Piece::text(format!("]{{{}}}", attr_body(attr))));
     }
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
@@ -1669,13 +1669,13 @@ impl State {
                 true,
             );
             self.extend_pieces(inlines, out);
-            out.push(Piece::Text("</span>".to_owned()));
+            out.push(Piece::text("</span>"));
             return;
         }
         if (attr_is_empty(attr) || is_autolink_class(attr))
             && let Some(autolink) = autolink(inlines, target)
         {
-            out.push(Piece::Text(autolink));
+            out.push(Piece::text(autolink));
             return;
         }
         if !self.config.has(Extension::LinkAttributes) && !attr_is_empty(attr) {
@@ -1692,17 +1692,17 @@ impl State {
             self.in_anchor = true;
             self.extend_pieces(inlines, out);
             self.in_anchor = false;
-            out.push(Piece::Text("</a>".to_owned()));
+            out.push(Piece::text("</a>"));
             return;
         }
-        out.push(Piece::Text("[".to_owned()));
+        out.push(Piece::text("["));
         self.extend_pieces(inlines, out);
         let attr_suffix = if attr_is_empty(attr) {
             String::new()
         } else {
             attr_braces(attr)
         };
-        out.push(Piece::Text(format!(
+        out.push(Piece::text(format!(
             "]({}){attr_suffix}",
             destination(target)
         )));
@@ -1716,17 +1716,17 @@ impl State {
 
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
         if self.image_renders_as_html(attr) {
-            out.push(Piece::Text(image_html(attr, inlines, target)));
+            out.push(Piece::text(image_html(attr, inlines, target)));
             return;
         }
-        out.push(Piece::Text("![".to_owned()));
+        out.push(Piece::text("!["));
         self.extend_pieces(inlines, out);
         let attr_suffix = if attr_is_empty(attr) {
             String::new()
         } else {
             attr_braces(attr)
         };
-        out.push(Piece::Text(format!(
+        out.push(Piece::text(format!(
             "]({}){attr_suffix}",
             destination(target)
         )));
@@ -1979,7 +1979,7 @@ fn escape_leading_markers(pieces: &mut [Piece]) {
         return;
     };
     if let Some(escaped) = escaped_leading_marker(text, break_follows) {
-        *text = escaped;
+        *text = escaped.into();
     }
 }
 

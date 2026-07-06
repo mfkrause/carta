@@ -585,7 +585,7 @@ impl State {
         }
         if let Some(suffix) = attribute_suffix(&table.attr) {
             pieces.push(Piece::Space);
-            pieces.push(Piece::Text(suffix));
+            pieces.push(Piece::text(suffix));
         }
         let body = fill_offset(&pieces, width.saturating_sub(base), 2, self.wrap);
         let first = format!("{}: ", " ".repeat(base));
@@ -610,7 +610,7 @@ impl State {
                     Some(Inline::Link(..) | Inline::Span(..))
                 )
             {
-                out.push(Piece::Text(format!("{prefix}\\!")));
+                out.push(Piece::text(format!("{prefix}\\!")));
                 continue;
             }
             self.inline(inline, out);
@@ -619,12 +619,12 @@ impl State {
 
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
         match inline {
-            Inline::Str(text) => out.push(Piece::Text(if self.smart {
+            Inline::Str(text) => out.push(Piece::text(if self.smart {
                 unsmarten(text)
             } else {
                 text.to_string()
             })),
-            Inline::Code(_, text) => out.push(Piece::Text(text.to_string())),
+            Inline::Code(_, text) => out.push(Piece::text(text.to_string())),
             Inline::Emph(inlines)
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
@@ -637,23 +637,23 @@ impl State {
                     && is_uri(&target.url)
                     && label_matches_url(text, &target.url)
                 {
-                    out.push(Piece::Text(target.url.to_string()));
+                    out.push(Piece::text(target.url.to_string()));
                 } else {
                     self.extend_pieces(inlines, out);
                 }
             }
             Inline::Strikeout(inlines) => {
-                out.push(Piece::Text("~~".to_owned()));
+                out.push(Piece::text("~~"));
                 self.extend_pieces(inlines, out);
-                out.push(Piece::Text("~~".to_owned()));
+                out.push(Piece::text("~~"));
             }
             Inline::Superscript(inlines) => {
                 let inner = pieces_to_string(&self.pieces(inlines));
-                out.push(Piece::Text(to_superscript(&inner)));
+                out.push(Piece::text(to_superscript(&inner)));
             }
             Inline::Subscript(inlines) => {
                 let inner = pieces_to_string(&self.pieces(inlines));
-                out.push(Piece::Text(to_subscript(
+                out.push(Piece::text(to_subscript(
                     &inner,
                     forces_superscript(inlines),
                 )));
@@ -672,9 +672,9 @@ impl State {
                 } else {
                     quote_marks(kind)
                 };
-                out.push(Piece::Text(open.to_string()));
+                out.push(Piece::text(open.to_string()));
                 self.extend_pieces(inlines, out);
-                out.push(Piece::Text(close.to_string()));
+                out.push(Piece::text(close.to_string()));
             }
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
@@ -682,20 +682,20 @@ impl State {
             Inline::Math(kind, tex) => self.math(kind, tex, out),
             Inline::RawInline(format, text) => {
                 if is_plain_format(format) {
-                    out.push(Piece::Text(text.to_string()));
+                    out.push(Piece::text(text.to_string()));
                 }
             }
             Inline::Image(_, inlines, target) => {
-                out.push(Piece::Text("[".to_owned()));
+                out.push(Piece::text("["));
                 // Alternate text that merely repeats the source URL conveys nothing, so it is dropped.
                 if carta_ast::to_plain_text(inlines) != target.url {
                     self.extend_pieces(inlines, out);
                 }
-                out.push(Piece::Text("]".to_owned()));
+                out.push(Piece::text("]"));
             }
             Inline::Note(blocks) => {
                 let marker = self.record_note(blocks);
-                out.push(Piece::Text(marker));
+                out.push(Piece::text(marker));
             }
         }
     }
@@ -724,7 +724,7 @@ impl State {
                 MathType::InlineMath => ("$", tex.trim()),
                 MathType::DisplayMath => ("$$", tex),
             };
-            out.push(Piece::Text(format!("{delimiter}{body}{delimiter}")));
+            out.push(Piece::text(format!("{delimiter}{body}{delimiter}")));
         }
         if display {
             out.push(Piece::Hard);
@@ -786,7 +786,7 @@ fn is_loose_definition(blocks: &[Block]) -> bool {
 fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
     for piece in pieces.iter_mut().skip(start) {
         if let Piece::Text(text) = piece {
-            *text = text.to_uppercase();
+            *text = text.to_uppercase().into();
         }
     }
 }

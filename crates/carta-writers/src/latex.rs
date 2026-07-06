@@ -127,9 +127,9 @@ pub(crate) fn render_titled_open(
     wrap: WrapMode,
     smart: bool,
 ) -> String {
-    let mut pieces = vec![Piece::Text(prefix.to_owned())];
+    let mut pieces = vec![Piece::text(prefix.to_owned())];
     pieces.extend(inline_pieces(inlines, FILL_COLUMN, dialect, wrap, smart));
-    pieces.push(Piece::Text("}".to_owned()));
+    pieces.push(Piece::text("}"));
     fill(&pieces, FILL_COLUMN, wrap)
 }
 
@@ -228,31 +228,31 @@ fn header(
     let star = if unnumbered { "*" } else { "" };
     let inner = inline_pieces_in(inlines, width, dialect, wrap, smart, true);
 
-    let mut content = vec![Piece::Text(format!("\\{command}{star}"))];
+    let mut content = vec![Piece::text(format!("\\{command}{star}"))];
     if let Some(short) = short_title(inlines, width, dialect, wrap, smart) {
-        content.push(Piece::Text(format!("[{short}]")));
+        content.push(Piece::text(format!("[{short}]")));
     }
-    content.push(Piece::Text("{".to_owned()));
+    content.push(Piece::text("{"));
     if needs_texorpdfstring(inlines) {
-        content.push(Piece::Text("\\texorpdfstring{".to_owned()));
+        content.push(Piece::text("\\texorpdfstring{"));
         content.extend(inner.iter().cloned());
         let pdf = escape_smart(&to_plain_text(inlines), EscapeMode::Text, smart);
-        content.push(Piece::Text(format!("}}{{{pdf}}}")));
+        content.push(Piece::text(format!("}}{{{pdf}}}")));
     } else {
         content.extend(inner.iter().cloned());
     }
-    content.push(Piece::Text("}".to_owned()));
+    content.push(Piece::text("}"));
     if !attr.id.is_empty() {
-        content.push(Piece::Text(format!("\\label{{{}}}", to_label(&attr.id))));
+        content.push(Piece::text(format!("\\label{{{}}}", to_label(&attr.id))));
     }
     let heading = fill(&content, width, wrap);
 
     if unnumbered {
-        let mut toc = vec![Piece::Text(format!(
+        let mut toc = vec![Piece::text(format!(
             "\\addcontentsline{{toc}}{{{command}}}{{"
         ))];
         toc.extend(inner);
-        toc.push(Piece::Text("}".to_owned()));
+        toc.push(Piece::text("}"));
         format!("{heading}\n{}", fill(&toc, width, wrap))
     } else {
         heading
@@ -1238,12 +1238,12 @@ fn table_caption(
             )
         })
         .unwrap_or_default();
-    let mut pieces = vec![Piece::Text(format!("\\caption{short}{{"))];
+    let mut pieces = vec![Piece::text(format!("\\caption{short}{{"))];
     let mut first = true;
     for block in &caption.long {
         if let Block::Plain(inlines) | Block::Para(inlines) = block {
             if !first {
-                pieces.push(Piece::Text("\\\\".to_owned()));
+                pieces.push(Piece::text("\\\\"));
                 pieces.push(Piece::Hard);
             }
             first = false;
@@ -1255,7 +1255,7 @@ fn table_caption(
         let _ = write!(close, "\\label{{{}}}", to_label(&attr.id));
     }
     close.push_str("\\tabularnewline");
-    pieces.push(Piece::Text(close));
+    pieces.push(Piece::text(close));
     Some(fill(&pieces, width, wrap))
 }
 
@@ -1427,7 +1427,7 @@ fn push_inlines(
             && let Some(Inline::Str(text)) = remaining.peek()
             && text.chars().next().is_some_and(is_quotation_mark)
         {
-            out.push(Piece::Text("\\,".to_owned()));
+            out.push(Piece::text("\\,"));
         }
     }
 }
@@ -1449,7 +1449,7 @@ fn push_inline(
     in_header: bool,
 ) {
     match inline {
-        Inline::Str(text) => out.push(Piece::Text(escape_smart(text, EscapeMode::Text, smart))),
+        Inline::Str(text) => out.push(Piece::text(escape_smart(text, EscapeMode::Text, smart))),
         Inline::Emph(inlines) => {
             wrap_command(
                 "\\emph{", inlines, out, width, dialect, wrap, smart, in_header,
@@ -1518,13 +1518,13 @@ fn push_inline(
                 QuoteType::SingleQuote => ('\u{2018}', '\u{2019}'),
                 QuoteType::DoubleQuote => ('\u{201C}', '\u{201D}'),
             };
-            out.push(Piece::Text(escape_smart(
+            out.push(Piece::text(escape_smart(
                 &open.to_string(),
                 EscapeMode::Text,
                 smart,
             )));
             push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
-            out.push(Piece::Text(escape_smart(
+            out.push(Piece::text(escape_smart(
                 &close.to_string(),
                 EscapeMode::Text,
                 smart,
@@ -1534,7 +1534,7 @@ fn push_inline(
             push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
         }
         Inline::Code(_, text) => {
-            out.push(Piece::Text(format!(
+            out.push(Piece::text(format!(
                 "\\texttt{{{}}}",
                 escape(text, EscapeMode::Code)
             )));
@@ -1542,7 +1542,7 @@ fn push_inline(
         Inline::Space => out.push(Piece::Space),
         Inline::SoftBreak => out.push(Piece::Soft),
         Inline::LineBreak => {
-            out.push(Piece::Text("\\\\".to_owned()));
+            out.push(Piece::text("\\\\"));
             out.push(Piece::Hard);
         }
         Inline::Math(kind, text) => {
@@ -1550,11 +1550,11 @@ fn push_inline(
                 MathType::InlineMath => format!("\\({text}\\)"),
                 MathType::DisplayMath => format!("\\[{text}\\]"),
             };
-            out.push(Piece::Text(rendered));
+            out.push(Piece::text(rendered));
         }
         Inline::RawInline(format, text) => {
             if is_latex_format(&format.0) {
-                out.push(Piece::Text(text.to_string()));
+                out.push(Piece::text(text.to_string()));
             }
         }
         Inline::Link(attr, inlines, target) => {
@@ -1563,7 +1563,7 @@ fn push_inline(
             );
         }
         Inline::Image(attr, inlines, target) => {
-            out.push(Piece::Text(image(attr, inlines, target, smart)));
+            out.push(Piece::text(image(attr, inlines, target, smart)));
         }
         Inline::Span(attr, inlines) => {
             let mut open = if attr.id.is_empty() {
@@ -1574,11 +1574,11 @@ fn push_inline(
                 phantom_label(&attr.id)
             };
             open.push('{');
-            out.push(Piece::Text(open));
+            out.push(Piece::text(open));
             push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
-            out.push(Piece::Text("}".to_owned()));
+            out.push(Piece::text("}"));
         }
-        Inline::Note(blocks) => out.push(Piece::Text(note(blocks, width, dialect, wrap, smart))),
+        Inline::Note(blocks) => out.push(Piece::text(note(blocks, width, dialect, wrap, smart))),
     }
 }
 
@@ -1593,9 +1593,9 @@ fn wrap_command(
     smart: bool,
     in_header: bool,
 ) {
-    out.push(Piece::Text(open.to_owned()));
+    out.push(Piece::text(open.to_owned()));
     push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
-    out.push(Piece::Text("}".to_owned()));
+    out.push(Piece::text("}"));
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1611,7 +1611,7 @@ fn push_link(
     in_header: bool,
 ) {
     if !attr.id.is_empty() {
-        out.push(Piece::Text(if in_header {
+        out.push(Piece::text(if in_header {
             header_anchor(&attr.id)
         } else {
             phantom_label(&attr.id)
@@ -1620,21 +1620,21 @@ fn push_link(
     // A target into the document itself is a cross-reference, not an external location: the
     // fragment names a label and the link resolves through `\hyperref` rather than `\href`.
     if let Some(reference) = target.url.strip_prefix('#') {
-        out.push(Piece::Text(format!(
+        out.push(Piece::text(format!(
             "\\hyperref[{}]{{",
             cross_reference_label(reference)
         )));
         for inline in inlines {
             push_inline(inline, out, width, dialect, wrap, smart, in_header);
         }
-        out.push(Piece::Text("}".to_owned()));
+        out.push(Piece::text("}"));
         return;
     }
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
         && label_matches_url(text, &target.url)
     {
-        out.push(Piece::Text(format!("\\url{{{url}}}")));
+        out.push(Piece::text(format!("\\url{{{url}}}")));
         return;
     }
     // A mailto link whose visible text is the bare address renders the address verbatim, with no
@@ -1644,14 +1644,14 @@ fn push_link(
         && text == address
     {
         let address = escape_url(address);
-        out.push(Piece::Text(format!(
+        out.push(Piece::text(format!(
             "\\href{{{url}}}{{\\nolinkurl{{{address}}}}}"
         )));
         return;
     }
-    out.push(Piece::Text(format!("\\href{{{url}}}{{")));
+    out.push(Piece::text(format!("\\href{{{url}}}{{")));
     push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
-    out.push(Piece::Text("}".to_owned()));
+    out.push(Piece::text("}"));
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> String {
