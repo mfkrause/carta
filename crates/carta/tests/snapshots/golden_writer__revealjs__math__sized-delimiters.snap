@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p><span class="math inline">\(\big( x \big)\)</span> <span
+class="math inline">\(\Big[ \big\{ y \big\} \Big]\)</span> <span
+class="math inline">\(\bigg\langle v \bigg\rangle\)</span> <span
+class="math inline">\(\big( a \big/ b\)</span></p>
+<p><span class="math display">\[\Bigg( \sum_{i} a_i \Bigg)\]</span></p>
+</section>

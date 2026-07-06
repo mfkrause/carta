@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$\frac{a}{b}$ $\tfrac{a}{b}$ $\dfrac{a}{b}$

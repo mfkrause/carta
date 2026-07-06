@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\(\not= b\) \(\not< c\) \(\not\subset B\) \(\not\vdash \phi\)
+\(\not\rightarrow\) \(\not a\)

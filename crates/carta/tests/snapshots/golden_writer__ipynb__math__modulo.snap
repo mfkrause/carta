@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "$a \\pmod{n}$ $a \\mod b$ $a \\bmod b$ $a \\pod{n}$"
+   ],
+   "id": "061d2afc-7972-4c84-a2aa-35f7ca118fd0"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

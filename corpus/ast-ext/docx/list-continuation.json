@@ -1,0 +1,93 @@
+{
+    "pandoc-api-version": [
+        1,
+        23,
+        1,
+        2
+    ],
+    "meta": {},
+    "blocks": [
+        {
+            "t": "OrderedList",
+            "c": [
+                [
+                    1,
+                    {
+                        "t": "Decimal"
+                    },
+                    {
+                        "t": "Period"
+                    }
+                ],
+                [
+                    [
+                        {
+                            "t": "Para",
+                            "c": [
+                                {
+                                    "t": "Str",
+                                    "c": "Lead"
+                                },
+                                {
+                                    "t": "Space"
+                                },
+                                {
+                                    "t": "Str",
+                                    "c": "paragraph."
+                                }
+                            ]
+                        },
+                        {
+                            "t": "Para",
+                            "c": [
+                                {
+                                    "t": "Str",
+                                    "c": "Continuation"
+                                },
+                                {
+                                    "t": "Space"
+                                },
+                                {
+                                    "t": "Str",
+                                    "c": "paragraph."
+                                }
+                            ]
+                        },
+                        {
+                            "t": "CodeBlock",
+                            "c": [
+                                [
+                                    "",
+                                    [],
+                                    []
+                                ],
+                                "code line"
+                            ]
+                        },
+                        {
+                            "t": "BlockQuote",
+                            "c": [
+                                {
+                                    "t": "Para",
+                                    "c": [
+                                        {
+                                            "t": "Str",
+                                            "c": "Quoted"
+                                        },
+                                        {
+                                            "t": "Space"
+                                        },
+                                        {
+                                            "t": "Str",
+                                            "c": "continuation."
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                ]
+            ]
+        }
+    ]
+}

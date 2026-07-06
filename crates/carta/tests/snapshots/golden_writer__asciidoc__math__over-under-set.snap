@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+latexmath:[\overset{a}{b}] latexmath:[\underset{a}{b}]
+latexmath:[\stackrel{\text{def}}{=}]

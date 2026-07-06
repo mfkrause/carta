@@ -27,3 +27,25 @@ epub3	common/raw-latex-block
 epub2	common/raw-latex-block
 epub3	common/literal-control-chars
 epub2	common/literal-control-chars
+
+# An intra-document link (a target of the form `#id`) is not yet rewritten to each format's own
+# cross-reference form: Beamer wants `\hyperlink{id}{…}`, reveal.js prefixes the fragment with `#/`,
+# and Typst references a `<label>`. The generic `#id` these writers emit lands elsewhere; the case
+# activates for each once its internal-link path does.
+beamer	links/internal-anchor
+revealjs	links/internal-anchor
+typst	links/internal-anchor
+
+# Block content (a list) inside an otherwise-empty table cell is not yet rendered at parity by these
+# writers, which flatten or misplace the cell's paragraphs and bullets.
+asciidoc	table/table-empty-cell
+dokuwiki	table/table-empty-cell
+jira	table/table-empty-cell
+man	table/table-empty-cell
+typst	table/table-empty-cell
+
+# The man writer's line fill breaks a long run of adjacent inline equations at a different column
+# than the oracle, so these wide math paragraphs wrap differently; the rendered content is the same.
+man	math/braces
+man	math/matrix-array
+man	math/over-under-set

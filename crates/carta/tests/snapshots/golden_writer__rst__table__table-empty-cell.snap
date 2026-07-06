@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+======================= ============== == ==
+A                       B              C  D
+======================= ============== == ==
+.. raw:: html           .. raw:: latex -  ok
+                                       -  
+   <!-- placeholder -->    \vskip         
+======================= ============== == ==

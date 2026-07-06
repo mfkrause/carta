@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$cancel(x)$ $cancel(y + z, inverted: #true)$
+$cancel(a b c, cross: #true)$

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\(a \pmod{n}\) \(a \mod b\) \(a \bmod b\) \(a \pod{n}\)
+\end{frame}

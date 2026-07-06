@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+== Section One
+
+Back to link:#section-one[the section], or an
+https://example.org/docs[outside page].

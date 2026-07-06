@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$a med\(mod med n\)$ $a #h(0em) mod med b$ $a med mod med b$
+$a med\(n\)$

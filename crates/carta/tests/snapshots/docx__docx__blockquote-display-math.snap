@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/docx.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+<w:body>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BlockText" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">before</w:t>
+</w:r>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BlockText" />
+</w:pPr>
+<m:oMathPara>
+<m:oMathParaPr>
+<m:jc m:val="center" />
+</m:oMathParaPr>
+<m:oMath>
+<m:r>
+<m:t>a</m:t>
+</m:r>
+<m:r>
+<m:rPr>
+<m:sty m:val="p" />
+</m:rPr>
+<m:t>=</m:t>
+</m:r>
+<m:r>
+<m:t>b</m:t>
+</m:r>
+</m:oMath>
+</m:oMathPara>
+</w:p>
+<w:p>
+<w:pPr>
+<w:pStyle w:val="BlockText" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">after</w:t>
+</w:r>
+</w:p>
+<w:sectPr>
+<w:footnotePr>
+<w:numRestart w:val="eachSect" />
+</w:footnotePr>
+</w:sectPr>
+</w:body>
+</w:document>

@@ -1,0 +1,39 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "DisplayMath"
+            },
+            "\\begin{array}{lcr} a & b & c \\\\ d & e & f \\end{array}"
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "DisplayMath"
+            },
+            "\\begin{array}{rc} \\alpha & \\beta \\\\ \\gamma & \\delta \\end{array}"
+          ]
+        }
+      ]
+    }
+  ]
+}

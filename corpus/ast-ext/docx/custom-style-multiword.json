@@ -1,0 +1,44 @@
+{
+    "pandoc-api-version": [
+        1,
+        23,
+        1,
+        2
+    ],
+    "meta": {},
+    "blocks": [
+        {
+            "t": "Div",
+            "c": [
+                [
+                    "",
+                    [],
+                    [
+                        [
+                            "custom-style",
+                            "Intense Quote"
+                        ]
+                    ]
+                ],
+                [
+                    {
+                        "t": "Para",
+                        "c": [
+                            {
+                                "t": "Str",
+                                "c": "Styled"
+                            },
+                            {
+                                "t": "Space"
+                            },
+                            {
+                                "t": "Str",
+                                "c": "text."
+                            }
+                        ]
+                    }
+                ]
+            ]
+        }
+    ]
+}

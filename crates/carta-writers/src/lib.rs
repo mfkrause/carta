@@ -36,12 +36,16 @@ mod grid;
     feature = "plain",
     feature = "man",
     feature = "jira",
-    feature = "typst"
+    feature = "typst",
+    feature = "docx"
 ))]
 mod math;
 
 #[cfg(any(feature = "commonmark", feature = "markdown", feature = "gfm"))]
 mod markdown_common;
+
+#[cfg(any(feature = "epub", feature = "docx"))]
+mod image_size;
 
 #[cfg(feature = "slides")]
 mod slides;
@@ -52,6 +56,8 @@ pub mod asciidoc;
 pub mod beamer;
 #[cfg(feature = "commonmark")]
 pub mod commonmark;
+#[cfg(feature = "docx")]
+pub mod docx;
 #[cfg(feature = "dokuwiki")]
 pub mod dokuwiki;
 #[cfg(feature = "epub")]
@@ -93,6 +99,8 @@ pub use asciidoc::AsciidocWriter;
 pub use beamer::BeamerWriter;
 #[cfg(feature = "commonmark")]
 pub use commonmark::CommonmarkWriter;
+#[cfg(feature = "docx")]
+pub use docx::DocxWriter;
 #[cfg(feature = "dokuwiki")]
 pub use dokuwiki::DokuwikiWriter;
 #[cfg(feature = "epub")]

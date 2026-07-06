@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><span class="math inline">\(\frac{a}{b}\)</span> <span
+class="math inline">\(\tfrac{a}{b}\)</span> <span
+class="math inline">\(\dfrac{a}{b}\)</span></p>

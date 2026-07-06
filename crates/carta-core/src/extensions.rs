@@ -200,6 +200,14 @@ define_extensions! {
     WikilinksTitleAfterPipe => "wikilinks_title_after_pipe",
     /// `[[title|target]]` wiki links, with the title preceding the pipe.
     WikilinksTitleBeforePipe => "wikilinks_title_before_pipe",
+    /// A `Div`/`Span`/`CodeBlock` carrying a `custom-style` attribute renders with that named
+    /// paragraph or character style rather than the built-in body style.
+    Styles => "styles",
+    /// Figures and tables are auto-numbered by the target's own field mechanism, with a caption
+    /// label prefix, instead of carrying a number baked into the caption text.
+    NativeNumbering => "native_numbering",
+    /// An empty paragraph in the document model is preserved in the output rather than dropped.
+    EmptyParagraphs => "empty_paragraphs",
 }
 
 const WORD_BITS: usize = u64::BITS as usize;

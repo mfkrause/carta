@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+(\f[I]x\f[R]) [{\f[I]y\f[R]}] ⟨\f[I]v\f[R]⟩ (\f[I]a\f[R]/\f[I]b\f[R]
+.PP
+.RS
+(∑~\f[I]i\f[R]~\f[I]a\f[R]~\f[I]i\f[R]~)
+.RE

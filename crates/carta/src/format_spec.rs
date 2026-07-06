@@ -8,6 +8,7 @@
 use carta_core::{Error, Extension, Extensions, Result, presets};
 
 /// The extensions enabled by default for `base`, before any `+`/`-` toggles.
+#[allow(clippy::match_same_arms)] // Formats sharing a default set stay separate arms for their own notes.
 fn default_extensions(base: &str) -> Extensions {
     match base {
         "commonmark" => Extensions::from_list(&[Extension::RawHtml]),
@@ -36,6 +37,10 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::NativeSpans,
         ]),
         "rst" | "mediawiki" | "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        // Writing DOCX assigns header identifiers by default; the remaining extensions in its set —
+        // custom styles, native figure/table numbering, and empty-paragraph preservation among them —
+        // are opt-in `+` toggles.
+        "docx" => Extensions::from_list(&[Extension::AutoIdentifiers]),
         // Org assigns header identifiers, recognizes `[cite:@key]` citations, and reads task-list
         // checkboxes by default; `smart`, `fancy_lists`, and the alternate identifier shapes are
         // opt-in toggles.
@@ -97,6 +102,16 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::RawHtml,
             Extension::Smart,
             Extension::TexMathDollars,
+        ])),
+        "docx" => Some(Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::Citations,
+            Extension::EastAsianLineBreaks,
+            Extension::EmptyParagraphs,
+            Extension::GfmAutoIdentifiers,
+            Extension::NativeNumbering,
+            Extension::Styles,
         ])),
         _ => None,
     }
@@ -369,7 +384,36 @@ mod tests {
     fn supported_set_is_only_declared_for_listed_formats() {
         use super::supported_extensions;
         assert!(supported_extensions("dokuwiki").is_some());
+        assert!(supported_extensions("docx").is_some());
         assert!(supported_extensions("commonmark").is_none());
         assert!(supported_extensions("html").is_none());
+    }
+
+    #[test]
+    fn docx_defaults_to_auto_identifiers_only() {
+        let (base, ext) = parse_format_spec("docx").unwrap();
+        assert_eq!(base, "docx");
+        assert!(ext.contains(Extension::AutoIdentifiers));
+        // The three writer-shaping toggles are opt-in, off by default.
+        assert!(!ext.contains(Extension::Styles));
+        assert!(!ext.contains(Extension::NativeNumbering));
+        assert!(!ext.contains(Extension::EmptyParagraphs));
+    }
+
+    #[test]
+    fn docx_admits_its_declared_extensions_and_rejects_others() {
+        let (_, ext) = parse_format_spec("docx+styles+native_numbering+empty_paragraphs").unwrap();
+        assert!(ext.contains(Extension::Styles));
+        assert!(ext.contains(Extension::NativeNumbering));
+        assert!(ext.contains(Extension::EmptyParagraphs));
+        assert!(ext.contains(Extension::AutoIdentifiers));
+
+        // `pipe_tables` is a modeled extension, but not one docx accepts.
+        let err = parse_format_spec("docx+pipe_tables").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, format }
+                if extension == "pipe_tables" && format == "docx"
+        ));
     }
 }

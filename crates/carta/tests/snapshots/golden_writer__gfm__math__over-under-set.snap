@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$`\overset{a}{b}`$ $`\underset{a}{b}`$ $`\stackrel{\text{def}}{=}`$

@@ -1,0 +1,95 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Over the reals"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\newcommand{\\RR}{\\mathbb{R}} \\RR \\times \\RR"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "we work."
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "The power"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\newcommand{\\pow}[2]{#1^{#2}} \\pow{x}{3}"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "is cubic."
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "The rebound"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\renewcommand{\\aa}{\\alpha} \\aa_2"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "is alpha."
+        }
+      ]
+    }
+  ]
+}

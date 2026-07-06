@@ -1,0 +1,133 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Keep"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [
+                "insertion"
+              ],
+              [
+                [
+                  "author",
+                  "Alice"
+                ],
+                [
+                  "date",
+                  "2020-01-01T09:00:00Z"
+                ]
+              ]
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "first"
+              }
+            ]
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [
+                "insertion"
+              ],
+              [
+                [
+                  "author",
+                  "Alice"
+                ],
+                [
+                  "date",
+                  "2020-01-01T09:00:00Z"
+                ]
+              ]
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "second"
+              }
+            ]
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "but"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [
+                "deletion"
+              ],
+              [
+                [
+                  "author",
+                  "Bob"
+                ],
+                [
+                  "date",
+                  "2020-02-02T10:00:00Z"
+                ]
+              ]
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "gone"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Emph",
+                "c": [
+                  {
+                    "t": "Str",
+                    "c": "stressed"
+                  }
+                ]
+              }
+            ]
+          ]
+        },
+        {
+          "t": "Str",
+          "c": "."
+        }
+      ]
+    }
+  ]
+}

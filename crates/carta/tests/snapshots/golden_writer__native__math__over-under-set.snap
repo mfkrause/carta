@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Math InlineMath "\\overset{a}{b}"
+    , Space
+    , Math InlineMath "\\underset{a}{b}"
+    , Space
+    , Math InlineMath "\\stackrel{\\text{def}}{=}"
+    ]
+]

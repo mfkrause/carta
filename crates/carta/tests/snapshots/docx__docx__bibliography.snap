@@ -1,0 +1,56 @@
+---
+source: crates/carta/tests/docx.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+<w:body>
+<w:bookmarkStart w:id="1" w:name="bibliography" />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Heading1" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">References</w:t>
+</w:r>
+</w:p>
+<w:bookmarkStart w:id="2" w:name="refs" />
+<w:bookmarkStart w:id="3" w:name="ref-smith2020" />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Bibliography" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">Smith, J. (2020). </w:t>
+</w:r>
+<w:r>
+<w:rPr>
+<w:i />
+<w:iCs />
+</w:rPr>
+<w:t xml:space="preserve">A Title</w:t>
+</w:r>
+<w:r>
+<w:t xml:space="preserve">.</w:t>
+</w:r>
+</w:p>
+<w:bookmarkEnd w:id="3" />
+<w:bookmarkStart w:id="4" w:name="ref-doe2019" />
+<w:p>
+<w:pPr>
+<w:pStyle w:val="Bibliography" />
+</w:pPr>
+<w:r>
+<w:t xml:space="preserve">Doe, A. (2019). Another work.</w:t>
+</w:r>
+</w:p>
+<w:bookmarkEnd w:id="4" />
+<w:bookmarkEnd w:id="2" />
+<w:bookmarkEnd w:id="1" />
+<w:sectPr>
+<w:footnotePr>
+<w:numRestart w:val="eachSect" />
+</w:footnotePr>
+</w:sectPr>
+</w:body>
+</w:document>

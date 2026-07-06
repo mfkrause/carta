@@ -17,6 +17,7 @@ oracle_norm() {
   case "$1" in
     html | html5 | html4 | revealjs) echo "--syntax-highlighting=none --mathjax" ;;
     epub | epub2 | epub3) echo "--syntax-highlighting=none --mathjax" ;;
+    docx) echo "--syntax-highlighting=none" ;;
     latex | beamer) echo "--syntax-highlighting=none" ;;
   esac
 }

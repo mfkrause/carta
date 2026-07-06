@@ -15,6 +15,10 @@
 //! Both entry points are panic-free and bounded against pathological nesting.
 
 mod inlines;
+// The OMML backend lowers the same expression tree into Office Math markup for the word-processing
+// writer; builds without that writer compile it but never call it.
+#[cfg_attr(not(feature = "docx"), allow(dead_code))]
+mod omml;
 mod parse;
 mod symbols;
 mod typst;
@@ -34,6 +38,15 @@ pub(crate) fn to_inlines(tex: &str) -> Option<Vec<Inline>> {
     // Whitespace-only or empty math parses to no atoms and lowers to no inlines: that is a
     // successful (empty) conversion, not a fallback to verbatim source.
     inlines::lower(&atoms)
+}
+
+/// Convert TeX math source to an Office Math (OMML) fragment: an `<m:oMath>` element for inline
+/// math, or an `<m:oMathPara>` wrapper with centered justification for display math. Returns `None`
+/// when the source cannot be parsed or holds a construct with no OMML rendering, so the caller emits
+/// the verbatim source instead.
+#[cfg_attr(not(feature = "docx"), allow(dead_code))]
+pub(crate) fn to_omml(tex: &str, display: bool) -> Option<String> {
+    omml::to_omml(tex, display)
 }
 
 /// Convert TeX math source to Typst math markup (the inner content, no surrounding `$`), or `None`

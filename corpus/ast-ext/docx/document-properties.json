@@ -1,0 +1,78 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {
+    "title": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Quarterly Report"
+        }
+      ]
+    },
+    "author": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Jane Doe"
+        }
+      ]
+    },
+    "subject": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Finance"
+        }
+      ]
+    },
+    "category": {
+      "t": "MetaString",
+      "c": "Reports"
+    },
+    "description": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "A quarterly financial summary."
+        }
+      ]
+    },
+    "company": {
+      "t": "MetaString",
+      "c": "Acme Corp"
+    },
+    "manager": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "John Smith"
+        }
+      ]
+    },
+    "version": {
+      "t": "MetaString",
+      "c": "1.2.3"
+    }
+  },
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Body."
+        }
+      ]
+    }
+  ]
+}

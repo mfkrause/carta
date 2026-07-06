@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+ ≠ \f[I]b\f[R]  ≮ \f[I]c\f[R]  ⊄ \f[I]B\f[R]  ⊬ \f[I]ϕ\f[R] ↛
+\f[I]a̸\f[R]

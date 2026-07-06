@@ -1,0 +1,49 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\xrightarrow{f}"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\xleftarrow{g}"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\xrightarrow[u]{f}"
+          ]
+        }
+      ]
+    }
+  ]
+}

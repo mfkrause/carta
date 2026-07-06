@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section class="slide level6">
+
+<p><span class="math inline">\(\begin{array}{cc}a &amp; b \\ c &amp;
+d\end{array}\)</span> <span class="math inline">\(\begin{array}{ccc}1
+&amp; 2 &amp; 3 \\ 4 &amp; 5 &amp; 6\end{array}\)</span></p>
+</section>

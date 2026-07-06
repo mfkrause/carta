@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+latexmath:[\xrightarrow{f}] latexmath:[\xleftarrow{g}]
+latexmath:[\xrightarrow[u]{f}]

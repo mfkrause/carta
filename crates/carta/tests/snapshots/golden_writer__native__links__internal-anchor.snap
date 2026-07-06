@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Header
+    1
+    ( "section-one" , [] , [] )
+    [ Str "Section" , Space , Str "One" ]
+, Para
+    [ Str "Back"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "the" , Space , Str "section" ]
+        ( "#section-one" , "" )
+    , Str ","
+    , Space
+    , Str "or"
+    , Space
+    , Str "an"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "outside" , Space , Str "page" ]
+        ( "https://example.org/docs" , "" )
+    , Str "."
+    ]
+]

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "$\\overbrace{a+b}$ $\\underbrace{x+y+z}$ $\\overbrace{a+b}^{n}$\n",
+    "$\\underbrace{x+y}_{k}$"
+   ],
+   "id": "7c946064-dd99-401a-82bc-e7d6cd1bbe44"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Math InlineMath "\\frac{a}{b}"
+    , Space
+    , Math InlineMath "\\tfrac{a}{b}"
+    , Space
+    , Math InlineMath "\\dfrac{a}{b}"
+    ]
+]

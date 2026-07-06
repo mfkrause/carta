@@ -1,0 +1,93 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [],
+          [
+            [
+              "custom-style",
+              "MyBlockStyle"
+            ]
+          ]
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "Styled"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "block."
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Span",
+          "c": [
+            [
+              "",
+              [],
+              [
+                [
+                  "custom-style",
+                  "MyCharStyle"
+                ]
+              ]
+            ],
+            [
+              {
+                "t": "Str",
+                "c": "inline"
+              }
+            ]
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "normal."
+        }
+      ]
+    },
+    {
+      "t": "CodeBlock",
+      "c": [
+        [
+          "",
+          [],
+          [
+            [
+              "custom-style",
+              "MyCodeStyle"
+            ]
+          ]
+        ],
+        "code()"
+      ]
+    }
+  ]
+}

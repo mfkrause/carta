@@ -81,10 +81,11 @@ fn writer_output_snapshots() {
 /// whose base writer is not compiled into this build is skipped.
 #[test]
 fn writer_ext_output_snapshots() {
-    let writers = carta::supported_output_formats();
     for case in corpus_cases("ast-ext") {
         let base = case.group.split(['+', '-']).next().unwrap_or(&case.group);
-        if !writers.contains(&base) {
+        // Only text-shaped targets are snapshotted here; a byte-shaped one (its base writer resolves
+        // to `AnyWriter::Bytes`) has no string form and is exercised by its own container test.
+        if !matches!(carta::any_writer_for(base), Ok(carta::AnyWriter::Text(_))) {
             continue;
         }
         let output = carta::convert_text(

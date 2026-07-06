@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+ ≠ b  ≮ c  ⊄ B  ⊬ ϕ ↛ a̸

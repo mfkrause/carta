@@ -58,8 +58,9 @@ pub(super) enum Body {
     Accent(String, Vec<Atom>),
     /// A styled-alphabet/operator command applied to a single brace group, e.g. `\mathbb{R}`.
     Styled(String, Vec<Atom>),
-    /// `\frac{..}{..}` with its numerator and denominator.
-    Frac(Vec<Atom>, Vec<Atom>),
+    /// `\frac{..}{..}` with its bar style, numerator and denominator. `\frac`/`\dfrac` draw a
+    /// horizontal bar; `\tfrac` sets the two arguments on one line without a bar.
+    Frac(FracStyle, Vec<Atom>, Vec<Atom>),
     /// `\sqrt{..}` or `\sqrt[n]{..}` with an optional index.
     Sqrt(Option<Vec<Atom>>, Vec<Atom>),
     /// A text-mode command (`\text{..}`, `\operatorname{..}`, …) and its content. The content is a
@@ -99,9 +100,11 @@ pub(super) enum Body {
     /// A two-dimensional stack (`\overset{mark}{base}`, `\underset`, `\stackrel`): the mark is set
     /// over (or under) the base. Only Typst output can place it; linear output falls back to verbatim.
     Stack(StackSide, Vec<Atom>, Vec<Atom>),
-    /// An aligned/grid environment (`aligned`, `cases`, `substack`, …): the kind selects the Typst
-    /// rendering, and the grid is rows of cell atom lists. Only Typst output renders it.
-    Grid(GridKind, Vec<Vec<Vec<Atom>>>),
+    /// An aligned/grid environment (`aligned`, `cases`, `substack`, …): the kind selects the
+    /// rendering, the per-column justification an `array` block declares in its column specification
+    /// (empty for every other kind, which fixes its own column layout), and the grid of rows of cell
+    /// atom lists.
+    Grid(GridKind, Vec<ColumnAlign>, Vec<Vec<Vec<Atom>>>),
     /// An extensible arrow (`\xrightarrow`, `\xleftarrow`): the base arrow name, an optional label
     /// set below the arrow, and the label set above it. Only Typst output renders it.
     ExtArrow(&'static str, Option<Vec<Atom>>, Vec<Atom>),
@@ -118,16 +121,64 @@ pub(super) enum StackSide {
     Under,
 }
 
+/// How a fraction sets its numerator and denominator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FracStyle {
+    /// `\frac`/`\dfrac`: a horizontal bar separates the two arguments.
+    Bar,
+    /// `\tfrac`: the two arguments sit on one line with no bar.
+    Linear,
+}
+
 /// The flavour of an aligned/grid environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum GridKind {
-    /// An `aligned`/`align`/`array`/`split`/`gathered`/`smallmatrix` block: cells joined by ` & `,
-    /// rows by a trailing `\` and a line break.
+    /// An `aligned`/`align`/`split`/`alignat` block: cells joined by ` & `, rows by a trailing `\`
+    /// and a line break.
     Aligned,
+    /// An `array` block: a matrix of centered columns. Its column specification does not affect the
+    /// cells.
+    Array,
     /// A `cases` block: rendered as Typst's `cases(..)`.
     Cases,
     /// A `\substack{..}`: rows stacked, one per line.
     Substack,
+    /// A `gathered`/`gather`/`smallmatrix`/`multline` block: rows stacked and centered.
+    Gathered,
+    /// An `eqnarray` block: columns cycle right, center, left so each alignment marker meets a
+    /// column boundary.
+    Eqnarray,
+    /// A `flalign` block: columns cycle left, right for a flush-both-sides layout.
+    Flalign,
+}
+
+/// One column's horizontal justification, as an `array` block declares it in its `{lcr}`-style
+/// column specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ColumnAlign {
+    Left,
+    Center,
+    Right,
+}
+
+/// The per-column justifications an `array` column specification declares, in column order. Each of
+/// `l`, `c`, `r` (and the paragraph column types `p`, `m`, `b`, which set flush-left) contributes one
+/// column; rules, inter-column material, and their braced arguments are skipped.
+fn parse_column_aligns(spec: &str) -> Vec<ColumnAlign> {
+    let mut aligns = Vec::new();
+    let mut brace_depth = 0i32;
+    for c in spec.chars() {
+        match c {
+            '{' => brace_depth += 1,
+            '}' => brace_depth -= 1,
+            _ if brace_depth > 0 => {}
+            'l' | 'p' | 'm' | 'b' => aligns.push(ColumnAlign::Left),
+            'c' => aligns.push(ColumnAlign::Center),
+            'r' => aligns.push(ColumnAlign::Right),
+            _ => {}
+        }
+    }
+    aligns
 }
 
 /// The bracket a binomial-style stack is wrapped in.
@@ -510,9 +561,231 @@ fn tokenize(src: &str) -> Vec<Token> {
     tokens
 }
 
+/// The most user-macro expansions performed for one expression, and the most tokens the expanded
+/// stream may hold. Both bound a recursive definition (`\renewcommand{\a}{\a\a}`) so expansion always
+/// halts; once either ceiling is reached, remaining uses stay unexpanded and fall back to verbatim.
+const MACRO_EXPANSION_BUDGET: usize = 4096;
+const MACRO_EXPANSION_MAX_TOKENS: usize = 65_536;
+
+/// One `\newcommand`/`\renewcommand` definition: its mandatory-argument count and its replacement
+/// body, in which each `#n` placeholder is recorded as a parameter reference.
+struct Macro {
+    params: usize,
+    body: Vec<BodyPiece>,
+}
+
+/// One element of a macro's replacement body: either a literal token or a reference to the nth
+/// argument the use supplies.
+enum BodyPiece {
+    Literal(Token),
+    Param(usize),
+}
+
+/// Read a balanced brace group's inner tokens, assuming the cursor sits on its opening `{` and
+/// advancing past the matching `}`. Returns `None` if the group never closes.
+fn read_group(tokens: &[Token], pos: &mut usize) -> Option<Vec<Token>> {
+    if !matches!(tokens.get(*pos), Some(Token::GroupOpen)) {
+        return None;
+    }
+    *pos += 1;
+    let mut depth = 1usize;
+    let mut inner = Vec::new();
+    while let Some(tok) = tokens.get(*pos) {
+        match tok {
+            Token::GroupOpen => depth += 1,
+            Token::GroupClose => {
+                depth -= 1;
+                if depth == 0 {
+                    *pos += 1;
+                    return Some(inner);
+                }
+            }
+            _ => {}
+        }
+        inner.push(tok.clone());
+        *pos += 1;
+    }
+    None
+}
+
+/// Compile a macro's raw body tokens into replacement pieces, turning each `#n` (with `n` a valid
+/// parameter index) into a parameter reference and leaving every other token literal.
+fn compile_macro_body(tokens: &[Token], params: usize) -> Vec<BodyPiece> {
+    let mut body = Vec::new();
+    let mut index = 0;
+    while let Some(tok) = tokens.get(index) {
+        if matches!(tok, Token::Char('#'))
+            && let Some(Token::Number(digits)) = tokens.get(index + 1)
+            && let Some(first) = digits.chars().next()
+            && let Some(reference) = first.to_digit(10)
+            && (1..=params).contains(&(reference as usize))
+        {
+            body.push(BodyPiece::Param(reference as usize));
+            let rest: String = digits.chars().skip(1).collect();
+            if !rest.is_empty() {
+                body.push(BodyPiece::Literal(Token::Number(rest)));
+            }
+            index += 2;
+            continue;
+        }
+        body.push(BodyPiece::Literal(tok.clone()));
+        index += 1;
+    }
+    body
+}
+
+/// Parse one `\newcommand`/`\renewcommand` definition beginning at `start` (the control-word token).
+/// On success returns the macro name, its compiled form, and the position just past the definition;
+/// `None` for any shape outside the supported form (a braced or bare name, an optional `[N]`
+/// argument count with no default, and a braced body), leaving the caller to treat the token
+/// literally.
+fn parse_macro_definition(tokens: &[Token], start: usize) -> Option<(String, Macro, usize)> {
+    let mut pos = start + 1;
+    skip_spaces(tokens, &mut pos);
+    let name = match tokens.get(pos)? {
+        Token::Command(name) => {
+            pos += 1;
+            name.clone()
+        }
+        Token::GroupOpen => {
+            pos += 1;
+            let Token::Command(name) = tokens.get(pos)? else {
+                return None;
+            };
+            let name = name.clone();
+            pos += 1;
+            match tokens.get(pos)? {
+                Token::GroupClose => pos += 1,
+                _ => return None,
+            }
+            name
+        }
+        _ => return None,
+    };
+    skip_spaces(tokens, &mut pos);
+    let mut params = 0usize;
+    if matches!(tokens.get(pos), Some(Token::Char('['))) {
+        pos += 1;
+        let Token::Number(count) = tokens.get(pos)? else {
+            return None;
+        };
+        let count = count.parse::<usize>().ok()?;
+        if count > 9 {
+            return None;
+        }
+        pos += 1;
+        match tokens.get(pos)? {
+            Token::Char(']') => pos += 1,
+            _ => return None,
+        }
+        params = count;
+        skip_spaces(tokens, &mut pos);
+        // An optional-argument default (`\newcommand{\x}[1][d]{…}`) is a shape this does not model;
+        // leaving it unexpanded keeps the whole expression verbatim rather than substituting wrongly.
+        if matches!(tokens.get(pos), Some(Token::Char('['))) {
+            return None;
+        }
+    }
+    let body_tokens = read_group(tokens, &mut pos)?;
+    Some((
+        name,
+        Macro {
+            params,
+            body: compile_macro_body(&body_tokens, params),
+        },
+        pos,
+    ))
+}
+
+/// Read the `params` arguments a macro use supplies: a braced group contributes its inner tokens, an
+/// unbraced token contributes itself. Returns `None` if the stream runs out before every argument is
+/// read, so the use is left unexpanded.
+fn read_macro_arguments(
+    tokens: &[Token],
+    pos: &mut usize,
+    params: usize,
+) -> Option<Vec<Vec<Token>>> {
+    let mut arguments = Vec::with_capacity(params);
+    for _ in 0..params {
+        skip_spaces(tokens, pos);
+        match tokens.get(*pos)? {
+            Token::GroupOpen => arguments.push(read_group(tokens, pos)?),
+            single => {
+                arguments.push(vec![single.clone()]);
+                *pos += 1;
+            }
+        }
+    }
+    Some(arguments)
+}
+
+/// Expand `\newcommand`/`\renewcommand` macros in a token stream: collect every definition and drop
+/// it, then replace each later use with its body, substituting `#n` placeholders with the supplied
+/// arguments. A stream that defines no macro is returned untouched. Expansion is bounded so a
+/// self-referential definition halts, leaving any still-unexpanded use to fall back to verbatim.
+fn expand_macros(tokens: Vec<Token>) -> Vec<Token> {
+    let mut macros: std::collections::BTreeMap<String, Macro> = std::collections::BTreeMap::new();
+    let mut stripped = Vec::new();
+    let mut pos = 0;
+    while let Some(tok) = tokens.get(pos) {
+        if let Token::Command(name) = tok
+            && (name == "newcommand" || name == "renewcommand")
+            && let Some((name, definition, next)) = parse_macro_definition(&tokens, pos)
+        {
+            macros.insert(name, definition);
+            pos = next;
+            continue;
+        }
+        stripped.push(tok.clone());
+        pos += 1;
+    }
+    if macros.is_empty() {
+        return tokens;
+    }
+    let mut current = stripped;
+    let mut budget = MACRO_EXPANSION_BUDGET;
+    loop {
+        let mut expanded = Vec::new();
+        let mut changed = false;
+        let mut index = 0;
+        while let Some(tok) = current.get(index) {
+            if budget > 0
+                && let Token::Command(name) = tok
+                && let Some(definition) = macros.get(name)
+            {
+                let mut after = index + 1;
+                if let Some(arguments) =
+                    read_macro_arguments(&current, &mut after, definition.params)
+                {
+                    for piece in &definition.body {
+                        match piece {
+                            BodyPiece::Literal(token) => expanded.push(token.clone()),
+                            BodyPiece::Param(reference) => {
+                                if let Some(argument) = arguments.get(reference - 1) {
+                                    expanded.extend(argument.iter().cloned());
+                                }
+                            }
+                        }
+                    }
+                    index = after;
+                    changed = true;
+                    budget -= 1;
+                    continue;
+                }
+            }
+            expanded.push(tok.clone());
+            index += 1;
+        }
+        current = expanded;
+        if !changed || budget == 0 || current.len() > MACRO_EXPANSION_MAX_TOKENS {
+            return current;
+        }
+    }
+}
+
 /// Parse TeX math source into a flat atom list, or `None` if it nests too deep or is malformed.
 pub(super) fn parse(src: &str) -> Option<Vec<Atom>> {
-    let tokens = tokenize(src);
+    let tokens = expand_macros(tokenize(src));
     let mut pos = 0;
     let mut atoms = parse_atoms(&tokens, &mut pos, 0, false)?;
     if pos != tokens.len() {
@@ -587,7 +860,7 @@ fn recurse_pair_double_bars(atom: &mut Atom) {
         | Body::Delimited(_, _, inner)
         | Body::Brace(_, inner)
         | Body::Mod(_, Some(inner)) => pair_double_bars(inner),
-        Body::Frac(a, b) | Body::Binom(_, a, b) => {
+        Body::Frac(_, a, b) | Body::Binom(_, a, b) => {
             pair_double_bars(a);
             pair_double_bars(b);
         }
@@ -597,7 +870,7 @@ fn recurse_pair_double_bars(atom: &mut Atom) {
             }
             pair_double_bars(radicand);
         }
-        Body::Matrix(_, rows) | Body::Grid(_, rows) => {
+        Body::Matrix(_, rows) | Body::Grid(_, _, rows) => {
             for row in rows.iter_mut() {
                 for cell in row.iter_mut() {
                     pair_double_bars(cell);
@@ -983,22 +1256,15 @@ fn parse_atoms(
                 let last = atoms.last_mut()?;
                 last.limits = Some(forced);
             }
-            // A leading equation-numbering annotation at the top of the expression carries no visible
-            // glyph: `\nonumber` and `\tag{…}` are dropped, while `\label{…}` is captured as a `Label`
-            // atom that the Typst backend lifts to a trailing reference. The run only applies before
-            // any rendered content (empty groups and earlier labels do not count as content); once a
-            // glyph has been set these commands are ordinary unknown control sequences and the
-            // expression falls back to verbatim, so the arm yields only at the top level.
-            Token::Command(c)
-                if !in_group && c == "nonumber" && atoms.iter().all(is_leading_annotation_atom) =>
-            {
+            // An equation-numbering annotation carries no visible glyph: `\nonumber` and `\tag{…}` are
+            // dropped, while `\label{…}` is captured as a `Label` atom that the Typst backend lifts to a
+            // trailing reference. These annotate the whole expression, so they apply wherever they sit
+            // at the top level — before or after rendered content — and are consumed rather than left as
+            // unknown control sequences that would force a verbatim fallback.
+            Token::Command(c) if !in_group && c == "nonumber" => {
                 *pos += 1;
             }
-            Token::Command(c)
-                if !in_group
-                    && (c == "tag" || c == "label")
-                    && atoms.iter().all(is_leading_annotation_atom) =>
-            {
+            Token::Command(c) if !in_group && (c == "tag" || c == "label") => {
                 let is_label = c == "label";
                 *pos += 1;
                 let name = read_label_arg(tokens, pos)?;
@@ -1015,7 +1281,7 @@ fn parse_atoms(
             // Typst output, so the colour-spec group is consumed and dropped.
             Token::Command(c) if c == "color" => {
                 *pos += 1;
-                parse_required_group(tokens, pos, depth)?;
+                parse_required_group(tokens, pos, depth, &mut None)?;
             }
             // `\DeclareMathOperator{\name}{body}` is a preamble declaration with no typeset glyph of
             // its own: both groups are consumed and the run continues, so a lone declaration produces
@@ -1071,8 +1337,7 @@ fn parse_atoms(
                 chain = ScriptChain::default();
             }
             _ => {
-                let atom = parse_atom(tokens, pos, depth)?;
-                atoms.push(atom);
+                parse_atom_into(tokens, pos, depth, &mut atoms)?;
                 chain = ScriptChain::default();
             }
         }
@@ -1147,15 +1412,24 @@ fn parse_script(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Vec<A
             Some(vec![base])
         }
         _ => {
-            let atom = parse_atom(tokens, pos, depth)?;
-            Some(vec![atom])
+            let mut slot = Vec::new();
+            parse_atom_into(tokens, pos, depth, &mut slot)?;
+            Some(slot)
         }
     }
 }
 
-/// Parse one nucleus atom (a char, a command with any arguments, or a braced group).
+/// Parse one nucleus atom (a char, a command with any arguments, or a braced group). An unbraced
+/// multi-digit argument to a command is a single digit, so a command may leave the remaining digits in
+/// `tail` for the caller to place as a following number atom (`\frac12` → `1` over `2`; `\sqrt12` →
+/// `\sqrt1` then a loose `2`).
 #[allow(clippy::match_same_arms)]
-fn parse_atom(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Atom> {
+fn parse_atom(
+    tokens: &[Token],
+    pos: &mut usize,
+    depth: usize,
+    tail: &mut Option<String>,
+) -> Option<Atom> {
     if depth > MAX_DEPTH {
         return None;
     }
@@ -1191,11 +1465,28 @@ fn parse_atom(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Atom> {
         Token::Command(name) => {
             let name = name.clone();
             *pos += 1;
-            parse_command(&name, tokens, pos, depth)
+            parse_command(&name, tokens, pos, depth, tail)
         }
         // A bare script or close brace is not a valid nucleus here.
         Token::Sub | Token::Sup | Token::GroupClose | Token::Space => None,
     }
+}
+
+/// Parse one nucleus atom into `out`, appending any digits an unbraced multi-digit command argument
+/// left over (see [`parse_atom`]) as a following number atom.
+fn parse_atom_into(
+    tokens: &[Token],
+    pos: &mut usize,
+    depth: usize,
+    out: &mut Vec<Atom>,
+) -> Option<()> {
+    let mut tail = None;
+    let atom = parse_atom(tokens, pos, depth, &mut tail)?;
+    out.push(atom);
+    if let Some(rest) = tail {
+        out.push(Atom::new(Body::Number(rest)));
+    }
+    Some(())
 }
 
 /// A fixed-size delimiter wrapper (`\big`, `\Big`, `\bigg`, `\Bigg`, with optional `l`/`r` variant)
@@ -1293,18 +1584,27 @@ fn parse_big_delim(scale: u16, tokens: &[Token], pos: &mut usize, _depth: usize)
 }
 
 #[allow(clippy::too_many_lines)]
-fn parse_command(name: &str, tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Atom> {
+fn parse_command(
+    name: &str,
+    tokens: &[Token],
+    pos: &mut usize,
+    depth: usize,
+    tail: &mut Option<String>,
+) -> Option<Atom> {
     if let Some(scale) = big_delim_scale(name) {
         return parse_big_delim(scale, tokens, pos, depth);
     }
     if is_accent_command(name) {
-        let arg = parse_required_group(tokens, pos, depth)?;
+        let arg = parse_required_group(tokens, pos, depth, tail)?;
         return Some(Atom::new(Body::Accent(name.to_string(), arg)));
     }
     if is_text_command(name) {
-        // `\operatorname*` (limits variant) reads the same as `\operatorname`.
+        // `\operatorname*` reads its content like `\operatorname`, but its recorded name keeps the star
+        // so the display backend can center a subscript beneath it (the limits variant).
+        let mut wrapper = name;
         if name == "operatorname" && matches!(tokens.get(*pos), Some(Token::Char('*'))) {
             *pos += 1;
+            wrapper = "operatorname*";
         }
         // `\operatorname` is math content set upright; the other wrappers hold literal text.
         let mode = if name == "operatorname" {
@@ -1313,38 +1613,43 @@ fn parse_command(name: &str, tokens: &[Token], pos: &mut usize, depth: usize) ->
             TextMode::Wrapper
         };
         let text = parse_verbatim_group(tokens, pos, mode)?;
-        return Some(Atom::new(Body::Text(name.to_string(), text)));
+        return Some(Atom::new(Body::Text(wrapper.to_string(), text)));
     }
     if is_styled_command(name) {
-        let arg = parse_required_group(tokens, pos, depth)?;
+        let arg = parse_required_group(tokens, pos, depth, tail)?;
         return Some(Atom::new(Body::Styled(name.to_string(), arg)));
     }
     match name {
         "frac" | "dfrac" | "tfrac" => {
-            let num = parse_required_group(tokens, pos, depth)?;
-            let den = parse_required_group(tokens, pos, depth)?;
-            Some(Atom::new(Body::Frac(num, den)))
+            let num = parse_required_group(tokens, pos, depth, tail)?;
+            let den = parse_required_group(tokens, pos, depth, tail)?;
+            let style = if name == "tfrac" {
+                FracStyle::Linear
+            } else {
+                FracStyle::Bar
+            };
+            Some(Atom::new(Body::Frac(style, num, den)))
         }
         "binom" => {
-            let top = parse_required_group(tokens, pos, depth)?;
-            let bottom = parse_required_group(tokens, pos, depth)?;
+            let top = parse_required_group(tokens, pos, depth, tail)?;
+            let bottom = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Binom(BinomKind::Paren, top, bottom)))
         }
-        "genfrac" => parse_genfrac(tokens, pos, depth),
-        "xrightarrow" | "xleftarrow" => parse_extensible_arrow(name, tokens, pos, depth),
+        "genfrac" => parse_genfrac(tokens, pos, depth, tail),
+        "xrightarrow" | "xleftarrow" => parse_extensible_arrow(name, tokens, pos, depth, tail),
         "overbrace" => {
-            let arg = parse_required_group(tokens, pos, depth)?;
+            let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Brace(BraceKind::Over, arg)))
         }
         "underbrace" => {
-            let arg = parse_required_group(tokens, pos, depth)?;
+            let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Brace(BraceKind::Under, arg)))
         }
         "sqrt" => {
             let index = parse_optional_bracket(tokens, pos, depth);
             // A bare `\sqrt` with neither an index nor a radicand is the lone radical sign `√`. An
             // index without a radicand (`\sqrt[3]`) is malformed and falls back to verbatim.
-            match parse_required_group(tokens, pos, depth) {
+            match parse_required_group(tokens, pos, depth, tail) {
                 Some(radicand) => Some(Atom::new(Body::Sqrt(index, radicand))),
                 None if index.is_none() => Some(Atom::new(Body::Char('\u{221A}'))),
                 None => None,
@@ -1352,7 +1657,7 @@ fn parse_command(name: &str, tokens: &[Token], pos: &mut usize, depth: usize) ->
         }
         // A bare radical sign takes the single following atom as its radicand.
         "surd" => {
-            let radicand = parse_required_group(tokens, pos, depth)?;
+            let radicand = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Sqrt(None, radicand)))
         }
         // A `\begin{env} … \end{env}` reached as a nested atom (a script or accent argument) wraps its
@@ -1364,13 +1669,13 @@ fn parse_command(name: &str, tokens: &[Token], pos: &mut usize, depth: usize) ->
         // `\overset{mark}{base}` / `\underset` / `\stackrel{mark}{base}` set a mark over or under a
         // base. `\stackrel` is the over form.
         "overset" | "stackrel" => {
-            let mark = parse_required_group(tokens, pos, depth)?;
-            let base = parse_required_group(tokens, pos, depth)?;
+            let mark = parse_required_group(tokens, pos, depth, tail)?;
+            let base = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Stack(StackSide::Over, mark, base)))
         }
         "underset" => {
-            let mark = parse_required_group(tokens, pos, depth)?;
-            let base = parse_required_group(tokens, pos, depth)?;
+            let mark = parse_required_group(tokens, pos, depth, tail)?;
+            let base = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Stack(StackSide::Under, mark, base)))
         }
         // `\substack{a \\ b}` stacks its `\\`-separated rows.
@@ -1381,7 +1686,7 @@ fn parse_command(name: &str, tokens: &[Token], pos: &mut usize, depth: usize) ->
             }
             *pos += 1;
             let rows = parse_grid_rows_braced(tokens, pos, depth)?;
-            Some(Atom::new(Body::Grid(GridKind::Substack, rows)))
+            Some(Atom::new(Body::Grid(GridKind::Substack, Vec::new(), rows)))
         }
         "left" => parse_delimited(tokens, pos, depth),
         // `\bmod` is an infix operator: it needs a following operand. With nothing after it (the end
@@ -1400,7 +1705,7 @@ fn parse_command(name: &str, tokens: &[Token], pos: &mut usize, depth: usize) ->
             Some(Atom::new(Body::Mod(ModKind::Bmod, None)))
         }
         "pmod" => {
-            let arg = parse_required_group(tokens, pos, depth)?;
+            let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Mod(ModKind::Pmod, Some(arg))))
         }
         // `\mod` leads its operand, which stays a separate atom; the operator is invalid with no
@@ -1418,7 +1723,7 @@ fn parse_command(name: &str, tokens: &[Token], pos: &mut usize, depth: usize) ->
             Some(Atom::new(Body::Mod(ModKind::Mod, None)))
         }
         "pod" => {
-            let arg = parse_required_group(tokens, pos, depth)?;
+            let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Mod(ModKind::Pod, Some(arg))))
         }
         // `\not` strikes through the relation that follows it: a command name, or a single relation
@@ -1519,8 +1824,7 @@ fn parse_delimited(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<At
                 push_prime(last);
             }
             Some(_) => {
-                let atom = parse_atom(tokens, pos, depth + 1)?;
-                inner.push(atom);
+                parse_atom_into(tokens, pos, depth + 1, &mut inner)?;
             }
         }
     }
@@ -1634,10 +1938,13 @@ fn parse_environment(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<
     let grid_kind = match base {
         // The multi-line equation environments are transparent alignment grids: rows split on `\\`,
         // columns on `&`. The single-line `equation`/`equation*` are handled below.
-        "aligned" | "align" | "aligned*" | "align*" | "array" | "split" | "gathered" | "gather"
-        | "gather*" | "smallmatrix" | "multline" | "multline*" | "multlined" | "multlined*"
-        | "eqnarray" | "eqnarray*" | "flalign" | "flalign*" | "flaligned" | "flaligned*"
-        | "alignat" | "alignat*" | "alignedat" | "alignedat*" => Some(GridKind::Aligned),
+        "aligned" | "align" | "aligned*" | "align*" | "split" | "alignat" | "alignat*"
+        | "alignedat" | "alignedat*" => Some(GridKind::Aligned),
+        "gathered" | "gather" | "gather*" | "smallmatrix" | "multline" | "multline*"
+        | "multlined" | "multlined*" => Some(GridKind::Gathered),
+        "eqnarray" | "eqnarray*" => Some(GridKind::Eqnarray),
+        "flalign" | "flalign*" | "flaligned" | "flaligned*" => Some(GridKind::Flalign),
+        "array" => Some(GridKind::Array),
         "cases" => Some(GridKind::Cases),
         _ => None,
     };
@@ -1647,12 +1954,15 @@ fn parse_environment(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<
     if matrix_delim.is_none() && grid_kind.is_none() && !single_line {
         return None;
     }
-    // `\begin{array}{cols}` carries a column-specification group that does not affect the cells. The
-    // `alignat`/`alignedat` environments likewise carry a mandatory `{N}` column-count group; with no
-    // such group they are malformed and fall back to verbatim.
-    if env == "array" {
-        parse_verbatim_group(tokens, pos, TextMode::Math)?;
-    }
+    // `\begin{array}{cols}` carries a column-specification group declaring each column's
+    // justification. The `alignat`/`alignedat` environments likewise carry a mandatory `{N}`
+    // column-count group; with no such group they are malformed and fall back to verbatim.
+    let array_aligns = if env == "array" {
+        let spec = text_pieces_to_string(&parse_verbatim_group(tokens, pos, TextMode::Math)?);
+        parse_column_aligns(&spec)
+    } else {
+        Vec::new()
+    };
     if matches!(
         env.as_str(),
         "alignat" | "alignat*" | "alignedat" | "alignedat*"
@@ -1675,7 +1985,7 @@ fn parse_environment(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<
         return Some(vec![Atom::new(Body::Matrix(delim, rows))]);
     }
     let kind = grid_kind?;
-    Some(vec![Atom::new(Body::Grid(kind, rows))])
+    Some(vec![Atom::new(Body::Grid(kind, array_aligns, rows))])
 }
 
 /// Read an optional `[…]` bracket group immediately following the environment opener as a run of
@@ -1791,7 +2101,7 @@ fn parse_grid_rows_braced(
             Token::Space => {
                 *pos += 1;
             }
-            _ => atoms.push(parse_atom(tokens, pos, depth + 1)?),
+            _ => parse_atom_into(tokens, pos, depth + 1, &mut atoms)?,
         }
     }
     None
@@ -1880,9 +2190,13 @@ fn parse_matrix_cell(
                     atoms.push(Atom::new(Body::Label(name)));
                 }
             }
+            // A horizontal rule between matrix or array rows carries no glyph and does not affect the
+            // cells it separates, so it is consumed and dropped.
+            Token::Command(c) if c == "hline" || c == "hdashline" => {
+                *pos += 1;
+            }
             _ => {
-                let atom = parse_atom(tokens, pos, depth)?;
-                atoms.push(atom);
+                parse_atom_into(tokens, pos, depth, &mut atoms)?;
             }
         }
     }
@@ -1920,17 +2234,6 @@ fn is_accent_command(name: &str) -> bool {
     )
 }
 
-/// Whether an atom is invisible filler that does not end the top-level leading-annotation run: a
-/// captured `\label`, a synthesized empty nucleus, or a bare empty group, none carrying a script. A
-/// scripted empty group sets a glyph slot and counts as content.
-fn is_leading_annotation_atom(atom: &Atom) -> bool {
-    matches!(atom.body, Body::Label(_) | Body::Empty | Body::EmptyGroup)
-        && atom.sub.is_none()
-        && atom.sup.is_none()
-        && atom.siblings.is_empty()
-        && atom.limits.is_none()
-}
-
 /// A style switch that only sets the typesetting size and carries no glyph.
 fn is_style_switch(name: &str) -> bool {
     matches!(
@@ -1964,14 +2267,19 @@ fn genfrac_kind(left: &str) -> Option<BinomKind> {
 /// Parse `\genfrac{ldelim}{rdelim}{thickness}{style}{num}{den}`: the opening delimiter selects the
 /// surrounding bracket; the right-delimiter, rule-thickness and style groups are consumed. With no
 /// opening delimiter the construct cannot be laid out and falls back to verbatim.
-fn parse_genfrac(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Atom> {
+fn parse_genfrac(
+    tokens: &[Token],
+    pos: &mut usize,
+    depth: usize,
+    tail: &mut Option<String>,
+) -> Option<Atom> {
     let left = parse_verbatim_group(tokens, pos, TextMode::Math)?;
     let kind = genfrac_kind(&text_pieces_to_string(&left))?;
     for _ in 0..3 {
-        parse_required_group(tokens, pos, depth)?;
+        parse_required_group(tokens, pos, depth, tail)?;
     }
-    let top = parse_required_group(tokens, pos, depth)?;
-    let bottom = parse_required_group(tokens, pos, depth)?;
+    let top = parse_required_group(tokens, pos, depth, tail)?;
+    let bottom = parse_required_group(tokens, pos, depth, tail)?;
     Some(Atom::new(Body::Binom(kind, top, bottom)))
 }
 
@@ -1982,6 +2290,7 @@ fn parse_extensible_arrow(
     tokens: &[Token],
     pos: &mut usize,
     depth: usize,
+    tail: &mut Option<String>,
 ) -> Option<Atom> {
     let arrow = if name == "xrightarrow" {
         "arrow.r"
@@ -1989,7 +2298,7 @@ fn parse_extensible_arrow(
         "arrow.l"
     };
     let below = parse_optional_bracket(tokens, pos, depth);
-    let above = parse_required_group(tokens, pos, depth)?;
+    let above = parse_required_group(tokens, pos, depth, tail)?;
     Some(Atom::new(Body::ExtArrow(arrow, below, above)))
 }
 
@@ -2682,10 +2991,28 @@ fn apply_text_command(
     }
 }
 
-/// Parse a required `{...}` group, advancing past optional leading spaces.
-fn parse_required_group(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Vec<Atom>> {
+/// Parse a required `{...}` group, advancing past optional leading spaces. An unbraced argument is a
+/// single token: a multi-digit number gives up only its first digit and leaves the rest in `tail` for
+/// the command's next argument or the enclosing run to place.
+fn parse_required_group(
+    tokens: &[Token],
+    pos: &mut usize,
+    depth: usize,
+    tail: &mut Option<String>,
+) -> Option<Vec<Atom>> {
     if depth > MAX_DEPTH {
         return None;
+    }
+    // A previous argument of the same command took one digit of an unbraced multi-digit number and
+    // left the rest here; this argument takes the next digit of it. (`\frac12` → `1` over `2`.)
+    if let Some(rest) = tail.take() {
+        let mut chars = rest.chars();
+        let first = chars.next()?;
+        let remainder: String = chars.collect();
+        if !remainder.is_empty() {
+            *tail = Some(remainder);
+        }
+        return Some(vec![Atom::new(Body::Number(first.to_string()))]);
     }
     skip_spaces(tokens, pos);
     match tokens.get(*pos)? {
@@ -2693,10 +3020,23 @@ fn parse_required_group(tokens: &[Token], pos: &mut usize, depth: usize) -> Opti
             *pos += 1;
             parse_atoms(tokens, pos, depth + 1, true)
         }
+        // An unbraced number gives up only its first digit; any further digits stay in `tail` for the
+        // next argument or the enclosing run. (`\sqrt12` → `\sqrt1` then a loose `2`.)
+        Token::Number(digits) => {
+            let mut chars = digits.chars();
+            let first = chars.next()?;
+            let remainder: String = chars.collect();
+            *pos += 1;
+            if !remainder.is_empty() {
+                *tail = Some(remainder);
+            }
+            Some(vec![Atom::new(Body::Number(first.to_string()))])
+        }
         // A single token also serves as the argument (e.g. `\bar x`).
-        Token::Char(_) | Token::Number(_) | Token::Command(_) => {
-            let atom = parse_atom(tokens, pos, depth + 1)?;
-            Some(vec![atom])
+        Token::Char(_) | Token::Command(_) => {
+            let mut group = Vec::new();
+            parse_atom_into(tokens, pos, depth + 1, &mut group)?;
+            Some(group)
         }
         _ => None,
     }
@@ -2717,12 +3057,18 @@ fn parse_optional_bracket(tokens: &[Token], pos: &mut usize, depth: usize) -> Op
             return Some(inner);
         }
         let mut local = probe;
-        let atom = parse_atom(tokens, &mut local, depth + 1)?;
+        // A bracketed optional argument keeps its numbers whole (`\sqrt[12]{x}`), so any leftover
+        // digits a nested command produces stay with this argument rather than escaping the bracket.
+        let mut bracket_tail = None;
+        let atom = parse_atom(tokens, &mut local, depth + 1, &mut bracket_tail)?;
         if local == probe {
             return None;
         }
         probe = local;
         inner.push(atom);
+        if let Some(rest) = bracket_tail {
+            inner.push(Atom::new(Body::Number(rest)));
+        }
     }
     None
 }
