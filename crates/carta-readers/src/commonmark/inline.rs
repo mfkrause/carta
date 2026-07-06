@@ -847,6 +847,13 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) ->
     parse_inlines(text, &refs, notes, ext)
 }
 
+/// A link label may hold at most 999 characters between its brackets (`CommonMark`, "Links"). A
+/// UTF-8 character is at most four bytes, so a span longer than this in bytes exceeds that
+/// character bound. Reference lookups treat such a span as no label at all — skipping extraction,
+/// normalization, and the map lookup — regardless of what definitions exist, which also keeps a
+/// close's label work bounded on adversarially nested brackets.
+const MAX_LABEL_BYTES: usize = 999 * 4;
+
 struct InlineParser<'a> {
     text: &'a str,
     /// Cursor as a byte offset into `text`; every mutation lands on a UTF-8 character boundary.
@@ -892,7 +899,7 @@ fn interesting_chars(ext: Extensions) -> [bool; 128] {
     })
 }
 
-impl InlineParser<'_> {
+impl<'a> InlineParser<'a> {
     fn peek(&self) -> Option<char> {
         char_at(self.text, self.pos)
     }
@@ -1749,10 +1756,13 @@ impl InlineParser<'_> {
             return;
         }
 
-        // A shortcut reference: the bracket's own text names the definition.
-        if is_active {
-            let key = normalize_label(&self.raw_label(opener_index));
-            if let Some(target) = self.refs.get(&key).map(def_target) {
+        // A shortcut reference: the bracket's own text names the definition. Skip the whole lookup
+        // when no definitions exist or the span is too long to be a label.
+        if is_active && !self.refs.is_empty() {
+            let raw = self.raw_label(opener_index);
+            if raw.len() <= MAX_LABEL_BYTES
+                && let Some(target) = self.refs.get(&normalize_label(raw)).map(def_target)
+            {
                 self.finish_link(opener_index, is_image, target, self.pos);
                 return;
             }
@@ -1782,7 +1792,12 @@ impl InlineParser<'_> {
     /// the brackets for literal handling) when the content is not a citation list.
     fn try_bracket_citation(&mut self, opener_index: usize, is_image: bool) -> bool {
         let raw = self.raw_label(opener_index);
-        let Some(segments) = split_citation_segments(&raw) else {
+        // A citation list must carry at least one `@key`; without an `@` the span cannot be one, so
+        // skip the segment scan entirely.
+        if !raw.as_bytes().contains(&b'@') {
+            return false;
+        }
+        let Some(segments) = split_citation_segments(raw) else {
             return false;
         };
         // Scanning the interior may have counted bare citations that are about to be discarded with
@@ -1798,7 +1813,7 @@ impl InlineParser<'_> {
         self.bump_cite_count();
         let mut citations = Vec::with_capacity(segments.len());
         for segment in &segments {
-            let Some(entry) = self.parse_citation_entry(&raw, segment.clone()) else {
+            let Some(entry) = self.parse_citation_entry(raw, segment.clone()) else {
                 return false;
             };
             citations.push(entry);
@@ -2010,8 +2025,19 @@ impl InlineParser<'_> {
             }
         }
         if let Some((label, next)) = scan_following_label(self.text, label_start) {
+            // An explicit reference with no definitions in scope can never resolve, so the brackets
+            // stay literal without extracting or normalizing the label.
+            if self.refs.is_empty() {
+                return Explicit::Failed;
+            }
             let key = if label.is_empty() {
-                normalize_label(&self.raw_label(opener_index))
+                // A collapsed reference is keyed on the bracket's own span, which is unbounded
+                // source text; past the label limit it is no label at all.
+                let raw = self.raw_label(opener_index);
+                if raw.len() > MAX_LABEL_BYTES {
+                    return Explicit::Failed;
+                }
+                normalize_label(raw)
             } else {
                 normalize_label(&label)
             };
@@ -2024,15 +2050,14 @@ impl InlineParser<'_> {
     }
 
     /// The raw source between a bracket opener and the closing `]` just consumed.
-    fn raw_label(&self, opener_index: usize) -> String {
+    fn raw_label(&self, opener_index: usize) -> &'a str {
         let start = match self.nodes.get(opener_index) {
             Some(Node::Delimiter(d)) => d.text_start,
-            _ => return String::new(),
+            _ => return "",
         };
         // The closing `]` is ASCII, so its byte offset is `self.pos - 1`.
         self.text
             .get(start..self.pos.saturating_sub(1))
-            .map(str::to_owned)
             .unwrap_or_default()
     }
 
@@ -2043,6 +2068,9 @@ impl InlineParser<'_> {
     /// rather than nesting a note. Returns `false` (leaving the brackets for other resolution) when
     /// the label has no `^` prefix, holds a bracket, or matches no definition.
     fn try_footnote(&mut self, opener_index: usize, is_image: bool) -> bool {
+        if self.notes.defined.is_empty() {
+            return false;
+        }
         let raw = self.raw_label(opener_index);
         let Some(label) = raw.strip_prefix('^') else {
             return false;
@@ -4289,6 +4317,80 @@ mod inline_tests {
         let refs = ref_map(&[("r", "http://r")]);
         let result = parse_inlines("[a][r]", &refs, no_notes(), no_ext());
         assert_eq!(result, vec![link(vec![str("a")], "http://r")]);
+    }
+
+    #[test]
+    fn shortcut_reference_resolves_only_with_a_matching_definition() {
+        // No definitions in scope: the brackets stay literal.
+        assert_eq!(p("[foo]"), vec![str("[foo]")]);
+        // A matching definition resolves the shortcut, with case folding on the label.
+        let refs = ref_map(&[("foo", "http://f")]);
+        assert_eq!(
+            parse_inlines("[Foo]", &refs, no_notes(), no_ext()),
+            vec![link(vec![str("Foo")], "http://f")]
+        );
+    }
+
+    #[test]
+    fn shortcut_label_near_the_length_bound_still_resolves() {
+        // A 999-character label sits under the byte guard, so its lookup runs normally; the guard
+        // only skips spans that are too long to be a label at all.
+        let label = "a".repeat(999);
+        let refs = ref_map(&[(label.as_str(), "http://f")]);
+        let source = format!("[{label}]");
+        assert_eq!(
+            parse_inlines(&source, &refs, no_notes(), no_ext()),
+            vec![link(vec![str(&label)], "http://f")]
+        );
+    }
+
+    #[test]
+    fn span_past_the_label_bound_never_resolves_as_shortcut_or_collapsed() {
+        // A span longer than MAX_LABEL_BYTES is no label, even when a definition with the same
+        // oversized key exists: both the shortcut and the collapsed lookup leave it literal.
+        let oversized = "a".repeat(super::MAX_LABEL_BYTES + 1);
+        let refs = ref_map(&[(oversized.as_str(), "http://big")]);
+        let shortcut = format!("[{oversized}]");
+        assert_eq!(
+            parse_inlines(&shortcut, &refs, no_notes(), no_ext()),
+            vec![str(&shortcut)]
+        );
+        let collapsed = format!("[{oversized}][]");
+        assert_eq!(
+            parse_inlines(&collapsed, &refs, no_notes(), no_ext()),
+            vec![str(&collapsed)]
+        );
+        // The same collapsed form under the bound resolves through the identical path.
+        let refs = ref_map(&[("foo", "http://f")]);
+        assert_eq!(
+            parse_inlines("[Foo][]", &refs, no_notes(), no_ext()),
+            vec![link(vec![str("Foo")], "http://f")]
+        );
+    }
+
+    #[test]
+    fn footnote_reference_resolves_at_the_bracket_boundary() {
+        let mut defined = BTreeSet::new();
+        defined.insert("x".to_owned());
+        let mut by_id: BTreeMap<String, Vec<Block>> = BTreeMap::new();
+        by_id.insert("x".to_owned(), vec![Block::Para(vec![str("note")])]);
+        let examples = ExampleMap::new();
+        let cite = Cell::new(0);
+        let notes = RefContext {
+            defined: &defined,
+            by_id: &by_id,
+            in_definition: false,
+            markdown: false,
+            examples: &examples,
+            cite_count: &cite,
+        };
+        let ext = exts(&[Extension::Footnotes]);
+        assert_eq!(
+            parse_inlines("[^x]", &empty_refs(), notes, ext),
+            vec![Inline::Note(vec![Block::Para(vec![str("note")])])]
+        );
+        // With no footnotes defined, the same syntax stays literal.
+        assert_eq!(pe("[^x]", ext), vec![str("[^x]")]);
     }
 
     #[test]
