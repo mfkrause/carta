@@ -15,8 +15,8 @@ use carta_ast::{
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, attribute_value, display_width, fill, indent_block, label_matches_url,
-    list_is_tight, numeral, wrap_delim,
+    FILL_COLUMN, Piece, attribute_value, clean_prefix_len, display_width, fill, indent_block,
+    label_matches_url, list_is_tight, numeral, wrap_delim,
 };
 use crate::grid;
 
@@ -1804,9 +1804,40 @@ fn escape(text: &str, mode: EscapeMode) -> String {
 /// regardless of `smart`.
 fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    while let Some(ch) = chars.next() {
-        let next = chars.peek().copied();
+    let code = mode == EscapeMode::Code;
+    let is_trigger = |byte: u8| {
+        matches!(
+            byte,
+            b'&' | b'%'
+                | b'#'
+                | b'_'
+                | b'$'
+                | b'{'
+                | b'}'
+                | b'^'
+                | b'['
+                | b']'
+                | b'~'
+                | b'\\'
+                | b'<'
+                | b'>'
+                | b'|'
+                | b'\''
+                | b'-'
+        ) || byte >= 0x80
+            || (code && matches!(byte, b' ' | b'`'))
+    };
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(head);
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
+        let next = chars.clone().next();
         match ch {
             '&' | '%' | '#' | '_' | '$' | '{' | '}' => {
                 out.push('\\');
@@ -1856,6 +1887,7 @@ fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String {
             }
             other => out.push(other),
         }
+        rest = chars.as_str();
     }
     out
 }
@@ -2052,6 +2084,35 @@ mod tests {
         assert_eq!(escape("\u{2013}-", EscapeMode::Text), "---");
         assert_eq!(escape("\u{2018}x\u{2019}", EscapeMode::Text), "`x'");
         assert_eq!(escape("\u{201C}x\u{201D}", EscapeMode::Text), "``x''");
+    }
+
+    #[test]
+    fn escape_copies_clean_runs_verbatim() {
+        assert_eq!(escape("hello world", EscapeMode::Text), "hello world");
+        assert_eq!(
+            escape("caf\u{e9} au lait", EscapeMode::Text),
+            "caf\u{e9} au lait"
+        );
+        assert_eq!(escape("a & b", EscapeMode::Text), "a \\& b");
+        assert_eq!(escape("100%", EscapeMode::Text), "100\\%");
+    }
+
+    #[test]
+    fn escape_handles_triggers_at_run_edges() {
+        assert_eq!(escape("&x", EscapeMode::Text), "\\&x");
+        assert_eq!(escape("x&", EscapeMode::Text), "x\\&");
+        assert_eq!(escape("&&", EscapeMode::Text), "\\&\\&");
+        assert_eq!(escape("caf\u{e9}&", EscapeMode::Text), "caf\u{e9}\\&");
+        assert_eq!(escape("&\u{e9}x", EscapeMode::Text), "\\&\u{e9}x");
+    }
+
+    #[test]
+    fn escape_lookahead_sees_past_a_verbatim_prefix() {
+        // The `--` ligature guard and the control-word separator both peek at the character after
+        // the trigger; a prefix copied verbatim before the trigger must not hide that lookahead.
+        assert_eq!(escape("abc--def", EscapeMode::Text), "abc-\\/-def");
+        assert_eq!(escape("x~y", EscapeMode::Text), "x\\textasciitilde y");
+        assert_eq!(escape("abc-\u{2013}", EscapeMode::Text), "abc-\\/--");
     }
 
     #[test]

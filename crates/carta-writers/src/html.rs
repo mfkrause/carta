@@ -15,7 +15,8 @@ use carta_ast::{
 use carta_core::{MathMethod, MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, RowSpanGrid, is_known_attribute, is_wide, normalize_image_attr, quote_marks,
+    FILL_COLUMN, RowSpanGrid, clean_prefix_len, is_known_attribute, is_wide, normalize_image_attr,
+    quote_marks,
 };
 
 /// Renders a document to an html5 fragment.
@@ -1628,8 +1629,23 @@ fn escape(text: &str, double_quote: bool, single_quote: bool) -> String {
 /// Escape `text` directly into `out`, avoiding the throwaway allocation of [`escape`] on the hot
 /// text-run path.
 fn escape_into(out: &mut String, text: &str, double_quote: bool, single_quote: bool) {
-    for ch in text.chars() {
+    let is_trigger = |byte: u8| {
+        matches!(byte, b'&' | b'<' | b'>' | 0..=3)
+            || (double_quote && byte == b'"')
+            || (single_quote && byte == b'\'')
+    };
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(head);
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
         escape_char(ch, double_quote, single_quote, out);
+        rest = chars.as_str();
     }
 }
 
@@ -1756,6 +1772,28 @@ mod escaping_tests {
         let mut out = String::new();
         escape_text_into(&mut out, "a\"b'c<&>");
         assert_eq!(out, "a\"b'c&lt;&amp;&gt;");
+    }
+
+    #[test]
+    fn clean_text_is_copied_verbatim() {
+        let mut out = String::new();
+        escape_text_into(&mut out, "plain caf\u{e9} text");
+        assert_eq!(out, "plain caf\u{e9} text");
+    }
+
+    #[test]
+    fn triggers_at_the_edges_and_back_to_back_are_escaped() {
+        assert_eq!(escape_attr("&x"), "&amp;x");
+        assert_eq!(escape_attr("x<"), "x&lt;");
+        assert_eq!(escape_attr("<<>>"), "&lt;&lt;&gt;&gt;");
+        assert_eq!(escape_attr("caf\u{e9}<\u{e9}>"), "caf\u{e9}&lt;\u{e9}&gt;");
+    }
+
+    #[test]
+    fn assembly_sentinels_in_content_are_protected() {
+        let mut out = String::new();
+        escape_text_into(&mut out, "a\u{1}b");
+        assert_eq!(out, "a\u{1}\u{1}b");
     }
 }
 

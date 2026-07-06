@@ -13,8 +13,8 @@ use carta_ast::{
 use carta_core::{Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, attribute_value, display_width, fill,
-    fill_offset, is_uri_scheme, label_matches_url, split_length_unit,
+    self, FILL_COLUMN, Piece, RawTrim, RowSpanGrid, attribute_value, clean_prefix_len,
+    display_width, fill, fill_offset, is_uri_scheme, label_matches_url, split_length_unit,
 };
 
 /// Renders a document to `AsciiDoc` markup.
@@ -946,7 +946,27 @@ fn escape_text(text: &str) -> String {
             run.clear();
         }
     };
-    for ch in text.chars() {
+    let is_trigger = |byte: u8| {
+        matches!(
+            byte,
+            b'*' | b'_' | b'`' | b'#' | b'<' | b'>' | b'{' | b'[' | b']' | b'|' | b'\\' | b'+'
+        )
+    };
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        if clean > 0 {
+            flush(&mut run, &mut out);
+            let Some((head, tail)) = rest.split_at_checked(clean) else {
+                out.push_str(rest);
+                break;
+            };
+            out.push_str(head);
+            rest = tail;
+            continue;
+        }
+        let mut chars = rest.chars();
+        let Some(ch) = chars.next() else { break };
         if is_formatting_char(ch) {
             run.push(ch);
         } else {
@@ -957,6 +977,7 @@ fn escape_text(text: &str) -> String {
                 out.push(ch);
             }
         }
+        rest = chars.as_str();
     }
     flush(&mut run, &mut out);
     out
