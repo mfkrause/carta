@@ -779,6 +779,12 @@ fn is_external_uri(url: &str) -> bool {
 
 fn escape_text(text: &str) -> String {
     // C0 control characters other than tab and newline have no wiki rendering and are dropped.
+    let has_droppable = text
+        .bytes()
+        .any(|byte| byte < 0x20 && byte != b'\t' && byte != b'\n');
+    if !has_droppable {
+        return escape_xml(text, true);
+    }
     let stripped: String = text
         .chars()
         .filter(|&ch| (ch as u32) >= 0x20 || ch == '\t' || ch == '\n')

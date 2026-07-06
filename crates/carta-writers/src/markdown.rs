@@ -22,10 +22,11 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
-    body_rows, cell_inlines, dash_rule, display_width, escape_html_attr, extend_multiline_body,
-    fill, fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_simple_cell,
-    item_separator, lay_row, measure_pieces, offset_as_i32, ordered_marker, pad_align,
-    pieces_nonempty, quote_marks, render_html_attr, render_html_fragment_attr, table_form,
+    body_rows, cell_inlines, clean_prefix_len, dash_rule, display_width, escape_html_attr,
+    extend_multiline_body, fill, fill_offset, filled_cells, indent_block, indent_lines, is_loose,
+    is_simple_cell, item_separator, lay_row, measure_pieces, offset_as_i32, ordered_marker,
+    pad_align, pieces_nonempty, quote_marks, render_html_attr, render_html_fragment_attr,
+    table_form,
 };
 use crate::grid;
 use crate::markdown_common::{
@@ -1748,12 +1749,47 @@ impl State {
         } else {
             text
         };
+        let is_trigger = |byte: u8| {
+            matches!(
+                byte,
+                b'#' | b'!'
+                    | b'`'
+                    | b'*'
+                    | b'['
+                    | b']'
+                    | b'<'
+                    | b'>'
+                    | b'|'
+                    | b'$'
+                    | b'~'
+                    | b'^'
+                    | b'@'
+                    | b'&'
+                    | b'_'
+                    | b'\\'
+            )
+        };
         let mut out = String::with_capacity(text.len());
         let mut prev: Option<char> = None;
         let mut backslash_run = 0usize;
-        let mut iter = text.char_indices().peekable();
-        while let Some((offset, ch)) = iter.next() {
-            let next = iter.peek().map(|&(_, following)| following);
+        let mut offset = 0usize;
+        loop {
+            let remaining = text.get(offset..).unwrap_or_default();
+            let clean = clean_prefix_len(remaining, is_trigger);
+            if clean > 0 {
+                let head = text.get(offset..offset + clean).unwrap_or_default();
+                out.push_str(head);
+                prev = head.chars().next_back();
+                backslash_run = 0;
+                offset += clean;
+                continue;
+            }
+            let Some(ch) = remaining.chars().next() else {
+                break;
+            };
+            let next = remaining
+                .get(ch.len_utf8()..)
+                .and_then(|s| s.chars().next());
             let at_start = offset == 0;
             let word_start = at_start || prev.is_some_and(char::is_whitespace);
             let tail = || text.get(offset..).unwrap_or_default();
@@ -1797,6 +1833,7 @@ impl State {
                 other => out.push(other),
             }
             prev = Some(ch);
+            offset += ch.len_utf8();
         }
         out
     }
@@ -2319,6 +2356,42 @@ mod entity_names {
 fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
     let alnum = |ch: Option<char>| ch.is_some_and(char::is_alphanumeric);
     !(alnum(before) && alnum(after))
+}
+
+#[cfg(test)]
+mod escaping_tests {
+    use super::{MarkdownConfig, State};
+    use carta_core::{Extension, Extensions, WrapMode};
+
+    fn state(extensions: Extensions, cmark: bool) -> State {
+        State::new(MarkdownConfig { extensions, cmark }, 72, WrapMode::Auto)
+    }
+
+    #[test]
+    fn citation_marker_sees_word_start_after_a_verbatim_run() {
+        let state = state(Extensions::from_list(&[Extension::Citations]), false);
+        assert_eq!(state.escape_str("see @cite"), "see \\@cite");
+        assert_eq!(state.escape_str("user@host"), "user@host");
+    }
+
+    #[test]
+    fn underscore_escaping_depends_on_neighbors_across_verbatim_runs() {
+        let intraword = state(Extensions::empty(), true);
+        assert_eq!(intraword.escape_str("snake_case"), "snake_case");
+        assert_eq!(intraword.escape_str("a _b"), "a \\_b");
+        let plain = state(Extensions::empty(), false);
+        assert_eq!(plain.escape_str("snake_case"), "snake\\_case");
+    }
+
+    #[test]
+    fn backslash_run_parity_resets_across_verbatim_runs() {
+        let state = state(Extensions::empty(), true);
+        assert_eq!(state.escape_str("a\\b"), "a\\b");
+        // The trailing backslash starts a fresh run of one after the intervening clean text, so it
+        // pads to an even pair; the two-backslash run is already even and stays as-is.
+        assert_eq!(state.escape_str("\\x\\"), "\\x\\\\");
+        assert_eq!(state.escape_str("x\\\\"), "x\\\\");
+    }
 }
 
 #[cfg(test)]

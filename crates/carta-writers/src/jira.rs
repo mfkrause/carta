@@ -561,6 +561,13 @@ fn normalize_whitespace(text: &str) -> String {
 /// elsewhere Jira would consume it as an escape. The `prev`/`after` neighbors are supplied by the
 /// caller so the tests reflect the surrounding inline stream, not just this string's own ends.
 fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> String {
+    // Only these characters open backslash, emoticon, or span markup; text without any of them is
+    // never rewritten, so it is returned verbatim without the per-character walk.
+    if !text.contains([
+        '{', '}', '?', '\\', '(', ':', ';', '*', '_', '+', '-', '^', '~', '!', '|', '[', ']', '&',
+    ]) {
+        return text.to_owned();
+    }
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
     // The character at an absolute offset within this string, falling back to the supplied

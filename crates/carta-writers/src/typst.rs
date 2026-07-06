@@ -15,7 +15,7 @@ use carta_ast::{
 };
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, attribute_value, display_width};
+use crate::common::{FILL_COLUMN, attribute_value, clean_prefix_len, display_width};
 
 /// Renders a document to Typst markup (no trailing newline).
 #[derive(Debug, Default, Clone, Copy)]
@@ -1146,37 +1146,70 @@ fn quote_marks(kind: &QuoteType, smart: bool) -> (char, char) {
 /// kind is escaped. En/em dashes are spelled `--`/`---`. The leading `- + = /` line markers are left
 /// for the fill pass, which escapes them only at a physical line start.
 fn escape_text(text: &str, after_space: bool, first_text: bool, smart: bool) -> String {
-    let chars: Vec<char> = text.chars().collect();
+    let is_trigger = |byte: u8| {
+        matches!(
+            byte,
+            b'*' | b'_'
+                | b'`'
+                | b'\\'
+                | b'#'
+                | b'$'
+                | b'@'
+                | b'<'
+                | b'>'
+                | b'~'
+                | b'['
+                | b']'
+                | b'"'
+                | b'\''
+                | b'.'
+                | b';'
+                | b'('
+                | b'-'
+                | b'/'
+        ) || byte >= 0x80
+    };
     let mut out = String::with_capacity(text.len());
-    for (index, &ch) in chars.iter().enumerate() {
-        let previous = if index == 0 {
-            None
-        } else {
-            chars.get(index - 1)
+    let mut previous: Option<char> = None;
+    let mut first = true;
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
         };
-        let has_more = index + 1 < chars.len();
+        if !head.is_empty() {
+            out.push_str(head);
+            previous = head.chars().next_back();
+            first = false;
+        }
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
+        let has_more = chars.clone().next().is_some();
         let escape = match ch {
             '*' | '_' | '`' | '\\' | '#' | '$' | '@' | '<' | '>' | '~' | '[' | ']' | '"' | '\'' => {
                 true
             }
-            '.' | ';' => index == 0 && has_more,
-            '(' => index == 0 && has_more && (!after_space || first_text),
-            '-' | '/' => previous == Some(&ch),
+            '.' | ';' => first && has_more,
+            '(' => first && has_more && (!after_space || first_text),
+            '-' | '/' => previous == Some(ch),
             _ => false,
         };
         // The non-breaking space is Typst's structural `~` shortcut, independent of smart punctuation.
         if ch == '\u{00A0}' {
             out.push('~');
-            continue;
-        }
-        if smart && let Some(replacement) = smart_replacement(ch) {
+        } else if smart && let Some(replacement) = smart_replacement(ch) {
             out.push_str(replacement);
-            continue;
+        } else {
+            if escape {
+                out.push('\\');
+            }
+            out.push(ch);
         }
-        if escape {
-            out.push('\\');
-        }
-        out.push(ch);
+        previous = Some(ch);
+        first = false;
+        rest = chars.as_str();
     }
     out
 }
@@ -1195,12 +1228,21 @@ fn smart_replacement(ch: char) -> Option<&'static str> {
 
 /// Escape a string for a double-quoted Typst string literal: backslash and double-quote only.
 fn escape_string(text: &str) -> String {
+    let is_trigger = |byte: u8| matches!(byte, b'\\' | b'"');
     let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
-        if ch == '\\' || ch == '"' {
-            out.push('\\');
-        }
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(head);
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
+        out.push('\\');
         out.push(ch);
+        rest = chars.as_str();
     }
     out
 }
@@ -1210,6 +1252,26 @@ mod tests {
     use super::*;
     use carta_ast::Document;
     use carta_core::Extensions;
+
+    #[test]
+    fn escape_text_position_rules_survive_a_verbatim_prefix() {
+        // `.` and `;` escape only as the very first character with more text following; `first`
+        // must go false once a clean run has been copied ahead of the trigger.
+        assert_eq!(escape_text(".x", true, false, false), "\\.x");
+        assert_eq!(escape_text("ab.x", true, false, false), "ab.x");
+        assert_eq!(escape_text(".", true, false, false), ".");
+        assert_eq!(escape_text("(ab)", false, false, false), "\\(ab)");
+        assert_eq!(escape_text("x(ab)", false, false, false), "x(ab)");
+    }
+
+    #[test]
+    fn escape_text_run_rules_see_the_previous_character() {
+        // `-` and `/` escape only when doubled; the first of a pair follows a verbatim-copied run.
+        assert_eq!(escape_text("a--b", true, false, false), "a-\\-b");
+        assert_eq!(escape_text("http://a", true, false, false), "http:/\\/a");
+        assert_eq!(escape_text("a\u{a0}b", true, false, false), "a~b");
+        assert_eq!(escape_text("plain text", true, false, false), "plain text");
+    }
 
     fn smart_options() -> WriterOptions {
         // `-t typst` defaults to `smart` on (see `default_extensions` in `format_spec`); the writer

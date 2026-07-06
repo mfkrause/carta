@@ -6,11 +6,24 @@
 
 use carta_ast::Attr;
 
+use super::clean_prefix_len;
+
 /// Escape the XML/HTML metacharacters `&`, `<`, and `>` to their entities, and additionally `"` when
 /// `escape_quotes` is set (as in an attribute value).
 pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
+    let is_trigger =
+        |byte: u8| matches!(byte, b'&' | b'<' | b'>') || (escape_quotes && byte == b'"');
     let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(head);
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
         match ch {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
@@ -18,6 +31,7 @@ pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
             '"' if escape_quotes => out.push_str("&quot;"),
             other => out.push(other),
         }
+        rest = chars.as_str();
     }
     out
 }
@@ -31,8 +45,18 @@ pub(crate) fn escape_attr(text: &str) -> String {
 /// and `"` to their named entities and `'` to `&#39;`. Link and image attribute values take this
 /// form; `<div>` and `<span>` wrapper attributes keep the single quote literal via [`escape_attr`].
 pub(crate) fn escape_html_attr(text: &str) -> String {
+    let is_trigger = |byte: u8| matches!(byte, b'&' | b'<' | b'>' | b'"' | b'\'');
     let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(head);
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
         match ch {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
@@ -41,6 +65,7 @@ pub(crate) fn escape_html_attr(text: &str) -> String {
             '\'' => out.push_str("&#39;"),
             other => out.push(other),
         }
+        rest = chars.as_str();
     }
     out
 }

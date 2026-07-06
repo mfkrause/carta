@@ -15,8 +15,8 @@ use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
-    display_width, fill, fill_cell, fill_hang, indent_block, is_known_scheme, is_uri_scheme,
-    label_matches_url, offset_as_i32, ordered_marker, quote_marks,
+    clean_prefix_len, display_width, fill, fill_cell, fill_hang, indent_block, is_known_scheme,
+    is_uri_scheme, label_matches_url, offset_as_i32, ordered_marker, quote_marks,
 };
 use crate::grid;
 
@@ -1666,11 +1666,22 @@ fn is_safe_preceder(ch: char) -> bool {
 /// neighbors. A `_` is a reference marker: it is escaped everywhere except where it is buried directly
 /// before an alphanumeric and is not itself opening at a word boundary.
 fn escape(text: &str, smart: bool) -> String {
-    let chars: Vec<char> = text.chars().collect();
+    let is_trigger =
+        |byte: u8| matches!(byte, b'\\' | b'*' | b'`' | b'|' | b'_') || (smart && byte >= 0x80);
     let mut out = String::new();
-    for (index, &ch) in chars.iter().enumerate() {
-        let prev = index.checked_sub(1).and_then(|i| chars.get(i)).copied();
-        let next = chars.get(index + 1).copied();
+    let mut prev: Option<char> = None;
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(head);
+        prev = head.chars().next_back().or(prev);
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
+        let next = chars.clone().next();
         match ch {
             '\\' => out.push_str("\\\\"),
             '*' | '`' | '|' => {
@@ -1692,6 +1703,8 @@ fn escape(text: &str, smart: bool) -> String {
                 None => out.push(ch),
             },
         }
+        prev = Some(ch);
+        rest = chars.as_str();
     }
     out
 }
@@ -2033,6 +2046,29 @@ mod tests {
 
     fn unit(simple: bool, text: &str) -> (bool, String) {
         (simple, text.to_string())
+    }
+
+    #[test]
+    fn escape_flanking_tests_see_the_neighbor_before_a_trigger() {
+        // The `prev` neighbor comes from the verbatim-copied run before the trigger: a space makes
+        // the star a potential start-string, a word character before whitespace a potential
+        // end-string, and a buried star is neither.
+        assert_eq!(escape("text *star", false), "text \\*star");
+        assert_eq!(escape("text* tail", false), "text\\* tail");
+        assert_eq!(escape("a*b", false), "a*b");
+    }
+
+    #[test]
+    fn escape_underscore_depends_on_both_neighbors() {
+        assert_eq!(escape("snake_case", false), "snake_case");
+        assert_eq!(escape("word_ end", false), "word\\_ end");
+        assert_eq!(escape("tail_", false), "tail\\_");
+    }
+
+    #[test]
+    fn escape_multibyte_neighbors_survive_the_verbatim_copy() {
+        assert_eq!(escape("caf\u{e9}_x", false), "caf\u{e9}_x");
+        assert_eq!(escape("\u{e9} *x", true), "\u{e9} \\*x");
     }
 
     #[test]

@@ -65,6 +65,20 @@ pub(crate) fn offset_as_i32(offset: usize) -> i32 {
     i32::try_from(offset).unwrap_or(i32::MAX)
 }
 
+/// Byte length of the longest prefix of `text` that contains no trigger byte, per `is_trigger`. An
+/// escaper copies this prefix verbatim and resumes its per-character work at the first trigger.
+///
+/// `is_trigger` must classify bytes so the returned length always falls on a `char` boundary: match
+/// only ASCII bytes (`< 0x80`), or — for an escaper that acts on non-ASCII input — additionally
+/// treat *every* byte `>= 0x80` as a trigger. Under that contract the first trigger byte is either an
+/// ASCII byte or the leading byte of a multibyte character, never a continuation byte.
+pub(crate) fn clean_prefix_len(text: &str, is_trigger: impl Fn(u8) -> bool) -> usize {
+    text.as_bytes()
+        .iter()
+        .position(|&byte| is_trigger(byte))
+        .unwrap_or(text.len())
+}
+
 /// How a raw-passthrough payload's trailing newlines are handled before emission.
 #[derive(Clone, Copy)]
 pub(crate) enum RawTrim {

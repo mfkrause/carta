@@ -16,8 +16,8 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, GridSlot, RowSpanGrid, display_width, is_known_scheme, label_matches_url,
-    ordered_marker,
+    FILL_COLUMN, GridSlot, RowSpanGrid, clean_prefix_len, display_width, is_known_scheme,
+    label_matches_url, ordered_marker,
 };
 
 /// Renders a document to roff man source (no trailing newline).
@@ -946,8 +946,23 @@ fn caption_inlines(blocks: &[Block]) -> Vec<Inline> {
 /// escaped equivalents; typographic punctuation maps to its roff special; everything else passes
 /// through as UTF-8.
 fn escape_text(text: &str) -> String {
+    let is_trigger = |byte: u8| {
+        matches!(
+            byte,
+            b'\\' | b'-' | b'~' | b'^' | b'`' | b'\'' | b'"' | b'@'
+        ) || byte >= 0x80
+    };
     let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
+    let mut rest = text;
+    loop {
+        let clean = clean_prefix_len(rest, is_trigger);
+        let Some((head, tail)) = rest.split_at_checked(clean) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(head);
+        let mut chars = tail.chars();
+        let Some(ch) = chars.next() else { break };
         match ch {
             '\\' => out.push_str("\\(rs"),
             '-' => out.push_str("\\-"),
@@ -967,6 +982,7 @@ fn escape_text(text: &str) -> String {
             '\u{00A0}' => out.push_str("\\ "),
             other => out.push(other),
         }
+        rest = chars.as_str();
     }
     out
 }
