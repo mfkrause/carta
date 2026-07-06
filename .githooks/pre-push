@@ -10,7 +10,11 @@ cargo clippy --all-targets --all-features
 
 echo "tests ..." >&2
 if command -v cargo-nextest >/dev/null 2>&1; then
-  cargo nextest run --workspace --all-features
+  if command -v cargo-insta >/dev/null 2>&1; then
+    cargo insta test --workspace --all-features --test-runner nextest --unreferenced=reject
+  else
+    cargo nextest run --workspace --all-features
+  fi
   cargo test --doc --workspace --all-features
 else
   cargo test --workspace --all-features

@@ -14,6 +14,8 @@ cargo install cargo-nextest      # test runner (required)
 cargo install cargo-insta        # snapshot review (Layer 1)
 cargo install cargo-llvm-cov     # coverage
 cargo install cargo-deny         # dependency/license/advisory checks
+cargo install typos-cli          # optional — spell check, for CI parity via tools/check.sh
+cargo install hyperfine          # optional — used only by tools/bench-suite
 ```
 
 Run the one-time developer setup to enable the git hooks (formatting on commit; clippy
@@ -30,7 +32,8 @@ cargo build                                # build the workspace
 cargo nextest run --workspace              # run the offline test suite
 cargo test --doc --workspace               # doctests
 cargo fmt --all                            # format
-cargo clippy --all-targets --all-features  # lint
+RUSTFLAGS="-D warnings" cargo clippy --all-targets --all-features  # lint (as CI does)
+tools/check.sh                             # everything CI gates a PR on, in one command
 ```
 
 The everyday suite is fully offline and is what CI gates every pull request on. Broader
