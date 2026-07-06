@@ -154,9 +154,9 @@ impl SlideRenderer {
             class_words.iter().map(|word| (*word).into()).collect();
         classes.extend(attr.classes.iter().cloned());
         let mut tag = String::from("<section");
-        tag.push_str(&render_id(&attr.id));
-        tag.push_str(&render_class(&classes));
-        tag.push_str(&render_keyvals(&attr.attributes, Flavor::Slides));
+        render_id_into(&mut tag, &attr.id);
+        render_class_into(&mut tag, &classes);
+        render_keyvals_into(&mut tag, &attr.attributes, Flavor::Slides);
         tag.push('>');
         tag
     }
@@ -171,10 +171,9 @@ impl SlideRenderer {
             classes: attr.classes.clone(),
             attributes: attr.attributes.clone(),
         };
-        let mut out = format!(
-            "<{tag}{}>",
-            render_attr(&titleless, AttrOrder::Header, Flavor::Slides)
-        );
+        let mut out = format!("<{tag}");
+        render_attr_into(&mut out, &titleless, AttrOrder::Header, Flavor::Slides);
+        out.push('>');
         self.state.inlines(&mut out, inlines);
         let _ = write!(out, "</{tag}>");
         out
@@ -211,9 +210,9 @@ impl SlideRenderer {
 #[allow(dead_code)]
 #[must_use]
 pub(crate) fn fill_slides(assembled: &str, wrap: WrapMode, width: usize) -> String {
-    restore(&reflow(assembled, wrap, width))
-        .trim_end_matches('\n')
-        .to_owned()
+    let mut filled = restore(reflow(assembled, wrap, width));
+    filled.truncate(filled.trim_end_matches('\n').len());
+    filled
 }
 
 /// Render a block sequence to an html5 fragment, including the footnote section for any notes the
@@ -268,7 +267,7 @@ pub(crate) fn render_epub_inlines(inlines: &[Inline], epub3: bool) -> String {
     // each run of breakable spaces to a single ordinary one (never a line break), and restore decodes
     // any content character that was protected from that pass — so a protected control character
     // becomes its literal self and is then dropped as XML-invalid, rather than leaking its escape tag.
-    strip_xml_invalid(restore(&reflow(&out, WrapMode::None, FILL_COLUMN)))
+    strip_xml_invalid(restore(reflow(&out, WrapMode::None, FILL_COLUMN)))
 }
 
 /// The shared predicate for characters XML 1.0 permits; an EPUB page is XML, so the same rule that
@@ -304,8 +303,9 @@ fn render_with_flavor(
     let mut out = String::new();
     state.blocks(&mut out, blocks);
     state.push_footnote_section(&mut out);
-    let filled = restore(&reflow(&out, wrap, width));
-    filled.trim_end_matches('\n').to_owned()
+    let mut filled = restore(reflow(&out, wrap, width));
+    filled.truncate(filled.trim_end_matches('\n').len());
+    filled
 }
 
 /// The column an html writer fills to: the requested width, or the default when none is set.
@@ -441,22 +441,28 @@ impl State {
             }
             Block::Header(level, attr, inlines) => {
                 let tag = header_tag(*level);
-                let rendered = if self.flavor.is_html5_family() {
-                    render_attr(attr, AttrOrder::Header, self.flavor)
+                let _ = write!(out, "<{tag}");
+                if self.flavor.is_html5_family() {
+                    render_attr_into(out, attr, AttrOrder::Header, self.flavor);
                 } else {
-                    render_attr(&heading_attr_html4(attr), AttrOrder::Header, self.flavor)
-                };
-                let _ = write!(out, "<{tag}{rendered}>");
+                    render_attr_into(
+                        out,
+                        &heading_attr_html4(attr),
+                        AttrOrder::Header,
+                        self.flavor,
+                    );
+                }
+                out.push('>');
                 self.inlines(out, inlines);
                 let _ = write!(out, "</{tag}>");
             }
             Block::CodeBlock(attr, text) => {
-                let _ = write!(
-                    out,
-                    "<pre{}><code>{FLUSH}{}</code></pre>",
-                    render_attr(attr, AttrOrder::Standard, self.flavor),
-                    escape_attr(text)
-                );
+                out.push_str("<pre");
+                render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+                out.push_str("><code>");
+                out.push(FLUSH);
+                escape_attr_into(out, text);
+                out.push_str("</code></pre>");
             }
             Block::RawBlock(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
             Block::BlockQuote(blocks) => {
@@ -484,19 +490,15 @@ impl State {
                             .collect(),
                         attributes: attr.attributes.clone(),
                     };
-                    let _ = writeln!(
-                        out,
-                        "<section{}>",
-                        render_attr(&stripped, AttrOrder::Standard, self.flavor)
-                    );
+                    out.push_str("<section");
+                    render_attr_into(out, &stripped, AttrOrder::Standard, self.flavor);
+                    out.push_str(">\n");
                     self.blocks(out, blocks);
                     out.push_str("\n</section>");
                 } else {
-                    let _ = writeln!(
-                        out,
-                        "<div{}>",
-                        render_attr(attr, AttrOrder::Standard, self.flavor)
-                    );
+                    out.push_str("<div");
+                    render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+                    out.push_str(">\n");
                     self.blocks(out, blocks);
                     out.push_str("\n</div>");
                 }
@@ -604,11 +606,9 @@ impl State {
     }
 
     fn figure_html5(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
-        let _ = writeln!(
-            out,
-            "<figure{}>",
-            render_attr(attr, AttrOrder::Standard, self.flavor)
-        );
+        out.push_str("<figure");
+        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+        out.push_str(">\n");
         self.blocks(out, blocks);
         if !caption.long.is_empty() {
             let hidden = if is_implicit_figure(caption, blocks) {
@@ -624,11 +624,9 @@ impl State {
     }
 
     fn figure_html4(&mut self, out: &mut String, attr: &Attr, caption: &Caption, blocks: &[Block]) {
-        let _ = writeln!(
-            out,
-            "<div class=\"float\"{}>",
-            render_attr(attr, AttrOrder::Standard, self.flavor)
-        );
+        out.push_str("<div class=\"float\"");
+        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+        out.push_str(">\n");
         self.blocks(out, blocks);
         if !caption.long.is_empty() {
             out.push_str("\n<div class=\"figcaption\">");
@@ -650,12 +648,10 @@ impl State {
     }
 
     fn table(&mut self, out: &mut String, table: &Table) {
-        let _ = write!(
-            out,
-            "<table{}{}>",
-            render_attr(&table.attr, AttrOrder::Standard, self.flavor),
-            table_width_style(&table.col_specs)
-        );
+        out.push_str("<table");
+        render_attr_into(out, &table.attr, AttrOrder::Standard, self.flavor);
+        out.push_str(&table_width_style(&table.col_specs));
+        out.push('>');
         if !table.caption.long.is_empty() {
             out.push_str("\n<caption>");
             self.blocks(out, &table.caption.long);
@@ -668,11 +664,9 @@ impl State {
             .collect();
         out.push_str(&colgroup(&table.col_specs, self.flavor));
         if !table.head.rows.is_empty() {
-            let _ = write!(
-                out,
-                "\n<thead{}>",
-                render_attr(&table.head.attr, AttrOrder::Standard, self.flavor)
-            );
+            out.push_str("\n<thead");
+            render_attr_into(out, &table.head.attr, AttrOrder::Standard, self.flavor);
+            out.push('>');
             out.push('\n');
             self.rows(out, &table.head.rows, &aligns, true);
             out.push_str("\n</thead>");
@@ -686,11 +680,9 @@ impl State {
             if table.bodies.is_empty() {
                 out.push('\n');
             }
-            let _ = write!(
-                out,
-                "<tfoot{}>",
-                render_attr(&table.foot.attr, AttrOrder::Standard, self.flavor)
-            );
+            out.push_str("<tfoot");
+            render_attr_into(out, &table.foot.attr, AttrOrder::Standard, self.flavor);
+            out.push('>');
             out.push('\n');
             self.rows(out, &table.foot.rows, &aligns, false);
             out.push_str("\n</tfoot>");
@@ -704,11 +696,9 @@ impl State {
     }
 
     fn table_body(&mut self, out: &mut String, body: &TableBody, aligns: &[Alignment]) {
-        let _ = write!(
-            out,
-            "\n<tbody{}>",
-            render_attr(&body.attr, AttrOrder::Standard, self.flavor)
-        );
+        out.push_str("\n<tbody");
+        render_attr_into(out, &body.attr, AttrOrder::Standard, self.flavor);
+        out.push('>');
         let mut head_grid = RowSpanGrid::new(aligns.len());
         for row in &body.head {
             out.push('\n');
@@ -752,11 +742,9 @@ impl State {
         head_columns: i32,
         grid: &mut RowSpanGrid,
     ) {
-        let _ = write!(
-            out,
-            "<tr{}>",
-            render_attr(&row.attr, AttrOrder::Standard, self.flavor)
-        );
+        out.push_str("<tr");
+        render_attr_into(out, &row.attr, AttrOrder::Standard, self.flavor);
+        out.push('>');
         out.push('\n');
         let head_columns = usize::try_from(head_columns).unwrap_or(0);
         for (index, (column, cell)) in grid.place(&row.cells).into_iter().enumerate() {
@@ -823,12 +811,11 @@ impl State {
                 out.push(close);
             }
             Inline::Code(attr, text) => {
-                let _ = write!(
-                    out,
-                    "<code{}>{}</code>",
-                    render_attr(attr, AttrOrder::Standard, self.flavor),
-                    escape_text(text)
-                );
+                out.push_str("<code");
+                render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+                out.push('>');
+                escape_text_into(out, text);
+                out.push_str("</code>");
             }
             Inline::Space => out.push(BREAK),
             Inline::SoftBreak => out.push(SOFT),
@@ -921,11 +908,9 @@ impl State {
                 && attr.classes.is_empty()
                 && attr.attributes.is_empty();
             if !bare_underline {
-                let _ = write!(
-                    out,
-                    "<span{}>",
-                    render_attr(attr, AttrOrder::Standard, self.flavor)
-                );
+                out.push_str("<span");
+                render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+                out.push('>');
             }
             if underline {
                 out.push_str("<u>");
@@ -955,11 +940,9 @@ impl State {
         };
         for (index, tag) in tags.iter().enumerate() {
             if index == 0 {
-                let _ = write!(
-                    out,
-                    "<{tag}{}>",
-                    render_attr(&outer, AttrOrder::Standard, self.flavor)
-                );
+                let _ = write!(out, "<{tag}");
+                render_attr_into(out, &outer, AttrOrder::Standard, self.flavor);
+                out.push('>');
             } else {
                 let _ = write!(out, "<{tag}>");
             }
@@ -978,22 +961,21 @@ impl State {
 
     fn link(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline], target: &Target) {
         if self.in_anchor {
-            let _ = write!(
-                out,
-                "<span{}>",
-                render_attr(attr, AttrOrder::Standard, self.flavor)
-            );
+            out.push_str("<span");
+            render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+            out.push('>');
             self.inlines(out, inlines);
             out.push_str("</span>");
             return;
         }
-        let _ = write!(
-            out,
-            "<a{BREAK}href=\"{}\"{}{}>",
-            escape_attr(&target.url),
-            render_attr(attr, AttrOrder::Standard, self.flavor),
-            title_attr(&target.title)
-        );
+        out.push_str("<a");
+        out.push(BREAK);
+        out.push_str("href=\"");
+        escape_attr_into(out, &target.url);
+        out.push('"');
+        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+        out.push_str(&title_attr(&target.title));
+        out.push('>');
         self.in_anchor = true;
         self.inlines(out, inlines);
         self.in_anchor = false;
@@ -1176,12 +1158,22 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> St
         Flavor::Slides => "data-src",
         Flavor::Html5 | Flavor::Html4 | Flavor::Epub3 | Flavor::Epub2 => "src",
     };
-    format!(
-        "<img{BREAK}{source}=\"{}\"{}{}{alt_attr}{BREAK}/>",
-        escape_attr(&target.url),
-        title_attr(&target.title),
-        render_attr(&normalize_image_attr(attr), AttrOrder::Standard, flavor),
-    )
+    let mut out = String::from("<img");
+    out.push(BREAK);
+    let _ = write!(out, "{source}=\"");
+    escape_attr_into(&mut out, &target.url);
+    out.push('"');
+    out.push_str(&title_attr(&target.title));
+    render_attr_into(
+        &mut out,
+        &normalize_image_attr(attr),
+        AttrOrder::Standard,
+        flavor,
+    );
+    out.push_str(&alt_attr);
+    out.push(BREAK);
+    out.push_str("/>");
+    out
 }
 
 /// Whether a figure's body is a single captioned image whose alt text reads the same as its
@@ -1280,9 +1272,10 @@ fn title_attr(title: &Text) -> String {
     }
 }
 
-fn header_tag(level: i32) -> String {
-    let clamped = level.clamp(1, 6);
-    format!("h{clamped}")
+fn header_tag(level: i32) -> &'static str {
+    const TAGS: [&str; 6] = ["h1", "h2", "h3", "h4", "h5", "h6"];
+    let index = usize::try_from(level.clamp(1, 6) - 1).unwrap_or(0);
+    TAGS.get(index).copied().unwrap_or("h1")
 }
 
 fn ordered_list_type(style: ListNumberStyle) -> Option<&'static str> {
@@ -1348,13 +1341,18 @@ fn raw_passthrough(format: &str, text: &str) -> String {
 /// Renders an [`Attr`] to its HTML attribute string (with a leading space when non-empty). The
 /// field order depends on [`AttrOrder`]; the spelling of non-standard attribute keys depends on the
 /// [`Flavor`].
-fn render_attr(attr: &Attr, order: AttrOrder, flavor: Flavor) -> String {
-    let id = render_id(&attr.id);
-    let class = render_class(&attr.classes);
-    let keyvals = render_keyvals(&attr.attributes, flavor);
+fn render_attr_into(out: &mut String, attr: &Attr, order: AttrOrder, flavor: Flavor) {
     match order {
-        AttrOrder::Standard => format!("{id}{class}{keyvals}"),
-        AttrOrder::Header => format!("{class}{keyvals}{id}"),
+        AttrOrder::Standard => {
+            render_id_into(out, &attr.id);
+            render_class_into(out, &attr.classes);
+            render_keyvals_into(out, &attr.attributes, flavor);
+        }
+        AttrOrder::Header => {
+            render_class_into(out, &attr.classes);
+            render_keyvals_into(out, &attr.attributes, flavor);
+            render_id_into(out, &attr.id);
+        }
     }
 }
 
@@ -1393,14 +1391,14 @@ fn is_html4_dimension_attribute(key: &str) -> bool {
 /// Render a table cell's attributes for the HTML4 dialect: id, class, an explicit `align="…"`
 /// attribute for the effective alignment, then the cell's own key/value pairs verbatim.
 fn cell_attr_html4(attr: &Attr, align: &Alignment, flavor: Flavor) -> String {
-    let id = render_id(&attr.id);
-    let class = render_class(&attr.classes);
-    let align_attr = match alignment_word(align) {
-        Some(word) => format!("{BREAK}align=\"{word}\""),
-        None => String::new(),
-    };
-    let keyvals = render_keyvals(&attr.attributes, flavor);
-    format!("{id}{class}{align_attr}{keyvals}")
+    let mut out = String::new();
+    render_id_into(&mut out, &attr.id);
+    render_class_into(&mut out, &attr.classes);
+    if let Some(word) = alignment_word(align) {
+        let _ = write!(out, "{BREAK}align=\"{word}\"");
+    }
+    render_keyvals_into(&mut out, &attr.attributes, flavor);
+    out
 }
 
 /// Render a table cell's attributes, folding the column's alignment into the `style` declaration.
@@ -1408,13 +1406,12 @@ fn cell_attr_html4(attr: &Attr, align: &Alignment, flavor: Flavor) -> String {
 /// attribute present, an alignment-only `style` is emitted as the first key/value pair, after id and
 /// class. With no alignment the attributes render unchanged.
 fn cell_attr(attr: &Attr, align_style: Option<&str>) -> String {
-    let id = render_id(&attr.id);
-    let class = render_class(&attr.classes);
+    let mut out = String::new();
+    render_id_into(&mut out, &attr.id);
+    render_class_into(&mut out, &attr.classes);
     let Some(align_style) = align_style else {
-        return format!(
-            "{id}{class}{}",
-            render_keyvals(&attr.attributes, Flavor::Html5)
-        );
+        render_keyvals_into(&mut out, &attr.attributes, Flavor::Html5);
+        return out;
     };
     let mut keyvals = String::new();
     let mut merged = false;
@@ -1422,24 +1419,28 @@ fn cell_attr(attr: &Attr, align_style: Option<&str>) -> String {
         if key.is_empty() {
             continue;
         }
+        keyvals.push(BREAK);
         if key == "style" {
             let combined = combine_style(align_style, value);
-            let _ = write!(keyvals, "{BREAK}style=\"{}\"", escape_attr(&combined));
+            keyvals.push_str("style=\"");
+            escape_attr_into(&mut keyvals, &combined);
+            keyvals.push('"');
             merged = true;
         } else {
-            let name = if is_known_attribute(key) {
-                key.to_string()
-            } else {
-                format!("data-{key}")
-            };
-            let _ = write!(keyvals, "{BREAK}{name}=\"{}\"", escape_attr(value));
+            if !is_known_attribute(key) {
+                keyvals.push_str("data-");
+            }
+            keyvals.push_str(key);
+            keyvals.push_str("=\"");
+            escape_attr_into(&mut keyvals, value);
+            keyvals.push('"');
         }
     }
-    if merged {
-        format!("{id}{class}{keyvals}")
-    } else {
-        format!("{id}{class}{BREAK}style=\"{align_style}\"{keyvals}")
+    if !merged {
+        let _ = write!(out, "{BREAK}style=\"{align_style}\"");
     }
+    out.push_str(&keyvals);
+    out
 }
 
 /// Prefix a `style` value with an alignment declaration, ensuring the result ends with a semicolon.
@@ -1449,51 +1450,62 @@ fn combine_style(align_style: &str, style: &str) -> String {
     format!("{align_style} {trimmed}{suffix}")
 }
 
-fn render_id(id: &Text) -> String {
+fn render_id_into(out: &mut String, id: &Text) {
     if id.is_empty() {
-        String::new()
-    } else {
-        format!("{BREAK}id=\"{}\"", escape_attr(id))
+        return;
     }
+    out.push(BREAK);
+    out.push_str("id=\"");
+    escape_attr_into(out, id);
+    out.push('"');
 }
 
-fn render_class(classes: &[Text]) -> String {
-    let names: Vec<&str> = classes
-        .iter()
-        .map(Text::as_str)
-        .filter(|class| !class.is_empty())
-        .collect();
-    if names.is_empty() {
-        String::new()
-    } else {
-        format!("{BREAK}class=\"{}\"", escape_attr(&names.join(" ")))
+fn render_class_into(out: &mut String, classes: &[Text]) {
+    if classes.iter().all(Text::is_empty) {
+        return;
     }
+    out.push(BREAK);
+    out.push_str("class=\"");
+    let mut first = true;
+    for class in classes {
+        if class.is_empty() {
+            continue;
+        }
+        if !first {
+            out.push(' ');
+        }
+        escape_attr_into(out, class);
+        first = false;
+    }
+    out.push('"');
 }
 
 /// Render an attribute set's key/value pairs. In the html5 dialect a non-standard key is carried
 /// through under a `data-` prefix; in html4 it is emitted by its bare name. The EPUB 2 dialect
 /// targets XHTML 1.1, which admits no such extension attributes, so any key that is not a universal
 /// html4 attribute is dropped rather than carried through.
-fn render_keyvals(attributes: &[(Text, Text)], flavor: Flavor) -> String {
-    let mut out = String::new();
+fn render_keyvals_into(out: &mut String, attributes: &[(Text, Text)], flavor: Flavor) {
     for (key, value) in attributes {
         if key.is_empty() {
             continue;
         }
-        let name = match flavor {
-            Flavor::Html5 | Flavor::Slides | Flavor::Epub3 if !is_known_attribute(key) => {
-                format!("data-{key}")
-            }
-            Flavor::Epub2
-                if !is_html4_universal_attribute(key) && !is_html4_dimension_attribute(key) =>
-            {
-                continue;
-            }
-            _ => key.to_string(),
-        };
-        let _ = write!(out, "{BREAK}{name}=\"{}\"", escape_attr(value));
+        let prefixed = matches!(flavor, Flavor::Html5 | Flavor::Slides | Flavor::Epub3)
+            && !is_known_attribute(key);
+        let dropped = flavor == Flavor::Epub2
+            && !is_html4_universal_attribute(key)
+            && !is_html4_dimension_attribute(key);
+        if dropped {
+            continue;
+        }
+        out.push(BREAK);
+        if prefixed {
+            out.push_str("data-");
+        }
+        out.push_str(key);
+        out.push_str("=\"");
+        escape_attr_into(out, value);
+        out.push('"');
     }
-    out
 }
 
 /// Resolve the break sentinels in an assembled fragment under the document's wrap mode.
@@ -1581,11 +1593,15 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
 /// [`crate::common`] that the plain and LaTeX writers share.
 fn char_width(ch: char) -> usize {
     let code = ch as u32;
+    // Below the combining-mark range (U+0300) the only zero-width scalars are the C0/C1 control
+    // blocks and the soft hyphen; every other scalar there is one column, so the whole band is
+    // decided by range tests and never reaches the general-category lookup.
+    if code < 0x0300 {
+        let zero_width = code < 0x20 || (0x7F..=0x9F).contains(&code) || code == 0x00AD;
+        return usize::from(!zero_width);
+    }
     if is_zero_width(ch) {
         return 0;
-    }
-    if code < 0x0300 {
-        return 1;
     }
     if is_wide(code) { 2 } else { 1 }
 }
@@ -1613,14 +1629,19 @@ fn escape(text: &str, double_quote: bool, single_quote: bool) -> String {
 /// text-run path.
 fn escape_into(out: &mut String, text: &str, double_quote: bool, single_quote: bool) {
     for ch in text.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' if double_quote => out.push_str("&quot;"),
-            '\'' if single_quote => out.push_str("&#39;"),
-            _ => protect_char(ch, out),
-        }
+        escape_char(ch, double_quote, single_quote, out);
+    }
+}
+
+/// Escape a single character under the [`escape_into`] policy, appending to `out`.
+fn escape_char(ch: char, double_quote: bool, single_quote: bool, out: &mut String) {
+    match ch {
+        '&' => out.push_str("&amp;"),
+        '<' => out.push_str("&lt;"),
+        '>' => out.push_str("&gt;"),
+        '"' if double_quote => out.push_str("&quot;"),
+        '\'' if single_quote => out.push_str("&#39;"),
+        _ => protect_char(ch, out),
     }
 }
 
@@ -1651,6 +1672,9 @@ fn protect_char(ch: char, out: &mut String) {
 
 /// Protect already-escaped or raw content (raw HTML passthrough) that bypasses [`escape`].
 fn protect(text: &str) -> String {
+    if !text.contains([ESCAPE, BREAK, SOFT, FLUSH]) {
+        return text.to_owned();
+    }
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
         protect_char(ch, &mut out);
@@ -1661,7 +1685,10 @@ fn protect(text: &str) -> String {
 /// Reverse [`protect_char`]: collapse each escape sequence left in the reflowed output back to the
 /// literal sentinel it stood for. Writer-inserted breaks are already gone (consumed by [`reflow`]),
 /// so every remaining introducer marks protected content.
-fn restore(text: &str) -> String {
+fn restore(text: String) -> String {
+    if !text.contains(ESCAPE) {
+        return text;
+    }
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars();
     while let Some(ch) = chars.next() {
@@ -1683,13 +1710,7 @@ fn restore(text: &str) -> String {
     out
 }
 
-/// Escape running text and inline code, which leave both quote characters literal.
-fn escape_text(text: &str) -> String {
-    escape(text, false, false)
-}
-
-/// Escape running text directly into `out`, the [`escape_text`] policy without the intermediate
-/// allocation.
+/// Escape running text and inline code directly into `out`, leaving both quote characters literal.
 fn escape_text_into(out: &mut String, text: &str) {
     escape_into(out, text, false, false);
 }
@@ -1700,24 +1721,30 @@ fn escape_attr(text: &str) -> String {
     escape(text, true, true)
 }
 
-/// Escape the body of a math span, where both quote characters must be entity-encoded so the verbatim
-/// formula survives intact for the math renderer.
-fn escape_math(text: &str) -> String {
-    escape(text, true, true)
+/// Escape an attribute value directly into `out`, the [`escape_attr`] policy without the intermediate
+/// allocation.
+fn escape_attr_into(out: &mut String, text: &str) {
+    escape_into(out, text, true, true);
 }
 
 /// Escape a math span's body and turn its spaces into break points, so a long formula wraps at the
-/// fill column the way running text does rather than overflowing the line.
+/// fill column the way running text does rather than overflowing the line. Both quote characters are
+/// entity-encoded so the verbatim formula survives intact for the math renderer.
 fn fill_math(text: &str) -> String {
-    escape_math(text)
-        .chars()
-        .map(|ch| if ch == ' ' { BREAK } else { ch })
-        .collect()
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if ch == ' ' {
+            out.push(BREAK);
+        } else {
+            escape_char(ch, true, true, &mut out);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
 mod escaping_tests {
-    use super::{escape_attr, escape_text};
+    use super::{escape_attr, escape_text_into};
 
     #[test]
     fn attribute_values_and_code_block_bodies_entity_encode_both_quotes() {
@@ -1726,7 +1753,68 @@ mod escaping_tests {
 
     #[test]
     fn running_text_and_inline_code_keep_both_quotes_literal() {
-        assert_eq!(escape_text("a\"b'c<&>"), "a\"b'c&lt;&amp;&gt;");
+        let mut out = String::new();
+        escape_text_into(&mut out, "a\"b'c<&>");
+        assert_eq!(out, "a\"b'c&lt;&amp;&gt;");
+    }
+}
+
+#[cfg(test)]
+mod restore_tests {
+    use super::{BREAK, ESCAPE, FLUSH, SOFT, restore};
+
+    #[test]
+    fn text_without_a_sentinel_passes_through() {
+        assert_eq!(restore("plain text".to_owned()), "plain text");
+    }
+
+    #[test]
+    fn escape_sequences_decode_to_their_sentinels() {
+        let mut input = String::from("a");
+        input.push(ESCAPE);
+        input.push('0'); // BREAK_TAG
+        input.push(ESCAPE);
+        input.push('2'); // SOFT_TAG
+        input.push(ESCAPE);
+        input.push('3'); // FLUSH_TAG
+        input.push(ESCAPE);
+        input.push(ESCAPE);
+        input.push('b');
+
+        let mut expected = String::from("a");
+        expected.push(BREAK);
+        expected.push(SOFT);
+        expected.push(FLUSH);
+        expected.push(ESCAPE);
+        expected.push('b');
+
+        assert_eq!(restore(input), expected);
+    }
+}
+
+#[cfg(test)]
+mod char_width_tests {
+    use super::{char_width, is_zero_width};
+
+    #[test]
+    fn low_range_fast_path_matches_category_lookup() {
+        for code in 0u32..0x0300 {
+            let Some(ch) = char::from_u32(code) else {
+                continue;
+            };
+            let expected = usize::from(!is_zero_width(ch));
+            assert_eq!(char_width(ch), expected, "width mismatch at U+{code:04X}");
+        }
+    }
+
+    #[test]
+    fn pins_representative_widths() {
+        assert_eq!(char_width('a'), 1);
+        assert_eq!(char_width('\u{200B}'), 0); // zero-width space (Format)
+        assert_eq!(char_width('\u{0301}'), 0); // combining acute accent (Nonspacing_Mark)
+        assert_eq!(char_width('\u{7}'), 0); // bell (Control)
+        assert_eq!(char_width('\u{4E00}'), 2); // CJK ideograph (wide)
+        assert_eq!(char_width('\u{1F600}'), 2); // grinning face emoji (wide)
     }
 }
 
