@@ -1494,14 +1494,14 @@ fn to_pieces(tokens: Vec<Token>) -> Vec<Piece> {
                 if let Some((previous_trail_complex, previous_last)) = pending
                     && separator_needed(previous_trail_complex, previous_last, lead_complex, lead)
                 {
-                    out.push(Piece::Text("\\ ".to_owned()));
+                    out.push(Piece::text("\\ "));
                 }
-                out.push(Piece::Text(text));
+                out.push(Piece::text(text));
                 pending = Some((trail_complex, last));
             }
             Token::Marker => {
                 if pending.is_some_and(|(previous_complex, _)| previous_complex) {
-                    out.push(Piece::Text("\\ ".to_owned()));
+                    out.push(Piece::text("\\ "));
                 }
                 pending = Some((false, MARKER_BOUNDARY));
             }

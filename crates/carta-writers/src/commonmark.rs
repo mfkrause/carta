@@ -292,14 +292,14 @@ impl State {
             if matches!(inline, Inline::Space | Inline::SoftBreak)
                 && next_is_para_interrupting_marker(inlines.get(position + 1))
             {
-                out.push(Piece::Text(" ".to_owned()));
+                out.push(Piece::text(" "));
                 continue;
             }
             if let Inline::Str(text) = inline
                 && let Some(prefix) = text.strip_suffix('!')
                 && matches!(inlines.get(position + 1), Some(Inline::Link(..)))
             {
-                out.push(Piece::Text(format!("{}\\!", escape_str(prefix, starts))));
+                out.push(Piece::text(format!("{}\\!", escape_str(prefix, starts))));
                 continue;
             }
             self.inline(inline, out, starts);
@@ -308,7 +308,7 @@ impl State {
 
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>, line_start: bool) {
         match inline {
-            Inline::Str(text) => out.push(Piece::Text(escape_str(text, line_start))),
+            Inline::Str(text) => out.push(Piece::text(escape_str(text, line_start))),
             Inline::Emph(inlines) => match inlines.as_slice() {
                 [Inline::Emph(inner)] => self.extend_pieces(inner, out, line_start),
                 _ => self.wrap_markup("*", inlines, out),
@@ -321,20 +321,20 @@ impl State {
             Inline::SmallCaps(inlines) => {
                 push_html(out, "<span class=\"smallcaps\">", self.in_anchor);
                 self.extend_pieces(inlines, out, false);
-                out.push(Piece::Text("</span>".to_owned()));
+                out.push(Piece::text("</span>"));
             }
             Inline::Quoted(kind, inlines) => {
                 let (open, close) = quote_marks(kind);
-                out.push(Piece::Text(open.to_string()));
+                out.push(Piece::text(open.to_string()));
                 self.extend_pieces(inlines, out, false);
-                out.push(Piece::Text(close.to_string()));
+                out.push(Piece::text(close.to_string()));
             }
             Inline::Cite(_, inlines) => self.extend_pieces(inlines, out, false),
-            Inline::Code(_, text) => out.push(Piece::Text(code_span(text))),
+            Inline::Code(_, text) => out.push(Piece::text(code_span(text))),
             Inline::Space => out.push(Piece::Space),
             Inline::SoftBreak => out.push(Piece::Soft),
             Inline::LineBreak => {
-                out.push(Piece::Text("\\".to_owned()));
+                out.push(Piece::text("\\"));
                 out.push(Piece::Hard);
             }
             Inline::Math(MathType::DisplayMath, tex) => {
@@ -367,12 +367,12 @@ impl State {
                         self.in_anchor,
                     );
                     self.extend_pieces(inlines, out, false);
-                    out.push(Piece::Text("</span>".to_owned()));
+                    out.push(Piece::text("</span>"));
                 }
             }
             Inline::Note(blocks) => {
                 let marker = self.record_note(blocks);
-                out.push(Piece::Text(marker));
+                out.push(Piece::text(marker));
             }
         }
     }
@@ -405,18 +405,18 @@ impl State {
         if inlines.is_empty() {
             return;
         }
-        out.push(Piece::Text(marker.to_owned()));
+        out.push(Piece::text(marker.to_owned()));
         self.extend_pieces(inlines, out, false);
-        out.push(Piece::Text(marker.to_owned()));
+        out.push(Piece::text(marker.to_owned()));
     }
 
     fn wrap_tag(&mut self, tag: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
         if inlines.is_empty() {
             return;
         }
-        out.push(Piece::Text(format!("<{tag}>")));
+        out.push(Piece::text(format!("<{tag}>")));
         self.extend_pieces(inlines, out, false);
-        out.push(Piece::Text(format!("</{tag}>")));
+        out.push(Piece::text(format!("</{tag}>")));
     }
 
     fn link(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
@@ -427,19 +427,19 @@ impl State {
                 true,
             );
             self.extend_pieces(inlines, out, false);
-            out.push(Piece::Text("</span>".to_owned()));
+            out.push(Piece::text("</span>"));
             return;
         }
         if (attr_is_empty(attr) || is_autolink_class(attr))
             && let Some(autolink) = autolink(inlines, target)
         {
-            out.push(Piece::Text(autolink));
+            out.push(Piece::text(autolink));
             return;
         }
         if attr_is_empty(attr) {
-            out.push(Piece::Text("[".to_owned()));
+            out.push(Piece::text("["));
             self.extend_pieces(inlines, out, false);
-            out.push(Piece::Text(format!("]({})", destination(target))));
+            out.push(Piece::text(format!("]({})", destination(target))));
         } else {
             let start = out.len();
             push_html(
@@ -455,16 +455,16 @@ impl State {
             self.in_anchor = true;
             self.extend_pieces(inlines, out, false);
             self.in_anchor = false;
-            out.push(Piece::Text("</a>".to_owned()));
+            out.push(Piece::text("</a>"));
             self.groups.push((start, out.len()));
         }
     }
 
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
         if attr_is_empty(attr) {
-            out.push(Piece::Text("![".to_owned()));
+            out.push(Piece::text("!["));
             self.extend_pieces(inlines, out, false);
-            out.push(Piece::Text(format!("]({})", destination(target))));
+            out.push(Piece::text(format!("]({})", destination(target))));
             return;
         }
         let alt_attr = if inlines.is_empty() {
@@ -524,7 +524,7 @@ fn html_tag_pieces(tag: &str) -> Vec<Piece> {
             }
             ' ' if !in_value => {
                 if !word.is_empty() {
-                    pieces.push(Piece::Text(std::mem::take(&mut word)));
+                    pieces.push(Piece::text(std::mem::take(&mut word)));
                 }
                 pieces.push(Piece::Space);
             }
@@ -532,7 +532,7 @@ fn html_tag_pieces(tag: &str) -> Vec<Piece> {
         }
     }
     if !word.is_empty() {
-        pieces.push(Piece::Text(word));
+        pieces.push(Piece::text(word));
     }
     pieces
 }
