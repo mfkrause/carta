@@ -169,9 +169,36 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - A resource that cannot be fetched offline — a remote image, an absent local image, or a link to a
   nonexistent target — yields a dangling reference.
 
+### `docx` — ✅
+- A metadata keywords list is joined with `; ` in the core properties rather than the `, ` that
+  part's convention uses.
+- A `lang` value carried by a span or div is dropped rather than set as a run language property.
+- A `dir=rtl` carried by a span or div is dropped rather than set as a run right-to-left property,
+  with a paragraph bidi property added when it sits on a div.
+- An image wrapped in a link takes the hyperlink character style on its picture run, which a bare
+  picture run does not carry.
+- The same image file referenced several times is embedded once per reference — a separate media
+  part and relationship each — rather than deduplicated to a single shared part.
+- An empty fenced code block emits a stray empty verbatim run inside its paragraph rather than
+  leaving the paragraph with no run.
+- A paragraph that ends in an inline equation — whether the equation renders to Office Math or, when
+  it cannot be parsed, falls back to its raw dollar-delimited text — omits the trailing
+  zero-width-space run that anchors such a paragraph.
+- Under `native_numbering`, a figure or table whose caption is present but empty (a `Plain` or `Para`
+  holding no inline content, which non-Markdown readers can produce) emits no caption at all rather
+  than the numbered caption label.
+- `\phantom` renders as its raw dollar-delimited text rather than an invisible phantom spacing box.
+- `\overparen` and `\underparen` render as their raw dollar-delimited text rather than a
+  group-character parenthesis set over or under the base.
+- The `\limits` and `\nolimits` modifiers on a big operator or integral are ignored, so limit
+  placement stays at the operator's default (an integral keeps side scripts, a sum keeps under/over
+  scripts).
+- `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
+  surrounding spacing differs.
+
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
-`csljson`, `docbook` (+ `4`, `5`), `docx`, `dzslides`, `fb2`, `haddock`,
+`csljson`, `docbook` (+ `4`, `5`), `dzslides`, `fb2`, `haddock`,
 `icml`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
 `odt`, `opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
 `vimdoc`, `xml`, `xwiki`, `zimwiki`.

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+latexmath:[\big( x \big)] latexmath:[\Big[ \big\{ y \big\} \Big]]
+latexmath:[\bigg\langle v \bigg\rangle] latexmath:[\big( a \big/ b]
+
+[latexmath]
+++++
+\Bigg( \sum_{i} a_i \Bigg)
+++++

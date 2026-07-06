@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "$$\\begin{aligned} x^2 + 1 \\\\ \\frac{a}{b} \\end{aligned}$$\n",
+    "\n",
+    "$$\\begin{aligned} a &= b + c \\\\ d &= e \\end{aligned}$$\n",
+    "\n",
+    "stack $\\begin{aligned} p \\\\ q \\\\ r \\end{aligned}$"
+   ],
+   "id": "b873d998-983a-41ab-af1a-58e74d4e54de"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

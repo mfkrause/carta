@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+\f[I]a\f[R]\ (mod \ \f[I]n\f[R]) \f[I]a\f[R] mod \ \f[I]b\f[R]
+\f[I]a\f[R]\ mod \ \f[I]b\f[R] \f[I]a\f[R]\ (\f[I]n\f[R])

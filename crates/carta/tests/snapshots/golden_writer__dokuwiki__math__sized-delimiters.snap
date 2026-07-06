@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$\big( x \big)$ $\Big[ \big\{ y \big\} \Big]$ $\bigg\langle v \bigg\rangle$ $\big( a \big/ b$
+
+$$\Bigg( \sum_{i} a_i \Bigg)$$

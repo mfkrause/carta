@@ -1,0 +1,53 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "The block matrix"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\begin{pmatrix} a & b \\\\ \\hline c & d \\end{pmatrix}"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "splits."
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "DisplayMath"
+            },
+            "\\begin{array}{cc} 1 & 2 \\\\ \\hline 3 & 4 \\end{array}"
+          ]
+        }
+      ]
+    }
+  ]
+}

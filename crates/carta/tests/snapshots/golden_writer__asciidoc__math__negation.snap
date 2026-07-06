@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+latexmath:[\not= b] latexmath:[\not< c] latexmath:[\not\subset B]
+latexmath:[\not\vdash \phi] latexmath:[\not\rightarrow]
+latexmath:[\not a]

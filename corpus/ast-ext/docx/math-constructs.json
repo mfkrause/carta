@@ -1,0 +1,81 @@
+{
+    "pandoc-api-version": [
+        1,
+        23,
+        1,
+        2
+    ],
+    "meta": {},
+    "blocks": [
+        {
+            "t": "Para",
+            "c": [
+                {
+                    "t": "Math",
+                    "c": [
+                        {
+                            "t": "DisplayMath"
+                        },
+                        "\\boxed{x+y}"
+                    ]
+                }
+            ]
+        },
+        {
+            "t": "Para",
+            "c": [
+                {
+                    "t": "Math",
+                    "c": [
+                        {
+                            "t": "DisplayMath"
+                        },
+                        "\\left\\{x \\middle| x>0\\right\\}"
+                    ]
+                }
+            ]
+        },
+        {
+            "t": "Para",
+            "c": [
+                {
+                    "t": "Math",
+                    "c": [
+                        {
+                            "t": "DisplayMath"
+                        },
+                        "\\frac12"
+                    ]
+                }
+            ]
+        },
+        {
+            "t": "Para",
+            "c": [
+                {
+                    "t": "Math",
+                    "c": [
+                        {
+                            "t": "DisplayMath"
+                        },
+                        "\\begin{aligned} a &= b \\\\ c &= d \\end{aligned}"
+                    ]
+                }
+            ]
+        },
+        {
+            "t": "Para",
+            "c": [
+                {
+                    "t": "Math",
+                    "c": [
+                        {
+                            "t": "DisplayMath"
+                        },
+                        "\\begin{eqnarray} a &=& b \\\\ c &=& d \\end{eqnarray}"
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><span class="math inline">\(\overset{a}{b}\)</span> <span
+class="math inline">\(\underset{a}{b}\)</span> <span
+class="math inline">\(\stackrel{\text{def}}{=}\)</span></p>

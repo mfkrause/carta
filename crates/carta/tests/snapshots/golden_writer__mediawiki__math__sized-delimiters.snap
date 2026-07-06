@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<math display="inline">\big( x \big)</math> <math display="inline">\Big[ \big\{ y \big\} \Big]</math> <math display="inline">\bigg\langle v \bigg\rangle</math> <math display="inline">\big( a \big/ b</math>
+
+<math display="block">\Bigg( \sum_{i} a_i \Bigg)</math>

@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Math InlineMath "\\not= b"
+    , Space
+    , Math InlineMath "\\not< c"
+    , Space
+    , Math InlineMath "\\not\\subset B"
+    , Space
+    , Math InlineMath "\\not\\vdash \\phi"
+    , Space
+    , Math InlineMath "\\not\\rightarrow"
+    , Space
+    , Math InlineMath "\\not a"
+    ]
+]

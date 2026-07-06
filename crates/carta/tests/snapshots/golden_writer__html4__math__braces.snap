@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><span class="math inline">\(\overbrace{a+b}\)</span> <span
+class="math inline">\(\underbrace{x+y+z}\)</span> <span
+class="math inline">\(\overbrace{a+b}^{n}\)</span> <span
+class="math inline">\(\underbrace{x+y}_{k}\)</span></p>

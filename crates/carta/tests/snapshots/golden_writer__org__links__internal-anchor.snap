@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+* Section One
+:PROPERTIES:
+:CUSTOM_ID: section-one
+:END:
+Back to [[#section-one][the section]], or an
+[[https://example.org/docs][outside page]].

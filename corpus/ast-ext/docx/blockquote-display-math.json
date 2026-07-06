@@ -1,0 +1,44 @@
+{
+    "pandoc-api-version": [
+        1,
+        23,
+        1,
+        2
+    ],
+    "meta": {},
+    "blocks": [
+        {
+            "t": "BlockQuote",
+            "c": [
+                {
+                    "t": "Para",
+                    "c": [
+                        {
+                            "t": "Str",
+                            "c": "before"
+                        },
+                        {
+                            "t": "Space"
+                        },
+                        {
+                            "t": "Math",
+                            "c": [
+                                {
+                                    "t": "DisplayMath"
+                                },
+                                "a = b"
+                            ]
+                        },
+                        {
+                            "t": "Space"
+                        },
+                        {
+                            "t": "Str",
+                            "c": "after"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

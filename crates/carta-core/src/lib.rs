@@ -183,6 +183,26 @@ pub struct EpubOptions {
     pub locale: Option<String>,
 }
 
+/// Options for the DOCX container writer. Ignored by every other writer. The default produces a
+/// self-contained document from the built-in template, with reproducible property timestamps and a
+/// language tag drawn from the document or the environment.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct DocxOptions {
+    /// A reference document, as raw `.docx` bytes, whose styling parts and document template are
+    /// reused while the converted content replaces its body. `None` uses the built-in template.
+    pub reference_doc: Option<Vec<u8>>,
+
+    /// Seconds since the Unix epoch fixing the document's property timestamps. `None` uses a fixed
+    /// epoch so output stays byte-reproducible.
+    pub source_date_epoch: Option<i64>,
+
+    /// The process locale (the `LANG` environment variable) whose language tag stands in when the
+    /// document names no `lang`. `None` falls back to `en-US`, keeping output independent of the
+    /// environment.
+    pub locale: Option<String>,
+}
+
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
@@ -197,6 +217,9 @@ pub struct WriterOptions {
 
     /// Options for the EPUB container writer; ignored by every other writer.
     pub epub: EpubOptions,
+
+    /// Options for the DOCX container writer; ignored by every other writer.
+    pub docx: DocxOptions,
 
     /// How paragraphs are laid out: reflowed to the fill column, never wrapped, or with the source's
     /// own line breaks preserved.

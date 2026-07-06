@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><span class="math inline">\(a \pmod{n}\)</span> <span
+class="math inline">\(a \mod b\)</span> <span class="math inline">\(a
+\bmod b\)</span> <span class="math inline">\(a \pod{n}\)</span></p>

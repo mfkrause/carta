@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\(\frac{a}{b}\) \(\tfrac{a}{b}\) \(\dfrac{a}{b}\)
+\end{frame}

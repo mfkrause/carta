@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+latexmath:[a \pmod{n}] latexmath:[a \mod b] latexmath:[a \bmod b]
+latexmath:[a \pod{n}]

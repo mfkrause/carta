@@ -139,6 +139,7 @@ format_dispatch! {
     "write-ipynb" => "ipynb" => text carta_writers::IpynbWriter;
     "write-epub" => "epub" | "epub3" => bytes carta_writers::Epub3Writer;
     "write-epub" => "epub2" => bytes carta_writers::Epub2Writer;
+    "write-docx" => "docx" => bytes carta_writers::DocxWriter;
 }
 
 /// Resolves a format name to its boxed [`Reader`], the text-only view of [`any_reader_for`].

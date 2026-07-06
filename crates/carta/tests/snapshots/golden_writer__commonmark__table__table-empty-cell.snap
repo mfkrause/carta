@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>A</th>
+<th>B</th>
+<th>C</th>
+<th>D</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><!-- placeholder --></td>
+<td></td>
+<td><ul>
+<li></li>
+<li></li>
+</ul></td>
+<td>ok</td>
+</tr>
+</tbody>
+</table>

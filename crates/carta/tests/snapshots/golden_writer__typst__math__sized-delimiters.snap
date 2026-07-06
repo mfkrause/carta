@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+$#scale(x: 120%, y: 120%)[\(] x #scale(x: 120%, y: 120%)[\)]$
+$#scale(x: 180%, y: 180%)[\[] #scale(x: 120%, y: 120%)[{] y #scale(x: 120%, y: 120%)[}] #scale(x: 180%, y: 180%)[\]]$
+$#scale(x: 240%, y: 240%)[chevron.l] v #scale(x: 240%, y: 240%)[chevron.r]$
+$#scale(x: 120%, y: 120%)[\(] a #scale(x: 120%, y: 120%)[\/] b$
+
+$ #scale(x: 300%, y: 300%)[\(] sum_i a_i #scale(x: 300%, y: 300%)[\)] $

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\(_x_) \[\{_y_\}\] ⟨{_}v{_}⟩ \(_a_/{_}b{_}
+
+
+\(∑{~}_i_{~}_a_~_i_~)

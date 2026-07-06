@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+
+$$\begin\{aligned\} x^2 + 1 &bsol;&bsol; &bsol;frac\{a\}\{b\} &bsol;end\{aligned\}$$
+
+
+
+$$\begin\{aligned\} a \&= b + c &bsol;&bsol; d \&= e &bsol;end\{aligned\}$$
+
+
+stack $\begin\{aligned\} p &bsol;&bsol; q &bsol;&bsol; r &bsol;end\{aligned\}$

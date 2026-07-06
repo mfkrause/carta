@@ -1,0 +1,67 @@
+{
+    "pandoc-api-version": [
+        1,
+        23,
+        1,
+        2
+    ],
+    "meta": {},
+    "blocks": [
+        {
+            "t": "Figure",
+            "c": [
+                [
+                    "",
+                    [],
+                    []
+                ],
+                [
+                    null,
+                    [
+                        {
+                            "t": "Plain",
+                            "c": [
+                                {
+                                    "t": "Str",
+                                    "c": "x"
+                                }
+                            ]
+                        }
+                    ]
+                ],
+                [
+                    {
+                        "t": "Plain",
+                        "c": [
+                            {
+                                "t": "Image",
+                                "c": [
+                                    [
+                                        "",
+                                        [],
+                                        [
+                                            [
+                                                "width",
+                                                "50%"
+                                            ]
+                                        ]
+                                    ],
+                                    [
+                                        {
+                                            "t": "Str",
+                                            "c": "x"
+                                        }
+                                    ],
+                                    [
+                                        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAAEsCAIAAACQX1rBAAAEyklEQVR4nO3OQQ0AMBAEofVvupUxjyNBAHsbAJzVDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AINQPACDUDwAg1A8AIPQBaVaJ5ZMS1DAAAAAASUVORK5CYII=",
+                                        ""
+                                    ]
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            ]
+        }
+    ]
+}

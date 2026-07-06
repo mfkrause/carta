@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Math","c":[{"t":"InlineMath"},"\\not= b"]},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\not< c"]},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\not\\subset B"]},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\not\\vdash \\phi"]},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\not\\rightarrow"]},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\not a"]}]}]}

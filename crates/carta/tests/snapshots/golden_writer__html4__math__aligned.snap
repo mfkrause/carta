@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><span class="math display">\[\begin{aligned} x^2 + 1 \\ \frac{a}{b}
+\end{aligned}\]</span></p>
+<p><span class="math display">\[\begin{aligned} a &amp;= b + c \\ d
+&amp;= e \end{aligned}\]</span></p>
+<p>stack <span class="math inline">\(\begin{aligned} p \\ q \\ r
+\end{aligned}\)</span></p>
