@@ -9,6 +9,20 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.4](https://github.com/mfkrause/carta/compare/v0.0.3...v0.0.4) - 2026-07-06
+
+### Added
+
+- *(writers)* implement DOCX (OOXML) writer ([#71](https://github.com/mfkrause/carta/pull/71))
+
+### Performance
+
+- *(commonmark)* resolve bracket closes without label copies
+- *(commonmark)* resolve emphasis without per-match splicing
+- *(writers)* make static fill tokens allocation-free
+- *(writers)* bulk-copy clean runs in writer escapers
+- *(html-writer)* cut whole-document passes and per-element allocations
+
 ## [0.0.3](https://github.com/mfkrause/carta/compare/v0.0.2...v0.0.3) - 2026-07-04
 
 ### Added
