@@ -204,6 +204,9 @@ carta -f commonmark -t html -s --highlight-style=breezedark input.md -o output.h
 # extract a notebook's embedded images to files, rewriting the references
 carta -f ipynb -t markdown --extract-media=media notebook.ipynb -o notebook.md
 
+# embed a document's images into a container format, searching extra directories for them
+carta -f commonmark -t docx --resource-path=assets:img input.md -o output.docx
+
 # transform the document through a JSON filter before writing (repeatable, applied in order)
 carta -f commonmark -t html -F ./my-filter.py input.md -o output.html
 
