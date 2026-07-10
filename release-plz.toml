@@ -34,7 +34,7 @@ commit_parsers = [
 name = "carta"
 version_group = "carta"
 changelog_path = "CHANGELOG.md"
-changelog_include = ["carta-ast", "carta-core", "carta-readers", "carta-writers"]
+changelog_include = ["carta-ast", "carta-core", "carta-highlight", "carta-readers", "carta-writers"]
 git_tag_name = "v{{ version }}"
 
 # The remaining crates still publish to crates.io, but produce no separate changelog, tag, or
@@ -48,6 +48,13 @@ git_release_enable = false
 
 [[package]]
 name = "carta-core"
+version_group = "carta"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
+
+[[package]]
+name = "carta-highlight"
 version_group = "carta"
 changelog_update = false
 git_tag_enable = false
