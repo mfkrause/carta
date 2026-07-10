@@ -32,6 +32,13 @@ pub use registry::{
     supported_input_formats, supported_output_formats, writer_for,
 };
 
+/// The syntax-highlighting configuration attached to [`WriterOptions`], and the catalog the CLI
+/// draws its language and style listings from.
+#[cfg(feature = "highlight")]
+pub use carta_core::HighlightOptions;
+#[cfg(feature = "highlight")]
+pub use carta_highlight::{Highlighter, Theme, builtin_style, languages, styles};
+
 /// Converts text `input` from format `from` to text in format `to`.
 ///
 /// A shortcut over [`convert`] for the common case where both formats are text-shaped. Each format

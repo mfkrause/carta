@@ -11,13 +11,12 @@ ORACLE="$ROOT/.oracle/bin/pandoc"
 CORPUS="$ROOT/corpus"
 
 # pandoc flags that neutralize target nondeterminism carta does not reproduce, so both tools do the
-# same work: HTML suppresses syntax highlighting and renders math via MathJax; LaTeX suppresses
-# highlighting. Applied to the pandoc side only.
+# same work: HTML renders math via MathJax. Syntax highlighting is left on — carta highlights code
+# blocks to parity, so both sides colorize. Applied to the pandoc side only.
 oracle_norm() {
   case "$1" in
-    html | html5 | html4 | revealjs) echo "--syntax-highlighting=none --mathjax" ;;
-    epub | epub2 | epub3) echo "--syntax-highlighting=none --mathjax" ;;
-    docx) echo "--syntax-highlighting=none" ;;
-    latex | beamer) echo "--syntax-highlighting=none" ;;
+    html | html5 | html4 | revealjs) echo "--mathjax" ;;
+    epub | epub2 | epub3) echo "--mathjax" ;;
+    docx | latex | beamer) echo "" ;;
   esac
 }

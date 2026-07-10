@@ -15,7 +15,7 @@ use std::fmt::Write;
 use carta_ast::{Block, Document, Inline};
 use carta_core::{MetaVarStyle, Result, Writer, WriterOptions};
 
-use crate::html::{SlideRenderer, fill_slides, fill_width};
+use crate::html::{SlideRenderer, fill_slides, fill_width, highlighting};
 use crate::slides::{FrameTitle, MAX_LEVEL, Slide, segment, slide_level};
 
 /// Renders a document to a nested-`<section>` slide deck.
@@ -26,7 +26,7 @@ impl Writer for RevealjsWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let level = slide_level(&document.blocks);
         let slides = segment(&document.blocks, level);
-        let mut renderer = SlideRenderer::new();
+        let mut renderer = SlideRenderer::new(highlighting(options));
         let mut deck = Deck::new(level);
         if slides.is_empty() {
             deck.empty_frame();

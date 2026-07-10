@@ -29,6 +29,9 @@ mod common;
 ))]
 mod grid;
 
+#[cfg(feature = "highlight")]
+mod highlight;
+
 #[cfg(any(
     feature = "commonmark",
     feature = "markdown",
@@ -105,6 +108,8 @@ pub use docx::DocxWriter;
 pub use dokuwiki::DokuwikiWriter;
 #[cfg(feature = "epub")]
 pub use epub::{Epub2Writer, Epub3Writer};
+#[cfg(feature = "highlight")]
+pub use highlight::{theme_css, theme_latex_macros};
 #[cfg(feature = "html")]
 pub use html::{Html4Writer, HtmlWriter};
 #[cfg(feature = "ipynb")]

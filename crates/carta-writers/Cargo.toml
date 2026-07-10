@@ -22,8 +22,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [features]
-default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "org", "beamer", "revealjs", "ipynb", "epub", "docx"]
+default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "org", "beamer", "revealjs", "ipynb", "epub", "docx", "highlight"]
 html = ["dep:unicode-general-category"]
+# Syntax highlighting for code blocks in the writers that colorize them (HTML family, LaTeX, DOCX).
+highlight = ["dep:carta-highlight", "carta-core/highlight"]
 epub = ["html", "carta-core/container"]
 docx = ["carta-core/container"]
 json = []
@@ -50,6 +52,7 @@ slides = []
 [dependencies]
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
+carta-highlight = { workspace = true, optional = true }
 unicode-general-category = { workspace = true, optional = true }
 
 [build-dependencies]

@@ -11,10 +11,12 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 carta-core = { path = "../crates/carta-core" }
 carta-readers = { path = "../crates/carta-readers" }
+carta-highlight = { path = "../crates/carta-highlight" }
 
-# One target per reader: each ingests untrusted bytes and must never panic. Writers are not fuzzed
-# yet — they consume a typed `Document`, not bytes, so a writer target needs an `Arbitrary` AST
-# generator. TODO: add `arbitrary` impls across the AST and a target per writer (html, json, plain).
+# One target per reader: each ingests untrusted bytes and must never panic. The `highlight` target is
+# the analog for the tokenizer, which walks untrusted code through a regex-driven state machine.
+# Writers are not fuzzed yet — they consume a typed `Document`, not bytes, so a writer target needs an
+# `Arbitrary` AST generator. TODO: add `arbitrary` impls across the AST and a target per writer.
 [[bin]]
 name = "commonmark"
 path = "fuzz_targets/commonmark.rs"
@@ -116,6 +118,13 @@ bench = false
 [[bin]]
 name = "org"
 path = "fuzz_targets/org.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "highlight"
+path = "fuzz_targets/highlight.rs"
 test = false
 doc = false
 bench = false

@@ -7,12 +7,17 @@
 #   (e.g. &curren;, &ofr;), not prose.
 # - vendor/: the vendored CommonMark spec corpus, full of deliberate test strings.
 # - corpus/ast, corpus/text: hand-authored test inputs full of deliberate test strings.
+# - carta-highlight/data/syntax, .../styles: the embedded KDE syntax definitions and color
+#   themes, external data we don't author — full of grammar keywords, schema element names
+#   (itemDatas), and upstream comment typos that aren't ours to correct.
 extend-exclude = [
   ".oracle/",
   "target/",
   "*.lock",
   "crates/carta-readers/data/entities.json",
   "crates/carta-writers/data/entities.json",
+  "crates/carta-highlight/data/syntax/",
+  "crates/carta-highlight/data/styles/",
   "vendor/",
   "corpus/ast/",
   "corpus/text/",
@@ -61,3 +66,8 @@ ba = "ba"
 # Test fixture key in the notebook reader: a metadata object whose keys pair the article "a"
 # with each JSON value type (anull/alist/amap) to exercise scalar, array, and object values.
 anull = "anull"
+# The compact CSS class the HTML writer stamps for the "Other" token kind in colorized code.
+ot = "ot"
+# KDE syntax-definition schema element grouping a language's token styles; the parser reads its
+# `itemData` children (variable `item_datas`), and a doc test embeds the literal element.
+datas = "datas"

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!DOCTYPE language [ <!ENTITY digit "[0-9]"> ]>
+<language name="Toy" section="Other" extensions="*.toy" priority="3">
+  <highlighting>
+    <list name="kw"><item>if</item><item>else</item></list>
+    <contexts>
+      <context name="Normal" attribute="Normal Text" lineEndContext="#stay">
+        <keyword attribute="Keyword" context="#stay" String="kw"/>
+        <RegExpr attribute="Number" context="#stay" String="&digit;+"/>
+      </context>
+    </contexts>
+    <itemDatas>
+      <itemData name="Normal Text" defStyleNum="dsNormal"/>
+      <itemData name="Keyword" defStyleNum="dsKeyword"/>
+      <itemData name="Number" defStyleNum="dsDecVal"/>
+    </itemDatas>
+  </highlighting>
+</language>

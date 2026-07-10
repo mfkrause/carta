@@ -1,0 +1,31 @@
+[package]
+name = "carta-highlight"
+description = "Syntax highlighting engine: tokenizes source code from bundled grammars and resolves color styles."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords = ["syntax", "highlighting", "code", "tokenizer"]
+categories = ["text-processing"]
+publish.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[dependencies]
+fancy-regex = { workspace = true }
+quick-xml = { workspace = true }
+miniz_oxide = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[build-dependencies]
+miniz_oxide = { workspace = true }

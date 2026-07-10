@@ -86,11 +86,16 @@ fn write_docx(document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         keep_empty_paragraphs: options.extensions.contains(Extension::EmptyParagraphs),
         native_numbering: options.extensions.contains(Extension::NativeNumbering),
     };
+    #[cfg(feature = "highlight")]
+    let highlighter: document::DocxHl = options.highlight.highlighter.clone();
+    #[cfg(not(feature = "highlight"))]
+    let highlighter: document::DocxHl = ();
     let rendered = document::document_xml(
         &document.blocks,
         &document.meta,
         options.media.clone(),
         features,
+        highlighter,
     );
 
     let mut archive = ZipArchive::new();
@@ -124,7 +129,17 @@ fn write_docx(document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
     for image in &rendered.images {
         archive.store(&format!("word/media/{}", image.file_name), &image.bytes)?;
     }
-    styling(&mut archive, reference, "word/styles.xml", styles::STYLES)?;
+    #[cfg(feature = "highlight")]
+    let styles_part: std::borrow::Cow<'_, str> =
+        match (&options.highlight.highlighter, &options.highlight.theme) {
+            (Some(_), Some(theme)) => {
+                std::borrow::Cow::Owned(styles::styles_with_highlighting(theme))
+            }
+            _ => std::borrow::Cow::Borrowed(styles::STYLES),
+        };
+    #[cfg(not(feature = "highlight"))]
+    let styles_part: std::borrow::Cow<'_, str> = std::borrow::Cow::Borrowed(styles::STYLES);
+    styling(&mut archive, reference, "word/styles.xml", &styles_part)?;
     styling(
         &mut archive,
         reference,

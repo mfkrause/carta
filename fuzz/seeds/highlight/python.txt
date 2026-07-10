@@ -1,0 +1,5 @@
+def f(x):
+    # comment
+    return x + 1  # inline
+s = "string \n with escape"
+n = 0x1F + 3.14e-2

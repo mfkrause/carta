@@ -149,6 +149,7 @@ pub(crate) fn nav_xhtml(
         "",
         BodyKind::Frontmatter,
         stylesheets,
+        "",
         &body,
     )
 }

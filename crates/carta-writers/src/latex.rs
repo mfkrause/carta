@@ -1,9 +1,11 @@
 //! LaTeX writer: renders the document model to a LaTeX document fragment.
 //!
 //! Output is a body fragment (no preamble or `\begin{document}`) wrapped at a fill column of 72;
-//! the wrap counts the literal LaTeX, markup included. Document metadata is not emitted. Syntax
-//! highlighting is neutralized: a code block renders as a `verbatim` environment and inline code as
-//! `\texttt{…}`, regardless of any language class. The result carries no trailing newline; the
+//! the wrap counts the literal LaTeX, markup included. Document metadata is not emitted. When a
+//! highlighter is supplied, a classified code block is colorized into a `Shaded`/`Highlighting`
+//! environment with per-token style macros; otherwise a code block renders as a `verbatim`
+//! environment, or a `lstlisting` one under idiomatic presentation. Inline code is always
+//! `\texttt{…}`. The result carries no trailing newline; the
 //! caller appends one. This format has no public specification.
 
 use std::fmt::Write as _;
@@ -13,6 +15,11 @@ use carta_ast::{
     ListNumberDelim, ListNumberStyle, MathType, QuoteType, Row, Table, Target, to_plain_text,
 };
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
+
+#[cfg(feature = "highlight")]
+use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
+#[cfg(feature = "highlight")]
+use carta_highlight::{Highlighter, Token as HighlightToken, TokenKind};
 
 use crate::common::{
     FILL_COLUMN, Piece, attribute_value, clean_prefix_len, display_width, fill, indent_block,
@@ -27,6 +34,7 @@ pub struct LatexWriter;
 impl Writer for LatexWriter {
     fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let smart = options.extensions.contains(Extension::Smart);
+        let hl = code_highlighting(options);
         let body = render_blocks(
             &document.blocks,
             options.columns.unwrap_or(FILL_COLUMN),
@@ -34,6 +42,7 @@ impl Writer for LatexWriter {
             Dialect::Article,
             options.wrap,
             smart,
+            hl,
         );
         Ok(body.trim_end_matches('\n').to_owned())
     }
@@ -91,8 +100,9 @@ pub(crate) fn render_fragment(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
-    render_blocks(blocks, FILL_COLUMN, 0, dialect, wrap, smart)
+    render_blocks(blocks, FILL_COLUMN, 0, dialect, wrap, smart, hl)
         .trim_end_matches('\n')
         .to_owned()
 }
@@ -105,6 +115,7 @@ pub(crate) fn render_heading(
     inlines: &[Inline],
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     header(
         level,
@@ -114,6 +125,7 @@ pub(crate) fn render_heading(
         Dialect::Article,
         wrap,
         smart,
+        hl,
     )
 }
 
@@ -126,9 +138,17 @@ pub(crate) fn render_titled_open(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let mut pieces = vec![Piece::text(prefix.to_owned())];
-    pieces.extend(inline_pieces(inlines, FILL_COLUMN, dialect, wrap, smart));
+    pieces.extend(inline_pieces(
+        inlines,
+        FILL_COLUMN,
+        dialect,
+        wrap,
+        smart,
+        hl,
+    ));
     pieces.push(Piece::text("}"));
     fill(&pieces, FILL_COLUMN, wrap)
 }
@@ -155,15 +175,17 @@ fn render_blocks(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     blocks
         .iter()
-        .map(|block| block_to_string(block, width, enum_depth, dialect, wrap, smart))
+        .map(|block| block_to_string(block, width, enum_depth, dialect, wrap, smart, hl))
         .filter(|rendered| !rendered.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn block_to_string(
     block: &Block,
     width: usize,
@@ -171,15 +193,16 @@ fn block_to_string(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     match block {
         Block::Plain(inlines) | Block::Para(inlines) => {
-            inlines_to_string(inlines, width, dialect, wrap, smart)
+            inlines_to_string(inlines, width, dialect, wrap, smart, hl)
         }
         Block::Header(level, attr, inlines) => {
-            header(*level, attr, inlines, width, dialect, wrap, smart)
+            header(*level, attr, inlines, width, dialect, wrap, smart, hl)
         }
-        Block::CodeBlock(attr, text) => code_block(attr, text),
+        Block::CodeBlock(attr, text) => code_block(attr, text, hl),
         Block::RawBlock(format, text) => {
             if is_latex_format(&format.0) {
                 text.strip_suffix('\n').unwrap_or(text).to_owned()
@@ -187,26 +210,29 @@ fn block_to_string(
                 String::new()
             }
         }
-        Block::BlockQuote(blocks) => block_quote(blocks, width, enum_depth, dialect, wrap, smart),
-        Block::BulletList(items) => bullet_list(items, width, enum_depth, dialect, wrap, smart),
+        Block::BlockQuote(blocks) => {
+            block_quote(blocks, width, enum_depth, dialect, wrap, smart, hl)
+        }
+        Block::BulletList(items) => bullet_list(items, width, enum_depth, dialect, wrap, smart, hl),
         Block::OrderedList(attrs, items) => {
-            ordered_list(attrs, items, width, enum_depth, dialect, wrap, smart)
+            ordered_list(attrs, items, width, enum_depth, dialect, wrap, smart, hl)
         }
         Block::DefinitionList(items) => {
-            definition_list(items, width, enum_depth, dialect, wrap, smart)
+            definition_list(items, width, enum_depth, dialect, wrap, smart, hl)
         }
         Block::HorizontalRule => {
             "\\begin{center}\\rule{0.5\\linewidth}{0.5pt}\\end{center}".to_owned()
         }
-        Block::LineBlock(lines) => line_block(lines, width, dialect, wrap, smart),
-        Block::Div(attr, blocks) => div(attr, blocks, width, enum_depth, dialect, wrap, smart),
+        Block::LineBlock(lines) => line_block(lines, width, dialect, wrap, smart, hl),
+        Block::Div(attr, blocks) => div(attr, blocks, width, enum_depth, dialect, wrap, smart, hl),
         Block::Figure(attr, caption, blocks) => figure(
-            attr, caption, blocks, width, enum_depth, dialect, wrap, smart,
+            attr, caption, blocks, width, enum_depth, dialect, wrap, smart, hl,
         ),
-        Block::Table(table) => render_table(table, width, dialect, wrap, smart),
+        Block::Table(table) => render_table(table, width, dialect, wrap, smart, hl),
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn header(
     level: i32,
     attr: &Attr,
@@ -215,6 +241,7 @@ fn header(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let command = match level {
         1 => "section",
@@ -222,14 +249,14 @@ fn header(
         3 => "subsubsection",
         4 => "paragraph",
         5 => "subparagraph",
-        _ => return inlines_to_string(inlines, width, dialect, wrap, smart),
+        _ => return inlines_to_string(inlines, width, dialect, wrap, smart, hl),
     };
     let unnumbered = attr.classes.iter().any(|class| class == "unnumbered");
     let star = if unnumbered { "*" } else { "" };
-    let inner = inline_pieces_in(inlines, width, dialect, wrap, smart, true);
+    let inner = inline_pieces_in(inlines, width, dialect, wrap, smart, true, hl);
 
     let mut content = vec![Piece::text(format!("\\{command}{star}"))];
-    if let Some(short) = short_title(inlines, width, dialect, wrap, smart) {
+    if let Some(short) = short_title(inlines, width, dialect, wrap, smart, hl) {
         content.push(Piece::text(format!("[{short}]")));
     }
     content.push(Piece::text("{"));
@@ -263,6 +290,7 @@ fn header(
 /// recognized classes map to presentation constructs: a column layout (`columns` with `column`
 /// children), and incremental regions (`incremental` / `nonincremental`) that toggle whether the
 /// lists inside reveal their items one at a time.
+#[allow(clippy::too_many_arguments)]
 fn div(
     attr: &Attr,
     blocks: &[Block],
@@ -271,10 +299,11 @@ fn div(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     if dialect.is_slide() {
         if has_class(attr, "columns") {
-            return columns(attr, blocks, width, enum_depth, dialect, wrap, smart);
+            return columns(attr, blocks, width, enum_depth, dialect, wrap, smart, hl);
         }
         if has_class(attr, "incremental") {
             return render_blocks(
@@ -284,6 +313,7 @@ fn div(
                 dialect.with_incremental(true),
                 wrap,
                 smart,
+                hl,
             );
         }
         if has_class(attr, "nonincremental") {
@@ -294,10 +324,11 @@ fn div(
                 dialect.with_incremental(false),
                 wrap,
                 smart,
+                hl,
             );
         }
     }
-    let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart);
+    let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl);
     if attr.id.is_empty() {
         body
     } else {
@@ -308,6 +339,7 @@ fn div(
 /// Render a `columns` div as a `columns` environment whose `column` children become sized `column`
 /// boxes. The environment's vertical alignment comes from the div's `align` attribute (`top`→`T`,
 /// `bottom`→`b`, `center`→`c`, defaulting to `T`); a `totalwidth` attribute is carried through.
+#[allow(clippy::too_many_arguments)]
 fn columns(
     attr: &Attr,
     blocks: &[Block],
@@ -316,6 +348,7 @@ fn columns(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let align = match attribute_value(attr, "align") {
         Some("bottom") => "b",
@@ -342,6 +375,7 @@ fn columns(
                     dialect,
                     wrap,
                     smart,
+                    hl,
                 ))
             }
             _ => None,
@@ -354,6 +388,7 @@ fn columns(
 
 /// Render a single `column` div as a sized `column` box. Its fraction comes from a `width=NN%`
 /// attribute, defaulting to `0.48` of the line width.
+#[allow(clippy::too_many_arguments)]
 fn column(
     attr: &Attr,
     blocks: &[Block],
@@ -362,6 +397,7 @@ fn column(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let fraction = attribute_value(attr, "width")
         .and_then(parse_percent)
@@ -374,7 +410,7 @@ fn column(
         "\\begin{{column}}{{{}\\linewidth}}",
         trim_number(fraction)
     ));
-    let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart);
+    let body = render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl);
     if !body.is_empty() {
         lines.push(body);
     }
@@ -396,8 +432,403 @@ fn has_class(attr: &Attr, class: &str) -> bool {
     attr.classes.iter().any(|candidate| candidate == class)
 }
 
-fn code_block(attr: &Attr, text: &str) -> String {
-    code_block_env(attr, text, "verbatim")
+/// The code-block presentation threaded through a render, or a zero-size placeholder when the feature
+/// is compiled out, so every rendering function keeps one signature. `highlighter` colorizes a block;
+/// `idiomatic` instead selects the `lstlisting` environment for the uncolorized fallback.
+#[cfg(feature = "highlight")]
+#[derive(Clone, Copy)]
+pub(crate) struct Hl<'a> {
+    highlighter: Option<&'a Highlighter>,
+    idiomatic: bool,
+}
+#[cfg(not(feature = "highlight"))]
+pub(crate) type Hl<'a> = core::marker::PhantomData<&'a ()>;
+
+/// The code-block presentation a render draws from the writer options.
+#[cfg(feature = "highlight")]
+pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
+    Hl {
+        highlighter: options.highlight.highlighter.as_deref(),
+        idiomatic: options.highlight.idiomatic,
+    }
+}
+#[cfg(not(feature = "highlight"))]
+pub(crate) fn code_highlighting(_options: &WriterOptions) -> Hl<'_> {
+    core::marker::PhantomData
+}
+
+fn code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> String {
+    highlighted_code_block(attr, text, hl)
+        .unwrap_or_else(|| code_block_fallback(attr, text, hl, "verbatim"))
+}
+
+/// The uncolorized rendering of a code block: under idiomatic presentation the format's own
+/// `lstlisting` construct, carrying the block's language, numbering, and identifier as options;
+/// otherwise the plain verbatim environment named by `plain_env` (`verbatim` in the document body,
+/// the reduced `Verbatim` inside a footnote).
+#[cfg(feature = "highlight")]
+fn code_block_fallback(attr: &Attr, text: &str, hl: Hl<'_>, plain_env: &str) -> String {
+    if hl.idiomatic {
+        listings_code_block(attr, text)
+    } else {
+        code_block_env(attr, text, plain_env)
+    }
+}
+#[cfg(not(feature = "highlight"))]
+fn code_block_fallback(attr: &Attr, text: &str, _hl: Hl<'_>, plain_env: &str) -> String {
+    code_block_env(attr, text, plain_env)
+}
+
+/// A code block rendered as a `lstlisting` environment. The listings package names the language, line
+/// numbering, and starting line through bracket options, so the block's first mappable class, its
+/// numbering class and `startFrom` key, any further key–value attributes, and its identifier all
+/// become options rather than markup around the verbatim body.
+#[cfg(feature = "highlight")]
+fn listings_code_block(attr: &Attr, text: &str) -> String {
+    let body = text.strip_suffix('\n').unwrap_or(text);
+    let options = listings_options(attr);
+    if options.is_empty() {
+        format!("\\begin{{lstlisting}}\n{body}\n\\end{{lstlisting}}")
+    } else {
+        format!("\\begin{{lstlisting}}[{options}]\n{body}\n\\end{{lstlisting}}")
+    }
+}
+
+/// Assemble the bracket options for a `lstlisting` block. The order is fixed — language, then
+/// `numbers=left`, then `firstnumber`, then any pass-through attributes, then the `label` — so the
+/// rendering is deterministic and reads left to right the way the listings package documents.
+#[cfg(feature = "highlight")]
+fn listings_options(attr: &Attr) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(language) = attr
+        .classes
+        .iter()
+        .find_map(|class| listings_language(class.as_str()))
+    {
+        parts.push(format!("language={language}"));
+    }
+    if attr.classes.iter().any(is_number_lines_class) {
+        parts.push(String::from("numbers=left"));
+    }
+    if let Some((_, value)) = attr
+        .attributes
+        .iter()
+        .find(|(key, _)| key.as_str() == "startFrom")
+        && let Ok(start) = value.as_str().parse::<i64>()
+    {
+        parts.push(format!("firstnumber={start}"));
+    }
+    for (key, value) in &attr.attributes {
+        if key.as_str() == "startFrom" {
+            continue;
+        }
+        parts.push(format!(
+            "{}={}",
+            key.as_str(),
+            listings_value(value.as_str())
+        ));
+    }
+    if !attr.id.is_empty() {
+        parts.push(format!("label={}", attr.id));
+    }
+    parts.join(", ")
+}
+
+/// A listings option value: emitted bare when it is a single run of ASCII letters and digits, and
+/// otherwise wrapped in a group with the LaTeX metacharacters escaped so the brackets and commas of
+/// the option list stay unambiguous.
+#[cfg(feature = "highlight")]
+fn listings_value(value: &str) -> String {
+    if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+        value.to_owned()
+    } else {
+        format!("{{{}}}", escape(value, EscapeMode::Text))
+    }
+}
+
+/// The `listings` package name for a code-block class, or `None` when the package does not cover the
+/// language. The lookup is case-insensitive; the returned name is the exact spelling the package's
+/// `language=` option expects, with the handful that carry special characters already braced so they
+/// survive the option list. Names follow the language table published with the listings package.
+#[cfg(feature = "highlight")]
+// One class per arm keeps this a readable transcription of the package's language table; several
+// distinct classes legitimately share a target name (aliases and dialects), so equal bodies are
+// expected rather than a sign that arms should be merged, and the table is unavoidably long.
+#[allow(clippy::match_same_arms, clippy::too_many_lines)]
+fn listings_language(class: &str) -> Option<&'static str> {
+    let key = class.to_ascii_lowercase();
+    Some(match key.as_str() {
+        "abap" => "ABAP",
+        "acsl" => "ACSL",
+        "ada" => "Ada",
+        "algol" => "Algol",
+        "ant" => "Ant",
+        "assembler" => "Assembler",
+        "awk" => "Awk",
+        "bash" => "bash",
+        "c" => "C",
+        "c++" => "{C++}",
+        "cil" => "CIL",
+        "clean" => "Clean",
+        "cobol" => "Cobol",
+        "comal80" => "Comal80",
+        "command.com" => "{command.com}",
+        "commonlisp" => "Lisp",
+        "comsol" => "Comsol",
+        "cpp" => "{C++}",
+        "cs" => "C",
+        "csh" => "csh",
+        "delphi" => "Delphi",
+        "eiffel" => "Eiffel",
+        "elan" => "Elan",
+        "erlang" => "erlang",
+        "euphoria" => "Euphoria",
+        "fortran" => "Fortran",
+        "gap" => "GAP",
+        "gcl" => "GCL",
+        "gnuassembler" => "Assembler",
+        "gnuplot" => "Gnuplot",
+        "go" => "Go",
+        "hansl" => "hansl",
+        "haskell" => "Haskell",
+        "html" => "HTML",
+        "idl" => "IDL",
+        "inform" => "inform",
+        "java" => "Java",
+        "jvmis" => "JVMIS",
+        "ksh" => "ksh",
+        "latex" => "TeX",
+        "lingo" => "Lingo",
+        "lisp" => "Lisp",
+        "llvm" => "LLVM",
+        "logo" => "Logo",
+        "lua" => "Lua",
+        "make" => "make",
+        "makefile" => "make",
+        "mathematica" => "Mathematica",
+        "matlab" => "Matlab",
+        "mercury" => "Mercury",
+        "metapost" => "MetaPost",
+        "miranda" => "Miranda",
+        "mizar" => "Mizar",
+        "ml" => "ML",
+        "modula2" => "{Modula-2}",
+        "monobasic" => "Basic",
+        "mupad" => "MuPAD",
+        "nastran" => "NASTRAN",
+        "oberon2" => "{Oberon-2}",
+        "objective-c" => "C",
+        "objectivec" => "C",
+        "ocaml" => "Caml",
+        "ocl" => "OCL",
+        "octave" => "Octave",
+        "oz" => "Oz",
+        "pascal" => "Pascal",
+        "perl" => "Perl",
+        "php" => "PHP",
+        "plasm" => "Plasm",
+        "pli" => "{PL/I}",
+        "postscript" => "PostScript",
+        "pov" => "POV",
+        "prolog" => "Prolog",
+        "promela" => "Promela",
+        "pstricks" => "PSTricks",
+        "purebasic" => "Basic",
+        "python" => "Python",
+        "r" => "R",
+        "reduce" => "Reduce",
+        "rexx" => "Rexx",
+        "rsl" => "RSL",
+        "ruby" => "Ruby",
+        "s" => "S",
+        "sas" => "SAS",
+        "scala" => "Scala",
+        "scilab" => "Scilab",
+        "sh" => "sh",
+        "shelxl" => "SHELXL",
+        "simula" => "Simula",
+        "sparql" => "SPARQL",
+        "sql" => "SQL",
+        "swift" => "Swift",
+        "tcl" => "tcl",
+        "tex" => "TeX",
+        "vbscript" => "VBScript",
+        "verilog" => "Verilog",
+        "vhdl" => "VHDL",
+        "vrml" => "VRML",
+        "xml" => "XML",
+        "xslt" => "XSLT",
+        _ => return None,
+    })
+}
+
+/// The colorized form of a code block, or `None` when it is not colorized: no highlighter is active,
+/// or the block carries no class to name a language or request line numbering. A colorized block is a
+/// `Shaded`/`Highlighting` environment pair regardless of the surrounding context.
+#[cfg(feature = "highlight")]
+fn highlighted_code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String> {
+    let highlighter = hl.highlighter?;
+    if attr.classes.is_empty() {
+        return None;
+    }
+    let code = text.strip_suffix('\n').unwrap_or(text);
+    let language = attr
+        .classes
+        .iter()
+        .find(|class| highlighter.registry().is_known(class.as_str()));
+    let lines = match language {
+        Some(language) => highlighter
+            .highlight(language.as_str(), code)
+            .unwrap_or_default(),
+        None => plain_source_lines(code),
+    };
+    let numbered = attr.classes.iter().any(is_number_lines_class);
+    let mut body = String::new();
+    for (index, line) in lines.iter().enumerate() {
+        if index > 0 {
+            body.push('\n');
+        }
+        for token in line {
+            push_highlight_token(&mut body, token);
+        }
+    }
+    let options = highlight_environment_options(attr, numbered);
+    let shaded = format!(
+        "\\begin{{Shaded}}\n\\begin{{Highlighting}}[{options}]\n{body}\n\\end{{Highlighting}}\n\\end{{Shaded}}"
+    );
+    Some(if attr.id.is_empty() {
+        shaded
+    } else {
+        format!("{}%\n{shaded}", phantom_label(&attr.id))
+    })
+}
+
+#[cfg(not(feature = "highlight"))]
+fn highlighted_code_block(_attr: &Attr, _text: &str, _hl: Hl<'_>) -> Option<String> {
+    None
+}
+
+/// The colorized form of inline code, or `None` when it does not apply: no highlighter is active, or
+/// the span names no known language. The token macros ride inside a `\VERB` group delimited by a
+/// bar; a literal bar in the source becomes `\VerbBar{}` so it cannot close the group early.
+#[cfg(feature = "highlight")]
+fn highlighted_code_inline(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String> {
+    let highlighter = hl.highlighter?;
+    let language = attr
+        .classes
+        .iter()
+        .find(|class| highlighter.registry().is_known(class.as_str()))?;
+    let lines = highlighter
+        .highlight(language.as_str(), text)
+        .unwrap_or_default();
+    let mut body = String::new();
+    for (index, line) in lines.iter().enumerate() {
+        if index > 0 {
+            body.push('\n');
+        }
+        for token in line {
+            push_highlight_token(&mut body, token);
+        }
+    }
+    Some(format!("\\VERB|{}|", body.replace('|', "\\VerbBar{}")))
+}
+
+/// The idiomatic-listings form of inline code, or `None` when idiomatic presentation is off. The
+/// source rides verbatim inside `\lstinline`, carrying a `language=` option when a class maps to a
+/// listings language; the delimiter is the first candidate glyph absent from the text.
+#[cfg(feature = "highlight")]
+fn idiomatic_code_inline(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String> {
+    if !hl.idiomatic {
+        return None;
+    }
+    let language = attr
+        .classes
+        .iter()
+        .find_map(|class| listings_language(class.as_str()))
+        .map(|name| format!("[language={name}]"))
+        .unwrap_or_default();
+    let delimiter = lstinline_delimiter(text);
+    Some(format!(
+        "\\passthrough{{\\lstinline{language}{delimiter}{text}{delimiter}}}"
+    ))
+}
+
+/// Pick the delimiter for an `\lstinline` argument: the first punctuation glyph the source does not
+/// itself contain, so the argument cannot terminate early. When the source contains every candidate,
+/// the first is reused (the argument cannot be delimited cleanly, matching the listings fallback).
+#[cfg(feature = "highlight")]
+fn lstinline_delimiter(text: &str) -> char {
+    const CANDIDATES: &str = "!\"'()*+,-./:;<=>?@";
+    CANDIDATES
+        .chars()
+        .find(|candidate| !text.contains(*candidate))
+        .unwrap_or('!')
+}
+
+#[cfg(not(feature = "highlight"))]
+fn highlighted_code_inline(_attr: &Attr, _text: &str, _hl: Hl<'_>) -> Option<String> {
+    None
+}
+
+#[cfg(not(feature = "highlight"))]
+fn idiomatic_code_inline(_attr: &Attr, _text: &str, _hl: Hl<'_>) -> Option<String> {
+    None
+}
+
+/// Append one classified token as its style macro, `\StyleTok{escaped}`. A `Normal` token that is
+/// only whitespace is emitted bare so inter-token spacing is not wrapped in a macro.
+#[cfg(feature = "highlight")]
+fn push_highlight_token(out: &mut String, token: &HighlightToken) {
+    let escaped = escape_highlight(&token.text);
+    if token.kind == TokenKind::Normal && token.text.chars().all(char::is_whitespace) {
+        out.push_str(&escaped);
+    } else {
+        let _ = write!(out, "\\{}Tok{{{escaped}}}", token.kind.style_key());
+    }
+}
+
+/// The bracket options on the `Highlighting` environment: empty unless the block numbers its lines,
+/// where it states `numbers=left` and, when the first line is not 1, a `firstnumber`.
+#[cfg(feature = "highlight")]
+fn highlight_environment_options(attr: &Attr, numbered: bool) -> String {
+    if !numbered {
+        return String::new();
+    }
+    let start = start_line(attr);
+    let mut parts = vec![String::from("numbers=left"), String::new()];
+    if start != 1 {
+        parts.push(format!("firstnumber={start}"));
+    }
+    parts.push(String::new());
+    parts.join(",")
+}
+
+/// Escape a run of source text for a highlighting token macro's argument. Unlike prose escaping, a
+/// control-word escape always closes with an empty group, and whitespace and several glyphs that are
+/// literal inside a listing pass through untouched.
+#[cfg(feature = "highlight")]
+fn escape_highlight(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\\' => out.push_str("\\textbackslash{}"),
+            '{' => out.push_str("\\{"),
+            '}' => out.push_str("\\}"),
+            '_' => out.push_str("\\_"),
+            '&' => out.push_str("\\&"),
+            '%' => out.push_str("\\%"),
+            '#' => out.push_str("\\#"),
+            '^' => out.push_str("\\^{}"),
+            '~' => out.push_str("\\textasciitilde{}"),
+            '<' => out.push_str("\\textless{}"),
+            '>' => out.push_str("\\textgreater{}"),
+            '`' => out.push_str("\\textasciigrave{}"),
+            '\'' => out.push_str("\\textquotesingle{}"),
+            '-' => out.push_str("{-}"),
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 fn code_block_env(attr: &Attr, text: &str, environment: &str) -> String {
@@ -451,6 +882,7 @@ fn overlay(dialect: Dialect) -> &'static str {
 /// idiom for toggling that list's incremental overlay: the quote wrapper is dropped and the list
 /// renders with the surrounding incremental state flipped. Any other quote keeps its `quote`
 /// environment, with the incremental overlay suppressed inside it.
+#[allow(clippy::too_many_arguments)]
 fn block_quote(
     blocks: &[Block],
     width: usize,
@@ -458,6 +890,7 @@ fn block_quote(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     if let (Dialect::Slide { incremental }, [list]) = (dialect, blocks)
         && matches!(
@@ -472,6 +905,7 @@ fn block_quote(
             dialect.with_incremental(!incremental),
             wrap,
             smart,
+            hl,
         );
     }
     format!(
@@ -482,11 +916,13 @@ fn block_quote(
             enum_depth,
             dialect.with_incremental(false),
             wrap,
-            smart
+            smart,
+            hl
         )
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn bullet_list(
     items: &[Vec<Block>],
     width: usize,
@@ -494,18 +930,20 @@ fn bullet_list(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let mut lines = vec![format!("\\begin{{itemize}}{}", overlay(dialect))];
     if list_is_tight(items) {
         lines.push("\\tightlist".to_owned());
     }
     for item in items {
-        lines.push(list_item(item, width, enum_depth, dialect, wrap, smart));
+        lines.push(list_item(item, width, enum_depth, dialect, wrap, smart, hl));
     }
     lines.push("\\end{itemize}".to_owned());
     lines.join("\n")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn ordered_list(
     attrs: &ListAttributes,
     items: &[Vec<Block>],
@@ -514,6 +952,7 @@ fn ordered_list(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let depth = enum_depth + 1;
     let counter = enum_counter(depth);
@@ -540,13 +979,14 @@ fn ordered_list(
         lines.push("\\tightlist".to_owned());
     }
     for item in items {
-        lines.push(list_item(item, width, depth, dialect, wrap, smart));
+        lines.push(list_item(item, width, depth, dialect, wrap, smart, hl));
     }
     lines.push("\\end{enumerate}".to_owned());
     lines.join("\n")
 }
 
 /// Render one list item: its blocks indented two columns under an `\item` line.
+#[allow(clippy::too_many_arguments)]
 fn list_item(
     item: &[Block],
     width: usize,
@@ -554,6 +994,7 @@ fn list_item(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let body = render_blocks(
         item,
@@ -562,6 +1003,7 @@ fn list_item(
         dialect,
         wrap,
         smart,
+        hl,
     );
     if body.is_empty() {
         "\\item".to_owned()
@@ -570,6 +1012,7 @@ fn list_item(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn definition_list(
     items: &[(Vec<Inline>, Vec<Vec<Block>>)],
     width: usize,
@@ -577,6 +1020,7 @@ fn definition_list(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let mut lines = vec![format!("\\begin{{description}}{}", overlay(dialect))];
     if is_tight_definitions(items) {
@@ -585,11 +1029,13 @@ fn definition_list(
     for (term, definitions) in items {
         let header = format!(
             "\\item[{}]",
-            inlines_to_string(term, width, dialect, wrap, smart)
+            inlines_to_string(term, width, dialect, wrap, smart, hl)
         );
         let bodies: Vec<String> = definitions
             .iter()
-            .map(|definition| render_blocks(definition, width, enum_depth, dialect, wrap, smart))
+            .map(|definition| {
+                render_blocks(definition, width, enum_depth, dialect, wrap, smart, hl)
+            })
             .filter(|rendered| !rendered.is_empty())
             .collect();
         if bodies.is_empty() {
@@ -613,6 +1059,7 @@ fn line_block(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let mut out = String::new();
     let mut only_empty_so_far = true;
@@ -620,7 +1067,7 @@ fn line_block(
         let is_last = index + 1 == lines.len();
         let mut breaks = true;
         if !line.is_empty() {
-            out.push_str(&inlines_to_string(line, width, dialect, wrap, smart));
+            out.push_str(&inlines_to_string(line, width, dialect, wrap, smart, hl));
             only_empty_so_far = false;
         } else if is_last {
             // The break ending the previous line already stands in for this one.
@@ -647,13 +1094,14 @@ fn figure(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let mut parts = vec![
         "\\begin{figure}".to_owned(),
         "\\centering".to_owned(),
-        render_blocks(blocks, width, enum_depth, dialect, wrap, smart),
+        render_blocks(blocks, width, enum_depth, dialect, wrap, smart, hl),
     ];
-    let caption_body = caption_body(caption, width, dialect, wrap, smart);
+    let caption_body = caption_body(caption, width, dialect, wrap, smart, hl);
     if !caption_body.is_empty() || !attr.id.is_empty() {
         let label = if attr.id.is_empty() {
             String::new()
@@ -674,13 +1122,14 @@ fn caption_body(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     caption
         .long
         .iter()
         .filter_map(|block| match block {
             Block::Plain(inlines) | Block::Para(inlines) => {
-                Some(inlines_to_string(inlines, width, dialect, wrap, smart))
+                Some(inlines_to_string(inlines, width, dialect, wrap, smart, hl))
             }
             _ => None,
         })
@@ -698,6 +1147,7 @@ fn render_table(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let plan = ColumnPlan::new(table);
     let head_rows: Vec<&Row> = table.head.rows.iter().collect();
@@ -708,10 +1158,10 @@ fn render_table(
         .collect();
     let foot_rows: Vec<&Row> = table.foot.rows.iter().collect();
 
-    let head_lines = render_section(&head_rows, &plan, true, width, dialect, wrap, smart);
-    let body_lines = render_section(&body_rows, &plan, false, width, dialect, wrap, smart);
-    let foot_lines = render_section(&foot_rows, &plan, false, width, dialect, wrap, smart);
-    let caption = table_caption(&table.caption, &table.attr, width, dialect, wrap, smart);
+    let head_lines = render_section(&head_rows, &plan, true, width, dialect, wrap, smart, hl);
+    let body_lines = render_section(&body_rows, &plan, false, width, dialect, wrap, smart, hl);
+    let foot_lines = render_section(&foot_rows, &plan, false, width, dialect, wrap, smart, hl);
+    let caption = table_caption(&table.caption, &table.attr, width, dialect, wrap, smart, hl);
 
     let mut parts = vec![format!("\\begin{{longtable}}[]{{{}}}", plan.colspec())];
     if let Some(caption) = &caption {
@@ -863,17 +1313,20 @@ struct TableContext<'a> {
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'a>,
 }
 
 /// Render a section's rows to `longtable` lines, resolving spans against the section's own grid.
-fn render_section(
+#[allow(clippy::too_many_arguments)]
+fn render_section<'a>(
     rows: &[&Row],
-    plan: &ColumnPlan,
+    plan: &'a ColumnPlan,
     head: bool,
     width: usize,
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'a>,
 ) -> Vec<String> {
     let context = TableContext {
         plan,
@@ -882,6 +1335,7 @@ fn render_section(
         dialect,
         wrap,
         smart,
+        hl,
     };
     let placements = grid::place_columns(rows, plan.columns);
     rows.iter()
@@ -1077,6 +1531,7 @@ fn render_cell(cell: &Cell, start: usize, context: &TableContext) -> String {
         context.dialect,
         context.wrap,
         context.smart,
+        context.hl,
     );
     if context.plan.explicit && (context.head || !is_simple_cell(cell)) {
         minipage(
@@ -1140,16 +1595,17 @@ fn cell_content(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     if is_simple_cell(cell) {
         match cell.content.first() {
             Some(Block::Plain(inlines) | Block::Para(inlines)) => {
-                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart))
+                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart, hl))
             }
             _ => String::new(),
         }
     } else {
-        render_blocks(&cell.content, width, 0, dialect, wrap, smart)
+        render_blocks(&cell.content, width, 0, dialect, wrap, smart, hl)
     }
 }
 
@@ -1217,6 +1673,7 @@ fn multirow_prefix(align: &Alignment) -> &'static str {
 /// Render a table caption to a `\caption[short]{long}…\tabularnewline` line, reflowed at `width`.
 /// Returns `None` for an empty caption. The closing brace, optional label, and `\tabularnewline`
 /// stay glued to the final word so they reflow as one unit.
+#[allow(clippy::too_many_arguments)]
 fn table_caption(
     caption: &Caption,
     attr: &Attr,
@@ -1224,6 +1681,7 @@ fn table_caption(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> Option<String> {
     if caption.long.is_empty() {
         return None;
@@ -1234,7 +1692,7 @@ fn table_caption(
         .map(|inlines| {
             format!(
                 "[{}]",
-                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart))
+                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart, hl))
             )
         })
         .unwrap_or_default();
@@ -1247,7 +1705,7 @@ fn table_caption(
                 pieces.push(Piece::Hard);
             }
             first = false;
-            pieces.extend(inline_pieces(inlines, width, dialect, wrap, smart));
+            pieces.extend(inline_pieces(inlines, width, dialect, wrap, smart, hl));
         }
     }
     let mut close = String::from("}");
@@ -1336,6 +1794,7 @@ fn short_title(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> Option<String> {
     let visible: Vec<Inline> = inlines
         .iter()
@@ -1346,7 +1805,7 @@ fn short_title(
         return None;
     }
     Some(flatten_pieces(&inline_pieces(
-        &visible, width, dialect, wrap, smart,
+        &visible, width, dialect, wrap, smart, hl,
     )))
 }
 
@@ -1376,9 +1835,10 @@ fn inlines_to_string(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     fill(
-        &inline_pieces(inlines, width, dialect, wrap, smart),
+        &inline_pieces(inlines, width, dialect, wrap, smart, hl),
         width,
         wrap,
     )
@@ -1390,12 +1850,14 @@ fn inline_pieces(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> Vec<Piece> {
-    inline_pieces_in(inlines, width, dialect, wrap, smart, false)
+    inline_pieces_in(inlines, width, dialect, wrap, smart, false, hl)
 }
 
 /// Render an inline list to pieces. `in_header` is set while rendering a heading's content, where an
 /// identifier anchor is emitted as a `\hypertarget` rather than a `\phantomsection\label`.
+#[allow(clippy::too_many_arguments)]
 fn inline_pieces_in(
     inlines: &[Inline],
     width: usize,
@@ -1403,14 +1865,18 @@ fn inline_pieces_in(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    hl: Hl<'_>,
 ) -> Vec<Piece> {
     let mut out = Vec::new();
-    push_inlines(inlines, &mut out, width, dialect, wrap, smart, in_header);
+    push_inlines(
+        inlines, &mut out, width, dialect, wrap, smart, in_header, hl,
+    );
     out
 }
 
 /// Render an inline list. After a quote span, a thin space separates its closing delimiter from a
 /// following quotation mark so the two marks do not run together into one glyph.
+#[allow(clippy::too_many_arguments)]
 fn push_inlines(
     inlines: &[Inline],
     out: &mut Vec<Piece>,
@@ -1419,10 +1885,11 @@ fn push_inlines(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    hl: Hl<'_>,
 ) {
     let mut remaining = inlines.iter().peekable();
     while let Some(inline) = remaining.next() {
-        push_inline(inline, out, width, dialect, wrap, smart, in_header);
+        push_inline(inline, out, width, dialect, wrap, smart, in_header, hl);
         if matches!(inline, Inline::Quoted(..))
             && let Some(Inline::Str(text)) = remaining.peek()
             && text.chars().next().is_some_and(is_quotation_mark)
@@ -1447,12 +1914,13 @@ fn push_inline(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    hl: Hl<'_>,
 ) {
     match inline {
         Inline::Str(text) => out.push(Piece::text(escape_smart(text, EscapeMode::Text, smart))),
         Inline::Emph(inlines) => {
             wrap_command(
-                "\\emph{", inlines, out, width, dialect, wrap, smart, in_header,
+                "\\emph{", inlines, out, width, dialect, wrap, smart, in_header, hl,
             );
         }
         Inline::Strong(inlines) => {
@@ -1465,16 +1933,17 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                hl,
             );
         }
         Inline::Underline(inlines) => {
             wrap_command(
-                "\\ul{", inlines, out, width, dialect, wrap, smart, in_header,
+                "\\ul{", inlines, out, width, dialect, wrap, smart, in_header, hl,
             );
         }
         Inline::Strikeout(inlines) => {
             wrap_command(
-                "\\st{", inlines, out, width, dialect, wrap, smart, in_header,
+                "\\st{", inlines, out, width, dialect, wrap, smart, in_header, hl,
             );
         }
         Inline::Superscript(inlines) => {
@@ -1487,6 +1956,7 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                hl,
             );
         }
         Inline::Subscript(inlines) => {
@@ -1499,6 +1969,7 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                hl,
             );
         }
         Inline::SmallCaps(inlines) => {
@@ -1511,6 +1982,7 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                hl,
             );
         }
         Inline::Quoted(kind, inlines) => {
@@ -1523,7 +1995,7 @@ fn push_inline(
                 EscapeMode::Text,
                 smart,
             )));
-            push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
+            push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
             out.push(Piece::text(escape_smart(
                 &close.to_string(),
                 EscapeMode::Text,
@@ -1531,13 +2003,13 @@ fn push_inline(
             )));
         }
         Inline::Cite(_, inlines) => {
-            push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
+            push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
         }
-        Inline::Code(_, text) => {
-            out.push(Piece::text(format!(
-                "\\texttt{{{}}}",
-                escape(text, EscapeMode::Code)
-            )));
+        Inline::Code(attr, text) => {
+            let rendered = highlighted_code_inline(attr, text, hl)
+                .or_else(|| idiomatic_code_inline(attr, text, hl))
+                .unwrap_or_else(|| format!("\\texttt{{{}}}", escape(text, EscapeMode::Code)));
+            out.push(Piece::text(rendered));
         }
         Inline::Space => out.push(Piece::Space),
         Inline::SoftBreak => out.push(Piece::Soft),
@@ -1559,7 +2031,7 @@ fn push_inline(
         }
         Inline::Link(attr, inlines, target) => {
             push_link(
-                attr, inlines, target, out, width, dialect, wrap, smart, in_header,
+                attr, inlines, target, out, width, dialect, wrap, smart, in_header, hl,
             );
         }
         Inline::Image(attr, inlines, target) => {
@@ -1575,10 +2047,12 @@ fn push_inline(
             };
             open.push('{');
             out.push(Piece::text(open));
-            push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
+            push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
             out.push(Piece::text("}"));
         }
-        Inline::Note(blocks) => out.push(Piece::text(note(blocks, width, dialect, wrap, smart))),
+        Inline::Note(blocks) => {
+            out.push(Piece::text(note(blocks, width, dialect, wrap, smart, hl)));
+        }
     }
 }
 
@@ -1592,9 +2066,10 @@ fn wrap_command(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    hl: Hl<'_>,
 ) {
     out.push(Piece::text(open.to_owned()));
-    push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
+    push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
     out.push(Piece::text("}"));
 }
 
@@ -1609,6 +2084,7 @@ fn push_link(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    hl: Hl<'_>,
 ) {
     if !attr.id.is_empty() {
         out.push(Piece::text(if in_header {
@@ -1625,7 +2101,7 @@ fn push_link(
             cross_reference_label(reference)
         )));
         for inline in inlines {
-            push_inline(inline, out, width, dialect, wrap, smart, in_header);
+            push_inline(inline, out, width, dialect, wrap, smart, in_header, hl);
         }
         out.push(Piece::text("}"));
         return;
@@ -1650,7 +2126,7 @@ fn push_link(
         return;
     }
     out.push(Piece::text(format!("\\href{{{url}}}{{")));
-    push_inlines(inlines, out, width, dialect, wrap, smart, in_header);
+    push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
     out.push(Piece::text("}"));
 }
 
@@ -1755,15 +2231,20 @@ fn note(
     dialect: Dialect,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let width = base_width.saturating_sub(2);
     let mut parts: Vec<String> = Vec::new();
     let mut ends_with_code = false;
     for block in blocks {
         let (rendered, is_code) = match block {
-            Block::CodeBlock(attr, text) => (code_block_env(attr, text, "Verbatim"), true),
+            Block::CodeBlock(attr, text) => (
+                highlighted_code_block(attr, text, hl)
+                    .unwrap_or_else(|| code_block_fallback(attr, text, hl, "Verbatim")),
+                true,
+            ),
             _ => (
-                block_to_string(block, width, 0, dialect, wrap, smart),
+                block_to_string(block, width, 0, dialect, wrap, smart, hl),
                 false,
             ),
         };
@@ -2319,5 +2800,90 @@ mod tests {
         let out = render(vec![Block::Para(vec![Inline::Str("a".into()), note])]);
         assert!(out.contains("\\begin{Verbatim}"));
         assert!(out.contains("\n}"));
+    }
+
+    #[cfg(feature = "highlight")]
+    mod listings {
+        use super::*;
+
+        fn attr(id: &str, classes: &[&str], attributes: &[(&str, &str)]) -> Attr {
+            Attr {
+                id: id.into(),
+                classes: classes.iter().map(|class| (*class).into()).collect(),
+                attributes: attributes
+                    .iter()
+                    .map(|(key, value)| ((*key).into(), (*value).into()))
+                    .collect(),
+            }
+        }
+
+        fn render_idiomatic(blocks: Vec<Block>) -> String {
+            let mut options = WriterOptions::default();
+            options.highlight.idiomatic = true;
+            LatexWriter
+                .write(
+                    &Document {
+                        blocks,
+                        ..Document::default()
+                    },
+                    &options,
+                )
+                .unwrap()
+        }
+
+        #[test]
+        fn language_lookup_is_case_insensitive_and_braces_specials() {
+            assert_eq!(listings_language("python"), Some("Python"));
+            assert_eq!(listings_language("Python"), Some("Python"));
+            assert_eq!(listings_language("C++"), Some("{C++}"));
+            assert_eq!(listings_language("cpp"), Some("{C++}"));
+            assert_eq!(listings_language("objective-c"), Some("C"));
+            assert_eq!(listings_language("rust"), None);
+        }
+
+        #[test]
+        fn options_order_language_numbers_first_attrs_label() {
+            let attr = attr(
+                "foo",
+                &["python", "numberLines"],
+                &[("startFrom", "3"), ("key", "value")],
+            );
+            assert_eq!(
+                listings_options(&attr),
+                "language=Python, numbers=left, firstnumber=3, key=value, label=foo"
+            );
+        }
+
+        #[test]
+        fn options_are_empty_for_a_bare_unknown_block() {
+            assert_eq!(listings_options(&attr("", &["rust"], &[])), "");
+        }
+
+        #[test]
+        fn a_non_alphanumeric_attribute_value_is_braced_and_escaped() {
+            assert_eq!(
+                listings_options(&attr("", &["python"], &[("k", "a_b")])),
+                "language=Python, k={a\\_b}"
+            );
+        }
+
+        #[test]
+        fn the_first_mappable_class_names_the_language() {
+            let out = render_idiomatic(vec![Block::CodeBlock(
+                Box::new(attr("", &["rust", "python"], &[])),
+                "a = 1\n".into(),
+            )]);
+            assert!(out.contains("\\begin{lstlisting}[language=Python]"));
+        }
+
+        #[test]
+        fn an_identifier_becomes_a_label_option_not_an_anchor() {
+            let out = render_idiomatic(vec![Block::CodeBlock(
+                Box::new(attr("snippet", &["python"], &[])),
+                "a = 1\n".into(),
+            )]);
+            assert!(out.contains("\\begin{lstlisting}[language=Python, label=snippet]"));
+            assert!(!out.contains("phantomsection"));
+        }
     }
 }
