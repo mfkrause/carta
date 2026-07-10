@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use carta_ast::{Attr, Block, Document, Text};
+use carta_ast::{Attr, Block, Document, Inline, Text};
 use carta_core::{HighlightOptions, Writer, WriterOptions};
 use carta_highlight::Highlighter;
 use carta_writers::LatexWriter;
@@ -173,8 +173,17 @@ fn idiomatic_render(block: Block) -> String {
 }
 
 #[test]
-fn idiomatic_uses_lstlisting_for_a_known_language() {
+fn idiomatic_names_a_known_language() {
     let out = idiomatic_render(code_block("", &["python"], &[], "int x\n"));
+    assert_eq!(
+        out,
+        "\\begin{lstlisting}[language=Python]\nint x\n\\end{lstlisting}"
+    );
+}
+
+#[test]
+fn idiomatic_leaves_an_unknown_language_bare() {
+    let out = idiomatic_render(code_block("", &["rust"], &[], "int x\n"));
     assert_eq!(out, "\\begin{lstlisting}\nint x\n\\end{lstlisting}");
 }
 
@@ -182,4 +191,68 @@ fn idiomatic_uses_lstlisting_for_a_known_language() {
 fn idiomatic_uses_lstlisting_without_a_language() {
     let out = idiomatic_render(code_block("", &[], &[], "plain\n"));
     assert_eq!(out, "\\begin{lstlisting}\nplain\n\\end{lstlisting}");
+}
+
+#[test]
+fn idiomatic_carries_numbering_start_and_identifier_as_options() {
+    let out = idiomatic_render(code_block(
+        "snippet",
+        &["python", "numberLines"],
+        &[("startFrom", "5")],
+        "a = 1\n",
+    ));
+    assert_eq!(
+        out,
+        "\\begin{lstlisting}[language=Python, numbers=left, firstnumber=5, label=snippet]\na = 1\n\\end{lstlisting}"
+    );
+}
+
+fn code_inline(classes: &[&str], text: &str) -> Block {
+    Block::Para(vec![Inline::Code(
+        Box::new(Attr {
+            id: Text::from(""),
+            classes: classes.iter().map(|c| Text::from(*c)).collect(),
+            attributes: Vec::new(),
+        }),
+        Text::from(text),
+    )])
+}
+
+#[test]
+fn inline_code_tokenizes_inside_a_verb_group() {
+    let out = render(vec![code_inline(&["python"], "print(x)")]);
+    assert_eq!(out, "\\VERB|\\BuiltInTok{print}\\NormalTok{(x)}|");
+}
+
+#[test]
+fn inline_code_escapes_a_literal_bar_so_it_cannot_close_the_group() {
+    let out = render(vec![code_inline(&["python"], "a|b")]);
+    assert_eq!(
+        out,
+        "\\VERB|\\NormalTok{a}\\OperatorTok{\\VerbBar{}}\\NormalTok{b}|"
+    );
+}
+
+#[test]
+fn inline_code_without_a_known_language_stays_verbatim() {
+    let out = render(vec![code_inline(&["foobar"], "a b")]);
+    assert_eq!(out, "\\texttt{a\\ b}");
+}
+
+#[test]
+fn idiomatic_inline_code_names_a_known_language() {
+    let out = idiomatic_render(code_inline(&["python"], "print(x)"));
+    assert_eq!(out, "\\passthrough{\\lstinline[language=Python]!print(x)!}");
+}
+
+#[test]
+fn idiomatic_inline_code_leaves_an_unknown_language_bare() {
+    let out = idiomatic_render(code_inline(&["foobar"], "a b"));
+    assert_eq!(out, "\\passthrough{\\lstinline!a b!}");
+}
+
+#[test]
+fn idiomatic_inline_code_shifts_the_delimiter_off_the_source() {
+    let out = idiomatic_render(code_inline(&["python"], "a!|b"));
+    assert_eq!(out, "\\passthrough{\\lstinline[language=Python]\"a!|b\"}");
 }

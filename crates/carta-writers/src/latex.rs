@@ -457,24 +457,209 @@ pub(crate) fn code_highlighting(_options: &WriterOptions) -> Hl<'_> {
     core::marker::PhantomData
 }
 
-/// The environment name for an uncolorized code block: the format's listing construct under idiomatic
-/// presentation, otherwise plain `verbatim`.
+fn code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> String {
+    highlighted_code_block(attr, text, hl)
+        .unwrap_or_else(|| code_block_fallback(attr, text, hl, "verbatim"))
+}
+
+/// The uncolorized rendering of a code block: under idiomatic presentation the format's own
+/// `lstlisting` construct, carrying the block's language, numbering, and identifier as options;
+/// otherwise the plain verbatim environment named by `plain_env` (`verbatim` in the document body,
+/// the reduced `Verbatim` inside a footnote).
 #[cfg(feature = "highlight")]
-fn fallback_environment(hl: Hl<'_>) -> &'static str {
+fn code_block_fallback(attr: &Attr, text: &str, hl: Hl<'_>, plain_env: &str) -> String {
     if hl.idiomatic {
-        "lstlisting"
+        listings_code_block(attr, text)
     } else {
-        "verbatim"
+        code_block_env(attr, text, plain_env)
     }
 }
 #[cfg(not(feature = "highlight"))]
-fn fallback_environment(_hl: Hl<'_>) -> &'static str {
-    "verbatim"
+fn code_block_fallback(attr: &Attr, text: &str, _hl: Hl<'_>, plain_env: &str) -> String {
+    code_block_env(attr, text, plain_env)
 }
 
-fn code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> String {
-    highlighted_code_block(attr, text, hl)
-        .unwrap_or_else(|| code_block_env(attr, text, fallback_environment(hl)))
+/// A code block rendered as a `lstlisting` environment. The listings package names the language, line
+/// numbering, and starting line through bracket options, so the block's first mappable class, its
+/// numbering class and `startFrom` key, any further key–value attributes, and its identifier all
+/// become options rather than markup around the verbatim body.
+#[cfg(feature = "highlight")]
+fn listings_code_block(attr: &Attr, text: &str) -> String {
+    let body = text.strip_suffix('\n').unwrap_or(text);
+    let options = listings_options(attr);
+    if options.is_empty() {
+        format!("\\begin{{lstlisting}}\n{body}\n\\end{{lstlisting}}")
+    } else {
+        format!("\\begin{{lstlisting}}[{options}]\n{body}\n\\end{{lstlisting}}")
+    }
+}
+
+/// Assemble the bracket options for a `lstlisting` block. The order is fixed — language, then
+/// `numbers=left`, then `firstnumber`, then any pass-through attributes, then the `label` — so the
+/// rendering is deterministic and reads left to right the way the listings package documents.
+#[cfg(feature = "highlight")]
+fn listings_options(attr: &Attr) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(language) = attr
+        .classes
+        .iter()
+        .find_map(|class| listings_language(class.as_str()))
+    {
+        parts.push(format!("language={language}"));
+    }
+    if attr.classes.iter().any(is_number_lines_class) {
+        parts.push(String::from("numbers=left"));
+    }
+    if let Some((_, value)) = attr
+        .attributes
+        .iter()
+        .find(|(key, _)| key.as_str() == "startFrom")
+        && let Ok(start) = value.as_str().parse::<i64>()
+    {
+        parts.push(format!("firstnumber={start}"));
+    }
+    for (key, value) in &attr.attributes {
+        if key.as_str() == "startFrom" {
+            continue;
+        }
+        parts.push(format!(
+            "{}={}",
+            key.as_str(),
+            listings_value(value.as_str())
+        ));
+    }
+    if !attr.id.is_empty() {
+        parts.push(format!("label={}", attr.id));
+    }
+    parts.join(", ")
+}
+
+/// A listings option value: emitted bare when it is a single run of ASCII letters and digits, and
+/// otherwise wrapped in a group with the LaTeX metacharacters escaped so the brackets and commas of
+/// the option list stay unambiguous.
+#[cfg(feature = "highlight")]
+fn listings_value(value: &str) -> String {
+    if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+        value.to_owned()
+    } else {
+        format!("{{{}}}", escape(value, EscapeMode::Text))
+    }
+}
+
+/// The `listings` package name for a code-block class, or `None` when the package does not cover the
+/// language. The lookup is case-insensitive; the returned name is the exact spelling the package's
+/// `language=` option expects, with the handful that carry special characters already braced so they
+/// survive the option list. Names follow the language table published with the listings package.
+#[cfg(feature = "highlight")]
+// One class per arm keeps this a readable transcription of the package's language table; several
+// distinct classes legitimately share a target name (aliases and dialects), so equal bodies are
+// expected rather than a sign that arms should be merged, and the table is unavoidably long.
+#[allow(clippy::match_same_arms, clippy::too_many_lines)]
+fn listings_language(class: &str) -> Option<&'static str> {
+    let key = class.to_ascii_lowercase();
+    Some(match key.as_str() {
+        "abap" => "ABAP",
+        "acsl" => "ACSL",
+        "ada" => "Ada",
+        "algol" => "Algol",
+        "ant" => "Ant",
+        "assembler" => "Assembler",
+        "awk" => "Awk",
+        "bash" => "bash",
+        "c" => "C",
+        "c++" => "{C++}",
+        "cil" => "CIL",
+        "clean" => "Clean",
+        "cobol" => "Cobol",
+        "comal80" => "Comal80",
+        "command.com" => "{command.com}",
+        "commonlisp" => "Lisp",
+        "comsol" => "Comsol",
+        "cpp" => "{C++}",
+        "cs" => "C",
+        "csh" => "csh",
+        "delphi" => "Delphi",
+        "eiffel" => "Eiffel",
+        "elan" => "Elan",
+        "erlang" => "erlang",
+        "euphoria" => "Euphoria",
+        "fortran" => "Fortran",
+        "gap" => "GAP",
+        "gcl" => "GCL",
+        "gnuassembler" => "Assembler",
+        "gnuplot" => "Gnuplot",
+        "go" => "Go",
+        "hansl" => "hansl",
+        "haskell" => "Haskell",
+        "html" => "HTML",
+        "idl" => "IDL",
+        "inform" => "inform",
+        "java" => "Java",
+        "jvmis" => "JVMIS",
+        "ksh" => "ksh",
+        "latex" => "TeX",
+        "lingo" => "Lingo",
+        "lisp" => "Lisp",
+        "llvm" => "LLVM",
+        "logo" => "Logo",
+        "lua" => "Lua",
+        "make" => "make",
+        "makefile" => "make",
+        "mathematica" => "Mathematica",
+        "matlab" => "Matlab",
+        "mercury" => "Mercury",
+        "metapost" => "MetaPost",
+        "miranda" => "Miranda",
+        "mizar" => "Mizar",
+        "ml" => "ML",
+        "modula2" => "{Modula-2}",
+        "monobasic" => "Basic",
+        "mupad" => "MuPAD",
+        "nastran" => "NASTRAN",
+        "oberon2" => "{Oberon-2}",
+        "objective-c" => "C",
+        "objectivec" => "C",
+        "ocaml" => "Caml",
+        "ocl" => "OCL",
+        "octave" => "Octave",
+        "oz" => "Oz",
+        "pascal" => "Pascal",
+        "perl" => "Perl",
+        "php" => "PHP",
+        "plasm" => "Plasm",
+        "pli" => "{PL/I}",
+        "postscript" => "PostScript",
+        "pov" => "POV",
+        "prolog" => "Prolog",
+        "promela" => "Promela",
+        "pstricks" => "PSTricks",
+        "purebasic" => "Basic",
+        "python" => "Python",
+        "r" => "R",
+        "reduce" => "Reduce",
+        "rexx" => "Rexx",
+        "rsl" => "RSL",
+        "ruby" => "Ruby",
+        "s" => "S",
+        "sas" => "SAS",
+        "scala" => "Scala",
+        "scilab" => "Scilab",
+        "sh" => "sh",
+        "shelxl" => "SHELXL",
+        "simula" => "Simula",
+        "sparql" => "SPARQL",
+        "sql" => "SQL",
+        "swift" => "Swift",
+        "tcl" => "tcl",
+        "tex" => "TeX",
+        "vbscript" => "VBScript",
+        "verilog" => "Verilog",
+        "vhdl" => "VHDL",
+        "vrml" => "VRML",
+        "xml" => "XML",
+        "xslt" => "XSLT",
+        _ => return None,
+    })
 }
 
 /// The colorized form of a code block, or `None` when it is not colorized: no highlighter is active,
@@ -520,6 +705,73 @@ fn highlighted_code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String>
 
 #[cfg(not(feature = "highlight"))]
 fn highlighted_code_block(_attr: &Attr, _text: &str, _hl: Hl<'_>) -> Option<String> {
+    None
+}
+
+/// The colorized form of inline code, or `None` when it does not apply: no highlighter is active, or
+/// the span names no known language. The token macros ride inside a `\VERB` group delimited by a
+/// bar; a literal bar in the source becomes `\VerbBar{}` so it cannot close the group early.
+#[cfg(feature = "highlight")]
+fn highlighted_code_inline(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String> {
+    let highlighter = hl.highlighter?;
+    let language = attr
+        .classes
+        .iter()
+        .find(|class| highlighter.registry().is_known(class.as_str()))?;
+    let lines = highlighter
+        .highlight(language.as_str(), text)
+        .unwrap_or_default();
+    let mut body = String::new();
+    for (index, line) in lines.iter().enumerate() {
+        if index > 0 {
+            body.push('\n');
+        }
+        for token in line {
+            push_highlight_token(&mut body, token);
+        }
+    }
+    Some(format!("\\VERB|{}|", body.replace('|', "\\VerbBar{}")))
+}
+
+/// The idiomatic-listings form of inline code, or `None` when idiomatic presentation is off. The
+/// source rides verbatim inside `\lstinline`, carrying a `language=` option when a class maps to a
+/// listings language; the delimiter is the first candidate glyph absent from the text.
+#[cfg(feature = "highlight")]
+fn idiomatic_code_inline(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String> {
+    if !hl.idiomatic {
+        return None;
+    }
+    let language = attr
+        .classes
+        .iter()
+        .find_map(|class| listings_language(class.as_str()))
+        .map(|name| format!("[language={name}]"))
+        .unwrap_or_default();
+    let delimiter = lstinline_delimiter(text);
+    Some(format!(
+        "\\passthrough{{\\lstinline{language}{delimiter}{text}{delimiter}}}"
+    ))
+}
+
+/// Pick the delimiter for an `\lstinline` argument: the first punctuation glyph the source does not
+/// itself contain, so the argument cannot terminate early. When the source contains every candidate,
+/// the first is reused (the argument cannot be delimited cleanly, matching the listings fallback).
+#[cfg(feature = "highlight")]
+fn lstinline_delimiter(text: &str) -> char {
+    const CANDIDATES: &str = "!\"'()*+,-./:;<=>?@";
+    CANDIDATES
+        .chars()
+        .find(|candidate| !text.contains(*candidate))
+        .unwrap_or('!')
+}
+
+#[cfg(not(feature = "highlight"))]
+fn highlighted_code_inline(_attr: &Attr, _text: &str, _hl: Hl<'_>) -> Option<String> {
+    None
+}
+
+#[cfg(not(feature = "highlight"))]
+fn idiomatic_code_inline(_attr: &Attr, _text: &str, _hl: Hl<'_>) -> Option<String> {
     None
 }
 
@@ -1753,11 +2005,11 @@ fn push_inline(
         Inline::Cite(_, inlines) => {
             push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
         }
-        Inline::Code(_, text) => {
-            out.push(Piece::text(format!(
-                "\\texttt{{{}}}",
-                escape(text, EscapeMode::Code)
-            )));
+        Inline::Code(attr, text) => {
+            let rendered = highlighted_code_inline(attr, text, hl)
+                .or_else(|| idiomatic_code_inline(attr, text, hl))
+                .unwrap_or_else(|| format!("\\texttt{{{}}}", escape(text, EscapeMode::Code)));
+            out.push(Piece::text(rendered));
         }
         Inline::Space => out.push(Piece::Space),
         Inline::SoftBreak => out.push(Piece::Soft),
@@ -1988,7 +2240,7 @@ fn note(
         let (rendered, is_code) = match block {
             Block::CodeBlock(attr, text) => (
                 highlighted_code_block(attr, text, hl)
-                    .unwrap_or_else(|| code_block_env(attr, text, "Verbatim")),
+                    .unwrap_or_else(|| code_block_fallback(attr, text, hl, "Verbatim")),
                 true,
             ),
             _ => (
@@ -2548,5 +2800,90 @@ mod tests {
         let out = render(vec![Block::Para(vec![Inline::Str("a".into()), note])]);
         assert!(out.contains("\\begin{Verbatim}"));
         assert!(out.contains("\n}"));
+    }
+
+    #[cfg(feature = "highlight")]
+    mod listings {
+        use super::*;
+
+        fn attr(id: &str, classes: &[&str], attributes: &[(&str, &str)]) -> Attr {
+            Attr {
+                id: id.into(),
+                classes: classes.iter().map(|class| (*class).into()).collect(),
+                attributes: attributes
+                    .iter()
+                    .map(|(key, value)| ((*key).into(), (*value).into()))
+                    .collect(),
+            }
+        }
+
+        fn render_idiomatic(blocks: Vec<Block>) -> String {
+            let mut options = WriterOptions::default();
+            options.highlight.idiomatic = true;
+            LatexWriter
+                .write(
+                    &Document {
+                        blocks,
+                        ..Document::default()
+                    },
+                    &options,
+                )
+                .unwrap()
+        }
+
+        #[test]
+        fn language_lookup_is_case_insensitive_and_braces_specials() {
+            assert_eq!(listings_language("python"), Some("Python"));
+            assert_eq!(listings_language("Python"), Some("Python"));
+            assert_eq!(listings_language("C++"), Some("{C++}"));
+            assert_eq!(listings_language("cpp"), Some("{C++}"));
+            assert_eq!(listings_language("objective-c"), Some("C"));
+            assert_eq!(listings_language("rust"), None);
+        }
+
+        #[test]
+        fn options_order_language_numbers_first_attrs_label() {
+            let attr = attr(
+                "foo",
+                &["python", "numberLines"],
+                &[("startFrom", "3"), ("key", "value")],
+            );
+            assert_eq!(
+                listings_options(&attr),
+                "language=Python, numbers=left, firstnumber=3, key=value, label=foo"
+            );
+        }
+
+        #[test]
+        fn options_are_empty_for_a_bare_unknown_block() {
+            assert_eq!(listings_options(&attr("", &["rust"], &[])), "");
+        }
+
+        #[test]
+        fn a_non_alphanumeric_attribute_value_is_braced_and_escaped() {
+            assert_eq!(
+                listings_options(&attr("", &["python"], &[("k", "a_b")])),
+                "language=Python, k={a\\_b}"
+            );
+        }
+
+        #[test]
+        fn the_first_mappable_class_names_the_language() {
+            let out = render_idiomatic(vec![Block::CodeBlock(
+                Box::new(attr("", &["rust", "python"], &[])),
+                "a = 1\n".into(),
+            )]);
+            assert!(out.contains("\\begin{lstlisting}[language=Python]"));
+        }
+
+        #[test]
+        fn an_identifier_becomes_a_label_option_not_an_anchor() {
+            let out = render_idiomatic(vec![Block::CodeBlock(
+                Box::new(attr("snippet", &["python"], &[])),
+                "a = 1\n".into(),
+            )]);
+            assert!(out.contains("\\begin{lstlisting}[language=Python, label=snippet]"));
+            assert!(!out.contains("phantomsection"));
+        }
     }
 }
