@@ -1832,6 +1832,44 @@ fn highlighted_code_runs(attr: &Attr, code: &str, hl: &DocxHl) -> Option<Vec<Ele
     Some(runs)
 }
 
+/// The token runs for inline code whose language a highlighter recognizes, or `None` when the span
+/// carries no recognized language class and should fall back to the plain verbatim run. Each token
+/// becomes its own styled run; a deletion context is carried onto every run.
+#[cfg(feature = "highlight")]
+fn highlighted_inline_runs(
+    attr: &Attr,
+    text: &str,
+    hl: &DocxHl,
+    deletion: bool,
+) -> Option<Vec<Element>> {
+    let highlighter = hl.as_ref()?;
+    let language = attr
+        .classes
+        .iter()
+        .find(|class| highlighter.registry().is_known(class.as_str()))?;
+    let lines = highlighter
+        .highlight(language.as_str(), text)
+        .unwrap_or_default();
+    let mut runs = Vec::new();
+    for (index, line) in lines.iter().enumerate() {
+        if index > 0 {
+            runs.push(break_run(&RunProps {
+                deletion,
+                ..RunProps::default()
+            }));
+        }
+        for token in line {
+            let props = RunProps {
+                style: Some(Cow::Owned(format!("{}Tok", token.kind.style_key()))),
+                deletion,
+                ..RunProps::default()
+            };
+            runs.push(text_run(&props, &token.text));
+        }
+    }
+    Some(runs)
+}
+
 /// A line block: one paragraph whose lines are separated by breaks, each line's inlines lowered to
 /// runs in the surrounding paragraph style.
 fn line_block_paragraph(style: &str, lines: &[Vec<Inline>], ctx: &mut Ctx) -> Element {
@@ -2138,13 +2176,27 @@ fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut El
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 render_runs(children, &props.with_vert_align("subscript"), ctx, out);
             }
-            Inline::Code(_, text) => {
+            Inline::Code(attr, text) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
-                let hint = text.chars().any(is_east_asian);
-                out.push(text_run(
-                    &props.with_style("VerbatimChar").with_east_asian(hint),
-                    text,
-                ));
+                #[cfg(feature = "highlight")]
+                let highlighted =
+                    highlighted_inline_runs(attr, text, &ctx.highlighter, props.deletion);
+                #[cfg(not(feature = "highlight"))]
+                let highlighted: Option<Vec<Element>> = {
+                    let _ = attr;
+                    None
+                };
+                if let Some(runs) = highlighted {
+                    for run in runs {
+                        out.push(run);
+                    }
+                } else {
+                    let hint = text.chars().any(is_east_asian);
+                    out.push(text_run(
+                        &props.with_style("VerbatimChar").with_east_asian(hint),
+                        text,
+                    ));
+                }
             }
             // The quotation glyphs join their inner text so a quoted word renders as one run.
             Inline::Quoted(kind, children) => {

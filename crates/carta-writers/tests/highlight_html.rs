@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use carta_ast::{Attr, Block, Document, Text};
+use carta_ast::{Attr, Block, Document, Inline, Text};
 use carta_core::{HighlightOptions, Writer, WriterOptions};
 use carta_highlight::Highlighter;
 use carta_writers::HtmlWriter;
@@ -177,4 +177,71 @@ fn disabled_highlighter_leaves_code_plain() {
         )
         .expect("render");
     assert_eq!(out, "<pre class=\"python\"><code>int x</code></pre>");
+}
+
+fn code_inline(id: &str, classes: &[&str], attributes: &[(&str, &str)], text: &str) -> Block {
+    Block::Para(vec![Inline::Code(
+        Box::new(Attr {
+            id: Text::from(id),
+            classes: classes.iter().map(|c| Text::from(*c)).collect(),
+            attributes: attributes
+                .iter()
+                .map(|(k, v)| (Text::from(*k), Text::from(*v)))
+                .collect(),
+        }),
+        Text::from(text),
+    )])
+}
+
+#[test]
+fn inline_code_leads_with_the_source_language_then_the_span_classes() {
+    let out = render(vec![code_inline(
+        "",
+        &["pycode", "python"],
+        &[],
+        "print(x)",
+    )]);
+    assert_eq!(
+        out,
+        "<p><code\n\
+         class=\"sourceCode python pycode\">\
+         <span class=\"bu\">print</span>(x)</code></p>"
+    );
+}
+
+#[test]
+fn inline_code_carries_the_identifier_and_key_values_after_the_class() {
+    let out = render(vec![code_inline(
+        "myid",
+        &["python"],
+        &[("data-foo", "bar")],
+        "print(x)",
+    )]);
+    assert_eq!(
+        out,
+        "<p><code class=\"sourceCode python\" id=\"myid\"\n\
+         data-foo=\"bar\"><span class=\"bu\">print</span>(x)</code></p>"
+    );
+}
+
+#[test]
+fn inline_code_without_a_known_language_stays_plain() {
+    let out = render(vec![code_inline("", &["foobar"], &[], "print(x)")]);
+    assert_eq!(out, "<p><code class=\"foobar\">print(x)</code></p>");
+}
+
+#[test]
+fn disabled_highlighter_leaves_inline_code_plain() {
+    let mut options = WriterOptions::default();
+    options.highlight = HighlightOptions::default();
+    let out = HtmlWriter
+        .write(
+            &Document {
+                blocks: vec![code_inline("", &["python"], &[], "print(x)")],
+                ..Document::default()
+            },
+            &options,
+        )
+        .expect("render");
+    assert_eq!(out, "<p><code class=\"python\">print(x)</code></p>");
 }

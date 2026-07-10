@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use carta_ast::{Attr, Block, Document, Text};
+use carta_ast::{Attr, Block, Document, Inline, Text};
 use carta_core::BytesWriter;
 use carta_core::container::zip;
 use carta_core::{HighlightOptions, WriterOptions};
@@ -140,4 +140,37 @@ fn theme_token_styles_reach_the_style_catalogue() {
 fn a_disabled_highlighter_injects_no_token_styles() {
     let styles = part(false, code_block(&["python"], "x = 1\n"), "word/styles.xml");
     assert!(!styles.contains("KeywordTok"));
+}
+
+fn code_inline(classes: &[&str], text: &str) -> Block {
+    Block::Para(vec![Inline::Code(
+        Box::new(Attr {
+            id: Text::from(""),
+            classes: classes.iter().map(|c| Text::from(*c)).collect(),
+            attributes: Vec::new(),
+        }),
+        Text::from(text),
+    )])
+}
+
+#[test]
+fn known_language_wraps_each_inline_token_in_a_style_run() {
+    let doc = document(true, code_inline(&["python"], "print(x)"));
+    assert!(doc.contains("<w:rStyle w:val=\"BuiltInTok\" />"));
+    assert!(doc.contains("<w:rStyle w:val=\"NormalTok\" />"));
+    assert!(!doc.contains("<w:rStyle w:val=\"VerbatimChar\" />"));
+}
+
+#[test]
+fn unknown_inline_language_falls_back_to_the_plain_code_style() {
+    let doc = document(true, code_inline(&["nonexistent-language"], "print(x)"));
+    assert!(doc.contains("<w:rStyle w:val=\"VerbatimChar\" />"));
+    assert!(!doc.contains("Tok\" />"));
+}
+
+#[test]
+fn a_disabled_highlighter_leaves_inline_code_verbatim() {
+    let doc = document(false, code_inline(&["python"], "print(x)"));
+    assert!(doc.contains("<w:rStyle w:val=\"VerbatimChar\" />"));
+    assert!(!doc.contains("Tok\" />"));
 }

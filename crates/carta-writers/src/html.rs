@@ -605,6 +605,54 @@ impl State {
         true
     }
 
+    /// Emit the colorized form of inline code, returning whether it applied. It does not when
+    /// highlighting is off or the span names no known language, leaving the caller to render the
+    /// plain `<code>`. The class list leads with the `sourceCode` marker and the resolved language,
+    /// then carries the span's remaining classes; the id and key/value pairs follow.
+    #[cfg(feature = "highlight")]
+    fn code_inline_highlighted(&self, out: &mut String, attr: &Attr, text: &str) -> bool {
+        let Some(highlighter) = self.highlighter.clone() else {
+            return false;
+        };
+        let Some(language) = attr
+            .classes
+            .iter()
+            .find(|class| highlighter.registry().is_known(class.as_str()))
+        else {
+            return false;
+        };
+        let lines = highlighter
+            .highlight(language.as_str(), text)
+            .unwrap_or_default();
+
+        out.push_str("<code");
+        out.push(BREAK);
+        out.push_str("class=\"sourceCode ");
+        escape_attr_into(out, language.as_str());
+        for class in &attr.classes {
+            if class.is_empty() || std::ptr::eq(class, language) {
+                continue;
+            }
+            out.push(' ');
+            escape_attr_into(out, class.as_str());
+        }
+        out.push('"');
+        render_id_into(out, &attr.id);
+        render_keyvals_into(out, &attr.attributes, self.flavor);
+        out.push('>');
+
+        for (index, line) in lines.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            for token in line {
+                emit_token(out, token);
+            }
+        }
+        out.push_str("</code>");
+        true
+    }
+
     /// Write the `div.sourceCode` / `pre` / `code` scaffolding and the per-line, per-token spans.
     #[cfg(feature = "highlight")]
     fn emit_source_block(
@@ -985,6 +1033,10 @@ impl State {
                 out.push(close);
             }
             Inline::Code(attr, text) => {
+                #[cfg(feature = "highlight")]
+                if self.code_inline_highlighted(out, attr, text) {
+                    return;
+                }
                 out.push_str("<code");
                 render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
                 out.push('>');
