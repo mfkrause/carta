@@ -28,6 +28,15 @@ $if(linestretch)$
 $endif$
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+$if(highlighting-macros)$
+$highlighting-macros$
+$endif$
+$if(listings)$
+\usepackage{listings}
+\newcommand{\passthrough}[1]{#1}
+\lstset{defaultdialect=[5.3]Lua}
+\lstset{defaultdialect=[x86masm]Assembler}
+$endif$
 \hypersetup{
 $if(title-meta)$
   pdftitle={$title-meta$},

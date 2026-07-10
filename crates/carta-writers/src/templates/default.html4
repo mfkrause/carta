@@ -26,6 +26,9 @@ table { border-collapse: collapse; }
 .title { text-align: center; }
 .subtitle, .author, .date { text-align: center; font-weight: normal; }
 .abstract-title { font-weight: bold; text-align: center; }
+$if(highlighting-css)$
+$highlighting-css$
+$endif$
 </style>
 $for(css)$
 <link rel="stylesheet" href="$css$" type="text/css" />

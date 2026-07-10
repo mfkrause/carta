@@ -149,6 +149,7 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
                 "../",
                 BodyKind::Bodymatter,
                 &stylesheet_names,
+                &chapter_highlight_css(body, options),
                 body,
             )
         })
@@ -217,6 +218,24 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         chapters: &chapters,
         chapter_pages: &chapter_pages,
     })
+}
+
+/// The inline `<style>` block a chapter page needs: the theme's highlighting rules, but only when the
+/// chapter actually carries colorized code. Pages without a code block, and books rendered with no
+/// active theme, get no rules. The trailing newline pairs the block's last rule with its closing tag.
+#[cfg(feature = "highlight")]
+fn chapter_highlight_css(body: &str, options: &WriterOptions) -> String {
+    match &options.highlight.theme {
+        Some(theme) if body.contains("class=\"sourceCode") => {
+            format!("{}\n", crate::highlight::theme_css(theme))
+        }
+        _ => String::new(),
+    }
+}
+
+#[cfg(not(feature = "highlight"))]
+fn chapter_highlight_css(_body: &str, _options: &WriterOptions) -> String {
+    String::new()
 }
 
 /// The generated cover page, when the book has a cover image: an XHTML page displaying the image at

@@ -133,9 +133,9 @@ fn build_context(
     } else {
         body.to_owned()
     };
-    context.insert("body".to_owned(), Value::Str(body));
     insert_identity_vars(&mut context, document, writer, options)?;
-    insert_output_vars(&mut context, document, writer, options)?;
+    insert_output_vars(&mut context, document, writer, options, &body)?;
+    context.insert("body".to_owned(), Value::Str(body));
     if let Some(block) = writer.title_block(document, options)? {
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
@@ -321,6 +321,7 @@ fn insert_output_vars(
     document: &Document,
     writer: &dyn Writer,
     options: &WriterOptions,
+    body: &str,
 ) -> Result<()> {
     if options.toc {
         let depth = options.toc_depth.unwrap_or(3);
@@ -357,7 +358,56 @@ fn insert_output_vars(
             context.insert("katexurl".to_owned(), Value::Str(url.clone()));
         }
     }
+    insert_highlight_vars(context, writer, options, body);
     Ok(())
+}
+
+/// Inject the standalone highlighting variables the template preamble needs: a web target that
+/// carries colorized code gets the theme's stylesheet in `highlighting-css`; a print target gets the
+/// per-token macros in `highlighting-macros`; and idiomatic print output, which routes code through
+/// the target's own listing construct, sets `listings` so its package preamble is emitted.
+#[cfg(feature = "highlight")]
+fn insert_highlight_vars(
+    context: &mut BTreeMap<String, Value>,
+    writer: &dyn Writer,
+    options: &WriterOptions,
+    body: &str,
+) {
+    match writer.meta_var_style() {
+        MetaVarStyle::Web => {
+            if let Some(theme) = &options.highlight.theme
+                && body.contains("class=\"sourceCode")
+            {
+                context.insert(
+                    "highlighting-css".to_owned(),
+                    Value::Str(carta_writers::theme_css(theme)),
+                );
+            }
+        }
+        MetaVarStyle::Pdf => {
+            if options.highlight.idiomatic {
+                context.insert("listings".to_owned(), Value::Bool(true));
+            }
+            if let Some(theme) = &options.highlight.theme
+                && (body.contains("\\begin{Highlighting}") || body.contains("\\VERB"))
+            {
+                context.insert(
+                    "highlighting-macros".to_owned(),
+                    Value::Str(carta_writers::theme_latex_macros(theme)),
+                );
+            }
+        }
+        MetaVarStyle::None => {}
+    }
+}
+
+#[cfg(not(feature = "highlight"))]
+fn insert_highlight_vars(
+    _context: &mut BTreeMap<String, Value>,
+    _writer: &dyn Writer,
+    _options: &WriterOptions,
+    _body: &str,
+) {
 }
 
 /// The plain, markup-free text of a single-valued inline or string metadata entry; empty when the
