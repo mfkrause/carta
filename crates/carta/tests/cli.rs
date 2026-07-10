@@ -278,3 +278,124 @@ fn extract_media_writes_files_and_rewrites_references() {
     let written = fs::read(&extracted).expect("extracted media file");
     assert_eq!(written, bytes);
 }
+
+#[cfg(feature = "write-html")]
+#[test]
+fn embed_resources_inlines_local_images_as_data_uris() {
+    // A resource resolved through the search path is inlined; `--resource-path` is honored just as
+    // it is for the container writers.
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("embed-resources");
+    let assets = dir.join("assets");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&assets).expect("create asset dir");
+    fs::write(assets.join("logo.png"), b"PNGDATA-abc").expect("write asset");
+
+    let resource_arg = format!("--resource-path={}", assets.display());
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "html",
+            "--embed-resources",
+            resource_arg.as_str(),
+            "--wrap=none",
+        ],
+        "![logo](logo.png)\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        result.stdout,
+        "<p><img role=\"img\" aria-label=\"logo\" \
+         src=\"data:image/png;base64,UE5HREFUQS1hYmM=\" alt=\"logo\" /></p>\n"
+    );
+}
+
+#[cfg(feature = "write-markdown")]
+#[test]
+fn embed_resources_is_ignored_for_non_html_output() {
+    // The flag only affects the HTML family; a Markdown target leaves the reference as written.
+    let result = run(
+        &["-f", "commonmark", "-t", "markdown", "--embed-resources"],
+        "![logo](logo.png)\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "![logo](logo.png)\n");
+}
+
+#[cfg(all(feature = "write-html", feature = "fetch"))]
+#[test]
+fn embed_resources_fetches_a_remote_image_over_http() {
+    use std::io::Read;
+    use std::net::TcpListener;
+
+    // A loopback server stands in for a remote host: a reference with an `http://` scheme is fetched
+    // and inlined just like a local one, exercising the network path without leaving the machine.
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+    let addr = listener.local_addr().expect("local addr");
+    let handle = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept connection");
+        // Drain the request line and headers up to the blank line; the body of a GET is empty.
+        let mut request = Vec::new();
+        let mut byte = [0u8; 1];
+        while stream.read(&mut byte).unwrap_or(0) == 1 {
+            request.push(byte[0]);
+            if request.ends_with(b"\r\n\r\n") {
+                break;
+            }
+        }
+        let body = b"PNGDATA-xyz";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("write headers");
+        stream.write_all(body).expect("write body");
+    });
+
+    let url = format!("http://{addr}/logo.png");
+    let markdown = format!("![logo]({url})\n");
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "html",
+            "--embed-resources",
+            "--wrap=none",
+        ],
+        &markdown,
+    );
+    handle.join().expect("server thread");
+
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        result.stdout,
+        "<p><img role=\"img\" aria-label=\"logo\" \
+         src=\"data:image/png;base64,UE5HREFUQS14eXo=\" alt=\"logo\" /></p>\n"
+    );
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn self_contained_implies_standalone_and_warns() {
+    let result = run(
+        &["-f", "commonmark", "-t", "html", "--self-contained"],
+        "# Title\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    // The deprecated spelling still works but points at the current one.
+    assert!(
+        result.stderr.contains("--self-contained is deprecated"),
+        "stderr: {}",
+        result.stderr
+    );
+    // It implies standalone output: the body is wrapped in the full document template.
+    assert!(
+        result.stdout.contains("<!DOCTYPE html>"),
+        "stdout: {}",
+        result.stdout
+    );
+}

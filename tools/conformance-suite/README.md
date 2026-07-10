@@ -76,7 +76,7 @@ tools/fetch-pandoc-tests.sh    # .oracle/tests/test (native corpus + command tes
 | `extensions` | structural gate: every reader-honored extension has an oracle-parity case | `crates/carta-core` (the variant table), the reader source, and `corpus/text-ext/` |
 | `templates` | `-f markdown -t TARGET --template=T`, compared byte-for-byte (verbatim output, no trailing-newline tolerance) | self-contained `corpus/templates/<case>/` (an owned template + body/metadata + optional flags) across eight targets |
 | `standalone` | structural parity of each format's default `-s` scaffold (title block, preamble): proves both sides carry the same content and metadata, NOT a byte diff | `corpus/ast/<feature>/*` rendered standalone per target |
-| `media` | both sides of the media bag: `--extract-media` rewrites the document and writes embedded resources, diffing the rewritten output and the extracted file tree | `corpus/text/ipynb/*.ipynb` |
+| `media` | both sides of the media bag: `--extract-media` rewrites the document and writes embedded resources (diffing the rewritten output and the extracted file tree), re-embedding renders back to a notebook, and `--embed-resources` inlines each bagged image into HTML as a `data:` URI | `corpus/text/ipynb/*.ipynb` |
 | `epub` | carta's EPUB writer two ways — structurally against the oracle (unpack + diff text entries) and against the EPUB spec with EPUBCheck | `corpus/ast/<feature>/*` (epub3 and epub2) |
 | `docx` | carta's DOCX writer structurally: unpack both Office Open XML packages and diff each content-bearing part after canonicalizing the XML | `corpus/ast/<feature>/*` |
 

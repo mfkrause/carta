@@ -230,6 +230,9 @@ pub struct HighlightOptions {
 }
 
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
+// Each independent output toggle is its own field; grouping them would only obscure the
+// one-option-one-field mapping a caller sets them through.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct WriterOptions {

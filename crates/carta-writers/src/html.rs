@@ -1401,12 +1401,13 @@ fn emit_token(out: &mut String, token: &Token) {
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> String {
+    let alt = to_plain_text(inlines);
     // An EPUB page always carries an `alt` attribute — empty when the image has no description — as
     // its XHTML profile expects; the other html flavors omit it when there is nothing to say.
     let alt_attr = if inlines.is_empty() && !matches!(flavor, Flavor::Epub3 | Flavor::Epub2) {
         String::new()
     } else {
-        format!("{BREAK}alt=\"{}\"", escape_attr(&to_plain_text(inlines)))
+        format!("{BREAK}alt=\"{}\"", escape_attr(&alt))
     };
     let source = match flavor {
         Flavor::Slides => "data-src",
@@ -2106,6 +2107,56 @@ mod char_width_tests {
         assert_eq!(char_width('\u{7}'), 0); // bell (Control)
         assert_eq!(char_width('\u{4E00}'), 2); // CJK ideograph (wide)
         assert_eq!(char_width('\u{1F600}'), 2); // grinning face emoji (wide)
+    }
+}
+
+#[cfg(test)]
+mod image_tests {
+    use super::HtmlWriter;
+    use carta_ast::{Block, Document, Inline, Target, Text};
+    use carta_core::{WrapMode, Writer, WriterOptions};
+
+    fn image_block(url: &str, alt: &str) -> Block {
+        let alt_inlines = if alt.is_empty() {
+            Vec::new()
+        } else {
+            vec![Inline::Str(alt.into())]
+        };
+        Block::Para(vec![Inline::Image(
+            Box::default(),
+            alt_inlines,
+            Box::new(Target {
+                url: url.into(),
+                title: Text::default(),
+            }),
+        )])
+    }
+
+    fn render(url: &str, alt: &str) -> String {
+        let document = Document {
+            blocks: vec![image_block(url, alt)],
+            ..Document::default()
+        };
+        let mut options = WriterOptions::default();
+        options.wrap = WrapMode::None;
+        HtmlWriter.write(&document, &options).expect("render html")
+    }
+
+    // The writer emits a plain `<img>` carrying the reference as written; assistive-technology
+    // annotation and reference inlining both belong to the separate self-contained pass over the
+    // finished markup, so the writer's output does not vary on it.
+
+    #[test]
+    fn image_carries_its_alt_text() {
+        assert_eq!(
+            render("pic.png", "alt text"),
+            "<p><img src=\"pic.png\" alt=\"alt text\" /></p>"
+        );
+    }
+
+    #[test]
+    fn image_without_alt_omits_the_attribute() {
+        assert_eq!(render("pic.png", ""), "<p><img src=\"pic.png\" /></p>");
     }
 }
 
