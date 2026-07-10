@@ -123,6 +123,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "rtf"
+path = "fuzz_targets/rtf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "highlight"
 path = "fuzz_targets/highlight.rs"
 test = false
