@@ -144,6 +144,7 @@ name = "carta-core"
 version = "0.0.4"
 dependencies = [
  "carta-ast",
+ "carta-highlight",
  "miniz_oxide",
  "serde_json",
  "thiserror",
@@ -179,6 +180,7 @@ version = "0.0.4"
 dependencies = [
  "carta-ast",
  "carta-core",
+ "carta-highlight",
  "serde_json",
  "unicode-general-category",
 ]
