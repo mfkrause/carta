@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 $$\\begin\{aligned\} x^2 + 1 \\\\ \\frac\{a\}\{b\} \\end\{aligned\}$$\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 $$\\begin\{aligned\} a &= b + c \\\\ d &= e \\end\{aligned\}$$\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 stack $\\begin\{aligned\} p \\\\ q \\\\ r \\end\{aligned\}$\par}

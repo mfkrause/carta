@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 {\i emph} {\b strong} {\strike struck} super{\super 2} sub{\sub 3}\par}

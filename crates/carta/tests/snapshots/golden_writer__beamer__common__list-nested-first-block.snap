@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{itemize}
+\item
+  \begin{itemize}
+  \tightlist
+  \item
+    inner one
+  \item
+    inner two
+  \end{itemize}
+\item
+  outer two
+\end{itemize}
+\end{frame}

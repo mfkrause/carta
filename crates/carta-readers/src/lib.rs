@@ -58,6 +58,8 @@ pub mod opml;
 pub mod org;
 #[cfg(feature = "rst")]
 pub mod rst;
+#[cfg(feature = "rtf")]
+pub mod rtf;
 #[cfg(feature = "tsv")]
 pub mod tsv;
 
@@ -89,5 +91,7 @@ pub use opml::OpmlReader;
 pub use org::OrgReader;
 #[cfg(feature = "rst")]
 pub use rst::RstReader;
+#[cfg(feature = "rtf")]
+pub use rtf::RtfReader;
 #[cfg(feature = "tsv")]
 pub use tsv::TsvReader;

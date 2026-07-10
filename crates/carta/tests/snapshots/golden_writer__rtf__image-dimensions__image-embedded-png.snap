@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 logo {\pict\pngblip\picw4\pich3\picwgoal80\pichgoal60 89504e470d0a1a0a0000000d49484452000000040000000308020000003b9639910000001049444154789c63f8cfc000470c383900f5310bf5357bfb820000000049454e44ae426082}\par}

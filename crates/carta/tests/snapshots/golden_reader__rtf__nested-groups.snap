@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Strong","c":[{"t":"Str","c":"bold"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"nested"},{"t":"Space"},{"t":"Str","c":"italic"}]},{"t":"Space"},{"t":"Str","c":"still"},{"t":"Space"},{"t":"Str","c":"bold"}]},{"t":"Space"},{"t":"Str","c":"done."}]}]}

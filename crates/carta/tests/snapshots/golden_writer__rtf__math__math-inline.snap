@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 an equation {\i a}{\super 2}\u8197 ?+\u8197 ?{\i b}{\super 2}\u8196 ?=\u8196 ?{\i c}{\super 2} inline\par}

@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{longtable}[]{@{}ll@{}}
+\caption{}\tabularnewline
+\toprule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+a & b \\
+\end{longtable}

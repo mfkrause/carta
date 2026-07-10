@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 ({\i x}) [\{{\i y}\}] \u10216 ?{\i v}\u10217 ? ({\i a}/{\i b}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 (\u8721 ?{\sub {\i i}}{\i a}{\sub {\i i}})\par}

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li0 \fi0 Term\par}
+{\pard \ql \f0 \sa0 \li360 \fi0 Definition one\par}
+{\pard \ql \f0 \sa0 \li360 \fi0 Definition two\sa180\par}

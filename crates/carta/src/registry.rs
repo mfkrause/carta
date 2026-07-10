@@ -102,6 +102,7 @@ format_dispatch! {
     "read-man" => "man" => text carta_readers::ManReader;
     "read-latex" => "latex" => text carta_readers::LatexReader;
     "read-org" => "org" => text carta_readers::OrgReader;
+    "read-rtf" => "rtf" => text carta_readers::RtfReader;
 }
 
 format_dispatch! {
@@ -140,6 +141,7 @@ format_dispatch! {
     "write-epub" => "epub" | "epub3" => bytes carta_writers::Epub3Writer;
     "write-epub" => "epub2" => bytes carta_writers::Epub2Writer;
     "write-docx" => "docx" => bytes carta_writers::DocxWriter;
+    "write-rtf" => "rtf" => text carta_writers::RtfWriter;
 }
 
 /// Resolves a format name to its boxed [`Reader`], the text-only view of [`any_reader_for`].

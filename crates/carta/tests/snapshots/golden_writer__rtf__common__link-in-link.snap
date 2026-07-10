@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 {\field{\*\fldinst{HYPERLINK "u1"}}{\fldrslt{\ul
+outer {\field{\*\fldinst{HYPERLINK "u2"}}{\fldrslt{\ul
+inner
+}}}
+ end
+}}}
+\par}

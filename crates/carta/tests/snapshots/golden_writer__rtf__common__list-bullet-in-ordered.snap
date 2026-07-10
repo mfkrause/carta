@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab first\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab second\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab suba\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab subb\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab third\sa180\par}

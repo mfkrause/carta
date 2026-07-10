@@ -16,7 +16,8 @@
     feature = "man",
     feature = "dokuwiki",
     feature = "jira",
-    feature = "org"
+    feature = "org",
+    feature = "rtf"
 ))]
 mod common;
 
@@ -40,7 +41,8 @@ mod highlight;
     feature = "man",
     feature = "jira",
     feature = "typst",
-    feature = "docx"
+    feature = "docx",
+    feature = "rtf"
 ))]
 mod math;
 
@@ -95,6 +97,8 @@ pub mod plain;
 pub mod revealjs;
 #[cfg(feature = "rst")]
 pub mod rst;
+#[cfg(feature = "rtf")]
+pub mod rtf;
 #[cfg(feature = "typst")]
 pub mod typst;
 
@@ -147,5 +151,7 @@ pub use plain::PlainWriter;
 pub use revealjs::RevealjsWriter;
 #[cfg(feature = "rst")]
 pub use rst::RstWriter;
+#[cfg(feature = "rtf")]
+pub use rtf::RtfWriter;
 #[cfg(feature = "typst")]
 pub use typst::TypstWriter;

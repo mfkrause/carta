@@ -318,7 +318,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.source_name = Some(source_name(cli.input.as_deref()));
     if is_docx(to) {
         writer_options.docx = docx_options(cli)?;
-    } else if embeds_resources(to) {
+    } else if to.starts_with("epub") {
         writer_options.epub = epub_options(cli)?;
     }
 
@@ -461,14 +461,20 @@ fn default_template_extension(to_base: &str) -> &str {
 }
 
 /// Whether the target format packs the resources a document references into its output, so those
-/// resources must be resolved before rendering.
+/// resources must be resolved off disk before rendering.
 fn embeds_resources(to: &str) -> bool {
-    to.starts_with("epub") || is_docx(to)
+    to.starts_with("epub") || is_docx(to) || is_rtf(to)
 }
 
 /// Whether the target format is DOCX (any extension toggles follow the base name).
 fn is_docx(to: &str) -> bool {
     to.starts_with("docx")
+}
+
+/// Whether the target format is RTF (any extension toggles follow the base name). RTF embeds the
+/// images it references, so their bytes are gathered before rendering.
+fn is_rtf(to: &str) -> bool {
+    to.starts_with("rtf")
 }
 
 /// Assemble the EPUB writer options from the command line: stylesheets, cover image, embedded fonts,

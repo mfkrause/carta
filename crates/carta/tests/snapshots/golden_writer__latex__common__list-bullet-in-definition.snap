@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{description}
+\item[term]
+\begin{itemize}
+\tightlist
+\item
+  alpha
+\item
+  beta
+\end{itemize}
+\end{description}

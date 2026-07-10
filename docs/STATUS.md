@@ -115,9 +115,14 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   present, and a file-level property drawer's keys are not promoted to document metadata.
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
+### `rtf` — ✅
+- A list rebuilt from `\ls`/`\ilvl` paragraph properties always becomes a bullet list; ordered-list
+  numbering carried by the document's list table is not modeled.
+- Group nesting past a fixed depth is discarded rather than descended into, to bound stack use.
+
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
 `docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
-`rtf`, `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
+`t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---
 
@@ -195,6 +200,12 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   scripts).
 - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
   surrounding spacing differs.
+
+### `rtf` — ✅
+- Only a PNG `pHYs` resolution sets an embedded image's display size; a JPEG's own resolution is not
+  read, so it is sized at 72 dpi.
+- An image in a raster format other than PNG or JPEG is written as a bracketed placeholder naming the
+  source rather than embedded.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
