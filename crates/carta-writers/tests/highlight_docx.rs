@@ -38,6 +38,7 @@ fn options(with_highlighting: bool) -> WriterOptions {
         options.highlight = HighlightOptions {
             highlighter: Some(Arc::new(Highlighter::new())),
             theme: Some(Theme::from_json(THEME_JSON.as_bytes()).expect("parse theme")),
+            ..HighlightOptions::default()
         };
     }
     options

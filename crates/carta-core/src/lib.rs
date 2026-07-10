@@ -75,6 +75,11 @@ pub enum Error {
     /// A document filter failed to run or returned an unusable result.
     #[error("filter error: {0}")]
     Filter(String),
+    /// A syntax-highlighting style or definition could not be resolved.
+    #[cfg(feature = "highlight")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "highlight")))]
+    #[error("syntax highlighting error: {0}")]
+    Highlight(String),
 }
 
 #[cfg(feature = "template")]
@@ -216,6 +221,12 @@ pub struct HighlightOptions {
     /// The active color theme, consulted by the writers that inline colors (LaTeX, DOCX) and to
     /// build the HTML family's stylesheet. `None` when highlighting is off.
     pub theme: Option<carta_highlight::Theme>,
+
+    /// Present code blocks in the target format's own listing construct rather than colorizing them.
+    /// No tokenizer runs; a format that offers a dedicated listing environment (LaTeX's `lstlisting`)
+    /// uses it, while formats whose plain form already carries the language class (the HTML family,
+    /// DOCX) render code exactly as they do with highlighting off. Ignored when a `highlighter` is set.
+    pub idiomatic: bool,
 }
 
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.

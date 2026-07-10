@@ -4,7 +4,8 @@
 //! the wrap counts the literal LaTeX, markup included. Document metadata is not emitted. When a
 //! highlighter is supplied, a classified code block is colorized into a `Shaded`/`Highlighting`
 //! environment with per-token style macros; otherwise a code block renders as a `verbatim`
-//! environment. Inline code is always `\texttt{…}`. The result carries no trailing newline; the
+//! environment, or a `lstlisting` one under idiomatic presentation. Inline code is always
+//! `\texttt{…}`. The result carries no trailing newline; the
 //! caller appends one. This format has no public specification.
 
 use std::fmt::Write as _;
@@ -431,25 +432,49 @@ fn has_class(attr: &Attr, class: &str) -> bool {
     attr.classes.iter().any(|candidate| candidate == class)
 }
 
-/// The syntax highlighter threaded through a render, or a zero-size placeholder when the feature is
-/// compiled out, so every rendering function keeps one signature.
+/// The code-block presentation threaded through a render, or a zero-size placeholder when the feature
+/// is compiled out, so every rendering function keeps one signature. `highlighter` colorizes a block;
+/// `idiomatic` instead selects the `lstlisting` environment for the uncolorized fallback.
 #[cfg(feature = "highlight")]
-pub(crate) type Hl<'a> = Option<&'a Highlighter>;
+#[derive(Clone, Copy)]
+pub(crate) struct Hl<'a> {
+    highlighter: Option<&'a Highlighter>,
+    idiomatic: bool,
+}
 #[cfg(not(feature = "highlight"))]
 pub(crate) type Hl<'a> = core::marker::PhantomData<&'a ()>;
 
-/// The highlighter a render draws from the writer options.
+/// The code-block presentation a render draws from the writer options.
 #[cfg(feature = "highlight")]
 pub(crate) fn code_highlighting(options: &WriterOptions) -> Hl<'_> {
-    options.highlight.highlighter.as_deref()
+    Hl {
+        highlighter: options.highlight.highlighter.as_deref(),
+        idiomatic: options.highlight.idiomatic,
+    }
 }
 #[cfg(not(feature = "highlight"))]
 pub(crate) fn code_highlighting(_options: &WriterOptions) -> Hl<'_> {
     core::marker::PhantomData
 }
 
+/// The environment name for an uncolorized code block: the format's listing construct under idiomatic
+/// presentation, otherwise plain `verbatim`.
+#[cfg(feature = "highlight")]
+fn fallback_environment(hl: Hl<'_>) -> &'static str {
+    if hl.idiomatic {
+        "lstlisting"
+    } else {
+        "verbatim"
+    }
+}
+#[cfg(not(feature = "highlight"))]
+fn fallback_environment(_hl: Hl<'_>) -> &'static str {
+    "verbatim"
+}
+
 fn code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> String {
-    highlighted_code_block(attr, text, hl).unwrap_or_else(|| code_block_env(attr, text, "verbatim"))
+    highlighted_code_block(attr, text, hl)
+        .unwrap_or_else(|| code_block_env(attr, text, fallback_environment(hl)))
 }
 
 /// The colorized form of a code block, or `None` when it is not colorized: no highlighter is active,
@@ -457,7 +482,7 @@ fn code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> String {
 /// `Shaded`/`Highlighting` environment pair regardless of the surrounding context.
 #[cfg(feature = "highlight")]
 fn highlighted_code_block(attr: &Attr, text: &str, hl: Hl<'_>) -> Option<String> {
-    let highlighter = hl?;
+    let highlighter = hl.highlighter?;
     if attr.classes.is_empty() {
         return None;
     }

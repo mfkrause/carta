@@ -22,6 +22,7 @@ fn options() -> WriterOptions {
     options.highlight = HighlightOptions {
         highlighter: Some(Arc::new(Highlighter::new())),
         theme: None,
+        ..HighlightOptions::default()
     };
     options
 }
@@ -150,4 +151,35 @@ fn disabled_highlighter_leaves_code_verbatim() {
         )
         .expect("render");
     assert_eq!(out, "\\begin{verbatim}\nint x\n\\end{verbatim}");
+}
+
+/// Idiomatic presentation runs no tokenizer and wraps a code block, whatever its language, in the
+/// `lstlisting` environment instead of `verbatim`.
+fn idiomatic_render(block: Block) -> String {
+    let mut options = WriterOptions::default();
+    options.highlight = HighlightOptions {
+        idiomatic: true,
+        ..HighlightOptions::default()
+    };
+    LatexWriter
+        .write(
+            &Document {
+                blocks: vec![block],
+                ..Document::default()
+            },
+            &options,
+        )
+        .expect("render")
+}
+
+#[test]
+fn idiomatic_uses_lstlisting_for_a_known_language() {
+    let out = idiomatic_render(code_block("", &["python"], &[], "int x\n"));
+    assert_eq!(out, "\\begin{lstlisting}\nint x\n\\end{lstlisting}");
+}
+
+#[test]
+fn idiomatic_uses_lstlisting_without_a_language() {
+    let out = idiomatic_render(code_block("", &[], &[], "plain\n"));
+    assert_eq!(out, "\\begin{lstlisting}\nplain\n\\end{lstlisting}");
 }

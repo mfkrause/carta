@@ -121,6 +121,7 @@ version = "0.0.4"
 dependencies = [
  "carta-ast",
  "carta-core",
+ "carta-highlight",
  "carta-readers",
  "carta-writers",
  "clap",

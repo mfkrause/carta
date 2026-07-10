@@ -22,6 +22,7 @@ fn options() -> WriterOptions {
     options.highlight = HighlightOptions {
         highlighter: Some(Arc::new(Highlighter::new())),
         theme: None,
+        ..HighlightOptions::default()
     };
     options
 }
