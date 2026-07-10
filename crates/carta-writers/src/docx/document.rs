@@ -89,6 +89,14 @@ pub(super) struct Features {
     pub(super) native_numbering: bool,
 }
 
+/// The syntax highlighter a body render draws on, or a zero-size placeholder when the feature is
+/// compiled out. Threading it as one type keeps the body walk's signatures identical in both
+/// configurations.
+#[cfg(feature = "highlight")]
+pub(super) type DocxHl = Option<Arc<carta_highlight::Highlighter>>;
+#[cfg(not(feature = "highlight"))]
+pub(super) type DocxHl = ();
+
 /// State threaded through the body walk: the first/body paragraph alternation, the stack of open
 /// heading bookmarks and the next free bookmark id, the list plan built up as lists appear, the
 /// shared free-id counter, the queued footnote bodies, the embedded images, the media bag notes
@@ -108,6 +116,7 @@ struct Ctx {
     hyperlinks: BTreeMap<String, u32>,
     media: Arc<MediaBag>,
     features: Features,
+    highlighter: DocxHl,
     figure_number: u32,
     table_number: u32,
 }
@@ -163,6 +172,7 @@ pub(super) fn document_xml(
     meta: &BTreeMap<Text, MetaValue>,
     media: Arc<MediaBag>,
     features: Features,
+    highlighter: DocxHl,
 ) -> RenderedBody {
     let mut body = Element::new("w:body");
     let mut ctx = Ctx {
@@ -182,6 +192,7 @@ pub(super) fn document_xml(
         hyperlinks: BTreeMap::new(),
         media,
         features,
+        highlighter,
         figure_number: 0,
         table_number: 0,
     };
@@ -352,7 +363,8 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
         // A code block anchors a bookmark around just itself when it carries an identifier.
         Block::CodeBlock(attr, code) => {
             let id = attr.id.clone();
-            push_anchored(body, ctx, id.as_str(), code_paragraph(code, None));
+            let para = code_paragraph(attr, code, None, &ctx.highlighter);
+            push_anchored(body, ctx, id.as_str(), para);
             ctx.prev_paragraph = false;
         }
         // Raw passthrough carries markup, not paragraph flow, so it neither opens nor closes the
@@ -659,7 +671,9 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
             render_ordered_list(attrs, items, out, ctx, 0, style.list_ambient);
         }
         Block::DefinitionList(items) => render_definition_list(items, out, ctx),
-        Block::CodeBlock(_, code) => out.push(code_paragraph(code, None)),
+        Block::CodeBlock(attr, code) => {
+            out.push(code_paragraph(attr, code, None, &ctx.highlighter));
+        }
         Block::LineBlock(lines) => out.push(line_block_paragraph(style.para, lines, ctx)),
         Block::HorizontalRule => out.push(horizontal_rule()),
         Block::Figure(attr, caption, blocks) => {
@@ -956,9 +970,14 @@ fn render_item_block(
                 ctx,
             ));
         }
-        Block::CodeBlock(_, code) => {
+        Block::CodeBlock(attr, code) => {
             let number = list_number(lead_used, num_id, ctx);
-            out.push(code_paragraph(code, Some((number, depth))));
+            out.push(code_paragraph(
+                attr,
+                code,
+                Some((number, depth)),
+                &ctx.highlighter,
+            ));
         }
         // A block quote's own paragraphs each take the block-quote style and join the item's
         // numbering; any other block it holds renders as it would directly in the item.
@@ -1382,8 +1401,8 @@ fn render_cell_block(block: &Block, tc: &mut Element, jc: Option<&str>, ctx: &mu
             ctx.prev_paragraph = true;
             true
         }
-        Block::CodeBlock(_, code) => {
-            tc.push(code_paragraph(code, None));
+        Block::CodeBlock(attr, code) => {
+            tc.push(code_paragraph(attr, code, None, &ctx.highlighter));
             true
         }
         other => {
@@ -1752,12 +1771,21 @@ fn paragraph(style: &str, inlines: &[Inline], ctx: &mut Ctx) -> Element {
     styled_paragraph(Some(style), None, None, inlines, ctx)
 }
 
-/// A verbatim code block: one paragraph in the source-code style, each line a run with the code
-/// character style, lines separated by breaks. `numbering` binds the paragraph to a list number when
-/// the block sits inside a list item.
-fn code_paragraph(code: &str, numbering: Option<(u32, u32)>) -> Element {
+/// A code block: one paragraph in the source-code style. When a highlighter classifies the block's
+/// language, each token becomes a run carrying its token style; otherwise each line becomes a run in
+/// the plain code character style. Lines are separated by breaks. `numbering` binds the paragraph to
+/// a list number when the block sits inside a list item.
+#[cfg_attr(not(feature = "highlight"), allow(unused_variables))]
+fn code_paragraph(attr: &Attr, code: &str, numbering: Option<(u32, u32)>, hl: &DocxHl) -> Element {
     let mut para = Element::new("w:p");
     para.push(paragraph_props(Some("SourceCode"), numbering, None));
+    #[cfg(feature = "highlight")]
+    if let Some(runs) = highlighted_code_runs(attr, code, hl) {
+        for run in runs {
+            para.push(run);
+        }
+        return para;
+    }
     let props = RunProps {
         style: Some(Cow::Borrowed("VerbatimChar")),
         ..RunProps::default()
@@ -1771,6 +1799,37 @@ fn code_paragraph(code: &str, numbering: Option<(u32, u32)>) -> Element {
         para.push(text_run(&props, line));
     }
     para
+}
+
+/// The token runs for a code block whose language a highlighter recognizes, or `None` when the block
+/// carries no recognized language class and should fall back to the plain code style. Every token —
+/// including plain and whitespace-only ones — is wrapped in its own styled run, and consecutive
+/// source lines are joined by break runs.
+#[cfg(feature = "highlight")]
+fn highlighted_code_runs(attr: &Attr, code: &str, hl: &DocxHl) -> Option<Vec<Element>> {
+    let highlighter = hl.as_ref()?;
+    let language = attr
+        .classes
+        .iter()
+        .find(|class| highlighter.registry().is_known(class.as_str()))?;
+    let source = code.strip_suffix('\n').unwrap_or(code);
+    let lines = highlighter
+        .highlight(language.as_str(), source)
+        .unwrap_or_default();
+    let mut runs = Vec::new();
+    for (index, line) in lines.iter().enumerate() {
+        if index > 0 {
+            runs.push(break_run(&RunProps::default()));
+        }
+        for token in line {
+            let props = RunProps {
+                style: Some(Cow::Owned(format!("{}Tok", token.kind.style_key()))),
+                ..RunProps::default()
+            };
+            runs.push(text_run(&props, &token.text));
+        }
+    }
+    Some(runs)
 }
 
 /// A line block: one paragraph whose lines are separated by breaks, each line's inlines lowered to
