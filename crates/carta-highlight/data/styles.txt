@@ -1,0 +1,8 @@
+pygments
+tango
+espresso
+zenburn
+kate
+monochrome
+breezedark
+haddock

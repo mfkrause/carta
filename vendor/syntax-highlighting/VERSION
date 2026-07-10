@@ -1,0 +1,5 @@
+syntax-definitions: skylighting-core 0.14.7 (bundled xml/ grammar set)
+styles: captured from pandoc 3.10 `--print-highlight-style=<name>`
+pandoc-parity-target: 3.10
+grammar-files: 164 (crates/carta-highlight/data/syntax/*.xml)
+style-files: 8 (crates/carta-highlight/data/styles/*.theme)
