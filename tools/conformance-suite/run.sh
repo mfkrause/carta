@@ -14,7 +14,7 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub docx"
+SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub docx highlight"
 
 # Mint one scratch directory per top-level invocation and export it so every surface child (run as a
 # separate process below) shares the same dir — and thus the extracted-spec cache reader/e2e reuse.
