@@ -43,6 +43,8 @@ impl BodyKind {
 /// Wrap a rendered XHTML `body` in the full page document for `version`: the XML declaration,
 /// doctype, `<html>` root, and a `<head>` linking every stylesheet. `css_prefix` is the relative
 /// path from the page to the container root (`""` at the root, `"../"` for a page under `text/`).
+/// `style` is an inline stylesheet placed after the linked ones, empty when the page needs none.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn xhtml_page(
     version: Version,
     lang: &str,
@@ -50,6 +52,7 @@ pub(crate) fn xhtml_page(
     css_prefix: &str,
     kind: BodyKind,
     stylesheets: &[String],
+    style: &str,
     body: &str,
 ) -> String {
     let mut out = String::from(DECLARATION);
@@ -76,7 +79,9 @@ pub(crate) fn xhtml_page(
         out.push_str("  <meta charset=\"utf-8\" />\n");
         let _ = writeln!(out, "  <meta name=\"generator\" content=\"{GENERATOR}\" />");
         let _ = writeln!(out, "  <title>{title_text}</title>");
-        out.push_str("  <style>\n  </style>\n");
+        out.push_str("  <style>\n");
+        out.push_str(style);
+        out.push_str("  </style>\n");
         out.push_str(&links);
         out.push_str("</head>\n");
     } else {
@@ -94,7 +99,9 @@ pub(crate) fn xhtml_page(
         out.push_str("  <meta http-equiv=\"Content-Style-Type\" content=\"text/css\" />\n");
         let _ = writeln!(out, "  <meta name=\"generator\" content=\"{GENERATOR}\" />");
         let _ = writeln!(out, "  <title>{title_text}</title>");
-        out.push_str("  <style type=\"text/css\">\n  </style>\n");
+        out.push_str("  <style type=\"text/css\">\n");
+        out.push_str(style);
+        out.push_str("  </style>\n");
         out.push_str(&links);
         out.push_str("</head>\n");
     }
@@ -172,6 +179,7 @@ pub(crate) fn title_page(
         "../",
         BodyKind::Frontmatter,
         stylesheets,
+        "",
         &body,
     )
 }
@@ -228,6 +236,7 @@ pub(crate) fn cover_page(
         "../",
         BodyKind::Cover,
         stylesheets,
+        "",
         &body,
     )
 }

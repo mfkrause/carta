@@ -10,6 +10,8 @@ use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+#[cfg(feature = "highlight")]
+use std::sync::Arc;
 
 use carta::ast::{Block, MetaValue};
 use carta::{
@@ -21,11 +23,22 @@ use clap::{ArgAction, Parser};
 mod datadir;
 mod filters;
 
+#[cfg(not(feature = "highlight"))]
 const LIST_FLAGS: [&str; 4] = [
     "list_input_formats",
     "list_output_formats",
     "list_extensions",
     "print_default_template",
+];
+#[cfg(feature = "highlight")]
+const LIST_FLAGS: [&str; 7] = [
+    "list_input_formats",
+    "list_output_formats",
+    "list_extensions",
+    "print_default_template",
+    "list_highlight_languages",
+    "list_highlight_styles",
+    "print_highlight_style",
 ];
 
 #[derive(Parser, Debug)]
@@ -135,6 +148,41 @@ struct Cli {
     /// and the converted content is generated into it.
     #[arg(long = "reference-doc", value_name = "FILE")]
     reference_doc: Option<PathBuf>,
+    /// Colorize code blocks with this style: a built-in name (`--list-highlight-styles`) or a JSON
+    /// theme file. Overrides the style selected by `--syntax-highlighting`.
+    #[cfg(feature = "highlight")]
+    #[arg(long = "highlight-style", value_name = "STYLE|FILE")]
+    highlight_style: Option<String>,
+    /// Leave code blocks unhighlighted (equivalent to `--syntax-highlighting=none`).
+    #[cfg(feature = "highlight")]
+    #[arg(long = "no-highlight")]
+    no_highlight: bool,
+    /// How code blocks are presented: `default` colorizes them, `none` leaves them plain, `idiomatic`
+    /// uses the target format's own listing construct, and any other value names a built-in style or a
+    /// JSON theme file to colorize with.
+    #[cfg(feature = "highlight")]
+    #[arg(
+        long = "syntax-highlighting",
+        value_name = "none|default|idiomatic|STYLE|FILE"
+    )]
+    syntax_highlighting: Option<String>,
+    /// Load an additional syntax definition (a KDE-syntax XML file) whose language joins the catalog,
+    /// overriding a built-in of the same name. Repeatable.
+    #[cfg(feature = "highlight")]
+    #[arg(long = "syntax-definition", value_name = "FILE")]
+    syntax_definition: Vec<PathBuf>,
+    /// List the languages this build can highlight and exit.
+    #[cfg(feature = "highlight")]
+    #[arg(long = "list-highlight-languages")]
+    list_highlight_languages: bool,
+    /// List the built-in highlight styles and exit.
+    #[cfg(feature = "highlight")]
+    #[arg(long = "list-highlight-styles")]
+    list_highlight_styles: bool,
+    /// Print a highlight style as a JSON theme — a built-in name or a theme file — and exit.
+    #[cfg(feature = "highlight")]
+    #[arg(long = "print-highlight-style", value_name = "STYLE|FILE")]
+    print_highlight_style: Option<String>,
     /// List the input formats this build supports and exit.
     #[arg(long = "list-input-formats")]
     list_input_formats: bool,
@@ -191,6 +239,18 @@ fn run(cli: &Cli) -> Result<()> {
     if let Some(format) = &cli.print_default_template {
         return print_default_template(format);
     }
+    #[cfg(feature = "highlight")]
+    {
+        if cli.list_highlight_languages {
+            return print_owned_lines(&carta::languages());
+        }
+        if cli.list_highlight_styles {
+            return print_owned_lines(&carta::styles());
+        }
+        if let Some(style) = &cli.print_highlight_style {
+            return print_highlight_style(style);
+        }
+    }
 
     match (cli.from.as_deref(), cli.to.as_deref()) {
         (Some(from), Some(to)) => convert_document(from, to, cli),
@@ -221,6 +281,10 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.toc = cli.toc;
     writer_options.toc_depth = cli.toc_depth;
     writer_options.math_method = math_method(cli);
+    #[cfg(feature = "highlight")]
+    {
+        writer_options.highlight = highlight_options(cli)?;
+    }
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
@@ -486,6 +550,76 @@ fn template_dir(path: &Path) -> PathBuf {
         .to_path_buf()
 }
 
+/// The built-in style code blocks are colorized with when no style is named.
+#[cfg(feature = "highlight")]
+const DEFAULT_HIGHLIGHT_STYLE: &str = "pygments";
+
+/// Build the syntax-highlighting configuration from the highlight flags. `--no-highlight` and
+/// `--syntax-highlighting=none` leave code plain; `idiomatic` selects the format's own listing
+/// construct; otherwise a highlighter runs with the chosen (or default) style. `--highlight-style`
+/// overrides the style, and each `--syntax-definition` adds — or replaces by name — a language.
+// The highlighter caches tokenization with single-threaded reference counting; conversion never
+// shares it across threads, so wrapping it for the writer options is sound despite the lint.
+#[allow(clippy::arc_with_non_send_sync)]
+#[cfg(feature = "highlight")]
+fn highlight_options(cli: &Cli) -> Result<carta::HighlightOptions> {
+    let mode = cli.syntax_highlighting.as_deref();
+    if cli.no_highlight || mode == Some("none") {
+        return Ok(carta::HighlightOptions::default());
+    }
+    if mode == Some("idiomatic") {
+        return Ok(carta::HighlightOptions {
+            idiomatic: true,
+            ..carta::HighlightOptions::default()
+        });
+    }
+
+    // An explicit `--highlight-style` wins; otherwise a style or theme path named by
+    // `--syntax-highlighting` (anything but the bare `default`); otherwise the built-in default.
+    let style = cli.highlight_style.as_deref().or(match mode {
+        Some("default") | None => None,
+        named => named,
+    });
+    let theme = resolve_theme(style.unwrap_or(DEFAULT_HIGHLIGHT_STYLE))?;
+
+    let mut highlighter = carta::Highlighter::new();
+    for path in &cli.syntax_definition {
+        let xml = fs::read_to_string(path)?;
+        highlighter
+            .registry_mut()
+            .add_definition(&xml)
+            .map_err(|error| Error::Highlight(format!("{}: {error}", path.display())))?;
+    }
+
+    Ok(carta::HighlightOptions {
+        highlighter: Some(Arc::new(highlighter)),
+        theme: Some(theme),
+        idiomatic: false,
+    })
+}
+
+/// Resolve a highlight style: a built-in name takes priority over a same-named file, and any other
+/// value is read as a JSON theme file.
+#[cfg(feature = "highlight")]
+fn resolve_theme(spec: &str) -> Result<carta::Theme> {
+    if let Some(result) = carta::builtin_style(spec) {
+        return result.map_err(|error| Error::Highlight(format!("style '{spec}': {error}")));
+    }
+    let bytes = fs::read(spec)?;
+    carta::Theme::from_json(&bytes).map_err(|error| Error::Highlight(format!("{spec}: {error}")))
+}
+
+/// Print a highlight style as a JSON theme and exit.
+#[cfg(feature = "highlight")]
+fn print_highlight_style(spec: &str) -> Result<()> {
+    let json = resolve_theme(spec)?
+        .to_json()
+        .map_err(|error| Error::Highlight(error.to_string()))?;
+    let mut out = io::stdout().lock();
+    writeln!(out, "{json}")?;
+    Ok(())
+}
+
 /// The script URL MathJax loads from when `--mathjax` is given no explicit location.
 const DEFAULT_MATHJAX_URL: &str = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js";
 /// The asset base URL KaTeX loads from when `--katex` is given no explicit location.
@@ -600,6 +734,17 @@ fn print_default_template(spec: &str) -> Result<()> {
 }
 
 fn print_lines(lines: &[&str]) -> Result<()> {
+    let mut out = io::stdout().lock();
+    for line in lines {
+        writeln!(out, "{line}")?;
+    }
+    Ok(())
+}
+
+/// Print one owned string per line. A companion to [`print_lines`] for the listings the highlight
+/// catalog hands back as owned strings.
+#[cfg(feature = "highlight")]
+fn print_owned_lines(lines: &[String]) -> Result<()> {
     let mut out = io::stdout().lock();
     for line in lines {
         writeln!(out, "{line}")?;

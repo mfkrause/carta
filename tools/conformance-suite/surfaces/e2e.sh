@@ -40,7 +40,7 @@ if echo "$FORMATS" | grep -qw commonmark; then
   for input in "$specdir"/*.md; do
     [ -f "$input" ] || continue
     run_diff text "e2e/commonmark-spec->html/$(basename "$input")" "$input" \
-      "-f commonmark -t html --syntax-highlighting=none --mathjax" "-f commonmark -t html"
+      "-f commonmark -t html --syntax-highlighting=none --mathjax" "-f commonmark -t html --syntax-highlighting=none"
   done
   report e2e commonmark-spec-html
   tally_group

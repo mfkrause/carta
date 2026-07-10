@@ -1,10 +1,12 @@
 //! HTML writer: renders the document model to an html5 fragment.
 //!
-//! Syntax highlighting is neutralized: code blocks render as a plain `<pre><code>` (deferred; see
-//! `docs/plans/slice-1-commonmark-html.md`). TeX math renders as a `span.math` passthrough whose
-//! contents an in-browser typesetting loader reads — wrapped in `\(…\)` / `\[…\]` delimiters for the
-//! delimiter-scanning loaders, or as bare TeX for the one that reads the span directly. Output is a
-//! fragment with no trailing newline; the caller appends one.
+//! A code block with a recognized language (or explicit line numbering) is colorized: its text is
+//! tokenized and each run wrapped in a class-tagged span, inside the `div.sourceCode` / `pre` /
+//! `code` scaffolding a stylesheet targets, with per-line anchors. Without a highlighter, or for an
+//! unrecognized language, a code block stays a plain `<pre><code>`. TeX math renders as a
+//! `span.math` passthrough whose contents an in-browser typesetting loader reads — wrapped in
+//! `\(…\)` / `\[…\]` delimiters for the delimiter-scanning loaders, or as bare TeX for the one that
+//! reads the span directly. Output is a fragment with no trailing newline; the caller appends one.
 
 use std::fmt::Write as _;
 
@@ -13,6 +15,11 @@ use carta_ast::{
     ListNumberStyle, MathType, Row, Table, TableBody, Target, Text, to_plain_text,
 };
 use carta_core::{MathMethod, MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
+#[cfg(feature = "highlight")]
+use carta_highlight::{SourceLine, Token};
+
+#[cfg(feature = "highlight")]
+use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
 
 use crate::common::{
     FILL_COLUMN, RowSpanGrid, clean_prefix_len, is_known_attribute, is_wide, normalize_image_attr,
@@ -31,6 +38,7 @@ impl Writer for HtmlWriter {
             options.wrap,
             fill_width(options),
             math_output(options),
+            highlighting(options),
         ))
     }
 
@@ -63,6 +71,7 @@ impl Writer for Html4Writer {
             options.wrap,
             fill_width(options),
             math_output(options),
+            highlighting(options),
         ))
     }
 
@@ -137,13 +146,19 @@ pub(crate) struct SlideRenderer {
 #[allow(dead_code)]
 impl SlideRenderer {
     #[must_use]
-    pub(crate) fn new() -> Self {
-        Self {
-            state: State {
-                flavor: Flavor::Slides,
-                ..State::default()
-            },
+    pub(crate) fn new(highlighting: Highlighting) -> Self {
+        #[cfg_attr(not(feature = "highlight"), allow(unused_mut))]
+        let mut state = State {
+            flavor: Flavor::Slides,
+            ..State::default()
+        };
+        #[cfg(feature = "highlight")]
+        {
+            state.highlighter = highlighting;
         }
+        #[cfg(not(feature = "highlight"))]
+        let () = highlighting;
+        Self { state }
     }
 
     /// The open tag of a slide's `<section>`: the header's `id`, then a `class` whose value is the
@@ -227,6 +242,7 @@ pub(crate) fn render_fragment(blocks: &[Block], wrap: WrapMode) -> String {
         wrap,
         FILL_COLUMN,
         MathOutput::Delimited,
+        no_highlighting(),
     )
 }
 
@@ -248,6 +264,7 @@ pub(crate) fn render_epub_chapter(
         WrapMode::None,
         fill_width(options),
         math_output(options),
+        highlighting(options),
     ))
 }
 
@@ -289,18 +306,52 @@ fn strip_xml_invalid(text: String) -> String {
     }
 }
 
+/// The syntax-highlighting catalog carried into a render: the shared tokenizer, or `None` to leave
+/// code blocks plain. When the feature is compiled out this collapses to the unit type, so every
+/// render entry point keeps one signature.
+#[cfg(feature = "highlight")]
+pub(crate) type Highlighting = Option<std::sync::Arc<carta_highlight::Highlighter>>;
+#[cfg(not(feature = "highlight"))]
+pub(crate) type Highlighting = ();
+
+/// The highlighter a render draws from the writer options.
+#[cfg(feature = "highlight")]
+pub(crate) fn highlighting(options: &WriterOptions) -> Highlighting {
+    options.highlight.highlighter.clone()
+}
+#[cfg(not(feature = "highlight"))]
+pub(crate) fn highlighting(_options: &WriterOptions) -> Highlighting {}
+
+/// A render that colorizes nothing, for a fragment embedded in another format's output.
+// Called only by the fragment entry point, which a feature slice can compile out.
+#[cfg(feature = "highlight")]
+#[allow(dead_code)]
+fn no_highlighting() -> Highlighting {
+    None
+}
+#[cfg(not(feature = "highlight"))]
+#[allow(dead_code)]
+fn no_highlighting() -> Highlighting {}
+
 fn render_with_flavor(
     blocks: &[Block],
     flavor: Flavor,
     wrap: WrapMode,
     width: usize,
     math: MathOutput,
+    highlighting: Highlighting,
 ) -> String {
     let mut state = State {
         flavor,
         math,
         ..State::default()
     };
+    #[cfg(feature = "highlight")]
+    {
+        state.highlighter = highlighting;
+    }
+    #[cfg(not(feature = "highlight"))]
+    let () = highlighting;
     let mut out = String::new();
     state.blocks(&mut out, blocks);
     state.push_footnote_section(&mut out);
@@ -402,6 +453,12 @@ struct State {
     in_anchor: bool,
     flavor: Flavor,
     math: MathOutput,
+    /// Sequence number of the code block being rendered, incremented for every code block so a
+    /// colorized block that names no identifier can synthesize a stable `cbN` one.
+    code_block_id: usize,
+    /// The tokenizer for colorizing code blocks, or `None` to leave them plain.
+    #[cfg(feature = "highlight")]
+    highlighter: Highlighting,
 }
 
 /// Class names that select a dedicated HTML element for a [`Inline::Span`] instead of a generic
@@ -457,14 +514,7 @@ impl State {
                 self.inlines(out, inlines);
                 let _ = write!(out, "</{tag}>");
             }
-            Block::CodeBlock(attr, text) => {
-                out.push_str("<pre");
-                render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
-                out.push_str("><code>");
-                out.push(FLUSH);
-                escape_attr_into(out, text);
-                out.push_str("</code></pre>");
-            }
+            Block::CodeBlock(attr, text) => self.code_block(out, attr, text),
             Block::RawBlock(format, text) => out.push_str(&raw_passthrough(&format.0, text)),
             Block::BlockQuote(blocks) => {
                 out.push_str("<blockquote>\n");
@@ -509,6 +559,177 @@ impl State {
             Block::LineBlock(lines) => self.line_block(out, lines),
             Block::Table(table) => self.table(out, table),
         }
+    }
+
+    /// Render a code block. A block whose class names a known syntax definition — or that requests
+    /// line numbering — is colorized inside the `div.sourceCode` scaffolding; anything else stays a
+    /// plain `<pre><code>`. Every code block advances the sequence counter so a colorized block
+    /// without its own identifier gets a stable `cbN` one, whatever plain blocks precede it.
+    fn code_block(&mut self, out: &mut String, attr: &Attr, text: &str) {
+        self.code_block_id += 1;
+        #[cfg(feature = "highlight")]
+        if self.code_block_highlighted(out, attr, text) {
+            return;
+        }
+        out.push_str("<pre");
+        render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
+        out.push_str("><code>");
+        out.push(FLUSH);
+        escape_attr_into(out, text);
+        out.push_str("</code></pre>");
+    }
+
+    /// Emit the colorized form of a code block, returning whether it applied. It does not when
+    /// highlighting is off, or when the block neither names a known language nor numbers its lines —
+    /// leaving the caller to render the plain form.
+    #[cfg(feature = "highlight")]
+    fn code_block_highlighted(&self, out: &mut String, attr: &Attr, text: &str) -> bool {
+        let Some(highlighter) = self.highlighter.clone() else {
+            return false;
+        };
+        let numbered = attr.classes.iter().any(is_number_lines_class);
+        let language = attr
+            .classes
+            .iter()
+            .find(|class| highlighter.registry().is_known(class.as_str()));
+        if language.is_none() && !numbered {
+            return false;
+        }
+        let lines = match language {
+            Some(language) => highlighter
+                .highlight(language.as_str(), text)
+                .unwrap_or_default(),
+            None => plain_source_lines(text),
+        };
+        self.emit_source_block(out, attr, language.map(Text::as_str), numbered, &lines);
+        true
+    }
+
+    /// Emit the colorized form of inline code, returning whether it applied. It does not when
+    /// highlighting is off or the span names no known language, leaving the caller to render the
+    /// plain `<code>`. The class list leads with the `sourceCode` marker and the resolved language,
+    /// then carries the span's remaining classes; the id and key/value pairs follow.
+    #[cfg(feature = "highlight")]
+    fn code_inline_highlighted(&self, out: &mut String, attr: &Attr, text: &str) -> bool {
+        let Some(highlighter) = self.highlighter.clone() else {
+            return false;
+        };
+        let Some(language) = attr
+            .classes
+            .iter()
+            .find(|class| highlighter.registry().is_known(class.as_str()))
+        else {
+            return false;
+        };
+        let lines = highlighter
+            .highlight(language.as_str(), text)
+            .unwrap_or_default();
+
+        out.push_str("<code");
+        out.push(BREAK);
+        out.push_str("class=\"sourceCode ");
+        escape_attr_into(out, language.as_str());
+        for class in &attr.classes {
+            if class.is_empty() || std::ptr::eq(class, language) {
+                continue;
+            }
+            out.push(' ');
+            escape_attr_into(out, class.as_str());
+        }
+        out.push('"');
+        render_id_into(out, &attr.id);
+        render_keyvals_into(out, &attr.attributes, self.flavor);
+        out.push('>');
+
+        for (index, line) in lines.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            for token in line {
+                emit_token(out, token);
+            }
+        }
+        out.push_str("</code>");
+        true
+    }
+
+    /// Write the `div.sourceCode` / `pre` / `code` scaffolding and the per-line, per-token spans.
+    #[cfg(feature = "highlight")]
+    fn emit_source_block(
+        &self,
+        out: &mut String,
+        attr: &Attr,
+        language: Option<&str>,
+        numbered: bool,
+        lines: &[SourceLine],
+    ) {
+        let block_id = if attr.id.is_empty() {
+            format!("cb{}", self.code_block_id)
+        } else {
+            attr.id.as_str().to_owned()
+        };
+        let block_id_attr = escape_attr(&block_id);
+        let start = if numbered { start_line(attr) } else { 1 };
+
+        // The wrapping `<div>` carries only the `sourceCode` marker class, the block identifier, and
+        // the block's key/value pairs; the id and pairs wrap on the fill column like any element's.
+        out.push_str("<div");
+        out.push(BREAK);
+        out.push_str("class=\"sourceCode\"");
+        out.push(BREAK);
+        let _ = write!(out, "id=\"{block_id_attr}\"");
+        render_keyvals_into(out, &attr.attributes, self.flavor);
+        out.push('>');
+
+        // The one break point before the `<pre>` class lets the tag wrap onto its own line the way a
+        // preformatted start tag does; everything after it is one unbroken run.
+        out.push_str("<pre");
+        out.push(BREAK);
+        out.push_str("class=\"sourceCode");
+        if numbered {
+            out.push_str(" numberSource");
+        }
+        for class in &attr.classes {
+            if class.is_empty() {
+                continue;
+            }
+            out.push(' ');
+            escape_attr_into(out, class.as_str());
+        }
+        out.push_str("\">");
+
+        out.push_str("<code class=\"sourceCode");
+        if let Some(language) = language {
+            out.push(' ');
+            escape_attr_into(out, language);
+        }
+        out.push('"');
+        if numbered && start != 1 {
+            let _ = write!(
+                out,
+                " style=\"counter-reset: source-line {};\"",
+                start.saturating_sub(1)
+            );
+        }
+        out.push('>');
+
+        let anchor = source_anchor_attrs(self.flavor, numbered);
+        for (index, line) in lines.iter().enumerate() {
+            if index > 0 {
+                out.push('\n');
+            }
+            let number = start.saturating_add(i64::try_from(index).unwrap_or(i64::MAX));
+            let _ = write!(
+                out,
+                "<span id=\"{block_id_attr}-{number}\"><a href=\"#{block_id_attr}-{number}\"{anchor}></a>"
+            );
+            for token in line {
+                emit_token(out, token);
+            }
+            out.push_str("</span>");
+        }
+
+        out.push_str("</code></pre></div>");
     }
 
     fn bullet_list(&mut self, out: &mut String, items: &[Vec<Block>]) {
@@ -812,6 +1033,10 @@ impl State {
                 out.push(close);
             }
             Inline::Code(attr, text) => {
+                #[cfg(feature = "highlight")]
+                if self.code_inline_highlighted(out, attr, text) {
+                    return;
+                }
                 out.push_str("<code");
                 render_attr_into(out, attr, AttrOrder::Standard, self.flavor);
                 out.push('>');
@@ -1144,6 +1369,34 @@ impl State {
             Flavor::Epub2 => "\n</div>",
         };
         out.push_str(close);
+    }
+}
+
+/// The attributes on a line's anchor. A numbered line's anchor carries none (its number is drawn by
+/// the stylesheet); an unnumbered line's anchor is hidden from assistive technology and taken out of
+/// the tab order — dropping the `aria-hidden` half in the presentational dialect that lacks it.
+#[cfg(feature = "highlight")]
+fn source_anchor_attrs(flavor: Flavor, numbered: bool) -> &'static str {
+    if numbered {
+        ""
+    } else if flavor.is_html5_family() {
+        " aria-hidden=\"true\" tabindex=\"-1\""
+    } else {
+        " tabindex=\"-1\""
+    }
+}
+
+/// Write one classified token: an unclassified run as bare escaped text, any other kind wrapped in a
+/// class-tagged span the stylesheet colors.
+#[cfg(feature = "highlight")]
+fn emit_token(out: &mut String, token: &Token) {
+    let class = token.kind.html_class();
+    if class.is_empty() {
+        escape_attr_into(out, &token.text);
+    } else {
+        let _ = write!(out, "<span class=\"{class}\">");
+        escape_attr_into(out, &token.text);
+        out.push_str("</span>");
     }
 }
 

@@ -1,0 +1,2 @@
+#include <vector>
+int main() { auto s = "hi"; /* block */ return 0; }

@@ -262,7 +262,7 @@ Notes list gaps and limitations only.
 | Text wrapping (`--wrap`, `--columns`) | ✅ | A few constructs still account for width incorrectly when reflowed at narrow columns: line blocks, footnote bodies, the AsciiDoc list-marker indent, and roff line-continuation. |
 | Section numbering (`--number-sections`) | ✅ | Inert in the Markdown family and `plain` (no heading-number syntax); `revealjs` is not yet numbered. |
 | Metadata / variables (`-M`, `-V`, `--metadata-file`) | ✅ | — |
-| Syntax highlighting (`--highlight-style`) | ❌ | Code emitted verbatim. |
+| Syntax highlighting | ✅ | Language classes resolve as written (no alias canonicalization), so a mixed-case spelling of an alias may color differently from its lowercase form. |
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in the AST, not processed. |
 | Filters (JSON) | ✅ | `-F`/`--filter` pipes the document as JSON through external programs (in order), each receiving the output format name as its argument. A bare name resolves under the data directory's `filters/`, then the working directory, then `PATH`; a file without the executable bit runs through an interpreter chosen from its extension (`.py`, `.js`, `.rb`, `.php`, `.pl`, `.hs`, `.r`). |
 | Filters (Lua) | ❌ | |

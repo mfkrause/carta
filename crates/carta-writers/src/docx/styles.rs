@@ -5,6 +5,49 @@
 //!
 //! Each is a complete, well-formed part held as a string constant.
 
+/// The style catalogue with a per-token character style appended for each token style the theme
+/// defines. Each derives from the plain code character style and carries the theme's weight, slant
+/// and color for that token kind, so a colorized code run resolves to the intended appearance. The
+/// base catalogue already defines the source-code paragraph and plain code character styles the runs
+/// build on.
+#[cfg(feature = "highlight")]
+pub(super) fn styles_with_highlighting(theme: &carta_highlight::Theme) -> String {
+    use carta_core::container::xml::escape_attribute;
+    use std::fmt::Write as _;
+
+    let mut injected = String::new();
+    for (key, style) in &theme.text_styles {
+        let mut name = String::new();
+        escape_attribute(key, &mut name);
+        name.push_str("Tok");
+
+        let mut rpr = String::new();
+        if style.bold {
+            rpr.push_str("<w:b/>");
+        }
+        if style.italic {
+            rpr.push_str("<w:i/>");
+        }
+        if style.underline {
+            rpr.push_str("<w:u w:val=\"single\"/>");
+        }
+        if let Some(color) = &style.text_color {
+            let mut value = String::new();
+            escape_attribute(color.strip_prefix('#').unwrap_or(color), &mut value);
+            let _ = write!(rpr, "<w:color w:val=\"{value}\"/>");
+        }
+
+        let _ = write!(
+            injected,
+            "  <w:style w:type=\"character\" w:styleId=\"{name}\">\n    \
+             <w:name w:val=\"{name}\"/>\n    \
+             <w:basedOn w:val=\"VerbatimChar\"/>\n    \
+             <w:rPr>{rpr}</w:rPr>\n  </w:style>\n"
+        );
+    }
+    STYLES.replace("</w:styles>", &format!("{injected}</w:styles>"))
+}
+
 /// The style catalogue: the paragraph and character styles the document body refers to.
 pub(super) const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">

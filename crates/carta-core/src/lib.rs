@@ -75,6 +75,11 @@ pub enum Error {
     /// A document filter failed to run or returned an unusable result.
     #[error("filter error: {0}")]
     Filter(String),
+    /// A syntax-highlighting style or definition could not be resolved.
+    #[cfg(feature = "highlight")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "highlight")))]
+    #[error("syntax highlighting error: {0}")]
+    Highlight(String),
 }
 
 #[cfg(feature = "template")]
@@ -203,6 +208,27 @@ pub struct DocxOptions {
     pub locale: Option<String>,
 }
 
+/// Syntax-highlighting configuration for the writers that colorize code blocks (the HTML family,
+/// LaTeX, and DOCX). The default leaves code blocks unhighlighted.
+#[cfg(feature = "highlight")]
+#[cfg_attr(docsrs, doc(cfg(feature = "highlight")))]
+#[derive(Debug, Clone, Default)]
+pub struct HighlightOptions {
+    /// The tokenizer catalog. `None` leaves code blocks as a plain `<pre><code>`, with no color
+    /// spans and no line-number scaffolding.
+    pub highlighter: Option<std::sync::Arc<carta_highlight::Highlighter>>,
+
+    /// The active color theme, consulted by the writers that inline colors (LaTeX, DOCX) and to
+    /// build the HTML family's stylesheet. `None` when highlighting is off.
+    pub theme: Option<carta_highlight::Theme>,
+
+    /// Present code blocks in the target format's own listing construct rather than colorizing them.
+    /// No tokenizer runs; a format that offers a dedicated listing environment (LaTeX's `lstlisting`)
+    /// uses it, while formats whose plain form already carries the language class (the HTML family,
+    /// DOCX) render code exactly as they do with highlighting off. Ignored when a `highlighter` is set.
+    pub idiomatic: bool,
+}
+
 /// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
@@ -243,6 +269,11 @@ pub struct WriterOptions {
 
     /// How math is presented by a format offering a choice of renderers (the HTML family).
     pub math_method: MathMethod,
+
+    /// Syntax-highlighting configuration for code blocks; the default leaves code unhighlighted.
+    #[cfg(feature = "highlight")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "highlight")))]
+    pub highlight: HighlightOptions,
 
     /// Emit a complete document by wrapping the rendered body in the target format's template,
     /// rather than a bare fragment.

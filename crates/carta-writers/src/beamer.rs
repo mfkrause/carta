@@ -11,7 +11,9 @@
 use carta_ast::{Attr, Block, Document, Inline};
 use carta_core::{Extension, MetaVarStyle, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
-use crate::latex::{Dialect, anchor, render_fragment, render_heading, render_titled_open};
+use crate::latex::{
+    Dialect, Hl, anchor, code_highlighting, render_fragment, render_heading, render_titled_open,
+};
 use crate::slides::{FrameTitle, Heading, Slide, group_headings, segment, slide_level};
 
 /// Renders a document to a slide-deck fragment.
@@ -24,10 +26,11 @@ impl Writer for BeamerWriter {
             return Ok("\\begin{frame}\n\\end{frame}".to_owned());
         }
         let smart = options.extensions.contains(Extension::Smart);
+        let hl = code_highlighting(options);
         let level = slide_level(&document.blocks);
         let units: Vec<String> = segment(&document.blocks, level)
             .iter()
-            .map(|slide| render_slide(slide, level, options.wrap, smart))
+            .map(|slide| render_slide(slide, level, options.wrap, smart, hl))
             .collect();
         Ok(units.join("\n\n"))
     }
@@ -78,10 +81,12 @@ const FRAME_CLASSES: &[&str] = &[
     "t",
 ];
 
-fn render_slide(slide: &Slide, level: i32, wrap: WrapMode, smart: bool) -> String {
+fn render_slide(slide: &Slide, level: i32, wrap: WrapMode, smart: bool, hl: Hl<'_>) -> String {
     match slide {
-        Slide::Section { level, attr, title } => render_heading(*level, attr, title, wrap, smart),
-        Slide::Frame { title, body } => render_frame(title.as_ref(), body, level, wrap, smart),
+        Slide::Section { level, attr, title } => {
+            render_heading(*level, attr, title, wrap, smart, hl)
+        }
+        Slide::Frame { title, body } => render_frame(title.as_ref(), body, level, wrap, smart, hl),
     }
 }
 
@@ -93,6 +98,7 @@ fn render_frame(
     level: i32,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let fragile = contains_code(body);
     let options = frame_options(title, fragile);
@@ -105,6 +111,7 @@ fn render_frame(
                 Dialect::SLIDE,
                 wrap,
                 smart,
+                hl,
             ));
             if !title.attr.id.is_empty() {
                 lines.push(anchor(&title.attr.id));
@@ -112,7 +119,7 @@ fn render_frame(
         }
         None => lines.push(format!("\\begin{{frame}}{options}")),
     }
-    let rendered = render_body(body, level + 1, wrap, smart);
+    let rendered = render_body(body, level + 1, wrap, smart, hl);
     if !rendered.is_empty() {
         lines.push(rendered);
     }
@@ -148,17 +155,23 @@ fn frame_options(title: Option<&FrameTitle>, fragile: bool) -> String {
 /// Render a frame body, turning headers at or below `block_level` into nested block environments
 /// and rendering everything else through the LaTeX slide dialect. Each block environment's body is
 /// grouped one level deeper.
-fn render_body(blocks: &[Block], block_level: i32, wrap: WrapMode, smart: bool) -> String {
+fn render_body(
+    blocks: &[Block],
+    block_level: i32,
+    wrap: WrapMode,
+    smart: bool,
+    hl: Hl<'_>,
+) -> String {
     let Some(group_level) = shallowest_header(blocks) else {
-        return render_fragment(blocks, Dialect::SLIDE, wrap, smart);
+        return render_fragment(blocks, Dialect::SLIDE, wrap, smart, hl);
     };
     let group_level = group_level.max(block_level);
     let units: Vec<String> = group_headings(blocks, group_level)
         .iter()
         .map(|heading| match heading {
-            Heading::Loose(run) => render_fragment(run, Dialect::SLIDE, wrap, smart),
+            Heading::Loose(run) => render_fragment(run, Dialect::SLIDE, wrap, smart, hl),
             Heading::Section { attr, title, body } => {
-                render_block_env(attr, title, body, group_level, wrap, smart)
+                render_block_env(attr, title, body, group_level, wrap, smart, hl)
             }
         })
         .filter(|rendered| !rendered.is_empty())
@@ -168,6 +181,7 @@ fn render_body(blocks: &[Block], block_level: i32, wrap: WrapMode, smart: bool) 
 
 /// Render a header below the slide level as a `block` environment: a titled opening, an anchor for
 /// its identifier, the recursively grouped body, and the close.
+#[allow(clippy::too_many_arguments)]
 fn render_block_env(
     attr: &Attr,
     title: &[Inline],
@@ -175,6 +189,7 @@ fn render_block_env(
     group_level: i32,
     wrap: WrapMode,
     smart: bool,
+    hl: Hl<'_>,
 ) -> String {
     let mut lines = vec![render_titled_open(
         "\\begin{block}{",
@@ -182,11 +197,12 @@ fn render_block_env(
         Dialect::SLIDE,
         wrap,
         smart,
+        hl,
     )];
     if !attr.id.is_empty() {
         lines.push(anchor(&attr.id));
     }
-    let rendered = render_body(body, group_level + 1, wrap, smart);
+    let rendered = render_body(body, group_level + 1, wrap, smart, hl);
     if !rendered.is_empty() {
         lines.push(rendered);
     }

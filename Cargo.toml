@@ -25,6 +25,8 @@ unicode-normalization = "0.1"
 caseless = "0.2"
 compact_str = { version = "0.9", features = ["serde"] }
 miniz_oxide = "0.9"
+fancy-regex = "0.16"
+quick-xml = "0.41"
 insta = "1"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 
@@ -34,6 +36,7 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 carta = { path = "crates/carta", version = "0.0.4" }
 carta-ast = { path = "crates/carta-ast", version = "0.0.4" }
 carta-core = { path = "crates/carta-core", version = "0.0.4" }
+carta-highlight = { path = "crates/carta-highlight", version = "0.0.4" }
 carta-readers = { path = "crates/carta-readers", version = "0.0.4" }
 carta-writers = { path = "crates/carta-writers", version = "0.0.4" }
 

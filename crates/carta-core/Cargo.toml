@@ -28,9 +28,13 @@ template = []
 # Packaging primitives for container formats (`carta_core::container`): the ZIP builder/reader and
 # XML emitter. Off by default; enabled by `carta`'s `write-epub` feature. Pulls in DEFLATE support.
 container = ["dep:miniz_oxide"]
+# Carry a syntax-highlighting configuration in the writer options. Off by default; enabled by
+# `carta-writers`'s `highlight` feature. Pulls in the tokenizer catalog.
+highlight = ["dep:carta-highlight"]
 
 [dependencies]
 carta-ast = { workspace = true }
+carta-highlight = { workspace = true, optional = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 miniz_oxide = { workspace = true, optional = true }

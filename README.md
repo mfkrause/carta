@@ -198,6 +198,9 @@ carta -f commonmark -t html -s --toc --number-sections input.md -o output.html
 # render HTML math with MathJax (or --katex)
 carta -f commonmark -t html -s --mathjax input.md -o output.html
 
+# colorize code blocks with a named theme (--no-highlight turns it off)
+carta -f commonmark -t html -s --highlight-style=breezedark input.md -o output.html
+
 # extract a notebook's embedded images to files, rewriting the references
 carta -f ipynb -t markdown --extract-media=media notebook.ipynb -o notebook.md
 
@@ -209,6 +212,8 @@ carta --list-input-formats
 carta --list-output-formats
 carta --list-extensions          # extensions for the Markdown dialect
 carta --list-extensions=gfm      # extensions and defaults for a given format
+carta --list-highlight-languages # languages the highlighter can colorize
+carta --list-highlight-styles    # built-in color themes
 ```
 
 ### Library

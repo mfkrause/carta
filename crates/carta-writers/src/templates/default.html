@@ -35,6 +35,9 @@ th, td { border-bottom: 1px solid #cccccc; padding: 0.4em 0.6em; text-align: lef
 .author, .date { text-align: center; }
 .abstract { margin: 2em 0; }
 .abstract-title { font-weight: bold; text-align: center; }
+$if(highlighting-css)$
+$highlighting-css$
+$endif$
 </style>
 $for(css)$
 <link rel="stylesheet" href="$css$" />
