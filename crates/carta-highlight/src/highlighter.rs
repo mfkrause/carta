@@ -231,10 +231,7 @@ impl<'a> Tokenizer<'a> {
             self.line_continuation = false;
         } else {
             self.col = 0;
-            self.first_nonspace = line
-                .chars()
-                .position(|c| !c.is_whitespace())
-                .filter(|_| line.chars().any(|c| !c.is_whitespace()));
+            self.first_nonspace = line.chars().position(|c| !c.is_whitespace());
             self.apply_switch(&begin_switch, &owner);
         }
         if line.is_empty() {
@@ -551,14 +548,18 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn match_literal(&self, target: &str, insensitive: bool) -> Option<MatchSpan> {
+        if target.is_empty() {
+            return None;
+        }
         let remaining = self.remaining();
+        if !insensitive {
+            return remaining.starts_with(target).then(|| MatchSpan {
+                bytes: target.len(),
+                chars: target.chars().count(),
+            });
+        }
         let take: String = remaining.chars().take(target.chars().count()).collect();
-        let equal = if insensitive {
-            take.to_lowercase() == target.to_lowercase()
-        } else {
-            take == target
-        };
-        (equal && !take.is_empty()).then(|| MatchSpan {
+        (take.to_lowercase() == target.to_lowercase()).then(|| MatchSpan {
             bytes: take.len(),
             chars: take.chars().count(),
         })
@@ -573,6 +574,10 @@ impl<'a> Tokenizer<'a> {
         let span = self.match_literal(text, insensitive)?;
         let remaining = self.remaining();
         let matched = &remaining[..span.bytes];
+        let first = matched.chars().next()?;
+        if !is_word_boundary(self.prev_char, first) {
+            return None;
+        }
         let last = matched.chars().last()?;
         let next = remaining[span.bytes..].chars().next().unwrap_or('\n');
         is_word_boundary(last, next).then_some(span)
