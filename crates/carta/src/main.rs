@@ -288,9 +288,11 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     if cli.self_contained {
         eprintln!("carta: --self-contained is deprecated; use --embed-resources --standalone");
     }
-    // Media embedding inlines resources as `data:` URIs, and only the HTML family renders them, so
-    // the request is dropped for any other target (as a container packs its media a different way).
-    let embed_resources = (cli.embed_resources || cli.self_contained) && renders_html(to);
+    // Media embedding inlines resources as `data:` URIs, and only the HTML family (`html`, `html4`,
+    // `html5`) renders them, so the request is dropped for any other target (as a container packs its
+    // media a different way).
+    #[cfg(feature = "write-html")]
+    let embed_resources = (cli.embed_resources || cli.self_contained) && to.starts_with("html");
 
     let mut writer_options = WriterOptions::default();
     writer_options.standalone = cli.standalone || cli.self_contained;
@@ -467,12 +469,6 @@ fn embeds_resources(to: &str) -> bool {
 /// Whether the target format is DOCX (any extension toggles follow the base name).
 fn is_docx(to: &str) -> bool {
     to.starts_with("docx")
-}
-
-/// Whether the target renders the HTML family (`html`, `html4`, `html5`), the outputs whose media
-/// self-contained mode inlines as `data:` URIs. The base name carries any `+ext`/`-ext` toggles.
-fn renders_html(to: &str) -> bool {
-    to.starts_with("html")
 }
 
 /// Assemble the EPUB writer options from the command line: stylesheets, cover image, embedded fonts,

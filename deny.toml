@@ -22,6 +22,8 @@ allow = [
   "Unicode-DFS-2016",
   "CC0-1.0",
   "MPL-2.0",
+  # Covers the bundled Mozilla root-certificate data the HTTP client's TLS stack ships.
+  "CDLA-Permissive-2.0",
 ]
 # The workspace's own crates carry the project license, AGPL-3.0-only. Allow it for these
 # first-party crates only — copyleft dependencies stay disallowed.
