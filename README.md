@@ -207,6 +207,9 @@ carta -f ipynb -t markdown --extract-media=media notebook.ipynb -o notebook.md
 # embed a document's images into a container format, searching extra directories for them
 carta -f commonmark -t docx --resource-path=assets:img input.md -o output.docx
 
+# produce a self-contained HTML file with every image inlined as a data: URI
+carta -f commonmark -t html -s --embed-resources input.md -o output.html
+
 # transform the document through a JSON filter before writing (repeatable, applied in order)
 carta -f commonmark -t html -F ./my-filter.py input.md -o output.html
 

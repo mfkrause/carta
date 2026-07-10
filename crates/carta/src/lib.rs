@@ -39,6 +39,12 @@ pub use carta_core::HighlightOptions;
 #[cfg(feature = "highlight")]
 pub use carta_highlight::{Highlighter, Theme, builtin_style, languages, styles};
 
+/// The post-render pass that inlines an HTML page's external resources as `data:` URIs and inline
+/// `<style>`/`<script>` elements, together with the resolved-resource type it consumes. Drives the
+/// CLI's self-contained HTML output.
+#[cfg(feature = "write-html")]
+pub use carta_writers::{Resource, inline_resources};
+
 /// Converts text `input` from format `from` to text in format `to`.
 ///
 /// A shortcut over [`convert`] for the common case where both formats are text-shaped. Each format
