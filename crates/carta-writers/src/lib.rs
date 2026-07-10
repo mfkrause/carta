@@ -63,6 +63,8 @@ pub mod commonmark;
 pub mod docx;
 #[cfg(feature = "dokuwiki")]
 pub mod dokuwiki;
+#[cfg(feature = "html")]
+pub mod embed;
 #[cfg(feature = "epub")]
 pub mod epub;
 #[cfg(feature = "html")]
@@ -106,6 +108,8 @@ pub use commonmark::CommonmarkWriter;
 pub use docx::DocxWriter;
 #[cfg(feature = "dokuwiki")]
 pub use dokuwiki::DokuwikiWriter;
+#[cfg(feature = "html")]
+pub use embed::{Resource, inline_resources};
 #[cfg(feature = "epub")]
 pub use epub::{Epub2Writer, Epub3Writer};
 #[cfg(feature = "highlight")]

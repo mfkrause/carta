@@ -85,4 +85,46 @@ done
 report media reembed
 tally_group
 
+# Embed path: render each notebook to HTML with --embed-resources so every bagged image inlines as a
+# data: URI, and diff the two HTML outputs. Wrapping is disabled to keep the comparison on the inlined
+# content rather than fill-column line breaks. To hold the group on the embedding behavior alone, a
+# notebook whose plain (unembedded) HTML already diverges — an unrelated writer gap, e.g. math
+# rendering — is skipped rather than counted against this surface.
+conf_reset "media-embed"
+for input in "$dir"/*; do
+  [ -f "$input" ] || continue
+  label="media/embed/$(basename "$input")"
+  repro="repro: \$TOOL -f ipynb -t html --embed-resources --wrap=none <$input"
+  ofile="$WORK/.embed.oracle" xfile="$WORK/.embed.ox" efile="$WORK/.embed.err"
+  obase="$WORK/.embed.oracle.plain" xbase="$WORK/.embed.ox.plain"
+  if ! "$ORACLE" -f ipynb -t html --wrap=none <"$input" >"$obase" 2>/dev/null \
+    || ! "$OX" -f ipynb -t html --wrap=none <"$input" >"$xbase" 2>/dev/null; then
+    SKIP=$((SKIP + 1))
+    continue
+  fi
+  # Only cases the two tools already render identically without embedding isolate the inlining.
+  if ! compare_text "$obase" "$xbase" >/dev/null; then
+    SKIP=$((SKIP + 1))
+    continue
+  fi
+  if ! "$ORACLE" -f ipynb -t html --embed-resources --wrap=none <"$input" >"$ofile" 2>/dev/null; then
+    SKIP=$((SKIP + 1))
+    continue
+  fi
+  if ! "$OX" -f ipynb -t html --embed-resources --wrap=none <"$input" >"$xfile" 2>"$efile"; then
+    note_err "$label" "$repro
+$(head -n 3 "$efile")"
+    continue
+  fi
+  if detail=$(compare_text "$ofile" "$xfile"); then
+    PASS=$((PASS + 1))
+  else
+    note_fail "$label" "$repro
+embedded HTML differs:
+$detail"
+  fi
+done
+report media embed
+tally_group
+
 exit "$SUITE_RC"

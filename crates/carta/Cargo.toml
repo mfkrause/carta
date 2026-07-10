@@ -31,7 +31,11 @@ default = ["full", "cli"]
 # yields the tool; library-only users set `default-features = false` to drop it (and `clap`). It pulls
 # the standalone and metadata-file machinery the CLI drives — pair with format features (or `full`) to
 # choose what the binary can convert.
-cli = ["dep:clap", "standalone", "metadata-file"]
+cli = ["dep:clap", "standalone", "metadata-file", "fetch"]
+# Fetch remote resources over HTTP(S) when inlining them for self-contained HTML (`--embed-resources`):
+# carries the HTTP client. Without it, only local and already-inline resources are inlined and a remote
+# reference is left external. Part of `cli` so the installed tool is self-contained-capable by default.
+fetch = ["dep:ureq"]
 full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "highlight", "standalone", "metadata-file"]
 # Syntax highlighting for code blocks, plus the CLI's language/style listings and idiomatic mode. Turns
 # the feature on in any compiled writers and carries the tokenizer catalog for the listing/print flags.
@@ -96,6 +100,9 @@ carta-writers = { path = "../carta-writers", version = "0.0.4", default-features
 serde_json = { workspace = true, optional = true }
 # CLI-only; kept out of a library build via the optional `cli` feature.
 clap = { workspace = true, optional = true }
+# The HTTP client used to fetch remote resources for self-contained HTML. Gated behind `fetch`; a
+# rustls TLS stack keeps the build free of a system OpenSSL dependency.
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
 
 [dev-dependencies]
 insta = { workspace = true }
