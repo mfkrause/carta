@@ -16,7 +16,7 @@ use std::sync::Arc;
 use carta::ast::{Block, MetaValue};
 use carta::{
     DocxOptions, EpubOptions, Error, MathMethod, MediaBag, Output, ReaderOptions, Result, WrapMode,
-    WriterOptions, media, read_document, render_document, walk,
+    WriterOptions, media, read_document, render_document,
 };
 use clap::{ArgAction, Parser};
 
@@ -65,6 +65,11 @@ struct Cli {
     /// rewriting the document's references to point at the extracted files.
     #[arg(long = "extract-media", value_name = "DIR")]
     extract_media: Option<PathBuf>,
+    /// Search these directories, in order, for a document's images and other resources before falling
+    /// back to the working directory, when a container format embeds them. Directories are separated
+    /// by the platform's path separator (`:` on Unix, `;` on Windows); repeatable.
+    #[arg(long = "resource-path", value_name = "SEARCHPATH")]
+    resource_path: Vec<String>,
     /// Produce a standalone document, wrapping the body in the format's template.
     #[arg(short = 's', long = "standalone")]
     standalone: bool,
@@ -324,7 +329,10 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // A container format embeds the resources it references; pull the local ones off disk so the
     // writer can pack them.
     if cli.extract_media.is_none() && embeds_resources(to) {
-        embed_local_media(&mut document.blocks, &mut resources);
+        let search_path = resource_search_path(cli);
+        media::embed_referenced_media(&mut document.blocks, &mut resources, |reference| {
+            resolve_resource(reference, &search_path)
+        });
     }
     let output = render_document(to, document, resources, &writer_options)?;
     write_output(cli.output.as_deref(), &output, verbatim)
@@ -470,48 +478,30 @@ fn source_date_epoch() -> Option<i64> {
         .and_then(|value| value.trim().parse::<i64>().ok())
 }
 
-/// Read each local image the document references from disk — relative to the working directory —
-/// into `media`, so a container writer embeds it. References already carried inline, and remote or
-/// `data:` references, are left untouched; a reference whose file is missing is left as written.
-fn embed_local_media(blocks: &mut [Block], media: &mut MediaBag) {
-    let mut references: Vec<String> = Vec::new();
-    walk::for_each_image_target(blocks, &mut |target| {
-        let url = target.url.to_string();
-        if !references.contains(&url) {
-            references.push(url);
-        }
-    });
-    for url in references {
-        if media.contains(&url) || is_remote_reference(&url) {
-            continue;
-        }
-        if let Ok(bytes) = fs::read(&url) {
-            let mime = mime_from_extension(Path::new(&url));
-            media.insert(url, mime, bytes);
-        }
+/// The directories a referenced resource is looked for in, in search order: those named by
+/// `--resource-path` (each entry split on the platform path separator), then the working directory as
+/// a final fallback.
+fn resource_search_path(cli: &Cli) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = cli
+        .resource_path
+        .iter()
+        .flat_map(std::env::split_paths)
+        .collect();
+    dirs.push(PathBuf::from("."));
+    dirs
+}
+
+/// Read the file a document references, trying each directory of `search_path` in turn; an absolute
+/// reference is read directly. Returns the bytes, or `None` when no directory holds the file (or the
+/// reference is not a readable local path), leaving the reference as written.
+fn resolve_resource(reference: &str, search_path: &[PathBuf]) -> Option<Vec<u8>> {
+    let reference = Path::new(reference);
+    if reference.is_absolute() {
+        return fs::read(reference).ok();
     }
-}
-
-/// Whether a reference points outside the local filesystem — a URL or an inline `data:` payload.
-fn is_remote_reference(url: &str) -> bool {
-    url.starts_with("data:") || url.starts_with("//") || url.contains("://")
-}
-
-/// The image MIME type implied by a path's extension, or `None` when it is not a recognized image.
-fn mime_from_extension(path: &Path) -> Option<String> {
-    let extension = path
-        .extension()
-        .and_then(|ext| ext.to_str())?
-        .to_ascii_lowercase();
-    let mime = match extension.as_str() {
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "svg" => "image/svg+xml",
-        "webp" => "image/webp",
-        _ => return None,
-    };
-    Some(mime.to_owned())
+    search_path
+        .iter()
+        .find_map(|dir| fs::read(dir.join(reference)).ok())
 }
 
 /// Writes every resource in `media` to a file under `dir` (`<dir>/<name>`, creating parent

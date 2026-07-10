@@ -130,11 +130,62 @@ pub fn rewrite_extracted_references(blocks: &mut [Block], media: &MediaBag, dir:
     });
 }
 
+/// Pulls into `media` every image the document references but does not already carry, so a container
+/// writer can embed it. Each distinct reference is offered to `resolve`, which turns it into the
+/// resource's bytes — reading a file, fetching a URL, whatever the caller supports — or returns `None`
+/// to leave the reference as written. References already held in the bag, and those that name a URL or
+/// an inline `data:` payload, are skipped without consulting the resolver. The resource is recorded
+/// under the reference itself, with the MIME type its extension implies.
+pub fn embed_referenced_media(
+    blocks: &mut [Block],
+    media: &mut MediaBag,
+    mut resolve: impl FnMut(&str) -> Option<Vec<u8>>,
+) {
+    let mut references: Vec<String> = Vec::new();
+    walk::for_each_image_target(blocks, &mut |target| {
+        let url = target.url.to_string();
+        if !references.contains(&url) {
+            references.push(url);
+        }
+    });
+    for url in references {
+        if media.contains(&url) || is_remote_reference(&url) {
+            continue;
+        }
+        if let Some(bytes) = resolve(&url) {
+            let mime = mime_for_extension(&url);
+            media.insert(url, mime, bytes);
+        }
+    }
+}
+
+/// Whether a reference points outside the local filesystem — a URL or an inline `data:` payload —
+/// rather than a file the caller could read.
+fn is_remote_reference(url: &str) -> bool {
+    url.starts_with("data:") || url.starts_with("//") || url.contains("://")
+}
+
+/// The image MIME type a reference's extension implies, or `None` when it names no recognized image
+/// type. The inverse of [`extension_for_mime`], covering the raster and vector formats a document is
+/// likely to embed.
+fn mime_for_extension(reference: &str) -> Option<String> {
+    let extension = reference.rsplit('.').next()?.to_ascii_lowercase();
+    let mime = match extension.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        _ => return None,
+    };
+    Some(mime.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        MediaBag, content_addressed_name, extension_for_mime, extracted_path,
-        rewrite_extracted_references,
+        MediaBag, content_addressed_name, embed_referenced_media, extension_for_mime,
+        extracted_path, rewrite_extracted_references,
     };
     use carta_ast::{Block, Inline, Target};
 
@@ -213,6 +264,59 @@ mod tests {
             panic!("expected image");
         };
         target.url.as_str()
+    }
+
+    #[test]
+    fn embed_resolves_each_local_reference_once_and_types_it() {
+        let mut bag = MediaBag::new();
+        let mut blocks = vec![
+            Block::Para(vec![image("a.png"), image("photo.JPG")]),
+            // The same reference twice resolves once.
+            Block::Para(vec![image("a.png")]),
+            // Remote and data references never reach the resolver.
+            Block::Para(vec![image("https://example.com/b.png")]),
+            Block::Para(vec![image("data:image/png;base64,AAAA")]),
+            // A missing reference (resolver returns None) is left unembedded.
+            Block::Para(vec![image("gone.gif")]),
+        ];
+        let mut resolved = Vec::new();
+        embed_referenced_media(&mut blocks, &mut bag, |reference| {
+            resolved.push(reference.to_owned());
+            if reference == "gone.gif" {
+                None
+            } else {
+                Some(reference.as_bytes().to_vec())
+            }
+        });
+        assert_eq!(resolved, ["a.png", "photo.JPG", "gone.gif"]);
+        let entries: Vec<(&str, Option<&str>)> = bag
+            .iter()
+            .map(|(name, item)| (name, item.mime.as_deref()))
+            .collect();
+        assert_eq!(
+            entries,
+            [
+                ("a.png", Some("image/png")),
+                ("photo.JPG", Some("image/jpeg")),
+            ]
+        );
+    }
+
+    #[test]
+    fn embed_skips_a_reference_the_bag_already_holds() {
+        let mut bag = MediaBag::new();
+        bag.insert("a.png", Some("image/png".to_owned()), vec![9]);
+        let mut blocks = vec![Block::Para(vec![image("a.png")])];
+        let mut consulted = false;
+        embed_referenced_media(&mut blocks, &mut bag, |_| {
+            consulted = true;
+            Some(vec![1])
+        });
+        assert!(!consulted);
+        assert_eq!(
+            bag.get("a.png").map(|item| item.bytes.clone()),
+            Some(vec![9])
+        );
     }
 
     #[test]
