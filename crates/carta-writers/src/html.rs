@@ -16,7 +16,10 @@ use carta_ast::{
 };
 use carta_core::{MathMethod, MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
 #[cfg(feature = "highlight")]
-use carta_highlight::{SourceLine, Token, TokenKind};
+use carta_highlight::{SourceLine, Token};
+
+#[cfg(feature = "highlight")]
+use crate::highlight::{is_number_lines_class, plain_source_lines, start_line};
 
 use crate::common::{
     FILL_COLUMN, RowSpanGrid, clean_prefix_len, is_known_attribute, is_wide, normalize_image_attr,
@@ -1317,22 +1320,6 @@ impl State {
     }
 }
 
-/// Whether a class requests per-line numbering on a code block.
-#[cfg(feature = "highlight")]
-fn is_number_lines_class(class: &Text) -> bool {
-    matches!(class.as_str(), "numberLines" | "number-lines")
-}
-
-/// The first line's number: the `startFrom` key parsed as an integer, or 1 when absent or unparsable.
-#[cfg(feature = "highlight")]
-fn start_line(attr: &Attr) -> i64 {
-    attr.attributes
-        .iter()
-        .find(|(key, _)| key.as_str() == "startFrom")
-        .and_then(|(_, value)| value.as_str().parse::<i64>().ok())
-        .unwrap_or(1)
-}
-
 /// The attributes on a line's anchor. A numbered line's anchor carries none (its number is drawn by
 /// the stylesheet); an unnumbered line's anchor is hidden from assistive technology and taken out of
 /// the tab order — dropping the `aria-hidden` half in the presentational dialect that lacks it.
@@ -1345,30 +1332,6 @@ fn source_anchor_attrs(flavor: Flavor, numbered: bool) -> &'static str {
     } else {
         " tabindex=\"-1\""
     }
-}
-
-/// Split a code block's text into lines the way the tokenizer does, treating each as a single
-/// unclassified run. Used when a block is numbered but names no known language, so it still gets the
-/// numbered scaffolding without any color spans.
-#[cfg(feature = "highlight")]
-fn plain_source_lines(text: &str) -> Vec<SourceLine> {
-    if text.is_empty() {
-        return Vec::new();
-    }
-    let mut lines: Vec<&str> = text.split('\n').collect();
-    if text.ends_with('\n') {
-        lines.pop();
-    }
-    lines
-        .into_iter()
-        .map(|line| {
-            if line.is_empty() {
-                Vec::new()
-            } else {
-                vec![Token::new(TokenKind::Normal, line)]
-            }
-        })
-        .collect()
 }
 
 /// Write one classified token: an unclassified run as bare escaped text, any other kind wrapped in a

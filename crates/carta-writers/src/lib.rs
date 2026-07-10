@@ -29,6 +29,9 @@ mod common;
 ))]
 mod grid;
 
+#[cfg(feature = "highlight")]
+mod highlight;
+
 #[cfg(any(
     feature = "commonmark",
     feature = "markdown",
