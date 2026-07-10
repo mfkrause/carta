@@ -101,7 +101,7 @@ fn build_grammar(language: &Node) -> Grammar {
                                     target_list: list_name.clone(),
                                     source_list,
                                     source_language: name.clone(),
-                                })
+                                });
                             }
                             ContextTarget::Foreign { language, context } => {
                                 keyword_includes.push(KeywordInclude {
