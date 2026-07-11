@@ -1869,7 +1869,7 @@ fn inline_pieces_in(
 ) -> Vec<Piece> {
     let mut out = Vec::new();
     push_inlines(
-        inlines, &mut out, width, dialect, wrap, smart, in_header, hl,
+        inlines, &mut out, width, dialect, wrap, smart, in_header, false, hl,
     );
     out
 }
@@ -1885,11 +1885,14 @@ fn push_inlines(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    in_soul: bool,
     hl: Hl<'_>,
 ) {
     let mut remaining = inlines.iter().peekable();
     while let Some(inline) = remaining.next() {
-        push_inline(inline, out, width, dialect, wrap, smart, in_header, hl);
+        push_inline(
+            inline, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+        );
         if matches!(inline, Inline::Quoted(..))
             && let Some(Inline::Str(text)) = remaining.peek()
             && text.chars().next().is_some_and(is_quotation_mark)
@@ -1914,13 +1917,14 @@ fn push_inline(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    in_soul: bool,
     hl: Hl<'_>,
 ) {
     match inline {
         Inline::Str(text) => out.push(Piece::text(escape_smart(text, EscapeMode::Text, smart))),
         Inline::Emph(inlines) => {
             wrap_command(
-                "\\emph{", inlines, out, width, dialect, wrap, smart, in_header, hl,
+                "\\emph{", inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,
             );
         }
         Inline::Strong(inlines) => {
@@ -1933,17 +1937,18 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                in_soul,
                 hl,
             );
         }
         Inline::Underline(inlines) => {
             wrap_command(
-                "\\ul{", inlines, out, width, dialect, wrap, smart, in_header, hl,
+                "\\ul{", inlines, out, width, dialect, wrap, smart, in_header, true, hl,
             );
         }
         Inline::Strikeout(inlines) => {
             wrap_command(
-                "\\st{", inlines, out, width, dialect, wrap, smart, in_header, hl,
+                "\\st{", inlines, out, width, dialect, wrap, smart, in_header, true, hl,
             );
         }
         Inline::Superscript(inlines) => {
@@ -1956,6 +1961,7 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                in_soul,
                 hl,
             );
         }
@@ -1969,6 +1975,7 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                in_soul,
                 hl,
             );
         }
@@ -1982,6 +1989,7 @@ fn push_inline(
                 wrap,
                 smart,
                 in_header,
+                in_soul,
                 hl,
             );
         }
@@ -1995,7 +2003,9 @@ fn push_inline(
                 EscapeMode::Text,
                 smart,
             )));
-            push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
+            push_inlines(
+                inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+            );
             out.push(Piece::text(escape_smart(
                 &close.to_string(),
                 EscapeMode::Text,
@@ -2003,7 +2013,9 @@ fn push_inline(
             )));
         }
         Inline::Cite(_, inlines) => {
-            push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
+            push_inlines(
+                inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+            );
         }
         Inline::Code(attr, text) => {
             let rendered = highlighted_code_inline(attr, text, hl)
@@ -2018,9 +2030,13 @@ fn push_inline(
             out.push(Piece::Hard);
         }
         Inline::Math(kind, text) => {
-            let rendered = match kind {
-                MathType::InlineMath => format!("\\({text}\\)"),
-                MathType::DisplayMath => format!("\\[{text}\\]"),
+            // The `\(…\)` and `\[…\]` math delimiters are fragile inside the character-splitting
+            // `soul` commands for underline and strikeout; the plain dollar delimiters survive there.
+            let rendered = match (kind, in_soul) {
+                (MathType::InlineMath, false) => format!("\\({text}\\)"),
+                (MathType::DisplayMath, false) => format!("\\[{text}\\]"),
+                (MathType::InlineMath, true) => format!("${text}$"),
+                (MathType::DisplayMath, true) => format!("$${text}$$"),
             };
             out.push(Piece::text(rendered));
         }
@@ -2031,7 +2047,7 @@ fn push_inline(
         }
         Inline::Link(attr, inlines, target) => {
             push_link(
-                attr, inlines, target, out, width, dialect, wrap, smart, in_header, hl,
+                attr, inlines, target, out, width, dialect, wrap, smart, in_header, in_soul, hl,
             );
         }
         Inline::Image(attr, inlines, target) => {
@@ -2047,7 +2063,9 @@ fn push_inline(
             };
             open.push('{');
             out.push(Piece::text(open));
-            push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
+            push_inlines(
+                inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+            );
             out.push(Piece::text("}"));
         }
         Inline::Note(blocks) => {
@@ -2066,10 +2084,13 @@ fn wrap_command(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    in_soul: bool,
     hl: Hl<'_>,
 ) {
     out.push(Piece::text(open.to_owned()));
-    push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
+    push_inlines(
+        inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+    );
     out.push(Piece::text("}"));
 }
 
@@ -2084,6 +2105,7 @@ fn push_link(
     wrap: WrapMode,
     smart: bool,
     in_header: bool,
+    in_soul: bool,
     hl: Hl<'_>,
 ) {
     if !attr.id.is_empty() {
@@ -2094,23 +2116,30 @@ fn push_link(
         }));
     }
     // A target into the document itself is a cross-reference, not an external location: the
-    // fragment names a label and the link resolves through `\hyperref` rather than `\href`.
+    // fragment names a label and the link resolves through `\hyperref` rather than `\href`. A
+    // cross-reference is not boxed inside an underline or strikeout; only external links are.
     if let Some(reference) = target.url.strip_prefix('#') {
         out.push(Piece::text(format!(
             "\\hyperref[{}]{{",
             cross_reference_label(reference)
         )));
         for inline in inlines {
-            push_inline(inline, out, width, dialect, wrap, smart, in_header, hl);
+            push_inline(
+                inline, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+            );
         }
         out.push(Piece::text("}"));
         return;
     }
+    // The `soul` commands for underline and strikeout break their argument into individual
+    // characters, which fails on the box a hyperlink builds; wrapping the link in `\mbox` keeps it
+    // as one unbreakable unit that the surrounding command can style.
+    let (box_open, box_close) = if in_soul { ("\\mbox{", "}") } else { ("", "") };
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
         && label_matches_url(text, &target.url)
     {
-        out.push(Piece::text(format!("\\url{{{url}}}")));
+        out.push(Piece::text(format!("{box_open}\\url{{{url}}}{box_close}")));
         return;
     }
     // A mailto link whose visible text is the bare address renders the address verbatim, with no
@@ -2121,13 +2150,15 @@ fn push_link(
     {
         let address = escape_url(address);
         out.push(Piece::text(format!(
-            "\\href{{{url}}}{{\\nolinkurl{{{address}}}}}"
+            "{box_open}\\href{{{url}}}{{\\nolinkurl{{{address}}}}}{box_close}"
         )));
         return;
     }
-    out.push(Piece::text(format!("\\href{{{url}}}{{")));
-    push_inlines(inlines, out, width, dialect, wrap, smart, in_header, hl);
-    out.push(Piece::text("}"));
+    out.push(Piece::text(format!("{box_open}\\href{{{url}}}{{")));
+    push_inlines(
+        inlines, out, width, dialect, wrap, smart, in_header, in_soul, hl,
+    );
+    out.push(Piece::text(format!("}}{box_close}")));
 }
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> String {
@@ -2792,6 +2823,66 @@ mod tests {
         assert!(out.contains("width=0.5\\linewidth"));
         assert!(out.contains("height=2in"));
         assert!(out.contains("alt={alt}"));
+    }
+
+    #[test]
+    fn link_inside_underline_or_strikeout_is_boxed() {
+        let link = || {
+            Inline::Link(
+                Box::default(),
+                str_inlines("txt"),
+                Box::new(Target {
+                    url: "http://x.com".into(),
+                    title: String::new().into(),
+                }),
+            )
+        };
+        // A hyperlink inside a soul command is boxed so the command cannot split it apart.
+        assert!(
+            render(vec![Block::Para(vec![Inline::Underline(vec![link()])])])
+                .contains("\\ul{\\mbox{\\href{http://x.com}{txt}}}")
+        );
+        assert!(
+            render(vec![Block::Para(vec![Inline::Strikeout(vec![link()])])])
+                .contains("\\st{\\mbox{\\href{http://x.com}{txt}}}")
+        );
+        // A link that merely follows a soul span is not boxed: the context does not leak to siblings.
+        let sibling = render(vec![Block::Para(vec![
+            Inline::Underline(str_inlines("u")),
+            Inline::Space,
+            link(),
+        ])]);
+        assert!(sibling.contains("\\ul{u} \\href{http://x.com}{txt}"));
+        assert!(!sibling.contains("\\mbox"));
+        // An internal cross-reference inside a soul command resolves through \hyperref and is not
+        // boxed.
+        let xref = render(vec![Block::Para(vec![Inline::Underline(vec![
+            Inline::Link(
+                Box::default(),
+                str_inlines("txt"),
+                Box::new(Target {
+                    url: "#sec".into(),
+                    title: String::new().into(),
+                }),
+            ),
+        ])])]);
+        assert!(xref.contains("\\ul{\\hyperref[sec]{txt}}"));
+        assert!(!xref.contains("\\mbox"));
+    }
+
+    #[test]
+    fn math_inside_soul_uses_dollar_delimiters() {
+        let math = |kind| Inline::Math(kind, "x^2".into());
+        let inline = render(vec![Block::Para(vec![Inline::Underline(vec![math(
+            MathType::InlineMath,
+        )])])]);
+        assert!(inline.contains("\\ul{$x^2$}"));
+        let display = render(vec![Block::Para(vec![Inline::Strikeout(vec![math(
+            MathType::DisplayMath,
+        )])])]);
+        assert!(display.contains("\\st{$$x^2$$}"));
+        // Outside a soul command the fragile bracket delimiters are used.
+        assert!(render(vec![Block::Para(vec![math(MathType::InlineMath)])]).contains("\\(x^2\\)"));
     }
 
     #[test]
