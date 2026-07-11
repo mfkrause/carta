@@ -621,8 +621,8 @@ impl Parser {
         if !grid::is_top_border(first) || blank {
             return false;
         }
-        let line = cursor.rest();
-        if grid::is_grid_line(&line) {
+        let line = cursor.remaining();
+        if grid::is_grid_line(line) {
             self.append_text(leaf, line.trim_start_matches(' '));
             self.append_text(leaf, "\n");
             return true;
@@ -652,7 +652,7 @@ impl Parser {
         else {
             return false;
         };
-        let rest = cursor.rest();
+        let rest = cursor.remaining();
         let Some(header) = self.node_text_ref(leaf) else {
             return false;
         };
@@ -661,20 +661,20 @@ impl Parser {
         // committed to being a line block.
         if matches!(self.kind(leaf), Some(Kind::LineBlock)) {
             if !single_line(header)
-                || !table::opens_table(header.trim_end(), &rest, self.greedy_paragraphs)
+                || !table::opens_table(header.trim_end(), rest, self.greedy_paragraphs)
             {
                 return false;
             }
             if let Some(node) = self.nodes.get_mut(leaf) {
                 node.kind = Kind::Paragraph;
             }
-            self.append_text(leaf, &rest);
+            self.append_text(leaf, rest);
             self.append_text(leaf, "\n");
             return true;
         }
-        match table::classify_continuation(header, &rest, self.greedy_paragraphs) {
+        match table::classify_continuation(header, rest, self.greedy_paragraphs) {
             table::Continuation::Absorb => {
-                self.append_text(leaf, &rest);
+                self.append_text(leaf, rest);
                 self.append_text(leaf, "\n");
                 true
             }
@@ -713,7 +713,7 @@ impl Parser {
                     .node_text_ref(block)
                     .is_some_and(|text| !last_entry_is_empty(text)));
         if absorb {
-            self.append_text(block, &cursor.rest());
+            self.append_text(block, remaining);
             self.append_text(block, "\n");
             true
         } else {
@@ -774,10 +774,10 @@ impl Parser {
     /// when the depth returns to zero the environment closes at that `\end`, dropping the trailing
     /// newline. Any content after the closing `\end` on the same line is re-fed as a fresh line.
     fn feed_raw_tex(&mut self, index: usize, line: &str) {
-        let Some(Kind::RawTex { name, depth }) = self.kind(index).cloned() else {
+        let Some(Kind::RawTex { name, depth }) = self.kind(index) else {
             return;
         };
-        let (new_depth, close_at) = raw_tex_scan(line, &name, depth);
+        let (new_depth, close_at) = raw_tex_scan(line, name, *depth);
         if let Some(end) = close_at {
             // The matching `\end` ends the environment; the closing newline is dropped, and any
             // content past the `\end` on this line is re-fed as a fresh line.
@@ -1026,13 +1026,13 @@ impl Parser {
                 // through the paragraph path, so it is restored to the column it began at; the ruling
                 // and the rows below keep their own leading whitespace.
                 let header_indent = self.nodes.get(leaf).map_or(0, |node| node.indent);
-                let ruling = cursor.rest();
+                let ruling = cursor.remaining();
                 let header = format!("{}{header}", " ".repeat(header_indent));
                 if let Some(node) = self.nodes.get_mut(leaf) {
                     node.kind = Kind::TextTable;
                     node.text = header;
                 }
-                self.append_text(leaf, &ruling);
+                self.append_text(leaf, ruling);
                 self.append_text(leaf, "\n");
                 true
             }
@@ -1054,7 +1054,7 @@ impl Parser {
                     self.append_text(leaf, "\n");
                     return true;
                 }
-                self.append_text(leaf, &cursor.rest_with_newline());
+                self.append_line(leaf, cursor);
                 true
             }
             _ => false,
@@ -1362,7 +1362,7 @@ impl Parser {
 
     /// Try to continue an open container (block quote / list item) or open leaf on this line.
     fn try_continue(&mut self, index: usize, cursor: &mut Cursor) -> Continue {
-        match self.kind(index).cloned() {
+        match self.kind(index) {
             // A list (and the two grouping levels of a definition list) is a transparent container:
             // it consumes nothing and defers to its items.
             Some(Kind::List(_) | Kind::DefinitionList | Kind::DefinitionItem { .. }) => {
@@ -1375,6 +1375,7 @@ impl Parser {
             // an as-yet-empty body survives a blank line, so a deferred indented paragraph still
             // joins it.
             Some(Kind::Definition { indent }) => {
+                let indent = *indent;
                 self.continue_item_like(index, indent, true, cursor)
             }
             // A fenced div re-bases its content to the column it opened at: it consumes up to that
@@ -1398,7 +1399,10 @@ impl Parser {
                     Continue::NotMatched
                 }
             }
-            Some(Kind::Item(info)) => self.continue_item_like(index, info.indent, false, cursor),
+            Some(Kind::Item(info)) => {
+                let indent = info.indent;
+                self.continue_item_like(index, indent, false, cursor)
+            }
             // A footnote definition's content continues under a four-column indent, the same as a
             // list item; an unindented non-blank line ends it (an open paragraph may still take it
             // as a lazy continuation, handled by the caller).
@@ -1417,27 +1421,31 @@ impl Parser {
                 }
             }
             Some(Kind::FencedCode(fence)) => {
-                self.continue_fenced(index, &fence, cursor);
+                let (marker, length, indent) = (fence.marker, fence.length, fence.indent);
+                self.continue_fenced(index, marker, length, indent, cursor);
                 Continue::MatchedLeaf
             }
             Some(Kind::IndentedCode) => {
                 if cursor.is_blank() {
                     cursor.advance_up_to_columns(TAB_STOP);
-                    self.append_text(index, &cursor.rest_with_newline());
+                    self.append_line(index, cursor);
                     Continue::MatchedLeaf
                 } else if cursor.indent() >= TAB_STOP {
                     cursor.advance_columns(TAB_STOP);
-                    self.append_text(index, &cursor.rest_with_newline());
+                    self.append_line(index, cursor);
                     Continue::MatchedLeaf
                 } else {
                     Continue::NotMatched
                 }
             }
             Some(Kind::HtmlBlock(kind)) => {
+                let kind = *kind;
                 self.continue_html(index, kind, cursor);
                 Continue::MatchedLeaf
             }
             Some(Kind::RawHtmlSpan { tag, depth }) => {
+                let tag = tag.clone();
+                let depth = *depth;
                 self.continue_raw_html_span(index, &tag, depth, cursor);
                 Continue::MatchedLeaf
             }
@@ -1471,17 +1479,23 @@ impl Parser {
         }
     }
 
-    fn continue_fenced(&mut self, index: usize, fence: &FenceInfo, cursor: &mut Cursor) {
+    fn continue_fenced(
+        &mut self,
+        index: usize,
+        marker: u8,
+        length: usize,
+        fence_indent: usize,
+        cursor: &mut Cursor,
+    ) {
         let indent = cursor.indent();
-        if indent <= 3 && cursor.is_closing_fence(fence.marker, fence.length) {
+        if indent <= 3 && cursor.is_closing_fence(marker, length) {
             if let Some(node) = self.nodes.get_mut(index) {
                 node.open = false;
             }
             return;
         }
-        cursor.advance_up_to_columns(fence.indent);
-        let content = cursor.rest_with_newline();
-        self.append_text(index, &content);
+        cursor.advance_up_to_columns(fence_indent);
+        self.append_line(index, cursor);
     }
 
     fn continue_html(&mut self, index: usize, kind: u8, cursor: &mut Cursor) {
@@ -1490,10 +1504,10 @@ impl Parser {
             self.close(index);
             return;
         }
-        let line = cursor.rest();
-        self.append_text(index, &line);
+        let line = cursor.remaining();
+        self.append_text(index, line);
         self.append_text(index, "\n");
-        if html_block::closes(kind, &line) {
+        if html_block::closes(kind, line) {
             self.close(index);
         }
     }
@@ -1508,10 +1522,10 @@ impl Parser {
         depth: usize,
         cursor: &mut Cursor,
     ) {
-        let line = cursor.rest();
-        let (new_depth, close) = html_element::scan_depth(&line, tag, depth);
+        let line = cursor.remaining();
+        let (new_depth, close) = html_element::scan_depth(line, tag, depth);
         if let Some(offset) = close {
-            let kept = line.get(..offset).unwrap_or(&line).to_owned();
+            let kept = line.get(..offset).unwrap_or(line).to_owned();
             let rest = line.get(offset..).unwrap_or("").to_owned();
             self.append_text(index, &kept);
             self.set_raw_html_depth(index, 0);
@@ -1520,7 +1534,7 @@ impl Parser {
                 self.process_line(&rest, &[]);
             }
         } else {
-            self.append_text(index, &line);
+            self.append_text(index, line);
             self.append_text(index, "\n");
             self.set_raw_html_depth(index, new_depth);
         }
@@ -1710,7 +1724,7 @@ impl Parser {
             cursor.advance_columns(TAB_STOP);
             let parent = self.place(container, &Kind::IndentedCode);
             let index = self.append_child(parent, Node::new(Kind::IndentedCode));
-            self.append_text(index, &cursor.rest_with_newline());
+            self.append_line(index, cursor);
             return Some(index);
         }
 
@@ -1766,7 +1780,7 @@ impl Parser {
             {
                 let parent = self.place(container, &Kind::Heading(level));
                 let index = self.append_child(parent, Node::new(Kind::Heading(level)));
-                self.append_text(index, &strip_atx_closing(&cursor.rest(), require_space));
+                self.append_text(index, &strip_atx_closing(cursor.remaining(), require_space));
                 self.close(index);
                 return Some(index);
             }
@@ -1816,7 +1830,7 @@ impl Parser {
                 let parent = self.place(container, &Kind::HtmlBlock(kind));
                 let index = self.append_child(parent, Node::new(Kind::HtmlBlock(kind)));
                 // The start line keeps its leading indentation (always spaces after normalization).
-                let line = format!("{}{}", " ".repeat(indent), cursor.rest());
+                let line = format!("{}{}", " ".repeat(indent), cursor.remaining());
                 self.append_text(index, &line);
                 self.append_text(index, "\n");
                 if html_block::closes(kind, &line) {
@@ -1838,7 +1852,7 @@ impl Parser {
                 let index = self.append_child(parent, Node::new(Kind::TextTable));
                 // The ruling keeps its leading indentation: a dash-ruled table's columns are
                 // positional, so every line must share one left margin (here, the rows below).
-                let line = format!("{}{}", " ".repeat(indent), cursor.rest());
+                let line = format!("{}{}", " ".repeat(indent), cursor.remaining());
                 self.append_text(index, &line);
                 self.append_text(index, "\n");
                 return Some(index);
@@ -1907,9 +1921,9 @@ impl Parser {
         None
     }
 
-    fn last_open_leaf_kind(&self, container: usize) -> Option<Kind> {
+    fn last_open_leaf_kind(&self, container: usize) -> Option<&Kind> {
         let leaf = self.deepest_open(container);
-        self.kind(leaf).cloned()
+        self.kind(leaf)
     }
 
     /// Open a line block on a `|` flush at the line start. A line block never interrupts a paragraph
@@ -2182,11 +2196,10 @@ impl Parser {
             // The opener attached its own leaf; only a freshly-opened paragraph or container
             // (block quote / list item with trailing content) still needs this line's text.
             let leaf = self.deepest_open(container);
-            match self.kind(leaf).cloned() {
+            match self.kind(leaf) {
                 Some(Kind::Paragraph) => {
                     self.note_paragraph_indent(leaf, cursor);
-                    self.append_text(leaf, &cursor.rest());
-                    self.append_text(leaf, "\n");
+                    self.append_line(leaf, cursor);
                 }
                 Some(
                     Kind::Heading(_)
@@ -2201,12 +2214,10 @@ impl Parser {
                 _ => {
                     // An opener whose own line carries no content (a bare marker) leaves its
                     // container empty rather than seeding an empty paragraph.
-                    let rest = cursor.rest();
-                    if !rest.trim().is_empty() {
+                    if !cursor.remaining().trim().is_empty() {
                         let index = self.append_child(leaf, Node::new(Kind::Paragraph));
                         self.note_paragraph_indent(index, cursor);
-                        self.append_text(index, &rest);
-                        self.append_text(index, "\n");
+                        self.append_line(index, cursor);
                     }
                 }
             }
@@ -2217,16 +2228,14 @@ impl Parser {
         // containers, or start a fresh paragraph in the matched container.
         let deepest = self.deepest_open(0);
         if matches!(self.kind(deepest), Some(Kind::Paragraph)) {
-            self.append_text(deepest, &cursor.rest());
-            self.append_text(deepest, "\n");
+            self.append_line(deepest, cursor);
             return;
         }
 
         let parent = self.place(container, &Kind::Paragraph);
         let index = self.append_child(parent, Node::new(Kind::Paragraph));
         self.note_paragraph_indent(index, cursor);
-        self.append_text(index, &cursor.rest());
-        self.append_text(index, "\n");
+        self.append_line(index, cursor);
     }
 
     /// Record the column a freshly opened paragraph's first line began at, so a dash ruling on the
@@ -2247,15 +2256,23 @@ impl Parser {
         }
     }
 
+    fn append_line(&mut self, index: usize, cursor: &Cursor) {
+        if let Some(node) = self.nodes.get_mut(index) {
+            node.text.push_str(cursor.remaining());
+            node.text.push('\n');
+        }
+    }
+
     fn finish(mut self) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
         // Pre-pass: pull link reference definitions out of every paragraph.
         for index in 0..self.nodes.len() {
             if matches!(self.kind(index), Some(Kind::Paragraph)) {
-                let text = self.node_text(index);
                 let column_zero = self.nodes.get(index).is_some_and(|node| node.indent == 0);
-                let stripped = self.extract_refs(&text, column_zero);
-                if let Some(node) = self.nodes.get_mut(index) {
-                    node.text = stripped;
+                let consumed = self.extract_leading_definitions(index, column_zero);
+                if consumed > 0
+                    && let Some(node) = self.nodes.get_mut(index)
+                {
+                    node.text.drain(..consumed);
                 }
             }
         }
@@ -2366,6 +2383,34 @@ impl Parser {
             break;
         }
         remaining.to_owned()
+    }
+
+    /// Register the definitions that lead a paragraph's text and return the byte length they occupy,
+    /// so the caller can strip them from the node's buffer in place. Behaves as [`Self::extract_refs`]
+    /// but reports the consumed prefix length rather than copying the remainder.
+    fn extract_leading_definitions(&mut self, index: usize, column_zero: bool) -> usize {
+        let abbreviations = column_zero && self.extensions.contains(Extension::Abbreviations);
+        let greedy = self.greedy_paragraphs;
+        let Some(node) = self.nodes.get(index) else {
+            return 0;
+        };
+        let text = node.text.as_str();
+        let mut remaining = text;
+        loop {
+            if let Some((label, def, rest)) =
+                scan::parse_link_reference_definition(remaining, greedy)
+            {
+                self.refs.entry(label).or_insert(def);
+                remaining = rest;
+                continue;
+            }
+            if abbreviations && let Some(rest) = scan::parse_abbreviation_definition(remaining) {
+                remaining = rest;
+                continue;
+            }
+            break;
+        }
+        text.len() - remaining.len()
     }
 
     fn build_children(&self, index: usize) -> Vec<IrBlock> {

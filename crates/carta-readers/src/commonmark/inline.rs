@@ -1614,8 +1614,8 @@ impl<'a> InlineParser<'a> {
         let hard = matches!(self.nodes.last(), Some(Node::Text(t)) if t.ends_with("  "));
         let backslash_hard = matches!(self.nodes.last(), Some(Node::LineBreak));
         if let Some(Node::Text(text)) = self.nodes.last_mut() {
-            let trimmed = text.trim_end_matches(' ').to_owned();
-            *text = trimmed;
+            let keep = text.trim_end_matches(' ').len();
+            text.truncate(keep);
             if text.is_empty() {
                 self.nodes.pop();
             }

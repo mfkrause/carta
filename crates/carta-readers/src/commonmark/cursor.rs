@@ -227,12 +227,6 @@ impl<'a> Cursor<'a> {
         self.remaining().to_owned()
     }
 
-    pub(super) fn rest_with_newline(&self) -> String {
-        let mut out = self.rest();
-        out.push('\n');
-        out
-    }
-
     /// Parse an ATX heading opener, returning its level. `CommonMark` caps the level at six hashes;
     /// when `allow_deep` is set (the Markdown dialect) a run of seven or more hashes is a valid
     /// heading at that exact, uncapped level. At least one hash is always required. When
