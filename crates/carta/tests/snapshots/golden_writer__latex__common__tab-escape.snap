@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+a	b \texttt{c	d}
+
+\begin{verbatim}
+	x	y
+\end{verbatim}

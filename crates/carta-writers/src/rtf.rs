@@ -688,11 +688,12 @@ fn block_is_blank(block: &Block) -> bool {
     }
 }
 
-/// Escape literal text for RTF: the control characters `\`, `{`, and `}` are backslash-escaped; a few
-/// typographic characters carry an ASCII fallback after their `\uN` escape; every other non-ASCII
-/// character becomes one `\uN ?` escape per UTF-16 code unit (a pair for astral characters).
+/// Escape literal text for RTF: the control characters `\`, `{`, and `}` are backslash-escaped; a tab
+/// becomes the `\tab` control word; a few typographic characters carry an ASCII fallback after their
+/// `\uN` escape; every other non-ASCII character becomes one `\uN ?` escape per UTF-16 code unit (a
+/// pair for astral characters).
 fn rtf_escape(text: &str) -> String {
-    let is_trigger = |byte: u8| matches!(byte, b'\\' | b'{' | b'}') || byte >= 0x80;
+    let is_trigger = |byte: u8| matches!(byte, b'\\' | b'{' | b'}' | b'\t') || byte >= 0x80;
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     loop {
@@ -708,6 +709,7 @@ fn rtf_escape(text: &str) -> String {
             '\\' => out.push_str("\\\\"),
             '{' => out.push_str("\\{"),
             '}' => out.push_str("\\}"),
+            '\t' => out.push_str("\\tab "),
             '\u{2018}' => out.push_str("\\u8216'"),
             '\u{2019}' => out.push_str("\\u8217'"),
             '\u{201c}' => out.push_str("\\u8220\""),
