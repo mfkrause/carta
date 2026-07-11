@@ -44,8 +44,8 @@ jira	table/table-empty-cell
 man	table/table-empty-cell
 typst	table/table-empty-cell
 
-# The man writer's line fill breaks a long run of adjacent inline equations at a different column
-# than the oracle, so these wide math paragraphs wrap differently; the rendered content is the same.
+# The man writer's line fill breaks a long run of adjacent inline equations at a column that depends
+# on the run's width, so these wide math paragraphs wrap at points not worth comparing; content is the same.
 man	math/braces
 man	math/matrix-array
 man	math/over-under-set
