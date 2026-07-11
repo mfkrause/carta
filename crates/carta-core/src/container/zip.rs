@@ -292,17 +292,39 @@ fn u32_at(buf: &[u8], at: usize) -> Result<u32> {
     Ok(u32::from_le_bytes(array))
 }
 
-/// The CRC-32 (IEEE 802.3) of `data`, computed bitwise so no lookup table is needed.
-fn crc32(data: &[u8]) -> u32 {
-    let mut crc: u32 = 0xFFFF_FFFF;
-    for &byte in data {
-        crc ^= u32::from(byte);
+/// The 256-entry CRC-32 (IEEE 802.3) lookup table, built at compile time from the reversed
+/// polynomial so a byte folds in with one table read instead of eight shift/xor rounds.
+#[allow(
+    clippy::indexing_slicing,
+    reason = "the table index is the loop counter, bounded by the `< 256` guard"
+)]
+const CRC_TABLE: [u32; 256] = {
+    let mut table = [0u32; 256];
+    let mut index: u32 = 0;
+    while index < 256 {
+        let mut crc = index;
         let mut bit = 0;
         while bit < 8 {
             let mask = (crc & 1).wrapping_neg();
             crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
             bit += 1;
         }
+        table[index as usize] = crc;
+        index += 1;
+    }
+    table
+};
+
+/// The CRC-32 (IEEE 802.3) of `data`, folded one byte at a time through [`CRC_TABLE`].
+#[allow(
+    clippy::indexing_slicing,
+    reason = "the slot is masked to the low byte, so it always indexes within the 256-entry table"
+)]
+fn crc32(data: &[u8]) -> u32 {
+    let mut crc: u32 = 0xFFFF_FFFF;
+    for &byte in data {
+        let slot = ((crc ^ u32::from(byte)) & 0xff) as usize;
+        crc = (crc >> 8) ^ CRC_TABLE[slot];
     }
     !crc
 }
@@ -330,6 +352,24 @@ mod tests {
         // The canonical CRC-32 check value for the ASCII string "123456789".
         assert_eq!(crc32(b"123456789"), 0xCBF4_3926);
         assert_eq!(crc32(b""), 0);
+        // A multi-KB buffer, checked against the reference bitwise formulation the table replaces.
+        let buffer: Vec<u8> = (0..4096u32)
+            .map(|index| u8::try_from((index * 31 + 7) % 256).unwrap_or(0))
+            .collect();
+        assert_eq!(crc32(&buffer), crc32_bitwise(&buffer));
+    }
+
+    /// The pre-table bitwise CRC-32, kept in the test to pin the table-driven result to it.
+    fn crc32_bitwise(data: &[u8]) -> u32 {
+        let mut crc: u32 = 0xFFFF_FFFF;
+        for &byte in data {
+            crc ^= u32::from(byte);
+            for _ in 0..8 {
+                let mask = (crc & 1).wrapping_neg();
+                crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
+            }
+        }
+        !crc
     }
 
     #[test]
