@@ -122,6 +122,24 @@ fn jfif_dpi(units: u8, x_density: u16, y_density: u16) -> Option<(u32, u32)> {
     Some((to_dpi(x_density)?, to_dpi(y_density)?))
 }
 
+/// A raster image format that a container writer can embed directly by its own blip control.
+pub(crate) enum RasterFormat {
+    Png,
+    Jpeg,
+}
+
+/// Classifies an image by its leading signature bytes as one of the raster formats embeddable
+/// directly, or `None` for anything else.
+pub(crate) fn raster_format(bytes: &[u8]) -> Option<RasterFormat> {
+    if bytes.get(..PNG_SIGNATURE.len()) == Some(PNG_SIGNATURE) {
+        Some(RasterFormat::Png)
+    } else if bytes.get(..2) == Some([0xff, 0xd8].as_slice()) {
+        Some(RasterFormat::Jpeg)
+    } else {
+        None
+    }
+}
+
 /// The eight-byte signature every PNG begins with.
 const PNG_SIGNATURE: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
 

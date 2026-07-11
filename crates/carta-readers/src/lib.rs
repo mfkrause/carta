@@ -23,8 +23,15 @@ mod entities;
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod inline_scan;
-#[cfg(any(feature = "dokuwiki", feature = "rst", feature = "man"))]
+#[cfg(any(
+    feature = "dokuwiki",
+    feature = "rst",
+    feature = "man",
+    feature = "rtf"
+))]
 mod inline_text;
+#[cfg(any(feature = "ipynb", feature = "rtf"))]
+mod numeric;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
 

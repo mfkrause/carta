@@ -124,6 +124,18 @@ pub(crate) fn dimension_pixels(dimension: &Dimension) -> Option<u64> {
     }
 }
 
+/// Resolve a dimension to a length in inches: a pixel or unitless value through
+/// [`IMAGE_PIXEL_DPI`], a physical or font-relative length through its unit's size in inches, and a
+/// percentage — having no absolute size — to `None`.
+pub(crate) fn dimension_inches(dimension: &Dimension) -> Option<f64> {
+    match dimension {
+        #[allow(clippy::cast_precision_loss)]
+        Dimension::Pixels(count) => Some(*count as f64 / f64::from(IMAGE_PIXEL_DPI)),
+        Dimension::Percent(_) => None,
+        Dimension::Length(magnitude, unit) => Some(magnitude * unit_inches(unit)),
+    }
+}
+
 /// Render the CSS value of a length dimension: the magnitude rounded to five fractional digits with
 /// trailing zeros (and a bare trailing dot) dropped, followed by the unit.
 pub(crate) fn format_length_dimension(magnitude: f64, unit: &str) -> String {

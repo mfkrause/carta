@@ -116,6 +116,35 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
 ### `rtf` — ✅
+- `\'xx` bytes and an unqualified `\ansi` document are read as Windows-1252 (Latin-1 above `0x9F`);
+  `\ansicpg` and the `\mac`/`\pc`/`\pca` charsets are not honored, so bytes in another code page
+  decode to the wrong characters.
+- A control byte delivered through a `\'xx` or `\uN` escape (tab, line feed) is kept as a literal
+  character in the text rather than normalized to a space or line break.
+- Only `\pngblip` and `\jpegblip` pictures carry a proper MIME type; an `\emfblip` is stored as
+  `image/emf`, and a `\wmetafile`/`\dibitmap`/`\wbitmap` picture is dropped.
+- A nested table (`\nestcell`/`\nestrow`) is flattened into the surrounding table as ordinary cells
+  and rows rather than reconstructed as a table inside a cell.
+- Reconstructed tables are minimal: every cell spans one row and column with default alignment and
+  width, and header/footer rows and cell spans carried by the row properties are not derived.
+- A non-`HYPERLINK` field (a table of contents, `PAGEREF`, a form field, …) degrades to its
+  `\fldrslt` display text, dropping the field's semantics.
+- Character formatting that wraps a hyperlink's entire display text stays inside the `Link` rather
+  than around it.
+- Character properties other than the boolean toggles are dropped: font family, size, and color
+  produce no styling; only bold, italic, underline, strikeout, super/subscript, small caps, and all
+  caps surface.
+- A `\cs` character-style reference is ignored, so a run formatted only through a named character
+  style loses that formatting.
+- A bookmark (`\*\bkmkstart`/`\*\bkmkend`) span does not merge character formatting across its
+  boundary and is re-wrapped only in the paragraph where it opens.
+- `\softline` renders as a hard line break rather than being dropped.
+- A trailing `\line` immediately before `\par`, and whitespace touching a `\line`, are kept rather
+  than trimmed.
+- A UTF-16 surrogate pair (`\uN\uN`) is recombined into its astral scalar instead of emitted as two
+  replacement characters.
+- Formatting inside an `\info` metadata field is flattened to plain text, and only a fixed set of
+  fields becomes metadata (`\generator` and `\hlinkbase` are dropped).
 - Every ordered-list level's delimiter is emitted as a trailing period regardless of its `\leveltext`.
 - Group nesting past a fixed depth is discarded rather than descended into, to bound stack use.
 - An outline level at the signed 32-bit maximum saturates its heading level instead of exceeding it.
@@ -204,7 +233,24 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 ### `rtf` — ✅
 - An embedded image whose header carries no resolution is sized at 72 dpi.
 - An image in a raster format other than PNG or JPEG is written as a bracketed placeholder naming the
-  source rather than embedded.
+  source rather than embedded, and an image's alt text and title are dropped.
+- A footnote placed inside a table cell loses the in-table flag on its body, which is set outside any
+  enclosing row.
+- A table nested inside another table's cell emits a single `\intbl` on its cell paragraphs
+  regardless of nesting depth.
+- Cell column and row spans are not rendered as merged cells; the covered area is filled with empty
+  cells rather than a spanning cell.
+- A table caption is flattened to a single inline paragraph; a non-paragraph caption block
+  contributes nothing.
+- A link's title and attributes are dropped, and every link — including an intra-document `#anchor` —
+  renders as a `HYPERLINK` field.
+- `Div`, `Span`, and `Cite` wrappers render only their children; their attributes and citation
+  metadata are dropped.
+- Code blocks and inline code render in the monospace font with no per-token syntax coloring.
+- Display math that cannot be linearized is emitted inline between `$$` delimiters rather than set
+  off in its own centered paragraph.
+- An out-of-range heading level saturates its font size and outline level rather than erroring, and
+  headings carry no section numbers or back-reference anchors.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,

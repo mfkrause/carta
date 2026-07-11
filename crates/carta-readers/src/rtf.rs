@@ -30,6 +30,9 @@ use carta_ast::{
 use carta_core::media::content_addressed_name;
 use carta_core::{BytesReader, MediaBag, ReaderOptions, Result};
 
+use crate::inline_text::words_to_inlines;
+use crate::numeric::general_decimal;
+
 /// Parses a Rich Text Format document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RtfReader;
@@ -247,6 +250,29 @@ impl CharProps {
             hidden: false,
             ..other
         }
+    }
+
+    /// Whether this state yields the same inline wrapper path as `other` (see [`wrappers`]), comparing
+    /// only the wrapper-bearing attributes so no path is built.
+    fn same_wrappers(self, other: Self) -> bool {
+        self.bold == other.bold
+            && self.italic == other.italic
+            && self.strike == other.strike
+            && self.subscript == other.subscript
+            && self.superscript == other.superscript
+            && self.smallcaps == other.smallcaps
+            && self.underline == other.underline
+    }
+
+    /// Whether this state carries any inline wrapper at all (see [`wrappers`]).
+    fn has_wrapper(self) -> bool {
+        self.bold
+            || self.italic
+            || self.strike
+            || self.subscript
+            || self.superscript
+            || self.smallcaps
+            || self.underline
     }
 }
 
@@ -511,7 +537,7 @@ fn collapse_mono(atoms: Vec<Atom>) -> Vec<Atom> {
         if mono_leaf {
             let split = run
                 .first()
-                .is_some_and(|first| wrappers(first.props) != wrappers(atom.props));
+                .is_some_and(|first| !first.props.same_wrappers(atom.props));
             if split {
                 flush(&mut run, &mut out);
             }
@@ -531,7 +557,7 @@ fn collapse_mono(atoms: Vec<Atom>) -> Vec<Atom> {
 fn mono_code_block(atoms: &[Atom]) -> Option<String> {
     let mut code = String::new();
     for atom in atoms {
-        if !atom.props.mono || !wrappers(atom.props).is_empty() {
+        if !atom.props.mono || atom.props.has_wrapper() {
             return None;
         }
         match &atom.kind {
@@ -620,6 +646,9 @@ struct Emitter {
     list_level: i32,
     list_levels: Vec<LevelDef>,
     pending_list: Vec<ListParagraph>,
+    /// Fallback buffer returned by [`Emitter::frame_atoms`] only if the frame stack is ever empty,
+    /// which its guard prevents; keeps the accessor total without a panic or a leak.
+    scratch_atoms: Vec<Atom>,
 }
 
 /// One paragraph belonging to a list, tagged with the list it selects (`\ls`), its nesting level
@@ -693,6 +722,7 @@ impl Emitter {
             list_level: 0,
             list_levels: Vec::new(),
             pending_list: Vec::new(),
+            scratch_atoms: Vec::new(),
         }
     }
 
@@ -703,10 +733,10 @@ impl Emitter {
                 atoms: Vec::new(),
             });
         }
-        // The guard above guarantees a last element.
+        // The guard above guarantees a last element; the scratch buffer is dead-code fallback.
         match self.frames.last_mut() {
             Some(frame) => &mut frame.atoms,
-            None => unreachable_empty(),
+            None => &mut self.scratch_atoms,
         }
     }
 
@@ -1111,14 +1141,6 @@ fn build_one_list(entries: &[ListParagraph], depth: usize) -> (Block, usize) {
     (block, i)
 }
 
-/// Unreachable helper kept panic-free: the callers guarantee a non-empty frame stack, but rather
-/// than index or unwrap, an empty stack yields an empty static scratch buffer.
-fn unreachable_empty() -> &'static mut Vec<Atom> {
-    // A leaked empty vector is only ever reached if the frame stack is empty, which the guards
-    // above prevent; leaking nothing keeps the signature total without a panic.
-    Box::leak(Box::new(Vec::new()))
-}
-
 // ---------------------------------------------------------------------------
 // Parser
 // ---------------------------------------------------------------------------
@@ -1165,7 +1187,6 @@ const SKIP_DESTINATIONS: &[&str] = &[
     "atnid",
     "atnauthor",
     "annotation",
-    "pict",
 ];
 
 struct Parser {
@@ -1183,6 +1204,9 @@ struct Parser {
     style_outlines: BTreeMap<i32, i32>,
     style_formats: BTreeMap<i32, StyleFormat>,
     mono_fonts: BTreeSet<i32>,
+    /// Fallback state returned by [`Parser::state_mut`] only if the state stack is ever empty, which
+    /// its guard prevents; keeps the accessor total without a panic or a leak.
+    scratch_state: GroupState,
 }
 
 /// Ceiling on nested group depth. Beyond it a group's content is discarded rather than descended
@@ -1206,6 +1230,7 @@ impl Parser {
             style_outlines: BTreeMap::new(),
             style_formats: BTreeMap::new(),
             mono_fonts: BTreeSet::new(),
+            scratch_state: GroupState::default(),
         }
     }
 
@@ -1271,9 +1296,11 @@ impl Parser {
         if self.states.is_empty() {
             self.states.push(GroupState::default());
         }
-        self.states
-            .last_mut()
-            .unwrap_or_else(|| unreachable_state())
+        // The guard above guarantees a last element; the scratch state is dead-code fallback.
+        match self.states.last_mut() {
+            Some(state) => state,
+            None => &mut self.scratch_state,
+        }
     }
 
     fn emitter(&mut self) -> Option<&mut Emitter> {
@@ -1491,7 +1518,7 @@ impl Parser {
             }
             "uc" => self.state_mut().uc = param.unwrap_or(1).max(0),
             "u" => self.handle_unicode(param),
-            "par" | "sectd" if word == "par" => {
+            "par" => {
                 if let Some(emitter) = self.emitter() {
                     emitter.end_paragraph();
                 }
@@ -1582,16 +1609,8 @@ impl Parser {
 
     fn handle_unicode(&mut self, param: Option<i32>) {
         let code = unicode_code(param.unwrap_or(0));
-        if (0xD800..=0xDBFF).contains(&code) {
-            self.pending_high_surrogate = Some(code);
-        } else if (0xDC00..=0xDFFF).contains(&code) {
-            if let Some(high) = self.pending_high_surrogate.take() {
-                let combined = 0x1_0000 + ((high - 0xD800) << 10) + (code - 0xDC00);
-                self.emit_scalar(combined);
-            }
-        } else {
-            self.pending_high_surrogate = None;
-            self.emit_scalar(code);
+        if let Some(scalar) = combine_surrogate(&mut self.pending_high_surrogate, code) {
+            self.emit_scalar(scalar);
         }
         let uc = self.states.last().map_or(1, |state| state.uc);
         self.skip = usize::try_from(uc).unwrap_or(0);
@@ -1641,7 +1660,7 @@ impl Parser {
         let Some(name) = name.filter(|name| META_FIELDS.contains(&name.as_str())) else {
             return;
         };
-        let inlines = text_to_inlines(&text);
+        let inlines = words_to_inlines(&text);
         if !inlines.is_empty() {
             self.meta
                 .insert(name.into(), MetaValue::MetaInlines(inlines));
@@ -1724,7 +1743,7 @@ impl Parser {
                 }
                 Some(Token::GroupStart) => {
                     self.pos += 1;
-                    self.skip_current_group();
+                    self.skip_group();
                 }
                 Some(Token::Control(word, param)) => {
                     match word.as_str() {
@@ -1764,7 +1783,7 @@ impl Parser {
                             self.pos += 1;
                             self.parse_list_def();
                         }
-                        _ => self.skip_current_group(),
+                        _ => self.skip_group(),
                     }
                 }
                 Some(_) => self.pos += 1,
@@ -1792,7 +1811,7 @@ impl Parser {
                             self.pos += 1;
                             levels.push(self.parse_list_level());
                         }
-                        _ => self.skip_current_group(),
+                        _ => self.skip_group(),
                     }
                 }
                 Some(Token::Control(word, param)) => {
@@ -1823,7 +1842,7 @@ impl Parser {
                 }
                 Some(Token::GroupStart) => {
                     self.pos += 1;
-                    self.skip_current_group();
+                    self.skip_group();
                 }
                 Some(Token::Control(word, param)) => {
                     match word.as_str() {
@@ -1867,7 +1886,7 @@ impl Parser {
                             self.pos += 1;
                             self.parse_list_override();
                         }
-                        _ => self.skip_current_group(),
+                        _ => self.skip_group(),
                     }
                 }
                 Some(_) => self.pos += 1,
@@ -1889,7 +1908,7 @@ impl Parser {
                 }
                 Some(Token::GroupStart) => {
                     self.pos += 1;
-                    self.skip_current_group();
+                    self.skip_group();
                 }
                 Some(Token::Control(word, param)) => {
                     match word.as_str() {
@@ -2007,7 +2026,7 @@ impl Parser {
                             self.pos += 1; // the `shptxt` word
                             self.process();
                         }
-                        _ => self.skip_current_group(),
+                        _ => self.skip_group(),
                     }
                 }
                 _ => self.pos += 1,
@@ -2040,10 +2059,10 @@ impl Parser {
                             if name.as_deref() == Some("pib") {
                                 self.process();
                             } else {
-                                self.skip_current_group();
+                                self.skip_group();
                             }
                         }
-                        _ => self.skip_current_group(),
+                        _ => self.skip_group(),
                     }
                 }
                 _ => self.pos += 1,
@@ -2085,7 +2104,7 @@ impl Parser {
                             }
                         }
                         Some("fldrslt") => display = self.collect_group_inlines(),
-                        _ => self.skip_current_group(),
+                        _ => self.skip_group(),
                     }
                 }
                 _ => self.pos += 1,
@@ -2157,23 +2176,6 @@ impl Parser {
         }
     }
 
-    fn skip_current_group(&mut self) {
-        let mut depth = 1;
-        while let Some(token) = self.tokens.get(self.pos) {
-            self.pos += 1;
-            match token {
-                Token::GroupStart => depth += 1,
-                Token::GroupEnd => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
     /// Gathers the plain text of the group currently open (its `{` already consumed), through the
     /// matching `}`. Nested groups contribute their text too.
     fn collect_text(&mut self) -> String {
@@ -2218,20 +2220,10 @@ impl Parser {
                     "uc" => uc = param.unwrap_or(1).max(0),
                     "u" => {
                         let code = unicode_code(param.unwrap_or(0));
-                        if (0xD800..=0xDBFF).contains(&code) {
-                            pending_high = Some(code);
-                        } else if (0xDC00..=0xDFFF).contains(&code) {
-                            if let Some(high) = pending_high.take() {
-                                let combined = 0x1_0000 + ((high - 0xD800) << 10) + (code - 0xDC00);
-                                if let Some(c) = char::from_u32(combined) {
-                                    out.push(c);
-                                }
-                            }
-                        } else {
-                            pending_high = None;
-                            if let Some(c) = char::from_u32(code) {
-                                out.push(c);
-                            }
+                        if let Some(scalar) = combine_surrogate(&mut pending_high, code)
+                            && let Some(c) = char::from_u32(scalar)
+                        {
+                            out.push(c);
                         }
                         skip = uc;
                     }
@@ -2280,10 +2272,6 @@ impl Parser {
     }
 }
 
-fn unreachable_state() -> &'static mut GroupState {
-    Box::leak(Box::new(GroupState::default()))
-}
-
 /// Builds the [`Attr`] for an embedded picture from its goal dimensions. A `\picwgoal`/`\pichgoal`
 /// value is a measurement in twips (1/1440 inch); each present dimension becomes a `width`/`height`
 /// attribute expressed in inches.
@@ -2304,66 +2292,7 @@ fn picture_attr(goal_width: Option<i32>, goal_height: Option<i32>) -> Attr {
 
 /// A twip measurement (1/1440 inch) rendered as an inch dimension, e.g. `1440` -> `1.0in`.
 fn twips_to_inches(twips: i32) -> String {
-    format!("{}in", format_double(f64::from(twips) / 1440.0))
-}
-
-/// Renders a finite `f64` as the shortest decimal that reads back to the same value, always carrying
-/// a fractional part and switching to `e` notation once the decimal exponent leaves `0..=7`.
-fn format_double(value: f64) -> String {
-    if !value.is_finite() {
-        return String::from("0.0");
-    }
-    let negative = value.is_sign_negative() && value != 0.0;
-    let magnitude = value.abs();
-    let plain = format!("{magnitude}");
-    let (int_part, frac_part) = plain.split_once('.').unwrap_or((plain.as_str(), ""));
-    let mut combined = String::with_capacity(int_part.len() + frac_part.len());
-    combined.push_str(int_part);
-    combined.push_str(frac_part);
-    let point = i64::try_from(int_part.len()).unwrap_or(0);
-    let leading =
-        i64::try_from(combined.bytes().take_while(|&byte| byte == b'0').count()).unwrap_or(0);
-    let exponent = point - leading;
-    let trimmed = combined.trim_start_matches('0').trim_end_matches('0');
-    let digits = if trimmed.is_empty() { "0" } else { trimmed };
-    let body = if (0..=7).contains(&exponent) {
-        format_double_fixed(digits, exponent)
-    } else {
-        format_double_scientific(digits, exponent)
-    };
-    if negative { format!("-{body}") } else { body }
-}
-
-/// Fixed-point rendering for a decimal exponent in `0..=7`, given the significant `digits` and the
-/// exponent `e` such that the value equals `0.<digits> * 10^e`.
-fn format_double_fixed(digits: &str, exponent: i64) -> String {
-    if exponent <= 0 {
-        let zeros = "0".repeat(usize::try_from(-exponent).unwrap_or(0));
-        return format!("0.{zeros}{digits}");
-    }
-    let int_len = usize::try_from(exponent).unwrap_or(0);
-    if int_len >= digits.len() {
-        let zeros = "0".repeat(int_len - digits.len());
-        format!("{digits}{zeros}.0")
-    } else {
-        let head = digits.get(..int_len).unwrap_or("");
-        let tail = digits.get(int_len..).unwrap_or("");
-        format!("{head}.{tail}")
-    }
-}
-
-/// Scientific rendering for a decimal exponent outside `0..=7`, given the significant `digits` and
-/// the exponent `e` such that the value equals `0.<digits> * 10^e`.
-fn format_double_scientific(digits: &str, exponent: i64) -> String {
-    let scientific = exponent - 1;
-    let mut chars = digits.chars();
-    let first = chars.next().unwrap_or('0');
-    let rest = chars.as_str();
-    if rest.is_empty() {
-        format!("{first}.0e{scientific}")
-    } else {
-        format!("{first}.{rest}e{scientific}")
-    }
+    format!("{}in", general_decimal(f64::from(twips) / 1440.0))
 }
 
 // ---------------------------------------------------------------------------
@@ -2416,6 +2345,23 @@ fn unicode_code(raw: i32) -> u32 {
     }
 }
 
+/// Folds a `\u` scalar into the pending UTF-16 surrogate state, returning the code point to emit, if
+/// any. A high surrogate is held back; a following low surrogate combines with it into a supplementary
+/// scalar; any other value clears a stale pending high and is emitted unchanged.
+fn combine_surrogate(pending_high: &mut Option<u32>, code: u32) -> Option<u32> {
+    if (0xD800..=0xDBFF).contains(&code) {
+        *pending_high = Some(code);
+        None
+    } else if (0xDC00..=0xDFFF).contains(&code) {
+        pending_high
+            .take()
+            .map(|high| 0x1_0000 + ((high - 0xD800) << 10) + (code - 0xDC00))
+    } else {
+        *pending_high = None;
+        Some(code)
+    }
+}
+
 /// Maps a code-page byte to a character. Bytes outside `0x80..=0x9F` are Latin-1; that window uses
 /// the Windows-1252 assignments, the code page an unqualified `\ansi` document carries.
 fn code_page_char(byte: u8) -> char {
@@ -2462,18 +2408,6 @@ fn decode_hex(hex: &str) -> Vec<u8> {
             _ => None,
         })
         .collect()
-}
-
-/// Splits flat text into inline words separated by single spaces.
-fn text_to_inlines(text: &str) -> Vec<Inline> {
-    let mut out = Vec::new();
-    for (index, word) in text.split_whitespace().enumerate() {
-        if index > 0 {
-            out.push(Inline::Space);
-        }
-        out.push(Inline::Str(word.into()));
-    }
-    out
 }
 
 /// Extracts a link target from a field instruction. A `HYPERLINK` instruction is followed by its

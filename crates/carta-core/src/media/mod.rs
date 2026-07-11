@@ -85,6 +85,23 @@ impl MediaBag {
     }
 }
 
+/// Decodes a `data:` URI into its raw bytes and MIME type, for a resource embedded directly in a
+/// reference. Only a base64 payload is decoded; a reference that is not a `data:` URI, carries no
+/// base64 marker, or holds malformed base64 yields `None`. A payload whose header names no type
+/// reports `text/plain`.
+#[must_use]
+pub fn decode_data_uri(url: &str) -> Option<(Vec<u8>, String)> {
+    let rest = url.strip_prefix("data:")?;
+    let (header, payload) = rest.split_once(',')?;
+    let header = header.strip_suffix(";base64")?;
+    let mime = match header.split(';').next() {
+        Some(kind) if !kind.is_empty() => kind,
+        _ => "text/plain",
+    };
+    let bytes = base64_decode(payload)?;
+    Some((bytes, mime.to_owned()))
+}
+
 /// The conventional file extension (without a leading dot) for an image-like MIME type. An
 /// unrecognized type falls back to its subtype with any structured-syntax suffix removed, so
 /// `image/svg+xml` yields `svg`.

@@ -24,10 +24,10 @@ use carta_ast::{
 use carta_core::{MediaBag, Result, Writer, WriterOptions};
 
 use crate::common::{
-    Dimension, IMAGE_PIXEL_DPI, RawTrim, attribute_value, clean_prefix_len, escape_uri,
-    offset_as_i32, ordered_marker, parse_dimension, quote_marks, raw_passthrough,
+    GridSlot, RawTrim, RowSpanGrid, attribute_value, clean_prefix_len, dimension_inches,
+    escape_uri, offset_as_i32, ordered_marker, parse_dimension, quote_marks, raw_passthrough,
 };
-use crate::image_size::{image_dimensions, image_dpi};
+use crate::image_size::{RasterFormat, image_dimensions, image_dpi, raster_format};
 
 /// Renders a document to Rich Text Format (no trailing newline).
 #[derive(Debug, Default, Clone, Copy)]
@@ -323,7 +323,7 @@ impl State {
         widths: &[i64],
         header: bool,
     ) -> String {
-        let mut carry = vec![0usize; columns];
+        let mut grid = RowSpanGrid::new(columns);
         let mut out = String::new();
         // The bottom border under the head sits below its first row only, marking where the head
         // begins; further head rows draw no border of their own.
@@ -334,8 +334,8 @@ impl State {
             if header && row.cells.iter().all(cell_is_blank) {
                 continue;
             }
-            let slots = expand_row(row, columns, &mut carry);
-            out.push_str(&self.table_row(&slots, specs, widths, border));
+            let slots = grid.place_slots(&row.cells);
+            out.push_str(&self.table_row(&slots, columns, specs, widths, border));
             border = false;
         }
         out
@@ -343,7 +343,8 @@ impl State {
 
     fn table_row(
         &mut self,
-        slots: &[Slot],
+        slots: &[GridSlot],
+        columns: usize,
         specs: &[ColSpec],
         widths: &[i64],
         border: bool,
@@ -359,15 +360,22 @@ impl State {
                 widths.get(index).copied().unwrap_or(0)
             );
         }
+        // Every row emits exactly one cell per column: a placed cell or a filler for a covered
+        // column, plus fillers for any trailing columns the row's cells and their spans never reach.
         let mut cells = String::new();
-        for slot in slots {
+        let mut emitted = 0usize;
+        for slot in slots.iter().take(columns) {
             match slot {
-                Slot::Content { cell, column } => {
+                GridSlot::Cell(column, cell) => {
                     let column_align = specs.get(*column).map(|spec| &spec.align);
                     cells.push_str(&self.table_cell(&cell.content, &cell.align, column_align));
                 }
-                Slot::Filler => cells.push_str("{\\cell}\n"),
+                GridSlot::Covered => cells.push_str("{\\cell}\n"),
             }
+            emitted += 1;
+        }
+        for _ in emitted..columns {
+            cells.push_str("{\\cell}\n");
         }
         format!(
             "{{\n\\trowd \\trgaph120\n{cell_defs}\n\\trkeep\\intbl\n{{\n{cells}}}\n\\intbl\\row}}\n"
@@ -504,66 +512,9 @@ impl State {
         if let Some(item) = self.media.get(url) {
             return Some(item.bytes.clone());
         }
-        decode_data_uri(url)
+        carta_core::media::decode_data_uri(url).map(|(bytes, _)| bytes)
     }
 }
-
-/// One column position in an expanded table row: a cell placed at its origin column, or a filler
-/// covering a column a neighboring cell spans into (a column span in the same row, or a row span
-/// continuing from an earlier row).
-enum Slot<'a> {
-    Content { cell: &'a Cell, column: usize },
-    Filler,
-}
-
-/// Expands one row into exactly `columns` slots, threading `carry` — the number of further rows each
-/// column stays covered by an active row span. A column still covered from above yields a filler and
-/// counts down; otherwise the next cell is placed, its column-span columns become fillers, and every
-/// column it occupies is marked covered for the rows its row span reaches.
-fn expand_row<'a>(row: &'a Row, columns: usize, carry: &mut [usize]) -> Vec<Slot<'a>> {
-    let mut slots = Vec::with_capacity(columns);
-    let mut cell_index = 0;
-    let mut column = 0;
-    while column < columns {
-        if carry.get(column).copied().unwrap_or(0) > 0 {
-            if let Some(remaining) = carry.get_mut(column) {
-                *remaining -= 1;
-            }
-            slots.push(Slot::Filler);
-            column += 1;
-            continue;
-        }
-        let Some(cell) = row.cells.get(cell_index) else {
-            slots.push(Slot::Filler);
-            column += 1;
-            continue;
-        };
-        cell_index += 1;
-        let col_span = usize::try_from(cell.col_span).unwrap_or(1).max(1);
-        let row_span = usize::try_from(cell.row_span).unwrap_or(1).max(1);
-        let below = row_span.saturating_sub(1);
-        let mut span = 0;
-        while span < col_span && column < columns {
-            if below > 0
-                && let Some(remaining) = carry.get_mut(column)
-            {
-                *remaining = below;
-            }
-            slots.push(if span == 0 {
-                Slot::Content { cell, column }
-            } else {
-                Slot::Filler
-            });
-            span += 1;
-            column += 1;
-        }
-    }
-    slots
-}
-
-/// The eight-byte signature every PNG begins with, and the two-byte one every JPEG does.
-const PNG_SIGNATURE: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
-const JPEG_SIGNATURE: &[u8] = &[0xff, 0xd8];
 
 /// Encodes an image's bytes as a `\pict` group when it is a raster RTF can embed directly. PNG maps
 /// to `\pngblip` and JPEG to `\jpegblip`; each carries its pixel dimensions and a twip goal,
@@ -571,12 +522,9 @@ const JPEG_SIGNATURE: &[u8] = &[0xff, 0xd8];
 /// `width`/`height` on the image and otherwise falls back to the size the image's own resolution
 /// implies. Dimensions that cannot be read are left off. Any other format returns `None`.
 fn pict_group(bytes: &[u8], attr: &Attr) -> Option<String> {
-    let blip = if bytes.get(..PNG_SIGNATURE.len()) == Some(PNG_SIGNATURE) {
-        "\\pngblip"
-    } else if bytes.get(..JPEG_SIGNATURE.len()) == Some(JPEG_SIGNATURE) {
-        "\\jpegblip"
-    } else {
-        return None;
+    let blip = match raster_format(bytes)? {
+        RasterFormat::Png => "\\pngblip",
+        RasterFormat::Jpeg => "\\jpegblip",
     };
     let mut out = format!("{{\\pict{blip}");
     let (width, height) = image_dimensions(bytes);
@@ -589,11 +537,27 @@ fn pict_group(bytes: &[u8], attr: &Attr) -> Option<String> {
         );
     }
     out.push(' ');
-    for byte in bytes {
-        let _ = write!(out, "{byte:02x}");
-    }
+    push_hex(&mut out, bytes);
     out.push('}');
     Some(out)
+}
+
+/// Appends `bytes` as a continuous run of lowercase hex, two characters per byte, reserving the
+/// output space up front.
+fn push_hex(out: &mut String, bytes: &[u8]) {
+    out.reserve(bytes.len().saturating_mul(2));
+    for &byte in bytes {
+        out.push(char::from(nibble_hex(byte >> 4)));
+        out.push(char::from(nibble_hex(byte & 0x0f)));
+    }
+}
+
+/// The lowercase hex digit for a nibble in `0..16`.
+const fn nibble_hex(nibble: u8) -> u8 {
+    match nibble {
+        0..=9 => b'0' + nibble,
+        _ => b'a' + nibble - 10,
+    }
 }
 
 /// One inch is 1440 twips.
@@ -630,28 +594,7 @@ fn picture_goals(attr: &Attr, width: u32, height: u32, dpi_x: u32, dpi_y: u32) -
 /// standard screen resolution, a physical or font-relative length through its unit's size in inches.
 /// A percentage, an unrecognized value, or a missing attribute yields nothing.
 fn length_inches(attr: &Attr, key: &str) -> Option<f64> {
-    match parse_dimension(attribute_value(attr, key)?)? {
-        Dimension::Pixels(count) =>
-        {
-            #[allow(clippy::cast_precision_loss)]
-            Some(count as f64 / f64::from(IMAGE_PIXEL_DPI))
-        }
-        Dimension::Length(magnitude, unit) => Some(magnitude * unit_inches(unit)),
-        Dimension::Percent(_) => None,
-    }
-}
-
-/// The length of one dimension unit in inches. An unrecognized unit reports zero.
-fn unit_inches(unit: &str) -> f64 {
-    match unit {
-        "in" => 1.0,
-        "cm" => 0.393_7,
-        "mm" => 0.039_37,
-        "pt" => 1.0 / 72.0,
-        "pc" => 1.0 / 6.0,
-        "em" => 0.171_875,
-        _ => 0.0,
-    }
+    dimension_inches(&parse_dimension(attribute_value(attr, key)?)?)
 }
 
 /// The twip goal for a length already measured in inches, floored to a whole twip.
@@ -670,17 +613,7 @@ fn floor_twips(value: f64) -> u64 {
 /// The width, in twips, of `pixels` at `dpi`: one inch is 1440 twips. Computed in 64-bit to stay
 /// clear of overflow; a zero resolution is treated as one dot per inch rather than dividing by zero.
 fn twip_goal(pixels: u32, dpi: u32) -> u64 {
-    u64::from(pixels) * 1440 / u64::from(dpi.max(1))
-}
-
-/// Decodes a `data:` URI into its raw bytes, for a picture embedded directly in a reference. Only a
-/// base64 payload is decoded; a reference that is not a `data:` URI, carries no base64 marker, or
-/// holds malformed base64 yields nothing, leaving the image to degrade to its placeholder.
-fn decode_data_uri(url: &str) -> Option<Vec<u8>> {
-    let rest = url.strip_prefix("data:")?;
-    let (header, payload) = rest.split_once(',')?;
-    header.strip_suffix(";base64")?;
-    carta_core::media::base64_decode(payload)
+    u64::from(pixels) * floor_twips(TWIPS_PER_INCH) / u64::from(dpi.max(1))
 }
 
 /// Insert the trailing paragraph spacing a list adds before its final `\par`, so nested lists closing
