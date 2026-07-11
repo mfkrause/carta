@@ -71,3 +71,8 @@ ot = "ot"
 # KDE syntax-definition schema element grouping a language's token styles; the parser reads its
 # `itemData` children (variable `item_datas`), and a doc test embeds the literal element.
 datas = "datas"
+# RTF control words matched by the RTF reader: \pard resets paragraph formatting to its default,
+# \pn opens a paragraph-numbering group, and \headerr sets the right-page running header.
+pard = "pard"
+pn = "pn"
+headerr = "headerr"

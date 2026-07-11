@@ -115,9 +115,18 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   present, and a file-level property drawer's keys are not promoted to document metadata.
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
+### `rtf` — ✅
+- A `\mac`, `\pc`, or `\pca` document's `\'xx` bytes decode as Windows-1252 rather than the declared
+  character set.
+- A control byte delivered through a `\'xx` or `\uN` escape (tab, line feed) is kept as a literal
+  character rather than normalized to a space or line break.
+- `\softline` renders as a hard line break rather than being dropped.
+- Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as
+  document metadata.
+
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
 `docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
-`rtf`, `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
+`t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---
 
@@ -195,6 +204,12 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   scripts).
 - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
   surrounding spacing differs.
+
+### `rtf` — ✅
+- A table nested inside another table's cell carries a single `\intbl` on its cell paragraphs
+  regardless of nesting depth, so the inner table is not set off from its container.
+- A nested ordered list with default style is numbered with decimal markers at every level rather
+  than cycling the marker style by depth.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,

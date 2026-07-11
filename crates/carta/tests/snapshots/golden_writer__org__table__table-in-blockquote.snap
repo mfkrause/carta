@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+#+begin_quote
+| a | b |
+|---+---|
+| 1 | 2 |
+#+end_quote

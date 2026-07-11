@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ BulletList
+    [ [ BulletList
+          [ [ Plain [ Str "inner" , Space , Str "one" ] ]
+          , [ Plain [ Str "inner" , Space , Str "two" ] ]
+          ]
+      ]
+    , [ Plain [ Str "outer" , Space , Str "two" ] ]
+    ]
+]

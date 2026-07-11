@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]
+a	b \texttt{c	d}
+
+\begin{verbatim}
+	x	y
+\end{verbatim}
+\end{frame}

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 {\i a}\u160 ?(mod\u8198 ?\u160 ?{\i n}) {\i a}\u8192 ?mod\u8198 ?\u160 ?{\i b} {\i a}\u160 ?mod\u8198 ?\u160 ?{\i b} {\i a}\u160 ?({\i n})\par}

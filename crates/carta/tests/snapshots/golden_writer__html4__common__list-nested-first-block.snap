@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ul>
+<li><ul>
+<li>inner one</li>
+<li>inner two</li>
+</ul></li>
+<li>outer two</li>
+</ul>

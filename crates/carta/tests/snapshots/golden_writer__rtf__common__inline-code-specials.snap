@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 before {\f1 a & b ~ c \\ d % e # f $ g _ h \{ i \} j ^ k | l < m > n} after\par}

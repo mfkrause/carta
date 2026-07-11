@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Section One\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Back to {\field{\*\fldinst{HYPERLINK "#section-one"}}{\fldrslt{\ul
+the section
+}}}
+, or an {\field{\*\fldinst{HYPERLINK "https://example.org/docs"}}{\fldrslt{\ul
+outside page
+}}}
+.\par}

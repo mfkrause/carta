@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 before {\field{\*\fldinst{HYPERLINK "http://example.com"}}{\fldrslt{\ul
+
+}}}
+ after\par}

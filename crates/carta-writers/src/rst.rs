@@ -927,7 +927,8 @@ impl State {
         for inline in split.lead {
             self.token(inline, false, out);
         }
-        let name = format!("{}{}{}", split.lead_sep, split.plain, split.trail_sep);
+        let candidate = format!("{}{}{}", split.lead_sep, split.plain, split.trail_sep);
+        let name = self.substitution_name(candidate);
         self.register_image(attr, &name, target, None, out);
         for inline in split.trail {
             self.token(inline, false, out);
@@ -2115,5 +2116,43 @@ mod tests {
         assert_eq!(state.substitution_name("logo".to_owned()), "logo");
         assert_eq!(state.substitution_name(String::new()), "image2");
         assert_eq!(state.substitution_name("image".to_owned()), "image3");
+    }
+
+    #[test]
+    fn image_run_names_dedupe_across_registrations() {
+        // An image whose alt text embeds a link registers each surrounding run as its own
+        // substitution; a later image sharing that run's name must fall back so no two definitions
+        // carry the same label and every reference resolves to one image.
+        let link = Inline::Link(
+            Box::default(),
+            vec![Inline::Str("L".into())],
+            Box::new(Target {
+                url: "http://x".into(),
+                ..Default::default()
+            }),
+        );
+        let with_link = Inline::Image(
+            Box::default(),
+            vec![Inline::Str("dup".into()), Inline::Space, link],
+            Box::new(Target {
+                url: "a.png".into(),
+                ..Default::default()
+            }),
+        );
+        let plain = Inline::Image(
+            Box::default(),
+            vec![Inline::Str("dup".into())],
+            Box::new(Target {
+                url: "b.png".into(),
+                ..Default::default()
+            }),
+        );
+        let doc = Document {
+            blocks: vec![Block::Para(vec![with_link]), Block::Para(vec![plain])],
+            ..Document::default()
+        };
+        let out = RstWriter.write(&doc, &WriterOptions::default()).unwrap();
+        assert_eq!(out.matches(".. |dup| image::").count(), 1);
+        assert!(out.contains(".. |image1| image:: b.png"));
     }
 }

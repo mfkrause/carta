@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+1. first
+2. second
+
+   - suba
+   - subb
+
+3. third

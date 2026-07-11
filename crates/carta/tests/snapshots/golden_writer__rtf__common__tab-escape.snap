@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 a\tab b {\f1 c\tab d}\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 \tab x\tab y\par}

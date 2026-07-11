@@ -19,11 +19,13 @@ pub(crate) fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     Some((read_be_u32(bytes, 16)?, read_be_u32(bytes, 20)?))
 }
 
-/// The horizontal and vertical resolution of an image in dots per inch, read from its header. Only a
-/// PNG's `pHYs` chunk in the meter unit is recognized; every other image, or one carrying no
-/// resolution, reports the default of 72 dpi on both axes.
+/// The horizontal and vertical resolution of an image in dots per inch, read from its header. A
+/// PNG's `pHYs` chunk in the meter unit and a JPEG's JFIF pixel-density fields are recognized; every
+/// other image, or one carrying no resolution, reports the default of 72 dpi on both axes.
 pub(crate) fn image_dpi(bytes: &[u8]) -> (u32, u32) {
-    png_dpi(bytes).unwrap_or((DEFAULT_DPI, DEFAULT_DPI))
+    png_dpi(bytes)
+        .or_else(|| jpeg_dpi(bytes))
+        .unwrap_or((DEFAULT_DPI, DEFAULT_DPI))
 }
 
 /// The resolution in a PNG's `pHYs` chunk, or `None` when the signature does not match, no such chunk
@@ -65,6 +67,77 @@ fn png_dpi(bytes: &[u8]) -> Option<(u32, u32)> {
 fn dpi_from_per_meter(per_meter: u32) -> u32 {
     let dpi = (u64::from(per_meter) * 254 / 10_000) as u32;
     if dpi == 0 { DEFAULT_DPI } else { dpi }
+}
+
+/// The pixel density recorded in a JPEG's JFIF `APP0` segment, in dots per inch, or `None` when the
+/// signature does not match, no JFIF segment precedes the image scan, or the segment records only an
+/// aspect ratio. The density is stored per inch or per centimeter; the latter is scaled to inches.
+fn jpeg_dpi(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.get(..2) != Some([0xff, 0xd8].as_slice()) {
+        return None;
+    }
+    let mut offset = 2usize;
+    loop {
+        let mut marker = *bytes.get(offset)?;
+        // A marker is introduced by one or more 0xff fill bytes.
+        while marker == 0xff {
+            offset = offset.checked_add(1)?;
+            marker = *bytes.get(offset)?;
+        }
+        offset = offset.checked_add(1)?;
+        // Restart, start-of-image, end-of-image and temporary markers carry no length payload.
+        if (0xd0..=0xd9).contains(&marker) || marker == 0x01 {
+            continue;
+        }
+        let length = usize::from(read_be_u16(bytes, offset)?);
+        // The density lives in a header segment; the scan gives up once the entropy-coded scan
+        // begins, so a file without a JFIF segment reports no resolution.
+        if marker == 0xda {
+            return None;
+        }
+        let data = offset.checked_add(2)?;
+        if marker == 0xe0 && bytes.get(data..data.checked_add(5)?) == Some(b"JFIF\0".as_slice()) {
+            let units = *bytes.get(data.checked_add(7)?)?;
+            let x_density = read_be_u16(bytes, data.checked_add(8)?)?;
+            let y_density = read_be_u16(bytes, data.checked_add(10)?)?;
+            return jfif_dpi(units, x_density, y_density);
+        }
+        offset = offset.checked_add(length)?;
+    }
+}
+
+/// Resolves a JFIF density pair to dots per inch by its unit code: 1 is dots per inch and used as
+/// stored, 2 is dots per centimeter and scaled up by 2.54, and any other code (including 0, which
+/// marks the pair as a bare aspect ratio) carries no absolute resolution. A zero density likewise
+/// yields nothing, so the caller falls back to the default.
+fn jfif_dpi(units: u8, x_density: u16, y_density: u16) -> Option<(u32, u32)> {
+    let to_dpi = |density: u16| -> Option<u32> {
+        let value = match units {
+            1 => u32::from(density),
+            2 => (u32::from(density) * 254).div_ceil(100),
+            _ => return None,
+        };
+        (value != 0).then_some(value)
+    };
+    Some((to_dpi(x_density)?, to_dpi(y_density)?))
+}
+
+/// A raster image format that a container writer can embed directly by its own blip control.
+pub(crate) enum RasterFormat {
+    Png,
+    Jpeg,
+}
+
+/// Classifies an image by its leading signature bytes as one of the raster formats embeddable
+/// directly, or `None` for anything else.
+pub(crate) fn raster_format(bytes: &[u8]) -> Option<RasterFormat> {
+    if bytes.get(..PNG_SIGNATURE.len()) == Some(PNG_SIGNATURE) {
+        Some(RasterFormat::Png)
+    } else if bytes.get(..2) == Some([0xff, 0xd8].as_slice()) {
+        Some(RasterFormat::Jpeg)
+    } else {
+        None
+    }
 }
 
 /// The eight-byte signature every PNG begins with.
@@ -153,6 +226,48 @@ mod tests {
             0, 0, 0, 0, // CRC
         ];
         assert_eq!(image_dpi(&bytes), (96, 96));
+    }
+
+    #[test]
+    fn jpeg_dpi_reads_the_jfif_density_in_inches() {
+        // A JFIF APP0 segment recording 300 dots per inch on both axes.
+        let bytes = [
+            0xff, 0xd8, // start of image
+            0xff, 0xe0, 0x00, 0x10, // APP0 marker, length 16
+            b'J', b'F', b'I', b'F', 0x00, // identifier
+            0x01, 0x01, // version 1.1
+            0x01, // units: dots per inch
+            0x01, 0x2c, // x density 300
+            0x01, 0x2c, // y density 300
+            0x00, 0x00, // thumbnail 0x0
+        ];
+        assert_eq!(image_dpi(&bytes), (300, 300));
+    }
+
+    #[test]
+    fn jpeg_dpi_scales_centimeter_density_to_inches() {
+        // 118 dots per centimeter is 299.72 dpi, resolving to 300.
+        let bytes = [
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, //
+            b'J', b'F', b'I', b'F', 0x00, 0x01, 0x01, //
+            0x02, // units: dots per centimeter
+            0x00, 0x76, 0x00, 0x76, // x, y density 118
+            0x00, 0x00,
+        ];
+        assert_eq!(image_dpi(&bytes), (300, 300));
+    }
+
+    #[test]
+    fn jpeg_dpi_without_units_falls_back_to_default() {
+        // Units 0 marks the density pair as a bare aspect ratio, carrying no absolute resolution.
+        let bytes = [
+            0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, //
+            b'J', b'F', b'I', b'F', 0x00, 0x01, 0x01, //
+            0x00, // units: none (aspect ratio only)
+            0x00, 0x01, 0x00, 0x01, // x, y density 1
+            0x00, 0x00,
+        ];
+        assert_eq!(image_dpi(&bytes), (72, 72));
     }
 
     #[test]

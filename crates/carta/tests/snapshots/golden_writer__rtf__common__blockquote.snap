@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li720 \fi0 quoted\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 more lines here\par}

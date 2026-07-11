@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 \u8196 ?\u8800 ?\u8196 ?{\i b} \u8196 ?\u8814 ?\u8196 ?{\i c} \u8196 ?\u8836 ?\u8196 ?{\i B} \u8196 ?\u8866 ?\u824 ?\u8196 ?{\i \u981 ?} \u8594 ?\u824 ? {\i a\u824 ?}\par}

@@ -21,7 +21,7 @@ use carta_ast::{
 use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::{IdRegistry, IdScheme, fold_to_ascii};
-use crate::inline_text::trim_inline_ends;
+use crate::inline_text::{trim_inline_ends, words_to_inlines};
 
 /// A table of named strings: the predefined groff strings plus any defined with `.ds`, looked up by
 /// the `\*` interpolation escape.
@@ -781,7 +781,7 @@ impl Parser {
                                 // A present designator that is neither a bullet nor an enumerator —
                                 // including one that reduces to nothing — is a definition term.
                                 Mark::None | Mark::Text => {
-                                    let term = inlines_from_plain(&mark);
+                                    let term = words_to_inlines(&mark);
                                     let body = self.item_body();
                                     push_definition(&mut pending, &mut out, term, body);
                                 }
@@ -1010,19 +1010,6 @@ enum Mark {
     Bullet,
     Ordered(ListAttributes),
     Text,
-}
-
-/// Builds inline content from plain text, splitting on whitespace into words separated by single
-/// spaces.
-fn inlines_from_plain(text: &str) -> Vec<Inline> {
-    let mut out = Vec::new();
-    for word in text.split_whitespace() {
-        if !out.is_empty() {
-            out.push(Inline::Space);
-        }
-        out.push(Inline::Str(word.into()));
-    }
-    out
 }
 
 /// Classifies a `.IP` marker, already reduced to plain text: a bullet glyph, an enumerator (decimal,

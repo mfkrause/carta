@@ -2333,7 +2333,7 @@ fn image_drawing_for(
                 .unwrap_or_else(|| mime_from_url(target.url.as_str()));
             (item.bytes.clone(), mime)
         }
-        None => decode_data_uri(target.url.as_str())?,
+        None => carta_core::media::decode_data_uri(target.url.as_str())?,
     };
     let (cx, cy) = image_extent(&bytes, &attr.attributes);
 
@@ -2357,21 +2357,6 @@ fn image_drawing_for(
         bytes,
     });
     Some(drawing)
-}
-
-/// Decodes a `data:` URI into its raw bytes and MIME type, for a picture embedded directly in a
-/// reference. Only a base64 payload is decoded; a reference that is not a `data:` URI, carries no
-/// base64 marker, or holds malformed base64 yields `None`, leaving the image to degrade to its text.
-fn decode_data_uri(url: &str) -> Option<(Vec<u8>, String)> {
-    let rest = url.strip_prefix("data:")?;
-    let (header, payload) = rest.split_once(',')?;
-    let header = header.strip_suffix(";base64")?;
-    let mime = match header.split(';').next() {
-        Some(kind) if !kind.is_empty() => kind,
-        _ => "text/plain",
-    };
-    let bytes = carta_core::media::base64_decode(payload)?;
-    Some((bytes, mime.to_owned()))
 }
 
 /// The drawn size of an image in English metric units. A requested width and height, given in pixels

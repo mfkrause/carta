@@ -13,7 +13,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-TARGETS="html html4 latex rst plain commonmark commonmark_x markdown markdown_github markdown_phpextra markdown_mmd markdown_strict gfm mediawiki native json typst dokuwiki jira asciidoc man opml org beamer revealjs ipynb"
+TARGETS="html html4 latex rst plain commonmark commonmark_x markdown markdown_github markdown_phpextra markdown_mmd markdown_strict gfm mediawiki native json typst dokuwiki jira asciidoc man opml org beamer revealjs ipynb rtf"
 EXT_RUN=1
 [ $# -gt 0 ] && { TARGETS="$1"; EXT_RUN=0; }
 CASE="${2:-}"

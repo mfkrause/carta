@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<ol type="1">
+<li>first</li>
+<li>second
+<ul>
+<li>suba</li>
+<li>subb</li>
+</ul></li>
+<li>third</li>
+</ol>
