@@ -2,4 +2,4 @@
 source: crates/carta/tests/golden_reader.rs
 expression: json
 ---
-{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"cafand"},{"t":"Space"},{"t":"Str","c":"é"},{"t":"Space"},{"t":"Str","c":"unicode."}]}]}
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"café"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"é"},{"t":"Space"},{"t":"Str","c":"unicode."}]}]}
