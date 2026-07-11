@@ -635,7 +635,9 @@ fn align_word(align: &Alignment) -> &'static str {
 }
 
 /// The cumulative right edge of each column in twips, out of a full-width 8640. A column with an
-/// explicit fractional width uses it; a defaulted column takes an equal share of the whole.
+/// explicit fractional width uses it. A column without one takes no width, so explicit fractions keep
+/// their intended proportions; only when no column declares a width do they divide the full width
+/// evenly.
 // Layout arithmetic over bounded fractions summing toward 1.0: rounding to the nearest twip is
 // intended, and the product stays well within range.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -644,13 +646,24 @@ fn column_widths(specs: &[ColSpec]) -> Vec<i64> {
     if count == 0 {
         return Vec::new();
     }
-    let share = 1.0 / count as f64;
+    let explicit_total: f64 = specs
+        .iter()
+        .map(|spec| match spec.width {
+            ColWidth::ColWidth(fraction) => fraction,
+            ColWidth::ColWidthDefault => 0.0,
+        })
+        .sum();
+    let default_share = if explicit_total > 0.0 {
+        0.0
+    } else {
+        1.0 / count as f64
+    };
     let mut cumulative = 0.0;
     let mut edges = Vec::with_capacity(count);
     for spec in specs {
         cumulative += match spec.width {
             ColWidth::ColWidth(fraction) => fraction,
-            ColWidth::ColWidthDefault => share,
+            ColWidth::ColWidthDefault => default_share,
         };
         edges.push((cumulative * 8640.0).round() as i64);
     }
@@ -1112,6 +1125,33 @@ mod tests {
              {{\\pard\\intbl \\qr \\f0 \\sa0 \\li0 \\fi0 B\\par}\n\\cell}\n\
              }\n\\intbl\\row}\n\
              {\\pard \\ql \\f0 \\sa180 \\li0 \\fi0 \\par}"
+        );
+    }
+
+    #[test]
+    fn column_widths_honor_explicit_fractions() {
+        let spec = |width| ColSpec {
+            align: Alignment::AlignDefault,
+            width,
+        };
+        let cw = ColWidth::ColWidth;
+        let def = || ColWidth::ColWidthDefault;
+        // With no declared widths, the full width divides evenly.
+        assert_eq!(column_widths(&[spec(def()), spec(def())]), vec![4320, 8640]);
+        // A column without a declared width takes none, so an explicit fraction keeps its
+        // proportion instead of the edges running past the full 8640-twip width.
+        assert_eq!(
+            column_widths(&[spec(cw(0.8)), spec(def())]),
+            vec![6912, 6912]
+        );
+        assert_eq!(
+            column_widths(&[spec(def()), spec(cw(0.5)), spec(def())]),
+            vec![0, 4320, 4320]
+        );
+        // All columns explicit: plain cumulative edges.
+        assert_eq!(
+            column_widths(&[spec(cw(0.3)), spec(cw(0.3))]),
+            vec![2592, 5184]
         );
     }
 
