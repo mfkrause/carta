@@ -374,6 +374,51 @@ fn build_inlines(atoms: Vec<Atom>) -> Vec<Inline> {
     root
 }
 
+/// Distributes a hyperlink over already-built display inlines, hoisting character-formatting
+/// wrappers outside the link. Adjacent inlines that carry no wrapper share a single link; each
+/// formatting wrapper stays outside and has the link distributed into its children.
+fn linkify(target: &Target, inlines: Vec<Inline>) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    let mut run: Vec<Inline> = Vec::new();
+    for inline in inlines {
+        match into_wrapper(inline) {
+            Ok((wrapper, children)) => {
+                flush_link(target, &mut run, &mut out);
+                out.push(wrapper.wrap(linkify(target, children)));
+            }
+            Err(leaf) => run.push(leaf),
+        }
+    }
+    flush_link(target, &mut run, &mut out);
+    out
+}
+
+/// Emits any accumulated non-wrapper inlines as a single link, resetting the run.
+fn flush_link(target: &Target, run: &mut Vec<Inline>, out: &mut Vec<Inline>) {
+    if !run.is_empty() {
+        out.push(Inline::Link(
+            Box::default(),
+            take(run),
+            Box::new(target.clone()),
+        ));
+    }
+}
+
+/// Decomposes an inline into its character-formatting wrapper and children, or returns it unchanged
+/// when it is not one of the wrappers a run can carry.
+fn into_wrapper(inline: Inline) -> std::result::Result<(Wrapper, Vec<Inline>), Inline> {
+    match inline {
+        Inline::Strong(children) => Ok((Wrapper::Strong, children)),
+        Inline::Emph(children) => Ok((Wrapper::Emph, children)),
+        Inline::Strikeout(children) => Ok((Wrapper::Strikeout, children)),
+        Inline::Subscript(children) => Ok((Wrapper::Subscript, children)),
+        Inline::Superscript(children) => Ok((Wrapper::Superscript, children)),
+        Inline::SmallCaps(children) => Ok((Wrapper::SmallCaps, children)),
+        Inline::Underline(children) => Ok((Wrapper::Underline, children)),
+        other => Err(other),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Block context
 // ---------------------------------------------------------------------------
@@ -1239,6 +1284,8 @@ impl Parser {
         let mut extension: Option<&'static str> = None;
         let mut hex = String::new();
         let mut depth = 1;
+        let mut goal_width: Option<i32> = None;
+        let mut goal_height: Option<i32> = None;
         while let Some(token) = self.tokens.get(self.pos) {
             self.pos += 1;
             match token {
@@ -1249,14 +1296,14 @@ impl Parser {
                         break;
                     }
                 }
-                Token::Control(word, _) => {
-                    extension = extension.or(match word.as_str() {
-                        "pngblip" => Some("png"),
-                        "jpegblip" => Some("jpg"),
-                        "emfblip" => Some("emf"),
-                        _ => None,
-                    });
-                }
+                Token::Control(word, param) => match word.as_str() {
+                    "pngblip" => extension = extension.or(Some("png")),
+                    "jpegblip" => extension = extension.or(Some("jpg")),
+                    "emfblip" => extension = extension.or(Some("emf")),
+                    "picwgoal" => goal_width = *param,
+                    "pichgoal" => goal_height = *param,
+                    _ => {}
+                },
                 Token::Char(c) if c.is_ascii_hexdigit() => hex.push(*c),
                 _ => {}
             }
@@ -1274,7 +1321,7 @@ impl Parser {
                     .insert(name.clone(), Some(mime.to_string()), bytes);
                 let props = self.props();
                 let image = Inline::Image(
-                    Box::default(),
+                    Box::new(picture_attr(goal_width, goal_height)),
                     vec![Inline::Str(Text::from("image"))],
                     Box::new(Target {
                         url: name.into(),
@@ -1328,27 +1375,19 @@ impl Parser {
                 _ => self.pos += 1,
             }
         }
-        let props = self.props();
-        match url {
+        let inlines = match url {
             Some(url) => {
-                let link = Inline::Link(
-                    Box::default(),
-                    display,
-                    Box::new(Target {
-                        url: url.into(),
-                        title: Text::default(),
-                    }),
-                );
-                if let Some(emitter) = self.emitter() {
-                    emitter.push_node(link, props);
-                }
+                let target = Target {
+                    url: url.into(),
+                    title: Text::default(),
+                };
+                linkify(&target, display)
             }
-            None => {
-                for inline in display {
-                    if let Some(emitter) = self.emitter() {
-                        emitter.push_node(inline, CharProps::default());
-                    }
-                }
+            None => display,
+        };
+        for inline in inlines {
+            if let Some(emitter) = self.emitter() {
+                emitter.push_node(inline, CharProps::default());
             }
         }
     }
@@ -1451,6 +1490,88 @@ impl Parser {
 
 fn unreachable_state() -> &'static mut GroupState {
     Box::leak(Box::new(GroupState::default()))
+}
+
+/// Builds the [`Attr`] for an embedded picture from its goal dimensions. A `\picwgoal`/`\pichgoal`
+/// value is a measurement in twips (1/1440 inch); each present dimension becomes a `width`/`height`
+/// attribute expressed in inches.
+fn picture_attr(goal_width: Option<i32>, goal_height: Option<i32>) -> Attr {
+    let mut attributes: Vec<(Text, Text)> = Vec::new();
+    if let Some(twips) = goal_width {
+        attributes.push((Text::from("width"), Text::from(twips_to_inches(twips))));
+    }
+    if let Some(twips) = goal_height {
+        attributes.push((Text::from("height"), Text::from(twips_to_inches(twips))));
+    }
+    Attr {
+        id: Text::default(),
+        classes: Vec::new(),
+        attributes,
+    }
+}
+
+/// A twip measurement (1/1440 inch) rendered as an inch dimension, e.g. `1440` -> `1.0in`.
+fn twips_to_inches(twips: i32) -> String {
+    format!("{}in", format_double(f64::from(twips) / 1440.0))
+}
+
+/// Renders a finite `f64` as the shortest decimal that reads back to the same value, always carrying
+/// a fractional part and switching to `e` notation once the decimal exponent leaves `0..=7`.
+fn format_double(value: f64) -> String {
+    if !value.is_finite() {
+        return String::from("0.0");
+    }
+    let negative = value.is_sign_negative() && value != 0.0;
+    let magnitude = value.abs();
+    let plain = format!("{magnitude}");
+    let (int_part, frac_part) = plain.split_once('.').unwrap_or((plain.as_str(), ""));
+    let mut combined = String::with_capacity(int_part.len() + frac_part.len());
+    combined.push_str(int_part);
+    combined.push_str(frac_part);
+    let point = i64::try_from(int_part.len()).unwrap_or(0);
+    let leading =
+        i64::try_from(combined.bytes().take_while(|&byte| byte == b'0').count()).unwrap_or(0);
+    let exponent = point - leading;
+    let trimmed = combined.trim_start_matches('0').trim_end_matches('0');
+    let digits = if trimmed.is_empty() { "0" } else { trimmed };
+    let body = if (0..=7).contains(&exponent) {
+        format_double_fixed(digits, exponent)
+    } else {
+        format_double_scientific(digits, exponent)
+    };
+    if negative { format!("-{body}") } else { body }
+}
+
+/// Fixed-point rendering for a decimal exponent in `0..=7`, given the significant `digits` and the
+/// exponent `e` such that the value equals `0.<digits> * 10^e`.
+fn format_double_fixed(digits: &str, exponent: i64) -> String {
+    if exponent <= 0 {
+        let zeros = "0".repeat(usize::try_from(-exponent).unwrap_or(0));
+        return format!("0.{zeros}{digits}");
+    }
+    let int_len = usize::try_from(exponent).unwrap_or(0);
+    if int_len >= digits.len() {
+        let zeros = "0".repeat(int_len - digits.len());
+        format!("{digits}{zeros}.0")
+    } else {
+        let head = digits.get(..int_len).unwrap_or("");
+        let tail = digits.get(int_len..).unwrap_or("");
+        format!("{head}.{tail}")
+    }
+}
+
+/// Scientific rendering for a decimal exponent outside `0..=7`, given the significant `digits` and
+/// the exponent `e` such that the value equals `0.<digits> * 10^e`.
+fn format_double_scientific(digits: &str, exponent: i64) -> String {
+    let scientific = exponent - 1;
+    let mut chars = digits.chars();
+    let first = chars.next().unwrap_or('0');
+    let rest = chars.as_str();
+    if rest.is_empty() {
+        format!("{first}.0e{scientific}")
+    } else {
+        format!("{first}.{rest}e{scientific}")
+    }
 }
 
 // ---------------------------------------------------------------------------
