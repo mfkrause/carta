@@ -91,6 +91,39 @@ pub(crate) fn format_percent_dimension(magnitude: f64) -> String {
     format!("{magnitude:?}%")
 }
 
+/// The resolution, in dots per inch, at which a physical image dimension resolves to a pixel count
+/// for the writers that size pictures in whole pixels.
+pub(crate) const IMAGE_PIXEL_DPI: u32 = 96;
+
+/// The length of one unit in inches, for the units [`parse_dimension`] records in a
+/// [`Dimension::Length`]. An unrecognized unit reports zero.
+fn unit_inches(unit: &str) -> f64 {
+    match unit {
+        "in" => 1.0,
+        "cm" => 0.393_700_787_4,
+        "mm" => 0.039_370_078_74,
+        "pt" => 1.0 / 72.0,
+        "pc" => 1.0 / 6.0,
+        "em" => 0.171_875,
+        _ => 0.0,
+    }
+}
+
+/// Resolve a dimension to a whole pixel count at [`IMAGE_PIXEL_DPI`], flooring the result: a pixel or
+/// unitless value passes through, a physical or font-relative length scales through its size in
+/// inches, and a percentage — having no absolute pixel size — yields `None`.
+pub(crate) fn dimension_pixels(dimension: &Dimension) -> Option<u64> {
+    match dimension {
+        Dimension::Pixels(count) => Some(*count),
+        Dimension::Percent(_) => None,
+        Dimension::Length(magnitude, unit) => {
+            let pixels = f64::from(IMAGE_PIXEL_DPI) * magnitude * unit_inches(unit);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            Some(pixels.floor().max(0.0) as u64)
+        }
+    }
+}
+
 /// Render the CSS value of a length dimension: the magnitude rounded to five fractional digits with
 /// trailing zeros (and a bare trailing dot) dropped, followed by the unit.
 pub(crate) fn format_length_dimension(magnitude: f64, unit: &str) -> String {
@@ -264,6 +297,25 @@ mod tests {
         // Rounded to five fractional digits.
         assert_eq!(format_length_dimension(12.345_678_9, "cm"), "12.34568cm");
         assert_eq!(format_length_dimension(1.123_456, "cm"), "1.12346cm");
+    }
+
+    #[cfg(feature = "mediawiki")]
+    #[test]
+    fn dimension_pixels_resolves_lengths_at_ninety_six_dpi() {
+        // A pixel or unitless value passes through unchanged.
+        assert_eq!(dimension_pixels(&Dimension::Pixels(200)), Some(200));
+        assert_eq!(dimension_pixels(&Dimension::Pixels(0)), Some(0));
+        // A percentage has no absolute pixel size.
+        assert_eq!(dimension_pixels(&Dimension::Percent(50.0)), None);
+        // Physical and font-relative lengths scale through their size in inches, flooring the result.
+        assert_eq!(dimension_pixels(&Dimension::Length(1.0, "in")), Some(96));
+        assert_eq!(dimension_pixels(&Dimension::Length(0.5, "in")), Some(48));
+        assert_eq!(dimension_pixels(&Dimension::Length(2.0, "in")), Some(192));
+        assert_eq!(dimension_pixels(&Dimension::Length(72.0, "pt")), Some(96));
+        assert_eq!(dimension_pixels(&Dimension::Length(6.0, "pc")), Some(96));
+        assert_eq!(dimension_pixels(&Dimension::Length(3.0, "em")), Some(49));
+        assert_eq!(dimension_pixels(&Dimension::Length(1.0, "cm")), Some(37));
+        assert_eq!(dimension_pixels(&Dimension::Length(100.0, "mm")), Some(377));
     }
 
     #[cfg(feature = "html")]
