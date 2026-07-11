@@ -38,7 +38,7 @@ Text wibble wobble here.
 EOF
 
 # Formats that ship a default standalone template.
-TARGETS="html html4 latex beamer revealjs typst markdown gfm rst asciidoc plain man opml"
+TARGETS="html html4 latex beamer revealjs typst markdown gfm rst asciidoc plain man opml rtf"
 
 # The body block-AST carried by a standalone HTML document, as read back by carta's own HTML reader.
 html_blocks() { "$OX" -f html -t json <"$1" | jq -S '.blocks'; }

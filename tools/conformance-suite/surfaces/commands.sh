@@ -19,7 +19,7 @@ set -uo pipefail
 require_tools
 
 READABLE="commonmark html native json"
-WRITABLE="html native json mediawiki"
+WRITABLE="html native json mediawiki rtf"
 
 in_set() {
   local needle="$1"
