@@ -472,6 +472,7 @@ impl State {
         } else {
             format!(" alt=\"{}\"", escape_html_attr(&alt_text(inlines)))
         };
+        let start = out.len();
         push_html(
             out,
             &format!(
@@ -482,6 +483,11 @@ impl State {
             ),
             true,
         );
+        // A raw `<img>` tag lays out as one atom, so a line break falls between whole tags rather
+        // than inside one; an image nested in a link already belongs to that link's atom.
+        if !self.in_anchor {
+            self.groups.push((start, out.len()));
+        }
     }
 }
 
@@ -1027,6 +1033,36 @@ mod tests {
             render(vec![para(vec![image])]),
             format!("<img src=\"{url}\"\nwidth=\"320\" height=\"240\" />")
         );
+    }
+
+    #[test]
+    fn attr_image_wraps_before_the_whole_tag() {
+        // A raw `<img>` tag that will not fit after the preceding text moves whole to the next line
+        // rather than starting on the text line and folding after `<img`.
+        let url = format!("{}.png", "a".repeat(40));
+        let image = Inline::Image(
+            Box::new(Attr {
+                attributes: vec![("width".into(), "1in".into())],
+                ..Attr::default()
+            }),
+            str_inlines("image"),
+            Box::new(Target {
+                url: url.into(),
+                title: String::new().into(),
+            }),
+        );
+        let mut inlines = Vec::new();
+        for word in ["Photo", "goes", "right", "about", "here", "now"] {
+            inlines.push(Inline::Str(word.into()));
+            inlines.push(Inline::Space);
+        }
+        inlines.push(image);
+        inlines.push(Inline::Space);
+        inlines.push(Inline::Str("end".into()));
+        let out = render(vec![para(inlines)]);
+        // A line begins with the opening tag, and the tag is never split immediately after `<img`.
+        assert!(out.lines().any(|line| line.starts_with("<img src=")));
+        assert!(!out.contains("<img\n"));
     }
 
     #[test]

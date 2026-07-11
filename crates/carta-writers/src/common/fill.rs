@@ -275,10 +275,10 @@ fn fill_core(
 }
 
 /// Place an atomic group's interior into `out`, deciding first whether it begins on a fresh line.
-/// The group is sized at its full single-line width: when `lead_space` (a breakable space precedes
-/// it) and the whole group would overflow the current line, it starts a new line; either way its
-/// interior is then filled from the resulting column, folding across lines only when the group
-/// alone is wider than the column.
+/// The decision weighs the group's first line — the run before its own first fold: when `lead_space`
+/// (a breakable space precedes it) and that first line would overflow the current line, the group
+/// starts a new line. Either way its interior is then filled from the resulting column, folding
+/// across lines only when the group alone is wider than the column.
 fn place_group(
     out: &mut String,
     column: &mut usize,
@@ -288,10 +288,10 @@ fn place_group(
     preserve_softs: bool,
     width: usize,
 ) {
-    let flat = flat_width(inner);
+    let first_line = first_line_width(inner, width, preserve_softs);
     if *at_line_start {
         *at_line_start = false;
-    } else if lead_space && *column + 1 + flat > width {
+    } else if lead_space && *column + 1 + first_line > width {
         out.push('\n');
         *column = 0;
     } else if lead_space {
@@ -303,16 +303,12 @@ fn place_group(
     *column = line_end_column(&rendered, *column);
 }
 
-/// The natural single-line width of a piece run: each text run's display width, each space or break
-/// counted as one column.
-fn flat_width(pieces: &[Piece]) -> usize {
-    pieces
-        .iter()
-        .map(|piece| match piece {
-            Piece::Text(text) => display_width(text),
-            Piece::Space | Piece::Soft | Piece::Hard => 1,
-        })
-        .sum()
+/// The width of a group's first line when its interior is laid out from the margin: a group that
+/// stays on one line reports its whole width, while one that folds reports only the run before its
+/// first break. This is the extent that must fit on the current line for the group to begin there.
+fn first_line_width(pieces: &[Piece], width: usize, preserve_softs: bool) -> usize {
+    let rendered = fill_core(pieces, width, 0, preserve_softs, false, &[]);
+    rendered.split('\n').next().map_or(0, display_width)
 }
 
 /// The column reached at the end of an already-filled run that began `start_col` columns into its
