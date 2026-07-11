@@ -14,8 +14,9 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    RowSpanGrid, attribute_value, escape_attr, escape_xml, is_known_attribute, is_known_scheme,
-    is_percent_escaped_uri, is_uri_scheme, label_matches_url, quote_marks, render_html_attr,
+    RowSpanGrid, attribute_value, dimension_pixels, escape_attr, escape_xml, is_known_attribute,
+    is_known_scheme, is_percent_escaped_uri, is_uri_scheme, label_matches_url, parse_dimension,
+    quote_marks, render_html_attr,
 };
 
 /// Renders a document to `MediaWiki` markup.
@@ -736,12 +737,16 @@ fn is_number_lines(class: &str) -> bool {
     matches!(class, "numberLines" | "number-lines" | "numberlines")
 }
 
-/// The `WxHpx` size descriptor for an image, derived from its `width`/`height` attributes; `None`
-/// when neither is present.
+/// The `WxHpx` size descriptor for an image, derived from its `width`/`height` attributes with each
+/// resolved to a whole pixel count. A percentage or otherwise unresolvable dimension is treated as
+/// absent; the result is `None` when neither axis resolves.
 fn image_size(attr: &Attr) -> Option<String> {
-    let width = attribute_value(attr, "width");
-    let height = attribute_value(attr, "height");
-    match (width, height) {
+    let pixels = |key| {
+        attribute_value(attr, key)
+            .and_then(parse_dimension)
+            .and_then(|dimension| dimension_pixels(&dimension))
+    };
+    match (pixels("width"), pixels("height")) {
         (Some(w), Some(h)) => Some(format!("{w}x{h}px")),
         (Some(w), None) => Some(format!("{w}px")),
         (None, Some(h)) => Some(format!("x{h}px")),
@@ -978,3 +983,44 @@ const HIGHLIGHT_LANGUAGES: &[&str] = &[
     "docker",
     "make",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn attr(pairs: &[(&str, &str)]) -> Attr {
+        Attr {
+            attributes: pairs
+                .iter()
+                .map(|(key, value)| ((*key).into(), (*value).into()))
+                .collect(),
+            ..Attr::default()
+        }
+    }
+
+    #[test]
+    fn image_size_converts_dimensions_to_pixels() {
+        // A width and height together, width alone, and height alone each render in the size syntax,
+        // physical lengths first resolving to whole pixels.
+        assert_eq!(
+            image_size(&attr(&[("width", "1in"), ("height", "0.5in")])),
+            Some("96x48px".to_owned())
+        );
+        assert_eq!(
+            image_size(&attr(&[("width", "2in")])),
+            Some("192px".to_owned())
+        );
+        assert_eq!(
+            image_size(&attr(&[("height", "1in")])),
+            Some("x96px".to_owned())
+        );
+        // A bare pixel value passes through unchanged.
+        assert_eq!(
+            image_size(&attr(&[("width", "120px")])),
+            Some("120px".to_owned())
+        );
+        // A percentage has no pixel size, so no size is emitted; nor does a sizeless image.
+        assert_eq!(image_size(&attr(&[("width", "50%")])), None);
+        assert_eq!(image_size(&attr(&[])), None);
+    }
+}
