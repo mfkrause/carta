@@ -14,9 +14,10 @@ use carta_ast::{
 use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
-    clean_prefix_len, display_width, fill, fill_cell, fill_hang, indent_block, is_known_scheme,
-    is_uri_scheme, label_matches_url, offset_as_i32, ordered_marker, quote_marks,
+    Dimension, FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
+    clean_prefix_len, display_width, fill, fill_cell, fill_hang, format_length_dimension,
+    format_percent_dimension, indent_block, is_known_scheme, is_uri_scheme, label_matches_url,
+    offset_as_i32, ordered_marker, parse_dimension, quote_marks,
 };
 use crate::grid;
 
@@ -108,6 +109,9 @@ struct State {
     footnotes: Vec<String>,
     substitutions: Vec<String>,
     fallback_count: usize,
+    /// Substitution names already assigned, in assignment order. A repeated label falls back to a
+    /// generated `image`-plus-counter name so each reference resolves to its own definition.
+    used_names: Vec<String>,
     wrap: WrapMode,
     /// The fill column the document body lays out to.
     width: usize,
@@ -125,6 +129,7 @@ impl Default for State {
             footnotes: Vec::new(),
             substitutions: Vec::new(),
             fallback_count: 0,
+            used_names: Vec::new(),
             wrap: WrapMode::default(),
             width: FILL_COLUMN,
             in_cell: false,
@@ -929,13 +934,18 @@ impl State {
         }
     }
 
+    /// The substitution name for an image labelled `plain`: its own label when that is non-empty and
+    /// not already taken, otherwise a generated `image`-plus-counter name. The counter advances on
+    /// every fallback, so an empty or repeated label always yields a fresh name.
     fn substitution_name(&mut self, plain: String) -> String {
-        if plain.is_empty() {
+        let name = if plain.is_empty() || self.used_names.contains(&plain) {
             self.fallback_count += 1;
             format!("image{}", self.fallback_count)
         } else {
             plain
-        }
+        };
+        self.used_names.push(name.clone());
+        name
     }
 
     fn register_image(
@@ -1273,18 +1283,20 @@ impl State {
         }
     }
 
-    fn snapshot(&self) -> (usize, usize, usize) {
+    fn snapshot(&self) -> (usize, usize, usize, usize) {
         (
             self.footnotes.len(),
             self.substitutions.len(),
             self.fallback_count,
+            self.used_names.len(),
         )
     }
 
-    fn restore(&mut self, snapshot: (usize, usize, usize)) {
+    fn restore(&mut self, snapshot: (usize, usize, usize, usize)) {
         self.footnotes.truncate(snapshot.0);
         self.substitutions.truncate(snapshot.1);
         self.fallback_count = snapshot.2;
+        self.used_names.truncate(snapshot.3);
     }
 }
 
@@ -1912,35 +1924,14 @@ fn dimension_options(attr: &Attr) -> Vec<String> {
     options
 }
 
-/// Normalize a dimension value: a percentage keeps its number (with at least one decimal); a unitless
-/// number is floored to whole pixels; a recognized absolute unit passes through; anything else is
-/// dropped.
+/// Normalize a dimension value: a unitless or pixel value is floored to whole pixels; a percentage
+/// keeps its number with at least one decimal; a recognized absolute unit renders with trailing
+/// zeros trimmed; anything else is dropped.
 fn show_dimension(value: &str) -> Option<String> {
-    let value = value.trim();
-    if let Some(number) = value.strip_suffix('%') {
-        let parsed: f64 = number.trim().parse().ok()?;
-        return Some(format!("{}%", show_double(parsed)));
-    }
-    let boundary = value
-        .char_indices()
-        .find(|(_, ch)| !(ch.is_ascii_digit() || *ch == '.'))
-        .map_or(value.len(), |(index, _)| index);
-    let (number, unit) = value.split_at(boundary);
-    let parsed: f64 = number.parse().ok()?;
-    match unit {
-        "" => Some(format!("{}px", parsed.floor())),
-        "px" | "pt" | "em" | "ex" | "cm" | "mm" | "in" | "pc" => Some(format!("{number}{unit}")),
-        _ => None,
-    }
-}
-
-/// Format a number with at least one fractional digit (a whole value gains a trailing `.0`).
-fn show_double(value: f64) -> String {
-    let shown = format!("{value}");
-    if shown.contains('.') || shown.contains('e') || shown.contains('E') {
-        shown
-    } else {
-        format!("{shown}.0")
+    match parse_dimension(value)? {
+        Dimension::Pixels(count) => Some(format!("{count}px")),
+        Dimension::Percent(magnitude) => Some(format_percent_dimension(magnitude)),
+        Dimension::Length(magnitude, unit) => Some(format_length_dimension(magnitude, unit)),
     }
 }
 
@@ -2099,5 +2090,30 @@ mod tests {
     fn empty_units_are_dropped_and_do_not_set_the_gap() {
         let joined = join_loose_items(vec![unit(false, ""), unit(true, "a"), unit(true, "b")]);
         assert_eq!(joined, "a\nb");
+    }
+
+    #[test]
+    fn show_dimension_normalizes_lengths() {
+        // A whole-valued length drops its trailing zero; a fractional one keeps it; a percentage
+        // keeps one decimal; a pixel or unitless value renders in pixels; an unknown unit is dropped.
+        assert_eq!(show_dimension("1.0in"), Some("1in".to_owned()));
+        assert_eq!(show_dimension("2in"), Some("2in".to_owned()));
+        assert_eq!(show_dimension("0.5in"), Some("0.5in".to_owned()));
+        assert_eq!(show_dimension("50%"), Some("50.0%".to_owned()));
+        assert_eq!(show_dimension("200px"), Some("200px".to_owned()));
+        assert_eq!(show_dimension("200"), Some("200px".to_owned()));
+        assert_eq!(show_dimension("4ex"), None);
+    }
+
+    #[test]
+    fn substitution_names_stay_unique() {
+        let mut state = State::default();
+        // A fresh label is kept as-is; a repeat or an empty label falls back to a generated
+        // counter name, so every reference resolves to its own definition.
+        assert_eq!(state.substitution_name("image".to_owned()), "image");
+        assert_eq!(state.substitution_name("image".to_owned()), "image1");
+        assert_eq!(state.substitution_name("logo".to_owned()), "logo");
+        assert_eq!(state.substitution_name(String::new()), "image2");
+        assert_eq!(state.substitution_name("image".to_owned()), "image3");
     }
 }
