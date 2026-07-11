@@ -8,8 +8,9 @@
 
 use crate::{Error, Result};
 
-/// DEFLATE level used by [`ZipArchive::deflate`]. Fixed so output stays reproducible.
-const DEFLATE_LEVEL: u8 = 9;
+/// DEFLATE level used by [`ZipArchive::deflate`]. Fixed so output stays byte-reproducible across
+/// runs; the value trades a slightly larger archive for substantially faster compression.
+const DEFLATE_LEVEL: u8 = 6;
 
 const METHOD_STORE: u16 = 0;
 const METHOD_DEFLATE: u16 = 8;
