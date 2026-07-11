@@ -12,8 +12,8 @@
 
 mod common;
 
-use carta::{ReaderOptions, WriterOptions};
-use common::corpus_cases;
+use carta::{Output, ReaderOptions, WriterOptions};
+use common::{corpus_binary_cases, corpus_cases};
 
 #[test]
 fn reader_ast_snapshots() {
@@ -30,6 +30,36 @@ fn reader_ast_snapshots() {
             &WriterOptions::default(),
         )
         .unwrap_or_else(|error| panic!("convert {}/{} -> json: {error}", case.group, case.label));
+        insta::assert_snapshot!(format!("{}__{}", case.group, case.label), json);
+    }
+}
+
+/// Reader golden tests for byte-container formats: snapshot carta's JSON AST for each
+/// `corpus/binary/<fmt>/*` case. These fixtures are binary archives (not UTF-8 text), so they are
+/// read as raw bytes and fed through the byte-input `convert` path rather than `convert_text`. The
+/// suite is dormant until a byte-container reader ships (the `corpus/binary` tree is then created).
+#[test]
+fn reader_binary_ast_snapshots() {
+    let readers = carta::supported_input_formats();
+    for case in corpus_binary_cases("binary") {
+        if !readers.contains(&case.group.as_str()) {
+            continue;
+        }
+        let output = carta::convert(
+            &case.group,
+            "json",
+            &case.input,
+            &ReaderOptions::default(),
+            &WriterOptions::default(),
+        )
+        .unwrap_or_else(|error| panic!("convert {}/{} -> json: {error}", case.group, case.label));
+        let json = match output {
+            Output::Text(json) => json,
+            Output::Bytes(_) => panic!(
+                "json target must yield text for {}/{}",
+                case.group, case.label
+            ),
+        };
         insta::assert_snapshot!(format!("{}__{}", case.group, case.label), json);
     }
 }

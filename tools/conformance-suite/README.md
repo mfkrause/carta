@@ -105,6 +105,10 @@ Two deliberate scoping choices:
 Add inputs to the shared corpus, not here:
 
 - a reader construct → `corpus/text/<fmt>/<label>.<ext>`
+- a **byte-container** reader construct (a format whose fixtures are binary archives or otherwise not
+  UTF-8 text) → `corpus/binary/<fmt>/<label>.<ext>`. This tree is read as raw bytes (so a binary
+  fixture that `corpus/text/`'s UTF-8 decoding would reject lives here); the reader surface
+  auto-discovers it, needing no `FORMATS=` entry.
 - an extension toggle → `corpus/text-ext/<spec>/<label>.<ext>`, where `<spec>` is the exact `-f`
   string (e.g. `commonmark+mark`, `markdown-blank_before_header`). The `extensions` surface
   **requires** one such directory for every extension the reader honors.
