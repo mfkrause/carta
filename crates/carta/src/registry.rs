@@ -102,7 +102,7 @@ format_dispatch! {
     "read-man" => "man" => text carta_readers::ManReader;
     "read-latex" => "latex" => text carta_readers::LatexReader;
     "read-org" => "org" => text carta_readers::OrgReader;
-    "read-rtf" => "rtf" => text carta_readers::RtfReader;
+    "read-rtf" => "rtf" => bytes carta_readers::RtfReader;
 }
 
 format_dispatch! {

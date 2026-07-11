@@ -18,14 +18,14 @@ use std::fmt::Write as _;
 use std::sync::Arc;
 
 use carta_ast::{
-    Alignment, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes, MathType,
-    QuoteType, Row, Table, Target,
+    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
+    MathType, QuoteType, Row, Table, Target,
 };
 use carta_core::{MediaBag, Result, Writer, WriterOptions};
 
 use crate::common::{
-    RawTrim, clean_prefix_len, escape_uri, offset_as_i32, ordered_marker, quote_marks,
-    raw_passthrough,
+    Dimension, IMAGE_PIXEL_DPI, RawTrim, attribute_value, clean_prefix_len, escape_uri,
+    offset_as_i32, ordered_marker, parse_dimension, quote_marks, raw_passthrough,
 };
 use crate::image_size::{image_dimensions, image_dpi};
 
@@ -153,13 +153,11 @@ impl State {
     }
 
     /// A code block sets the monospace font and preserves its internal line breaks as `\line`, each
-    /// followed by a real newline. Trailing blank lines are dropped.
+    /// followed by a real newline. Exactly one final line terminator is dropped, so interior blank
+    /// lines survive as empty `\line`-separated segments.
     fn code_block(&mut self, text: &str) -> String {
-        let escaped: Vec<String> = text
-            .trim_end_matches('\n')
-            .split('\n')
-            .map(rtf_escape)
-            .collect();
+        let body_text = text.strip_suffix('\n').unwrap_or(text);
+        let escaped: Vec<String> = body_text.split('\n').map(rtf_escape).collect();
         let body = format!("\\f1 {}", escaped.join("\\line\n"));
         self.paragraph(180, &body)
     }
@@ -327,6 +325,9 @@ impl State {
     ) -> String {
         let mut carry = vec![0usize; columns];
         let mut out = String::new();
+        // The bottom border under the head sits below its first row only, marking where the head
+        // begins; further head rows draw no border of their own.
+        let mut border = header;
         for row in rows {
             // A header row with nothing in any cell is layout scaffolding, not content, and is left
             // out entirely rather than drawn as a run of empty bordered cells.
@@ -334,7 +335,8 @@ impl State {
                 continue;
             }
             let slots = expand_row(row, columns, &mut carry);
-            out.push_str(&self.table_row(&slots, specs, widths, header));
+            out.push_str(&self.table_row(&slots, specs, widths, border));
+            border = false;
         }
         out
     }
@@ -344,11 +346,11 @@ impl State {
         slots: &[Slot],
         specs: &[ColSpec],
         widths: &[i64],
-        header: bool,
+        border: bool,
     ) -> String {
         let mut cell_defs = String::new();
         for (index, _) in specs.iter().enumerate() {
-            if header {
+            if border {
                 cell_defs.push_str("\\clbrdrb\\brdrs");
             }
             let _ = write!(
@@ -372,8 +374,10 @@ impl State {
         )
     }
 
-    /// Render one cell's content in table mode, at zero indent and the cell's effective alignment: the
-    /// cell's own alignment, or the column's when the cell defers.
+    /// Render one cell's content in table mode, at the surrounding left indent and the cell's
+    /// effective alignment: the cell's own alignment, or the column's when the cell defers. The cell
+    /// keeps the ambient indent so a table nested under a block quote or list stays indented with it,
+    /// and content nested inside the cell deepens from there.
     fn table_cell(
         &mut self,
         content: &[Block],
@@ -384,12 +388,11 @@ impl State {
             Alignment::AlignDefault => column_align.unwrap_or(&Alignment::AlignDefault),
             explicit => explicit,
         };
-        let saved = (self.align, self.indent, self.in_table);
+        let saved = (self.align, self.in_table);
         self.align = align_word(effective);
-        self.indent = 0;
         self.in_table = true;
         let body = self.blocks(content);
-        (self.align, self.indent, self.in_table) = saved;
+        (self.align, self.in_table) = saved;
         format!("{{{body}\\cell}}\n")
     }
 
@@ -420,7 +423,7 @@ impl State {
             Inline::Math(kind, text) => self.math(kind, text),
             Inline::RawInline(format, text) => raw_passthrough(format, text, "rtf", RawTrim::Keep),
             Inline::Link(_, items, target) => self.link(items, target),
-            Inline::Image(_, _, target) => self.image(target),
+            Inline::Image(attr, _, target) => self.image(attr, target),
             Inline::Note(blocks) => self.note(blocks),
             Inline::Span(_, items) => self.inlines(items),
         }
@@ -486,11 +489,11 @@ impl State {
     /// An image whose bytes resolve to an embeddable raster becomes a `\pict` group carrying its
     /// pixel size and physical goal; anything the format cannot embed — an unresolved reference or a
     /// raster kind RTF has no blip for — falls back to a bracketed placeholder naming the source.
-    fn image(&self, target: &Target) -> String {
-        if let Some(bytes) = self.resolve_image(&target.url) {
-            if let Some(picture) = pict_group(&bytes) {
-                return picture;
-            }
+    fn image(&self, attr: &Attr, target: &Target) -> String {
+        if let Some(bytes) = self.resolve_image(&target.url)
+            && let Some(picture) = pict_group(&bytes, attr)
+        {
+            return picture;
         }
         format!("{{\\cf1 [image: {}]\\cf0}}", rtf_escape(&target.url))
     }
@@ -563,10 +566,11 @@ const PNG_SIGNATURE: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
 const JPEG_SIGNATURE: &[u8] = &[0xff, 0xd8];
 
 /// Encodes an image's bytes as a `\pict` group when it is a raster RTF can embed directly. PNG maps
-/// to `\pngblip` and JPEG to `\jpegblip`; each carries its pixel dimensions and a twip goal derived
-/// from the image's own resolution, followed by the file bytes as a continuous lowercase-hex run.
-/// Dimensions that cannot be read are left off. Any other format returns `None`.
-fn pict_group(bytes: &[u8]) -> Option<String> {
+/// to `\pngblip` and JPEG to `\jpegblip`; each carries its pixel dimensions and a twip goal,
+/// followed by the file bytes as a continuous lowercase-hex run. The goal honors an explicit
+/// `width`/`height` on the image and otherwise falls back to the size the image's own resolution
+/// implies. Dimensions that cannot be read are left off. Any other format returns `None`.
+fn pict_group(bytes: &[u8], attr: &Attr) -> Option<String> {
     let blip = if bytes.get(..PNG_SIGNATURE.len()) == Some(PNG_SIGNATURE) {
         "\\pngblip"
     } else if bytes.get(..JPEG_SIGNATURE.len()) == Some(JPEG_SIGNATURE) {
@@ -578,11 +582,10 @@ fn pict_group(bytes: &[u8]) -> Option<String> {
     let (width, height) = image_dimensions(bytes);
     if width != 0 && height != 0 {
         let (dpi_x, dpi_y) = image_dpi(bytes);
+        let (goal_w, goal_h) = picture_goals(attr, width, height, dpi_x, dpi_y);
         let _ = write!(
             out,
-            "\\picw{width}\\pich{height}\\picwgoal{}\\pichgoal{}",
-            twip_goal(width, dpi_x),
-            twip_goal(height, dpi_y),
+            "\\picw{width}\\pich{height}\\picwgoal{goal_w}\\pichgoal{goal_h}"
         );
     }
     out.push(' ');
@@ -591,6 +594,77 @@ fn pict_group(bytes: &[u8]) -> Option<String> {
     }
     out.push('}');
     Some(out)
+}
+
+/// One inch is 1440 twips.
+const TWIPS_PER_INCH: f64 = 1440.0;
+
+/// The picture's display goal, in twips, along both axes. An explicit `width` and `height` each set
+/// their own axis directly; when only one is given, the other is scaled to preserve the image's
+/// intrinsic pixel aspect ratio; when neither is given, each axis comes from the image's own
+/// resolution. A percentage dimension carries no absolute size and counts as absent.
+fn picture_goals(attr: &Attr, width: u32, height: u32, dpi_x: u32, dpi_y: u32) -> (u64, u64) {
+    let intrinsic_w = f64::from(width);
+    let intrinsic_h = f64::from(height);
+    match (length_inches(attr, "width"), length_inches(attr, "height")) {
+        (Some(want_w), Some(want_h)) => (twips(want_w), twips(want_h)),
+        (Some(want_w), None) => {
+            let goal_w = want_w * TWIPS_PER_INCH;
+            (
+                floor_twips(goal_w),
+                floor_twips(goal_w * intrinsic_h / intrinsic_w),
+            )
+        }
+        (None, Some(want_h)) => {
+            let goal_h = want_h * TWIPS_PER_INCH;
+            (
+                floor_twips(goal_h * intrinsic_w / intrinsic_h),
+                floor_twips(goal_h),
+            )
+        }
+        (None, None) => (twip_goal(width, dpi_x), twip_goal(height, dpi_y)),
+    }
+}
+
+/// The length, in inches, of an image `width`/`height` attribute: a pixel or unitless value at the
+/// standard screen resolution, a physical or font-relative length through its unit's size in inches.
+/// A percentage, an unrecognized value, or a missing attribute yields nothing.
+fn length_inches(attr: &Attr, key: &str) -> Option<f64> {
+    match parse_dimension(attribute_value(attr, key)?)? {
+        Dimension::Pixels(count) =>
+        {
+            #[allow(clippy::cast_precision_loss)]
+            Some(count as f64 / f64::from(IMAGE_PIXEL_DPI))
+        }
+        Dimension::Length(magnitude, unit) => Some(magnitude * unit_inches(unit)),
+        Dimension::Percent(_) => None,
+    }
+}
+
+/// The length of one dimension unit in inches. An unrecognized unit reports zero.
+fn unit_inches(unit: &str) -> f64 {
+    match unit {
+        "in" => 1.0,
+        "cm" => 0.393_7,
+        "mm" => 0.039_37,
+        "pt" => 1.0 / 72.0,
+        "pc" => 1.0 / 6.0,
+        "em" => 0.171_875,
+        _ => 0.0,
+    }
+}
+
+/// The twip goal for a length already measured in inches, floored to a whole twip.
+fn twips(inches: f64) -> u64 {
+    floor_twips(inches * TWIPS_PER_INCH)
+}
+
+/// Floors a twip measurement to a non-negative whole number.
+fn floor_twips(value: f64) -> u64 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    {
+        value.floor().max(0.0) as u64
+    }
 }
 
 /// The width, in twips, of `pixels` at `dpi`: one inch is 1440 twips. Computed in 64-bit to stay
@@ -955,6 +1029,89 @@ mod tests {
         );
     }
 
+    /// A 4x3-pixel PNG embedded as a `data:` URI, so the writer resolves real bytes and emits a
+    /// `\pict` group carrying the picture goal.
+    const EMBEDDED_PNG: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAIAAAA7ljmRAAAAEElEQVR4nGP4z8AARww4OQD1MQv1NXv7ggAAAABJRU5ErkJggg==";
+
+    fn embedded_image(attributes: Vec<(&str, &str)>) -> Block {
+        let attr = Attr {
+            attributes: attributes
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            ..Attr::default()
+        };
+        para(vec![Inline::Image(
+            Box::new(attr),
+            vec![s("alt")],
+            Box::new(Target {
+                url: EMBEDDED_PNG.into(),
+                title: "".into(),
+            }),
+        )])
+    }
+
+    #[test]
+    fn image_without_dimensions_uses_intrinsic_goal() {
+        // 4x3 px at 72 dpi: 4*1440/72 = 80 twips wide, 3*1440/72 = 60 twips tall.
+        assert!(
+            render(vec![embedded_image(vec![])]).contains("\\picw4\\pich3\\picwgoal80\\pichgoal60"),
+        );
+    }
+
+    #[test]
+    fn image_dimensions_set_picture_goal() {
+        // width=100px, height=50px at 96 dpi: 100*1440/96 = 1500, 50*1440/96 = 750.
+        assert!(
+            render(vec![embedded_image(vec![
+                ("width", "100px"),
+                ("height", "50px")
+            ])])
+            .contains("\\picw4\\pich3\\picwgoal1500\\pichgoal750"),
+        );
+    }
+
+    #[test]
+    fn image_single_dimension_scales_other_axis() {
+        // Only width=1in (1440 twips); the height follows the intrinsic 4:3 ratio: 1440*3/4 = 1080.
+        assert!(
+            render(vec![embedded_image(vec![("width", "1in")])])
+                .contains("\\picwgoal1440\\pichgoal1080"),
+        );
+        // Only height=1cm (0.3937*1440 = 566 twips floored); width follows: 566.928*4/3 → 755.
+        assert!(
+            render(vec![embedded_image(vec![("height", "1cm")])])
+                .contains("\\picwgoal755\\pichgoal566"),
+        );
+    }
+
+    #[test]
+    fn image_percent_dimension_falls_back_to_intrinsic() {
+        // A percentage carries no absolute size, so each axis keeps its intrinsic goal.
+        assert!(
+            render(vec![embedded_image(vec![("width", "50%")])])
+                .contains("\\picwgoal80\\pichgoal60"),
+        );
+    }
+
+    /// A 10x10-pixel JPEG whose JFIF header records 300 dots per inch on both axes.
+    const EMBEDDED_JPEG_300DPI: &str = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAAKAAoDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAT/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFgEBAQEAAAAAAAAAAAAAAAAAAAcI/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AkQ9pAAAB/9k=";
+
+    #[test]
+    fn jpeg_image_goal_uses_the_jfif_density() {
+        // 10 px at the header's 300 dpi: 10*1440/300 = 48 twips on each axis, not the 200 a bare
+        // 72 dpi would give.
+        let block = para(vec![Inline::Image(
+            Box::default(),
+            vec![s("alt")],
+            Box::new(Target {
+                url: EMBEDDED_JPEG_300DPI.into(),
+                title: "".into(),
+            }),
+        )]);
+        assert!(render(vec![block]).contains("\\picw10\\pich10\\picwgoal48\\pichgoal48"),);
+    }
+
     #[test]
     fn footnote_is_inline_group() {
         assert_eq!(
@@ -1023,6 +1180,49 @@ mod tests {
              }\n\\intbl\\row}\n\
              {\\pard \\ql \\f0 \\sa180 \\li0 \\fi0 \\par}"
         );
+    }
+
+    #[test]
+    fn multi_row_head_borders_only_first_row() {
+        // A head with two rows draws its bottom border under the first row only; the second head
+        // row and every body row carry plain cell definitions.
+        let cell = |text: &str| Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignDefault,
+            row_span: 1,
+            col_span: 1,
+            content: vec![Block::Plain(vec![s(text)])],
+        };
+        let spec = || ColSpec {
+            align: Alignment::AlignDefault,
+            width: ColWidth::ColWidthDefault,
+        };
+        let row = |a: &str, b: &str| Row {
+            attr: Attr::default(),
+            cells: vec![cell(a), cell(b)],
+        };
+        let table = Table {
+            col_specs: vec![spec(), spec()],
+            head: TableHead {
+                attr: Attr::default(),
+                rows: vec![row("G1", "G2"), row("A", "B")],
+            },
+            bodies: vec![carta_ast::TableBody {
+                attr: Attr::default(),
+                row_head_columns: 0,
+                head: Vec::new(),
+                body: vec![row("1", "2")],
+            }],
+            ..Table::default()
+        };
+        let out = render(vec![Block::Table(Box::new(table))]);
+        // The first head row is bordered; the second head row and the body row are not.
+        assert_eq!(
+            out.matches("\\clbrdrb\\brdrs\\cellx4320\\clbrdrb\\brdrs\\cellx8640")
+                .count(),
+            1
+        );
+        assert_eq!(out.matches("\n\\cellx4320\\cellx8640\n").count(), 2);
     }
 
     #[test]

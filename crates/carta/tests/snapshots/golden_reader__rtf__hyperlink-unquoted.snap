@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Visit"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"site"}],["http://example.com",""]]},{"t":"Str","c":","},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"nested"},{"t":"Space"},{"t":"Str","c":"link"}],["http://nested.example.com",""]]},{"t":"Str","c":","},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"mail"},{"t":"Space"},{"t":"Str","c":"me"}],["mailto:hi@example.com",""]]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"or"},{"t":"Space"},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"x"}],["http://x.com",""]]},{"t":"Str","c":"."}]}]}

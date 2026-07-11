@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<blockquote>{| class="wikitable"
+|-
+! a
+! b
+|-
+| 1
+| 2
+|}
+</blockquote>

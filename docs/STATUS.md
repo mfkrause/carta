@@ -116,9 +116,9 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
 ### `rtf` — ✅
-- A list rebuilt from `\ls`/`\ilvl` paragraph properties always becomes a bullet list; ordered-list
-  numbering carried by the document's list table is not modeled.
+- Every ordered-list level's delimiter is emitted as a trailing period regardless of its `\leveltext`.
 - Group nesting past a fixed depth is discarded rather than descended into, to bound stack use.
+- An outline level at the signed 32-bit maximum saturates its heading level instead of exceeding it.
 
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
 `docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
@@ -202,8 +202,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   surrounding spacing differs.
 
 ### `rtf` — ✅
-- Only a PNG `pHYs` resolution sets an embedded image's display size; a JPEG's own resolution is not
-  read, so it is sized at 72 dpi.
+- An embedded image whose header carries no resolution is sized at 72 dpi.
 - An image in a raster format other than PNG or JPEG is written as a bracketed placeholder naming the
   source rather than embedded.
 

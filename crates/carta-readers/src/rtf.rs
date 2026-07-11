@@ -19,27 +19,29 @@
 //! group flagged ignorable with `\*` — are skipped. A run of `\trowd`/`\cell`/`\row` rows assembles
 //! a table.
 
-use std::collections::BTreeMap;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
 use std::mem::take;
 
 use carta_ast::{
-    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, MetaValue, Row,
-    Table, TableBody, Target, Text,
+    Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
+    ListNumberDelim, ListNumberStyle, MetaValue, Row, Table, TableBody, Target, Text,
 };
 use carta_core::media::content_addressed_name;
-use carta_core::{MediaBag, Reader, ReaderOptions, Result};
+use carta_core::{BytesReader, MediaBag, ReaderOptions, Result};
 
 /// Parses a Rich Text Format document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RtfReader;
 
-impl Reader for RtfReader {
-    fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document> {
+impl BytesReader for RtfReader {
+    fn read(&self, input: &[u8], options: &ReaderOptions) -> Result<Document> {
         Ok(self.read_media(input, options)?.0)
     }
 
-    fn read_media(&self, input: &str, _options: &ReaderOptions) -> Result<(Document, MediaBag)> {
-        let tokens = tokenize(input);
+    fn read_media(&self, input: &[u8], _options: &ReaderOptions) -> Result<(Document, MediaBag)> {
+        let text = decode_input(input);
+        let tokens = tokenize(&text);
         let mut parser = Parser::new(tokens);
         parser.run();
         let (meta, blocks, media) = parser.finish();
@@ -51,6 +53,17 @@ impl Reader for RtfReader {
             },
             media,
         ))
+    }
+}
+
+/// Decodes the input bytes to text. The stream is UTF-8 when it parses as such; otherwise each byte
+/// is taken as its own code point (an 8-bit Latin-1 reading), the layer the wire form falls back to
+/// so a document carrying raw high bytes still reads rather than being rejected. A `\'xx` escape is
+/// unaffected either way, since it is spelled in ASCII and resolved through the code page later.
+fn decode_input(input: &[u8]) -> Cow<'_, str> {
+    match std::str::from_utf8(input) {
+        Ok(text) => Cow::Borrowed(text),
+        Err(_) => Cow::Owned(input.iter().map(|&byte| byte as char).collect()),
     }
 }
 
@@ -71,6 +84,9 @@ enum Token {
     Symbol(char),
     /// `\'xx` — a raw byte in the document's code page.
     Hex(u8),
+    /// The raw bytes introduced by a `\binN` control word: exactly `N` bytes of embedded binary,
+    /// carried opaque so their values never re-enter lexing as braces, backslashes, or text.
+    Binary(Vec<u8>),
     /// A literal text character.
     Char(char),
     /// A literal space; a run of them collapses when emitted.
@@ -153,6 +169,23 @@ fn lex_backslash(chars: &[char], start: usize, tokens: &mut Vec<Token>) -> usize
             if matches!(chars.get(i), Some(&c) if is_control_delimiter(c)) {
                 i += 1;
             }
+            // `\binN` is followed by exactly N bytes of embedded binary. They are captured here, at
+            // the lexer, so their values never reach the group/text grammar: a `{`, `}`, or `\`
+            // among them is data, not structure, and a raw-byte picture cannot desync brace nesting.
+            if word == "bin"
+                && let Some(count) = param.and_then(|value| usize::try_from(value).ok())
+                && count > 0
+            {
+                let end = i.saturating_add(count).min(chars.len());
+                let bytes = chars
+                    .get(i..end)
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(|&c| u8::try_from(u32::from(c) & 0xFF).unwrap_or(0))
+                    .collect();
+                tokens.push(Token::Binary(bytes));
+                return end;
+            }
             tokens.push(Token::Control(word, param));
             i
         }
@@ -195,6 +228,9 @@ struct CharProps {
     smallcaps: bool,
     allcaps: bool,
     hidden: bool,
+    /// The active font belongs to the monospace (fixed-pitch) family, so its text is code: a run
+    /// spanning a whole paragraph becomes a code block, a shorter run inline code.
+    mono: bool,
 }
 
 impl CharProps {
@@ -210,6 +246,66 @@ impl CharProps {
             allcaps: false,
             hidden: false,
             ..other
+        }
+    }
+}
+
+/// The character formatting a paragraph style contributes. Each field is set only for an attribute
+/// the style declares, so applying the style overrides exactly those attributes and leaves the rest
+/// inherited. `font` records the style's selected font number, resolved to monospace membership when
+/// the style is applied so it tracks the font table regardless of table order.
+#[derive(Debug, Clone, Copy, Default)]
+struct StyleFormat {
+    bold: Option<bool>,
+    italic: Option<bool>,
+    underline: Option<bool>,
+    strike: Option<bool>,
+    superscript: Option<bool>,
+    subscript: Option<bool>,
+    smallcaps: Option<bool>,
+    allcaps: Option<bool>,
+    hidden: Option<bool>,
+    font: Option<i32>,
+}
+
+impl StyleFormat {
+    /// Folds one control word from a style definition into the accumulating format.
+    fn apply_control(&mut self, word: &str, param: Option<i32>) {
+        let on = param != Some(0);
+        match word {
+            "b" => self.bold = Some(on),
+            "i" => self.italic = Some(on),
+            "ul" => self.underline = Some(on),
+            "ulnone" => self.underline = Some(false),
+            "uld" | "uldb" | "ulw" | "uldash" | "uldashd" | "uldashdd" | "ulhwave" | "ulth"
+            | "ulthd" | "ulwave" => self.underline = Some(true),
+            "strike" | "striked" => self.strike = Some(on),
+            "super" | "superscript" => self.superscript = Some(on),
+            "sub" | "subscript" => self.subscript = Some(on),
+            "nosupersub" => {
+                self.superscript = Some(false);
+                self.subscript = Some(false);
+            }
+            "scaps" => self.smallcaps = Some(on),
+            "caps" => self.allcaps = Some(on),
+            "v" => self.hidden = Some(on),
+            "plain" => {
+                let font = self.font;
+                *self = Self {
+                    bold: Some(false),
+                    italic: Some(false),
+                    underline: Some(false),
+                    strike: Some(false),
+                    superscript: Some(false),
+                    subscript: Some(false),
+                    smallcaps: Some(false),
+                    allcaps: Some(false),
+                    hidden: Some(false),
+                    font,
+                };
+            }
+            "f" => self.font = param,
+            _ => {}
         }
     }
 }
@@ -312,22 +408,29 @@ struct Frame {
     atoms: Vec<Atom>,
 }
 
-/// Turns a bookmark frame into a span carrying the bookmark name as its identifier.
-fn bookmark_span(frame: Frame) -> Inline {
-    Inline::Span(
-        Box::new(Attr {
-            id: frame.bookmark.unwrap_or_default(),
-            classes: Vec::new(),
-            attributes: Vec::new(),
-        }),
-        build_inlines(frame.atoms),
-    )
-}
-
 /// Builds nested inlines from a flat, formatting-tagged atom sequence. Adjacent atoms sharing a
 /// common wrapper prefix stay inside a single instance of that wrapper; a divergence closes the
 /// wrappers past the shared prefix and opens the new ones.
+/// Unwraps a bold or italic emphasis that spans an entire heading. A heading's level already conveys
+/// prominence, so a single `Strong` or `Emph` enclosing all of its content is replaced by that
+/// content, repeatedly while one remains (so nested bold-in-italic collapses fully). Emphasis over
+/// only part of the heading, or any other kind of wrapper, is left untouched.
+fn strip_heading_emphasis(mut inlines: Vec<Inline>) -> Vec<Inline> {
+    while inlines.len() == 1 {
+        match inlines.first() {
+            Some(Inline::Strong(_) | Inline::Emph(_)) => {}
+            _ => break,
+        }
+        match inlines.pop() {
+            Some(Inline::Strong(children) | Inline::Emph(children)) => inlines = children,
+            _ => break,
+        }
+    }
+    inlines
+}
+
 fn build_inlines(atoms: Vec<Atom>) -> Vec<Inline> {
+    let atoms = collapse_mono(atoms);
     let mut root: Vec<Inline> = Vec::new();
     let mut open: Vec<(Wrapper, Vec<Inline>)> = Vec::new();
 
@@ -372,6 +475,73 @@ fn build_inlines(atoms: Vec<Atom>) -> Vec<Inline> {
     }
     close_to(&mut open, &mut root, 0);
     root
+}
+
+/// Collapses each maximal run of contiguous monospace leaf atoms that share the same inline
+/// wrappers into one code node, joining their text with a space for each [`AtomKind::Space`] and a
+/// newline for each [`AtomKind::LineBreak`]. Atoms outside the monospace family, and already-built
+/// nodes, pass through untouched, so a code run ends at the first differing wrapper, non-code atom,
+/// or embedded node.
+fn collapse_mono(atoms: Vec<Atom>) -> Vec<Atom> {
+    let mut out: Vec<Atom> = Vec::new();
+    let mut run: Vec<Atom> = Vec::new();
+    let flush = |run: &mut Vec<Atom>, out: &mut Vec<Atom>| {
+        let Some(first) = run.first() else {
+            return;
+        };
+        let mut props = first.props;
+        props.mono = false;
+        let mut code = String::new();
+        for atom in run.iter() {
+            match &atom.kind {
+                AtomKind::Text(text) => code.push_str(text),
+                AtomKind::Space => code.push(' '),
+                AtomKind::LineBreak => code.push('\n'),
+                AtomKind::Node(_) => {}
+            }
+        }
+        out.push(Atom {
+            props,
+            kind: AtomKind::Node(Inline::Code(Box::default(), code.into())),
+        });
+        run.clear();
+    };
+    for atom in atoms {
+        let mono_leaf = atom.props.mono && !matches!(atom.kind, AtomKind::Node(_));
+        if mono_leaf {
+            let split = run
+                .first()
+                .is_some_and(|first| wrappers(first.props) != wrappers(atom.props));
+            if split {
+                flush(&mut run, &mut out);
+            }
+            run.push(atom);
+        } else {
+            flush(&mut run, &mut out);
+            out.push(atom);
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
+/// When every atom of a paragraph is monospace text carrying no other inline formatting, returns the
+/// paragraph body as code (a space for each [`AtomKind::Space`], a newline for each
+/// [`AtomKind::LineBreak`]); otherwise returns `None`, so the paragraph is built as inline content.
+fn mono_code_block(atoms: &[Atom]) -> Option<String> {
+    let mut code = String::new();
+    for atom in atoms {
+        if !atom.props.mono || !wrappers(atom.props).is_empty() {
+            return None;
+        }
+        match &atom.kind {
+            AtomKind::Text(text) => code.push_str(text),
+            AtomKind::Space => code.push(' '),
+            AtomKind::LineBreak => code.push('\n'),
+            AtomKind::Node(_) => return None,
+        }
+    }
+    Some(code)
 }
 
 /// Distributes a hyperlink over already-built display inlines, hoisting character-formatting
@@ -434,6 +604,10 @@ struct Emitter {
     pending_space: bool,
     space_props: CharProps,
     has_content: bool,
+    /// Keeps a space at the leading or trailing edge of the content instead of trimming it. A
+    /// paragraph trims its edge whitespace, but a hyperlink's display text is inline and its edge
+    /// space is meaningful — it separates the link from the word beside it — so it is preserved.
+    preserve_edge_space: bool,
     outline_level: Option<i32>,
     in_table_para: bool,
     rows: Vec<Row>,
@@ -442,16 +616,55 @@ struct Emitter {
     columns: usize,
     row_cell_bounds: usize,
     list_active: bool,
+    list_id: i32,
     list_level: i32,
+    list_levels: Vec<LevelDef>,
     pending_list: Vec<ListParagraph>,
 }
 
-/// One paragraph belonging to a list, tagged with its nesting level (`\ilvl`). Consecutive entries
-/// are reassembled into nested [`Block::BulletList`]s when the list run ends.
+/// One paragraph belonging to a list, tagged with the list it selects (`\ls`), its nesting level
+/// (`\ilvl`) and, when the level's definition numbers it, the start value and numeral style read from
+/// the list table. Consecutive entries are reassembled into nested lists when the list run ends: a
+/// numbered level becomes an [`Block::OrderedList`], an unnumbered one a [`Block::BulletList`]. Two
+/// adjacent paragraphs that select different lists stay in separate sibling lists even at the same
+/// level, so a numbered list directly followed by a bulleted one is not fused.
 #[derive(Debug)]
 struct ListParagraph {
+    list_id: i32,
     level: i32,
+    numbering: Option<(i32, ListNumberStyle)>,
     block: Block,
+}
+
+/// One list level's marker configuration, read from a `\listlevel` group: the numeral style (absent
+/// when the level is a bullet or carries no number) and the start value (`\levelstartat`, default 1).
+#[derive(Debug, Clone, Copy)]
+struct LevelDef {
+    style: Option<ListNumberStyle>,
+    start: i32,
+}
+
+impl LevelDef {
+    /// The start value and numeral style when this level is numbered; `None` when it is a bullet.
+    fn numbering(self) -> Option<(i32, ListNumberStyle)> {
+        self.style.map(|style| (self.start, style))
+    }
+}
+
+/// Maps a `\levelnfc` number-format code to a numeral style. Bullet (`23`) and unnumbered (`255`)
+/// levels, and a level that declares no format, carry no numeral style and render as bullets; every
+/// other code is a numbered level, with the common decimal, roman, and alphabetic codes named and
+/// the rest left to the target format's default numbering.
+fn nfc_to_style(nfc: Option<i32>) -> Option<ListNumberStyle> {
+    match nfc {
+        None | Some(23 | 255) => None,
+        Some(0) => Some(ListNumberStyle::Decimal),
+        Some(1) => Some(ListNumberStyle::UpperRoman),
+        Some(2) => Some(ListNumberStyle::LowerRoman),
+        Some(3) => Some(ListNumberStyle::UpperAlpha),
+        Some(4) => Some(ListNumberStyle::LowerAlpha),
+        Some(_) => Some(ListNumberStyle::DefaultStyle),
+    }
 }
 
 impl Emitter {
@@ -467,6 +680,7 @@ impl Emitter {
             pending_space: false,
             space_props: CharProps::default(),
             has_content: false,
+            preserve_edge_space: false,
             outline_level: None,
             in_table_para: false,
             rows: Vec::new(),
@@ -475,7 +689,9 @@ impl Emitter {
             columns: 0,
             row_cell_bounds: 0,
             list_active: false,
+            list_id: 0,
             list_level: 0,
+            list_levels: Vec::new(),
             pending_list: Vec::new(),
         }
     }
@@ -508,12 +724,13 @@ impl Emitter {
     fn resolve_space(&mut self) {
         if self.pending_space {
             self.pending_space = false;
-            if self.has_content {
+            if self.has_content || self.preserve_edge_space {
                 let props = self.space_props;
                 self.frame_atoms().push(Atom {
                     props,
                     kind: AtomKind::Space,
                 });
+                self.has_content = true;
             }
         }
     }
@@ -597,24 +814,48 @@ impl Emitter {
         if self.frames.len() <= 1 {
             return;
         }
-        if let Some(frame) = self.frames.pop() {
-            self.fold_bookmark(frame);
+        if let Some(frame) = self.frames.pop()
+            && self.fold_bookmark(frame)
+        {
             self.has_content = true;
         }
     }
 
-    /// Wraps a popped bookmark frame into a span node in its parent frame.
-    fn fold_bookmark(&mut self, frame: Frame) {
-        let span = bookmark_span(frame);
+    /// Wraps a popped bookmark frame into a span node in its parent frame, and reports whether it
+    /// produced one. A bookmark with no content between its start and end — the point anchors a word
+    /// processor scatters for every cross-reference and revision cursor — carries no span and is
+    /// dropped, so an empty span never appears in the output.
+    fn fold_bookmark(&mut self, frame: Frame) -> bool {
+        let id = frame.bookmark.unwrap_or_default();
+        let inlines = build_inlines(frame.atoms);
+        if inlines.is_empty() {
+            return false;
+        }
+        let span = Inline::Span(
+            Box::new(Attr {
+                id,
+                classes: Vec::new(),
+                attributes: Vec::new(),
+            }),
+            inlines,
+        );
         self.frame_atoms().push(Atom {
             props: CharProps::default(),
             kind: AtomKind::Node(span),
         });
+        true
     }
 
-    /// Closes the current paragraph's inline content, folding any unclosed bookmarks into spans.
-    fn take_inlines(&mut self) -> Vec<Inline> {
+    /// Closes the current paragraph's atom sequence, folding any unclosed bookmarks into spans.
+    fn take_atoms(&mut self) -> Vec<Atom> {
         self.flush_text();
+        if self.preserve_edge_space && self.pending_space {
+            let props = self.space_props;
+            self.frame_atoms().push(Atom {
+                props,
+                kind: AtomKind::Space,
+            });
+        }
         self.pending_space = false;
         while self.frames.len() > 1 {
             if let Some(frame) = self.frames.pop() {
@@ -622,23 +863,45 @@ impl Emitter {
             }
         }
         self.has_content = false;
-        let atoms = match self.frames.first_mut() {
+        match self.frames.first_mut() {
             Some(frame) => take(&mut frame.atoms),
             None => Vec::new(),
-        };
-        build_inlines(atoms)
+        }
     }
 
-    /// Ends a paragraph: the accumulated inlines become a paragraph or heading, routed into the
-    /// current table cell when the paragraph is marked in-table, otherwise into the block stream.
+    /// Closes the current paragraph's inline content, folding any unclosed bookmarks into spans.
+    fn take_inlines(&mut self) -> Vec<Inline> {
+        build_inlines(self.take_atoms())
+    }
+
+    /// Ends a paragraph: the accumulated content becomes a heading, a code block, or a paragraph,
+    /// routed into the current table cell when the paragraph is marked in-table, otherwise into the
+    /// block stream. A paragraph whose every run is monospace and otherwise unformatted is a code
+    /// block; an outline level makes it a heading.
     fn end_paragraph(&mut self) {
-        let inlines = self.take_inlines();
-        if inlines.is_empty() {
+        let mut atoms = self.take_atoms();
+        // A hard break immediately before the paragraph boundary renders no line of its own; one such
+        // trailing break is dropped so the paragraph does not end on a dangling break. A paragraph
+        // left with no content after this — a line that held only the break — is emitted as nothing.
+        if atoms
+            .last()
+            .is_some_and(|atom| matches!(atom.kind, AtomKind::LineBreak))
+        {
+            atoms.pop();
+        }
+        if atoms.is_empty() {
             return;
         }
-        let block = match self.outline_level {
-            Some(level) => Block::Header((level + 1).max(1), Box::default(), inlines),
-            None => Block::Para(inlines),
+        let block = if let Some(level) = self.outline_level {
+            Block::Header(
+                level.saturating_add(1).max(1),
+                Box::default(),
+                strip_heading_emphasis(build_inlines(atoms)),
+            )
+        } else if let Some(code) = mono_code_block(&atoms) {
+            Block::CodeBlock(Box::default(), code.into())
+        } else {
+            Block::Para(build_inlines(atoms))
         };
         if self.in_table_para {
             self.cell_blocks.push(block);
@@ -646,8 +909,14 @@ impl Emitter {
             // A list paragraph joins the pending run; any open table is closed ahead of it so the
             // list and table keep their source order.
             self.finish_table();
+            let numbering = usize::try_from(self.list_level)
+                .ok()
+                .and_then(|index| self.list_levels.get(index))
+                .and_then(|level| level.numbering());
             self.pending_list.push(ListParagraph {
+                list_id: self.list_id,
                 level: self.list_level,
+                numbering,
                 block,
             });
         } else {
@@ -657,13 +926,13 @@ impl Emitter {
         }
     }
 
-    /// Emits the buffered list paragraphs as nested bullet lists, in source order.
+    /// Emits the buffered list paragraphs as nested lists, in source order.
     fn flush_list(&mut self) {
         if self.pending_list.is_empty() {
             return;
         }
         let entries = take(&mut self.pending_list);
-        self.blocks.extend(build_bullet_lists(&entries));
+        self.blocks.extend(build_lists(&entries));
     }
 
     fn end_cell(&mut self) {
@@ -784,14 +1053,14 @@ impl Emitter {
     }
 }
 
-/// Reassembles a run of list paragraphs into nested bullet lists. A maximal span of entries at the
+/// Reassembles a run of list paragraphs into nested lists. A maximal span of entries at the
 /// shallowest level forms one list; a return to that level after a deeper span starts a fresh
 /// sibling list, so denesting is expressed as consecutive lists just as the format records it.
-fn build_bullet_lists(entries: &[ListParagraph]) -> Vec<Block> {
+fn build_lists(entries: &[ListParagraph]) -> Vec<Block> {
     let mut out = Vec::new();
     let mut rest = entries;
     while !rest.is_empty() {
-        let (block, consumed) = build_one_bullet_list(rest, 0);
+        let (block, consumed) = build_one_list(rest, 0);
         out.push(block);
         let step = consumed.max(1).min(rest.len());
         rest = rest.get(step..).unwrap_or(&[]);
@@ -799,23 +1068,28 @@ fn build_bullet_lists(entries: &[ListParagraph]) -> Vec<Block> {
     out
 }
 
-/// Builds a single [`Block::BulletList`] from the front of `entries`, consuming every entry at the
-/// list's own level and folding any deeper entry that follows an item into a nested list inside it.
+/// Builds a single list from the front of `entries`, consuming every entry at the list's own level
+/// that also selects the same list, and folding any deeper entry that follows an item into a nested
+/// list inside it. The list is an [`Block::OrderedList`] when its first entry's level is numbered,
+/// otherwise a [`Block::BulletList`]. An entry at the same level that selects a different list ends
+/// this one, so adjacent lists of unlike kind (a numbered list then a bulleted one) stay separate.
 /// Returns the list and how many entries it consumed. `depth` caps recursion so pathologically deep
 /// nesting degrades into sibling lists instead of overflowing the stack.
-fn build_one_bullet_list(entries: &[ListParagraph], depth: usize) -> (Block, usize) {
+fn build_one_list(entries: &[ListParagraph], depth: usize) -> (Block, usize) {
     const MAX_LIST_DEPTH: usize = 256;
     let base = entries.first().map_or(0, |entry| entry.level);
+    let list_id = entries.first().map_or(0, |entry| entry.list_id);
+    let numbering = entries.first().and_then(|entry| entry.numbering);
     let mut items: Vec<Vec<Block>> = Vec::new();
     let mut i = 0;
     while let Some(entry) = entries.get(i) {
-        if entry.level != base {
+        if entry.level != base || entry.list_id != list_id {
             break;
         }
         let mut item = vec![entry.block.clone()];
         i += 1;
         if matches!(entries.get(i), Some(next) if next.level > base) && depth < MAX_LIST_DEPTH {
-            let (sub, consumed) = build_one_bullet_list(entries.get(i..).unwrap_or(&[]), depth + 1);
+            let (sub, consumed) = build_one_list(entries.get(i..).unwrap_or(&[]), depth + 1);
             item.push(sub);
             i += consumed;
             items.push(item);
@@ -823,7 +1097,18 @@ fn build_one_bullet_list(entries: &[ListParagraph], depth: usize) -> (Block, usi
         }
         items.push(item);
     }
-    (Block::BulletList(items), i)
+    let block = match numbering {
+        Some((start, style)) => Block::OrderedList(
+            ListAttributes {
+                start,
+                style,
+                delim: ListNumberDelim::Period,
+            },
+            items,
+        ),
+        None => Block::BulletList(items),
+    };
+    (block, i)
 }
 
 /// Unreachable helper kept panic-free: the callers guarantee a non-empty frame stack, but rather
@@ -847,11 +1132,7 @@ const META_FIELDS: &[&str] = &[
 /// Destination words whose entire group is discarded (tables, styling, and layout apparatus that
 /// carries no body content).
 const SKIP_DESTINATIONS: &[&str] = &[
-    "fonttbl",
     "colortbl",
-    "stylesheet",
-    "listtable",
-    "listoverridetable",
     "listtext",
     "revtbl",
     "rsidtbl",
@@ -867,6 +1148,10 @@ const SKIP_DESTINATIONS: &[&str] = &[
     "footerr",
     "footerf",
     "pnseclvl",
+    "pn",
+    "pntext",
+    "pntxta",
+    "pntxtb",
     "themedata",
     "colorschememapping",
     "latentstyles",
@@ -893,6 +1178,11 @@ struct Parser {
     skip: usize,
     pending_high_surrogate: Option<u32>,
     depth: usize,
+    list_defs: BTreeMap<i32, Vec<LevelDef>>,
+    list_overrides: BTreeMap<i32, i32>,
+    style_outlines: BTreeMap<i32, i32>,
+    style_formats: BTreeMap<i32, StyleFormat>,
+    mono_fonts: BTreeSet<i32>,
 }
 
 /// Ceiling on nested group depth. Beyond it a group's content is discarded rather than descended
@@ -911,6 +1201,11 @@ impl Parser {
             skip: 0,
             pending_high_surrogate: None,
             depth: 0,
+            list_defs: BTreeMap::new(),
+            list_overrides: BTreeMap::new(),
+            style_outlines: BTreeMap::new(),
+            style_formats: BTreeMap::new(),
+            mono_fonts: BTreeSet::new(),
         }
     }
 
@@ -934,6 +1229,42 @@ impl Parser {
             .last()
             .map(|state| state.props)
             .unwrap_or_default()
+    }
+
+    /// Overlays a paragraph style's character formatting onto the given properties, changing only the
+    /// attributes the style declares. A font the style selects resolves to monospace membership now,
+    /// once the font table is fully known.
+    fn apply_style_format(&self, fmt: &StyleFormat, props: &mut CharProps) {
+        if let Some(value) = fmt.bold {
+            props.bold = value;
+        }
+        if let Some(value) = fmt.italic {
+            props.italic = value;
+        }
+        if let Some(value) = fmt.underline {
+            props.underline = value;
+        }
+        if let Some(value) = fmt.strike {
+            props.strike = value;
+        }
+        if let Some(value) = fmt.superscript {
+            props.superscript = value;
+        }
+        if let Some(value) = fmt.subscript {
+            props.subscript = value;
+        }
+        if let Some(value) = fmt.smallcaps {
+            props.smallcaps = value;
+        }
+        if let Some(value) = fmt.allcaps {
+            props.allcaps = value;
+        }
+        if let Some(value) = fmt.hidden {
+            props.hidden = value;
+        }
+        if let Some(font) = fmt.font {
+            props.mono = self.mono_fonts.contains(&font);
+        }
     }
 
     fn state_mut(&mut self) -> &mut GroupState {
@@ -984,6 +1315,9 @@ impl Parser {
                         emitter.push_char(code_page_char(byte), props);
                     }
                 }
+                // Binary data outside a picture destination carries no text; it is consumed and
+                // dropped (a `\binN` object body that no reader-handled destination collected).
+                Token::Binary(_) => self.pos += 1,
                 Token::Char(c) => {
                     self.pos += 1;
                     let props = self.props();
@@ -1036,6 +1370,10 @@ impl Parser {
         let (ignorable, dest) = self.peek_destination();
         match dest.as_deref() {
             Some("info") => self.parse_info(),
+            Some("fonttbl") => self.parse_font_table(),
+            Some("stylesheet") => self.parse_stylesheet(),
+            Some("listtable") => self.parse_list_table(),
+            Some("listoverridetable") => self.parse_list_override_table(),
             Some("pict") => self.parse_picture(),
             Some("field") => self.parse_field(),
             Some("footnote") => self.parse_footnote(),
@@ -1048,6 +1386,7 @@ impl Parser {
                 self.pos += 1; // the `shppict` word
                 self.process();
             }
+            Some("shpinst") => self.parse_shape(),
             Some(word) if SKIP_DESTINATIONS.contains(&word) => self.skip_group(),
             _ if ignorable => self.skip_group(),
             _ => {
@@ -1096,6 +1435,7 @@ impl Parser {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn handle_control(&mut self, word: &str, param: Option<i32>) {
         let on = param != Some(0);
         match word {
@@ -1118,17 +1458,30 @@ impl Parser {
             "v" => self.state_mut().props.hidden = on,
             "plain" => self.state_mut().props = CharProps::default(),
             "pard" => {
-                self.state_mut().props = CharProps::default();
+                // A paragraph reset restores the default paragraph style (`\s0`): its character
+                // formatting and outline level, if the stylesheet defines them, apply to every
+                // paragraph that selects no other style.
+                let mut props = CharProps::default();
+                if let Some(fmt) = self.style_formats.get(&0).copied() {
+                    self.apply_style_format(&fmt, &mut props);
+                }
+                self.state_mut().props = props;
+                let outline = self.style_outlines.get(&0).copied();
                 if let Some(emitter) = self.emitter() {
-                    emitter.outline_level = None;
+                    emitter.outline_level = outline;
                     emitter.in_table_para = false;
                     emitter.list_active = false;
+                    emitter.list_id = 0;
                     emitter.list_level = 0;
+                    emitter.list_levels = Vec::new();
                 }
             }
             "ls" => {
+                let levels = self.resolve_list(param);
                 if let Some(emitter) = self.emitter() {
                     emitter.list_active = true;
+                    emitter.list_id = param.unwrap_or(0);
+                    emitter.list_levels = levels;
                 }
             }
             "ilvl" => {
@@ -1185,6 +1538,28 @@ impl Parser {
                     emitter.outline_level = Some(param.unwrap_or(0));
                 }
             }
+            "s" => {
+                // A paragraph style reference overlays the style's character formatting on the
+                // current state and, when the stylesheet marks that style with an outline level,
+                // makes the paragraph a heading of that level, just as an inline `\outlinelevel`
+                // would. Later explicit control words in the same paragraph still win.
+                let num = param.unwrap_or(0);
+                if let Some(fmt) = self.style_formats.get(&num).copied() {
+                    let mut props = self.props();
+                    self.apply_style_format(&fmt, &mut props);
+                    self.state_mut().props = props;
+                }
+                if let Some(level) = self.style_outlines.get(&num).copied()
+                    && let Some(emitter) = self.emitter()
+                {
+                    emitter.outline_level = Some(level);
+                }
+            }
+            "f" => {
+                // Selecting a font from the font table: a font of the monospace family marks the run
+                // as code, so it later lowers to inline code or a whole-paragraph code block.
+                self.state_mut().props.mono = self.mono_fonts.contains(&param.unwrap_or(0));
+            }
             _ => {
                 if let Some(text) = special_char(word) {
                     let props = self.props();
@@ -1206,12 +1581,7 @@ impl Parser {
     }
 
     fn handle_unicode(&mut self, param: Option<i32>) {
-        let raw = param.unwrap_or(0);
-        let code = if raw < 0 {
-            u32::try_from(i64::from(raw) + 65536).unwrap_or(0)
-        } else {
-            u32::try_from(raw).unwrap_or(0)
-        };
+        let code = unicode_code(param.unwrap_or(0));
         if (0xD800..=0xDBFF).contains(&code) {
             self.pending_high_surrogate = Some(code);
         } else if (0xDC00..=0xDFFF).contains(&code) {
@@ -1278,11 +1648,282 @@ impl Parser {
         }
     }
 
+    /// Reads the font table, noting which font numbers belong to the monospace (fixed-pitch) family.
+    /// Each entry opens with `\fN` and declares a family (`\froman`, `\fswiss`, `\fmodern`, …); a
+    /// `\fmodern` font is recorded so a run set in it renders as code. Entries may share one group,
+    /// separated by `;`, or sit each in their own nested group, so both an entry terminator and a
+    /// group boundary end the current font.
+    fn parse_font_table(&mut self) {
+        self.skip_optional_marker();
+        self.pos += 1; // the `fonttbl` word
+        let mut depth = 1;
+        let mut current: Option<i32> = None;
+        while let Some(token) = self.tokens.get(self.pos) {
+            self.pos += 1;
+            match token {
+                Token::GroupStart => depth += 1,
+                Token::GroupEnd => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                    current = None;
+                }
+                Token::Control(word, param) => match word.as_str() {
+                    "f" => current = *param,
+                    "fmodern" => {
+                        if let Some(num) = current {
+                            self.mono_fonts.insert(num);
+                        }
+                    }
+                    _ => {}
+                },
+                Token::Char(';') => current = None,
+                _ => {}
+            }
+        }
+    }
+
+    /// Reads the stylesheet: each style definition that carries an `\outlinelevel` registers its
+    /// paragraph style number (`\sN`) so a paragraph selecting that style becomes a heading.
+    fn parse_stylesheet(&mut self) {
+        self.skip_optional_marker();
+        self.pos += 1; // the `stylesheet` word
+        loop {
+            match self.tokens.get(self.pos) {
+                None => break,
+                Some(Token::GroupEnd) => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(Token::GroupStart) => {
+                    self.pos += 1;
+                    self.parse_style_def();
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+    }
+
+    /// Reads one style definition (its `{` already consumed) through the matching `}`. A paragraph
+    /// style is designated by a leading `\sN`; when the definition carries an `\outlinelevel`, the
+    /// pair is recorded so paragraphs referencing style `N` render as headings, and any character
+    /// formatting the definition sets is recorded so those paragraphs inherit it. Character and
+    /// section styles carry no bare `\s` and are ignored. Nested groups are skipped.
+    fn parse_style_def(&mut self) {
+        self.skip_optional_marker();
+        let mut style_num: Option<i32> = None;
+        let mut outline: Option<i32> = None;
+        let mut format = StyleFormat::default();
+        loop {
+            match self.tokens.get(self.pos) {
+                None => break,
+                Some(Token::GroupEnd) => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(Token::GroupStart) => {
+                    self.pos += 1;
+                    self.skip_current_group();
+                }
+                Some(Token::Control(word, param)) => {
+                    match word.as_str() {
+                        "s" if style_num.is_none() => style_num = Some(param.unwrap_or(0)),
+                        "outlinelevel" => outline = Some(param.unwrap_or(0)),
+                        other => format.apply_control(other, *param),
+                    }
+                    self.pos += 1;
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+        if let Some(num) = style_num {
+            if let Some(level) = outline {
+                self.style_outlines.insert(num, level);
+            }
+            self.style_formats.insert(num, format);
+        }
+    }
+
+    /// Reads the list table: each `\list` group defines one abstract list, keyed by its `\listid`.
+    fn parse_list_table(&mut self) {
+        self.skip_optional_marker();
+        self.pos += 1; // the `listtable` word
+        loop {
+            match self.tokens.get(self.pos) {
+                None => break,
+                Some(Token::GroupEnd) => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(Token::GroupStart) => {
+                    self.pos += 1;
+                    self.skip_optional_marker();
+                    match self.tokens.get(self.pos) {
+                        Some(Token::Control(word, _)) if word == "list" => {
+                            self.pos += 1;
+                            self.parse_list_def();
+                        }
+                        _ => self.skip_current_group(),
+                    }
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+    }
+
+    /// Reads one `\list` group (its `{\list` already consumed) through the matching `}`, collecting
+    /// its per-level marker definitions and registering them under the list's `\listid`.
+    fn parse_list_def(&mut self) {
+        let mut listid: Option<i32> = None;
+        let mut levels: Vec<LevelDef> = Vec::new();
+        loop {
+            match self.tokens.get(self.pos) {
+                None => break,
+                Some(Token::GroupEnd) => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(Token::GroupStart) => {
+                    self.pos += 1;
+                    self.skip_optional_marker();
+                    match self.tokens.get(self.pos) {
+                        Some(Token::Control(word, _)) if word == "listlevel" => {
+                            self.pos += 1;
+                            levels.push(self.parse_list_level());
+                        }
+                        _ => self.skip_current_group(),
+                    }
+                }
+                Some(Token::Control(word, param)) => {
+                    if word == "listid" {
+                        listid = *param;
+                    }
+                    self.pos += 1;
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+        if let Some(id) = listid {
+            self.list_defs.insert(id, levels);
+        }
+    }
+
+    /// Reads one `\listlevel` group (its `{\listlevel` already consumed) through the matching `}`,
+    /// taking the numeral style from `\levelnfc` and the first item's number from `\levelstartat`.
+    fn parse_list_level(&mut self) -> LevelDef {
+        let mut nfc: Option<i32> = None;
+        let mut start: i32 = 1;
+        loop {
+            match self.tokens.get(self.pos) {
+                None => break,
+                Some(Token::GroupEnd) => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(Token::GroupStart) => {
+                    self.pos += 1;
+                    self.skip_current_group();
+                }
+                Some(Token::Control(word, param)) => {
+                    match word.as_str() {
+                        "levelnfc" => nfc = *param,
+                        "levelnfcn" if nfc.is_none() => nfc = *param,
+                        "levelstartat" => {
+                            if let Some(value) = param {
+                                start = *value;
+                            }
+                        }
+                        _ => {}
+                    }
+                    self.pos += 1;
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+        LevelDef {
+            style: nfc_to_style(nfc),
+            start,
+        }
+    }
+
+    /// Reads the list-override table: each `\listoverride` maps the `\ls` number paragraphs reference
+    /// to the `\listid` of an abstract list defined in the list table.
+    fn parse_list_override_table(&mut self) {
+        self.skip_optional_marker();
+        self.pos += 1; // the `listoverridetable` word
+        loop {
+            match self.tokens.get(self.pos) {
+                None => break,
+                Some(Token::GroupEnd) => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(Token::GroupStart) => {
+                    self.pos += 1;
+                    self.skip_optional_marker();
+                    match self.tokens.get(self.pos) {
+                        Some(Token::Control(word, _)) if word == "listoverride" => {
+                            self.pos += 1;
+                            self.parse_list_override();
+                        }
+                        _ => self.skip_current_group(),
+                    }
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+    }
+
+    /// Reads one `\listoverride` group (its `{\listoverride` already consumed) through the matching
+    /// `}`, registering its `\ls`-to-`\listid` mapping.
+    fn parse_list_override(&mut self) {
+        let mut listid: Option<i32> = None;
+        let mut ls: Option<i32> = None;
+        loop {
+            match self.tokens.get(self.pos) {
+                None => break,
+                Some(Token::GroupEnd) => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(Token::GroupStart) => {
+                    self.pos += 1;
+                    self.skip_current_group();
+                }
+                Some(Token::Control(word, param)) => {
+                    match word.as_str() {
+                        "listid" => listid = *param,
+                        "ls" => ls = *param,
+                        _ => {}
+                    }
+                    self.pos += 1;
+                }
+                Some(_) => self.pos += 1,
+            }
+        }
+        if let (Some(ls), Some(id)) = (ls, listid) {
+            self.list_overrides.insert(ls, id);
+        }
+    }
+
+    /// The level definitions the list-override number `\lsN` on a paragraph selects: resolved through
+    /// the override table to a `\listid`, falling back to that number as a direct list id. An unknown
+    /// number yields no levels, so its paragraphs render as a plain bullet list.
+    fn resolve_list(&self, ls: Option<i32>) -> Vec<LevelDef> {
+        let Some(ls) = ls else {
+            return Vec::new();
+        };
+        let id = self.list_overrides.get(&ls).copied().unwrap_or(ls);
+        self.list_defs.get(&id).cloned().unwrap_or_default()
+    }
+
     fn parse_picture(&mut self) {
         self.skip_optional_marker();
         self.pos += 1; // the `pict` word
         let mut extension: Option<&'static str> = None;
         let mut hex = String::new();
+        let mut binary: Vec<u8> = Vec::new();
         let mut depth = 1;
         let mut goal_width: Option<i32> = None;
         let mut goal_height: Option<i32> = None;
@@ -1305,11 +1946,17 @@ impl Parser {
                     _ => {}
                 },
                 Token::Char(c) if c.is_ascii_hexdigit() => hex.push(*c),
+                // Picture data can arrive raw via `\binN` instead of hex; take those bytes directly.
+                Token::Binary(data) => binary.extend_from_slice(data),
                 _ => {}
             }
         }
         if let Some(extension) = extension {
-            let bytes = decode_hex(&hex);
+            let bytes = if binary.is_empty() {
+                decode_hex(&hex)
+            } else {
+                binary
+            };
             if !bytes.is_empty() {
                 let mime = match extension {
                     "png" => "image/png",
@@ -1331,6 +1978,75 @@ impl Parser {
                 if let Some(emitter) = self.emitter() {
                     emitter.push_node(image, props);
                 }
+            }
+        }
+    }
+
+    /// Reads a `\*\shpinst` shape-instructions group (its `{` already consumed): the body of a
+    /// drawing object. Its embedded picture and text box carry document content that the surrounding
+    /// positioning and property words do not, so those two are descended into and everything else is
+    /// discarded. A `\sp` shape property named `pib` holds an inline picture; a `\shptxt` group holds
+    /// block content emitted in source order.
+    fn parse_shape(&mut self) {
+        self.skip_optional_marker();
+        self.pos += 1; // the `shpinst` word
+        while let Some(token) = self.tokens.get(self.pos) {
+            match token {
+                Token::GroupEnd => {
+                    self.pos += 1;
+                    break;
+                }
+                Token::GroupStart => {
+                    self.pos += 1;
+                    self.skip_optional_marker();
+                    match self.tokens.get(self.pos) {
+                        Some(Token::Control(word, _)) if word == "sp" => {
+                            self.parse_shape_property();
+                        }
+                        Some(Token::Control(word, _)) if word == "shptxt" => {
+                            self.pos += 1; // the `shptxt` word
+                            self.process();
+                        }
+                        _ => self.skip_current_group(),
+                    }
+                }
+                _ => self.pos += 1,
+            }
+        }
+    }
+
+    /// Reads one `\sp` shape property (its `{` already consumed, position at the `\sp` word) through
+    /// the matching `}`: an `\sn` name/`\sv` value pair. Only the `pib` property carries a picture, so
+    /// its value's embedded `\pict` is decoded into an inline image; every other property is discarded.
+    fn parse_shape_property(&mut self) {
+        self.pos += 1; // the `sp` word
+        let mut name: Option<String> = None;
+        while let Some(token) = self.tokens.get(self.pos) {
+            match token {
+                Token::GroupEnd => {
+                    self.pos += 1;
+                    break;
+                }
+                Token::GroupStart => {
+                    self.pos += 1;
+                    self.skip_optional_marker();
+                    match self.tokens.get(self.pos) {
+                        Some(Token::Control(word, _)) if word == "sn" => {
+                            self.pos += 1; // the `sn` word
+                            name = Some(self.collect_text().trim().to_owned());
+                        }
+                        Some(Token::Control(word, _)) if word == "sv" => {
+                            self.pos += 1; // the `sv` word
+                            if name.as_deref() == Some("pib") {
+                                self.process();
+                            } else {
+                                self.skip_current_group();
+                            }
+                        }
+                        _ => self.skip_current_group(),
+                    }
+                }
+                _ => self.pos += 1,
             }
         }
     }
@@ -1363,7 +2079,7 @@ impl Parser {
                     };
                     match word.as_deref() {
                         Some("fldinst") => {
-                            let instruction = self.collect_text();
+                            let instruction = self.collect_field_instruction();
                             if let Some(found) = parse_hyperlink(&instruction) {
                                 url = Some(found);
                             }
@@ -1424,9 +2140,13 @@ impl Parser {
     }
 
     /// Builds the inline content of the group opened at the current position, in a throwaway block
-    /// context, and returns it flattened.
+    /// context, and returns it flattened. Edge whitespace is kept: the content is inline display
+    /// text (a hyperlink's `\fldrslt`), where a leading or trailing space separates it from the
+    /// surrounding words.
     fn collect_group_inlines(&mut self) -> Vec<Inline> {
-        self.emitters.push(Emitter::new());
+        let mut emitter = Emitter::new();
+        emitter.preserve_edge_space = true;
+        self.emitters.push(emitter);
         self.states
             .push(self.states.last().copied().unwrap_or_default());
         self.process();
@@ -1458,6 +2178,87 @@ impl Parser {
     /// matching `}`. Nested groups contribute their text too.
     fn collect_text(&mut self) -> String {
         let mut out = String::new();
+        let mut depth: usize = 1;
+        let mut uc: i32 = self.states.last().map_or(1, |state| state.uc);
+        let mut skip: i32 = 0;
+        let mut pending_high: Option<u32> = None;
+        while let Some(token) = self.tokens.get(self.pos).cloned() {
+            // A `\uN` is followed by `uc` fallback items for readers that cannot render the scalar;
+            // they are consumed here so the fallback `?` never leaks into the collected text.
+            if skip > 0 {
+                match token {
+                    Token::GroupEnd => skip = 0,
+                    Token::GroupStart => {
+                        self.pos += 1;
+                        self.skip_group();
+                        skip -= 1;
+                        continue;
+                    }
+                    _ => {
+                        self.pos += 1;
+                        skip -= 1;
+                        continue;
+                    }
+                }
+            }
+            self.pos += 1;
+            match token {
+                Token::GroupStart => depth += 1,
+                Token::GroupEnd => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Token::Char(c) => out.push(c),
+                Token::Space => out.push(' '),
+                Token::Hex(byte) => out.push(code_page_char(byte)),
+                Token::Binary(_) => {}
+                Token::Control(word, param) => match word.as_str() {
+                    "uc" => uc = param.unwrap_or(1).max(0),
+                    "u" => {
+                        let code = unicode_code(param.unwrap_or(0));
+                        if (0xD800..=0xDBFF).contains(&code) {
+                            pending_high = Some(code);
+                        } else if (0xDC00..=0xDFFF).contains(&code) {
+                            if let Some(high) = pending_high.take() {
+                                let combined = 0x1_0000 + ((high - 0xD800) << 10) + (code - 0xDC00);
+                                if let Some(c) = char::from_u32(combined) {
+                                    out.push(c);
+                                }
+                            }
+                        } else {
+                            pending_high = None;
+                            if let Some(c) = char::from_u32(code) {
+                                out.push(c);
+                            }
+                        }
+                        skip = uc;
+                    }
+                    other => {
+                        if let Some(text) = special_char(other) {
+                            out.push_str(text);
+                        }
+                    }
+                },
+                Token::Symbol(symbol) => {
+                    if let Some(text) = symbol_char(symbol) {
+                        out.push_str(text);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Gathers a field instruction (its `{` already consumed) through the matching `}`, preserving a
+    /// backslash at every control word, control symbol, and escaped byte. Field switches and escapes
+    /// therefore stay marked as backslashes so the destination of a `HYPERLINK` field can be split off
+    /// at the first one; nested groups contribute their content too. A switch spelled with an escaped
+    /// backslash (`\\l`) keeps its letters as ordinary text, so a switch such as `\l` is still
+    /// recognizable by name.
+    fn collect_field_instruction(&mut self) -> String {
+        let mut out = String::new();
         let mut depth = 1;
         while let Some(token) = self.tokens.get(self.pos) {
             self.pos += 1;
@@ -1471,17 +2272,8 @@ impl Parser {
                 }
                 Token::Char(c) => out.push(*c),
                 Token::Space => out.push(' '),
-                Token::Hex(byte) => out.push(code_page_char(*byte)),
-                Token::Control(word, _) => {
-                    if let Some(text) = special_char(word) {
-                        out.push_str(text);
-                    }
-                }
-                Token::Symbol(symbol) => {
-                    if let Some(text) = symbol_char(*symbol) {
-                        out.push_str(text);
-                    }
-                }
+                Token::Control(_, _) | Token::Symbol(_) | Token::Hex(_) => out.push('\\'),
+                Token::Binary(_) => {}
             }
         }
         out
@@ -1614,6 +2406,16 @@ fn symbol_char(symbol: char) -> Option<&'static str> {
     })
 }
 
+/// Resolves a `\uN` parameter to a Unicode scalar value. The parameter is a signed 16-bit integer;
+/// a negative value denotes a code point above 0x7FFF, recovered by adding 65536.
+fn unicode_code(raw: i32) -> u32 {
+    if raw < 0 {
+        u32::try_from(i64::from(raw) + 65536).unwrap_or(0)
+    } else {
+        u32::try_from(raw).unwrap_or(0)
+    }
+}
+
 /// Maps a code-page byte to a character. Bytes outside `0x80..=0x9F` are Latin-1; that window uses
 /// the Windows-1252 assignments, the code page an unqualified `\ansi` document carries.
 fn code_page_char(byte: u8) -> char {
@@ -1674,49 +2476,66 @@ fn text_to_inlines(text: &str) -> Vec<Inline> {
     out
 }
 
-/// Extracts a link target from a field instruction. A `HYPERLINK` instruction carries a quoted URL
-/// and, with `\l`, a quoted in-document anchor joined to it with `#`. Instructions that are not
-/// hyperlinks yield `None`.
+/// Extracts a link target from a field instruction. A `HYPERLINK` instruction is followed by its
+/// destination, which runs from the keyword to the first backslash — the marker every field switch
+/// (`\l`, `\o`, …) carries — with any quotes removed and outer whitespace trimmed. When no such
+/// destination is present, an `\l` switch names an in-document bookmark, and its argument becomes a
+/// fragment target (`#name`). An instruction without the `HYPERLINK` keyword is not a link and yields
+/// `None`.
 fn parse_hyperlink(instruction: &str) -> Option<String> {
-    let trimmed = instruction.trim_start();
-    if !trimmed
-        .get(..9)
-        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("HYPERLINK"))
+    const KEYWORD: &str = "HYPERLINK";
+    let after = instruction.find(KEYWORD)? + KEYWORD.len();
+    let tail = instruction.get(after..).unwrap_or_default();
+    let destination = match tail.find('\\') {
+        Some(cut) => tail.get(..cut).unwrap_or_default(),
+        None => tail,
+    };
+    let target = strip_field_quotes(destination);
+    if !target.is_empty() {
+        return Some(target);
+    }
+    if let Some(anchor) = field_switch_argument(tail, "l")
+        && !anchor.is_empty()
     {
-        return None;
+        return Some(format!("#{anchor}"));
     }
-    let quoted = quoted_strings(instruction);
-    let has_anchor = instruction.contains("\\l");
-    if has_anchor {
-        match quoted.split_last() {
-            Some((anchor, [])) => Some(format!("#{anchor}")),
-            Some((anchor, rest)) => {
-                let base = rest.last().map_or("", String::as_str);
-                Some(format!("{base}#{anchor}"))
-            }
-            None => None,
-        }
-    } else {
-        quoted.into_iter().next()
-    }
+    Some(target)
 }
 
-/// The double-quoted substrings of a field instruction, in order.
-fn quoted_strings(instruction: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut current = String::new();
-    let mut inside = false;
-    for c in instruction.chars() {
-        if c == '"' {
-            if inside {
-                out.push(take(&mut current));
-            }
-            inside = !inside;
-        } else if inside {
-            current.push(c);
+/// Strips the double quotes and outer whitespace that wrap a field argument.
+fn strip_field_quotes(text: &str) -> String {
+    text.chars()
+        .filter(|&c| c != '"')
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+/// Locates a field switch (`\<name>`) in an instruction and returns the argument that follows it —
+/// the text up to the next switch — with quotes and outer whitespace removed. Returns `None` when no
+/// switch of that name is present. Matching is by whole control-word name, so `\l` is not found
+/// inside a longer word such as `\line`.
+fn field_switch_argument(tail: &str, name: &str) -> Option<String> {
+    let mut rest = tail;
+    while let Some(backslash) = rest.find('\\') {
+        let after = rest.get(backslash + 1..).unwrap_or_default();
+        let word_len = after
+            .chars()
+            .take_while(char::is_ascii_alphabetic)
+            .map(char::len_utf8)
+            .sum();
+        let word = after.get(..word_len).unwrap_or_default();
+        let argument = after.get(word_len..).unwrap_or_default();
+        if word == name {
+            let value = match argument.find('\\') {
+                Some(cut) => argument.get(..cut).unwrap_or_default(),
+                None => argument,
+            };
+            return Some(strip_field_quotes(value));
         }
+        rest = argument;
     }
-    out
+    None
 }
 
 #[cfg(test)]
@@ -1724,12 +2543,20 @@ mod tests {
     use super::*;
 
     fn read(input: &str) -> Document {
+        read_bytes(input.as_bytes())
+    }
+
+    fn read_bytes(input: &[u8]) -> Document {
         RtfReader
             .read(input, &ReaderOptions::default())
             .expect("read")
     }
 
     fn read_media(input: &str) -> (Document, MediaBag) {
+        read_media_bytes(input.as_bytes())
+    }
+
+    fn read_media_bytes(input: &[u8]) -> (Document, MediaBag) {
         RtfReader
             .read_media(input, &ReaderOptions::default())
             .expect("read")
@@ -1782,6 +2609,60 @@ mod tests {
         assert_eq!(
             doc.blocks,
             vec![para(vec![Inline::Emph(vec![s("italic")])])]
+        );
+    }
+
+    #[test]
+    fn style_reference_inherits_character_formatting() {
+        let doc = read(r"{\rtf1\ansi{\stylesheet{\s1\i Emphasis;}}\pard\s1 italic text\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![Inline::Emph(vec![
+                s("italic"),
+                Inline::Space,
+                s("text"),
+            ])])]
+        );
+    }
+
+    #[test]
+    fn default_style_applies_to_unstyled_paragraphs() {
+        let doc = read(r"{\rtf1\ansi{\stylesheet{\s0\b Normal;}}\pard first\par\pard second\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![
+                para(vec![Inline::Strong(vec![s("first")])]),
+                para(vec![Inline::Strong(vec![s("second")])]),
+            ]
+        );
+    }
+
+    #[test]
+    fn style_formatting_overlays_default_style() {
+        // `\s0` sets bold for every paragraph and `\s1` adds italic, so the run is both.
+        let doc =
+            read(r"{\rtf1\ansi{\stylesheet{\s0\b Normal;}{\s1\i Emphasis;}}\pard\s1 word\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![Inline::Strong(vec![Inline::Emph(vec![s(
+                "word"
+            )])])])]
+        );
+    }
+
+    #[test]
+    fn whole_heading_emphasis_is_stripped() {
+        // A styled heading whose entire content is bold drops the emphasis, since the heading level
+        // already conveys prominence.
+        let doc =
+            read(r"{\rtf1\ansi{\stylesheet{\s1\outlinelevel0\b Heading;}}\pard\s1 the title\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![Block::Header(
+                1,
+                Box::default(),
+                vec![s("the"), Inline::Space, s("title")],
+            )]
         );
     }
 
@@ -1844,6 +2725,31 @@ mod tests {
     }
 
     #[test]
+    fn trailing_line_break_at_paragraph_boundary_is_dropped() {
+        // A single break just before the paragraph mark carries no line and is removed.
+        let doc = read(r"{\rtf1\ansi a\line\par}");
+        assert_eq!(doc.blocks, vec![para(vec![s("a")])]);
+        // Only one trailing break is removed; the earlier break stays.
+        let doc = read(r"{\rtf1\ansi a\line\line\par}");
+        assert_eq!(doc.blocks, vec![para(vec![s("a"), Inline::LineBreak])]);
+        // A paragraph holding only a break becomes empty and is emitted as nothing.
+        let doc = read(r"{\rtf1\ansi first\par\line\par second\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![s("first")]), para(vec![s("second")])]
+        );
+        // The same trimming applies where a paragraph is closed by a cell or footnote boundary.
+        let doc = read(r"{\rtf1\ansi x{\footnote note\line}\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![
+                s("x"),
+                Inline::Note(vec![para(vec![s("note")])])
+            ])]
+        );
+    }
+
+    #[test]
     fn escapes_and_special_characters() {
         let doc = read(r"{\rtf1\ansi a\{b\}c\\d\par}");
         assert_eq!(doc.blocks, vec![para(vec![s(r"a{b}c\d")])]);
@@ -1891,6 +2797,15 @@ mod tests {
         assert_eq!(
             doc.blocks,
             vec![Block::Header(3, Box::default(), vec![s("Sub")])]
+        );
+    }
+
+    #[test]
+    fn extreme_outline_level_saturates_without_overflow() {
+        let doc = read(r"{\rtf1\ansi \outlinelevel2147483647 Edge\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![Block::Header(i32::MAX, Box::default(), vec![s("Edge")])]
         );
     }
 
@@ -1955,6 +2870,56 @@ mod tests {
                     title: Text::default(),
                 }),
             )])]
+        );
+    }
+
+    #[test]
+    fn hyperlink_field_without_quotes_becomes_link() {
+        let doc = read(
+            r#"{\rtf1\ansi {\field{\*\fldinst HYPERLINK http://x.com \o "tip"}{\fldrslt click}}\par}"#,
+        );
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![Inline::Link(
+                Box::default(),
+                vec![s("click")],
+                Box::new(Target {
+                    url: "http://x.com".into(),
+                    title: Text::default(),
+                }),
+            )])]
+        );
+    }
+
+    #[test]
+    fn list_table_numbering_becomes_ordered() {
+        let doc = read(
+            r"{\rtf1\ansi{\listtable{\list{\listlevel\levelnfc4\levelstartat3{\leveltext\'02\'00.;}}\listid1}}{\listoverridetable{\listoverride\listid1\ls1}}\pard\ls1\ilvl0 First\par\pard\ls1\ilvl0 Second\par}",
+        );
+        assert_eq!(
+            doc.blocks,
+            vec![Block::OrderedList(
+                ListAttributes {
+                    start: 3,
+                    style: ListNumberStyle::LowerAlpha,
+                    delim: ListNumberDelim::Period,
+                },
+                vec![vec![para(vec![s("First")])], vec![para(vec![s("Second")])],],
+            )]
+        );
+    }
+
+    #[test]
+    fn list_without_a_table_stays_a_bullet() {
+        let doc = read(
+            r"{\rtf1\ansi {\listtext\'B7}\ls1\ilvl0 First\par {\listtext\'B7}\ls1\ilvl0 Second\par}",
+        );
+        assert_eq!(
+            doc.blocks,
+            vec![Block::BulletList(vec![
+                vec![para(vec![s("First")])],
+                vec![para(vec![s("Second")])],
+            ])]
         );
     }
 
@@ -2032,6 +2997,67 @@ mod tests {
     }
 
     #[test]
+    fn shape_picture_becomes_inline_image() {
+        let (doc, media) = read_media(
+            r"{\rtf1\ansi A{\shp{\*\shpinst{\sp{\sn pib}{\sv {\pict\pngblip 89504e470d0a1a0a}}}}}B\par}",
+        );
+        let name = content_addressed_name(
+            "image/png",
+            &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+        );
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![
+                s("A"),
+                Inline::Image(
+                    Box::default(),
+                    vec![s("image")],
+                    Box::new(Target {
+                        url: name.clone().into(),
+                        title: Text::default(),
+                    }),
+                ),
+                s("B"),
+            ])]
+        );
+        assert!(media.contains(&name));
+    }
+
+    #[test]
+    fn shape_text_box_becomes_paragraph() {
+        let doc = read(
+            r"{\rtf1\ansi Para one.\par {\shp{\*\shpinst{\shptxt \pard Callout text here.\par}}}Para two.\par}",
+        );
+        assert_eq!(
+            doc.blocks,
+            vec![
+                para(vec![s("Para"), Inline::Space, s("one.")]),
+                para(vec![
+                    s("Callout"),
+                    Inline::Space,
+                    s("text"),
+                    Inline::Space,
+                    s("here."),
+                ]),
+                para(vec![s("Para"), Inline::Space, s("two.")]),
+            ]
+        );
+    }
+
+    #[test]
+    fn raw_high_bytes_fall_back_to_latin1() {
+        // Byte 0xE9 sits in a stream that is not valid UTF-8, so the whole document is read as
+        // Latin-1: 0xE9 -> U+00E9 (é). A `\'xx` escape keeps its code-page reading regardless.
+        let doc = read_bytes(b"{\\rtf1\\ansi caf\xe9 here\\par}");
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![s("caf\u{00E9}"), Inline::Space, s("here")])]
+        );
+        let doc = read_bytes(b"{\\rtf1\\ansi A\x93B\xa0C\\par}");
+        assert_eq!(doc.blocks, vec![para(vec![s("A\u{0093}B\u{00A0}C")])]);
+    }
+
+    #[test]
     fn empty_paragraphs_are_dropped() {
         let doc = read(r"{\rtf1\ansi text\par\par\par more\par}");
         assert_eq!(
@@ -2058,6 +3084,95 @@ mod tests {
         assert_eq!(
             doc.blocks,
             vec![para(vec![Inline::SmallCaps(vec![s("x")])])]
+        );
+    }
+
+    #[test]
+    fn down_level_numbering_placeholder_is_skipped() {
+        // `\pntext`/`\pntxtb`/`\pntxta` carry the down-level rendering of an auto-number or bullet;
+        // the surrounding text is what belongs to the paragraph, so the placeholders drop out and
+        // the words on either side join directly.
+        let doc = read(r"{\rtf1\ansi before{\pntxtb X}{\pntxta Y}after\par}");
+        assert_eq!(doc.blocks, vec![para(vec![s("beforeafter")])]);
+
+        let doc = read(r"{\rtf1\ansi {\pntext\pnlvlblt\pnf1{\pntxtb\'B7}}Item\par}");
+        assert_eq!(doc.blocks, vec![para(vec![s("Item")])]);
+    }
+
+    #[test]
+    fn binary_data_is_consumed_by_byte_count() {
+        // `\binN` introduces exactly N raw bytes; they are not text and must not desync the parse.
+        // Here the three bytes `ABC` are swallowed, leaving the words around them adjacent.
+        let doc = read(r"{\rtf1\ansi price\bin3ABCtag\par}");
+        assert_eq!(doc.blocks, vec![para(vec![s("pricetag")])]);
+    }
+
+    #[test]
+    fn binary_picture_decodes_into_media() {
+        // A `\bin`-encoded picture payload decodes just like a hex one. The raw bytes here include
+        // `0x7d` (`}`): captured as data at the lexer, it neither ends the picture group early nor
+        // corrupts the rest of the document.
+        let (doc, media) = read_media_bytes(
+            b"{\\rtf1\\ansi before {\\pict\\pngblip\\bin4 \x89\x7d\x50\x47}after\\par}",
+        );
+        let name = content_addressed_name("image/png", &[0x89, 0x7d, 0x50, 0x47]);
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![
+                s("before"),
+                Inline::Space,
+                Inline::Image(
+                    Box::default(),
+                    vec![s("image")],
+                    Box::new(Target {
+                        url: name.clone().into(),
+                        title: Text::default(),
+                    }),
+                ),
+                s("after"),
+            ])]
+        );
+        assert!(media.contains(&name));
+    }
+
+    #[test]
+    fn hyperlink_display_keeps_edge_space() {
+        // A space at the start or end of a link's display text is part of the surrounding sentence
+        // and is preserved, so the link does not fuse with the adjacent word.
+        let doc = read(
+            r#"{\rtf1\ansi {\field{\*\fldinst{HYPERLINK "http://x.com"}}{\fldrslt link }}after\par}"#,
+        );
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![
+                Inline::Link(
+                    Box::default(),
+                    vec![s("link"), Inline::Space],
+                    Box::new(Target {
+                        url: "http://x.com".into(),
+                        title: Text::default(),
+                    }),
+                ),
+                s("after"),
+            ])]
+        );
+
+        let doc = read(
+            r#"{\rtf1\ansi {\field{\*\fldinst{HYPERLINK "http://y.com"}}{\fldrslt  lead}}tail\par}"#,
+        );
+        assert_eq!(
+            doc.blocks,
+            vec![para(vec![
+                Inline::Link(
+                    Box::default(),
+                    vec![Inline::Space, s("lead")],
+                    Box::new(Target {
+                        url: "http://y.com".into(),
+                        title: Text::default(),
+                    }),
+                ),
+                s("tail"),
+            ])]
         );
     }
 

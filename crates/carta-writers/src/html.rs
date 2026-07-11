@@ -1426,7 +1426,10 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> St
         flavor,
     );
     out.push_str(&alt_attr);
-    out.push(BREAK);
+    // A literal space, not a break point: the space before the self-closing `/>` never wraps, so
+    // `/>` stays glued to whatever attribute precedes it even when that pushes the line past the
+    // fill column.
+    out.push(' ');
     out.push_str("/>");
     out
 }
