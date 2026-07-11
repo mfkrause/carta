@@ -19,6 +19,7 @@ mod table;
 mod texttable;
 mod yaml;
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use carta_ast::{Alignment, Attr, Block, Document, Format, Inline, ListAttributes};
@@ -190,8 +191,11 @@ const TAB_STOP: usize = 4;
 ///
 /// Tabs are expanded by character column (reset at each line) so the rest of the parser sees only
 /// spaces.
-fn normalize(input: &str) -> String {
+fn normalize(input: &str) -> Cow<'_, str> {
     let without_bom = input.strip_prefix('\u{feff}').unwrap_or(input);
+    if !without_bom.bytes().any(|b| b == b'\r' || b == b'\t') {
+        return Cow::Borrowed(without_bom);
+    }
     let mut out = String::with_capacity(without_bom.len());
     let mut column = 0;
     let mut chars = without_bom.chars().peekable();
@@ -221,7 +225,7 @@ fn normalize(input: &str) -> String {
             }
         }
     }
-    out
+    Cow::Owned(out)
 }
 
 /// Helper used by the inline phase to wrap parsed inlines back into AST blocks.
@@ -780,6 +784,57 @@ mod tests {
             }
         }
         out
+    }
+
+    #[test]
+    fn only_link_reference_definitions_leave_no_paragraph() {
+        // A paragraph that is nothing but definitions is consumed whole, leaving no block behind.
+        assert!(blocks("[a]: /one\n[b]: /two\n").is_empty());
+    }
+
+    #[test]
+    fn link_reference_definitions_strip_and_keep_the_body() {
+        // Leading definitions are pulled off the front; the trailing line stays as the paragraph and
+        // its shortcut reference resolves against the registered definition.
+        let doc = blocks("[a]: /url\nSee [a] here.\n");
+        assert!(
+            matches!(doc.as_slice(), [Block::Para(_)]),
+            "expected one paragraph, got {doc:?}"
+        );
+        assert_eq!(reference_targets(&doc), ["/url"]);
+    }
+
+    #[test]
+    fn an_unterminated_bracket_is_not_a_definition() {
+        // A lone `[` that never forms `[label]:` is ordinary paragraph text, not a consumed
+        // definition, and registers no reference.
+        let doc = blocks("[not a definition\n");
+        assert!(
+            matches!(doc.as_slice(), [Block::Para(_)]),
+            "expected one paragraph, got {doc:?}"
+        );
+        assert!(reference_targets(&doc).is_empty());
+    }
+
+    #[test]
+    fn a_leading_abbreviation_definition_is_consumed() {
+        // With the extension on, an abbreviation definition at the paragraph start is pulled out; a
+        // definition-only paragraph vanishes, and a body after it remains.
+        assert!(
+            blocks_with(
+                "*[HTML]: Hyper Text Markup Language\n",
+                Extension::Abbreviations
+            )
+            .is_empty()
+        );
+        let doc = blocks_with(
+            "*[HTML]: Hyper Text Markup Language\nHTML is old.\n",
+            Extension::Abbreviations,
+        );
+        assert!(
+            matches!(doc.as_slice(), [Block::Para(_)]),
+            "expected one paragraph, got {doc:?}"
+        );
     }
 
     #[test]
