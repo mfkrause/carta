@@ -38,8 +38,7 @@ impl Reader for HtmlReader {
 
 fn parse(input: &str, ext: Extensions) -> Document {
     let normalized = normalize(input);
-    let chars: Vec<char> = normalized.chars().collect();
-    let tokens = tokenize(&chars);
+    let tokens = tokenize(&normalized);
     let roots = build_tree(tokens);
     let (head, body) = locate(&roots);
 
@@ -61,8 +60,7 @@ fn parse(input: &str, ext: Extensions) -> Document {
 #[cfg(feature = "opml")]
 pub(crate) fn parse_inline_fragment(input: &str) -> Vec<Inline> {
     let normalized = normalize(input);
-    let chars: Vec<char> = normalized.chars().collect();
-    let tokens = tokenize(&chars);
+    let tokens = tokenize(&normalized);
     let roots = build_tree(tokens);
     inlines_from_nodes(&roots)
 }
