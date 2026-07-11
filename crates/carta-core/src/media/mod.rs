@@ -17,7 +17,7 @@ pub use sha1::hex as sha1_hex;
 
 use crate::walk;
 use carta_ast::Block;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// One entry in a [`MediaBag`]: a resource's bytes together with its MIME type, when the source
 /// recorded one.
@@ -159,9 +159,10 @@ pub fn embed_referenced_media(
     mut resolve: impl FnMut(&str) -> Option<Vec<u8>>,
 ) {
     let mut references: Vec<String> = Vec::new();
+    let mut seen: BTreeSet<String> = BTreeSet::new();
     walk::for_each_image_target(blocks, &mut |target| {
         let url = target.url.to_string();
-        if !references.contains(&url) {
+        if seen.insert(url.clone()) {
             references.push(url);
         }
     });

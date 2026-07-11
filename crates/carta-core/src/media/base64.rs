@@ -42,13 +42,14 @@ pub fn encode_mime(data: &[u8]) -> String {
     }
     let raw = encode(data);
     let mut out = String::with_capacity(raw.len() + raw.len() / LINE_WIDTH + 1);
-    for (index, byte) in raw.bytes().enumerate() {
-        if index != 0 && index % LINE_WIDTH == 0 {
-            out.push('\n');
+    for line in raw.as_bytes().chunks(LINE_WIDTH) {
+        // Every chunk is a run of base64 alphabet symbols, ASCII by construction, so it is valid
+        // UTF-8; the conversion never fails.
+        if let Ok(text) = std::str::from_utf8(line) {
+            out.push_str(text);
         }
-        out.push(byte as char);
+        out.push('\n');
     }
-    out.push('\n');
     out
 }
 
@@ -152,6 +153,23 @@ mod tests {
         assert!(lines.iter().take(5).all(|line| line.len() == 76));
         assert_eq!(lines.get(5).map(|line| line.len()), Some(20));
         // The concatenation of the lines decodes back to the input.
+        assert_eq!(decode(&wrapped), Some(data));
+    }
+
+    #[test]
+    fn mime_form_wraps_exact_line_multiple_without_a_trailing_blank_line() {
+        // 57 bytes encode to exactly 76 base64 chars — one full line. The line still ends in a
+        // newline, and no spurious empty line follows the wrap boundary.
+        let data: Vec<u8> = (0..57u32)
+            .map(|index| u8::try_from(index % 251).unwrap_or(0))
+            .collect();
+        let wrapped = encode_mime(&data);
+        assert_eq!(encode(&data).len(), 76);
+        let lines: Vec<&str> = wrapped.split('\n').collect();
+        // The single 76-char line plus the trailing newline's empty final element.
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines.first().map(|line| line.len()), Some(76));
+        assert_eq!(lines.last(), Some(&""));
         assert_eq!(decode(&wrapped), Some(data));
     }
 

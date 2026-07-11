@@ -229,14 +229,23 @@ pub fn is_xml_char(ch: char) -> bool {
 /// Escapes text content, the minimal set that keeps character data unambiguous. Characters XML
 /// forbids are dropped, so the output is well-formed regardless of the input.
 pub fn escape_text(text: &str, out: &mut String) {
-    for ch in text.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            other if is_xml_char(other) => out.push(other),
-            _ => {}
+    let mut run_start = 0;
+    for (offset, ch) in text.char_indices() {
+        let replacement = match ch {
+            '&' => "&amp;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            other if is_xml_char(other) => continue,
+            _ => "",
+        };
+        if let Some(clean) = text.get(run_start..offset) {
+            out.push_str(clean);
         }
+        out.push_str(replacement);
+        run_start = offset + ch.len_utf8();
+    }
+    if let Some(clean) = text.get(run_start..) {
+        out.push_str(clean);
     }
 }
 
@@ -244,18 +253,27 @@ pub fn escape_text(text: &str, out: &mut String) {
 /// double-quoted attribute. Characters XML forbids are dropped, so the output is well-formed
 /// regardless of the input.
 pub fn escape_attribute(value: &str, out: &mut String) {
-    for ch in value.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\n' => out.push_str("&#10;"),
-            '\r' => out.push_str("&#13;"),
-            '\t' => out.push_str("&#9;"),
-            other if is_xml_char(other) => out.push(other),
-            _ => {}
+    let mut run_start = 0;
+    for (offset, ch) in value.char_indices() {
+        let replacement = match ch {
+            '&' => "&amp;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            '"' => "&quot;",
+            '\n' => "&#10;",
+            '\r' => "&#13;",
+            '\t' => "&#9;",
+            other if is_xml_char(other) => continue,
+            _ => "",
+        };
+        if let Some(clean) = value.get(run_start..offset) {
+            out.push_str(clean);
         }
+        out.push_str(replacement);
+        run_start = offset + ch.len_utf8();
+    }
+    if let Some(clean) = value.get(run_start..) {
+        out.push_str(clean);
     }
 }
 
