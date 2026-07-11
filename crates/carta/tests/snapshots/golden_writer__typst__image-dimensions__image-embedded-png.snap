@@ -1,6 +1,0 @@
----
-source: crates/carta/tests/golden_writer.rs
-expression: output
----
-logo
-#box(image("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAADCAIAAAA7ljmRAAAAEElEQVR4nGP4z8AARww4OQD1MQv1NXv7ggAAAABJRU5ErkJggg==", alt: "alt"))

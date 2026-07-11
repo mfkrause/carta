@@ -3,7 +3,7 @@
 //! An RTF document is a tree of brace-delimited groups holding three things: control words
 //! (`\word`, optionally with a numeric argument), control symbols (`\` before a single non-letter),
 //! and literal text. A group scopes formatting: entering one saves the character state, leaving one
-//! restores it. Reading proceeds in one pass over a token stream ([`tokenize`]), with a stack of
+//! restores it. Reading proceeds in one pass over a token stream (`tokenize`), with a stack of
 //! group states carrying the active character formatting and a stack of block-building contexts (a
 //! fresh one opens for each footnote).
 //!
@@ -621,6 +621,9 @@ fn into_wrapper(inline: Inline) -> std::result::Result<(Wrapper, Vec<Inline>), I
 
 /// One block-building context: the emitted blocks plus the paragraph and table under construction.
 /// The document has one; every footnote opens another.
+// The boolean fields are independent state bits that can hold at once (edge-space preservation, an
+// open table paragraph, an active list), not a configuration enum, so they stay as separate flags.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 struct Emitter {
     blocks: Vec<Block>,
