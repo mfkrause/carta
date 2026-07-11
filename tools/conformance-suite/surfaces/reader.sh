@@ -30,6 +30,26 @@ for fmt in $FORMATS; do
   tally_group
 done
 
+# Byte-container reader formats keep their fixtures under corpus/binary/<fmt>/ (binary archives that
+# are not UTF-8 text, e.g. zipped office/e-book containers, or any file carrying raw high bytes). Each
+# is diffed exactly like a text reader — carta and pandoc both read the file by path — just discovered
+# from the binary tree, so a byte-container reader needs no entry in the FORMATS list above.
+if [ -d "$CORPUS/binary" ]; then
+  for fmt_dir in "$CORPUS"/binary/*; do
+    [ -d "$fmt_dir" ] || continue
+    fmt="$(basename "$fmt_dir")"
+    [ $# -gt 0 ] && [ "$1" != "$fmt" ] && continue
+    conf_reset "reader-$fmt"
+    for input in "$fmt_dir"/*; do
+      [ -f "$input" ] || continue
+      [ -n "$CASE" ] && [ "$(stem "$input")" != "$CASE" ] && continue
+      run_diff json "reader/$fmt/$(basename "$input")" "$input" "-f $fmt -t json" "-f $fmt -t json"
+    done
+    report reader "$fmt"
+    tally_group
+  done
+fi
+
 # Extension-toggle cases: each `corpus/text-ext/<spec>/*` directory is named for the full format
 # spec (e.g. `commonmark+strikeout`, `markdown+citations`) it should be parsed with, for both carta
 # and pandoc. The specs build on the markdown-family readers, which the commonmark group compiles, so
