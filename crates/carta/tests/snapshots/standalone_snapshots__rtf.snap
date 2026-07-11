@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+assertion_line: 70
+expression: output
+---
+{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \qc \f0 \sa180 \li0 \fi0 \b \fs36 A {\i Grand} \u8220"Report\u8221"\par}
+{\pard \qc \f0 \sa180 \li0 \fi0  Ada Lovelace\par}{\pard \qc \f0 \sa180 \li0 \fi0  Alan Turing\par}
+{\pard \qc \f0 \sa180 \li0 \fi0  2026-06-20\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Introduction\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The opening remarks, with {\i emphasis} and a {\field{\*\fldinst{HYPERLINK "https://example.com"}}{\fldrslt{\ul
+link
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 fn main() \{\}\par}
+}

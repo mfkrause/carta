@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li0 \fi0 term: with colon\par}
+{\pard \ql \f0 \sa0 \li360 \fi0 definition\sa180\par}

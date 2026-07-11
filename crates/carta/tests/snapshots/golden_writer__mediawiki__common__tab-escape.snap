@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+a	b <code>c	d</code>
+
+<pre>	x	y</pre>

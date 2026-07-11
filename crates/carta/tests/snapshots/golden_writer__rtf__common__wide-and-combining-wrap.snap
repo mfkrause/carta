@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 This is a deliberately long paragraph with wide \u20013 ?\u25991 ?\u23383 ?\u31526 ? glyphs and a combining mark e\u769 ? so the writer measures column widths while wrapping at the fill column boundary.\par}

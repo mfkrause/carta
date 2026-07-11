@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}[fragile]
+\begin{verbatim}
+first line
+second line
+\end{verbatim}
+\end{frame}

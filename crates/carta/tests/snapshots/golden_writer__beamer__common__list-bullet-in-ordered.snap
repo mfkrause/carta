@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+\begin{enumerate}
+\tightlist
+\item
+  first
+\item
+  second
+
+  \begin{itemize}
+  \tightlist
+  \item
+    suba
+  \item
+    subb
+  \end{itemize}
+\item
+  third
+\end{enumerate}
+\end{frame}

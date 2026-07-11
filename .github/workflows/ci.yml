@@ -160,7 +160,7 @@ jobs:
       fail-fast: false
       matrix:
         # One entry per fuzz target (see fuzz/Cargo.toml). Add new targets here.
-        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man, latex, org, highlight]
+        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man, latex, org, rtf, highlight]
     steps:
       - uses: actions/checkout@v7
       - name: Install nightly toolchain

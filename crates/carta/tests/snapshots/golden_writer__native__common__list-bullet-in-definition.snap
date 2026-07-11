@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "term" ]
+      , [ [ BulletList
+              [ [ Plain [ Str "alpha" ] ] , [ Plain [ Str "beta" ] ] ]
+          ]
+        ]
+      )
+    ]
+]

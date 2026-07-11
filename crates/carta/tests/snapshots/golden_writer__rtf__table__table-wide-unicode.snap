@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx4320\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u38917 ?\u30446 ?\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u20516 ?\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u21517 ?\u21069 ?\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u28450 ?\u23383 ?\u12486 ?\u12461 ?\u12473 ?\u12488 ?\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 x\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 y\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

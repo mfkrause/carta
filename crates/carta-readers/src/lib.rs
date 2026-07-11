@@ -23,8 +23,15 @@ mod entities;
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]
 mod inline_scan;
-#[cfg(any(feature = "dokuwiki", feature = "rst", feature = "man"))]
+#[cfg(any(
+    feature = "dokuwiki",
+    feature = "rst",
+    feature = "man",
+    feature = "rtf"
+))]
 mod inline_text;
+#[cfg(any(feature = "ipynb", feature = "rtf"))]
+mod numeric;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
 
@@ -58,6 +65,8 @@ pub mod opml;
 pub mod org;
 #[cfg(feature = "rst")]
 pub mod rst;
+#[cfg(feature = "rtf")]
+pub mod rtf;
 #[cfg(feature = "tsv")]
 pub mod tsv;
 
@@ -89,5 +98,7 @@ pub use opml::OpmlReader;
 pub use org::OrgReader;
 #[cfg(feature = "rst")]
 pub use rst::RstReader;
+#[cfg(feature = "rtf")]
+pub use rtf::RtfReader;
 #[cfg(feature = "tsv")]
 pub use tsv::TsvReader;

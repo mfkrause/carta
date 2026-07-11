@@ -1,0 +1,87 @@
+{
+    "pandoc-api-version": [
+        1,
+        23,
+        1,
+        2
+    ],
+    "meta": {},
+    "blocks": [
+        {
+            "t": "OrderedList",
+            "c": [
+                [
+                    1,
+                    {
+                        "t": "Decimal"
+                    },
+                    {
+                        "t": "Period"
+                    }
+                ],
+                [
+                    [
+                        {
+                            "t": "Plain",
+                            "c": [
+                                {
+                                    "t": "Str",
+                                    "c": "first"
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "t": "Plain",
+                            "c": [
+                                {
+                                    "t": "Str",
+                                    "c": "second"
+                                }
+                            ]
+                        },
+                        {
+                            "t": "BulletList",
+                            "c": [
+                                [
+                                    {
+                                        "t": "Plain",
+                                        "c": [
+                                            {
+                                                "t": "Str",
+                                                "c": "suba"
+                                            }
+                                        ]
+                                    }
+                                ],
+                                [
+                                    {
+                                        "t": "Plain",
+                                        "c": [
+                                            {
+                                                "t": "Str",
+                                                "c": "subb"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "t": "Plain",
+                            "c": [
+                                {
+                                    "t": "Str",
+                                    "c": "third"
+                                }
+                            ]
+                        }
+                    ]
+                ]
+            ]
+        }
+    ]
+}

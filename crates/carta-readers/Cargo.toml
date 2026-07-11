@@ -22,7 +22,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [features]
-default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org"]
+default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org", "rtf"]
 commonmark = ["dep:unicode-general-category", "dep:caseless", "dep:serde_json"]
 json = []
 html = []
@@ -38,6 +38,7 @@ jira = []
 man = []
 latex = []
 org = []
+rtf = []
 
 [dependencies]
 carta-ast = { workspace = true }

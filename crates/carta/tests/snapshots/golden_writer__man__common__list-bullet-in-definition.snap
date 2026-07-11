@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.TP
+term
+.IP \(bu 2
+alpha
+.IP \(bu 2
+beta

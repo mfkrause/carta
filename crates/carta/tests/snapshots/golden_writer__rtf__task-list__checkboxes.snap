@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab \u9744 ? todo\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab \u9746 ? done\sa180\par}

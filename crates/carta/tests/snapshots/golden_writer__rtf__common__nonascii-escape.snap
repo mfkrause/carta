@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{\pard \ql \f0 \sa180 \li0 \fi0 caf\u233 ? r\u233 ?sum\u233 ? na\u239 ?ve\par}

@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx4320\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 name\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 notes\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx4320\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 alpha\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa180 \li0 \fi0 first paragraph\par}
+{\pard\intbl \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab one\par}
+{\pard\intbl \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab two\sa180\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

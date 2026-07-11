@@ -117,7 +117,7 @@ This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](doc
 | Jupyter Notebook (`ipynb`) | ✅ | ✅ |
 | FictionBook2 (`fb2`) | ❌ | ❌ |
 | InDesign ICML (`icml`) | ➖ | ❌ |
-| Rich Text Format (`rtf`) | ❌ | ❌ |
+| Rich Text Format (`rtf`) | ✅ | ✅ |
 | Spreadsheet (`xlsx`) | ❌ | ➖ |
 
 **XML & publishing**

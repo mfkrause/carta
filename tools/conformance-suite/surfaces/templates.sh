@@ -18,7 +18,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-TARGETS="html latex plain rst markdown gfm asciidoc mediawiki"
+TARGETS="html latex plain rst markdown gfm asciidoc mediawiki rtf"
 [ $# -gt 0 ] && TARGETS="$1"
 
 tdir="$CORPUS/templates"
