@@ -142,9 +142,41 @@ fn direct_list_interpolation_has_no_separator() {
 }
 
 #[test]
+fn variable_interpolates_twice_from_one_context() {
+    // Interpolation reads the context value in place, so a second reference sees it intact.
+    let ctx = map(&[("body", s("content"))]);
+    assert_eq!(render("<$body$>-<$body$>", &ctx), "<content>-<content>");
+}
+
+#[test]
 fn for_scalar_is_single_element() {
     let ctx = map(&[("x", s("solo"))]);
     assert_eq!(render("$for(x)$[$it$]$endfor$", &ctx), "[solo]");
+}
+
+#[test]
+fn for_over_borrowed_and_owned_lists_render_identically() {
+    let ctx = map(&[("xs", list(&[s("a"), s("b"), s("c")]))]);
+    let borrowed = render("$for(xs)$<$it$>$sep$,$endfor$", &ctx);
+    // `nowrap` leaves the list unchanged, but its presence routes the loop through an owned value.
+    let owned = render("$for(xs/nowrap)$<$it$>$sep$,$endfor$", &ctx);
+    assert_eq!(borrowed, "<a>,<b>,<c>");
+    assert_eq!(borrowed, owned);
+}
+
+#[test]
+fn nested_for_descends_through_an_owned_outer_element() {
+    let ctx = map(&[(
+        "groups",
+        list(&[map(&[("items", list(&[s("x"), s("y")]))])]),
+    )]);
+    assert_eq!(
+        render(
+            "$for(groups/nowrap)$$for(it.items)$<$it$>$endfor$$endfor$",
+            &ctx
+        ),
+        "<x><y>"
+    );
 }
 
 #[test]

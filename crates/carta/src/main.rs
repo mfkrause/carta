@@ -297,7 +297,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let mut writer_options = WriterOptions::default();
     writer_options.standalone = cli.standalone || cli.self_contained;
     if let Some((source, dir, ext)) = resolve_template(cli, &to_base, data_dir.as_deref())? {
-        writer_options.template = Some(source);
+        writer_options.template = Some(source.into());
         writer_options.template_dir = Some(dir);
         writer_options.template_ext = Some(ext);
     }
@@ -319,7 +319,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     if is_docx(to) {
         writer_options.docx = docx_options(cli)?;
     } else if to.starts_with("epub") {
-        writer_options.epub = epub_options(cli)?;
+        writer_options.epub = Arc::new(epub_options(cli)?);
     }
 
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.

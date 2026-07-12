@@ -1,5 +1,6 @@
 //! Pipe (filter) evaluation: each turns one [`Value`] into another.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use super::Value;
@@ -32,12 +33,12 @@ pub(crate) fn apply(value: &Value, pipe: &Pipe) -> Value {
 
 /// Flatten a value to its bare string form (lists concatenate with no separator). A map is a present,
 /// non-empty value whose bare form is `true`, so it reads the same way a boolean `true` does.
-pub(crate) fn stringify(value: &Value) -> String {
+pub(crate) fn stringify(value: &Value) -> Cow<'_, str> {
     match value {
-        Value::Str(s) => s.clone(),
-        Value::Bool(b) => if *b { "true" } else { "false" }.to_string(),
-        Value::List(items) => items.iter().map(stringify).collect(),
-        Value::Map(_) => "true".to_string(),
+        Value::Str(s) => Cow::Borrowed(s),
+        Value::Bool(b) => Cow::Borrowed(if *b { "true" } else { "false" }),
+        Value::List(items) => Cow::Owned(items.iter().map(stringify).collect()),
+        Value::Map(_) => Cow::Borrowed("true"),
     }
 }
 
@@ -155,7 +156,7 @@ fn alpha(value: &Value) -> String {
             let offset = u8::try_from(n % 26).unwrap_or(0);
             char::from(b'a' - 1 + offset).to_string()
         }
-        _ => stringify(value),
+        _ => stringify(value).into_owned(),
     }
 }
 
@@ -164,7 +165,7 @@ fn alpha(value: &Value) -> String {
 /// numerals are undefined there and an unbounded input must not drive unbounded work.
 fn roman(value: &Value) -> String {
     let Some(mut n) = as_int(value).filter(|n| (0..=3999).contains(n)) else {
-        return stringify(value);
+        return stringify(value).into_owned();
     };
     let mut out = String::new();
     for (amount, glyph) in [

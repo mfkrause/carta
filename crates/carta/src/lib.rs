@@ -179,36 +179,45 @@ pub fn render_document(
         }
     };
 
-    // A pristine copy of the document is kept only when the contents builder will later consume it:
-    // numbering splices section numbers into the heading inlines the builder reads, so it must see
-    // the unnumbered tree to avoid double-numbering its entries. When no standalone wrapper runs the
-    // pristine copy is never read again, so the body is numbered in place. A format with a
-    // typesetting counter leaves the body untouched and is driven by a template flag instead.
     #[cfg(feature = "standalone")]
-    let pristine_needed = writer_options.standalone || writer_options.template.is_some();
-    #[cfg(not(feature = "standalone"))]
-    let pristine_needed = false;
+    let wraps_standalone = writer_options.standalone || writer_options.template.is_some();
+    #[cfg(feature = "standalone")]
+    let mut toc_source = standalone::TocSource::Document;
 
     let mut document = document;
     let body = if writer_options.number_sections && writer.numbers_sections_in_body() {
-        if pristine_needed {
-            let mut numbered = document.clone();
-            carta_core::sections::number_sections(&mut numbered.blocks);
-            writer.write(&numbered, &writer_options)?
-        } else {
-            carta_core::sections::number_sections(&mut document.blocks);
-            return writer.write(&document, &writer_options).map(Output::Text);
+        // Numbering splices section numbers into the heading inlines the contents builder reads,
+        // so a standalone wrapper's table of contents is built from the unnumbered tree first;
+        // the body is then numbered in place. A format with a typesetting counter leaves the body
+        // untouched and is driven by a template flag instead.
+        #[cfg(feature = "standalone")]
+        if wraps_standalone && writer_options.toc && matches!(writer.toc_style(), TocStyle::List) {
+            toc_source = standalone::TocSource::Prebuilt(carta_core::sections::build_toc(
+                &document.blocks,
+                writer_options
+                    .toc_depth
+                    .unwrap_or(standalone::DEFAULT_TOC_DEPTH),
+                writer_options.number_sections,
+                writer.toc_link_anchors(),
+            ));
         }
+        carta_core::sections::number_sections(&mut document.blocks);
+        writer.write(&document, &writer_options)?
     } else {
         writer.write(&document, &writer_options)?
     };
 
     #[cfg(feature = "standalone")]
-    if (writer_options.standalone || writer_options.template.is_some())
-        && let Some(wrapped) =
-            standalone::render(writer.as_ref(), &document, &body, &writer_options, &to_base)?
-    {
-        return Ok(Output::Text(wrapped));
+    if wraps_standalone {
+        return standalone::render(
+            writer.as_ref(),
+            &document,
+            body,
+            &writer_options,
+            &to_base,
+            toc_source,
+        )
+        .map(Output::Text);
     }
 
     Ok(Output::Text(body))

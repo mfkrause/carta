@@ -40,7 +40,7 @@ G=$for(tags)$$tags$$sep$,$endfor$|O=$over$|M=$mover$|VM=$vm$|D=$deflt$|B=$body$"
 fn options() -> WriterOptions {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some(TEMPLATE.to_owned());
+    options.template = Some(TEMPLATE.into());
     options.variables = vec![
         ("over".to_owned(), "from-V & raw".to_owned()),
         ("vm".to_owned(), "from-V-vm".to_owned()),
@@ -94,6 +94,40 @@ O=from-V & raw|M=from-M|VM=from-V-vm|D=default-val|B=Body text."
     );
 }
 
+/// Block-shaped metadata whose rendered form spans paragraphs, for pinning the trailing-newline
+/// difference between the context variable and its `meta-json` form.
+const BLOCK_META_INPUT: &str = "\
+---
+abstract: |
+  First para.
+
+  Second para.
+---
+Body.
+";
+
+#[cfg(feature = "write-markdown")]
+#[test]
+fn meta_json_keeps_a_single_trailing_newline_for_line_oriented_writers() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.template = Some("J=[$meta-json$]|A=[$abstract$]".into());
+    let output = convert_text(
+        "markdown",
+        "markdown",
+        BLOCK_META_INPUT,
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // The context variable ends in a blank line (block separation); the JSON form keeps the
+    // value's plain single trailing newline.
+    assert_eq!(
+        output,
+        "J=[{\"abstract\":\"First para.\\n\\nSecond para.\\n\"}]|A=[First para.\n\nSecond para.\n\n]"
+    );
+}
+
 /// A document carrying the inputs the plain-text identity variables are built from: a title with
 /// markup, an author list, and a date.
 const IDENTITY_INPUT: &str = "\
@@ -115,7 +149,7 @@ PT=[$pagetitle$]|AML=[$for(author-meta)$<$author-meta$>$sep$,$endfor$]";
 fn identity_options() -> WriterOptions {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some(IDENTITY_TEMPLATE.to_owned());
+    options.template = Some(IDENTITY_TEMPLATE.into());
     options
 }
 
@@ -191,7 +225,7 @@ Body.
 fn web_pagetitle_strips_markup_but_keeps_quote_glyphs() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some("[$pagetitle$]".to_owned());
+    options.template = Some("[$pagetitle$]".into());
     let output = convert_text(
         "markdown",
         "html",
@@ -210,7 +244,7 @@ fn web_pagetitle_strips_markup_but_keeps_quote_glyphs() {
 fn pdf_title_meta_strips_markup_but_keeps_quote_glyphs() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some("[$title-meta$]".to_owned());
+    options.template = Some("[$title-meta$]".into());
     let output = convert_text(
         "markdown",
         "latex",
@@ -231,7 +265,7 @@ fn pdf_identity_variables_are_defined_even_without_metadata() {
     options.template = Some(
         "AML=[$for(author-meta)$<$author-meta$>$endfor$]|\
 TML=[$for(title-meta)$<$title-meta$>$endfor$]"
-            .to_owned(),
+            .into(),
     );
     let output = convert_text(
         "markdown",
@@ -275,7 +309,7 @@ Body.
 fn web_pagetitle_flattens_a_lone_paragraph_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some("[$pagetitle$]".to_owned());
+    options.template = Some("[$pagetitle$]".into());
     let output = convert_text(
         "markdown",
         "html",
@@ -293,7 +327,7 @@ fn web_pagetitle_flattens_a_lone_paragraph_title() {
 fn pdf_title_meta_flattens_a_lone_paragraph_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some("[$title-meta$]".to_owned());
+    options.template = Some("[$title-meta$]".into());
     let output = convert_text(
         "markdown",
         "latex",
@@ -310,7 +344,7 @@ fn pdf_title_meta_flattens_a_lone_paragraph_title() {
 fn pdf_title_meta_is_empty_for_a_multi_paragraph_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some("[$title-meta$]".to_owned());
+    options.template = Some("[$title-meta$]".into());
     let output = convert_text(
         "markdown",
         "latex",
@@ -328,7 +362,7 @@ fn pdf_title_meta_is_empty_for_a_multi_paragraph_title() {
 fn man_flattens_block_metadata_into_a_header_field() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some("[$title$]".to_owned());
+    options.template = Some("[$title$]".into());
 
     let single = convert_text(
         "markdown",
@@ -357,7 +391,7 @@ fn man_flattens_block_metadata_into_a_header_field() {
 fn rst_builds_a_title_block_from_a_block_scalar_title() {
     let mut options = WriterOptions::default();
     options.standalone = true;
-    options.template = Some("[$titleblock$]".to_owned());
+    options.template = Some("[$titleblock$]".into());
     let output = convert_text(
         "markdown",
         "rst",
