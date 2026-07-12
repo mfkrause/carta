@@ -15,6 +15,7 @@
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use carta::{
     EpubOptions, MediaBag, Output, ReaderOptions, WriterOptions, read_document, render_document,
@@ -198,7 +199,7 @@ fn epub_with_cover_snapshot() {
     epub.cover_image = Some((String::from("cover.png"), tiny_png()));
     let mut options = WriterOptions::default();
     options.toc = true;
-    options.epub = epub;
+    options.epub = Arc::new(epub);
     let bytes = epub_bytes(&markdown, "epub3", &options);
     insta::assert_snapshot!("book_cover__epub3", describe_archive(&bytes));
 }
@@ -224,7 +225,7 @@ fn epub_embedded_resources_snapshot() {
     )));
     let mut options = WriterOptions::default();
     options.toc = true;
-    options.epub = epub;
+    options.epub = Arc::new(epub);
     let bytes = epub_bytes(&markdown, "epub3", &options);
     insta::assert_snapshot!("book_embedded_resources__epub3", describe_archive(&bytes));
 }
@@ -343,7 +344,7 @@ fn epub_sanitizes_a_font_filename_with_spaces() {
     let mut epub = EpubOptions::default();
     epub.fonts = vec![(String::from("Source Serif.otf"), b"otf-bytes".to_vec())];
     let mut options = WriterOptions::default();
-    options.epub = epub;
+    options.epub = Arc::new(epub);
     let transcript = describe_archive(&epub_bytes(markdown, "epub3", &options));
     assert!(
         transcript.contains("fonts/Source_Serif.otf"),

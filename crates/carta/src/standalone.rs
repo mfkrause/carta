@@ -9,11 +9,22 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use carta_ast::{
-    Document, Inline, MetaValue, Text, single_block_inlines, to_plain_inlines, to_plain_text,
+    Block, Document, Inline, MetaValue, Text, single_block_inlines, to_plain_inlines, to_plain_text,
 };
 use carta_core::sections::build_toc;
 use carta_core::template::{Template, Value};
 use carta_core::{MathMethod, MetaVarStyle, Result, TocStyle, Writer, WriterOptions};
+
+/// The deepest heading level a table of contents includes when no explicit depth is given.
+pub(crate) const DEFAULT_TOC_DEPTH: usize = 3;
+
+/// Where a list-style table of contents comes from: built from the document's blocks when the
+/// context is assembled, or built earlier from the unnumbered tree because section numbers have
+/// since been spliced into the headings in place (building it late would number its entries twice).
+pub(crate) enum TocSource {
+    Document,
+    Prebuilt(Option<Block>),
+}
 
 /// Layer the extra metadata sources into `document.meta`: metadata-file defaults sit lowest, the
 /// document's own values override them, and `-M` values override the document. Merging is whole-key
@@ -37,30 +48,31 @@ pub(crate) fn merge_metadata(document: &mut Document, options: &WriterOptions) {
     document.meta = merged;
 }
 
-/// Wrap `body` in a template, or return `None` when the format has no standalone wrapper and no
-/// override was supplied (standalone output then equals the fragment). `to_base` is the target
+/// Wrap `body` in a template, or return it unchanged when the format has no standalone wrapper and
+/// no override was supplied (standalone output then equals the fragment). `to_base` is the target
 /// format name, used as the extension for partial files.
 pub(crate) fn render(
     writer: &dyn Writer,
     document: &Document,
-    body: &str,
+    body: String,
     options: &WriterOptions,
     to_base: &str,
-) -> Result<Option<String>> {
+    toc_source: TocSource,
+) -> Result<String> {
     // A format whose standalone form is structural (the data form embeds metadata and blocks in one
     // value) builds it directly, bypassing the template engine.
     if let Some(structural) = writer.standalone_document(document, options)? {
-        return Ok(Some(structural));
+        return Ok(structural);
     }
-    let source = match &options.template {
-        Some(text) => text.clone(),
+    let source: &str = match &options.template {
+        Some(text) => text.as_ref(),
         None => match writer.default_template() {
-            Some(text) => text.to_owned(),
-            None => return Ok(None),
+            Some(text) => text,
+            None => return Ok(body),
         },
     };
-    let template = Template::parse(&source)?;
-    let context = build_context(document, writer, body, options)?;
+    let template = Template::parse(source)?;
+    let context = build_context(document, writer, body, options, toc_source)?;
 
     let dir = options.template_dir.clone();
     let datadir = options.template_datadir.clone();
@@ -80,7 +92,7 @@ pub(crate) fn render(
         output.truncate(kept);
         output.push('\n');
     }
-    Ok(Some(output))
+    Ok(output)
 }
 
 /// Assemble the template context: every metadata entry rendered through the target writer, the
@@ -88,8 +100,9 @@ pub(crate) fn render(
 fn build_context(
     document: &Document,
     writer: &dyn Writer,
-    body: &str,
+    mut body: String,
     options: &WriterOptions,
+    toc_source: TocSource,
 ) -> Result<Value> {
     let line_oriented = writer.body_ends_with_newline();
     // A block-level value rendered by a line-oriented writer ends in a blank line, so a metadata
@@ -98,26 +111,26 @@ fn build_context(
     let context_trailing = if line_oriented { "\n\n" } else { "" };
     let json_trailing = if line_oriented { "\n" } else { "" };
 
-    let context_mode = if writer.flatten_block_metadata() {
-        BlockMode::Inline
-    } else {
-        BlockMode::Full {
-            trailing: context_trailing,
-        }
-    };
-    let json_mode = BlockMode::Full {
-        trailing: json_trailing,
-    };
     let mut context: BTreeMap<String, Value> = BTreeMap::new();
     let mut meta_json = serde_json::Map::new();
     for (key, value) in &document.meta {
-        let context_value = meta_to_value(value, writer, options, context_mode)?;
-        // The two modes coincide for a writer whose context and JSON forms share the same trailing
-        // (the glyph-terminated formats), so the value is rendered once and serialized directly.
-        let json = if context_mode == json_mode {
-            value_to_json(&context_value)
+        // A writer that flattens block metadata builds the two forms from different content
+        // (inline flattening against full blocks), so each is rendered on its own; every other
+        // writer renders each leaf once, the forms differing only in the trailing appended to
+        // block-shaped content.
+        let (context_value, json) = if writer.flatten_block_metadata() {
+            let context_value = meta_to_value(value, writer, options, BlockMode::Inline)?;
+            let json_value = meta_to_value(
+                value,
+                writer,
+                options,
+                BlockMode::Full {
+                    trailing: json_trailing,
+                },
+            )?;
+            (context_value, value_to_json(&json_value))
         } else {
-            value_to_json(&meta_to_value(value, writer, options, json_mode)?)
+            meta_to_value_pair(value, writer, options, context_trailing, json_trailing)?
         };
         meta_json.insert(key.to_string(), json);
         context.insert(key.to_string(), context_value);
@@ -128,13 +141,11 @@ fn build_context(
     );
     // Writers that lay the document out as newline-terminated lines carry a trailing blank line into
     // the body variable; an empty body stays empty.
-    let body = if line_oriented && !body.is_empty() {
-        format!("{body}\n\n")
-    } else {
-        body.to_owned()
-    };
+    if line_oriented && !body.is_empty() {
+        body.push_str("\n\n");
+    }
     insert_identity_vars(&mut context, document, writer, options)?;
-    insert_output_vars(&mut context, document, writer, options, &body)?;
+    insert_output_vars(&mut context, document, writer, options, &body, toc_source)?;
     context.insert("body".to_owned(), Value::Str(body));
     if let Some(block) = writer.title_block(document, options)? {
         context.insert("titleblock".to_owned(), Value::Str(block));
@@ -221,6 +232,77 @@ fn meta_to_value(
                 entries.insert(key.to_string(), meta_to_value(item, writer, options, mode)?);
             }
             Value::Map(entries)
+        }
+    })
+}
+
+/// Convert one metadata value to its template form and its `meta-json` form together, rendering
+/// each inline or block leaf through the target writer once. The two forms are identical except
+/// for the trailing appended to non-empty block-shaped content: `context_trailing` on the template
+/// side, `json_trailing` on the JSON side.
+fn meta_to_value_pair(
+    value: &MetaValue,
+    writer: &dyn Writer,
+    options: &WriterOptions,
+    context_trailing: &str,
+    json_trailing: &str,
+) -> Result<(Value, serde_json::Value)> {
+    Ok(match value {
+        MetaValue::MetaBool(b) => (Value::Bool(*b), serde_json::Value::Bool(*b)),
+        MetaValue::MetaString(text) => {
+            let rendered = writer.render_meta_inlines(&[Inline::Str(text.clone())], options)?;
+            (
+                Value::Str(rendered.clone()),
+                serde_json::Value::String(rendered),
+            )
+        }
+        MetaValue::MetaInlines(inlines) => {
+            let rendered = writer.render_meta_inlines(inlines, options)?;
+            (
+                Value::Str(rendered.clone()),
+                serde_json::Value::String(rendered),
+            )
+        }
+        MetaValue::MetaBlocks(blocks) => {
+            let rendered = writer.render_meta_blocks(blocks, options)?;
+            let mut json_form = rendered.clone();
+            let mut context_form = rendered;
+            if !context_form.is_empty() {
+                context_form.push_str(context_trailing);
+                json_form.push_str(json_trailing);
+            }
+            (
+                Value::Str(context_form),
+                serde_json::Value::String(json_form),
+            )
+        }
+        MetaValue::MetaList(items) => {
+            let mut context_items = Vec::with_capacity(items.len());
+            let mut json_items = Vec::with_capacity(items.len());
+            for item in items {
+                let (context_item, json_item) =
+                    meta_to_value_pair(item, writer, options, context_trailing, json_trailing)?;
+                context_items.push(context_item);
+                json_items.push(json_item);
+            }
+            (
+                Value::List(context_items),
+                serde_json::Value::Array(json_items),
+            )
+        }
+        MetaValue::MetaMap(map) => {
+            let mut context_entries = BTreeMap::new();
+            let mut json_entries = serde_json::Map::new();
+            for (key, item) in map {
+                let (context_item, json_item) =
+                    meta_to_value_pair(item, writer, options, context_trailing, json_trailing)?;
+                context_entries.insert(key.to_string(), context_item);
+                json_entries.insert(key.to_string(), json_item);
+            }
+            (
+                Value::Map(context_entries),
+                serde_json::Value::Object(json_entries),
+            )
         }
     })
 }
@@ -322,20 +404,24 @@ fn insert_output_vars(
     writer: &dyn Writer,
     options: &WriterOptions,
     body: &str,
+    toc_source: TocSource,
 ) -> Result<()> {
     if options.toc {
-        let depth = options.toc_depth.unwrap_or(3);
+        let depth = options.toc_depth.unwrap_or(DEFAULT_TOC_DEPTH);
         match writer.toc_style() {
             TocStyle::Native => {
                 context.insert("toc".to_owned(), Value::Bool(true));
             }
             TocStyle::List => {
-                let toc = build_toc(
-                    &document.blocks,
-                    depth,
-                    options.number_sections,
-                    writer.toc_link_anchors(),
-                );
+                let toc = match toc_source {
+                    TocSource::Document => build_toc(
+                        &document.blocks,
+                        depth,
+                        options.number_sections,
+                        writer.toc_link_anchors(),
+                    ),
+                    TocSource::Prebuilt(block) => block,
+                };
                 if let Some(block) = toc {
                     let rendered = writer.render_meta_blocks(&[block], options)?;
                     context.insert("toc".to_owned(), Value::Str(rendered));

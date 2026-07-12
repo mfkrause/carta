@@ -20,9 +20,11 @@ use super::{TemplateError, Value};
 const MAX_DEPTH: usize = 64;
 
 /// A loop binding: the current element, and the bare name it is reachable under (besides `$it$`).
-struct Scope {
+/// The element borrows into the root context whenever the iterated value did, so a loop over a
+/// context list never copies its elements.
+struct Scope<'a> {
     bind: Option<String>,
-    value: Value,
+    value: Cow<'a, Value>,
 }
 
 /// A parsed-partial cache layered over the caller's name→source resolver. A partial referenced more
@@ -159,10 +161,10 @@ impl Template {
     }
 }
 
-fn render_nodes(
+fn render_nodes<'a>(
     nodes: &[Node],
-    ctx: &Value,
-    scopes: &mut Vec<Scope>,
+    ctx: &'a Value,
+    scopes: &mut Vec<Scope<'a>>,
     partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
@@ -173,10 +175,10 @@ fn render_nodes(
     Ok(())
 }
 
-fn render_node(
+fn render_node<'a>(
     node: &Node,
-    ctx: &Value,
-    scopes: &mut Vec<Scope>,
+    ctx: &'a Value,
+    scopes: &mut Vec<Scope<'a>>,
     partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
@@ -245,18 +247,18 @@ fn render_node(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn render_for(
+fn render_for<'a>(
     expr: &Expr,
     bind: Option<&String>,
     body: &[Node],
     sep: &[Node],
-    ctx: &Value,
-    scopes: &mut Vec<Scope>,
+    ctx: &'a Value,
+    scopes: &mut Vec<Scope<'a>>,
     partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
 ) -> Result<(), TemplateError> {
-    let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
+    let Some(items) = eval_items(expr, ctx, scopes).map(into_items) else {
         return Ok(());
     };
     for (i, item) in items.into_iter().enumerate() {
@@ -275,12 +277,12 @@ fn render_for(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn render_partial(
+fn render_partial<'a>(
     name: &str,
     map_over: Option<&Expr>,
     sep: Option<&String>,
-    ctx: &Value,
-    scopes: &mut Vec<Scope>,
+    ctx: &'a Value,
+    scopes: &mut Vec<Scope<'a>>,
     partials: &Partials<'_>,
     depth: usize,
     out: &mut Sink,
@@ -299,7 +301,7 @@ fn render_partial(
             out.push_value(&rendered);
         }
         Some(expr) => {
-            let Some(items) = eval(expr, ctx, scopes).map(into_items) else {
+            let Some(items) = eval_items(expr, ctx, scopes).map(into_items) else {
                 return Ok(());
             };
             let separator = sep.cloned().unwrap_or_default();
@@ -321,10 +323,10 @@ fn render_partial(
 
 /// Render `nodes` into an independent string, used for a partial's body before it is interpolated as
 /// a single value into the surrounding output.
-fn render_to_string(
+fn render_to_string<'a>(
     nodes: &[Node],
-    ctx: &Value,
-    scopes: &mut Vec<Scope>,
+    ctx: &'a Value,
+    scopes: &mut Vec<Scope<'a>>,
     partials: &Partials<'_>,
     depth: usize,
 ) -> Result<String, TemplateError> {
@@ -333,16 +335,19 @@ fn render_to_string(
     Ok(sink.buf)
 }
 
-/// A scalar or map iterates as a single element; a list iterates its elements.
-fn into_items(value: Cow<'_, Value>) -> Vec<Value> {
-    match value.into_owned() {
-        Value::List(items) => items,
-        other => vec![other],
+/// A scalar or map iterates as a single element; a list iterates its elements — by reference when
+/// the list itself was borrowed, so its elements are not copied into their loop scopes.
+fn into_items(value: Cow<'_, Value>) -> Vec<Cow<'_, Value>> {
+    match value {
+        Cow::Borrowed(Value::List(items)) => items.iter().map(Cow::Borrowed).collect(),
+        Cow::Borrowed(other) => vec![Cow::Borrowed(other)],
+        Cow::Owned(Value::List(items)) => items.into_iter().map(Cow::Owned).collect(),
+        Cow::Owned(other) => vec![Cow::Owned(other)],
     }
 }
 
 /// Resolve an expression to a value, applying its pipes. `None` means the path is absent.
-fn eval<'a>(expr: &Expr, ctx: &'a Value, scopes: &'a [Scope]) -> Option<Cow<'a, Value>> {
+fn eval<'a>(expr: &Expr, ctx: &'a Value, scopes: &'a [Scope<'_>]) -> Option<Cow<'a, Value>> {
     let base = lookup(&expr.path, ctx, scopes)?;
     if expr.pipes.is_empty() {
         return Some(Cow::Borrowed(base));
@@ -354,26 +359,70 @@ fn eval<'a>(expr: &Expr, ctx: &'a Value, scopes: &'a [Scope]) -> Option<Cow<'a, 
     Some(value)
 }
 
+/// Resolve an expression for iteration. Unlike [`eval`], the returned borrow is independent of the
+/// scope stack, so per-element loop scopes can be pushed while the elements stay borrowed: a
+/// pipe-free path whose chain stays within borrowed values borrows straight into the root context,
+/// and a chain passing through an owned loop element clones its result instead.
+fn eval_items<'a>(expr: &Expr, ctx: &'a Value, scopes: &[Scope<'a>]) -> Option<Cow<'a, Value>> {
+    let mut value = lookup_long(&expr.path, ctx, scopes)?;
+    for filter in &expr.pipes {
+        value = Cow::Owned(pipe::apply(value.as_ref(), filter));
+    }
+    Some(value)
+}
+
 /// Walk a dotted path. The head segment resolves against loop scopes (`it`, then bound names) before
 /// the root context; the rest descends through maps.
-fn lookup<'a>(path: &[String], ctx: &'a Value, scopes: &'a [Scope]) -> Option<&'a Value> {
+fn lookup<'a>(path: &[String], ctx: &'a Value, scopes: &'a [Scope<'_>]) -> Option<&'a Value> {
     let (head, rest) = path.split_first()?;
     let base = if head == "it"
         && let Some(scope) = scopes.last()
     {
-        &scope.value
+        scope.value.as_ref()
     } else if let Some(scope) = scopes
         .iter()
         .rev()
         .find(|s| s.bind.as_deref() == Some(head.as_str()))
     {
-        &scope.value
+        scope.value.as_ref()
     } else if let Value::Map(map) = ctx {
         map.get(head)?
     } else {
         return None;
     };
-    let mut current = base;
+    descend(base, rest)
+}
+
+/// Walk a dotted path like [`lookup`], but return a value whose borrow outlives the scope stack.
+fn lookup_long<'a>(
+    path: &[String],
+    ctx: &'a Value,
+    scopes: &[Scope<'a>],
+) -> Option<Cow<'a, Value>> {
+    let (head, rest) = path.split_first()?;
+    let scope_base = if head == "it"
+        && let Some(scope) = scopes.last()
+    {
+        Some(&scope.value)
+    } else {
+        scopes
+            .iter()
+            .rev()
+            .find(|s| s.bind.as_deref() == Some(head.as_str()))
+            .map(|scope| &scope.value)
+    };
+    match scope_base {
+        Some(Cow::Borrowed(base)) => descend(base, rest).map(Cow::Borrowed),
+        Some(Cow::Owned(base)) => descend(base, rest).map(|found| Cow::Owned(found.clone())),
+        None => match ctx {
+            Value::Map(map) => descend(map.get(head)?, rest).map(Cow::Borrowed),
+            _ => None,
+        },
+    }
+}
+
+/// Descend through nested maps, one path segment at a time.
+fn descend<'v>(mut current: &'v Value, rest: &[String]) -> Option<&'v Value> {
     for segment in rest {
         match current {
             Value::Map(map) => current = map.get(segment)?,

@@ -244,8 +244,9 @@ pub struct WriterOptions {
     /// here; most writers ignore it. Shared cheaply, so cloning the options does not copy the bytes.
     pub media: Arc<MediaBag>,
 
-    /// Options for the EPUB container writer; ignored by every other writer.
-    pub epub: EpubOptions,
+    /// Options for the EPUB container writer; ignored by every other writer. Shared cheaply, so
+    /// cloning the options does not copy the embedded cover, font, or stylesheet bytes.
+    pub epub: Arc<EpubOptions>,
 
     /// Options for the DOCX container writer; ignored by every other writer.
     pub docx: DocxOptions,
@@ -285,10 +286,10 @@ pub struct WriterOptions {
     pub standalone: bool,
 
     /// Template source overriding the format's built-in default. Its presence implies standalone
-    /// output.
+    /// output. Shared cheaply, so cloning the options does not copy the source text.
     #[cfg(feature = "template")]
     #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
-    pub template: Option<String>,
+    pub template: Option<Arc<str>>,
 
     /// Directory used to resolve template partials (`$name()$`).
     #[cfg(feature = "template")]
