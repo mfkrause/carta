@@ -178,6 +178,9 @@ struct Descent {
 /// sanitizer build the fuzzer uses, whose deeper per-frame cost still clears this ceiling comfortably.
 const MAX_CONTAINER_DEPTH: usize = 128;
 
+// The bool fields are independent per-node facts (open state, plain rendering, blank-follow,
+// pipe-table), not a combination where some pairings are invalid.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 struct Node {
     kind: Kind,
@@ -195,6 +198,10 @@ struct Node {
     /// Whether the line that followed this block (while it was the deepest open block) was blank.
     /// Drives loose-vs-tight list classification.
     last_line_blank: bool,
+    /// Set once this paragraph's header and delimiter rows have validated as a pipe table, so each
+    /// following body line is classified against the new line alone rather than re-verifying the
+    /// header and delimiter (which never change) every time.
+    pipe_table: bool,
     /// This node's nesting depth in the block tree: the document root is `0` and every child is one
     /// deeper than its parent. Read to cap how deeply containers may nest, so a pathologically nested
     /// input cannot build a tree the recursive tree-walks would overflow the stack descending. Set
@@ -213,6 +220,7 @@ impl Node {
             indent: 0,
             as_plain: false,
             last_line_blank: false,
+            pipe_table: false,
             depth: 0,
         }
     }
@@ -667,13 +675,18 @@ impl Parser {
             }
             if let Some(node) = self.nodes.get_mut(leaf) {
                 node.kind = Kind::Paragraph;
+                node.pipe_table = true;
             }
             self.append_text(leaf, rest);
             self.append_text(leaf, "\n");
             return true;
         }
-        match table::classify_continuation(header, rest, self.greedy_paragraphs) {
+        let established = self.nodes.get(leaf).is_some_and(|node| node.pipe_table);
+        match table::classify_continuation(header, rest, self.greedy_paragraphs, established) {
             table::Continuation::Absorb => {
+                if let Some(node) = self.nodes.get_mut(leaf) {
+                    node.pipe_table = true;
+                }
                 self.append_text(leaf, rest);
                 self.append_text(leaf, "\n");
                 true
