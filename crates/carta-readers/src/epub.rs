@@ -1211,6 +1211,65 @@ mod tests {
         assert!(!has_link);
     }
 
+    /// Whether a block is a text block whose inlines include a lifted note.
+    fn block_holds_note(block: &Block) -> bool {
+        match block {
+            Block::Plain(inlines) | Block::Para(inlines) => inlines
+                .iter()
+                .any(|inline| matches!(inline, Inline::Note(_))),
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn notes_defined_inside_a_cell_and_a_definition_are_lifted() {
+        let opf = opf_with(
+            r#"<dc:identifier id="id">ID</dc:identifier><dc:title>T</dc:title>"#,
+            r#"<item id="a" href="a.xhtml" media-type="application/xhtml+xml"/>"#,
+            r#"<itemref idref="a"/>"#,
+        );
+        let a = br##"<html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+            <table><tr><td>cell<a epub:type="noteref" href="#fn1">1</a><aside epub:type="footnote" id="fn1"><p>table note</p></aside></td></tr></table>
+            <dl><dt>Term</dt><dd>def<a epub:type="noteref" href="#fn2">2</a><aside epub:type="footnote" id="fn2"><p>dd note</p></aside></dd></dl>
+            </body></html>"##;
+        let (document, _) = read(&opf, &[("OEBPS/a.xhtml", a)]);
+
+        let cell_has_note = document.blocks.iter().any(|block| match block {
+            Block::Table(table) => table
+                .bodies
+                .iter()
+                .flat_map(|body| &body.body)
+                .flat_map(|row| &row.cells)
+                .flat_map(|cell| &cell.content)
+                .any(block_holds_note),
+            _ => false,
+        });
+        assert!(
+            cell_has_note,
+            "footnote defined in a cell should be lifted into it"
+        );
+
+        let definition_has_note = document.blocks.iter().any(|block| match block {
+            Block::DefinitionList(items) => items
+                .iter()
+                .flat_map(|(_, defs)| defs)
+                .flatten()
+                .any(block_holds_note),
+            _ => false,
+        });
+        assert!(
+            definition_has_note,
+            "footnote defined in a definition should be lifted into it"
+        );
+
+        // Both note containers are consumed, so no reference link survives.
+        let mut has_link = false;
+        carta_core::walk::for_each_link_target(&mut document.blocks.clone(), &mut |_| {
+            has_link = true;
+        });
+        assert!(!has_link);
+    }
+
     #[test]
     fn malformed_archive_is_an_error() {
         assert!(EpubReader.read(b"not a zip", &options()).is_err());
