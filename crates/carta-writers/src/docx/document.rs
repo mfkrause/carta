@@ -2450,18 +2450,9 @@ fn dimension_fraction(attributes: &[(carta_ast::Text, carta_ast::Text)], key: &s
 
 /// A MIME type guessed from a URL's file extension, for a media entry that recorded none.
 fn mime_from_url(url: &str) -> String {
-    let extension = url.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
-    let mime = match extension.as_str() {
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "svg" => "image/svg+xml",
-        "webp" => "image/webp",
-        "bmp" => "image/bmp",
-        "tif" | "tiff" => "image/tiff",
-        _ => "application/octet-stream",
-    };
-    mime.to_owned()
+    carta_core::media::image_mime_for_extension(url)
+        .unwrap_or("application/octet-stream")
+        .to_owned()
 }
 
 /// The inline drawing for an embedded picture: an anchored image sized by `cx`×`cy` EMU, referencing

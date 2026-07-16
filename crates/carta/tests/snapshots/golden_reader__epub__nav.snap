@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:nav"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Nav"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["c1.xhtml",[],[]],[]]}]},{"t":"Para","c":[{"t":"Str","c":"before"},{"t":"Space"},{"t":"Str","c":"nav"}]},{"t":"RawBlock","c":["html","<nav epub:type=\"landmarks\">"]},{"t":"OrderedList","c":[[1,{"t":"DefaultStyle"},{"t":"DefaultDelim"}],[[{"t":"Plain","c":[{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"Start"}],["#a1.xhtml",""]]}]}]]]},{"t":"RawBlock","c":["html","</nav>"]},{"t":"Para","c":[{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"nav"}]},{"t":"Para","c":[{"t":"Span","c":[["a1.xhtml",[],[]],[]]}]},{"t":"Para","c":[{"t":"Str","c":"chapter"},{"t":"Space"},{"t":"Str","c":"body"}]}]}

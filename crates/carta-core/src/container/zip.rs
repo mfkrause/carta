@@ -6,6 +6,8 @@
 //! ([`ZipArchive::deflate`], falling back to stored when compression would not shrink it). The
 //! reader ([`read`]) parses such archives back into their entries, so a round trip is exact.
 
+use std::collections::BTreeMap;
+
 use crate::{Error, Result};
 
 /// DEFLATE level used by [`ZipArchive::deflate`]. Fixed so output stays byte-reproducible across
@@ -247,6 +249,18 @@ pub fn read(archive: &[u8]) -> Result<Vec<ZipEntry>> {
         )?;
     }
     Ok(entries)
+}
+
+/// Parses `archive` and returns its entries keyed by name, for the container readers that look parts
+/// up by path. On a duplicate name the last entry wins.
+///
+/// # Errors
+/// Propagates every failure of [`read`].
+pub fn read_map(archive: &[u8]) -> Result<BTreeMap<String, Vec<u8>>> {
+    Ok(read(archive)?
+        .into_iter()
+        .map(|entry| (entry.name, entry.data))
+        .collect())
 }
 
 /// Add two archive offsets, mapping overflow to a corrupt-archive error. An offset and a length

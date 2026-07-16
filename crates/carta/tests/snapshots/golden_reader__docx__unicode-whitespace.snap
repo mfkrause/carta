@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_reader.rs
+assertion_line: 63
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"5 km"},{"t":"Space"},{"t":"Str","c":"on"},{"t":"Space"},{"t":"Str","c":"a wide"},{"t":"Space"},{"t":"Str","c":"road"}]},{"t":"Para","c":[{"t":"Str","c":"10 percent"},{"t":"Space"},{"t":"Str","c":"at noon　sharp"}]},{"t":"Para","c":[{"t":"Str","c":" "}]}]}

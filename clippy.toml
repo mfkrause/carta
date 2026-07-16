@@ -7,7 +7,7 @@ allow-panic-in-tests = true
 
 # Product names that read as identifiers to the doc-markdown lint but are plain prose here. `..`
 # extends clippy's built-in allowlist (which already covers TeX, LaTeX, and the like).
-doc-valid-idents = ["MathJax", "KaTeX", ".."]
+doc-valid-idents = ["MathJax", "KaTeX", "MathML", ".."]
 
 # Determinism gate: output must be byte-reproducible. Hash-based collections iterate
 # in randomized order, which would yield flaky diffs if one ever reached the AST or a writer. Use the

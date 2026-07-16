@@ -103,6 +103,8 @@ format_dispatch! {
     "read-latex" => "latex" => text carta_readers::LatexReader;
     "read-org" => "org" => text carta_readers::OrgReader;
     "read-rtf" => "rtf" => bytes carta_readers::RtfReader;
+    "read-docx" => "docx" => bytes carta_readers::DocxReader;
+    "read-epub" => "epub" => bytes carta_readers::EpubReader;
 }
 
 format_dispatch! {

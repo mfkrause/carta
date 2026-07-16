@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:f2-notes-in-containers"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Notes in containers"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["c1.xhtml",[],[]],[]]}]},{"t":"Table","c":[["",[],[]],[null,[]],[[{"t":"AlignDefault"},{"t":"ColWidthDefault"}]],[["",[],[]],[]],[[["",[],[]],0,[],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"cell"},{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"table"},{"t":"Space"},{"t":"Str","c":"note"}]}]}]}]]]]]]],[["",[],[]],[]]]},{"t":"DefinitionList","c":[[[{"t":"Str","c":"Term"}],[[{"t":"Plain","c":[{"t":"Str","c":"def"},{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"dd"},{"t":"Space"},{"t":"Str","c":"note"}]}]}]}]]]]}]}

@@ -424,7 +424,7 @@ mod tests {
             classify_continuation(paragraph, "plain text", false, false),
             Continuation::Terminate
         ));
-        // Once established the header/delimiter are not re-inspected: an unparseable prefix in the
+        // Once established the header/delimiter are not re-inspected: an unparsable prefix in the
         // paragraph slot is ignored and only the new line decides.
         assert!(matches!(
             classify_continuation("", "| 1 | 2 |", false, true),

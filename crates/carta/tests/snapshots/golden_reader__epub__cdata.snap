@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:test-cdata"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"CDATA"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["c1.xhtml",[],[]],[]]}]},{"t":"CodeBlock","c":[["",[],[]],"<html>\n  <body>Hi &amp; bye</body>\n</html>"]},{"t":"Para","c":[{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":">"},{"t":"Space"},{"t":"Str","c":"b"}]}]}

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"bullet"},{"t":"Space"},{"t":"Str","c":"list:"}]},{"t":"BulletList","c":[[{"t":"Para","c":[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"bullet"}]},{"t":"BulletList","c":[[{"t":"Para","c":[{"t":"Str","c":"Nested"},{"t":"Space"},{"t":"Str","c":"bullet"}]}]]}],[{"t":"Para","c":[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"bullet"}]}]]},{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"ordered"},{"t":"Space"},{"t":"Str","c":"list:"}]},{"t":"OrderedList","c":[[1,{"t":"Decimal"},{"t":"Period"}],[[{"t":"Para","c":[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"item"}]}],[{"t":"Para","c":[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"item"}]}]]]}]}

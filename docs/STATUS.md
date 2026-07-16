@@ -124,8 +124,18 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as
   document metadata.
 
+### `docx` — ✅
+- Page and column breaks are dropped rather than converted to line breaks, and a VML textbox's text
+  (including an `mc:AlternateContent` fallback) is not extracted.
+- Office Math sets binary and relational operators tight, with no surrounding thin space
+  (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`).
+- A few math symbols take a less idiomatic TeX spelling (`→` becomes `\to` rather than `\rightarrow`;
+  `·` is kept literal rather than `\cdot`).
+
+### `epub` — ✅
+
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
-`docx`, `endnotexml`, `epub`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
+`endnotexml`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
 `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---

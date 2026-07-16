@@ -19,6 +19,8 @@ pub(super) enum Token {
     },
     End(String),
     Text(String),
+    /// An HTML comment, carrying its full literal form with the `<!--` and `-->` delimiters.
+    Comment(String),
 }
 
 /// Elements whose content is read verbatim up to the matching end tag. Entities are still resolved
@@ -50,7 +52,7 @@ pub(super) fn tokenize(input: &str) -> Vec<Token> {
 /// a tag and should be treated as literal text.
 fn read_markup(input: &str, pos: usize, tokens: &mut Vec<Token>) -> Option<usize> {
     match input.as_bytes().get(pos + 1)? {
-        b'!' => Some(skip_declaration(input, pos)),
+        b'!' => Some(read_declaration(input, pos, tokens)),
         b'?' => Some(skip_to_gt(input, pos + 1)),
         b'/' => read_end_tag(input, pos, tokens),
         b if b.is_ascii_alphabetic() => Some(read_start_tag(input, pos, tokens)),
@@ -58,23 +60,70 @@ fn read_markup(input: &str, pos: usize, tokens: &mut Vec<Token>) -> Option<usize
     }
 }
 
-/// Skip `<!-- … -->`, `<![CDATA[ … ]]>` or a `<!doctype …>` declaration.
-fn skip_declaration(input: &str, pos: usize) -> usize {
+/// Consume a `<! … >` construct. An HTML comment becomes a [`Token::Comment`] carrying its literal
+/// form; a `<![CDATA[ … ]]>` section yields its content as verbatim text; a `<!doctype …>`
+/// declaration is skipped.
+fn read_declaration(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
     let bytes = input.as_bytes();
     if bytes.get(pos + 2) == Some(&b'-') && bytes.get(pos + 3) == Some(&b'-') {
-        let mut i = pos + 4;
-        while i < bytes.len() {
-            if bytes.get(i) == Some(&b'-')
-                && bytes.get(i + 1) == Some(&b'-')
-                && bytes.get(i + 2) == Some(&b'>')
-            {
-                return i + 3;
-            }
-            i += 1;
-        }
-        return bytes.len();
+        return read_comment(input, pos, tokens);
+    }
+    if input.get(pos + 2..pos + 9) == Some("[CDATA[") {
+        return read_cdata(input, pos, tokens);
     }
     skip_to_gt(input, pos)
+}
+
+/// Consume `<![CDATA[ … ]]>`, emitting its content as a single text token. A CDATA section holds
+/// character data, so its content carries through verbatim: markup delimiters stay literal and
+/// character references are not resolved. An unterminated section runs to the end of input.
+fn read_cdata(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
+    let bytes = input.as_bytes();
+    let start = pos + "<![CDATA[".len();
+    let mut i = start;
+    while i < bytes.len() {
+        if bytes.get(i) == Some(&b']')
+            && bytes.get(i + 1) == Some(&b']')
+            && bytes.get(i + 2) == Some(&b'>')
+        {
+            push_cdata_text(input, start, i, tokens);
+            return i + 3;
+        }
+        i += 1;
+    }
+    push_cdata_text(input, start, bytes.len(), tokens);
+    bytes.len()
+}
+
+fn push_cdata_text(input: &str, start: usize, end: usize, tokens: &mut Vec<Token>) {
+    let text = input.get(start..end).unwrap_or_default();
+    if !text.is_empty() {
+        tokens.push(Token::Text(text.to_string()));
+    }
+}
+
+/// Consume `<!-- … -->`, emitting the whole literal (delimiters included) as a comment token. An
+/// unterminated comment runs to the end of input.
+fn read_comment(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
+    let bytes = input.as_bytes();
+    let mut i = pos + 4;
+    while i < bytes.len() {
+        if bytes.get(i) == Some(&b'-')
+            && bytes.get(i + 1) == Some(&b'-')
+            && bytes.get(i + 2) == Some(&b'>')
+        {
+            let end = i + 3;
+            tokens.push(Token::Comment(
+                input.get(pos..end).unwrap_or_default().to_string(),
+            ));
+            return end;
+        }
+        i += 1;
+    }
+    tokens.push(Token::Comment(
+        input.get(pos..).unwrap_or_default().to_string(),
+    ));
+    bytes.len()
 }
 
 fn skip_to_gt(input: &str, pos: usize) -> usize {

@@ -18,6 +18,7 @@ pub mod container;
 pub mod extensions;
 pub mod media;
 pub mod sections;
+pub mod stack;
 #[cfg(feature = "template")]
 #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
 pub mod template;
@@ -25,6 +26,7 @@ pub mod walk;
 
 pub use extensions::{Extension, Extensions, presets};
 pub use media::{MediaBag, MediaItem};
+pub use stack::{DEEP_STACK, DeepStack, on_deep_stack};
 
 /// The error type returned across the conversion pipeline.
 #[derive(Debug, thiserror::Error)]

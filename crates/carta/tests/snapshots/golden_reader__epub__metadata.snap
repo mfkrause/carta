@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"author":{"t":"MetaList","c":[{"t":"MetaInlines","c":[{"t":"Str","c":"Charles Babbage"}]},{"t":"MetaInlines","c":[{"t":"Str","c":"Ada Lovelace"}]}]},"date":{"t":"MetaInlines","c":[{"t":"Str","c":"2020-01-01"}]},"description":{"t":"MetaInlines","c":[{"t":"Str","c":"A short description."}]},"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:isbn:9780000000001"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"publisher":{"t":"MetaInlines","c":[{"t":"Str","c":"Analytical Press"}]},"rights":{"t":"MetaInlines","c":[{"t":"Str","c":"Public Domain"}]},"subject":{"t":"MetaInlines","c":[{"t":"Str","c":"Computing"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"The Great Work"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["ch1.xhtml",[],[]],[]]}]},{"t":"Para","c":[{"t":"Str","c":"Body"},{"t":"Space"},{"t":"Str","c":"text."}]}]}

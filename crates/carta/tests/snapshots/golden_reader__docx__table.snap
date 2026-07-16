@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"table:"}]},{"t":"Table","c":[["",[],[]],[null,[]],[[{"t":"AlignLeft"},{"t":"ColWidth","c":0.5}],[{"t":"AlignRight"},{"t":"ColWidth","c":0.5}]],[["",[],[]],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"Name"}]}]],[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"Count"}]}]]]]]],[[["",[],[]],0,[],[[["",[],[]],[[["",[],[]],{"t":"AlignLeft"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"Apples"}]}]],[["",[],[]],{"t":"AlignRight"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"3"}]}]]]],[["",[],[]],[[["",[],[]],{"t":"AlignLeft"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"Pears"}]}]],[["",[],[]],{"t":"AlignRight"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"12"}]}]]]]]]],[["",[],[]],[]]]},{"t":"Para","c":[{"t":"Str","c":"After"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"table."}]}]}
