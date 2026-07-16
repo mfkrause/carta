@@ -9,6 +9,36 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.5](https://github.com/mfkrause/carta/compare/v0.0.4...v0.0.5) - 2026-07-16
+
+### Added
+
+- *(readers)* implement DOCX and EPUB readers ([#79](https://github.com/mfkrause/carta/pull/79))
+- *(rtf)* implement RTF reader and writer ([#75](https://github.com/mfkrause/carta/pull/75))
+- *(html-writer)* inline external resources for self-contained HTML ([#74](https://github.com/mfkrause/carta/pull/74))
+- *(cli)* add --resource-path and a resolver-driven media embed helper
+- *(writers)* implement syntax highlighting ([#72](https://github.com/mfkrause/carta/pull/72))
+
+### Fixed
+
+- *(commonmark)* keep a raw image tag whole when reflowing inline HTML
+- *(latex)* box links and use dollar math inside underline and strikeout
+- *(rst)* dedupe image substitution names and normalize length dimensions
+- *(mediawiki)* size images in pixels from physical dimensions
+
+### Other
+
+- cover byte-container readers with a corpus/binary tree ([#76](https://github.com/mfkrause/carta/pull/76))
+
+### Performance
+
+- *(standalone)* eliminate whole-document copies in template rendering
+- *(container)* compress zip entries at level 6
+- *(container)* speed up crc32, sha-1, base64, xml escaping, and media dedup
+- *(commonmark)* scan pipe-table rows in one pass
+- *(commonmark)* sweep per-line allocations out of the block phase
+- *(html)* tokenize by byte offsets and decode entities in a single pass
+
 ## [0.0.4](https://github.com/mfkrause/carta/compare/v0.0.3...v0.0.4) - 2026-07-06
 
 ### Added
