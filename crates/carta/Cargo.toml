@@ -112,7 +112,7 @@ ureq = { version = "3", default-features = false, features = ["rustls"], optiona
 # on this thread rather than a worker so the writer options, which may hold thread-affine state, need
 # not be shareable across threads. A tiny, single-purpose crate; the equivalent hand-rolled stack
 # switch would require `unsafe`, which this workspace forbids.
-stacker = "0.1"
+stacker = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

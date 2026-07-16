@@ -206,6 +206,7 @@ dependencies = [
  "carta-core",
  "carta-highlight",
  "serde_json",
+ "stacker",
  "unicode-general-category",
 ]
 
