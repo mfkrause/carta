@@ -104,10 +104,10 @@ fn reads_input_file_and_writes_output_file() {
 
 #[test]
 fn unsupported_input_format_fails() {
-    let result = run(&["-f", "docx", "-t", "html"], "x");
+    let result = run(&["-f", "notaformat", "-t", "html"], "x");
     assert!(!result.success);
     assert!(
-        result.stderr.contains("unsupported format: docx"),
+        result.stderr.contains("unsupported format: notaformat"),
         "stderr: {}",
         result.stderr
     );

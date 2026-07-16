@@ -10,7 +10,10 @@ use carta_ast::{
 };
 use carta_core::{Extension, Extensions};
 
-use super::classify::{BlockKind, InlineKind, block_kind, inline_kind, is_inline_element};
+use super::classify::{
+    BlockKind, InlineKind, block_kind, inline_kind, is_inline_element, is_raw_block_tag,
+};
+use super::mathml;
 use super::notes::{ENDNOTES_ROLE, has_role, noteref_target};
 use super::table::{
     cell_alignment, column_alignments, column_widths, normalize_cell_style, row_elements,
@@ -139,20 +142,34 @@ impl Converter {
         for node in nodes {
             match node {
                 Node::Text(text) => push_text(pending, text),
+                Node::Comment(_) => self.append_inline(pending, node),
                 Node::Element(e) => {
                     if e.name == "head" {
                         continue;
                     }
                     if e.name == "script" && !is_math_script(e) {
                         flush(pending, out);
+                        if self.raw_html() {
+                            out.push(Block::RawBlock(
+                                Format("html".into()),
+                                serialize_element(e).into(),
+                            ));
+                        }
                         continue;
                     }
                     if e.name == "style" && pending.is_empty() {
                         // A `<style>` with no preceding sibling at all is metadata (a document head,
-                        // or the leading node of a block run) and contributes nothing. Once any
-                        // sibling node precedes it — even whitespace — it is body content: it joins
-                        // the inline run as a raw fragment via the inline path below, and the next
-                        // block boundary flushes that run into its own paragraph.
+                        // or the leading node of a block run). Once any sibling node precedes it —
+                        // even whitespace — it is body content: it joins the inline run as a raw
+                        // fragment via the inline path below, and the next block boundary flushes
+                        // that run into its own paragraph. As metadata it is otherwise dropped, but
+                        // when raw HTML is preserved its verbatim form becomes its own raw block.
+                        if self.raw_html() {
+                            out.push(Block::RawBlock(
+                                Format("html".into()),
+                                serialize_element(e).into(),
+                            ));
+                        }
                         continue;
                     }
                     if has_role(e, ENDNOTES_ROLE) {
@@ -161,16 +178,47 @@ impl Converter {
                         flush(pending, out);
                         continue;
                     }
+                    if e.name == "a" && self.anchor_block_split(e).is_some() {
+                        self.emit_block_anchor(e, out, pending);
+                        continue;
+                    }
                     if let Some(kind) = block_kind(&e.name) {
                         flush(pending, out);
                         self.emit_block(kind, e, out);
-                    } else if is_inline_element(&e.name) {
+                    } else if self.raw_html() && is_raw_block_tag(&e.name) {
+                        flush(pending, out);
+                        self.emit_raw_block(e, out);
+                    } else if is_inline_element(&e.name) || (self.raw_html() && e.name != "main") {
                         self.append_inline(pending, node);
                     } else {
+                        // No structural, raw-block, or inline mapping applies (a grouping wrapper
+                        // such as `<main>`, or any unknown tag when raw HTML is not preserved): the
+                        // wrapper carries no structure, so its children splice into the block flow.
                         self.process(e.children.iter(), out, pending);
                     }
                 }
             }
+        }
+    }
+
+    /// Emit a block-level element preserved as raw HTML: its start tag as a raw block, its children
+    /// as ordinary block flow, then its end tag as a raw block. A stray end tag with no open element
+    /// contributes only its close tag.
+    fn emit_raw_block(&mut self, e: &Element, out: &mut Vec<Block>) {
+        let format = Format("html".into());
+        if e.end_only {
+            out.push(Block::RawBlock(format, close_tag(&e.name).into()));
+            return;
+        }
+        out.push(Block::RawBlock(format.clone(), open_tag(e).into()));
+        if e.void {
+            return;
+        }
+        let mut pending = Vec::new();
+        self.process(e.children.iter(), out, &mut pending);
+        flush(&mut pending, out);
+        if e.closed {
+            out.push(Block::RawBlock(format, close_tag(&e.name).into()));
         }
     }
 
@@ -250,7 +298,23 @@ impl Converter {
     fn definition_list(&mut self, e: &Element) -> Block {
         let mut items: Vec<(Vec<Inline>, Vec<Vec<Block>>)> = Vec::new();
         let mut current: Option<(Vec<Inline>, Vec<Vec<Block>>)> = None;
-        for child in &e.children {
+        self.collect_definitions(&e.children, &mut items, &mut current);
+        if let Some(done) = current {
+            items.push(done);
+        }
+        Block::DefinitionList(items)
+    }
+
+    /// Gather the `<dt>`/`<dd>` pairs of a definition list into `items`, carrying the in-progress
+    /// entry across the walk. A grouping `<div>` is transparent: its children join the same term and
+    /// definition stream, so a term and its definition may sit on either side of the boundary.
+    fn collect_definitions(
+        &mut self,
+        children: &[Node],
+        items: &mut Vec<(Vec<Inline>, Vec<Vec<Block>>)>,
+        current: &mut Option<(Vec<Inline>, Vec<Vec<Block>>)>,
+    ) {
+        for child in children {
             let Node::Element(item) = child else { continue };
             match item.name.as_str() {
                 "dt" => {
@@ -264,7 +328,7 @@ impl Converter {
                             if let Some(done) = current.take() {
                                 items.push(done);
                             }
-                            current = Some((term, Vec::new()));
+                            *current = Some((term, Vec::new()));
                         }
                     }
                 }
@@ -275,13 +339,10 @@ impl Converter {
                         .1
                         .push(definition);
                 }
+                "div" => self.collect_definitions(&item.children, items, current),
                 _ => {}
             }
         }
-        if let Some(done) = current {
-            items.push(done);
-        }
-        Block::DefinitionList(items)
     }
 
     fn figure(&mut self, e: &Element) -> Block {
@@ -363,6 +424,18 @@ impl Converter {
                     body_row_elements.push(section);
                 }
                 _ => {}
+            }
+        }
+        // A table that declares no head still gets one when its first row is all header cells: that
+        // leading row is the implicit head, and the remaining rows are the body.
+        if head_rows.is_empty()
+            && body_row_elements
+                .first()
+                .is_some_and(|tr| is_header_row(tr))
+        {
+            body_row_elements.remove(0);
+            if !body_rows.is_empty() {
+                head_rows.push(body_rows.remove(0));
             }
         }
         let row_head_columns = row_head_columns(&body_row_elements);
@@ -485,6 +558,29 @@ impl Converter {
         out
     }
 
+    /// Build a formatting element (emphasis, sub/superscript, quotation …), promoting whitespace at
+    /// its edges out into the surrounding flow: a leading or trailing break in the content is emitted
+    /// beside the wrapped element and the content itself is trimmed of edge whitespace. Each edge is
+    /// decided on its own, so an element holding only whitespace contributes a break on both sides.
+    fn push_spaced(
+        &self,
+        out: &mut Vec<Inline>,
+        e: &Element,
+        wrap: impl FnOnce(Vec<Inline>) -> Inline,
+    ) {
+        let inner = self.build_inlines(&e.children);
+        let leading = edge_break(inner.first());
+        let trailing = edge_break(inner.last());
+        let trimmed = trim_inlines(inner);
+        if let Some(lead) = leading {
+            absorb(out, lead);
+        }
+        merge_adjacent_formatting(out, wrap(trimmed));
+        if let Some(trail) = trailing {
+            absorb(out, trail);
+        }
+    }
+
     fn smart(&self) -> bool {
         self.ext.contains(Extension::Smart)
     }
@@ -494,6 +590,13 @@ impl Converter {
         self.ext.contains(Extension::TexMathDollars)
             || self.ext.contains(Extension::TexMathSingleBackslash)
             || self.ext.contains(Extension::TexMathDoubleBackslash)
+    }
+
+    /// Whether markup with no structural mapping is preserved verbatim as raw HTML rather than being
+    /// unwrapped or dropped. Enabled for a standalone inline fragment and whenever the `raw_html`
+    /// extension is on; it turns unknown tags, comments, and script/style bodies into raw nodes.
+    fn raw_html(&self) -> bool {
+        self.preserve_unknown_tags || self.ext.contains(Extension::RawHtml)
     }
 
     /// Append a text node, applying the inline finishing pass. Verbatim by default; with `smart` the
@@ -575,22 +678,45 @@ impl Converter {
                 self.append_text(out, text);
                 return;
             }
+            Node::Comment(text) => {
+                if self.raw_html() {
+                    out.push(Inline::RawInline(
+                        Format("html".into()),
+                        text.clone().into(),
+                    ));
+                }
+                return;
+            }
             Node::Element(e) => e,
         };
-        match inline_kind(&e.name) {
-            InlineKind::Emph => out.push(Inline::Emph(self.build_inlines(&e.children))),
-            InlineKind::Strong => out.push(Inline::Strong(self.build_inlines(&e.children))),
-            InlineKind::Strikeout => out.push(Inline::Strikeout(self.build_inlines(&e.children))),
-            InlineKind::Underline => out.push(Inline::Underline(self.build_inlines(&e.children))),
-            InlineKind::Superscript => {
-                out.push(Inline::Superscript(self.build_inlines(&e.children)));
+        if e.name == "math" && self.raw_html() {
+            let tex = mathml::to_tex(e);
+            if !tex.is_empty() {
+                let math_type = if attr_value(e, "display").as_deref() == Some("block") {
+                    MathType::DisplayMath
+                } else {
+                    MathType::InlineMath
+                };
+                out.push(Inline::Math(math_type, tex.into()));
             }
-            InlineKind::Subscript => out.push(Inline::Subscript(self.build_inlines(&e.children))),
+            return;
+        }
+        self.append_element(out, e);
+    }
+
+    /// Map an inline-level element to the AST inline(s) it produces, appending them to `out`.
+    fn append_element(&self, out: &mut Vec<Inline>, e: &Element) {
+        match inline_kind(&e.name) {
+            InlineKind::Emph => self.push_spaced(out, e, Inline::Emph),
+            InlineKind::Strong => self.push_spaced(out, e, Inline::Strong),
+            InlineKind::Strikeout => self.push_spaced(out, e, Inline::Strikeout),
+            InlineKind::Underline => self.push_spaced(out, e, Inline::Underline),
+            InlineKind::Superscript => self.push_spaced(out, e, Inline::Superscript),
+            InlineKind::Subscript => self.push_spaced(out, e, Inline::Subscript),
             InlineKind::Quoted => {
-                out.push(Inline::Quoted(
-                    QuoteType::DoubleQuote,
-                    self.build_inlines(&e.children),
-                ));
+                self.push_spaced(out, e, |inner| {
+                    Inline::Quoted(QuoteType::DoubleQuote, inner)
+                });
             }
             InlineKind::LineBreak => out.push(Inline::LineBreak),
             InlineKind::Span => {
@@ -649,7 +775,7 @@ impl Converter {
                 }
             }
             InlineKind::Transparent => {
-                if self.preserve_unknown_tags && block_kind(&e.name).is_none() {
+                if self.raw_html() && block_kind(&e.name).is_none() {
                     let format = Format("html".into());
                     if e.end_only {
                         out.push(Inline::RawInline(format, close_tag(&e.name).into()));
@@ -688,7 +814,10 @@ impl Converter {
             self.in_code.set(previous);
             codify(out, inner, &attr);
         } else {
-            out.push(Inline::Code(Box::new(attr), collect_text(e).into()));
+            out.push(Inline::Code(
+                Box::new(attr),
+                collapse_ws(&collect_text(e)).into(),
+            ));
         }
     }
 
@@ -700,31 +829,68 @@ impl Converter {
         }
         let inner = self.build_inlines(&e.children);
         let (leading, trimmed, trailing) = hoist_edge_whitespace(inner);
+        if let Some(lead) = leading {
+            out.push(lead);
+        }
+        out.push(Self::anchor_link(e, trimmed));
+        if let Some(trail) = trailing {
+            out.push(trail);
+        }
+    }
+
+    /// Build the inline an `<a>` produces from already-resolved content: a [`Inline::Link`] when it
+    /// carries an `href`, otherwise a [`Inline::Span`] holding the anchor's identifier. The
+    /// destination is percent-escaped so characters unsafe in a URL survive as a valid reference.
+    fn anchor_link(e: &Element, inner: Vec<Inline>) -> Inline {
         let mut attr = extract_attr(e, &["href", "title", "name"]);
         if attr.id.is_empty()
             && let Some(name) = attr_value(e, "name")
         {
             attr.id = name.into();
         }
-        if let Some(lead) = leading {
-            out.push(lead);
-        }
-        let anchor = if let Some(href) = attr_value(e, "href") {
+        if let Some(href) = attr_value(e, "href") {
             let title = attr_value(e, "title").unwrap_or_default();
             Inline::Link(
                 Box::new(attr),
-                trimmed,
+                inner,
                 Box::new(Target {
-                    url: href.into(),
+                    url: escape_uri(&href).into(),
                     title: title.into(),
                 }),
             )
         } else {
-            Inline::Span(Box::new(attr), trimmed)
-        };
-        out.push(anchor);
-        if let Some(trail) = trailing {
-            out.push(trail);
+            Inline::Span(Box::new(attr), inner)
+        }
+    }
+
+    /// The index of the first block-level child of an `<a>`, or `None` when it holds only inline
+    /// content. HTML's transparent content model lets an `<a>` wrap block content; when it does, it
+    /// cannot stay a single inline and is split at this boundary.
+    fn anchor_block_split(&self, e: &Element) -> Option<usize> {
+        e.children.iter().position(|child| match child {
+            Node::Element(c) => {
+                block_kind(&c.name).is_some() || (self.raw_html() && is_raw_block_tag(&c.name))
+            }
+            _ => false,
+        })
+    }
+
+    /// Emit an `<a>` that wraps block content. The inline run up to the first block child becomes the
+    /// link; from that child on, the content lays out as block flow after it. When raw HTML is
+    /// preserved, the now-unmatched end tag trails as a raw inline.
+    fn emit_block_anchor(&mut self, e: &Element, out: &mut Vec<Block>, pending: &mut Vec<Inline>) {
+        let split = self.anchor_block_split(e).unwrap_or(e.children.len());
+        let head = e.children.get(..split).unwrap_or(&[]);
+        let inner = trim_inlines(self.build_inlines(head));
+        pending.push(Self::anchor_link(e, inner));
+        if let Some(rest) = e.children.get(split..) {
+            self.process(rest.iter(), out, pending);
+        }
+        if self.raw_html() {
+            pending.push(Inline::RawInline(
+                Format("html".into()),
+                close_tag(&e.name).into(),
+            ));
         }
     }
 }
@@ -1152,6 +1318,93 @@ fn absorb(out: &mut Vec<Inline>, inline: Inline) {
     }
 }
 
+/// Push a formatting inline, fusing it with an identical formatting element directly before it.
+/// Adjacent runs of the same emphasis, strength, strike, underline, super-, or subscript — with no
+/// intervening text or break — carry one meaning, so their children are concatenated into a single
+/// element. Quotation and small-caps stay separate; any other inline is simply appended.
+fn merge_adjacent_formatting(out: &mut Vec<Inline>, inline: Inline) {
+    let mergeable = matches!(
+        (out.last(), &inline),
+        (Some(Inline::Emph(_)), Inline::Emph(_))
+            | (Some(Inline::Strong(_)), Inline::Strong(_))
+            | (Some(Inline::Strikeout(_)), Inline::Strikeout(_))
+            | (Some(Inline::Underline(_)), Inline::Underline(_))
+            | (Some(Inline::Superscript(_)), Inline::Superscript(_))
+            | (Some(Inline::Subscript(_)), Inline::Subscript(_))
+    );
+    if !mergeable {
+        out.push(inline);
+        return;
+    }
+    // Both sides are confirmed the same formatting variant, so the children pulled from this element
+    // concatenate onto the previous one.
+    let next = match inline {
+        Inline::Emph(children)
+        | Inline::Strong(children)
+        | Inline::Strikeout(children)
+        | Inline::Underline(children)
+        | Inline::Superscript(children)
+        | Inline::Subscript(children) => children,
+        other => {
+            out.push(other);
+            return;
+        }
+    };
+    if let Some(
+        Inline::Emph(prev)
+        | Inline::Strong(prev)
+        | Inline::Strikeout(prev)
+        | Inline::Underline(prev)
+        | Inline::Superscript(prev)
+        | Inline::Subscript(prev),
+    ) = out.last_mut()
+    {
+        prev.extend(next);
+    }
+}
+
+/// Percent-escape a URL reference so characters that are unsafe or structural in a URL survive as a
+/// valid reference. Whitespace and the delimiters `<>|"{}[]^` and a backtick are encoded per UTF-8
+/// byte as uppercase `%XX`; every other character — including an existing `%`, a backslash, a tilde,
+/// and any non-ASCII character — is kept verbatim.
+pub(crate) fn escape_uri(uri: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(uri.len());
+    let mut buf = [0u8; 4];
+    for c in uri.chars() {
+        if c.is_whitespace()
+            || matches!(c, '<' | '>' | '|' | '"' | '{' | '}' | '[' | ']' | '^' | '`')
+        {
+            for &byte in c.encode_utf8(&mut buf).as_bytes() {
+                let _ = write!(out, "%{byte:02X}");
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Collapse every run of ASCII whitespace in an inline code span to a single space, without trimming
+/// the edges: an all-whitespace span becomes a single space, and leading and trailing whitespace each
+/// survive as one space.
+fn collapse_ws(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut prev_space = false;
+    for ch in text.chars() {
+        if ch.is_ascii_whitespace() {
+            if !prev_space {
+                out.push(' ');
+                prev_space = true;
+            }
+        } else {
+            out.push(ch);
+            prev_space = false;
+        }
+    }
+    out
+}
+
 /// Whether a `<span>` requests small-caps rendering, either through the `smallcaps` class or a
 /// `font-variant: small-caps` style declaration.
 fn is_small_caps(e: &Element) -> bool {
@@ -1232,7 +1485,7 @@ fn image(e: &Element) -> Inline {
         Box::new(attr),
         inlines_from_text(&alt),
         Box::new(Target {
-            url: url.into(),
+            url: escape_uri(&url).into(),
             title: title.into(),
         }),
     )
@@ -1359,6 +1612,32 @@ fn push_break(out: &mut Vec<Inline>, newline: bool) {
     }
 }
 
+/// Whether a `<tr>` is a header row: it carries at least one cell and every cell is a `<th>`. Such a
+/// leading row stands in for a missing `<thead>`.
+fn is_header_row(tr: &Element) -> bool {
+    let mut saw_header = false;
+    for node in &tr.children {
+        if let Node::Element(cell) = node {
+            match cell.name.as_str() {
+                "td" => return false,
+                "th" => saw_header = true,
+                _ => {}
+            }
+        }
+    }
+    saw_header
+}
+
+/// The break to place beside a formatting element when the given edge inline is whitespace: a
+/// [`Inline::Space`] for a space, an [`Inline::SoftBreak`] for a soft break, nothing otherwise.
+fn edge_break(edge: Option<&Inline>) -> Option<Inline> {
+    match edge {
+        Some(Inline::Space) => Some(Inline::Space),
+        Some(Inline::SoftBreak) => Some(Inline::SoftBreak),
+        _ => None,
+    }
+}
+
 fn trim_inlines(mut inlines: Vec<Inline>) -> Vec<Inline> {
     while matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak)) {
         inlines.remove(0);
@@ -1426,6 +1705,6 @@ fn is_checkbox(e: &Element) -> bool {
 fn contains_checkbox(e: &Element) -> bool {
     e.children.iter().any(|node| match node {
         Node::Element(child) => is_checkbox(child) || contains_checkbox(child),
-        Node::Text(_) => false,
+        Node::Text(_) | Node::Comment(_) => false,
     })
 }

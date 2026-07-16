@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         # Keep in sync with the replay matrix in ci.yml and the targets in fuzz/Cargo.toml.
-        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man, latex, org, rtf, highlight]
+        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man, latex, org, rtf, highlight, docx, epub]
     steps:
       - uses: actions/checkout@v7
       - name: Install nightly toolchain

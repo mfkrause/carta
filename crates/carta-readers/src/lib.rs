@@ -34,13 +34,19 @@ mod inline_text;
 mod numeric;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
+#[cfg(any(feature = "docx", feature = "epub"))]
+mod xml;
 
 #[cfg(feature = "commonmark")]
 pub mod commonmark;
 #[cfg(feature = "csv")]
 pub mod csv;
+#[cfg(feature = "docx")]
+pub mod docx;
 #[cfg(feature = "dokuwiki")]
 pub mod dokuwiki;
+#[cfg(feature = "epub")]
+pub mod epub;
 #[cfg(feature = "html")]
 pub mod html;
 #[cfg(feature = "ipynb")]
@@ -74,8 +80,12 @@ pub mod tsv;
 pub use commonmark::CommonmarkReader;
 #[cfg(feature = "csv")]
 pub use csv::CsvReader;
+#[cfg(feature = "docx")]
+pub use docx::DocxReader;
 #[cfg(feature = "dokuwiki")]
 pub use dokuwiki::DokuwikiReader;
+#[cfg(feature = "epub")]
+pub use epub::EpubReader;
 #[cfg(feature = "html")]
 pub use html::HtmlReader;
 #[cfg(feature = "ipynb")]

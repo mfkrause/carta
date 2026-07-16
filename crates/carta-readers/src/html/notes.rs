@@ -78,7 +78,7 @@ fn strip_backlinks(nodes: &[Node]) -> Vec<Node> {
                 cloned.children = strip_backlinks(&e.children);
                 Some(Node::Element(cloned))
             }
-            Node::Text(_) => Some(node.clone()),
+            Node::Text(_) | Node::Comment(_) => Some(node.clone()),
         })
         .collect()
 }

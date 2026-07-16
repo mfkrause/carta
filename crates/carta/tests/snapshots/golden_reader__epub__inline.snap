@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:12345678"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Sample Book"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["ch1.xhtml",[],[]],[]]}]},{"t":"Para","c":[{"t":"Emph","c":[{"t":"Str","c":"emph"}]},{"t":"Space"},{"t":"Strong","c":[{"t":"Str","c":"strong"}]},{"t":"Space"},{"t":"Underline","c":[{"t":"Str","c":"under"}]},{"t":"Space"},{"t":"Strikeout","c":[{"t":"Str","c":"strike"}]},{"t":"Space"},{"t":"Superscript","c":[{"t":"Str","c":"sup"}]},{"t":"Space"},{"t":"Subscript","c":[{"t":"Str","c":"sub"}]},{"t":"Space"},{"t":"Code","c":[["",[],[]],"code()"]},{"t":"Space"},{"t":"SmallCaps","c":[{"t":"Str","c":"smallcaps"}]},{"t":"Space"},{"t":"Quoted","c":[{"t":"DoubleQuote"},[{"t":"Str","c":"quoted"}]]},{"t":"Space"},{"t":"Span","c":[["",["kbd"],[]],[{"t":"Str","c":"Esc"}]]},{"t":"Space"},{"t":"Span","c":[["ch1.xhtml_s1",["custom"],[]],[{"t":"Str","c":"spanned"}]]},{"t":"Str","c":"."}]}]}

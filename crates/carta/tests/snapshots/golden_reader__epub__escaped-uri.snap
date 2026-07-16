@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:f5-escaped-uri"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Escaped URIs"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["c1.xhtml",[],[]],[]]}]},{"t":"Para","c":[{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"link"}],["a%20b%7Cc",""]]}]},{"t":"Para","c":[{"t":"Image","c":[["",[],[]],[{"t":"Str","c":"i"}],["pic%20name.png",""]]}]}]}

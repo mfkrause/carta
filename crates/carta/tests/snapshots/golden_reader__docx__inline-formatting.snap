@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Plain"},{"t":"Space"},{"t":"Str","c":"then"},{"t":"Space"},{"t":"Underline","c":[{"t":"Str","c":"underline"}]},{"t":"Space"},{"t":"Str","c":"done."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Strikeout","c":[{"t":"Str","c":"struck"}]},{"t":"Space"},{"t":"Str","c":"word."}]},{"t":"Para","c":[{"t":"Str","c":"H"},{"t":"Subscript","c":[{"t":"Str","c":"2"}]},{"t":"Str","c":"O"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"E=mc"},{"t":"Superscript","c":[{"t":"Str","c":"2"}]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Some"},{"t":"Space"},{"t":"SmallCaps","c":[{"t":"Str","c":"small"},{"t":"Space"},{"t":"Str","c":"caps"}]},{"t":"Space"},{"t":"Str","c":"text."}]},{"t":"Para","c":[{"t":"Str","c":"Line"},{"t":"Space"},{"t":"Str","c":"one"},{"t":"LineBreak"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"two."}]}]}

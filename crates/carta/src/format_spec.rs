@@ -36,6 +36,13 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::NativeDivs,
             Extension::NativeSpans,
         ]),
+        // An EPUB's content documents are XHTML, so reading one preserves the same structural HTML
+        // constructs: native divs and spans, and raw HTML passthrough.
+        "epub" => Extensions::from_list(&[
+            Extension::NativeDivs,
+            Extension::NativeSpans,
+            Extension::RawHtml,
+        ]),
         "rst" | "mediawiki" | "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
         // Writing DOCX assigns header identifiers by default; the remaining extensions in its set —
         // custom styles, native figure/table numbering, and empty-paragraph preservation among them —

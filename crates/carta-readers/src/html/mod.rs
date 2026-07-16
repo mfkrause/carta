@@ -7,6 +7,7 @@
 
 mod classify;
 mod convert;
+mod mathml;
 mod notes;
 mod table;
 mod tokenize;
@@ -20,6 +21,8 @@ use carta_core::{Extensions, Reader, ReaderOptions, Result};
 #[cfg(feature = "opml")]
 use carta_ast::Inline;
 
+#[cfg(feature = "epub")]
+pub(crate) use convert::escape_uri;
 #[cfg(feature = "opml")]
 use convert::inlines_from_nodes;
 use convert::{Converter, extract_meta};
@@ -558,9 +561,20 @@ mod tests {
     }
 
     #[test]
-    fn cdata_and_processing_instructions_are_skipped() {
+    fn cdata_reads_as_text_and_processing_instruction_is_dropped() {
+        // A CDATA section contributes its content as ordinary character data; a processing
+        // instruction contributes nothing.
         let inlines = para_inlines("<p>a<![CDATA[ junk ]]><?pi here?>b</p>");
-        assert_eq!(inlines.as_slice(), [Inline::Str("ab".to_string().into())]);
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("a".to_string().into()),
+                Inline::Space,
+                Inline::Str("junk".to_string().into()),
+                Inline::Space,
+                Inline::Str("b".to_string().into()),
+            ]
+        );
     }
 
     #[test]
@@ -1024,6 +1038,148 @@ mod tests {
             &[],
         );
         assert_eq!(ids, vec!["same-2", "same", "same-1", "same-3"]);
+    }
+
+    /// Read with the `epub`-style dialect: the `html` defaults plus `raw_html`, which preserves
+    /// unknown tags, comments, and script/style bodies verbatim and lifts MathML into math.
+    fn read_raw_html(input: &str) -> Vec<Block> {
+        read_with(
+            input,
+            html_defaults().union(Extensions::from_list(&[Extension::RawHtml])),
+        )
+    }
+
+    fn raw_block(format: &carta_ast::Format, text: &carta_ast::Text) -> (String, String) {
+        (format.0.to_string(), text.to_string())
+    }
+
+    #[test]
+    fn raw_html_lifts_mathml_to_inline_math() {
+        let result = read_raw_html(
+            r#"<p><math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mi>x</mi><mn>2</mn></msup></math></p>"#,
+        );
+        let Some(Block::Para(inlines)) = result.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(
+            inlines.as_slice(),
+            [Inline::Math(
+                MathType::InlineMath,
+                "x^{2}".to_string().into()
+            )]
+        );
+    }
+
+    #[test]
+    fn raw_html_reads_display_math_from_the_block_attribute() {
+        let result = read_raw_html(
+            r#"<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math></p>"#,
+        );
+        let Some(Block::Para(inlines)) = result.first() else {
+            panic!("expected paragraph");
+        };
+        assert!(matches!(
+            inlines.as_slice(),
+            [Inline::Math(MathType::DisplayMath, text)] if text == "x"
+        ));
+    }
+
+    #[test]
+    fn mathml_is_unwrapped_without_raw_html() {
+        let result =
+            blocks(r#"<p><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math></p>"#);
+        let Some(Block::Para(inlines)) = result.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(inlines.as_slice(), [Inline::Str("x".to_string().into())]);
+    }
+
+    #[test]
+    fn raw_html_comment_breaks_the_text_run() {
+        let result = read_raw_html("<p>a<!-- c -->b</p>");
+        let Some(Block::Para(inlines)) = result.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("a".to_string().into()),
+                Inline::RawInline(
+                    carta_ast::Format("html".to_string().into()),
+                    "<!-- c -->".to_string().into()
+                ),
+                Inline::Str("b".to_string().into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn raw_html_wraps_a_block_level_unknown_element() {
+        let result = read_raw_html("<article><p>x</p></article>");
+        let [
+            Block::RawBlock(of, open),
+            Block::Para(_),
+            Block::RawBlock(cf, close),
+        ] = result.as_slice()
+        else {
+            panic!("expected a raw-wrapped article");
+        };
+        assert_eq!(raw_block(of, open), ("html".into(), "<article>".into()));
+        assert_eq!(raw_block(cf, close), ("html".into(), "</article>".into()));
+    }
+
+    #[test]
+    fn raw_html_keeps_an_unknown_inline_element_verbatim() {
+        let result = read_raw_html(r#"<p>x<custom-tag data-k="v">y</custom-tag>z</p>"#);
+        let Some(Block::Para(inlines)) = result.first() else {
+            panic!("expected paragraph");
+        };
+        assert_eq!(
+            inlines.as_slice(),
+            [
+                Inline::Str("x".to_string().into()),
+                Inline::RawInline(
+                    carta_ast::Format("html".to_string().into()),
+                    "<custom-tag data-k=\"v\">".to_string().into()
+                ),
+                Inline::Str("y".to_string().into()),
+                Inline::RawInline(
+                    carta_ast::Format("html".to_string().into()),
+                    "</custom-tag>".to_string().into()
+                ),
+                Inline::Str("z".to_string().into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn raw_html_unwraps_a_grouping_main_element() {
+        let result = read_raw_html("<main><p>m</p></main>");
+        assert!(matches!(result.as_slice(), [Block::Para(_)]));
+    }
+
+    #[test]
+    fn raw_html_keeps_a_non_math_script_as_a_raw_block() {
+        let result = read_raw_html("<script>run()</script><p>p</p>");
+        let [Block::RawBlock(f, text), Block::Para(_)] = result.as_slice() else {
+            panic!("expected a raw script block then a paragraph");
+        };
+        assert_eq!(
+            raw_block(f, text),
+            ("html".into(), "<script>run()</script>".into())
+        );
+    }
+
+    #[test]
+    fn raw_html_keeps_a_leading_style_as_a_raw_block() {
+        let result = read_raw_html("<style>.x{}</style><p>p</p>");
+        let [Block::RawBlock(f, text), Block::Para(_)] = result.as_slice() else {
+            panic!("expected a raw style block then a paragraph");
+        };
+        assert_eq!(
+            raw_block(f, text),
+            ("html".into(), "<style>.x{}</style>".into())
+        );
     }
 
     #[cfg(feature = "opml")]
