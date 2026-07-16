@@ -10,7 +10,6 @@ use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-#[cfg(feature = "highlight")]
 use std::sync::Arc;
 
 use carta::ast::{Block, MetaValue};
