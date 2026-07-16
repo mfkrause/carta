@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:test-implicithead"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Implicit head"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["c1.xhtml",[],[]],[]]}]},{"t":"Table","c":[["",[],[]],[null,[]],[[{"t":"AlignDefault"},{"t":"ColWidthDefault"}],[{"t":"AlignDefault"},{"t":"ColWidthDefault"}]],[["",[],[]],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"Name"}]}]],[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"Age"}]}]]]]]],[[["",[],[]],0,[],[[["",[],[]],[[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"Al"}]}]],[["",[],[]],{"t":"AlignDefault"},1,1,[{"t":"Plain","c":[{"t":"Str","c":"30"}]}]]]]]]],[["",[],[]],[]]]}]}

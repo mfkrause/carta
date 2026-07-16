@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:12345678"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Sample Book"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["ch1.xhtml",[],[]],[]]}]},{"t":"Div","c":[["ch1.xhtml_cover",["cover"],[]],[{"t":"Para","c":[{"t":"Str","c":"Cover"},{"t":"Space"},{"t":"Str","c":"matter."}]}]]},{"t":"Para","c":[{"t":"Str","c":"Ordinary"},{"t":"Space"},{"t":"Str","c":"paragraph."}]}]}

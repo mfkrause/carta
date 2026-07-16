@@ -1,0 +1,1 @@
+A paragraph in a custom named style becomes a Div, and a run in a custom character style becomes a Span, each carrying the style name as its custom-style attribute.

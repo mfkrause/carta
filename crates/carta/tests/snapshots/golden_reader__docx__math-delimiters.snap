@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Math","c":[{"t":"InlineMath"},"\\left\\lfloor x \\right\\rfloor"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"InlineMath"},"\\left\\lceil x \\right\\rceil"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"InlineMath"},"\\left\\langle x \\right\\rangle"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"InlineMath"},"\\lbrack x\\rbrack"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"InlineMath"},"(x)"]}]}]}

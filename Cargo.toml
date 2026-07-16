@@ -29,6 +29,9 @@ fancy-regex = "0.16"
 quick-xml = "0.41"
 insta = "1"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+# Grows the current thread's stack on demand, so deeply nested work cannot overflow it. Shared by the
+# top-level render entry point and the block/inline serializers that recurse once per nesting level.
+stacker = "0.1"
 
 # Internal crates. Each carries a `version` alongside `path` so the published packages
 # depend on the registry release; the path is used for in-workspace builds. Kept in lockstep

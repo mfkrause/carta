@@ -156,6 +156,28 @@ pub fn render_document(
     media: MediaBag,
     writer_options: &WriterOptions,
 ) -> Result<Output> {
+    // Writers recurse once per level of block and inline nesting, so a pathologically deep document
+    // could exhaust the caller's stack while it is serialized. Ensure a large stack is available for
+    // that recursion, allocating one on demand when the caller's own is smaller. The work stays on
+    // this thread so the writer options need not cross a thread boundary.
+    stacker::maybe_grow(RENDER_STACK, RENDER_STACK, || {
+        render_body(to, document, media, writer_options)
+    })
+}
+
+/// Stack the serializer's per-level recursion is guaranteed while rendering; see [`render_document`].
+/// A caller thread smaller than this borrows a freshly grown stack, which on demand-paged systems
+/// stays uncommitted until touched. Rendering grows the current thread's stack rather than spawning a
+/// worker, so the writer options need not cross a thread boundary; only the reservation size is
+/// shared with the deep-stack worker the readers use.
+const RENDER_STACK: usize = carta_core::DEEP_STACK;
+
+fn render_body(
+    to: &str,
+    document: Document,
+    media: MediaBag,
+    writer_options: &WriterOptions,
+) -> Result<Output> {
     let (to_base, to_ext) = parse_format_spec(to)?;
     let writer = any_writer_for(&to_base)?;
 

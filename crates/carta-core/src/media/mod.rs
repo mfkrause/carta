@@ -183,6 +183,26 @@ fn is_remote_reference(url: &str) -> bool {
     url.starts_with("data:") || url.starts_with("//") || url.contains("://")
 }
 
+/// The image MIME type a reference's file extension implies, or `None` when the extension names no
+/// recognized image type (or the reference has no extension). Covers the raster and vector formats a
+/// package embeds, so the container readers and writers share one table instead of each keeping their
+/// own; a caller supplies its own policy for the unrecognized case.
+#[must_use]
+pub fn image_mime_for_extension(reference: &str) -> Option<&'static str> {
+    let extension = reference.rsplit_once('.')?.1.to_ascii_lowercase();
+    let mime = match extension.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "tif" | "tiff" => "image/tiff",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        _ => return None,
+    };
+    Some(mime)
+}
+
 /// The image MIME type a reference's extension implies, or `None` when it names no recognized image
 /// type. The inverse of [`extension_for_mime`], covering the raster and vector formats a document is
 /// likely to embed.

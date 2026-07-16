@@ -142,7 +142,7 @@ fn json_round_trips() {
 
 #[test]
 fn unknown_input_format_is_unsupported() {
-    let error = reader_for("docx").err().expect("expected an error");
+    let error = reader_for("notaformat").err().expect("expected an error");
     assert!(matches!(error, Error::UnsupportedFormat(_)), "{error:?}");
 }
 

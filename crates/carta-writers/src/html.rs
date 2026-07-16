@@ -466,24 +466,34 @@ struct State {
 /// outermost element, and any further ones nest inside it.
 const SEMANTIC_SPAN_TAGS: [&str; 3] = ["mark", "kbd", "dfn"];
 
+/// Serializing a block or inline tree recurses once per nesting level, so a pathologically deep
+/// document could exhaust the thread's stack. Before descending into a nested sequence, the writer
+/// checks that at least this much stack headroom remains and grows a fresh segment when it does not,
+/// bounding depth by available memory rather than by a single stack segment's size.
+const STACK_RED_ZONE: usize = 128 * 1024;
+/// Size of each stack segment grown on demand once [`STACK_RED_ZONE`] headroom is unavailable.
+const STACK_SEGMENT: usize = 32 * 1024 * 1024;
+
 impl State {
     /// Render a block sequence into `out`, one block per line. A block that renders to nothing (such
     /// as an empty paragraph) contributes neither output nor a separating newline.
     fn blocks(&mut self, out: &mut String, blocks: &[Block]) {
-        let mut wrote_any = false;
-        for block in blocks {
-            let checkpoint = out.len();
-            if wrote_any {
-                out.push('\n');
+        stacker::maybe_grow(STACK_RED_ZONE, STACK_SEGMENT, || {
+            let mut wrote_any = false;
+            for block in blocks {
+                let checkpoint = out.len();
+                if wrote_any {
+                    out.push('\n');
+                }
+                let body_start = out.len();
+                self.block(out, block);
+                if out.len() == body_start {
+                    out.truncate(checkpoint);
+                } else {
+                    wrote_any = true;
+                }
             }
-            let body_start = out.len();
-            self.block(out, block);
-            if out.len() == body_start {
-                out.truncate(checkpoint);
-            } else {
-                wrote_any = true;
-            }
-        }
+        });
     }
 
     fn block(&mut self, out: &mut String, block: &Block) {
@@ -1007,9 +1017,11 @@ impl State {
     }
 
     fn inlines(&mut self, out: &mut String, inlines: &[Inline]) {
-        for inline in inlines {
-            self.inline(out, inline);
-        }
+        stacker::maybe_grow(STACK_RED_ZONE, STACK_SEGMENT, || {
+            for inline in inlines {
+                self.inline(out, inline);
+            }
+        });
     }
 
     fn inline(&mut self, out: &mut String, inline: &Inline) {
@@ -2191,5 +2203,48 @@ mod tests {
         for allowed in ['\t', '\n', '\r', ' ', 'a', '\u{fffd}', '\u{10000}'] {
             assert!(is_xml_char(allowed), "{allowed:?} must be accepted");
         }
+    }
+
+    #[test]
+    fn deeply_nested_blocks_serialize_without_stack_overflow() {
+        use super::{Flavor, State};
+        use carta_ast::{Block, Inline};
+        use std::thread;
+
+        // Dismantle the single-child chain iteratively; its own recursive `Drop` is unrelated to what
+        // is under test, and letting it run on the small stack below would overflow independently.
+        fn dismantle(mut block: Block) {
+            while let Block::BlockQuote(mut children) = block {
+                match children.pop() {
+                    Some(child) => block = child,
+                    None => break,
+                }
+            }
+        }
+
+        // Render on a deliberately modest stack: a depth this large overflows it many times over
+        // without the serializer's on-demand stack growth, so a regression that drops the growth
+        // would fault here.
+        let rendered = thread::Builder::new()
+            .stack_size(1024 * 1024)
+            .spawn(|| {
+                let mut block = Block::Para(vec![Inline::Str("deep".into())]);
+                for _ in 0..20_000 {
+                    block = Block::BlockQuote(vec![block]);
+                }
+                let mut state = State {
+                    flavor: Flavor::Epub3,
+                    ..State::default()
+                };
+                let mut out = String::new();
+                state.blocks(&mut out, std::slice::from_ref(&block));
+                let opened = out.starts_with("<blockquote>");
+                dismantle(block);
+                opened
+            })
+            .expect("spawn render thread")
+            .join()
+            .expect("serializing deeply nested blocks must not overflow the stack");
+        assert!(rendered, "the nested blockquotes must render");
     }
 }

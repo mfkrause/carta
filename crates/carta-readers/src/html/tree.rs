@@ -8,6 +8,8 @@ use super::tokenize::Token;
 pub(super) enum Node {
     Element(Element),
     Text(String),
+    /// An HTML comment, carrying its full literal form with the `<!--` and `-->` delimiters.
+    Comment(String),
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +63,7 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
     for token in tokens {
         match token {
             Token::Text(text) => push_child(&mut stack, Node::Text(text)),
+            Token::Comment(text) => push_child(&mut stack, Node::Comment(text)),
             Token::Start {
                 name,
                 attrs,
@@ -128,6 +131,7 @@ pub(super) fn build_tree(tokens: Vec<Token>) -> Vec<Node> {
 fn is_blank_anchor(e: &Element) -> bool {
     e.children.iter().all(|node| match node {
         Node::Text(text) => text.trim().is_empty(),
+        Node::Comment(_) => true,
         Node::Element(_) => false,
     })
 }
@@ -288,6 +292,7 @@ pub(super) fn gather_text(nodes: &[Node], out: &mut String) {
         match node {
             Node::Text(text) => out.push_str(text),
             Node::Element(e) => gather_text(&e.children, out),
+            Node::Comment(_) => {}
         }
     }
 }

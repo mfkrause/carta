@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:12345678"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Notes"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["ch1.xhtml",[],[]],[]]}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"footnote"},{"t":"Space"},{"t":"Str","c":"reference"},{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"footnote"},{"t":"Space"},{"t":"Str","c":"text."}]}]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"rearnote"},{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"rearnote"},{"t":"Space"},{"t":"Str","c":"text."}]}]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"unreferenced"},{"t":"Space"},{"t":"Str","c":"note"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"dropped."}]}]}

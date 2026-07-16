@@ -87,3 +87,37 @@ pub(super) fn inline_kind(name: &str) -> InlineKind {
 pub(super) fn is_inline_element(name: &str) -> bool {
     !matches!(inline_kind(name), InlineKind::Transparent)
 }
+
+/// Whether an element with no structural mapping is nonetheless a block-level tag, so that when raw
+/// HTML is preserved its start and end tags become their own raw blocks and its content is laid out
+/// as block flow. A tag outside this set that also lacks an inline mapping is inline raw HTML.
+pub(super) fn is_raw_block_tag(name: &str) -> bool {
+    matches!(
+        name,
+        "article"
+            | "address"
+            | "audio"
+            | "button"
+            | "canvas"
+            | "caption"
+            | "center"
+            | "colgroup"
+            | "details"
+            | "dir"
+            | "fieldset"
+            | "figcaption"
+            | "footer"
+            | "form"
+            | "hgroup"
+            | "iframe"
+            | "map"
+            | "nav"
+            | "noscript"
+            | "object"
+            | "output"
+            | "progress"
+            | "summary"
+            | "svg"
+            | "video"
+    )
+}

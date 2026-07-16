@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_reader.rs
+assertion_line: 63
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["inherited-heading",["Custom-Heading"],[]],[{"t":"Str","c":"Inherited"},{"t":"Space"},{"t":"Str","c":"Heading"}]]},{"t":"BlockQuote","c":[{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"inherited"},{"t":"Space"},{"t":"Str","c":"block"},{"t":"Space"},{"t":"Str","c":"quote."}]}]},{"t":"CodeBlock","c":[["",[],[]],"inherited_code()"]}]}

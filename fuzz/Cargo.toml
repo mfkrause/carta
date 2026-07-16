@@ -136,6 +136,20 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "docx"
+path = "fuzz_targets/docx.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "epub"
+path = "fuzz_targets/epub.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 debug = 1
 

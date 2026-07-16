@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"identifier":{"t":"MetaInlines","c":[{"t":"Str","c":"urn:uuid:12345678"}]},"language":{"t":"MetaInlines","c":[{"t":"Str","c":"en"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Sample Book"}]}},"blocks":[{"t":"Para","c":[{"t":"Span","c":[["ch1.xhtml",[],[]],[]]}]},{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Str","c":"First"}]}],[{"t":"Plain","c":[{"t":"Str","c":"Second"}]},{"t":"BulletList","c":[[{"t":"Plain","c":[{"t":"Str","c":"Nested"}]}]]}]]},{"t":"OrderedList","c":[[3,{"t":"LowerAlpha"},{"t":"DefaultDelim"}],[[{"t":"Plain","c":[{"t":"Str","c":"Third"}]}],[{"t":"Plain","c":[{"t":"Str","c":"Fourth"}]}]]]},{"t":"DefinitionList","c":[[[{"t":"Str","c":"Term"}],[[{"t":"Plain","c":[{"t":"Str","c":"Definition"},{"t":"Space"},{"t":"Str","c":"one."}]}],[{"t":"Plain","c":[{"t":"Str","c":"Definition"},{"t":"Space"},{"t":"Str","c":"two."}]}]]]]}]}
