@@ -369,7 +369,7 @@ mod tests {
     fn strict_parse_skips_prolog_and_bom() {
         let input = "\u{feff}<?xml version=\"1.0\"?><!-- note --><!DOCTYPE x><r a=\"1\"/>";
         let root = parse(input.as_bytes(), 256).expect("root after prolog");
-        assert_eq!(root.name(), "r");
+        assert_eq!(root.name, "r");
         assert_eq!(root.attr("a"), Some("1"));
     }
 
