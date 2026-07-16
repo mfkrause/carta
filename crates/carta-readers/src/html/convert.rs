@@ -107,22 +107,22 @@ impl Converter {
     /// id. Run before the main pass so a reference resolves regardless of where its definition sits.
     pub(super) fn index_notes(&mut self, defs: BTreeMap<String, Vec<Node>>) {
         for (id, nodes) in defs {
-            let body = self.child_blocks(&nodes, false);
+            let body = self.child_blocks(&nodes, Flow::Prose);
             self.note_bodies.insert(id, body);
         }
     }
 
-    pub(super) fn blocks(&mut self, nodes: &[&Node], in_list: bool) -> Vec<Block> {
+    pub(super) fn blocks(&mut self, nodes: &[&Node], flow: Flow) -> Vec<Block> {
         let mut out = Vec::new();
         let mut pending = Vec::new();
         self.process(nodes.iter().copied(), &mut out, &mut pending);
         flush(&mut pending, &mut out);
-        fix_plains(out, in_list)
+        fix_plains(out, flow)
     }
 
-    fn child_blocks(&mut self, children: &[Node], in_list: bool) -> Vec<Block> {
+    fn child_blocks(&mut self, children: &[Node], flow: Flow) -> Vec<Block> {
         let refs: Vec<&Node> = children.iter().collect();
-        self.blocks(&refs, in_list)
+        self.blocks(&refs, flow)
     }
 
     fn line_block_lines(&self, children: &[Node]) -> Vec<Vec<Inline>> {
@@ -245,7 +245,9 @@ impl Converter {
                 out.push(Block::OrderedList(list_attributes(e), self.list_items(e)));
             }
             BlockKind::BlockQuote => {
-                out.push(Block::BlockQuote(self.child_blocks(&e.children, false)));
+                out.push(Block::BlockQuote(
+                    self.child_blocks(&e.children, Flow::Prose),
+                ));
             }
             BlockKind::Pre => out.push(Self::code_block(e)),
             BlockKind::HorizontalRule => out.push(Block::HorizontalRule),
@@ -256,12 +258,12 @@ impl Converter {
                     let attr = div_attr(e, sectioning);
                     out.push(Block::Div(
                         Box::new(attr),
-                        self.child_blocks(&e.children, false),
+                        self.child_blocks(&e.children, Flow::Framed),
                     ));
                 } else {
                     // `native_divs` off: the wrapper carries no document structure, so its content
-                    // is spliced into the surrounding block flow.
-                    out.extend(self.child_blocks(&e.children, false));
+                    // is spliced into the surrounding block flow, which decides run promotion.
+                    out.extend(self.child_blocks(&e.children, Flow::Framed));
                 }
             }
             BlockKind::DefinitionList => out.push(self.definition_list(e)),
@@ -288,7 +290,7 @@ impl Converter {
             .into_iter()
             .map(|nodes| {
                 let previous = self.in_list_item.replace(true);
-                let blocks = self.blocks(&nodes, true);
+                let blocks = self.blocks(&nodes, Flow::Item);
                 self.in_list_item.set(previous);
                 blocks
             })
@@ -333,7 +335,7 @@ impl Converter {
                     }
                 }
                 "dd" => {
-                    let definition = self.child_blocks(&item.children, true);
+                    let definition = self.child_blocks(&item.children, Flow::Item);
                     current
                         .get_or_insert_with(|| (Vec::new(), Vec::new()))
                         .1
@@ -355,7 +357,7 @@ impl Converter {
             {
                 caption = Caption {
                     short: None,
-                    long: self.child_blocks(&inner.children, false),
+                    long: self.child_blocks(&inner.children, Flow::Framed),
                 };
                 continue;
             }
@@ -364,7 +366,7 @@ impl Converter {
         Block::Figure(
             Box::new(attr),
             Box::new(caption),
-            self.blocks(&content_nodes, true),
+            self.blocks(&content_nodes, Flow::Framed),
         )
     }
 
@@ -409,7 +411,7 @@ impl Converter {
                 "caption" => {
                     caption = Caption {
                         short: None,
-                        long: self.child_blocks(&section.children, false),
+                        long: self.child_blocks(&section.children, Flow::Framed),
                     };
                 }
                 "colgroup" => col_widths = column_widths(section),
@@ -509,7 +511,7 @@ impl Converter {
             align: cell_alignment(cell),
             row_span: span_attr(cell, "rowspan"),
             col_span: span_attr(cell, "colspan"),
-            content: self.child_blocks(&cell.children, false),
+            content: self.child_blocks(&cell.children, Flow::Framed),
         }
     }
 
@@ -1656,9 +1658,31 @@ fn flush(pending: &mut Vec<Inline>, out: &mut Vec<Block>) {
     }
 }
 
+/// How a container shapes the loose inline runs directly inside it.
+///
+/// A run of inline content between block-level siblings is captured as a `Block::Plain`. Whether that
+/// `Plain` stays plain or is promoted to a full `Block::Para` depends on the container:
+///
+/// - `Prose` — a paragraph-carrying flow such as the document body or a blockquote. A `Plain` is
+///   promoted whenever any sibling is paragraph-like, and a nested list counts as such a sibling.
+/// - `Item` — a list item or definition, where a bare run reads as tight text. Promotion still
+///   happens next to a paragraph-like sibling, but a nested list alone does not force it.
+/// - `Framed` — a structural wrapper (a `div`, figure, caption, or table cell) that preserves its
+///   runs verbatim: a `Plain` is never promoted, keeping tight text tight regardless of its siblings.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Flow {
+    Prose,
+    Item,
+    Framed,
+}
+
 /// A loose inline run is a `Plain` block until a paragraph-like sibling promotes the whole group to
-/// `Para`. Nested lists do not promote runs inside an enclosing list item.
-fn fix_plains(blocks: Vec<Block>, in_list: bool) -> Vec<Block> {
+/// `Para`. The container's [`Flow`] decides whether promotion applies and how nested lists count.
+fn fix_plains(blocks: Vec<Block>, flow: Flow) -> Vec<Block> {
+    if flow == Flow::Framed {
+        return blocks;
+    }
+    let in_list = flow == Flow::Item;
     if !blocks.iter().any(|block| is_paraish(block, in_list)) {
         return blocks;
     }
