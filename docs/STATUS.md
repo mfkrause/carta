@@ -124,35 +124,15 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as
   document metadata.
 
-### `docx` — 🚧
-- A run toggle carrying an explicit off value (`w:val="off"`, `"false"`, or `"0"` on `w:b`, `w:i`,
-  `w:u`, `w:strike`, …) is read as *enabling* the property instead of disabling it, so formatting a
-  style turns off is wrongly applied.
-- Table header rows declared through the modern `w:tblLook` hex bitmask are not detected; only the
-  deprecated boolean `w:firstRow` attribute form is honored.
-- Document metadata comes only from body paragraphs styled Title/Subtitle/Author/Date/Abstract;
-  `docProps/core.xml` and `app.xml` are not read. Direct run properties beyond the modeled toggle set
-  (highlight, color, `rFonts`, `w:sz`, character spacing) are dropped, as are comments, tracked-change
-  metadata, and fields (`w:fldSimple` / complex fields such as TOC, PAGEREF, citation fields).
-- List reconstruction, table column widths, and header detection are heuristic; page/column breaks and
-  `mc:AlternateContent` subtrees are dropped.
-- Office Math converts to TeX with operators set tight: a binary or relational operator carries no
-  surrounding thin space (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`), and an integrand's
-  differential is unspaced (`\int_{0}^{1}x dx` rather than `\int_{0}^{1}x\, dx`).
-- A few math symbols map to one TeX spelling where another reads more idiomatically (`→` becomes
-  `\to` rather than `\rightarrow`).
+### `docx` — ✅
+- Page and column breaks are dropped rather than converted to line breaks, and a VML textbox's text
+  (including an `mc:AlternateContent` fallback) is not extracted.
+- Office Math sets binary and relational operators tight, with no surrounding thin space
+  (`a^{2}+b^{2}=c^{2}` rather than `a^{2} + b^{2} = c^{2}`).
+- A few math symbols take a less idiomatic TeX spelling (`→` becomes `\to` rather than `\rightarrow`;
+  `·` is kept literal rather than `\cdot`).
 
-### `epub` — 🚧
-- Deeply nested block content overflows the stack while the output is serialized (a crash on
-  adversarially nested input).
-- A block-level `<a>` wrapping paragraphs, headings, or lists collapses to a single inline link
-  instead of splitting the link out and keeping the block structure.
-- `<dt>`/`<dd>` pairs grouped inside a `<div>` (HTML5) are dropped; a footnote aside nested in a
-  table cell or definition-list item is not collected, leaving its reference an empty note.
-- Unsafe ASCII in link/image URLs is not percent-encoded, inline `<code>` whitespace is not collapsed,
-  and adjacent same-type inline formatting is not merged.
-- Only spine documents contribute content; the navigation document is not surfaced as a table of
-  contents, and metadata values are emitted as a single unparsed string.
+### `epub` — ✅
 
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
 `endnotexml`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
