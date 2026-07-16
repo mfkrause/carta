@@ -1096,7 +1096,8 @@ impl<'a> Converter<'a> {
             }
             let header = tr
                 .child("trPr")
-                .is_some_and(|pr| pr.child("tblHeader").is_some());
+                .and_then(|pr| pr.child("tblHeader"))
+                .is_some_and(tbl_header_on);
             let mut cells: Vec<CellRaw> = Vec::new();
             let mut col = 0usize;
             for tc in tr.elements() {
@@ -2365,6 +2366,12 @@ fn table_look_first_row(look: &Element) -> bool {
     from_mask || truthy(look.attr("firstRow"))
 }
 
+/// Whether a present `w:tblHeader` row marker is in force. The marker declares its row a header; an
+/// explicit `w:val` of `0` switches that off, while any other value — or none — leaves it on.
+fn tbl_header_on(marker: &Element) -> bool {
+    marker.attr("val") != Some("0")
+}
+
 fn parse_int(value: &str) -> Option<i32> {
     value.trim().parse::<i32>().ok()
 }
@@ -3207,5 +3214,31 @@ mod tests {
         assert_eq!(head_rows("04A0"), 1);
         // The same bitmask with that bit clear leaves every row in the body.
         assert_eq!(head_rows("0480"), 0);
+    }
+
+    #[test]
+    fn tbl_header_row_marker_honors_an_explicit_off_value() {
+        let head_rows = |marker: &str| {
+            let body = format!(
+                "<w:tbl><w:tblGrid><w:gridCol w:w=\"100\"/></w:tblGrid>\
+                 <w:tr><w:trPr>{marker}</w:trPr><w:tc><w:p><w:r><w:t>H</w:t></w:r></w:p></w:tc></w:tr>\
+                 <w:tr><w:tc><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+            );
+            let document = DocxReader
+                .read(&docx_from_body(&body), &ReaderOptions::default())
+                .expect("read table");
+            match document.blocks.first() {
+                Some(Block::Table(t)) => t.head.rows.len(),
+                other => panic!("expected a table, found {other:?}"),
+            }
+        };
+        // A bare marker promotes its row to the header.
+        assert_eq!(head_rows("<w:tblHeader/>"), 1);
+        // An explicit `w:val` of `0` switches the marker off, leaving the row in the body.
+        assert_eq!(head_rows("<w:tblHeader w:val=\"0\"/>"), 0);
+        // Only the literal `0` disables the marker: any other value keeps the row a header, so this
+        // row property does not share the run toggles' broader set of off spellings.
+        assert_eq!(head_rows("<w:tblHeader w:val=\"false\"/>"), 1);
+        assert_eq!(head_rows("<w:tblHeader w:val=\"1\"/>"), 1);
     }
 }
