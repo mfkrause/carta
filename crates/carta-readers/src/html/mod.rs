@@ -25,7 +25,7 @@ use carta_ast::Inline;
 pub(crate) use convert::escape_uri;
 #[cfg(feature = "opml")]
 use convert::inlines_from_nodes;
-use convert::{Converter, extract_meta};
+use convert::{Converter, Flow, extract_meta};
 use tokenize::tokenize;
 use tree::{build_tree, locate};
 
@@ -48,7 +48,7 @@ fn parse(input: &str, ext: Extensions) -> Document {
     let mut converter = Converter::new(ext);
     converter.index_notes(notes::collect_note_defs(&body));
     let meta = head.map(extract_meta).unwrap_or_default();
-    let blocks = converter.blocks(&body, false);
+    let blocks = converter.blocks(&body, Flow::Prose);
     Document {
         meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
         blocks,
@@ -159,6 +159,58 @@ mod tests {
             panic!("expected one item");
         };
         assert!(matches!(item.first(), Some(Block::Plain(_))));
+    }
+
+    #[test]
+    fn framing_div_keeps_loose_run_plain() {
+        let Block::Div(_, inner) = first_block("<div>loose<p>para</p></div>") else {
+            panic!("expected div");
+        };
+        assert!(matches!(
+            inner.as_slice(),
+            [Block::Plain(_), Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn blockquote_promotes_loose_run() {
+        let Block::BlockQuote(inner) = first_block("<blockquote>loose<p>para</p></blockquote>")
+        else {
+            panic!("expected blockquote");
+        };
+        assert!(matches!(inner.as_slice(), [Block::Para(_), Block::Para(_)]));
+    }
+
+    #[test]
+    fn figure_caption_and_content_keep_loose_runs_plain() {
+        let Block::Figure(_, caption, content) = first_block(
+            "<figure>loose fig<p>fig para</p><figcaption>loose cap<p>cap para</p></figcaption></figure>",
+        ) else {
+            panic!("expected figure");
+        };
+        assert!(matches!(
+            content.as_slice(),
+            [Block::Plain(_), Block::Para(_)]
+        ));
+        assert!(matches!(
+            caption.long.as_slice(),
+            [Block::Plain(_), Block::Para(_)]
+        ));
+    }
+
+    #[test]
+    fn table_cell_keeps_loose_run_plain() {
+        let Block::Table(table) = first_block("<table><tr><td>loose<p>para</p></td></tr></table>")
+        else {
+            panic!("expected table");
+        };
+        let content = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .map(|cell| cell.content.as_slice());
+        assert!(matches!(content, Some([Block::Plain(_), Block::Para(_)])));
     }
 
     #[test]
@@ -296,6 +348,36 @@ mod tests {
         let (term, defs) = items.into_iter().next().expect("an item");
         assert_eq!(term, vec![Inline::Str("term".to_string().into())]);
         assert_eq!(defs.len(), 2);
+    }
+
+    #[test]
+    fn definition_list_sees_through_grouping_divs() {
+        // Wrapping each `<dt>`/`<dd>` pair in a `<div>` is valid HTML5; the grouping is transparent
+        // so the term/definition stream is unaffected.
+        let Block::DefinitionList(items) = first_block(
+            "<dl><div><dt>t1</dt><dd>d1</dd></div><div><dt>t2</dt><dd>d2</dd></div></dl>",
+        ) else {
+            panic!("expected definition list");
+        };
+        assert_eq!(items.len(), 2);
+        let (term, defs) = items.into_iter().next().expect("an item");
+        assert_eq!(term, vec![Inline::Str("t1".to_string().into())]);
+        assert_eq!(defs.len(), 1);
+    }
+
+    #[test]
+    fn block_level_anchor_splits_into_link_and_blocks() {
+        // An `<a>` may wrap block content; the leading inline run becomes a link and the block
+        // children lay out as block flow after it rather than collapsing to a single inline.
+        let result = blocks("<a href=\"u\">before<p>inside</p>after</a>");
+        let Some(Block::Para(lead)) = result.first() else {
+            panic!("expected a leading paragraph");
+        };
+        assert!(matches!(lead.first(), Some(Inline::Link(..))));
+        assert!(matches!(
+            result.as_slice(),
+            [Block::Para(_), Block::Para(_), Block::Para(_)]
+        ));
     }
 
     #[test]
