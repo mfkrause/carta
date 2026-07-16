@@ -150,7 +150,7 @@ type Manifest = BTreeMap<String, ManifestItem>;
 fn build_manifest(package: &Element) -> Manifest {
     let mut manifest = Manifest::new();
     if let Some(node) = package.child("manifest") {
-        for item in node.elements().filter(|el| local_name(el.name()) == "item") {
+        for item in node.elements().filter(|el| local_name(&el.name) == "item") {
             if let (Some(id), Some(href)) = (item.attr("id"), item.attr("href")) {
                 manifest.insert(
                     id.to_string(),
@@ -187,7 +187,7 @@ fn resolve_spine(
     };
     for itemref in spine
         .elements()
-        .filter(|el| local_name(el.name()) == "itemref")
+        .filter(|el| local_name(&el.name) == "itemref")
     {
         if itemref.attr("linear") == Some("no") {
             continue;
@@ -232,7 +232,7 @@ fn build_meta(package: &Element) -> BTreeMap<Text, MetaValue> {
     let mut collected: BTreeMap<String, Vec<Vec<Inline>>> = BTreeMap::new();
     if let Some(metadata) = package.child("metadata") {
         for element in metadata.elements() {
-            let Some(local) = element.name().strip_prefix("dc:") else {
+            let Some(local) = element.name.strip_prefix("dc:") else {
                 continue;
             };
             let key = if local == "creator" { "author" } else { local };
@@ -259,7 +259,7 @@ fn build_meta(package: &Element) -> BTreeMap<Text, MetaValue> {
 /// item by id in a `<meta name="cover">`. When both are present they name the same file.
 fn cover_image(package: &Element, manifest: &Manifest) -> Option<String> {
     if let Some(node) = package.child("manifest") {
-        for item in node.elements().filter(|el| local_name(el.name()) == "item") {
+        for item in node.elements().filter(|el| local_name(&el.name) == "item") {
             let flagged = item
                 .attr("properties")
                 .is_some_and(|props| props.split_whitespace().any(|prop| prop == "cover-image"));
@@ -271,7 +271,7 @@ fn cover_image(package: &Element, manifest: &Manifest) -> Option<String> {
     let cover_id = package
         .child("metadata")?
         .elements()
-        .filter(|el| local_name(el.name()) == "meta")
+        .filter(|el| local_name(&el.name) == "meta")
         .find(|meta| meta.attr("name") == Some("cover"))
         .and_then(|meta| meta.attr("content"))?;
     manifest.get(cover_id).map(|item| item.href.clone())

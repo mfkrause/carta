@@ -33,11 +33,6 @@ pub(crate) fn local_name(name: &str) -> &str {
 }
 
 impl Element {
-    /// The qualified tag name.
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-
     /// The value of the attribute whose local name is `key`, if any.
     pub(crate) fn attr(&self, key: &str) -> Option<&str> {
         self.attrs
@@ -356,7 +351,7 @@ mod tests {
             256,
         )
         .expect("well-formed input has a root");
-        assert_eq!(root.name(), "package");
+        assert_eq!(root.name, "package");
         let title = root
             .child("metadata")
             .and_then(|meta| meta.child("title"))
