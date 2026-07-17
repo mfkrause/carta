@@ -31,7 +31,7 @@ use carta_ast::{
     Target, Text, slug,
 };
 use carta_core::container::zip;
-use carta_core::{BytesReader, DeepStack, MediaBag, ReaderOptions, Result, on_deep_stack};
+use carta_core::{BytesReader, DeepStack, Error, MediaBag, ReaderOptions, Result, on_deep_stack};
 
 use crate::heading_ids::IdRegistry;
 use crate::xml::{self, Element, Node, local_name};
@@ -39,6 +39,10 @@ use crate::xml::{self, Element, Node, local_name};
 /// The most columns a table grid is allowed to span. Far wider than any authored table, this bounds
 /// the column vector so a document declaring an enormous column repeat cannot exhaust memory.
 const MAX_TABLE_COLUMNS: i32 = 10_000;
+
+/// Upper bound on the number of spaces a single `<text:s>` run expands to, so a document declaring a
+/// pathological repeat count cannot exhaust memory. Set well above any run real prose contains.
+const MAX_REPEATED_SPACES: usize = 100_000;
 
 /// Parses an `OpenDocument` Text package into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -52,7 +56,7 @@ impl BytesReader for OdtReader {
     fn read_media(&self, input: &[u8], _options: &ReaderOptions) -> Result<(Document, MediaBag)> {
         let parts = zip::read_map(input)?;
         let mut media = MediaBag::new();
-        let blocks = convert_on_owned_stack(&parts, &mut media);
+        let blocks = convert_on_owned_stack(&parts, &mut media)?;
         Ok((
             Document {
                 blocks,
@@ -67,12 +71,15 @@ impl BytesReader for OdtReader {
 /// the caller's stack size. Nested block structure (a table inside a cell inside a table, and so on)
 /// is walked by mutual recursion that deepens with the nesting, so a legitimately deep document could
 /// exhaust a small caller stack. Falls back to the current stack if a worker thread cannot be spawned.
-fn convert_on_owned_stack(parts: &BTreeMap<String, Vec<u8>>, media: &mut MediaBag) -> Vec<Block> {
+fn convert_on_owned_stack(
+    parts: &BTreeMap<String, Vec<u8>>,
+    media: &mut MediaBag,
+) -> Result<Vec<Block>> {
     match on_deep_stack(|| Converter::new(parts, media).run()) {
         DeepStack::Completed(blocks) => blocks,
         // A worker that panicked poisons its join; only an unspawnable thread is worth a retry, run
         // on the current stack instead.
-        DeepStack::Panicked => Vec::new(),
+        DeepStack::Panicked => Err(Error::Container("worker thread failed".into())),
         DeepStack::NotSpawned => Converter::new(parts, media).run(),
     }
 }
@@ -188,7 +195,7 @@ impl<'a> Converter<'a> {
         }
     }
 
-    fn run(mut self) -> Vec<Block> {
+    fn run(mut self) -> Result<Vec<Block>> {
         // Shared styles are indexed first so an automatic style in the content part can override a
         // like-named shared style.
         if let Some(root) = self
@@ -198,18 +205,19 @@ impl<'a> Converter<'a> {
         {
             self.index_styles(&root);
         }
-        let Some(content) = self
+        let content = self
             .parts
             .get("content.xml")
-            .and_then(|b| xml::parse(b, MAX_XML_DEPTH))
-        else {
-            return Vec::new();
-        };
+            .ok_or_else(|| Error::Container("could not find content.xml".into()))?;
+        let content = xml::parse(content, MAX_XML_DEPTH)
+            .ok_or_else(|| Error::Container("content.xml is not well-formed XML".into()))?;
         self.index_styles(&content);
-        match content.child("body").and_then(|body| body.child("text")) {
-            Some(text) => self.convert_body_blocks(text),
-            None => Vec::new(),
-        }
+        Ok(
+            match content.child("body").and_then(|body| body.child("text")) {
+                Some(text) => self.convert_body_blocks(text),
+                None => Vec::new(),
+            },
+        )
     }
 
     // -- style indexing -----------------------------------------------------
@@ -628,7 +636,8 @@ impl<'a> Converter<'a> {
                 let count = element
                     .attr("c")
                     .and_then(|value| value.parse::<usize>().ok())
-                    .unwrap_or(1);
+                    .unwrap_or(1)
+                    .min(MAX_REPEATED_SPACES);
                 for _ in 0..count {
                     out.push(Inline::Space);
                 }
@@ -1155,8 +1164,9 @@ fn map_delim(prefix: &str, suffix: &str) -> ListNumberDelim {
     }
 }
 
-/// Parses a length such as `1cm` or `0.5in` into inches, so lengths in different units compare on one
-/// scale. A bare number with no recognized unit is read as inches.
+/// Parses an absolute length such as `1cm` or `0.5in` into inches, so lengths in different units
+/// compare on one scale. Relative measures (a percentage), unitless numbers, and unknown units name no
+/// resolvable absolute length and yield `None`.
 fn parse_length(value: &str) -> Option<f64> {
     let value = value.trim();
     let end = value
@@ -1165,12 +1175,13 @@ fn parse_length(value: &str) -> Option<f64> {
         .map_or(value.len(), |(index, _)| index);
     let magnitude = value.get(..end)?.parse::<f64>().ok()?;
     let per_inch = match value.get(end..).unwrap_or("").trim() {
+        "in" => 1.0,
         "cm" => 2.54,
         "mm" => 25.4,
         "pt" => 72.0,
         "pc" => 6.0,
         "px" => 96.0,
-        _ => 1.0,
+        _ => return None,
     };
     Some(magnitude / per_inch)
 }
@@ -1302,5 +1313,84 @@ fn empty_cell() -> Cell {
         row_span: 1,
         col_span: 1,
         content: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_REPEATED_SPACES, OdtReader, parse_length};
+    use carta_ast::{Block, Inline};
+    use carta_core::container::zip::ZipArchive;
+    use carta_core::{BytesReader, ReaderOptions};
+
+    /// Wraps body markup in a minimal `content.xml` document.
+    fn content(body: &str) -> String {
+        format!(
+            "<office:document-content>\
+             <office:body><office:text>{body}</office:text></office:body>\
+             </office:document-content>"
+        )
+    }
+
+    /// Packages named parts into an ODT (ZIP) archive.
+    fn package(parts: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut archive = ZipArchive::new();
+        for (name, data) in parts {
+            archive.deflate(name, data).expect("store part");
+        }
+        archive.finish().expect("finish archive")
+    }
+
+    fn read(input: &[u8]) -> carta_core::Result<carta_ast::Document> {
+        OdtReader.read(input, &ReaderOptions::default())
+    }
+
+    #[test]
+    fn a_well_formed_package_reads_its_body() {
+        let odt = package(&[("content.xml", content("<text:p>Hi</text:p>").as_bytes())]);
+        let document = read(&odt).expect("read odt");
+        assert_eq!(
+            document.blocks,
+            vec![Block::Para(vec![Inline::Str("Hi".into())])]
+        );
+    }
+
+    #[test]
+    fn a_missing_content_part_is_an_error() {
+        let odt = package(&[("styles.xml", b"<office:document-styles/>")]);
+        assert!(read(&odt).is_err());
+    }
+
+    #[test]
+    fn an_unparseable_content_part_is_an_error() {
+        let odt = package(&[("content.xml", b"%%% not markup %%%")]);
+        assert!(read(&odt).is_err());
+    }
+
+    #[test]
+    fn a_pathological_space_repeat_is_clamped_not_crashed() {
+        // `usize::MAX` spaces would exhaust memory; the count is bounded instead.
+        let body = "<text:p>A<text:s text:c=\"18446744073709551615\"/>B</text:p>";
+        let odt = package(&[("content.xml", content(body).as_bytes())]);
+        let document = read(&odt).expect("read odt");
+        let Some(Block::Para(inlines)) = document.blocks.first() else {
+            panic!("expected a paragraph");
+        };
+        let spaces = inlines
+            .iter()
+            .filter(|inline| matches!(inline, Inline::Space))
+            .count();
+        assert_eq!(spaces, MAX_REPEATED_SPACES);
+    }
+
+    #[test]
+    fn parse_length_resolves_absolute_units_only() {
+        assert_eq!(parse_length("0.5in"), Some(0.5));
+        assert_eq!(parse_length("2.54cm"), Some(1.0));
+        assert_eq!(parse_length("72pt"), Some(1.0));
+        // A percentage, a unitless number, and an unknown unit name no absolute length.
+        assert_eq!(parse_length("50%"), None);
+        assert_eq!(parse_length("5"), None);
+        assert_eq!(parse_length("10zz"), None);
     }
 }
