@@ -23,10 +23,10 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
     body_rows, cell_inlines, clean_prefix_len, dash_rule, display_width, escape_html_attr,
-    extend_multiline_body, fill, fill_offset, filled_cells, indent_block, indent_lines, is_loose,
-    is_simple_cell, item_separator, lay_row, measure_pieces, offset_as_i32, ordered_marker,
-    pad_align, pieces_nonempty, quote_marks, render_html_attr, render_html_fragment_attr,
-    table_form,
+    extend_multiline_body, fill, fill_into, fill_offset, filled_cells, indent_block, indent_lines,
+    is_loose, is_simple_cell, item_separator, lay_row, measure_pieces, offset_as_i32,
+    ordered_marker, pad_align, pieces_nonempty, quote_marks, render_html_attr,
+    render_html_fragment_attr, table_form,
 };
 use crate::grid;
 use crate::markdown_common::{
@@ -721,13 +721,24 @@ impl State {
         let body_width = width.saturating_sub(2);
         let rendered: Vec<String> = items
             .iter()
-            .map(|item| {
-                let body = self.blocks_to_string(item, body_width);
-                let body = offset_horizontal_rule(item, body);
-                indent_block(&body, "- ", "  ")
-            })
+            .map(|item| self.list_item(item, body_width, "- ", "  "))
             .collect();
         rendered.join(item_separator(loose))
+    }
+
+    /// Render one list item's body under its marker. A single-paragraph item is filled straight into
+    /// the item buffer with the marker prefixes; any other item keeps the render-then-indent path.
+    fn list_item(&mut self, item: &[Block], body_width: usize, first: &str, rest: &str) -> String {
+        if let Some(inlines) = single_paragraph(item) {
+            let mut pieces = self.pieces(inlines);
+            escape_leading_markers(&mut pieces);
+            let mut out = String::new();
+            fill_into(&mut out, &pieces, body_width, self.wrap, first, rest);
+            return out;
+        }
+        let body = self.blocks_to_string(item, body_width);
+        let body = offset_horizontal_rule(item, body);
+        indent_block(&body, first, rest)
     }
 
     /// A bullet list every item of which begins with a checkbox glyph renders as a task list. Each
@@ -766,11 +777,9 @@ impl State {
                 let number = start.saturating_add(offset_as_i32(offset));
                 let marker = ordered_marker(number, style, delim);
                 let field = (marker.chars().count() + 1).max(4);
-                let body = self.blocks_to_string(item, width.saturating_sub(field));
-                let body = offset_horizontal_rule(item, body);
                 let first = format!("{marker:<field$}");
                 let rest = " ".repeat(field);
-                indent_block(&body, &first, &rest)
+                self.list_item(item, width.saturating_sub(field), &first, &rest)
             })
             .collect();
         rendered.join(item_separator(loose))
@@ -1963,6 +1972,15 @@ fn is_tex_format(format: &Format) -> bool {
 
 fn collapse_trailing_newline(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
+}
+
+/// The inline content of a list item that is exactly one paragraph, so its content can be filled
+/// directly under the item marker without first rendering the item's block sequence.
+fn single_paragraph(item: &[Block]) -> Option<&[Inline]> {
+    match item {
+        [Block::Plain(inlines) | Block::Para(inlines)] => Some(inlines),
+        _ => None,
+    }
 }
 
 /// Escape a list marker that opens a paragraph, where it would otherwise start a list. Only the

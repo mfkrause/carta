@@ -133,6 +133,75 @@ pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
     )
 }
 
+/// Like [`fill`], but streams the filled lines straight into `out` under a hanging indent: the first
+/// line takes the `first` prefix, each non-empty continuation line the `rest` prefix, and blank
+/// continuation lines stay unprefixed. Equivalent to appending [`indent_block`] of [`fill`]'s result,
+/// without building and re-splitting that intermediate string.
+pub(crate) fn fill_into(
+    out: &mut String,
+    pieces: &[Piece],
+    width: usize,
+    wrap: WrapMode,
+    first: &str,
+    rest: &str,
+) {
+    let width = match wrap {
+        WrapMode::Auto => width.max(1),
+        WrapMode::None | WrapMode::Preserve => usize::MAX,
+    };
+    let mut sink = LineSink::prefixed(out, first, rest);
+    fill_pieces(
+        &mut sink,
+        pieces,
+        width,
+        0,
+        matches!(wrap, WrapMode::Preserve),
+        false,
+        &[],
+    );
+}
+
+/// Lay a table cell's inline `pieces` out to `width` (always reflowing, as a bordered field is a
+/// hard layout constraint), collecting each wrapped line as its own string. Equivalent to splitting
+/// `fill(pieces, width, WrapMode::Auto)` on line breaks, but the lines are built directly, without
+/// the intermediate whole-cell string. An empty cell still yields a single empty line.
+pub(crate) fn fill_lines(pieces: &[Piece], width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut sink = LineVecSink::default();
+    fill_pieces(&mut sink, pieces, width, 0, false, false, &[]);
+    sink.finish()
+}
+
+/// A per-line sink: collects the filled content into one string per line rather than a single
+/// buffer, so a table cell's wrapped lines are built without an intermediate whole-cell string.
+#[derive(Default)]
+struct LineVecSink {
+    lines: Vec<String>,
+    current: String,
+}
+
+impl LineVecSink {
+    /// The collected lines, with trailing blank lines dropped (matching the trailing-break trim the
+    /// string sink performs) but always at least one line.
+    fn finish(mut self) -> Vec<String> {
+        self.lines.push(self.current);
+        while self.lines.len() > 1 && self.lines.last().is_some_and(String::is_empty) {
+            self.lines.pop();
+        }
+        self.lines
+    }
+}
+
+impl Sink for LineVecSink {
+    fn newline(&mut self) {
+        self.lines.push(std::mem::take(&mut self.current));
+    }
+
+    fn write_segment(&mut self, segment: &str) {
+        self.current.push_str(segment);
+    }
+}
+
 /// The shared line-filling engine behind [`fill_offset`], [`fill_cell`], [`fill_groups`], and
 /// [`fill_hang`]: lay `pieces` out into lines no wider than `width` (already resolved to a sentinel
 /// when the caller wants no width wrap), starting `initial` columns into the first line, breaking on
@@ -144,15 +213,15 @@ pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
 // A cohesive line-layout state machine: the per-piece arms and group handling share one running
 // cursor, so keeping them in one body is clearer than threading the cursor through callees.
 #[allow(clippy::too_many_lines)]
-fn fill_core(
+fn fill_pieces<S: Sink>(
+    sink: &mut S,
     pieces: &[Piece],
     width: usize,
     initial: usize,
     preserve_softs: bool,
     keep_leading: bool,
     groups: &[(usize, usize)],
-) -> String {
-    let mut out = String::new();
+) {
     let mut column = initial;
     let mut at_line_start = initial == 0 && !keep_leading;
     let mut pending_space = false;
@@ -173,7 +242,7 @@ fn fill_core(
                 // Flush the pending word; the group joins it with no space when no space split them.
                 let abuts = !word.is_empty();
                 place_word(
-                    &mut out,
+                    sink,
                     &mut column,
                     &mut at_line_start,
                     pending_space,
@@ -184,7 +253,7 @@ fn fill_core(
                 word.clear();
                 word_width = 0;
                 place_group(
-                    &mut out,
+                    sink,
                     &mut column,
                     &mut at_line_start,
                     pending_space && !abuts,
@@ -208,7 +277,7 @@ fn fill_core(
             // otherwise it is just inter-word space (and may become a reflow point under Auto).
             Some(Piece::Soft) if preserve_softs => {
                 place_word(
-                    &mut out,
+                    sink,
                     &mut column,
                     &mut at_line_start,
                     pending_space,
@@ -219,7 +288,7 @@ fn fill_core(
                 word.clear();
                 word_width = 0;
                 if !at_line_start {
-                    out.push('\n');
+                    sink.newline();
                     column = 0;
                     at_line_start = true;
                 }
@@ -227,7 +296,7 @@ fn fill_core(
             }
             Some(Piece::Space | Piece::Soft) => {
                 place_word(
-                    &mut out,
+                    sink,
                     &mut column,
                     &mut at_line_start,
                     pending_space,
@@ -241,7 +310,7 @@ fn fill_core(
             }
             Some(Piece::Hard) => {
                 place_word(
-                    &mut out,
+                    sink,
                     &mut column,
                     &mut at_line_start,
                     pending_space,
@@ -252,7 +321,7 @@ fn fill_core(
                 word.clear();
                 word_width = 0;
                 if !at_line_start {
-                    out.push('\n');
+                    sink.newline();
                     column = 0;
                     at_line_start = true;
                 }
@@ -263,7 +332,7 @@ fn fill_core(
         index += 1;
     }
     place_word(
-        &mut out,
+        sink,
         &mut column,
         &mut at_line_start,
         pending_space,
@@ -271,7 +340,120 @@ fn fill_core(
         word_width,
         width,
     );
-    out.trim_end_matches('\n').to_owned()
+}
+
+/// A line-oriented output target: appends filled content into a caller's buffer, applying a hanging
+/// indent as it goes. The first line takes the `first` prefix, each non-empty continuation line the
+/// `rest` prefix, and blank continuation lines stay unprefixed — the same rule [`indent_block`]
+/// applies to an already-rendered body, but streamed so no whole-block string is built and re-split.
+/// Trailing line breaks are dropped (they are only emitted once real content follows them), matching
+/// the trim the string-returning entry points perform.
+struct LineSink<'a> {
+    out: &'a mut String,
+    rest: &'a str,
+    at_line_start: bool,
+    on_first_line: bool,
+    pending_newlines: usize,
+}
+
+/// The line-oriented output operations the fill engine drives: end a line, or append content that
+/// may itself contain line breaks. Implemented by the string sink ([`LineSink`]) and the per-line
+/// vector sink ([`LineVecSink`]).
+trait Sink {
+    /// End the current line.
+    fn newline(&mut self);
+
+    /// Append content, treating any embedded line break as a line end.
+    fn write(&mut self, text: &str) {
+        let mut segments = text.split('\n');
+        if let Some(first) = segments.next() {
+            self.write_segment(first);
+        }
+        for segment in segments {
+            self.newline();
+            self.write_segment(segment);
+        }
+    }
+
+    /// Append a single break-free segment.
+    fn write_segment(&mut self, segment: &str);
+}
+
+impl<'a> LineSink<'a> {
+    /// A prefixing sink: emits `first` eagerly so an empty first line still carries its marker (as
+    /// [`indent_block`] does), then `rest` before each non-empty continuation line.
+    fn prefixed(out: &'a mut String, first: &'a str, rest: &'a str) -> Self {
+        out.push_str(first);
+        LineSink {
+            out,
+            rest,
+            at_line_start: true,
+            on_first_line: true,
+            pending_newlines: 0,
+        }
+    }
+
+    /// A pass-through sink with no prefixes, for the string-returning entry points and for laying out
+    /// a group's interior for measurement.
+    fn plain(out: &'a mut String) -> Self {
+        LineSink {
+            out,
+            rest: "",
+            at_line_start: true,
+            on_first_line: true,
+            pending_newlines: 0,
+        }
+    }
+}
+
+impl Sink for LineSink<'_> {
+    /// End the current line. The break is deferred until the next content arrives, so trailing breaks
+    /// leave no dangling newline (and no continuation prefix).
+    fn newline(&mut self) {
+        self.pending_newlines += 1;
+        self.at_line_start = true;
+        self.on_first_line = false;
+    }
+
+    fn write_segment(&mut self, segment: &str) {
+        if segment.is_empty() {
+            return;
+        }
+        for _ in 0..self.pending_newlines {
+            self.out.push('\n');
+        }
+        self.pending_newlines = 0;
+        if self.at_line_start && !self.on_first_line {
+            self.out.push_str(self.rest);
+        }
+        self.at_line_start = false;
+        self.out.push_str(segment);
+    }
+}
+
+/// The shared string-returning engine: lay `pieces` out into a fresh, prefix-free string, trimming
+/// trailing line breaks. The line-prefixing entry points ([`fill_into`], [`fill_groups_into`]) stream
+/// the same layout through a prefixing [`LineSink`] instead.
+fn fill_core(
+    pieces: &[Piece],
+    width: usize,
+    initial: usize,
+    preserve_softs: bool,
+    keep_leading: bool,
+    groups: &[(usize, usize)],
+) -> String {
+    let mut out = String::new();
+    let mut sink = LineSink::plain(&mut out);
+    fill_pieces(
+        &mut sink,
+        pieces,
+        width,
+        initial,
+        preserve_softs,
+        keep_leading,
+        groups,
+    );
+    out
 }
 
 /// Place an atomic group's interior into `out`, deciding first whether it begins on a fresh line.
@@ -279,8 +461,13 @@ fn fill_core(
 /// (a breakable space precedes it) and that first line would overflow the current line, the group
 /// starts a new line. Either way its interior is then filled from the resulting column, folding
 /// across lines only when the group alone is wider than the column.
-fn place_group(
-    out: &mut String,
+///
+/// The interior is laid out once from the margin. That single render is the final one whenever the
+/// group lands at column 0 (a fresh line, or the whole content on one line, which is
+/// column-independent); only a group that both stays on the current line *and* folds across lines is
+/// re-laid out from that column, since its interior fold points then shift.
+fn place_group<S: Sink>(
+    sink: &mut S,
     column: &mut usize,
     at_line_start: &mut bool,
     lead_space: bool,
@@ -288,27 +475,31 @@ fn place_group(
     preserve_softs: bool,
     width: usize,
 ) {
-    let first_line = first_line_width(inner, width, preserve_softs);
-    if *at_line_start {
+    let rendered = fill_core(inner, width, 0, preserve_softs, false, &[]);
+    let first_line = rendered.split('\n').next().map_or(0, display_width);
+    let multiline = rendered.contains('\n');
+    let start_col = if *at_line_start {
         *at_line_start = false;
+        0
     } else if lead_space && *column + 1 + first_line > width {
-        out.push('\n');
+        sink.newline();
         *column = 0;
+        0
     } else if lead_space {
-        out.push(' ');
+        sink.write(" ");
         *column += 1;
+        *column
+    } else {
+        *column
+    };
+    if start_col == 0 || !multiline {
+        sink.write(&rendered);
+        *column = line_end_column(&rendered, start_col);
+    } else {
+        let refolded = fill_core(inner, width, start_col, preserve_softs, false, &[]);
+        sink.write(&refolded);
+        *column = line_end_column(&refolded, start_col);
     }
-    let rendered = fill_core(inner, width, *column, preserve_softs, false, &[]);
-    out.push_str(&rendered);
-    *column = line_end_column(&rendered, *column);
-}
-
-/// The width of a group's first line when its interior is laid out from the margin: a group that
-/// stays on one line reports its whole width, while one that folds reports only the run before its
-/// first break. This is the extent that must fit on the current line for the group to begin there.
-fn first_line_width(pieces: &[Piece], width: usize, preserve_softs: bool) -> usize {
-    let rendered = fill_core(pieces, width, 0, preserve_softs, false, &[]);
-    rendered.split('\n').next().map_or(0, display_width)
 }
 
 /// The column reached at the end of an already-filled run that began `start_col` columns into its
@@ -328,8 +519,8 @@ fn line_end_column(rendered: &str, start_col: usize) -> usize {
 /// several paragraphs — does. Such a word's first line is what must fit after the preceding space,
 /// and its last line sets the column the following text continues from; only its first line shares
 /// the line it lands on, so the rest cannot push later words off the column.
-fn place_word(
-    out: &mut String,
+fn place_word<S: Sink>(
+    sink: &mut S,
     column: &mut usize,
     at_line_start: &mut bool,
     pending_space: bool,
@@ -344,15 +535,15 @@ fn place_word(
     if *at_line_start {
         *at_line_start = false;
     } else if pending_space && *column > 0 && *column + 1 + first_line > width {
-        out.push('\n');
+        sink.newline();
         *column = 0;
         *at_line_start = false;
     } else if pending_space {
-        out.push(' ');
+        sink.write(" ");
         *column += 1;
     }
     for part in word {
-        out.push_str(part);
+        sink.write(part);
     }
     *column = if multiline {
         last_line
@@ -484,5 +675,105 @@ mod tests {
     #[test]
     fn indent_block_applies_hanging_prefixes() {
         assert_eq!(indent_block("a\nb\n\nc", "- ", "  "), "- a\n  b\n\n  c");
+    }
+
+    #[test]
+    fn fill_into_applies_first_and_continuation_prefixes() {
+        let pieces = vec![
+            Piece::Text("alpha".into()),
+            Piece::Space,
+            Piece::Text("beta".into()),
+            Piece::Space,
+            Piece::Text("gamma".into()),
+        ];
+        let mut out = String::new();
+        fill_into(&mut out, &pieces, 8, WrapMode::Auto, "- ", "  ");
+        assert_eq!(out, "- alpha\n  beta\n  gamma");
+    }
+
+    #[test]
+    fn fill_into_leaves_blank_continuation_lines_unprefixed() {
+        // A multi-line literal word carries its embedded blank line through unchanged.
+        let pieces = vec![Piece::Text("a\n\nb".into())];
+        let mut out = String::new();
+        fill_into(&mut out, &pieces, 72, WrapMode::Auto, "> ", "> ");
+        assert_eq!(out, "> a\n\n> b");
+    }
+
+    #[test]
+    fn fill_into_empty_pieces_with_empty_prefixes_produce_nothing() {
+        let mut out = String::new();
+        fill_into(&mut out, &[], 72, WrapMode::Auto, "", "");
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn fill_into_appends_to_existing_buffer() {
+        let mut out = String::from("head\n");
+        fill_into(
+            &mut out,
+            &[Piece::Text("body".into())],
+            72,
+            WrapMode::Auto,
+            "- ",
+            "  ",
+        );
+        assert_eq!(out, "head\n- body");
+    }
+
+    #[test]
+    fn fill_into_with_empty_prefixes_equals_fill_across_shapes() {
+        let shapes: Vec<Vec<Piece>> = vec![
+            vec![],
+            vec![Piece::Text("one".into())],
+            vec![
+                Piece::Text("one".into()),
+                Piece::Space,
+                Piece::Text("two".into()),
+            ],
+            vec![
+                Piece::Text("a".into()),
+                Piece::Hard,
+                Piece::Text("b".into()),
+            ],
+            vec![
+                Piece::Text("xx".into()),
+                Piece::Soft,
+                Piece::Text("yy".into()),
+                Piece::Space,
+                Piece::Text("zzzzzz".into()),
+            ],
+        ];
+        for shape in &shapes {
+            for &width in &[1usize, 3, 5, 8, 72] {
+                for wrap in [WrapMode::Auto, WrapMode::None, WrapMode::Preserve] {
+                    let mut out = String::new();
+                    fill_into(&mut out, shape, width, wrap, "", "");
+                    assert_eq!(out, fill(shape, width, wrap));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fill_into_reproduces_grouped_layout() {
+        // With empty prefixes, streaming the grouped layout must equal the string-returning
+        // `fill_groups`, so the group-folding decisions survive the sink.
+        let pieces = vec![
+            Piece::Text("see".into()),
+            Piece::Space,
+            Piece::Text("a-very-long-link-label".into()),
+            Piece::Text("(target)".into()),
+            Piece::Space,
+            Piece::Text("end".into()),
+        ];
+        let groups = [(2usize, 4usize)];
+        for &width in &[6usize, 10, 20, 72] {
+            let expected = fill_groups(&pieces, &groups, width, 0, false, WrapMode::Auto);
+            let mut out = String::new();
+            let mut sink = LineSink::plain(&mut out);
+            fill_pieces(&mut sink, &pieces, width.max(1), 0, false, false, &groups);
+            assert_eq!(out, expected);
+        }
     }
 }
