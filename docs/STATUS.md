@@ -188,14 +188,10 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   rather than the shared definition winning.
 - `ReaderOptions` are ignored, so `east_asian_line_breaks` has no effect (a soft break between CJK
   runs is kept).
-- An extension toggle naming any modeled extension is accepted rather than only the odt set, so an
-  inapplicable `+`/`-` flag is silently swallowed rather than rejected.
 - Deeply nested (~62+) `json`→`odt` input is rejected by the shared recursion guard rather than
   converted.
 - MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
 - A `mathvariant` on `math:mi` / `math:mstyle` is ignored, dropping the styled variant.
-- A `math:mover` accent renders to a different TeX spelling (`\vec`/`\overline` rather than
-  `\overset{\rightarrow}`/`\bar`); same visual.
 - A function-name script base is wrapped in redundant braces (`{\sin}^{2}` rather than `\sin^{2}`).
 - MathML embedded directly as an inline math child of `draw:object` is read as `Math` rather than
   ignored.
@@ -383,8 +379,6 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
   order, and attribute order across the manifest, metadata, and formula parts.
 - An empty `<office:scripts/>` element is always emitted rather than omitted.
-- Extensions outside the odt set are accepted silently as no-ops rather than rejected with an error
-  and a non-zero exit.
 - Attribute ordering inside a combined-decoration text style groups per decoration rather than all
   `fo:*` attributes first.
 - When math fails to convert, the fallback emits the bare TeX and drops its `$` delimiters.
