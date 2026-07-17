@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"unclosed"},{"t":"Space"},{"t":"Str","c":"nowiki"},{"t":"Space"},{"t":"Str","c":"swallows"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"rest"},{"t":"Space"},{"t":"Str","c":"inline:"},{"t":"Space"},{"t":"Str","c":"literal"},{"t":"Space"},{"t":"Str","c":"'''text'''"},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"[[links]]"},{"t":"Space"},{"t":"Str","c":"until"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"end."}]},{"t":"Para","c":[{"t":"Str","c":"And"},{"t":"Space"},{"t":"Str","c":"separately,"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"unclosed"},{"t":"Space"},{"t":"Str","c":"pre"},{"t":"Space"},{"t":"Str","c":"block:"}]},{"t":"CodeBlock","c":[["",[],[]],"preformatted content\nthat has no closing tag\nso it runs to the end of input"]}]}

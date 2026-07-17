@@ -178,6 +178,7 @@ impl Parser {
         let mut pos = 0;
         let mut line_start = true;
         let n = chars.len();
+        let bounds = ScanBounds::of(chars);
         // Heading-region lookahead memo, shared across every line-classification query over this
         // slice so each line's region is resolved at most once. `chars` is fixed for the whole
         // call, so positions stay valid throughout; nested slices (cells, blockquotes) get their
@@ -249,7 +250,7 @@ impl Parser {
                     continue;
                 }
                 if c == '<'
-                    && let Some((block, after)) = self.parse_block_tag(chars, pos)
+                    && let Some((block, after)) = self.parse_block_tag(chars, pos, bounds)
                 {
                     blocks.push(block);
                     let (np, ls) = finish_inline_block(chars, after);
@@ -258,7 +259,7 @@ impl Parser {
                     continue;
                 }
             }
-            let (mut para_blocks, after) = self.parse_paragraph(chars, pos, &mut scan);
+            let (mut para_blocks, after) = self.parse_paragraph(chars, pos, &mut scan, bounds);
             blocks.append(&mut para_blocks);
             pos = after;
             line_start = true;
@@ -494,26 +495,31 @@ impl Parser {
         (Block::Para(out), p)
     }
 
-    fn parse_block_tag(&mut self, chars: &[char], pos: usize) -> Option<(Block, usize)> {
-        let (name, raw_open, self_closing, after_open) = open_tag(chars, pos)?;
+    fn parse_block_tag(
+        &mut self,
+        chars: &[char],
+        pos: usize,
+        bounds: ScanBounds,
+    ) -> Option<(Block, usize)> {
+        let (name, raw_open, self_closing, after_open) = open_tag_bounded(chars, pos, bounds)?;
         match name.as_str() {
             "blockquote" => {
                 if self_closing {
                     return Some((Block::BlockQuote(Vec::new()), after_open));
                 }
-                let (inner, after) = enclosed(chars, after_open, "blockquote");
+                let (inner, after) = enclosed(chars, after_open, "blockquote", bounds);
                 let inner_chars: Vec<char> = inner.chars().collect();
                 Some((Block::BlockQuote(self.parse_blocks(&inner_chars)), after))
             }
             "pre" => {
-                let (inner, after) = enclosed(chars, after_open, "pre");
+                let (inner, after) = enclosed(chars, after_open, "pre", bounds);
                 Some((
                     Block::CodeBlock(Box::default(), trim_code(&inner).into()),
                     after,
                 ))
             }
             "source" | "syntaxhighlight" => {
-                let (inner, after) = enclosed(chars, after_open, &name);
+                let (inner, after) = enclosed(chars, after_open, &name, bounds);
                 let mut classes = Vec::new();
                 if let Some(lang) = tag_attribute(&raw_open, "lang")
                     && !lang.is_empty()
@@ -530,8 +536,17 @@ impl Parser {
                     after,
                 ))
             }
-            "ul" => Some(self.parse_html_list(chars, after_open, false, &raw_open, self_closing)),
-            "ol" => Some(self.parse_html_list(chars, after_open, true, &raw_open, self_closing)),
+            "ul" => Some(self.parse_html_list(
+                chars,
+                after_open,
+                false,
+                &raw_open,
+                self_closing,
+                bounds,
+            )),
+            "ol" => {
+                Some(self.parse_html_list(chars, after_open, true, &raw_open, self_closing, bounds))
+            }
             _ => None,
         }
     }
@@ -548,6 +563,7 @@ impl Parser {
         ordered: bool,
         raw_open: &str,
         self_closing: bool,
+        bounds: ScanBounds,
     ) -> (Block, usize) {
         let mut items: Vec<Vec<Block>> = Vec::new();
         let mut i = start;
@@ -560,7 +576,7 @@ impl Parser {
                 if at(chars, i) == Some('<')
                     && at(chars, i + 1) == Some('/')
                     && tag_name_matches(chars, i + 2, close_name)
-                    && let Some((_, _, after)) = close_tag_parse(chars, i)
+                    && let Some((_, _, after)) = close_tag_parse(chars, i, bounds)
                 {
                     i = after;
                     break;
@@ -568,9 +584,10 @@ impl Parser {
                 if at(chars, i) == Some('<')
                     && at(chars, i + 1) != Some('/')
                     && tag_name_matches(chars, i + 1, "li")
-                    && let Some((_, _, _self_closing, after_li)) = open_tag(chars, i)
+                    && let Some((_, _, _self_closing, after_li)) =
+                        open_tag_bounded(chars, i, bounds)
                 {
-                    let (content_end, next) = html_li_content_bounds(chars, after_li);
+                    let (content_end, next) = html_li_content_bounds(chars, after_li, bounds);
                     let content: Vec<char> = collect_range(chars, after_li, content_end)
                         .chars()
                         .collect();
@@ -611,6 +628,7 @@ impl Parser {
         chars: &[char],
         pos: usize,
         scan: &mut HeaderScan,
+        bounds: ScanBounds,
     ) -> (Vec<Block>, usize) {
         let n = chars.len();
         let mut pieces: Vec<String> = Vec::new();
@@ -632,7 +650,7 @@ impl Parser {
             // A line that would otherwise begin a block only stays attached when the open note reads
             // as block content (its body began on a fresh line); a note opened with text on the same
             // line reads inline and ends at such a line instead.
-            let ref_open = open_ref_depth(chars, pos, next) > 0;
+            let ref_open = open_ref_depth(chars, pos, next, bounds) > 0;
             let next_end = line_end(chars, next);
             if is_blank(chars, next, next_end) {
                 if ref_open {
@@ -643,7 +661,7 @@ impl Parser {
                 break;
             }
             if line_starts_block_scan(chars, next, scan) {
-                if ref_open && open_ref_block_bodied(chars, pos, next) {
+                if ref_open && open_ref_block_bodied(chars, pos, next, bounds) {
                     cur = next;
                     continue;
                 }
@@ -830,7 +848,9 @@ impl Parser {
         if !suppressed {
             return self.parse_blocks(chars);
         }
-        let (mut blocks, after) = self.parse_paragraph(chars, 0, &mut HeaderScan::default());
+        let bounds = ScanBounds::of(chars);
+        let (mut blocks, after) =
+            self.parse_paragraph(chars, 0, &mut HeaderScan::default(), bounds);
         if let Some(rest) = chars.get(after..) {
             blocks.extend(self.parse_blocks(rest));
         }
@@ -873,6 +893,7 @@ impl Parser {
         let mut word = String::new();
         let mut i = 0;
         let n = chars.len();
+        let bounds = ScanBounds::of(chars);
         while i < n {
             let Some(c) = at(chars, i) else { break };
             if c == '\'' {
@@ -914,7 +935,7 @@ impl Parser {
                 continue;
             }
             if c == '<' {
-                if let Some((inlines, next)) = self.handle_tag(chars, i) {
+                if let Some((inlines, next)) = self.handle_tag(chars, i, bounds) {
                     flush_word(&mut word, &mut toks);
                     for inline in inlines {
                         toks.push(Tok::Inline(inline));
@@ -924,14 +945,14 @@ impl Parser {
                 }
                 if block_context
                     && starts_block_tag(chars, i)
-                    && let Some((block, next)) = self.parse_block_tag(chars, i)
+                    && let Some((block, next)) = self.parse_block_tag(chars, i, bounds)
                 {
                     flush_word(&mut word, &mut toks);
                     toks.push(Tok::Block(block));
                     i = next;
                     continue;
                 }
-                if let Some((tok, next)) = block_tag_token(chars, i) {
+                if let Some((tok, next)) = block_tag_token(chars, i, bounds) {
                     flush_word(&mut word, &mut toks);
                     toks.push(tok);
                     i = next;
@@ -1001,13 +1022,18 @@ impl Parser {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn handle_tag(&mut self, chars: &[char], i: usize) -> Option<(Vec<Inline>, usize)> {
+    fn handle_tag(
+        &mut self,
+        chars: &[char],
+        i: usize,
+        bounds: ScanBounds,
+    ) -> Option<(Vec<Inline>, usize)> {
         if at(chars, i) != Some('<') {
             return None;
         }
         match at(chars, i + 1) {
             Some('/') => {
-                let (name, raw, after) = close_tag_parse(chars, i)?;
+                let (name, raw, after) = close_tag_parse(chars, i, bounds)?;
                 return match html_tag_role(&name) {
                     Some(HtmlTagRole::Inline) => Some((vec![raw_html(raw)], after)),
                     _ => None,
@@ -1016,14 +1042,14 @@ impl Parser {
             Some(c) if c.is_ascii_alphabetic() => {}
             _ => return None,
         }
-        let (name, raw_open, self_closing, after_open) = open_tag(chars, i)?;
+        let (name, raw_open, self_closing, after_open) = open_tag_bounded(chars, i, bounds)?;
         match name.as_str() {
             "br" => Some((vec![Inline::LineBreak], after_open)),
             "ref" => {
                 if self_closing {
                     return Some((vec![Inline::Note(Vec::new())], after_open));
                 }
-                match close_tag(chars, after_open, "ref") {
+                match close_tag_bounded(chars, after_open, "ref", bounds) {
                     Some((inner_end, after)) => {
                         let inner = collect_range(chars, after_open, inner_end);
                         let inner_chars: Vec<char> = inner.chars().collect();
@@ -1036,14 +1062,14 @@ impl Parser {
                 if self_closing {
                     return Some((Vec::new(), after_open));
                 }
-                let (inner, after) = enclosed(chars, after_open, "nowiki");
+                let (inner, after) = enclosed(chars, after_open, "nowiki", bounds);
                 Some((plain_inlines(&inner), after))
             }
             "math" => {
                 if self_closing {
                     return Some((Vec::new(), after_open));
                 }
-                match close_tag(chars, after_open, "math") {
+                match close_tag_bounded(chars, after_open, "math", bounds) {
                     Some((inner_end, after)) => {
                         let inner = collect_range(chars, after_open, inner_end);
                         Some((
@@ -1061,6 +1087,7 @@ impl Parser {
                 &raw_open,
                 self_closing,
                 &[],
+                bounds,
             )),
             "var" => Some(verbatim_code(
                 chars,
@@ -1069,6 +1096,7 @@ impl Parser {
                 &raw_open,
                 self_closing,
                 &["variable"],
+                bounds,
             )),
             "samp" => Some(verbatim_code(
                 chars,
@@ -1077,6 +1105,7 @@ impl Parser {
                 &raw_open,
                 self_closing,
                 &["sample"],
+                bounds,
             )),
             "sub" => Some(self.wrap(
                 chars,
@@ -1085,6 +1114,7 @@ impl Parser {
                 &raw_open,
                 self_closing,
                 Inline::Subscript,
+                bounds,
             )),
             "sup" => Some(self.wrap(
                 chars,
@@ -1093,6 +1123,7 @@ impl Parser {
                 &raw_open,
                 self_closing,
                 Inline::Superscript,
+                bounds,
             )),
             "del" | "strike" => Some(self.wrap(
                 chars,
@@ -1101,15 +1132,32 @@ impl Parser {
                 &raw_open,
                 self_closing,
                 Inline::Strikeout,
+                bounds,
             )),
-            "kbd" => Some(self.span(chars, "kbd", after_open, &raw_open, self_closing, "kbd")),
-            "mark" => Some(self.span(chars, "mark", after_open, &raw_open, self_closing, "mark")),
+            "kbd" => Some(self.span(
+                chars,
+                "kbd",
+                after_open,
+                &raw_open,
+                self_closing,
+                "kbd",
+                bounds,
+            )),
+            "mark" => Some(self.span(
+                chars,
+                "mark",
+                after_open,
+                &raw_open,
+                self_closing,
+                "mark",
+                bounds,
+            )),
             _ => match html_tag_role(&name) {
                 Some(HtmlTagRole::Inline) => {
                     if self_closing {
                         return Some((vec![raw_html(raw_open)], after_open));
                     }
-                    match close_tag(chars, after_open, &name) {
+                    match close_tag_bounded(chars, after_open, &name, bounds) {
                         Some((inner_end, after)) => {
                             let inner = collect_range(chars, after_open, inner_end);
                             let close_raw = collect_range(chars, inner_end, after);
@@ -1128,6 +1176,7 @@ impl Parser {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn wrap(
         &mut self,
         chars: &[char],
@@ -1136,11 +1185,12 @@ impl Parser {
         raw_open: &str,
         self_closing: bool,
         ctor: fn(Vec<Inline>) -> Inline,
+        bounds: ScanBounds,
     ) -> (Vec<Inline>, usize) {
         if self_closing {
             return (vec![raw_html(raw_open.to_string())], after_open);
         }
-        match close_tag(chars, after_open, name) {
+        match close_tag_bounded(chars, after_open, name, bounds) {
             Some((inner_end, after)) => {
                 let inner = collect_range(chars, after_open, inner_end);
                 (vec![ctor(self.parse_inlines(&inner))], after)
@@ -1149,6 +1199,7 @@ impl Parser {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn span(
         &mut self,
         chars: &[char],
@@ -1157,11 +1208,12 @@ impl Parser {
         raw_open: &str,
         self_closing: bool,
         class: &str,
+        bounds: ScanBounds,
     ) -> (Vec<Inline>, usize) {
         if self_closing {
             return (vec![raw_html(raw_open.to_string())], after_open);
         }
-        match close_tag(chars, after_open, name) {
+        match close_tag_bounded(chars, after_open, name, bounds) {
             Some((inner_end, after)) => {
                 let inner = collect_range(chars, after_open, inner_end);
                 let attr = Attr {
@@ -1429,12 +1481,13 @@ fn expand_tabs(input: &str) -> String {
 fn strip_comments(input: &str) -> String {
     let chars: Vec<char> = input.chars().collect();
     let n = chars.len();
+    let bounds = ScanBounds::of(&chars);
     let mut out = String::new();
     let mut i = 0;
     while i < n {
         let Some(c) = at(&chars, i) else { break };
-        if c == '<' {
-            if let Some(after) = verbatim_region_end(&chars, i) {
+        if c == '<' && bounds.open_possible(i) {
+            if let Some(after) = verbatim_region_end(&chars, i, bounds) {
                 out.push_str(&collect_range(&chars, i, after));
                 i = after;
                 continue;
@@ -1474,8 +1527,8 @@ fn strip_comments(input: &str) -> String {
 }
 
 /// If a verbatim tag opens at `i`, the index just past its closing tag (or end of input).
-fn verbatim_region_end(chars: &[char], i: usize) -> Option<usize> {
-    let (name, _raw, self_closing, after_open) = open_tag(chars, i)?;
+fn verbatim_region_end(chars: &[char], i: usize, bounds: ScanBounds) -> Option<usize> {
+    let (name, _raw, self_closing, after_open) = open_tag_bounded(chars, i, bounds)?;
     if !matches!(
         name.as_str(),
         "pre" | "nowiki" | "math" | "source" | "syntaxhighlight"
@@ -1485,7 +1538,7 @@ fn verbatim_region_end(chars: &[char], i: usize) -> Option<usize> {
     if self_closing {
         return Some(after_open);
     }
-    match close_tag(chars, after_open, &name) {
+    match close_tag_bounded(chars, after_open, &name, bounds) {
         Some((_, after)) => Some(after),
         None => Some(chars.len()),
     }
@@ -1523,12 +1576,13 @@ const BEHAVIOR_SWITCHES: &[&str] = &[
 fn extract_behavior_switches(input: &str) -> (String, Vec<String>) {
     let chars: Vec<char> = input.chars().collect();
     let n = chars.len();
+    let bounds = ScanBounds::of(&chars);
     let mut out = String::new();
     let mut found: Vec<String> = Vec::new();
     let mut i = 0;
     while i < n {
         if at(&chars, i) == Some('<')
-            && let Some(after) = verbatim_region_end(&chars, i)
+            && let Some(after) = verbatim_region_end(&chars, i, bounds)
         {
             out.push_str(&collect_range(&chars, i, after));
             i = after;
@@ -2966,6 +3020,74 @@ const ASCII_FOLD: &[(u32, u8)] = &[
 
 /// Reads an opening tag at `chars[i]`, returning its lowercased name, the raw `<…>` text, whether it
 /// is self-closing, and the index just past the `>`. Attribute values in quotes may contain `>`.
+/// The positions that cap how far a tag scan can succeed within a slice: `last_gt` is the index of
+/// the final `>` and `last_close` the index of the final `</`. An open tag cannot complete past the
+/// former and a closing tag cannot begin past the latter, so a scan starting beyond the relevant
+/// bound fails without touching the rest of the input. Precomputing them once per slice turns a run
+/// of unterminated tags from a rescan-to-end at every `<` into O(1)-per-tag failures.
+#[derive(Clone, Copy)]
+struct ScanBounds {
+    last_gt: Option<usize>,
+    last_close: Option<usize>,
+}
+
+impl ScanBounds {
+    fn of(chars: &[char]) -> Self {
+        let mut last_gt = None;
+        let mut last_close = None;
+        let mut i = 0;
+        let n = chars.len();
+        while i < n {
+            match at(chars, i) {
+                Some('>') => last_gt = Some(i),
+                Some('<') if at(chars, i + 1) == Some('/') => last_close = Some(i),
+                _ => {}
+            }
+            i += 1;
+        }
+        Self {
+            last_gt,
+            last_close,
+        }
+    }
+
+    fn open_possible(&self, start: usize) -> bool {
+        self.last_gt.is_some_and(|gt| start <= gt)
+    }
+
+    fn close_possible(&self, start: usize) -> bool {
+        self.last_close.is_some_and(|close| start <= close)
+    }
+}
+
+/// `open_tag` guarded by `bounds`: yields `None` immediately when no `>` remains at or after `start`,
+/// which is exactly when `open_tag` would scan to the end of input and fail.
+fn open_tag_bounded(
+    chars: &[char],
+    start: usize,
+    bounds: ScanBounds,
+) -> Option<(String, String, bool, usize)> {
+    if !bounds.open_possible(start) {
+        return None;
+    }
+    open_tag(chars, start)
+}
+
+/// `close_tag` guarded by `bounds`: yields `None` immediately when no `</` remains at or after
+/// `start`, which is exactly when no matching closer can exist and `close_tag` would scan to the end
+/// of input and fail.
+fn close_tag_bounded(
+    chars: &[char],
+    start: usize,
+    name: &str,
+    bounds: ScanBounds,
+) -> Option<(usize, usize)> {
+    if !bounds.close_possible(start) {
+        return None;
+    }
+    close_tag(chars, start, name)
+}
+
 fn open_tag(chars: &[char], start: usize) -> Option<(String, String, bool, usize)> {
     let mut cursor = start + 1;
     let mut name = String::new();
@@ -3038,8 +3160,8 @@ fn close_tag(chars: &[char], start: usize, name: &str) -> Option<(usize, usize)>
 
 /// The content of an element starting at `start` together with the index just past its closing tag;
 /// an unterminated element runs to the end of input.
-fn enclosed(chars: &[char], start: usize, name: &str) -> (String, usize) {
-    match close_tag(chars, start, name) {
+fn enclosed(chars: &[char], start: usize, name: &str, bounds: ScanBounds) -> (String, usize) {
+    match close_tag_bounded(chars, start, name, bounds) {
         Some((inner_end, after)) => (collect_range(chars, start, inner_end), after),
         None => (collect_range(chars, start, chars.len()), chars.len()),
     }
@@ -3071,12 +3193,12 @@ fn starts_block_tag(chars: &[char], pos: usize) -> bool {
 /// The count of `<ref>` tags opened but not yet closed within `chars[start..end]`. A self-closing
 /// `<ref … />` opens nothing; verbatim regions are stepped over so a `<ref>` inside `<nowiki>` does
 /// not count. Used to keep a paragraph open until a `<ref>` note's body is complete.
-fn open_ref_depth(chars: &[char], start: usize, end: usize) -> i32 {
+fn open_ref_depth(chars: &[char], start: usize, end: usize, bounds: ScanBounds) -> i32 {
     let mut depth = 0i32;
     let mut i = start;
     while i < end {
         if at(chars, i) == Some('<') {
-            if let Some(after) = verbatim_region_end(chars, i) {
+            if let Some(after) = verbatim_region_end(chars, i, bounds) {
                 i = after;
                 continue;
             }
@@ -3085,7 +3207,7 @@ fn open_ref_depth(chars: &[char], start: usize, end: usize) -> i32 {
                     depth = (depth - 1).max(0);
                 }
             } else if tag_name_matches(chars, i + 1, "ref")
-                && let Some((_, _, self_closing, after)) = open_tag(chars, i)
+                && let Some((_, _, self_closing, after)) = open_tag_bounded(chars, i, bounds)
             {
                 if !self_closing {
                     depth += 1;
@@ -3103,12 +3225,12 @@ fn open_ref_depth(chars: &[char], start: usize, end: usize) -> i32 {
 /// open tag is the last non-blank thing on its line. Such a note is read as block content, so its
 /// body may hold lists and other block constructs; a note opened with text on the same line reads as
 /// inline content and a following block-level line ends it instead of joining it.
-fn open_ref_block_bodied(chars: &[char], start: usize, end: usize) -> bool {
+fn open_ref_block_bodied(chars: &[char], start: usize, end: usize, bounds: ScanBounds) -> bool {
     let mut stack: Vec<bool> = Vec::new();
     let mut i = start;
     while i < end {
         if at(chars, i) == Some('<') {
-            if let Some(after) = verbatim_region_end(chars, i) {
+            if let Some(after) = verbatim_region_end(chars, i, bounds) {
                 i = after;
                 continue;
             }
@@ -3117,7 +3239,7 @@ fn open_ref_block_bodied(chars: &[char], start: usize, end: usize) -> bool {
                     stack.pop();
                 }
             } else if tag_name_matches(chars, i + 1, "ref")
-                && let Some((_, _, self_closing, after)) = open_tag(chars, i)
+                && let Some((_, _, self_closing, after)) = open_tag_bounded(chars, i, bounds)
             {
                 if !self_closing {
                     let mut j = after;
@@ -3183,8 +3305,12 @@ fn html_tag_role(name: &str) -> Option<HtmlTagRole> {
 
 /// Reads a closing tag `</name…>` at `i`, returning its lowercased name, raw text, and the index
 /// just past `>`.
-fn close_tag_parse(chars: &[char], i: usize) -> Option<(String, String, usize)> {
-    if at(chars, i) != Some('<') || at(chars, i + 1) != Some('/') {
+fn close_tag_parse(
+    chars: &[char],
+    i: usize,
+    bounds: ScanBounds,
+) -> Option<(String, String, usize)> {
+    if at(chars, i) != Some('<') || at(chars, i + 1) != Some('/') || !bounds.open_possible(i) {
         return None;
     }
     let mut cursor = i + 2;
@@ -3209,7 +3335,7 @@ fn close_tag_parse(chars: &[char], i: usize) -> Option<(String, String, usize)> 
 /// The item ends at its own `</li>` (consumed), at a sibling `<li>` (left in place), or at the
 /// enclosing list's `</ul>`/`</ol>` (left in place); nested `<ul>`/`<ol>` lists are stepped over so
 /// their markers do not end the item.
-fn html_li_content_bounds(chars: &[char], start: usize) -> (usize, usize) {
+fn html_li_content_bounds(chars: &[char], start: usize, bounds: ScanBounds) -> (usize, usize) {
     let n = chars.len();
     let mut list_depth = 0i32;
     let mut j = start;
@@ -3221,18 +3347,18 @@ fn html_li_content_bounds(chars: &[char], start: usize) -> (usize, usize) {
                         return (j, j);
                     }
                     list_depth -= 1;
-                    if let Some((_, _, after)) = close_tag_parse(chars, j) {
+                    if let Some((_, _, after)) = close_tag_parse(chars, j, bounds) {
                         j = after;
                         continue;
                     }
                 } else if list_depth == 0
                     && tag_name_matches(chars, j + 2, "li")
-                    && let Some((_, _, after)) = close_tag_parse(chars, j)
+                    && let Some((_, _, after)) = close_tag_parse(chars, j, bounds)
                 {
                     return (j, after);
                 }
             } else if tag_name_matches(chars, j + 1, "ul") || tag_name_matches(chars, j + 1, "ol") {
-                if let Some((_, _, self_closing, after)) = open_tag(chars, j) {
+                if let Some((_, _, self_closing, after)) = open_tag_bounded(chars, j, bounds) {
                     if !self_closing {
                         list_depth += 1;
                     }
@@ -3251,11 +3377,11 @@ fn html_li_content_bounds(chars: &[char], start: usize) -> (usize, usize) {
 /// Reads a recognized block-level HTML tag (opening, closing, or self-closing) at `i`, returning the
 /// token it contributes to the paragraph stream and the index just past it. Inline and unrecognized
 /// tags yield `None`.
-fn block_tag_token(chars: &[char], i: usize) -> Option<(Tok, usize)> {
+fn block_tag_token(chars: &[char], i: usize, bounds: ScanBounds) -> Option<(Tok, usize)> {
     let (name, raw, after) = if at(chars, i + 1) == Some('/') {
-        close_tag_parse(chars, i)?
+        close_tag_parse(chars, i, bounds)?
     } else {
-        let (name, raw, _self_closing, after) = open_tag(chars, i)?;
+        let (name, raw, _self_closing, after) = open_tag_bounded(chars, i, bounds)?;
         (name, raw, after)
     };
     match html_tag_role(&name)? {
@@ -3635,11 +3761,12 @@ fn verbatim_code(
     raw_open: &str,
     self_closing: bool,
     classes: &[&str],
+    bounds: ScanBounds,
 ) -> (Vec<Inline>, usize) {
     if self_closing {
         return (vec![raw_html(raw_open.to_string())], after_open);
     }
-    match close_tag(chars, after_open, name) {
+    match close_tag_bounded(chars, after_open, name, bounds) {
         Some((inner_end, after)) => {
             let inner = collect_range(chars, after_open, inner_end);
             let attr = Attr {
@@ -4754,5 +4881,18 @@ mod tests {
         // finish under the old code.
         let input = "== ~iT\n= w e\n= J".repeat(4000);
         assert!(reads_ok(&input));
+    }
+
+    #[test]
+    fn unclosed_ref_has_no_close_tag() {
+        let chars: Vec<char> = "<ref>body with no closer".chars().collect();
+        assert_eq!(close_tag(&chars, 5, "ref"), None);
+    }
+
+    #[test]
+    fn repeated_unterminated_open_stays_literal() {
+        let input = "<a".repeat(2000);
+        let blocks = parse(&input);
+        assert_eq!(blocks, vec![Block::Para(vec![Inline::Str(input.into())])]);
     }
 }
