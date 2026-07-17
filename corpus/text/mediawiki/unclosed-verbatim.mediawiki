@@ -1,0 +1,7 @@
+An unclosed nowiki swallows the rest inline: <nowiki>literal '''text''' and [[links]] until the end.
+
+And separately, an unclosed pre block:
+
+<pre>preformatted content
+that has no closing tag
+so it runs to the end of input
