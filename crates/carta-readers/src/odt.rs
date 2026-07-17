@@ -1362,7 +1362,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unparseable_content_part_is_an_error() {
+    fn an_unparsable_content_part_is_an_error() {
         let odt = package(&[("content.xml", b"%%% not markup %%%")]);
         assert!(read(&odt).is_err());
     }
