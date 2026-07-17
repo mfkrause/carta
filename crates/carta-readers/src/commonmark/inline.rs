@@ -805,6 +805,7 @@ fn char_before(text: &str, at: usize) -> Option<char> {
 
 #[allow(clippy::similar_names)]
 fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Inline> {
+    let raw_tex = ext.contains(Extension::RawTex);
     let mut parser = InlineParser {
         text,
         pos: 0,
@@ -815,6 +816,10 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
         bracket_stack: Vec::new(),
         interesting: interesting_chars(ext),
         backtick_runs: None,
+        raw_tex_budget: text.len().saturating_mul(8).saturating_add(64),
+        last_brace: raw_tex.then(|| text.rfind('}')).flatten(),
+        last_bracket: raw_tex.then(|| text.rfind(']')).flatten(),
+        env_last_close: BTreeMap::new(),
     };
     parser.run();
     let mut inlines = resolve_inline_nodes(parser.nodes, ext, notes.markdown);
@@ -874,6 +879,20 @@ struct InlineParser<'a> {
     /// never changes during inline parsing. A feature that mutated the buffer mid-parse would have
     /// to rebuild it.
     backtick_runs: Option<BTreeMap<usize, Vec<usize>>>,
+    /// Remaining work budget shared by all raw-TeX look-ahead scans in this buffer. Seeded from the
+    /// buffer length and charged the traversal length of each scan; when it reaches zero a raw-TeX
+    /// attempt reverts (the backslash stays literal — the same outcome an unmatched group already
+    /// produces). It caps the total look-ahead at O(n) so a run of never-closing openers cannot cost
+    /// O(n²); a genuine document, where each group is scanned once, never approaches the ceiling.
+    raw_tex_budget: usize,
+    /// Byte offset of the last `}` / last `]` in `text` (`None` when the delimiter is absent, or when
+    /// raw TeX is off and these are never consulted). A group scan starting past its closing
+    /// delimiter's final occurrence cannot balance, so it fails in O(1) without touching the budget.
+    last_brace: Option<usize>,
+    last_bracket: Option<usize>,
+    /// Per environment name, the start offset of the last `\end{NAME}` marker in `text` (inner `None`
+    /// when there is none). Scanning for an environment close past this offset cannot succeed.
+    env_last_close: BTreeMap<String, Option<usize>>,
 }
 
 /// The ASCII characters that can begin an inline construct under `ext`; every other character is
@@ -1395,7 +1414,19 @@ impl<'a> InlineParser<'a> {
 
     /// From `from`, find the index just past the `\end{ENV}` that closes an open `\begin{ENV}`,
     /// tracking nested same-name environments by depth. `None` when no matching close is found.
-    fn scan_environment_close(&self, from: usize, env: &str) -> Option<usize> {
+    fn scan_environment_close(&mut self, from: usize, env: &str) -> Option<usize> {
+        if self.raw_tex_budget == 0 {
+            return None;
+        }
+        // A close cannot lie past the last `\end{ENV}` marker in the buffer; a scan starting beyond it
+        // fails without walking. Exact — the depth counter only delays accepting an existing close, it
+        // never conjures one, so the last marker's position bounds every possible close.
+        if self
+            .last_environment_close(env)
+            .is_none_or(|last| from > last)
+        {
+            return None;
+        }
         let mut depth = 1usize;
         let mut i = from;
         while let Some(ch) = char_at(self.text, i) {
@@ -1408,6 +1439,7 @@ impl<'a> InlineParser<'a> {
                 if let Some(after) = self.match_environment_marker(i, "end", env) {
                     depth -= 1;
                     if depth == 0 {
+                        self.charge_raw_tex(after - from);
                         return Some(after);
                     }
                     i = after;
@@ -1416,7 +1448,20 @@ impl<'a> InlineParser<'a> {
             }
             i += ch.len_utf8();
         }
+        self.charge_raw_tex(i - from);
         None
+    }
+
+    /// Byte offset where the last `\end{NAME}` marker begins, or `None` when the buffer holds none.
+    /// Computed once per environment name (a literal substring search) and cached.
+    fn last_environment_close(&mut self, env: &str) -> Option<usize> {
+        if let Some(&cached) = self.env_last_close.get(env) {
+            return cached;
+        }
+        let marker = format!("\\end{{{env}}}");
+        let last = self.text.rfind(&marker);
+        self.env_last_close.insert(env.to_owned(), last);
+        last
     }
 
     /// If the characters at `at` spell `\KEYWORD{ENV}` (e.g. `\end{equation}`), return the index
@@ -1452,7 +1497,21 @@ impl<'a> InlineParser<'a> {
     /// Scan a balanced group `open`…`close` starting at index `start` (which must hold `open`),
     /// returning the index just past the matching `close`, or `None` if it never closes. Nested
     /// same-kind delimiters are tracked by depth. `open` and `close` are ASCII delimiters.
-    fn scan_balanced_group(&self, start: usize, open: char, close: char) -> Option<usize> {
+    fn scan_balanced_group(&mut self, start: usize, open: char, close: char) -> Option<usize> {
+        if self.raw_tex_budget == 0 {
+            return None;
+        }
+        // A group opened past the last close delimiter in the buffer can never balance; fail in O(1)
+        // without charging the budget. Exact: closing the group requires a `close` at some later
+        // offset, and none exists beyond this one. Only `}` and `]` arise as raw-TeX group closers.
+        let last_close = match close {
+            '}' => self.last_brace,
+            ']' => self.last_bracket,
+            _ => return None,
+        };
+        if last_close.is_none_or(|last| start > last) {
+            return None;
+        }
         let mut depth = 0usize;
         let mut i = start;
         while let Some(ch) = char_at(self.text, i) {
@@ -1461,12 +1520,19 @@ impl<'a> InlineParser<'a> {
             } else if ch == close {
                 depth -= 1;
                 if depth == 0 {
+                    self.charge_raw_tex(i + 1 - start);
                     return Some(i + 1);
                 }
             }
             i += ch.len_utf8();
         }
+        self.charge_raw_tex(i - start);
         None
+    }
+
+    /// Charge a raw-TeX look-ahead scan's traversal length against the shared per-buffer budget.
+    fn charge_raw_tex(&mut self, steps: usize) {
+        self.raw_tex_budget = self.raw_tex_budget.saturating_sub(steps);
     }
 
     fn code_span(&mut self) {
@@ -5133,6 +5199,36 @@ mod inline_tests {
             pe(r"\foo[a y", raw_tex()),
             vec![tex(r"\foo"), str("[a"), Inline::Space, str("y")]
         );
+    }
+
+    #[test]
+    fn raw_tex_unclosed_openers_stay_literal_at_scale() {
+        // A long run of never-closing openers must revert every one to literal text. The close-
+        // delimiter fast-fail and the shared scan budget bound the look-ahead cost without changing
+        // the parse, so the output is the same all-literal shape at any size.
+        let cases = [
+            r"\a{".repeat(4096), // no `}` anywhere: close-delimiter fast-fail
+            format!("{}}}", r"\a{".repeat(4096)), // a single far `}` that never balances: budget backstop
+            r"\begin{x}".repeat(4096),            // no `\end{x}`: environment-close fast-fail
+        ];
+        for input in cases {
+            let parsed = pe(&input, raw_tex());
+            assert!(
+                parsed
+                    .iter()
+                    .all(|inline| matches!(inline, Inline::Str(_) | Inline::Space)),
+                "expected only literal text",
+            );
+            let rendered: String = parsed
+                .iter()
+                .map(|inline| match inline {
+                    Inline::Str(text) => text.as_str().to_owned(),
+                    Inline::Space => " ".to_owned(),
+                    _ => String::new(),
+                })
+                .collect();
+            assert_eq!(rendered, input);
+        }
     }
 
     #[test]

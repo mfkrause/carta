@@ -21,10 +21,13 @@ pub(crate) fn parse(
 ) -> (Vec<IrBlock>, RefMap, FootnoteDefs, ExampleMap) {
     let mut parser = Parser::new(extensions, greedy_paragraphs);
     let lines = split_lines(input);
+    if greedy_paragraphs {
+        parser.fence_close_candidates = build_fence_close_candidates(&lines);
+    }
     for index in 0..lines.len() {
         let line = lines.get(index).copied().unwrap_or("");
         let following = lines.get(index + 1..).unwrap_or(&[]);
-        parser.process_line(line, following);
+        parser.process_line(line, following, Some(index));
     }
     parser.finalize_open_text_tables();
     parser.finish()
@@ -40,6 +43,69 @@ fn split_lines(input: &str) -> Vec<&str> {
         lines.pop();
     }
     lines
+}
+
+/// Document-level index of lines that could close a code fence, one sorted list per marker kind.
+/// Each entry is `(line index, run length)` for a line that — read at the document root — satisfies
+/// the closing-fence test (`indent <= 3` and a run of at least three markers followed only by
+/// whitespace). Consulting this instead of rescanning every remaining line keeps unclosed-fence
+/// spam from costing O(n²) in the greedy (markdown-dialect) paragraph mode.
+#[derive(Default)]
+struct FenceCloseCandidates {
+    backtick: Vec<(usize, usize)>,
+    tilde: Vec<(usize, usize)>,
+}
+
+impl FenceCloseCandidates {
+    /// Whether some candidate after `after` closes a fence of `marker` and at least `length` markers.
+    /// The candidates are recorded in ascending line order, so a binary search skips the openers that
+    /// precede this one; the run-length filter mirrors [`Cursor::is_closing_fence`]'s length rule.
+    fn reaches_close(&self, marker: u8, length: usize, after: usize) -> bool {
+        let candidates = match marker {
+            b'`' => &self.backtick,
+            b'~' => &self.tilde,
+            _ => return false,
+        };
+        let start = candidates.partition_point(|&(index, _)| index <= after);
+        candidates
+            .get(start..)
+            .is_some_and(|rest| rest.iter().any(|&(_, run)| run >= length))
+    }
+}
+
+fn build_fence_close_candidates(lines: &[&str]) -> FenceCloseCandidates {
+    let mut candidates = FenceCloseCandidates::default();
+    for (index, &line) in lines.iter().enumerate() {
+        for (marker, bucket) in [
+            (b'`', &mut candidates.backtick),
+            (b'~', &mut candidates.tilde),
+        ] {
+            let cursor = Cursor::new(line);
+            if cursor.indent() <= 3
+                && let Some(run) = leading_fence_run(line, marker)
+                && cursor.is_closing_fence(marker, run)
+            {
+                bucket.push((index, run));
+            }
+        }
+    }
+    candidates
+}
+
+/// Length of the run of `marker` bytes that begins `line` after up to any number of leading spaces —
+/// counted exactly as [`Cursor::is_closing_fence`] does — when it is at least three; otherwise `None`.
+fn leading_fence_run(line: &str, marker: u8) -> Option<usize> {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    while bytes.get(index).copied() == Some(b' ') {
+        index += 1;
+    }
+    let mut run = 0;
+    while bytes.get(index).copied() == Some(marker) {
+        run += 1;
+        index += 1;
+    }
+    (run >= 3).then_some(run)
 }
 
 #[derive(Debug, Clone)]
@@ -253,6 +319,9 @@ struct Parser {
     /// has no closing fence) is folding into a paragraph. Until a matching closing fence or a blank
     /// line, each following line is absorbed as paragraph text with no block opener allowed to fire.
     fence_fold: Option<FenceInfo>,
+    /// Precomputed close-fence positions for the whole document, consulted from the root container so
+    /// a fence opener does not rescan every remaining line (built only in greedy-paragraph mode).
+    fence_close_candidates: FenceCloseCandidates,
 }
 
 impl Parser {
@@ -263,6 +332,7 @@ impl Parser {
             extensions,
             greedy_paragraphs,
             fence_fold: None,
+            fence_close_candidates: FenceCloseCandidates::default(),
         }
     }
 
@@ -384,7 +454,7 @@ impl Parser {
     // over one shared cursor; splitting the phases into helpers would only thread that cursor through
     // extra signatures.
     #[allow(clippy::too_many_lines)]
-    fn process_line(&mut self, line: &str, following: &[&str]) {
+    fn process_line(&mut self, line: &str, following: &[&str], line_index: Option<usize>) {
         let mut cursor = Cursor::new(line);
 
         // Phase 1: descend through open containers, matching each one's continuation marker.
@@ -555,7 +625,7 @@ impl Parser {
                     break;
                 }
                 cursor.note_indent();
-                if let Some(opened) = self.try_open(container, &mut cursor, following) {
+                if let Some(opened) = self.try_open(container, &mut cursor, following, line_index) {
                     started_new = true;
                     container = opened;
                     // Descend into the new container to open the next block on this line — but only
@@ -799,7 +869,7 @@ impl Parser {
             self.close(index);
             let trailing = line.get(end..).unwrap_or("").to_owned();
             if !trailing.is_empty() {
-                self.process_line(&trailing, &[]);
+                self.process_line(&trailing, &[], None);
             }
             return;
         }
@@ -868,7 +938,7 @@ impl Parser {
         let parent = self.place(container, &kind);
         let index = self.append_child(parent, Node::new(kind));
         if !trailing.trim().is_empty() {
-            self.process_line(&trailing, &[]);
+            self.process_line(&trailing, &[], None);
         }
         Some(index)
     }
@@ -969,7 +1039,7 @@ impl Parser {
         self.append_text(index, &kept);
         self.close(index);
         if !rest.trim().is_empty() {
-            self.process_line(&rest, &[]);
+            self.process_line(&rest, &[], None);
         }
         index
     }
@@ -1121,7 +1191,7 @@ impl Parser {
         for index in 0..refs.len() {
             let line = refs.get(index).copied().unwrap_or("");
             let following = refs.get(index + 1..).unwrap_or(&[]);
-            self.process_line(line, following);
+            self.process_line(line, following, None);
         }
     }
 
@@ -1270,7 +1340,7 @@ impl Parser {
         let after = trimmed.get(found.end..).unwrap_or("").to_owned();
         let trails = !before.trim().is_empty();
         if trails {
-            self.process_line(before, &[]);
+            self.process_line(before, &[], None);
         }
         // Whether the element's final content block tightens from `Para` to `Plain`. A native div
         // tightens only when the close tag physically trails content on its own line. A raw element
@@ -1292,7 +1362,7 @@ impl Parser {
             node.open = false;
         }
         if !after.trim().is_empty() {
-            self.process_line(&after, &[]);
+            self.process_line(&after, &[], None);
         }
         true
     }
@@ -1544,7 +1614,7 @@ impl Parser {
             self.set_raw_html_depth(index, 0);
             self.close(index);
             if !rest.trim().is_empty() {
-                self.process_line(&rest, &[]);
+                self.process_line(&rest, &[], None);
             }
         } else {
             self.append_text(index, line);
@@ -1638,11 +1708,25 @@ impl Parser {
     /// The closing fence is judged at the fence's own container level, so each look-ahead line first
     /// replays the open containers' continuation markers; a line that breaks the chain (a block quote
     /// losing its `>`, a list item losing its indent) cannot carry the close.
-    fn fence_reaches_close(&self, container: usize, fence: &FenceInfo, following: &[&str]) -> bool {
+    fn fence_reaches_close(
+        &self,
+        container: usize,
+        fence: &FenceInfo,
+        following: &[&str],
+        line_index: Option<usize>,
+    ) -> bool {
         if !self.greedy_paragraphs {
             return true;
         }
         let path = self.container_path(container);
+        // At the document root no container prefix can break the look-ahead chain, so the precomputed
+        // candidate index gives exactly the lines this scan would accept — consult it in O(log n)
+        // instead of walking every remaining line. Nested containers keep the linear replay.
+        if let (Some(opener), [_root]) = (line_index, path.as_slice()) {
+            return self
+                .fence_close_candidates
+                .reaches_close(fence.marker, fence.length, opener);
+        }
         for line in following {
             let mut cursor = Cursor::new(line);
             if !self.strip_container_path(&path, &mut cursor) {
@@ -1728,6 +1812,7 @@ impl Parser {
         container: usize,
         cursor: &mut Cursor,
         following: &[&str],
+        line_index: Option<usize>,
     ) -> Option<usize> {
         let indent = cursor.indent();
         let in_paragraph = matches!(self.last_open_leaf_kind(container), Some(Kind::Paragraph));
@@ -1808,7 +1893,7 @@ impl Parser {
                 if folds_into_paragraph {
                     cursor.reset_to(fence_checkpoint);
                 } else if self.fence_opener_accepted(&fence)
-                    && self.fence_reaches_close(container, &fence, following)
+                    && self.fence_reaches_close(container, &fence, following, line_index)
                 {
                     let kind = Kind::FencedCode(fence);
                     let parent = self.place(container, &kind);
@@ -3706,6 +3791,34 @@ mod tests {
     fn a_line_without_a_marker_is_rejected() {
         assert_eq!(strip_caption_marker("Just a paragraph"), None);
         assert_eq!(strip_caption_marker("Tablexyz"), None);
+    }
+
+    use super::build_fence_close_candidates;
+
+    #[test]
+    fn fence_close_candidate_index_honors_the_closing_fence_rules() {
+        let lines = [
+            "```rust", // 0: an info string follows the run, so not a bare closing fence
+            "code",    // 1
+            "```",     // 2: bare backtick run of three — a candidate
+            "~~~~",    // 3: tilde run of four — a candidate
+            "    ```", // 4: indented four columns — not a candidate
+            "``",      // 5: run shorter than three — not a candidate
+        ];
+        let candidates = build_fence_close_candidates(&lines);
+
+        // The only backtick candidate is line 2.
+        assert!(candidates.reaches_close(b'`', 3, 1));
+        assert!(!candidates.reaches_close(b'`', 3, 2));
+        // A three-marker run cannot close a four-marker opener.
+        assert!(!candidates.reaches_close(b'`', 4, 1));
+        // Tilde and backtick are indexed separately; the tilde run of four closes openers up to four.
+        assert!(candidates.reaches_close(b'~', 3, 0));
+        assert!(candidates.reaches_close(b'~', 4, 0));
+        assert!(!candidates.reaches_close(b'~', 5, 0));
+        // Past the last candidate of a marker there is nothing left to close either kind.
+        assert!(!candidates.reaches_close(b'`', 3, 3));
+        assert!(!candidates.reaches_close(b'~', 3, 3));
     }
 
     use super::raw_block_format;
