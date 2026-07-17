@@ -123,6 +123,14 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::NativeNumbering,
             Extension::Styles,
         ])),
+        "odt" => Some(Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::EmptyParagraphs,
+            Extension::GfmAutoIdentifiers,
+            Extension::NativeNumbering,
+        ])),
         _ => None,
     }
 }
@@ -395,6 +403,7 @@ mod tests {
         use super::supported_extensions;
         assert!(supported_extensions("dokuwiki").is_some());
         assert!(supported_extensions("docx").is_some());
+        assert!(supported_extensions("odt").is_some());
         assert!(supported_extensions("commonmark").is_none());
         assert!(supported_extensions("html").is_none());
     }
@@ -425,5 +434,31 @@ mod tests {
             Error::UnsupportedExtension { extension, format }
                 if extension == "pipe_tables" && format == "docx"
         ));
+    }
+
+    #[test]
+    fn odt_defaults_to_auto_identifiers_only() {
+        let (base, ext) = parse_format_spec("odt").unwrap();
+        assert_eq!(base, "odt");
+        assert!(ext.contains(Extension::AutoIdentifiers));
+        // Empty-paragraph preservation is an opt-in toggle, off by default.
+        assert!(!ext.contains(Extension::EmptyParagraphs));
+    }
+
+    #[test]
+    fn odt_admits_its_declared_extensions_and_rejects_others() {
+        let (_, ext) = parse_format_spec("odt+empty_paragraphs+native_numbering").unwrap();
+        assert!(ext.contains(Extension::EmptyParagraphs));
+        assert!(ext.contains(Extension::NativeNumbering));
+        assert!(ext.contains(Extension::AutoIdentifiers));
+
+        // `styles` and `raw_html` are modeled extensions, but not ones odt accepts.
+        for spec in ["odt+styles", "odt+raw_html"] {
+            let err = parse_format_spec(spec).unwrap_err();
+            assert!(matches!(
+                err,
+                Error::UnsupportedExtension { format, .. } if format == "odt"
+            ));
+        }
     }
 }
