@@ -12,6 +12,7 @@
 //! carries an explicit style property — `<m:sty m:val="p"/>` forces upright, and a styled-alphabet
 //! wrapper (`\mathbb`, `\mathbf`, …) spells out its bold/italic and script variant on every run.
 
+use super::escape::{escape_attribute, escape_text};
 use super::inlines::NegatedBase;
 use super::parse::{
     self, Atom, BinomKind, Body, BraceKind, ColumnAlign, Delim, FracStyle, GridKind, MatrixDelim,
@@ -116,28 +117,6 @@ impl Element {
         out.push_str("</");
         out.push_str(self.name);
         out.push('>');
-    }
-}
-
-fn escape_text(text: &str, out: &mut String) {
-    for c in text.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            other => out.push(other),
-        }
-    }
-}
-
-fn escape_attribute(value: &str, out: &mut String) {
-    for c in value.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '"' => out.push_str("&quot;"),
-            other => out.push(other),
-        }
     }
 }
 

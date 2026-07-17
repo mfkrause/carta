@@ -147,3 +147,12 @@ latex	image-dimensions/image-embedded-jpeg
 latex	image-dimensions/image-embedded-png
 typst	image-dimensions/image-embedded-jpeg
 typst	image-dimensions/image-embedded-png
+
+# Intentional ODT math divergences (see docs/STATUS.md → ODT): every formula embeds as a MathML object
+# part, except two cases whose exact shape the shared math parse tree cannot carry:
+# - frac-styles: `\dfrac`/`\tfrac` collapse to the same fraction node, so the display-style wrapper
+#   that distinguishes them cannot be reconstructed.
+# - modulo: the infix `\bmod`/`\mod` operand is a following sibling, not a captured argument, so it
+#   sits beside the operator group rather than inside it.
+odt	math/frac-styles
+odt	math/modulo

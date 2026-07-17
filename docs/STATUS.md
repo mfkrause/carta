@@ -134,8 +134,96 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 
 ### `epub` — ✅
 
+### `odt` — ✅
+- A field element with cached display text (`text:date`, `text:page-number`, `text:page-count`,
+  `text:author-name`, `text:title`, `text:chapter`, `text:file-name`, `text:sequence-ref`,
+  `text:note-ref`) keeps its cached text as `Str` runs rather than being dropped.
+- A `text:number` cached list-numbering label inside a list-item paragraph leaks into the item text
+  rather than being dropped.
+- A `text:meta` in-content metadata wrapper leaks its displayed prose rather than dropping it.
+- A block element misnested in inline context (`text:list`, a nested `text:p`, a nested `text:a`)
+  leaks its text into the surrounding prose rather than being dropped.
+- A `text:bibliography-mark` inline citation flattens to its display text rather than becoming a
+  `Cite`.
+- `text:ruby` glues the ruby base and ruby text into one run rather than dropping the annotation.
+- `text:continue-numbering="true"` on a following ordered list is ignored, so its numbering restarts
+  at 1 rather than continuing.
+- A `text:numbered-paragraph`'s inner paragraph is lifted into the body rather than the whole
+  numbered paragraph being dropped.
+- An unrecognized `style:num-format` on a numbered list level yields a decimal `OrderedList` rather
+  than falling back to a `BulletList`.
+- An `OrderedList` `text:start-value` that overflows `i32` falls back to start 1 rather than the
+  parsed value.
+- A caption-styled paragraph adjacent to a table is emitted as a plain `Para` rather than a `Div`
+  classed `caption`.
+- A captioned figure keeps the leading `Figure N:` / `Illustration N:` label rather than stripping
+  it.
+- A `text:section`'s content is lifted in place rather than wrapped in a `Div`.
+- Block content (a list, table, or heading) inside a footnote/endnote body is kept rather than
+  reduced to paragraph flow.
+- A `text:h` heading inside a table cell is kept as a `Header` rather than dropped.
+- A table nested inside a table cell is kept rather than dropped.
+- A `table:table` nested directly in a `text:list-item` is lifted into the item rather than dropped.
+- Oversized `table:number-columns-spanned` / `number-rows-spanned` is not clamped, so the grid width
+  is taken as the sum of colspans and rows go ragged.
+- A `text:line-break` inside a preformatted paragraph becomes a newline in the code block rather than
+  a single space.
+- A void inline element (`text:soft-page-break`, `text:bookmark-end`, an image-less `draw:frame`)
+  flanked by whitespace leaves both flanking spaces uncollapsed.
+- A form feed (U+000C) in paragraph text collapses to a break rather than being preserved.
+- A `text:s` with a malformed `text:c` count falls back to one space rather than none.
+- A `draw:image` with `office:binary-data` and no `xlink:href` emits an `Image` with an empty URL
+  rather than being dropped.
+- An image wrapped in a hyperlink (`draw:frame` inside `text:a`) keeps the `Image` inside the `Link`
+  rather than dropping it.
+- A package-relative hyperlink target with a leading `../` is kept verbatim rather than stripped by
+  one level.
+- Nested `text:span` character styles are not normalized: identical nested styles are not coalesced
+  and ancestor styles are not re-applied to inner spans (renders identically).
+- `fo:font-weight` step weights 100–600 are not read as `Strong` (only `bold` and ≥700 are),
+  diverging on the 500/600 semibold steps.
+- An auto-generated heading id for a `text:h` inside a `text:list-item` differs in its dedup suffix.
+- A `text:h` `outline-level` that overflows `i32` falls back to level 1 rather than the parsed value.
+- A `content.xml` automatic style colliding by name with a `styles.xml` shared style overrides it
+  rather than the shared definition winning.
+- `ReaderOptions` are ignored, so `east_asian_line_breaks` has no effect (a soft break between CJK
+  runs is kept).
+- An extension toggle naming any modeled extension is accepted rather than only the odt set, so an
+  inapplicable `+`/`-` flag is silently swallowed rather than rejected.
+- Deeply nested (~62+) `json`→`odt` input is rejected by the shared recursion guard rather than
+  converted.
+- MathML `math:mfenced` loses its visible open/close delimiters (no `\left`/`\right`).
+- A `mathvariant` on `math:mi` / `math:mstyle` is ignored, dropping the styled variant.
+- A `math:mover` accent renders to a different TeX spelling (`\vec`/`\overline` rather than
+  `\overset{\rightarrow}`/`\bar`); same visual.
+- A function-name script base is wrapped in redundant braces (`{\sin}^{2}` rather than `\sin^{2}`).
+- MathML embedded directly as an inline math child of `draw:object` is read as `Math` rather than
+  ignored.
+- Document metadata (`meta.xml`) is not captured.
+- A cross-reference or other unrecognized inline field degrades to its display text; the dynamic
+  target or number is not resolved.
+- A reference-mark point and its end emit nothing; only a reference-mark start becomes an empty
+  `Span` carrying the mark name.
+- A stray block-level `text:note` (a note definition anchored in the body with no reference) is
+  dropped.
+- An unknown block container is made transparent (its children are lifted); soft page breaks,
+  sequence declarations, forms, and tracked-changes markers are dropped.
+- A frame with no image child and no embedded formula (a text box or other embedded object) is
+  dropped rather than represented.
+- Images carry empty alt text; `svg:title` (slugged) becomes the title, `svg:desc` is unused, and
+  width and height pass through as raw length strings.
+- Underline is represented as `Emph` (no `Underline` node); small caps and text-transform are not
+  represented.
+- Tables degrade: column widths and cell alignment are always default, output is a single body with
+  an empty foot and caption, and merged (covered) cells are skipped rather than represented as spans.
+- List numbering outside the recognized set (`i`/`I`/`a`/`A`; suffix `)`/`.`; prefix-and-suffix
+  `()`) falls back to decimal with the default delimiter, and a number level with no `num-format` is
+  treated as a bullet.
+- An `<mspace>` width given in neither an `em` length nor a named math space (`ex`, `px`, and the
+  like) contributes no spacing.
+
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook`,
-`endnotexml`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `odt`, `pod`, `pptx`, `ris`,
+`endnotexml`, `fb2`, `haddock`, `jats`, `mdoc`, `muse`, `pod`, `pptx`, `ris`,
 `t2t`, `textile`, `tikiwiki`, `twiki`, `typst`, `vimwiki`, `xlsx`, `xml`.
 
 ---
@@ -215,6 +303,126 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
   surrounding spacing differs.
 
+### `odt` — ✅
+- Table cell alignment styles are keyed only by (header, alignment), so columns sharing an alignment
+  collapse to one style rather than one per column per section.
+- A table or figure caption whose top-level block is a list, `CodeBlock`, or `Header` is dropped;
+  only `Para`, `Plain`, `Div`, and `BlockQuote` content is emitted.
+- A cell with a row span greater than 1 emits `table:number-rows-spanned` even when a single row
+  remains, extending the span past the table body.
+- With an empty header row the unreferenced heading-parented alignment style is not emitted (only the
+  referenced content-parented one is).
+- Table column style names beyond 26 columns use spreadsheet AA/AB naming rather than a raw ASCII
+  offset past Z.
+- An empty table cell is serialized self-closed rather than as an explicit open/close pair.
+- Table structural markup is emitted compact with no whitespace between structural tags rather than
+  indented.
+- List structural markup is emitted compact with no inter-tag whitespace rather than indented.
+- Tightness is decided from the first list item, so a list whose first item is empty is mis-detected
+  as tight.
+- A non-default ordered or example list reuses the generic `L1` auto-style name rather than a
+  distinct numbering-style name.
+- With two or more non-default numbered lists the automatic list-style definitions are emitted in
+  forward creation order rather than reverse (the references are equivalent).
+- The ordered-list start value is placed on the first `text:list-item` rather than on the
+  `text:list`.
+- `DefinitionList` tightness is decided from the first item and applied to the whole list rather than
+  per item.
+- A `DefinitionList` item with an empty definition body is mis-detected as tight, giving the term a
+  tight style and a spurious empty definition paragraph.
+- Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper levels
+  are not progressively indented.
+- A paragraph whose inlines are all whitespace or all non-opendocument raw is dropped entirely rather
+  than kept as an empty paragraph.
+- With `empty_paragraphs` on, an empty `Plain []` emits an extra empty paragraph rather than being
+  suppressed.
+- A paragraph following a dropped non-opendocument `RawBlock`, or a flowing paragraph after a
+  `Figure`, is styled `First_20_paragraph` rather than `Text_20_body` (renders identically).
+- The first flowing paragraph inside a table cell is not treated as section-opening, so after a
+  `DisplayMath` split its leading text gets `Text_20_body` rather than `First_20_paragraph`.
+- When a `DisplayMath` breaks a paragraph inside a fixed-style container (blockquote, table cell,
+  definition), the split formula paragraph uses the flowing body style rather than the container
+  style.
+- An empty `CodeBlock` emits a stray empty preformatted paragraph rather than nothing.
+- A `LineBlock` whose only content is empty lines emits a spurious empty paragraph rather than
+  nothing.
+- An empty `Note []` emits a stray empty footnote paragraph rather than a self-closed note body.
+- A footnote nested inside another footnote is numbered sequentially rather than reusing the outer
+  counter.
+- A `Figure` with no caption uses the `FigureWithCaption` style rather than the caption-less `Figure`
+  style.
+- Header levels outside 1–6 clamp the style name (level 7/8 → `Heading_20_6`, level 0 →
+  `Heading_20_1`) while keeping the outline level.
+- `native_numbering` is not implemented, so figure and table captions emit no `text:sequence`
+  numbering field.
+- A `Link` with an empty target gets a `../` prefix rather than an empty `xlink:href`.
+- `xrefs_name` / `xrefs_number` are unmodeled, so requesting either aborts the conversion rather than
+  rewriting the internal link to a reference field.
+- The `--toc` `text:table-of-content` carries a spurious `text:name="Table of Contents1"` attribute.
+- A `Span` or `Div` carrying a `lang` does not emit an `fo:language` text style; the run is emitted
+  plain.
+- A `Span` with class `mark` is not mapped to the highlighted character style; its text is emitted
+  plain.
+- A `RawInline`/`RawBlock` with the non-canonical format token `odt` is passed through (only
+  `opendocument` should pass).
+- An internal or trailing run of two or more verbatim spaces in `Code`/`CodeBlock` is emitted as a
+  single `text:s` covering the whole run rather than one literal space plus a `text:s` for the
+  remainder.
+- A double-quote in XML text content is emitted literally rather than as `&quot;`.
+- A `pHYs` density chunk is ignored, so a non-72-dpi PNG renders at the wrong physical size (only
+  JPEG JFIF density is read).
+- A degenerate 1×1 PNG is sized at its intrinsic 1pt rather than the 100pt fallback.
+- A pathological (negative or non-finite) image width or height is emitted verbatim rather than
+  falling back to the intrinsic size.
+- A `data:` image with an empty or absent media type is stored with a derived `.plain` extension
+  rather than none, and an undecodable-base64 or `text/plain` data URI drops the image.
+- A title-block author given as a YAML map is dropped rather than stringified into an author
+  paragraph.
+- A title-block metadata field authored as a YAML sequence joins its items with a space rather than
+  concatenating them.
+- Package XML serialization differs: the XML-declaration encoding case, the manifest file-entry
+  order, and attribute order across the manifest, metadata, and formula parts.
+- An empty `<office:scripts/>` element is always emitted rather than omitted.
+- Extensions outside the odt set are accepted silently as no-ops rather than rejected with an error
+  and a non-zero exit.
+- Attribute ordering inside a combined-decoration text style groups per decoration rather than all
+  `fo:*` attributes first.
+- When math fails to convert, the fallback emits the bare TeX and drops its `$` delimiters.
+- Bare fence delimiters `( ) [ ] { } |` are emitted as plain `math:mo` with no `stretchy="false"`,
+  so they grow to the enclosed height.
+- Math accents duplicate `accent="true"` onto the `mover` and use a combining mark rather than the
+  spacing accent glyph on the `mo` alone.
+- A named math function (`\sin`, `\log`, and the like) emits a bare `mi` with no
+  `mathvariant="normal"` and no function-application operator.
+- `\operatorname{…}` is emitted as `mtext mathvariant="normal"` rather than `mi mathvariant="normal"`.
+- Some math symbols are placed in the wrong MathML element class (`mi` vs `mo`) for logic, binary,
+  and relation operators.
+- An uppercase Greek letter emits a bare `mi` with no `mathvariant="normal"`, rendering slanted
+  rather than upright.
+- The `fr1`/`fr2` formula graphic styles are emitted only when a formula is present rather than
+  always.
+- `\dfrac` and `\tfrac` embed as a plain fraction without the display-style wrapper that would set
+  their size apart.
+- The infix `\bmod`/`\mod` operand sits beside the `mod` operator group rather than inside it.
+- `--number-sections` is a no-op: headings carry no computed section numbers.
+- Syntax highlighting is not applied: code blocks emit plain preformatted lines with no per-token
+  styling.
+- Image intrinsic sizing reads only PNG, GIF, and JPEG pixel dimensions; other formats fall back to
+  attribute-supplied or default sizing under a fixed DPI.
+- Table relative column widths are approximated as a percentage rel-width plus rounded integer
+  proportions.
+- Small caps and underline are emitted via generated automatic text styles.
+- Custom styles (via the `styles` extension) reference the named style only; their definitions must
+  come from an external reference document.
+- `styles.xml` is authored with a neutral style-name scheme; no reference-document engine ships.
+- Metadata mapping is limited to title, subtitle, author, and date; arbitrary keys are not emitted.
+- The table of contents is a static index shell; consumers regenerate its entries on open.
+- Line blocks render as a single paragraph joined by hard line breaks.
+- `RawBlock` / `RawInline` pass through only for the `opendocument` and `odt` targets; other target
+  formats are dropped.
+- Writer options with no ODT analogue (wrap and column width, highlight theme, ascii-only) are
+  silently no-ops.
+
 ### `rtf` — ✅
 - A table nested inside another table's cell carries a single `\intbl` on its cell paragraphs
   regardless of nesting depth, so the inner table is not set off from its container.
@@ -225,7 +433,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`,
 `csljson`, `docbook` (+ `4`, `5`), `dzslides`, `fb2`, `haddock`,
 `icml`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`,
-`odt`, `opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
+`opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`, `tei`, `texinfo`, `textile`,
 `vimdoc`, `xml`, `xwiki`, `zimwiki`.
 
 ---

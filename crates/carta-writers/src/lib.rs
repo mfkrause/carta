@@ -87,6 +87,8 @@ pub mod markdown;
 pub mod mediawiki;
 #[cfg(feature = "native")]
 pub mod native;
+#[cfg(feature = "odt")]
+pub mod odt;
 #[cfg(feature = "opml")]
 pub mod opml;
 #[cfg(feature = "org")]
@@ -141,6 +143,8 @@ pub use markdown::{
 pub use mediawiki::MediawikiWriter;
 #[cfg(feature = "native")]
 pub use native::NativeWriter;
+#[cfg(feature = "odt")]
+pub use odt::OdtWriter;
 #[cfg(feature = "opml")]
 pub use opml::OpmlWriter;
 #[cfg(feature = "org")]

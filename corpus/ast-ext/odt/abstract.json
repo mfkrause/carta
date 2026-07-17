@@ -1,0 +1,120 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {
+    "title": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "The"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "Title"
+        }
+      ]
+    },
+    "author": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Jane"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "Doe"
+        }
+      ]
+    },
+    "abstract": {
+      "t": "MetaBlocks",
+      "c": [
+        {
+          "t": "Para",
+          "c": [
+            {
+              "t": "Str",
+              "c": "First"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "paragraph"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "with"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Emph",
+              "c": [
+                {
+                  "t": "Str",
+                  "c": "emphasis"
+                }
+              ]
+            },
+            {
+              "t": "Str",
+              "c": "."
+            }
+          ]
+        },
+        {
+          "t": "Para",
+          "c": [
+            {
+              "t": "Str",
+              "c": "Second"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "paragraph."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Body"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "paragraph."
+        }
+      ]
+    }
+  ]
+}

@@ -48,6 +48,9 @@ fn default_extensions(base: &str) -> Extensions {
         // custom styles, native figure/table numbering, and empty-paragraph preservation among them —
         // are opt-in `+` toggles.
         "docx" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        // Writing ODT assigns header identifiers by default; empty-paragraph preservation and custom
+        // styles are opt-in `+` toggles.
+        "odt" => Extensions::from_list(&[Extension::AutoIdentifiers]),
         // Org assigns header identifiers, recognizes `[cite:@key]` citations, and reads task-list
         // checkboxes by default; `smart`, `fancy_lists`, and the alternate identifier shapes are
         // opt-in toggles.
