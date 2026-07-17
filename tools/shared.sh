@@ -17,6 +17,6 @@ oracle_norm() {
   case "$1" in
     html | html5 | html4 | revealjs) echo "--mathjax" ;;
     epub | epub2 | epub3) echo "--mathjax" ;;
-    docx | latex | beamer) echo "" ;;
+    docx | odt | latex | beamer) echo "" ;;
   esac
 }

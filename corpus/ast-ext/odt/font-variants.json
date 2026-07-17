@@ -1,0 +1,63 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\mathbb{Z} \\subset \\mathbb{R}"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\mathcal{L} = \\mathbf{A}"
+          ]
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "InlineMath"
+            },
+            "\\mathfrak{g} + \\mathrm{d}x"
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Math",
+          "c": [
+            {
+              "t": "DisplayMath"
+            },
+            "\\mathsf{x}_{7} + \\mathtt{z} = \\mathbf{\\Gamma} + \\mathbf{2} + \\mathit{h}"
+          ]
+        }
+      ]
+    }
+  ]
+}

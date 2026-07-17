@@ -18,7 +18,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-READABLE="commonmark html native json docx epub"
+READABLE="commonmark html native json docx epub odt"
 WRITABLE="html native json mediawiki rtf"
 
 in_set() {

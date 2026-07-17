@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/odt.rs
+expression: output
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:math="http://www.w3.org/1998/Math/MathML" office:version="1.3">
+<office:meta>
+<meta:generator>carta</meta:generator>
+<dc:title>Report</dc:title>
+<dc:description>A short summary.</dc:description>
+<dc:subject>Testing</dc:subject>
+<meta:keyword>alpha, beta</meta:keyword>
+<dc:language>de-DE</dc:language>
+<meta:initial-creator>Ada Lovelace</meta:initial-creator>
+<dc:creator>Ada Lovelace</dc:creator>
+<meta:creation-date>1970-01-01T00:00:01Z</meta:creation-date>
+<dc:date>1970-01-01T00:00:01Z</dc:date>
+<meta:user-defined meta:name="company" meta:value-type="string">ACME &amp; Co</meta:user-defined>
+<meta:user-defined meta:name="date" meta:value-type="string">2024-05-01</meta:user-defined>
+<meta:user-defined meta:name="subtitle" meta:value-type="string">Q3 Results</meta:user-defined>
+</office:meta>
+</office:document-meta>
+<!-- styles.xml default-style -->
+<style:default-style style:family="paragraph">
+<style:paragraph-properties fo:hyphenation-ladder-count="no-limit" style:line-break="strict" style:tab-stop-distance="0.5in" />
+<style:text-properties style:font-name="Times New Roman" fo:font-size="12pt" fo:language="de" fo:country="DE" />
+</style:default-style>

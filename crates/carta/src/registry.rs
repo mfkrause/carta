@@ -105,6 +105,7 @@ format_dispatch! {
     "read-rtf" => "rtf" => bytes carta_readers::RtfReader;
     "read-docx" => "docx" => bytes carta_readers::DocxReader;
     "read-epub" => "epub" => bytes carta_readers::EpubReader;
+    "read-odt" => "odt" => bytes carta_readers::OdtReader;
 }
 
 format_dispatch! {
@@ -143,6 +144,7 @@ format_dispatch! {
     "write-epub" => "epub" | "epub3" => bytes carta_writers::Epub3Writer;
     "write-epub" => "epub2" => bytes carta_writers::Epub2Writer;
     "write-docx" => "docx" => bytes carta_writers::DocxWriter;
+    "write-odt" => "odt" => bytes carta_writers::OdtWriter;
     "write-rtf" => "rtf" => text carta_writers::RtfWriter;
 }
 

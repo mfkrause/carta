@@ -1,0 +1,146 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {
+    "title": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Report"
+        }
+      ]
+    },
+    "author": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Ada"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "Lovelace"
+        }
+      ]
+    },
+    "description": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "A"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "short"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "summary."
+        }
+      ]
+    },
+    "subject": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Testing"
+        }
+      ]
+    },
+    "keywords": {
+      "t": "MetaList",
+      "c": [
+        {
+          "t": "MetaInlines",
+          "c": [
+            {
+              "t": "Str",
+              "c": "alpha"
+            }
+          ]
+        },
+        {
+          "t": "MetaInlines",
+          "c": [
+            {
+              "t": "Str",
+              "c": "beta"
+            }
+          ]
+        }
+      ]
+    },
+    "lang": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "de-DE"
+        }
+      ]
+    },
+    "subtitle": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Q3"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "Results"
+        }
+      ]
+    },
+    "date": {
+      "t": "MetaInlines",
+      "c": [
+        {
+          "t": "Str",
+          "c": "2024-05-01"
+        }
+      ]
+    },
+    "company": {
+      "t": "MetaString",
+      "c": "ACME & Co"
+    }
+  },
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Body"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "paragraph."
+        }
+      ]
+    }
+  ]
+}

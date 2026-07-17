@@ -3,7 +3,7 @@
 #
 # Usage:
 #   run.sh <surface> [arg]   run one surface (reader|writer|e2e|roundtrip|commands|extensions|
-#                            templates|standalone|media|epub|docx), optional arg narrows it (a
+#                            templates|standalone|media|epub|docx|odt), optional arg narrows it (a
 #                            format, target, or group)
 #   run.sh all               run every surface
 #
@@ -14,7 +14,7 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub docx highlight"
+SURFACES="reader writer e2e roundtrip commands extensions templates standalone media epub docx odt highlight"
 
 # Mint one scratch directory per top-level invocation and export it so every surface child (run as a
 # separate process below) shares the same dir — and thus the extracted-spec cache reader/e2e reuse.

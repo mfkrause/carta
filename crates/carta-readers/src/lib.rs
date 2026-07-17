@@ -19,7 +19,8 @@ mod entities;
     feature = "org",
     feature = "dokuwiki",
     feature = "mediawiki",
-    feature = "docx"
+    feature = "docx",
+    feature = "odt"
 ))]
 mod heading_ids;
 #[cfg(any(feature = "commonmark", feature = "html"))]
@@ -31,11 +32,13 @@ mod inline_scan;
     feature = "rtf"
 ))]
 mod inline_text;
+#[cfg(any(feature = "html", feature = "odt"))]
+mod mathml;
 #[cfg(any(feature = "ipynb", feature = "rtf"))]
 mod numeric;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
-#[cfg(any(feature = "docx", feature = "epub"))]
+#[cfg(any(feature = "docx", feature = "epub", feature = "odt"))]
 mod xml;
 
 #[cfg(feature = "commonmark")]
@@ -66,6 +69,8 @@ pub mod mediawiki;
 pub mod metadata;
 #[cfg(feature = "native")]
 pub mod native;
+#[cfg(feature = "odt")]
+pub mod odt;
 #[cfg(feature = "opml")]
 pub mod opml;
 #[cfg(feature = "org")]
@@ -103,6 +108,8 @@ pub use man::ManReader;
 pub use mediawiki::MediawikiReader;
 #[cfg(feature = "native")]
 pub use native::NativeReader;
+#[cfg(feature = "odt")]
+pub use odt::OdtReader;
 #[cfg(feature = "opml")]
 pub use opml::OpmlReader;
 #[cfg(feature = "org")]

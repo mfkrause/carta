@@ -44,6 +44,7 @@ impl Element {
     /// The value of the attribute with exactly the qualified name `qualified`, falling back to any
     /// attribute sharing its local part `key`. Used for relationship references (`r:id`, `r:embed`)
     /// whose namespace prefix is conventional but whose local name is unambiguous in context.
+    #[cfg(feature = "docx")]
     pub(crate) fn attr_qualified(&self, qualified: &str, key: &str) -> Option<&str> {
         self.attrs
             .iter()
@@ -383,6 +384,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "docx")]
     #[test]
     fn attr_qualified_prefers_exact_then_local() {
         let root = parse_tolerant(br#"<w:blip r:embed="rid7" o:other="x"/>"#, 3072);
