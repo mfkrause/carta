@@ -19,6 +19,25 @@ use super::symbols::{self, Alphabet};
 /// a `BTreeMap`, so the result is deterministic.
 static GLYPH_TYPST: LazyLock<BTreeMap<char, &'static str>> = LazyLock::new(build_glyph_typst);
 
+/// Name-keyed view of [`SYMBOL_TYPST`] for by-name lookups. On a duplicate name the first table
+/// entry wins, so the map answers exactly as a linear scan of the slice would.
+static SYMBOL_TYPST_MAP: LazyLock<BTreeMap<&'static str, &'static str>> = LazyLock::new(|| {
+    let mut map = BTreeMap::new();
+    for (name, typst) in SYMBOL_TYPST {
+        map.entry(*name).or_insert(*typst);
+    }
+    map
+});
+
+/// Name-keyed view of [`GREEK_TYPST`], with the same first-entry-wins semantics as [`SYMBOL_TYPST_MAP`].
+static GREEK_TYPST_MAP: LazyLock<BTreeMap<&'static str, &'static str>> = LazyLock::new(|| {
+    let mut map = BTreeMap::new();
+    for (name, typst) in GREEK_TYPST {
+        map.entry(*name).or_insert(*typst);
+    }
+    map
+});
+
 fn build_glyph_typst() -> BTreeMap<char, &'static str> {
     let mut map = BTreeMap::new();
     let mut insert = |glyph: &str, typst: &'static str| {
@@ -1306,10 +1325,7 @@ fn spacing_str(name: &str) -> Option<&'static str> {
 }
 
 fn greek_str(name: &str) -> Option<&'static str> {
-    GREEK_TYPST
-        .iter()
-        .find(|(n, _)| *n == name)
-        .map(|(_, t)| *t)
+    GREEK_TYPST_MAP.get(name).copied()
 }
 
 fn function_str(name: &str) -> Option<&'static str> {
@@ -1353,10 +1369,7 @@ fn function_str(name: &str) -> Option<&'static str> {
 
 /// The Typst name for a TeX math symbol command.
 fn typst_symbol(name: &str) -> Option<&'static str> {
-    SYMBOL_TYPST
-        .iter()
-        .find(|(n, _)| *n == name)
-        .map(|(_, t)| *t)
+    SYMBOL_TYPST_MAP.get(name).copied()
 }
 
 /// The Typst name for each TeX math symbol command, as an iterable table. Both the forward
@@ -1970,3 +1983,32 @@ pub(super) const GREEK_TYPST: &[(&str, &str)] = &[
     ("uppsi", "psi"),
     ("upomega", "omega"),
 ];
+
+#[cfg(test)]
+mod lookup_tests {
+    use super::{GREEK_TYPST, GREEK_TYPST_MAP, SYMBOL_TYPST, SYMBOL_TYPST_MAP};
+
+    fn linear_find<'a>(table: &[(&'a str, &'a str)], name: &str) -> Option<&'a str> {
+        table.iter().find(|(n, _)| *n == name).map(|(_, t)| *t)
+    }
+
+    #[test]
+    fn symbol_map_matches_linear_find() {
+        for (name, _) in SYMBOL_TYPST {
+            assert_eq!(
+                SYMBOL_TYPST_MAP.get(name).copied(),
+                linear_find(SYMBOL_TYPST, name)
+            );
+        }
+    }
+
+    #[test]
+    fn greek_map_matches_linear_find() {
+        for (name, _) in GREEK_TYPST {
+            assert_eq!(
+                GREEK_TYPST_MAP.get(name).copied(),
+                linear_find(GREEK_TYPST, name)
+            );
+        }
+    }
+}
