@@ -405,15 +405,10 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   attribute-supplied or default sizing under a fixed DPI.
 - Table relative column widths are approximated as a percentage rel-width plus rounded integer
   proportions.
-- Small caps and underline are emitted via generated automatic text styles.
 - Custom styles (via the `styles` extension) reference the named style only; their definitions must
   come from an external reference document.
 - `styles.xml` is authored with a neutral style-name scheme; no reference-document engine ships.
 - Metadata mapping is limited to title, subtitle, author, and date; arbitrary keys are not emitted.
-- The table of contents is a static index shell; consumers regenerate its entries on open.
-- Line blocks render as a single paragraph joined by hard line breaks.
-- `RawBlock` / `RawInline` pass through only for the `opendocument` and `odt` targets; other target
-  formats are dropped.
 - Writer options with no ODT analogue (wrap and column width, highlight theme, ascii-only) are
   silently no-ops.
 
