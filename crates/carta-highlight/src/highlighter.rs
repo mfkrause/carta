@@ -32,7 +32,7 @@ const REGEX_BACKTRACK_LIMIT: usize = 1_000_000;
 pub struct Highlighter {
     registry: Registry,
     regexes: RefCell<BTreeMap<RegexKey, Option<Rc<Regex>>>>,
-    keyword_sets: RefCell<BTreeMap<(String, String), Rc<KeywordSet>>>,
+    keyword_sets: RefCell<BTreeMap<String, BTreeMap<String, Rc<KeywordSet>>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -111,8 +111,12 @@ impl Highlighter {
     }
 
     fn keyword_set(&self, grammar: &Rc<Grammar>, list: &str) -> Rc<KeywordSet> {
-        let cache_key = (grammar.name.clone(), list.to_string());
-        if let Some(set) = self.keyword_sets.borrow().get(&cache_key) {
+        if let Some(set) = self
+            .keyword_sets
+            .borrow()
+            .get(grammar.name.as_str())
+            .and_then(|lists| lists.get(list))
+        {
             return Rc::clone(set);
         }
         let mut words = BTreeSet::new();
@@ -130,7 +134,9 @@ impl Highlighter {
         });
         self.keyword_sets
             .borrow_mut()
-            .insert(cache_key, Rc::clone(&set));
+            .entry(grammar.name.clone())
+            .or_default()
+            .insert(list.to_string(), Rc::clone(&set));
         set
     }
 
@@ -298,22 +304,19 @@ impl<'a> Tokenizer<'a> {
         let Some(ctx) = grammar.contexts.get(context) else {
             return Step::Stop;
         };
-        let ctx_attr = ctx.attribute.clone();
-        let rules = ctx.rules.clone();
-        for rule in &rules {
-            if let Some(result) = self.try_rule(rule, &grammar, &ctx_attr, 0) {
+        let ctx_attr: &str = &ctx.attribute;
+        for rule in &ctx.rules {
+            if let Some(result) = self.try_rule(rule, &grammar, ctx_attr, 0) {
                 return Step::Emitted(result);
             }
         }
 
         // Nothing matched: fall through or consume ordinary text.
-        let (fallthrough, fallthrough_ctx) = match grammar.contexts.get(context) {
-            Some(ctx) => (ctx.fallthrough, ctx.fallthrough_context.clone()),
-            None => return Step::Stop,
-        };
+        let fallthrough = ctx.fallthrough;
+        let fallthrough_ctx = &ctx.fallthrough_context;
         let active = fallthrough && !(fallthrough_ctx.pops == 0 && fallthrough_ctx.push.is_none());
         if active {
-            self.apply_switch(&fallthrough_ctx, &grammar);
+            self.apply_switch(fallthrough_ctx, &grammar);
             Step::Emitted(None)
         } else if fallthrough {
             self.apply_switch(
@@ -327,7 +330,7 @@ impl<'a> Tokenizer<'a> {
         } else {
             let span = self.normal_chunk();
             let text = self.consume(span);
-            let kind = kind_for(&grammar, &ctx_attr);
+            let kind = kind_for(&grammar, ctx_attr);
             Step::Emitted(Some(Token::new(kind, text)))
         }
     }
@@ -418,10 +421,9 @@ impl<'a> Tokenizer<'a> {
         }
         let (grammar, context) = self.resolve_target(target, owner)?;
         let ctx = grammar.contexts.get(context)?;
-        let inner_attr = ctx.attribute.clone();
-        let rules = ctx.rules.clone();
-        for rule in &rules {
-            if let Some(result) = self.try_rule(rule, &grammar, &inner_attr, depth + 1) {
+        let inner_attr: &str = &ctx.attribute;
+        for rule in &ctx.rules {
+            if let Some(result) = self.try_rule(rule, &grammar, inner_attr, depth + 1) {
                 if include_attribute
                     && let Some(tok) = &result
                     && tok.kind == TokenKind::Normal
@@ -1101,6 +1103,38 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
     use super::*;
 
+    const RUST_SNIPPET: &str = r#"use std::collections::HashMap;
+
+/// A small example struct.
+pub struct Point {
+    x: f64,
+    y: f64,
+}
+
+impl Point {
+    pub fn new(x: f64, y: f64) -> Self {
+        Point { x, y }
+    }
+
+    fn magnitude(&self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+}
+
+fn main() {
+    let mut counts: HashMap<String, u32> = HashMap::new();
+    let p = Point::new(3.0, 4.0);
+    let label = "distance";
+    let n = 0xFF;
+    counts.insert(label.to_string(), n);
+    // Print the magnitude.
+    println!("{} = {}", label, p.magnitude());
+    for i in 0..10 {
+        counts.insert(format!("k{}", i), i as u32);
+    }
+}
+"#;
+
     fn kinds(line: &SourceLine) -> Vec<(TokenKind, &str)> {
         line.iter().map(|t| (t.kind, t.text.as_str())).collect()
     }
@@ -1159,6 +1193,233 @@ mod tests {
         assert_eq!(match_float(".23"), Some(3));
         assert_eq!(match_float("5"), None);
         assert_eq!(match_float("5.2.3"), None);
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn rust_snippet_token_stream_is_stable() {
+        use TokenKind::{
+            Comment, ControlFlow, DataType, DecVal, Keyword, Normal, Operator, Preprocessor, String,
+        };
+        let hl = Highlighter::new();
+        let lines = hl.highlight("rust", RUST_SNIPPET).expect("rust is known");
+        let actual: Vec<Vec<(TokenKind, &str)>> = lines.iter().map(kinds).collect();
+        let expected: Vec<Vec<(TokenKind, &str)>> = vec![
+            vec![
+                (Keyword, "use"),
+                (Normal, " "),
+                (Preprocessor, "std::collections::"),
+                (Normal, "HashMap"),
+                (Operator, ";"),
+            ],
+            vec![],
+            vec![(Comment, "/// A small example struct.")],
+            vec![
+                (Keyword, "pub"),
+                (Normal, " "),
+                (Keyword, "struct"),
+                (Normal, " Point "),
+                (Operator, "{"),
+            ],
+            vec![
+                (Normal, "    x"),
+                (Operator, ":"),
+                (Normal, " "),
+                (DataType, "f64"),
+                (Operator, ","),
+            ],
+            vec![
+                (Normal, "    y"),
+                (Operator, ":"),
+                (Normal, " "),
+                (DataType, "f64"),
+                (Operator, ","),
+            ],
+            vec![(Operator, "}")],
+            vec![],
+            vec![(Keyword, "impl"), (Normal, " Point "), (Operator, "{")],
+            vec![
+                (Normal, "    "),
+                (Keyword, "pub"),
+                (Normal, " "),
+                (Keyword, "fn"),
+                (Normal, " new(x"),
+                (Operator, ":"),
+                (Normal, " "),
+                (DataType, "f64"),
+                (Operator, ","),
+                (Normal, " y"),
+                (Operator, ":"),
+                (Normal, " "),
+                (DataType, "f64"),
+                (Normal, ") "),
+                (Operator, "->"),
+                (Normal, " "),
+                (DataType, "Self"),
+                (Normal, " "),
+                (Operator, "{"),
+            ],
+            vec![
+                (Normal, "        Point "),
+                (Operator, "{"),
+                (Normal, " x"),
+                (Operator, ","),
+                (Normal, " y "),
+                (Operator, "}"),
+            ],
+            vec![(Normal, "    "), (Operator, "}")],
+            vec![],
+            vec![
+                (Normal, "    "),
+                (Keyword, "fn"),
+                (Normal, " magnitude("),
+                (Operator, "&"),
+                (Keyword, "self"),
+                (Normal, ") "),
+                (Operator, "->"),
+                (Normal, " "),
+                (DataType, "f64"),
+                (Normal, " "),
+                (Operator, "{"),
+            ],
+            vec![
+                (Normal, "        ("),
+                (Keyword, "self"),
+                (Operator, "."),
+                (Normal, "x "),
+                (Operator, "*"),
+                (Normal, " "),
+                (Keyword, "self"),
+                (Operator, "."),
+                (Normal, "x "),
+                (Operator, "+"),
+                (Normal, " "),
+                (Keyword, "self"),
+                (Operator, "."),
+                (Normal, "y "),
+                (Operator, "*"),
+                (Normal, " "),
+                (Keyword, "self"),
+                (Operator, "."),
+                (Normal, "y)"),
+                (Operator, "."),
+                (Normal, "sqrt()"),
+            ],
+            vec![(Normal, "    "), (Operator, "}")],
+            vec![(Operator, "}")],
+            vec![],
+            vec![(Keyword, "fn"), (Normal, " main() "), (Operator, "{")],
+            vec![
+                (Normal, "    "),
+                (Keyword, "let"),
+                (Normal, " "),
+                (Keyword, "mut"),
+                (Normal, " counts"),
+                (Operator, ":"),
+                (Normal, " HashMap"),
+                (Operator, "<"),
+                (DataType, "String"),
+                (Operator, ","),
+                (Normal, " "),
+                (DataType, "u32"),
+                (Operator, ">"),
+                (Normal, " "),
+                (Operator, "="),
+                (Normal, " "),
+                (Preprocessor, "HashMap::"),
+                (Normal, "new()"),
+                (Operator, ";"),
+            ],
+            vec![
+                (Normal, "    "),
+                (Keyword, "let"),
+                (Normal, " p "),
+                (Operator, "="),
+                (Normal, " "),
+                (Preprocessor, "Point::"),
+                (Normal, "new("),
+                (DecVal, "3.0"),
+                (Operator, ","),
+                (Normal, " "),
+                (DecVal, "4.0"),
+                (Normal, ")"),
+                (Operator, ";"),
+            ],
+            vec![
+                (Normal, "    "),
+                (Keyword, "let"),
+                (Normal, " label "),
+                (Operator, "="),
+                (Normal, " "),
+                (String, "\"distance\""),
+                (Operator, ";"),
+            ],
+            vec![
+                (Normal, "    "),
+                (Keyword, "let"),
+                (Normal, " n "),
+                (Operator, "="),
+                (Normal, " "),
+                (DecVal, "0xFF"),
+                (Operator, ";"),
+            ],
+            vec![
+                (Normal, "    counts"),
+                (Operator, "."),
+                (Normal, "insert(label"),
+                (Operator, "."),
+                (Normal, "to_string()"),
+                (Operator, ","),
+                (Normal, " n)"),
+                (Operator, ";"),
+            ],
+            vec![(Normal, "    "), (Comment, "// Print the magnitude.")],
+            vec![
+                (Normal, "    "),
+                (Preprocessor, "println!"),
+                (Normal, "("),
+                (String, "\"{} = {}\""),
+                (Operator, ","),
+                (Normal, " label"),
+                (Operator, ","),
+                (Normal, " p"),
+                (Operator, "."),
+                (Normal, "magnitude())"),
+                (Operator, ";"),
+            ],
+            vec![
+                (Normal, "    "),
+                (ControlFlow, "for"),
+                (Normal, " i "),
+                (Keyword, "in"),
+                (Normal, " "),
+                (DecVal, "0"),
+                (Operator, ".."),
+                (DecVal, "10"),
+                (Normal, " "),
+                (Operator, "{"),
+            ],
+            vec![
+                (Normal, "        counts"),
+                (Operator, "."),
+                (Normal, "insert("),
+                (Preprocessor, "format!"),
+                (Normal, "("),
+                (String, "\"k{}\""),
+                (Operator, ","),
+                (Normal, " i)"),
+                (Operator, ","),
+                (Normal, " i "),
+                (Keyword, "as"),
+                (Normal, " "),
+                (DataType, "u32"),
+                (Normal, ")"),
+                (Operator, ";"),
+            ],
+            vec![(Normal, "    "), (Operator, "}")],
+            vec![(Operator, "}")],
+        ];
+        assert_eq!(actual, expected);
     }
 
     #[test]
