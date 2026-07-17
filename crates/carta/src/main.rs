@@ -462,12 +462,18 @@ fn default_template_extension(to_base: &str) -> &str {
 /// Whether the target format packs the resources a document references into its output, so those
 /// resources must be resolved off disk before rendering.
 fn embeds_resources(to: &str) -> bool {
-    to.starts_with("epub") || is_docx(to) || is_rtf(to)
+    to.starts_with("epub") || is_docx(to) || is_rtf(to) || is_odt(to)
 }
 
 /// Whether the target format is DOCX (any extension toggles follow the base name).
 fn is_docx(to: &str) -> bool {
     to.starts_with("docx")
+}
+
+/// Whether the target format is ODT (any extension toggles follow the base name). ODT embeds the
+/// images it references, so their bytes are gathered off disk before rendering.
+fn is_odt(to: &str) -> bool {
+    to.starts_with("odt")
 }
 
 /// Whether the target format is RTF (any extension toggles follow the base name). RTF embeds the

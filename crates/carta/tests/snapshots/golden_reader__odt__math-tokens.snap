@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"a \\land b \\vee c"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"a \\cup b \\cap c"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"a \\subset b"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"\\forall x\\partial y"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"\\bigcup a"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"\\text{50\\% x\\_1}"]}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"a\\text{“lit”}b"]}]}]}

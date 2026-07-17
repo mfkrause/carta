@@ -150,6 +150,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "odt"
+path = "fuzz_targets/odt.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 debug = 1
 

@@ -14,7 +14,29 @@
 //!
 //! Both entry points are panic-free and bounded against pathological nesting.
 
+// Markup escaping shared by the two XML math backends; live whenever either backend is reachable.
+#[cfg_attr(not(any(feature = "docx", feature = "odt")), allow(dead_code))]
+mod escape;
+// The inline backend lowers the expression tree into a writer-agnostic inline list; the text writers
+// render it, but a build with only a container writer (which lowers to MathML or OMML instead)
+// compiles it without calling it.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "markdown",
+        feature = "gfm",
+        feature = "plain",
+        feature = "man",
+        feature = "jira",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 mod inlines;
+// The MathML backend lowers the same expression tree into Presentation MathML for the formula
+// objects the `OpenDocument` writer embeds; builds without that writer compile it but never call it.
+#[cfg_attr(not(feature = "odt"), allow(dead_code))]
+mod mathml;
 // The OMML backend lowers the same expression tree into Office Math markup for the word-processing
 // writer; builds without that writer compile it but never call it.
 #[cfg_attr(not(feature = "docx"), allow(dead_code))]
@@ -27,6 +49,18 @@ use carta_ast::Inline;
 
 /// Convert TeX math source to a writer-agnostic inline tree, or `None` when the expression contains
 /// a construct that cannot be linearised into inlines.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "markdown",
+        feature = "gfm",
+        feature = "plain",
+        feature = "man",
+        feature = "jira",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn to_inlines(tex: &str) -> Option<Vec<Inline>> {
     let atoms = parse::parse(tex)?;
     if is_bare_binary_operator(&atoms) {
@@ -47,6 +81,14 @@ pub(crate) fn to_inlines(tex: &str) -> Option<Vec<Inline>> {
 #[cfg_attr(not(feature = "docx"), allow(dead_code))]
 pub(crate) fn to_omml(tex: &str, display: bool) -> Option<String> {
     omml::to_omml(tex, display)
+}
+
+/// Convert TeX math source to a Presentation MathML `<math>` element for an embedded formula object:
+/// `display="inline"` for inline math, `display="block"` for display math. Returns `None` only when
+/// the source cannot be parsed, so the caller emits the verbatim source instead.
+#[cfg_attr(not(feature = "odt"), allow(dead_code))]
+pub(crate) fn to_mathml(tex: &str, display: bool) -> Option<String> {
+    mathml::to_mathml(tex, display)
 }
 
 /// Convert TeX math source to Typst math markup (the inner content, no surrounding `$`), or `None`
@@ -95,6 +137,18 @@ pub(crate) struct TypstMath {
 /// trailing control-space has nothing to set its space against, so the expression is emitted verbatim
 /// rather than ending on a dangling space. A control-space that precedes further content (`\ x`,
 /// `a\ b`) keeps its space and is unaffected; the dimensioned `\hspace`/`\mspace` forms are distinct.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "markdown",
+        feature = "gfm",
+        feature = "plain",
+        feature = "man",
+        feature = "jira",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 fn ends_with_control_space(atoms: &[parse::Atom]) -> bool {
     matches!(
         atoms.last(),
