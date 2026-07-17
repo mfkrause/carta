@@ -267,7 +267,7 @@ fn nucleus(body: &Body, display: bool, depth: usize) -> Vec<Node> {
         }
         Body::Sqrt(index, radicand) => vec![radical(index.as_deref(), radicand, display, depth)],
         Body::Accent(name, base) => vec![accent(name, base, display, depth)],
-        Body::Text(name, pieces) => vec![text(name, pieces)],
+        Body::Text(name, pieces) => vec![text(name, pieces, depth)],
         Body::Binom(_, top, bottom) => vec![binomial(top, bottom, display, depth)],
         Body::Matrix(delimiter, rows) => vec![matrix(*delimiter, rows, display, depth)],
         Body::Grid(kind, aligns, rows) => vec![grid(*kind, aligns, rows, display, depth)],
@@ -639,17 +639,33 @@ fn bold_greek(ch: char) -> Option<String> {
     char::from_u32(mapped).map(|c| c.to_string())
 }
 
-fn text(name: &str, pieces: &[TextPiece]) -> Node {
-    let mut content = String::new();
+fn text(name: &str, pieces: &[TextPiece], depth: usize) -> Node {
+    let variant = name != "textit" && name != "emph";
+    let mut nodes = Vec::new();
+    let mut run = String::new();
     for piece in pieces {
         match piece {
-            TextPiece::Run(run) => content.push_str(run),
-            TextPiece::Space(space) => content.push(space.codepoint()),
-            TextPiece::Math(_) => {}
+            TextPiece::Run(literal) => run.push_str(literal),
+            TextPiece::Space(space) => run.push(space.codepoint()),
+            // An embedded `$…$` renders as math, splicing between the literal runs on either side.
+            TextPiece::Math(atoms) => {
+                if !run.is_empty() {
+                    nodes.push(mtext(std::mem::take(&mut run), variant));
+                }
+                nodes.append(&mut lower_seq(atoms, false, depth + 1));
+            }
         }
     }
+    if nodes.is_empty() || !run.is_empty() {
+        nodes.push(mtext(run, variant));
+    }
+    group(nodes)
+}
+
+/// An `<mtext>` node carrying the wrapper's literal run, marked upright unless the wrapper italicizes.
+fn mtext(content: String, variant: bool) -> Node {
     let mut element = Element::new("mtext").text(content);
-    if name != "textit" && name != "emph" {
+    if variant {
         element = element.attr("mathvariant", "normal");
     }
     Node::Element(element)
