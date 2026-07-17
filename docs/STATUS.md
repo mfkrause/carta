@@ -318,8 +318,8 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Table structural markup is emitted compact with no whitespace between structural tags rather than
   indented.
 - List structural markup is emitted compact with no inter-tag whitespace rather than indented.
-- Tightness is decided from the first list item, so a list whose first item is empty is mis-detected
-  as tight.
+- Tightness is decided from the first list item, so a list whose first item is empty is wrongly
+  detected as tight.
 - A non-default ordered or example list reuses the generic `L1` auto-style name rather than a
   distinct numbering-style name.
 - With two or more non-default numbered lists the automatic list-style definitions are emitted in
@@ -328,8 +328,8 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   `text:list`.
 - `DefinitionList` tightness is decided from the first item and applied to the whole list rather than
   per item.
-- A `DefinitionList` item with an empty definition body is mis-detected as tight, giving the term a
-  tight style and a spurious empty definition paragraph.
+- A `DefinitionList` item with an empty definition body is wrongly detected as tight, giving the
+  term a tight style and a spurious empty definition paragraph.
 - Nested `BlockQuote`s reuse the base `Quotations` style with no incremental margin, so deeper levels
   are not progressively indented.
 - A paragraph whose inlines are all whitespace or all non-opendocument raw is dropped entirely rather

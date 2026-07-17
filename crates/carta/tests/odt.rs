@@ -64,6 +64,18 @@ fn content_part(bytes: &[u8]) -> String {
     out
 }
 
+/// Writer body golden pass: every `corpus/ast/<feature>/*` case — full-model AST JSON that exercises
+/// node shapes no reader can produce — is rendered to ODT and its `content.xml` (plus any embedded
+/// formula parts) frozen. The text-writer golden pass skips this byte-shaped target, so this is where
+/// the writer's block and inline rendering is pinned. Output is byte-reproducible across runs.
+#[test]
+fn odt_writer_corpus_snapshots() {
+    for case in corpus_cases("ast") {
+        let output = content_part(&odt_bytes("odt", &case.input));
+        insta::assert_snapshot!(format!("corpus__{}__{}", case.group, case.label), output);
+    }
+}
+
 #[test]
 fn odt_extension_toggle_snapshots() {
     for case in corpus_cases("ast-ext") {

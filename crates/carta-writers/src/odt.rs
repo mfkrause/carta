@@ -370,7 +370,7 @@ impl<'a> Builder<'a> {
         }
         if let Some(style) = fixed {
             self.paragraph(style, inlines);
-        } else if !(inlines_are_empty(inlines) && !self.keep_empty) {
+        } else if !inlines_are_empty(inlines) || self.keep_empty {
             self.flowing_paragraph(inlines);
         }
     }
@@ -680,7 +680,7 @@ impl<'a> Builder<'a> {
             self.body.push_str("</table:table-header-rows>");
         }
         for section in &table.bodies {
-            let head_columns = section.row_head_columns.max(0) as usize;
+            let head_columns = usize::try_from(section.row_head_columns).unwrap_or(0);
             self.table_rows(
                 &section.head,
                 false,
@@ -804,6 +804,9 @@ impl<'a> Builder<'a> {
         }
     }
 
+    // The cell, its two header flags, its grid position, the column specs, and its column/row spans
+    // are all distinct inputs to one emission; bundling them would only add indirection.
+    #[allow(clippy::too_many_arguments)]
     fn emit_cell(
         &mut self,
         cell: &Cell,
@@ -1042,7 +1045,7 @@ impl<'a> Builder<'a> {
                     Inline::Emph(inner) => self.nested(&mut run, decos, Deco::Emph, inner),
                     Inline::Strong(inner) => self.nested(&mut run, decos, Deco::Strong, inner),
                     Inline::Underline(inner) => {
-                        self.nested(&mut run, decos, Deco::Underline, inner)
+                        self.nested(&mut run, decos, Deco::Underline, inner);
                     }
                     Inline::SmallCaps(inner) => {
                         self.nested(&mut run, decos, Deco::SmallCaps, inner);
@@ -1477,8 +1480,8 @@ fn svg_attribute(tag: &str, name: &str) -> Option<String> {
         let index = from + offset;
         let before = index.checked_sub(1).and_then(|i| bytes.get(i)).copied();
         let after = bytes.get(index + name.len()).copied();
-        let starts = before.map_or(true, |b| b.is_ascii_whitespace() || b == b'<');
-        let ends = after.map_or(false, |b| b == b'=' || b.is_ascii_whitespace());
+        let starts = before.is_none_or(|b| b.is_ascii_whitespace() || b == b'<');
+        let ends = after.is_some_and(|b| b == b'=' || b.is_ascii_whitespace());
         if starts && ends {
             let tail = tag.get(index + name.len()..)?;
             let after_equals = tail.get(tail.find('=')? + 1..)?.trim_start();
@@ -1492,6 +1495,13 @@ fn svg_attribute(tag: &str, name: &str) -> Option<String> {
         from = index + name.len();
     }
     None
+}
+
+/// Rounds a pixel measure to the nearest whole pixel. The float-to-integer cast saturates, so a
+/// negative, non-finite, or oversized measure maps to `0` or `u32::MAX` rather than wrapping.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn round_to_pixels(measure: f64) -> u32 {
+    measure.round() as u32
 }
 
 /// Converts a CSS length (a number with an optional unit) to pixels at 96 dots per inch; a bare
@@ -1511,22 +1521,16 @@ fn svg_length_pixels(value: &str) -> Option<u32> {
         if let Some(number) = text.strip_suffix(unit)
             && let Ok(measure) = number.trim().parse::<f64>()
         {
-            return Some((measure * factor).round() as u32);
+            return Some(round_to_pixels(measure * factor));
         }
     }
-    text.parse::<f64>()
-        .ok()
-        .map(|measure| measure.round() as u32)
+    text.parse::<f64>().ok().map(round_to_pixels)
 }
 
 /// A `viewBox` extent is expressed in unit-less user-space coordinates, which map one to one to
 /// pixels.
 fn svg_number_pixels(value: &str) -> Option<u32> {
-    value
-        .trim()
-        .parse::<f64>()
-        .ok()
-        .map(|measure| measure.round() as u32)
+    value.trim().parse::<f64>().ok().map(round_to_pixels)
 }
 
 fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
@@ -1561,7 +1565,7 @@ fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
                 }
                 pos = segment + length;
             }
-            0xD8 | 0xD9 | 0xDA => return None,
+            0xD8..=0xDA => return None,
             _ => pos = segment + length,
         }
     }
@@ -1624,29 +1628,29 @@ fn image_size(attr: &Attr, width: u32, height: u32, density: (f64, f64)) -> Stri
     };
 
     let (final_width, final_height) = match (width_inches, height_inches) {
-        (Some(w), Some(h)) => (inches(show_inches(w)), inches(show_inches(h))),
+        (Some(w), Some(h)) => (inches(&show_inches(w)), inches(&show_inches(h))),
         (Some(w), None) => {
             let h = if width > 0 {
-                inches(show_number(w * (f64::from(height) / f64::from(width))))
+                inches(&show_number(w * (f64::from(height) / f64::from(width))))
             } else {
                 natural_height
             };
-            (inches(show_inches(w)), h)
+            (inches(&show_inches(w)), h)
         }
         (None, Some(h)) => {
             let w = if height > 0 {
-                inches(show_number(h * (f64::from(width) / f64::from(height))))
+                inches(&show_number(h * (f64::from(width) / f64::from(height))))
             } else {
                 natural_width
             };
-            (w, inches(show_inches(h)))
+            (w, inches(&show_inches(h)))
         }
         (None, None) => (natural_width, natural_height),
     };
     format!(" svg:width=\"{final_width}\" svg:height=\"{final_height}\"")
 }
 
-fn inches(value: String) -> String {
+fn inches(value: &str) -> String {
     format!("{value}in")
 }
 
@@ -1700,6 +1704,8 @@ fn show_number(value: f64) -> String {
     digits.push_str(fraction_part);
     let significant = digits.trim_start_matches('0');
     let leading_zeros = digits.len() - significant.len();
+    // Both operands are lengths of a formatted decimal string, far below `isize::MAX`.
+    #[allow(clippy::cast_possible_wrap)]
     let point = integer_part.len() as isize - leading_zeros as isize;
     let significant = significant.trim_end_matches('0');
     if significant.is_empty() {
@@ -2612,8 +2618,8 @@ mod tests {
     fn language_tag_splits_into_language_and_region() {
         assert_eq!(language_country("de-DE"), ("de".into(), "DE".into()));
         // A bare primary subtag carries no region.
-        assert_eq!(language_country("en"), ("en".into(), "".into()));
-        assert_eq!(language_country("yue"), ("yue".into(), "".into()));
+        assert_eq!(language_country("en"), ("en".into(), String::new()));
+        assert_eq!(language_country("yue"), ("yue".into(), String::new()));
         // A three-digit UN M.49 code is a region.
         assert_eq!(language_country("es-419"), ("es".into(), "419".into()));
         // A four-letter script subtag is skipped; the region is taken from a later subtag.

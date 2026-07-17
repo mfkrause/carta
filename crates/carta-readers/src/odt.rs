@@ -410,14 +410,14 @@ impl<'a> Converter<'a> {
                     flush_quote(&mut out, &mut quote);
                     out.push(self.convert_table(element));
                 }
-                // A note anchored at block level is a stray footnote/endnote definition with no
-                // reference point, so it carries no rendered content.
-                "soft-page-break" | "sequence-decls" | "forms" | "tracked-changes" | "note" => {}
-                // A generated index (contents, bibliography, or any of the alphabetical, table,
-                // illustration, object, and user indexes) holds a cached title and cached entries the
-                // application regenerates on open; the whole container is dropped rather than lifting
-                // its stale cache as body paragraphs.
-                "table-of-content" | "table-of-contents" | "bibliography"
+                // Dropped outright, leaving no rendered content: a stray note (a footnote/endnote
+                // definition with no reference point) alongside page breaks, sequence declarations,
+                // forms, and tracked-change records; and a generated index (contents, bibliography,
+                // or any of the alphabetical, table, illustration, object, and user indexes), whose
+                // cached title and entries the application regenerates on open — lifting its stale
+                // cache as body paragraphs would surface orphaned content.
+                "soft-page-break" | "sequence-decls" | "forms" | "tracked-changes" | "note"
+                | "table-of-content" | "table-of-contents" | "bibliography"
                 | "alphabetical-index" | "illustration-index" | "table-index" | "object-index"
                 | "user-index" => {}
                 // A transparent container (a section, an index body, or anything unrecognized) has
@@ -639,10 +639,11 @@ impl<'a> Converter<'a> {
             "bookmark" | "bookmark-start" => self.push_bookmark(element, out),
             "reference-mark-start" => self.push_reference_mark(element, out),
             "bookmark-ref" | "reference-ref" => self.convert_cross_reference(element, out),
-            // A review comment (and its ranged start/end markers) is annotation metadata, not body
-            // prose; its author, date, and comment text carry no rendered content.
-            "annotation" | "annotation-start" | "annotation-end" => {}
-            "bookmark-end" | "reference-mark" | "reference-mark-end" | "soft-page-break" => {}
+            // Metadata markers with no body prose: a review comment and its ranged start/end, the
+            // closing half of a bookmark or reference mark, and a soft page break. None of them
+            // carries rendered content.
+            "annotation" | "annotation-start" | "annotation-end" | "bookmark-end"
+            | "reference-mark" | "reference-mark-end" | "soft-page-break" => {}
             "note" => out.push(self.convert_note(element)),
             "frame" => self.convert_frame(element, out),
             // An unrecognized inline wrapper (a cross-reference field, a change marker) contributes
@@ -860,7 +861,7 @@ impl<'a> Converter<'a> {
         let (frame, caption) = self.figure_image(textbox)?;
         let image = self.image_from_frame(frame, caption.clone(), "")?;
         Some(Block::Figure(
-            Box::new(Attr::default()),
+            Box::default(),
             Box::new(Caption {
                 short: None,
                 long: vec![Block::Plain(caption)],
@@ -1257,7 +1258,7 @@ fn cells_width(row: &Row) -> i32 {
 /// overhanging from an earlier row unfilled. A row whose cells plus inherited overhang already reach
 /// the width is left untouched.
 fn square_rows(rows: &mut [Row], columns: i32) {
-    let width = columns.max(0) as usize;
+    let width = usize::try_from(columns).unwrap_or(0);
     // `covered[c]` counts how many further rows column `c` stays covered by a row-spanning cell
     // placed above the current row.
     let mut covered = vec![0i32; width];
@@ -1272,7 +1273,9 @@ fn square_rows(rows: &mut [Row], columns: i32) {
             while covered.get(column).is_some_and(|count| *count > 0) {
                 column += 1;
             }
-            let span = (cell.col_span.max(1) as usize).min(width.saturating_sub(column));
+            let span = usize::try_from(cell.col_span.max(1))
+                .unwrap_or(1)
+                .min(width.saturating_sub(column));
             if cell.row_span > 1 {
                 for offset in 0..span {
                     if let Some(slot) = new_cover.get_mut(column + offset) {
@@ -1280,7 +1283,7 @@ fn square_rows(rows: &mut [Row], columns: i32) {
                     }
                 }
             }
-            column = column.saturating_add(cell.col_span.max(1) as usize);
+            column = column.saturating_add(usize::try_from(cell.col_span.max(1)).unwrap_or(1));
         }
         for _ in cells_width(row)..columns.saturating_sub(overhang) {
             row.cells.push(empty_cell());

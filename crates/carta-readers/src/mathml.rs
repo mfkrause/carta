@@ -703,7 +703,10 @@ fn space_mu(width: &str) -> Option<i32> {
     if !value.is_finite() {
         return None;
     }
-    Some((value * 18.0).round_ties_even() as i32)
+    // The measure is finite; the saturating cast bounds an extreme scaled value into `i32`.
+    #[allow(clippy::cast_possible_truncation)]
+    let mu = (value * 18.0).round_ties_even() as i32;
+    Some(mu)
 }
 
 /// The math-unit width of a named MathML space keyword, thin through very-very-thick and their

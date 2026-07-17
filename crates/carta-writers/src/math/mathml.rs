@@ -125,10 +125,10 @@ fn lower_seq(atoms: &[Atom], display: bool, depth: usize) -> Vec<Node> {
 /// Collapse a run of nodes to a single node: one node bare, several wrapped in an `<mrow>`, none an
 /// empty `<mrow>` so a required slot still has content.
 fn group(mut nodes: Vec<Node>) -> Node {
-    if nodes.len() == 1 {
-        if let Some(node) = nodes.pop() {
-            return node;
-        }
+    if nodes.len() == 1
+        && let Some(node) = nodes.pop()
+    {
+        return node;
     }
     let mut row = Element::new("mrow");
     row.children = nodes;
@@ -439,7 +439,6 @@ fn accent_mark(name: &str) -> String {
         "acute" => '\u{0301}',
         "grave" => '\u{0300}',
         "mathring" => '\u{030A}',
-        "bar" | "overline" => '\u{203E}',
         _ => '\u{203E}',
     };
     mark.to_string()
@@ -774,7 +773,7 @@ impl ColumnScheme<'_> {
 
 /// The first alignment on even columns, the second on odd columns.
 fn alternate(index: usize, even: ColumnAlign, odd: ColumnAlign) -> ColumnAlign {
-    if index % 2 == 0 { even } else { odd }
+    if index.is_multiple_of(2) { even } else { odd }
 }
 
 /// Build an `<mtable>` from a grid of cells, tagging each cell with its column's justification. Cells
@@ -851,7 +850,7 @@ fn brace_atom(
 
     // The matching-side script (a superscript over an over-brace, a subscript under an under-brace)
     // becomes the brace's stacked label; any other script applies as an ordinary script.
-    let (label, remaining_sub, remaining_sup) = match kind {
+    let (label, remaining_subscript, remaining_superscript) = match kind {
         BraceKind::Over => (atom.sup.as_deref(), atom.sub.as_deref(), None),
         BraceKind::Under => (atom.sub.as_deref(), None, atom.sup.as_deref()),
     };
@@ -867,8 +866,16 @@ fn brace_atom(
                 .node(slot(label, display, depth)),
         );
     }
-    if remaining_sub.is_some() || remaining_sup.is_some() || !atom.siblings.is_empty() {
-        node = apply_scripts(node, remaining_sub, remaining_sup, false, display, depth);
+    if remaining_subscript.is_some() || remaining_superscript.is_some() || !atom.siblings.is_empty()
+    {
+        node = apply_scripts(
+            node,
+            remaining_subscript,
+            remaining_superscript,
+            false,
+            display,
+            depth,
+        );
         for sibling in &atom.siblings {
             node = apply_sibling(node, sibling, false, display, depth);
         }
@@ -1131,3 +1138,6 @@ fn modulo(kind: ModKind, argument: Option<&[Atom]>, display: bool, depth: usize)
     row.children = inner;
     vec![Node::Element(row)]
 }
+
+#[cfg(all(test, feature = "odt"))]
+mod tests;

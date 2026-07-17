@@ -42,6 +42,7 @@ mod highlight;
     feature = "jira",
     feature = "typst",
     feature = "docx",
+    feature = "odt",
     feature = "rtf"
 ))]
 mod math;
