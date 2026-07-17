@@ -2,9 +2,8 @@
 //! row assembly, and piece measurement. The whole module is gated to those writers at its `mod`
 //! declaration, so within its feature family every item is referenced.
 
-use super::{Piece, body_rows, display_width, fill};
+use super::{Piece, body_rows, display_width, fill_lines};
 use carta_ast::{Alignment, Block, Cell, ColWidth, Inline, Row, Table};
-use carta_core::WrapMode;
 
 /// Width used to render a grid cell when measuring its natural extent, before column widths are
 /// fixed: large enough that no reflow occurs.
@@ -137,12 +136,7 @@ pub(crate) fn filled_cells(row: &[Vec<Piece>], field: &[usize]) -> Vec<Vec<Strin
             let width = field.get(index).copied().unwrap_or(0);
             // A cell always reflows to its computed column width: the width is a layout constraint of
             // the table, not a paragraph wrap the document option can switch off.
-            let text = fill(pieces, width, WrapMode::Auto);
-            if text.is_empty() {
-                vec![String::new()]
-            } else {
-                text.split('\n').map(str::to_owned).collect()
-            }
+            fill_lines(pieces, width)
         })
         .collect()
 }
