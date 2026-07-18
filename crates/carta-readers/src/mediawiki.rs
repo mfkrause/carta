@@ -4013,12 +4013,15 @@ fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
                 "center" => align = Alignment::AlignCenter,
                 _ => attributes.push(("align".to_string(), value)),
             },
+            // The table passes materialise one grid slot per spanned column, so an
+            // attacker-supplied span would force a multi-gigabyte allocation if taken at face
+            // value; clamp to the HTML spec's span limits, as the html reader does.
             "colspan" => match value.trim().parse::<i32>() {
-                Ok(v) if v >= 1 => col_span = v,
+                Ok(v) if v >= 1 => col_span = v.min(1000),
                 _ => attributes.push(("colspan".to_string(), value)),
             },
             "rowspan" => match value.trim().parse::<i32>() {
-                Ok(v) if v >= 1 => row_span = v,
+                Ok(v) if v >= 1 => row_span = v.min(65534),
                 _ => attributes.push(("rowspan".to_string(), value)),
             },
             _ => attributes.push((name, value)),
@@ -4202,6 +4205,25 @@ mod tests {
                 ..Default::default()
             }))]
         );
+    }
+
+    #[test]
+    fn a_huge_colspan_is_clamped_and_does_not_blow_up_the_grid() {
+        // The first row fixes the grid width, so an oversized colspan must be clamped rather
+        // than trusted — otherwise it would size the column specs.
+        let blocks = parse("{|\n| colspan=222222222 | wide\n|-\n| a\n|}");
+        let Some(Block::Table(table)) = blocks.first() else {
+            panic!("expected a table, got {blocks:?}");
+        };
+        assert_eq!(table.col_specs.len(), 1000);
+        let first_cell = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .expect("table should have a first cell");
+        assert_eq!(first_cell.col_span, 1000);
+        assert!(first_cell.attr.attributes.is_empty());
     }
 
     #[test]
