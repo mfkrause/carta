@@ -4013,12 +4013,17 @@ fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
                 "center" => align = Alignment::AlignCenter,
                 _ => attributes.push(("align".to_string(), value)),
             },
+            // Spans expand a cell across the grid, and the table passes materialise one slot per
+            // spanned column — `ncols` slots in `occupied`, one `ColSpec` per column, one filler
+            // cell per uncovered column. An attacker-supplied `colspan=222222222` would otherwise
+            // force a multi-gigabyte allocation, so clamp to the HTML spec's limits (as the html
+            // reader does): a colspan is capped at 1000 and a rowspan at 65534.
             "colspan" => match value.trim().parse::<i32>() {
-                Ok(v) if v >= 1 => col_span = v,
+                Ok(v) if v >= 1 => col_span = v.min(1000),
                 _ => attributes.push(("colspan".to_string(), value)),
             },
             "rowspan" => match value.trim().parse::<i32>() {
-                Ok(v) if v >= 1 => row_span = v,
+                Ok(v) if v >= 1 => row_span = v.min(65534),
                 _ => attributes.push(("rowspan".to_string(), value)),
             },
             _ => attributes.push((name, value)),
@@ -4202,6 +4207,26 @@ mod tests {
                 ..Default::default()
             }))]
         );
+    }
+
+    #[test]
+    fn a_huge_colspan_is_clamped_and_does_not_blow_up_the_grid() {
+        // Nightly fuzz reproducer (oom-5721e548…): the first row fixes `ncols`, so an unclamped
+        // `colspan=222222222` allocated one ColSpec per claimed column — gigabytes from a
+        // 73-byte input. The span is clamped to 1000, bounding the grid.
+        let blocks = parse("{|\n| colspan=222222222 | wide\n|-\n| a\n|}");
+        let Some(Block::Table(table)) = blocks.first() else {
+            panic!("expected a table, got {blocks:?}");
+        };
+        assert_eq!(table.col_specs.len(), 1000);
+        let first_cell = table
+            .bodies
+            .first()
+            .and_then(|body| body.body.first())
+            .and_then(|row| row.cells.first())
+            .expect("table should have a first cell");
+        assert_eq!(first_cell.col_span, 1000);
+        assert!(first_cell.attr.attributes.is_empty());
     }
 
     #[test]
