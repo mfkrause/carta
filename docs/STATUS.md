@@ -66,6 +66,9 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   wikilinks rather than links to the media file or remote wiki.
 - A mid-paragraph `<pre>`/`<source>` falls through to HTML passthrough rather than a code block.
 - Block structures nested past a fixed depth degrade to flat text to bound recursion.
+- An unterminated `<ref>` (no `</ref>` before end of input) is read as a raw HTML inline; pandoc
+  reads it as literal text. The unterminated-tag corpus case therefore pins only the open-tag
+  failure shapes, and the `<ref>` path is pinned by unit tests instead.
 
 ### `dokuwiki` — ✅
 - A footnote closes at the first `))`, so nested parentheses are unbalanced.
