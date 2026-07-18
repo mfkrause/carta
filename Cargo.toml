@@ -23,7 +23,7 @@ clap = { version = "4", features = ["derive"] }
 unicode-general-category = "1"
 unicode-normalization = "0.1"
 caseless = "0.2"
-compact_str = { version = "0.9", features = ["serde"] }
+compact_str = { version = "0.10", features = ["serde"] }
 miniz_oxide = "0.9"
 fancy-regex = "0.18"
 quick-xml = "0.41"
