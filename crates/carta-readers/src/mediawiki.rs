@@ -4013,11 +4013,9 @@ fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
                 "center" => align = Alignment::AlignCenter,
                 _ => attributes.push(("align".to_string(), value)),
             },
-            // Spans expand a cell across the grid, and the table passes materialise one slot per
-            // spanned column — `ncols` slots in `occupied`, one `ColSpec` per column, one filler
-            // cell per uncovered column. An attacker-supplied `colspan=222222222` would otherwise
-            // force a multi-gigabyte allocation, so clamp to the HTML spec's limits (as the html
-            // reader does): a colspan is capped at 1000 and a rowspan at 65534.
+            // The table passes materialise one grid slot per spanned column, so an
+            // attacker-supplied span would force a multi-gigabyte allocation if taken at face
+            // value; clamp to the HTML spec's span limits, as the html reader does.
             "colspan" => match value.trim().parse::<i32>() {
                 Ok(v) if v >= 1 => col_span = v.min(1000),
                 _ => attributes.push(("colspan".to_string(), value)),
@@ -4211,9 +4209,8 @@ mod tests {
 
     #[test]
     fn a_huge_colspan_is_clamped_and_does_not_blow_up_the_grid() {
-        // Nightly fuzz reproducer (oom-5721e548…): the first row fixes `ncols`, so an unclamped
-        // `colspan=222222222` allocated one ColSpec per claimed column — gigabytes from a
-        // 73-byte input. The span is clamped to 1000, bounding the grid.
+        // The first row fixes the grid width, so an oversized colspan must be clamped rather
+        // than trusted — otherwise it would size the column specs.
         let blocks = parse("{|\n| colspan=222222222 | wide\n|-\n| a\n|}");
         let Some(Block::Table(table)) = blocks.first() else {
             panic!("expected a table, got {blocks:?}");
