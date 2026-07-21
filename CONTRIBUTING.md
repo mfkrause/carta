@@ -36,15 +36,12 @@ RUSTFLAGS="-D warnings" cargo clippy --all-targets --all-features  # lint (as CI
 tools/check.sh                             # everything CI gates a PR on, in one command
 ```
 
-The everyday suite is fully offline and is what CI gates every pull request on. Broader
-conformance and fuzzing layers, along with the tooling they need, are described in
-[`AGENTS.md`](AGENTS.md) and the [`docs/`](docs/) directory; they are not required for
-most contributions.
+The everyday suite is fully offline and is what CI gates every pull request on.
 
 ### Snapshot tests
 
 Golden output is captured with [`insta`](https://insta.rs). After an intentional change
-to output, review and accept the new snapshots — never hand-edit `.snap` files:
+to output, review and accept the new snapshots:
 
 ```sh
 cargo insta review

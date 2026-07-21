@@ -1,9 +1,9 @@
 # Benchmarks — carta vs pandoc
 
-**Reference machine:** Apple M1 Pro (10 cores), 16 GB RAM, macOS 26.5 (arm64)
-**carta:** the commit introducing this file revision (v0.0.5 plus the keyed math symbol lookups, the streaming fill sink, and the mediawiki/markdown reader scan bounds), release build (`cargo build --release`)
-**pandoc:** 3.10
-**Driver:** hyperfine 1.20.0, warmup 3, 12 runs
+- **Reference machine:** Apple M1 Pro (10 cores), 16 GB RAM, macOS 26.5 (arm64)
+- **carta:** the commit introducing this file revision
+- **pandoc:** 3.10
+- **Driver:** hyperfine 1.20.0, warmup 3, 12 runs
 
 ## Headline
 

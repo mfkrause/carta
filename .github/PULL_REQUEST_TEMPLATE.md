@@ -17,4 +17,4 @@ Keep the change focused — one logical change per PR is much easier to review a
 - [ ] All checks and tests pass locally.
 - [ ] I added or updated tests for the change, if needed.
 - [ ] If this changes support for a format or extension, I updated `README.md` and/or `docs/STATUS.md`.
-- [ ] My commits follow [Conventional Commits](https://www.conventionalcommits.org/) — the changelog is generated from them, so no manual `CHANGELOG.md` edit is needed.
+- [ ] My commits follow [Conventional Commits](https://www.conventionalcommits.org/).

@@ -27,7 +27,7 @@
 
 This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](docs/STATUS.md) for a detailed per-format breakdown including extension coverage, and the full feature backlog.
 
-✅ usable — basically done; any remaining parity gaps are minor and unlikely to affect regular use · 🚧 in development — large parity gaps or breaking issues (e.g. panics), not recommended for use yet · ❌ not started · ➖ not applicable (pandoc has no such direction)
+✅ usable · 🚧 in development, not recommended for use yet · ❌ not started · ➖ not applicable (pandoc has no such direction)
 
 **Markdown family**
 
@@ -195,31 +195,10 @@ carta -f commonmark -t json input.md
 # standalone document with a table of contents and numbered sections
 carta -f commonmark -t html -s --toc --number-sections input.md -o output.html
 
-# render HTML math with MathJax (or --katex)
-carta -f commonmark -t html -s --mathjax input.md -o output.html
-
-# colorize code blocks with a named theme (--no-highlight turns it off)
-carta -f commonmark -t html -s --highlight-style=breezedark input.md -o output.html
-
-# extract a notebook's embedded images to files, rewriting the references
-carta -f ipynb -t markdown --extract-media=media notebook.ipynb -o notebook.md
-
-# embed a document's images into a container format, searching extra directories for them
-carta -f commonmark -t docx --resource-path=assets:img input.md -o output.docx
-
-# produce a self-contained HTML file with every image inlined as a data: URI
-carta -f commonmark -t html -s --embed-resources input.md -o output.html
-
-# transform the document through a JSON filter before writing (repeatable, applied in order)
-carta -f commonmark -t html -F ./my-filter.py input.md -o output.html
-
 # discover what this build supports
 carta --list-input-formats
 carta --list-output-formats
-carta --list-extensions          # extensions for the Markdown dialect
-carta --list-extensions=gfm      # extensions and defaults for a given format
-carta --list-highlight-languages # languages the highlighter can colorize
-carta --list-highlight-styles    # built-in color themes
+carta --list-extensions=gfm
 ```
 
 ### Library
@@ -236,7 +215,7 @@ let html = convert_text(
 )?;
 ```
 
-`convert_text` is the shortcut for text-to-text conversion. The general entry point is `convert`, which takes raw bytes and returns an `Output` that is text or bytes depending on the target format — use it when either side is a binary format.
+`convert_text` is the shortcut for text-to-text conversion. The general entry point is `convert`, which takes raw bytes and returns an `Output` that is text or bytes depending on the target format.
 
 You can select formats at compile time via per-direction features to make binaries even more lightweight for your individual needs.
 
@@ -252,8 +231,6 @@ cargo nextest run --workspace       # run tests
 cargo clippy --all-targets          # lint
 cargo +nightly fuzz run commonmark  # fuzz a reader (see fuzz/README.md)
 ```
-
-The workspace splits into `carta-ast` (the document model), `carta-core` (shared traits and options), `carta-readers`, `carta-writers`, and `carta` (the library facade, which also ships the command-line binary behind its `cli` feature).
 
 ## License
 

@@ -1,13 +1,11 @@
 # Security Policy
 
 carta is a document converter: it ingests arbitrary, potentially untrusted input and
-renders it to another format. Robustness against malformed input is a core goal — a panic,
-hang, or unbounded allocation on hostile input is treated as a security-relevant bug, not
-just a correctness one.
+renders it to another format. Robustness against malformed input is a core goal.
 
 ## Supported versions
 
-carta is in early alpha. Security fixes are applied to the latest release and the `main`
+carta is in early development. Security fixes are applied to the latest release and the `main`
 branch only. There is no long-term-support or back-porting commitment yet.
 
 ## Reporting a vulnerability
@@ -30,5 +28,5 @@ issue is a crash or hang, a minimized reproducing input is enormously helpful.
 
 - We aim to acknowledge a report within a few days.
 - We will confirm the issue, keep you updated on progress, and credit you in the release
-  notes once a fix ships — unless you prefer to remain anonymous.
+  notes once a fix ships, unless you prefer to remain anonymous.
 - Please give us a reasonable window to release a fix before any public disclosure.

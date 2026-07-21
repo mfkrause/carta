@@ -3,7 +3,7 @@
 Per-format detail behind the [README support matrix](../README.md#status); the README grid is the
 at-a-glance roster. Measured against pinned pandoc **3.10** (`pandoc-api-version 1.23.1`).
 
-✅ usable — basically done; any remaining parity gaps are minor and unlikely to affect regular use · 🚧 in development — large parity gaps or breaking issues (e.g. panics), not recommended for use yet · ❌ not started · ➖ not applicable (pandoc has no such direction)
+✅ usable (basically done, any remaining parity gaps are minor and unlikely to affect regular use) · 🚧 in development (large parity gaps or breaking issues, not recommended for use yet) · ❌ not started · ➖ not applicable (pandoc has no such direction)
 
 Each entry lists only what is still missing or known to diverge. An entry with no list has no tracked
 gap.
