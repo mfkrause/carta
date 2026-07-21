@@ -20,8 +20,9 @@ use carta_ast::{
 };
 use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
-use crate::heading_ids::{IdRegistry, IdScheme, fold_to_ascii};
+use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::{trim_inline_ends, words_to_inlines};
+use crate::transliterate::fold_to_ascii;
 
 /// A table of named strings: the predefined groff strings plus any defined with `.ds`, looked up by
 /// the `\*` interpolation escape.

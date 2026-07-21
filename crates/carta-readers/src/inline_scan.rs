@@ -5,7 +5,7 @@
 //! without coupling to either parser's state. The `CommonMark` reader works over byte offsets into a
 //! `&str` (the `_bytes` variants) while the HTML reader works over a `&[char]`. The TeX-math scanners
 //! recognize the same delimiter shapes the readers gate behind their math extensions; the
-//! dash/ellipsis folds back the `smart` typography.
+//! dash fold backs the `smart` typography.
 
 use carta_ast::MathType;
 
@@ -236,15 +236,6 @@ pub(crate) fn fold_dash_run(len: usize) -> String {
     let mut out = String::with_capacity((em + en) * 3);
     out.extend(std::iter::repeat_n('\u{2014}', em));
     out.extend(std::iter::repeat_n('\u{2013}', en));
-    out
-}
-
-/// Fold a run of `len` dots into one ellipsis (`…`) per group of three, leaving the remaining one or
-/// two dots literal.
-pub(crate) fn fold_ellipsis_run(len: usize) -> String {
-    let mut out = String::with_capacity(len / 3 * 3 + len % 3);
-    out.extend(std::iter::repeat_n('\u{2026}', len / 3));
-    out.extend(std::iter::repeat_n('.', len % 3));
     out
 }
 

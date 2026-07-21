@@ -22,7 +22,8 @@ use carta_ast::{
 };
 use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
-use crate::heading_ids::{IdRegistry, IdScheme, fold_to_ascii};
+use crate::heading_ids::{IdRegistry, IdScheme};
+use crate::transliterate::fold_to_ascii;
 
 /// Parses Org markup into the document model.
 ///

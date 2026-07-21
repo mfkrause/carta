@@ -18,11 +18,12 @@ use carta_ast::{
     TableFoot, TableHead, Target, to_plain_text,
 };
 use carta_core::{Extension, Reader, ReaderOptions, Result};
-use unicode_normalization::UnicodeNormalization;
 
 use crate::entities;
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
+use crate::smart_fold::fold_ellipsis_run;
+use crate::transliterate::dokuwiki_asciify;
 
 /// The inline-syntax toggles that the scanner threads through every level of parsing.
 #[derive(Debug, Clone, Copy)]
@@ -683,7 +684,7 @@ fn assign_heading_ids(
         match block {
             Block::Header(_, attr, inlines) => {
                 let text = to_plain_text(inlines);
-                let text = if ascii { asciify(&text) } else { text };
+                let text = if ascii { dokuwiki_asciify(&text) } else { text };
                 attr.id = registry.assign(scheme, &text).into();
             }
             Block::BlockQuote(children)
@@ -699,12 +700,6 @@ fn assign_heading_ids(
             _ => {}
         }
     }
-}
-
-/// Fold text to ASCII by canonical decomposition, dropping every character that is not ASCII so a
-/// letter carrying a diacritic keeps its base letter.
-fn asciify(text: &str) -> String {
-    text.nfd().filter(char::is_ascii).collect()
 }
 
 // ===================================================================================================
@@ -1020,7 +1015,7 @@ fn scan(
             }
             '.' if ctx.smart => {
                 let run = run_length(chars, *pos, '.');
-                pending.push_str(&fold_ellipsis(run));
+                pending.push_str(&fold_ellipsis_run(run));
                 *pos += run;
             }
             '[' if chars.get(*pos + 1) == Some(&'[') && depth < MAX_DEPTH => {
@@ -1490,13 +1485,6 @@ fn fold_dashes(n: usize) -> String {
         1 => s.push('-'),
         _ => {}
     }
-    s
-}
-
-/// Fold a run of `n` dots: every three become an ellipsis, with any remainder kept as dots.
-fn fold_ellipsis(n: usize) -> String {
-    let mut s = "\u{2026}".repeat(n / 3);
-    s.push_str(&".".repeat(n % 3));
     s
 }
 

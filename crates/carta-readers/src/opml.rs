@@ -19,6 +19,7 @@ use carta_core::{Reader, ReaderOptions, Result, presets};
 
 use crate::commonmark::CommonmarkReader;
 use crate::html::parse_inline_fragment;
+use crate::smart_fold::fold_ellipsis_run;
 
 /// Parses an outline document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -583,15 +584,6 @@ fn fold_dash_run(len: usize) -> String {
     let mut out = String::with_capacity(em * 3 + remainder.len());
     out.extend(std::iter::repeat_n('\u{2014}', em));
     out.push_str(remainder);
-    out
-}
-
-/// Fold a run of `len` dots into one ellipsis (`…`) per group of three, leaving any trailing one or
-/// two dots literal.
-fn fold_ellipsis_run(len: usize) -> String {
-    let mut out = String::with_capacity(len);
-    out.extend(std::iter::repeat_n('\u{2026}', len / 3));
-    out.extend(std::iter::repeat_n('.', len % 3));
     out
 }
 

@@ -23,7 +23,8 @@ use super::scan::{
 };
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 use crate::emoji;
-use crate::inline_scan::{fold_dash_run, fold_ellipsis_run, is_unicode_whitespace};
+use crate::inline_scan::{fold_dash_run, is_unicode_whitespace};
+use crate::smart_fold::fold_ellipsis_run;
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
 const TASK_UNCHECKED: &str = "\u{2610}";

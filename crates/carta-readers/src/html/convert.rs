@@ -20,9 +20,8 @@ use super::table::{
     row_head_columns, span_attr, table_width,
 };
 use super::tree::{Element, Node, attr_value, collect_text, serialize_element, style_property};
-use crate::inline_scan::{
-    fold_ellipsis_run, scan_backslash_math, scan_display_math, scan_inline_math,
-};
+use crate::inline_scan::{scan_backslash_math, scan_display_math, scan_inline_math};
+use crate::smart_fold::fold_ellipsis_run;
 
 /// Build inline content from a node tree, with no surrounding block. Used to parse a string of HTML
 /// inline markup into inlines: leading and trailing whitespace is trimmed, matching how inline

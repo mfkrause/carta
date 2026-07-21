@@ -36,6 +36,22 @@ mod inline_text;
 mod mathml;
 #[cfg(any(feature = "ipynb", feature = "rtf"))]
 mod numeric;
+#[cfg(any(
+    feature = "commonmark",
+    feature = "html",
+    feature = "rst",
+    feature = "dokuwiki",
+    feature = "opml"
+))]
+mod smart_fold;
+#[cfg(any(
+    feature = "man",
+    feature = "org",
+    feature = "mediawiki",
+    feature = "dokuwiki",
+    feature = "rst"
+))]
+mod transliterate;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
 #[cfg(any(feature = "docx", feature = "epub", feature = "odt"))]

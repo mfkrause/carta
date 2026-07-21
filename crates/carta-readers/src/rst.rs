@@ -18,6 +18,8 @@ use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
+use crate::smart_fold::fold_ellipsis_run;
+use crate::transliterate::rst_asciify;
 
 /// Parses reStructuredText into the document model.
 ///
@@ -1489,7 +1491,7 @@ impl Parser<'_> {
         let id = match IdScheme::select(self.ext, false) {
             Some(scheme) => {
                 let text = if self.ext.contains(Extension::AsciiIdentifiers) {
-                    asciify(&plain)
+                    rst_asciify(&plain)
                 } else {
                     plain.clone()
                 };
@@ -2829,7 +2831,7 @@ impl Parser<'_> {
                     }
                     '.' => {
                         let n = run_length(&chars, pos, '.');
-                        pending.push_str(&fold_ellipsis(n));
+                        pending.push_str(&fold_ellipsis_run(n));
                         pos += n;
                         continue;
                     }
@@ -4036,72 +4038,6 @@ fn capitalize(text: &str) -> String {
     }
 }
 
-/// Reduce text to ASCII for identifier derivation: an accented Latin letter maps to its base letter,
-/// any remaining non-ASCII character is dropped, and ASCII characters pass through unchanged. The
-/// caller's slug step then keeps only the identifier-valid characters.
-fn asciify(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
-        if ch.is_ascii() {
-            out.push(ch);
-        } else if let Some(base) = ascii_base(ch) {
-            out.push(base);
-        }
-    }
-    out
-}
-
-/// The base ASCII letter an accented Latin letter reduces to, or `None` when the character has no
-/// such base (ligatures, stroked letters, and non-Latin scripts are dropped).
-// Laid out as parallel uppercase and lowercase blocks, each alphabetical by base letter, so the
-// mapping stays auditable; an uppercase and a lowercase accent reducing to the same base letter are
-// kept on separate lines rather than merged.
-#[allow(clippy::match_same_arms)]
-fn ascii_base(ch: char) -> Option<char> {
-    let base = match ch {
-        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'Ā' | 'Ă' | 'Ą' => 'a',
-        'Ç' | 'Ć' | 'Č' | 'Ĉ' | 'Ċ' => 'c',
-        'Ď' | 'Ḋ' => 'd',
-        'È' | 'É' | 'Ê' | 'Ë' | 'Ē' | 'Ĕ' | 'Ė' | 'Ę' | 'Ě' => 'e',
-        'Ĝ' | 'Ğ' | 'Ġ' | 'Ģ' => 'g',
-        'Ĥ' => 'h',
-        'Ì' | 'Í' | 'Î' | 'Ï' | 'Ĩ' | 'Ī' | 'Ĭ' | 'Į' | 'İ' => 'i',
-        'Ĵ' => 'j',
-        'Ķ' => 'k',
-        'Ĺ' | 'Ļ' | 'Ľ' => 'l',
-        'Ñ' | 'Ń' | 'Ņ' | 'Ň' => 'n',
-        'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ō' | 'Ŏ' | 'Ő' => 'o',
-        'Ŕ' | 'Ŗ' | 'Ř' => 'r',
-        'Ś' | 'Ŝ' | 'Ş' | 'Š' => 's',
-        'Ţ' | 'Ť' => 't',
-        'Ù' | 'Ú' | 'Û' | 'Ü' | 'Ũ' | 'Ū' | 'Ŭ' | 'Ů' | 'Ű' | 'Ų' => 'u',
-        'Ŵ' => 'w',
-        'Ý' | 'Ŷ' | 'Ÿ' => 'y',
-        'Ź' | 'Ż' | 'Ž' => 'z',
-        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' | 'ă' | 'ą' => 'a',
-        'ç' | 'ć' | 'č' | 'ĉ' | 'ċ' => 'c',
-        'ď' | 'ḋ' => 'd',
-        'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => 'e',
-        'ĝ' | 'ğ' | 'ġ' | 'ģ' => 'g',
-        'ĥ' => 'h',
-        'ì' | 'í' | 'î' | 'ï' | 'ĩ' | 'ī' | 'ĭ' | 'į' | 'ı' => 'i',
-        'ĵ' => 'j',
-        'ķ' => 'k',
-        'ĺ' | 'ļ' | 'ľ' => 'l',
-        'ñ' | 'ń' | 'ņ' | 'ň' => 'n',
-        'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ō' | 'ŏ' | 'ő' => 'o',
-        'ŕ' | 'ŗ' | 'ř' => 'r',
-        'ś' | 'ŝ' | 'ş' | 'š' => 's',
-        'ţ' | 'ť' => 't',
-        'ù' | 'ú' | 'û' | 'ü' | 'ũ' | 'ū' | 'ŭ' | 'ů' | 'ű' | 'ų' => 'u',
-        'ŵ' => 'w',
-        'ý' | 'ŷ' | 'ÿ' => 'y',
-        'ź' | 'ż' | 'ž' => 'z',
-        _ => return None,
-    };
-    Some(base)
-}
-
 /// Demote a leading paragraph to a plain block, leaving any other block unchanged.
 fn to_plain(block: Block) -> Block {
     match block {
@@ -4581,13 +4517,6 @@ fn fold_dashes(n: usize) -> String {
         1 => s.push('-'),
         _ => {}
     }
-    s
-}
-
-/// Fold a run of `n` dots: every three become an ellipsis, with any remainder kept as dots.
-fn fold_ellipsis(n: usize) -> String {
-    let mut s = "\u{2026}".repeat(n / 3);
-    s.push_str(&".".repeat(n % 3));
     s
 }
 
