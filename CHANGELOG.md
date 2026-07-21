@@ -9,6 +9,32 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.6](https://github.com/mfkrause/carta/compare/v0.0.5...v0.0.6) - 2026-07-21
+
+### Fixed
+
+- *(writers)* render table-cell boundary spaces, multiline cells, and blank cells consistently
+- *(formats)* declare per-format extension sets and report reader defaults
+- *(mediawiki)* clamp table cell spans to bound grid allocation ([#83](https://github.com/mfkrause/carta/pull/83))
+
+### Other
+
+- *(golden)* add offline end-to-end reader-to-writer snapshots
+- *(fuzz)* build once and iterate targets instead of a 20-way matrix
+- *(golden)* partition reader and writer snapshot suites per format
+- feature-gate the serde stack behind the format features
+- *(docs)* cleanup documentation
+- *(readers)* consolidate the ellipsis fold and co-locate the transliteration helpers
+
+### Performance
+
+- *(highlight)* borrow context rules instead of cloning per step
+- *(readers)* bound org and jira inline forward scans
+- *(mediawiki)* make unterminated-tag scanning linear
+- *(commonmark)* bound fence and raw-TeX close lookahead scans
+- *(writers)* add streaming fill_into and single-render group placement
+- *(math)* key the typst symbol tables by name
+
 ## [0.0.5](https://github.com/mfkrause/carta/compare/v0.0.4...v0.0.5) - 2026-07-17
 
 ### Added
