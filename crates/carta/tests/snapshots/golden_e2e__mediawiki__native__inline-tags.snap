@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Water"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O"
+    , Space
+    , Str "and"
+    , Space
+    , Str "E=mc"
+    , Superscript [ Str "2" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strikeout [ Str "gone" ]
+    , Space
+    , Strikeout [ Str "old" ]
+    , Space
+    , Str "here."
+    ]
+, Para
+    [ Str "Use"
+    , Space
+    , Code ( "" , [] , [] ) "fn()"
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "mono"
+    , Space
+    , Str "and"
+    , Space
+    , Span ( "" , [ "kbd" ] , [] ) [ Str "Ctrl" ]
+    , Space
+    , Str "here."
+    ]
+]

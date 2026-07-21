@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+leading space starts this paragraph.
+
+more deeply indented text keeps one leading space.
+
+\begin{itemize}
+\item
+  \begin{itemize}
+  \item
+    \begin{itemize}
+    \item
+      thrice nested bullet item
+    \end{itemize}
+  \end{itemize}
+\end{itemize}
+
+\begin{itemize}
+\item
+  indented marker is still a bullet
+\end{itemize}
+
+-\/-\/-\/-
+
+\begin{itemize}
+\item
+  bullet with extra leading space in its text
+\end{itemize}

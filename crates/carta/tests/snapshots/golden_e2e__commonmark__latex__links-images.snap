@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An \href{http://example.com}{inline link} and a
+\href{http://example.com/ref}{reference link}.
+
+An autolink \url{http://example.com} and an image
+\pandocbounded{\includegraphics[keepaspectratio,alt={alt text}]{pic.png}}.

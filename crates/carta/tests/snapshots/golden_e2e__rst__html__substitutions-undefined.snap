@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>This paragraph references an <a
+href="##SUBST##|undefined|">|undefined|</a> substitution that is never
+declared.</p>

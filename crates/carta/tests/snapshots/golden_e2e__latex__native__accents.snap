@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Caf\233,"
+    , Space
+    , Str "na\239ve,"
+    , Space
+    , Str "r\770ole,"
+    , Space
+    , Str "Stra\223e,"
+    , Space
+    , Str "\231edilla,"
+    , Space
+    , Str "\353,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\241."
+    ]
+, Para
+    [ Str "Special"
+    , Space
+    , Str "glyphs:"
+    , Space
+    , Str "LaTeX,"
+    , Space
+    , Str "TeX,"
+    , Space
+    , Str "\8230,"
+    , Space
+    , Str "&"
+    , Space
+    , Str "ampersand,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\167section."
+    ]
+]

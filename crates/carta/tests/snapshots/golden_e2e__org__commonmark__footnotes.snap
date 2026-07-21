@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Here is a simple footnote[1] reference.
+
+[1] The footnote definition body.

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+  * a first list item indented four columns is read as indented code
+\end{verbatim}

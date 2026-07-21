@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visit \href{http://example.com}{the site},
+\href{http://nested.example.com}{a nested link},
+\href{mailto:hi@example.com}{mail me}, or \href{http://x.com}{x}.

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See the note[1] below.
+
+[1] The note body paragraph.
+
+<table>
+<tbody>
+<tr>
+<td>Column A</td>
+<td>Column B</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>

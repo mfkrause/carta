@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Text with an inline {{tl|template}} reference.
+
+{{Infobox|name=Test|value=42}}

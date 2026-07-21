@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+  ---------------------------------------
+  cell with a pipe inside the attribute
+  spanning cell
+  ---------------------------------------

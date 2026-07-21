@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+    import sys
+    print(42)
+    sys.stderr.write("warning\n")
+
+    42
+
+    warning

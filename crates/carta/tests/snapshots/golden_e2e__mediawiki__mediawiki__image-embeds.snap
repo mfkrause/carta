@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="figure">
+[[File:Foo.jpg|A caption]]
+</div>
+
+<div class="figure">
+[[File:My_Photo.jpg|My_Photo.jpg]]
+</div>
+
+<div class="figure">
+[[File:Chart.png|100x200px|Sized chart]]
+</div>
+
+An inline [[File:Icon.svg|icon]] sits in this paragraph.

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Task}\label{task-one}
+
+Body under the task.
+
+\section{Notes}\label{notes}
+
+Custom drawers are kept as a div.

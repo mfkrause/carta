@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Water is H<sub>2</sub>O and the area is 10m<sup>2</sup> in size.</p>
+<p>This sentence has a <del>deleted</del> word in the middle.</p>

@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "substitution"
+    , Space
+    , Str "joins"
+    , Space
+    , Str "word"
+    , Str "JOINED"
+    , Str "after"
+    , Space
+    , Str "with"
+    , Space
+    , Str "no"
+    , Space
+    , Str "surrounding"
+    , Space
+    , Str "spaces."
+    ]
+, Para [ Str "two" , Space , Str "words" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "leading"
+    , Space
+    , Str "inline"
+    , Space
+    , Span ( "" , [] , [] ) [ Str "two" , Space , Str "words" ]
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "company"
+    , Space
+    , Str "with"
+    , Space
+    , Str "other"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "see"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "site" ]
+        ( "https://example.com" , "" )
+    ]
+]

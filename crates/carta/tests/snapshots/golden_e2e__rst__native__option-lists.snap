@@ -1,0 +1,91 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Code ( "" , [] , [] ) "-a" ]
+      , [ [ Para [ Str "Output" , Space , Str "all." ] ] ]
+      )
+    , ( [ Code ( "" , [] , [] ) "-b, --brief" ]
+      , [ [ Para
+              [ Str "Be"
+              , Space
+              , Str "brief"
+              , Space
+              , Str "about"
+              , Space
+              , Str "it."
+              ]
+          ]
+        ]
+      )
+    , ( [ Code ( "" , [] , [] ) "--verbose" ]
+      , [ [ Para
+              [ Str "Talk"
+              , Space
+              , Str "a"
+              , Space
+              , Str "great"
+              , Space
+              , Str "deal."
+              ]
+          ]
+        ]
+      )
+    , ( [ Code ( "" , [] , [] ) "-f FILE" ]
+      , [ [ Para
+              [ Str "Read"
+              , Space
+              , Str "input"
+              , Space
+              , Str "from"
+              , Space
+              , Str "FILE."
+              ]
+          ]
+        ]
+      )
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "description"
+    , Space
+    , Str "may"
+    , Space
+    , Str "also"
+    , Space
+    , Str "start"
+    , Space
+    , Str "on"
+    , Space
+    , Str "the"
+    , Space
+    , Str "next"
+    , Space
+    , Str "line:"
+    ]
+, DefinitionList
+    [ ( [ Code ( "" , [] , [] ) "--output=FILE" ]
+      , [ [ Para
+              [ Str "Write"
+              , Space
+              , Str "output"
+              , Space
+              , Str "to"
+              , Space
+              , Str "FILE"
+              , Space
+              , Str "instead"
+              , Space
+              , Str "of"
+              , Space
+              , Str "standard"
+              , Space
+              , Str "output."
+              ]
+          ]
+        ]
+      )
+    ]
+]

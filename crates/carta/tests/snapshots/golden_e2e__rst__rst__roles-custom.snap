@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A bare custom role and a *role with a base*.
+
+A role carrying its own classes and a **base that wins over a class
+list**.

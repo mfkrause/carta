@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Strong [ Str "bold" ]
+    , Space
+    , Str "and"
+    , Space
+    , Emph [ Str "italic" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Emph [ Str "both" ] ]
+    , Str "."
+    ]
+]

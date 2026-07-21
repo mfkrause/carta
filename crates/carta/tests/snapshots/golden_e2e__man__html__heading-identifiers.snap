@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="section">!!!</h1>
+<p>A heading that slugs to nothing falls back to a reserved
+identifier.</p>
+<h1 id="section-1">???</h1>
+<p>Another empty slug is disambiguated against the fallback.</p>
+<h1 id="foo">Foo</h1>
+<p>A base identifier.</p>
+<h1 id="foo-1">Foo</h1>
+<p>A repeat gains a numeric suffix.</p>
+<h1 id="foo-1-1">Foo 1</h1>
+<p>A title that already carries the suffix is disambiguated further.</p>
+<h1 id="i-here">İ here</h1>
+<p>A dotted capital I lowercases to a letter plus a combining mark that
+the identifier drops.</p>
+<h1 id="wordend">WordͅEnd</h1>
+<p>A letter-like combining mark is not a letter and is dropped from the
+identifier.</p>

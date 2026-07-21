@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>Author</dt>
+<dd>
+Ada Writer
+</dd>
+<dt>Version</dt>
+<dd>
+1.0
+</dd>
+<dt>Note</dt>
+<dd>
+A field whose value begins on the next line and spans an indented block.
+</dd>
+</dl>

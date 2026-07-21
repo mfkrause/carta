@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+   :name: order
+
+   Two attachments, referenced out of key order:
+
+   |beta|
+
+   |alpha|
+
+.. |beta| image:: order-beta.png
+.. |alpha| image:: order-alpha.png

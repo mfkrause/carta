@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="h">Title</h1>
+<p>A <em>para</em></p>
+<ul>
+<li>a</li>
+<li>b</li>
+</ul>
+<pre class="rust"><code>let x = 1;</code></pre>

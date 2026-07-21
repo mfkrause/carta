@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>h1.</p>
+<blockquote>
+<p>degraded</p>
+</blockquote>
+<p>bq.</p>
+<pre class="java"><code>raw
+</code></pre>
+<h2>{code:java} stays a heading</h2>

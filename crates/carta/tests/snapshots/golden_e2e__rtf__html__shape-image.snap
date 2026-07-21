@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A<img src="0db275746ba70a75bf5175616412bddd5236ced5.png"
+alt="image" />B</p>

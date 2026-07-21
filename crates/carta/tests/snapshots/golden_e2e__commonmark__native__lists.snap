@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Plain
+          [ Str "tight" , Space , Str "bullet" , Space , Str "one" ]
+      ]
+    , [ Plain
+          [ Str "tight" , Space , Str "bullet" , Space , Str "two" ]
+      ]
+    , [ Plain
+          [ Str "tight" , Space , Str "bullet" , Space , Str "three" ]
+      ]
+    ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain [ Str "ordered" , Space , Str "one" ] ]
+    , [ Plain [ Str "ordered" , Space , Str "two" ] ]
+    ]
+, OrderedList
+    ( 3 , Decimal , OneParen )
+    [ [ Plain
+          [ Str "ordered" , Space , Str "with" , Space , Str "paren" ]
+      ]
+    ]
+, Para [ Str "Loose" , Space , Str "bullets:" ]
+, BulletList
+    [ [ Para [ Str "loose" , Space , Str "one" ] ]
+    , [ Para [ Str "loose" , Space , Str "two" ] ]
+    ]
+, Para [ Str "Nested:" ]
+, BulletList
+    [ [ Plain [ Str "outer" ]
+      , BulletList
+          [ [ Plain [ Str "inner" , Space , Str "one" ] ]
+          , [ Plain [ Str "inner" , Space , Str "two" ] ]
+          ]
+      ]
+    ]
+]

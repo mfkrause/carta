@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+======== ===== ====
+Name     Score Rank
+======== ===== ====
+Alice    90    1
+Bob      85    2
+Combined       3
+-------------- ----
+======== ===== ====

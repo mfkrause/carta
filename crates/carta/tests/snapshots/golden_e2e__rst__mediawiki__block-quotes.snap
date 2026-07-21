@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An introductory paragraph.
+
+<blockquote>A block quote is set off by indentation relative to the surrounding text.
+
+-- An Attribution
+</blockquote>

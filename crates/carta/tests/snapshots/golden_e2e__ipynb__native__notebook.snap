@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "heading"
+    , [ "cell" , "markdown" ]
+    , [ ( "scrolled" , "true" ) ]
+    )
+    [ Header 1 ( "analysis" , [] , [] ) [ Str "Analysis" ]
+    , Para
+        [ Str "A"
+        , Space
+        , Str "short"
+        , Space
+        , Str "narrative"
+        , Space
+        , Str "cell"
+        , Space
+        , Str "before"
+        , Space
+        , Str "the"
+        , Space
+        , Str "computation."
+        ]
+    ]
+, Div
+    ( "compute"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "1" ) ]
+    )
+    [ CodeBlock
+        ( "" , [ "python" ] , [] ) "total = 2 + 2\nprint(total)"
+    , Div
+        ( "" , [ "output" , "stream" , "stdout" ] , [] )
+        [ CodeBlock ( "" , [] , [] ) "4\n" ]
+    , Div
+        ( ""
+        , [ "output" , "execute_result" ]
+        , [ ( "execution_count" , "1" ) ]
+        )
+        [ CodeBlock ( "" , [] , [] ) "4" ]
+    ]
+, Div
+    ( "footer"
+    , [ "cell" , "raw" ]
+    , [ ( "format" , "text/html" ) ]
+    )
+    [ RawBlock
+        (Format "html") "<footer>End of notebook.</footer>"
+    ]
+]

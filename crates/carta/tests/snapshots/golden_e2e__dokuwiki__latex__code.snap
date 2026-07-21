@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A plain code region:
+
+\begin{verbatim}
+plain text
+  preserved exactly
+\end{verbatim}
+
+A highlighted region names its language:
+
+\begin{verbatim}
+def greet(name):
+    return "hello " + name
+\end{verbatim}
+
+A file region behaves the same way:
+
+\begin{verbatim}
+contents of a file
+\end{verbatim}

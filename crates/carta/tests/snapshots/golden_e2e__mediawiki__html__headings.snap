@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="top_level">Top level</h1>
+<h2 id="second">Second</h2>
+<h3 id="third">Third</h3>
+<h4 id="fourth">Fourth</h4>
+<h5 id="fifth">Fifth</h5>
+<h6 id="sixth">Sixth</h6>

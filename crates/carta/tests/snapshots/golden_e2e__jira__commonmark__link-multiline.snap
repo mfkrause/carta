@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[a\
+b](http://x.com) keeps the break inside the link label.

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See the [https://example.org/docs documentation] for details, or visit the [https://example.org/ project home].
+
+An inline link points to [https://example.org/spec the spec] directly.

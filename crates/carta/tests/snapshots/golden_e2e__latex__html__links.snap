@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Visit <a href="https://example.com">our site</a> for details, or go
+to <a href="https://example.org" class="uri">https://example.org</a>
+directly.</p>

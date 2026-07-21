@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A dotted name like <a href="">a.b+c</a> is a single reference.</p>
+<p>A word such as file__name__ has no reference.</p>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An image <img src="photo.png" /> in a line.</p>
+<p>A sized one <img src="chart.png" data-align="right" width="200" />
+follows.</p>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+This page suppresses its table of contents.
+
+The cache control macro is dropped from the rendered text.

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# NO-OP REQUESTS
+
+First line of a filled paragraph that continues across a bare control
+character and across a no-op dotted request and across an empty
+apostrophe request without a break.

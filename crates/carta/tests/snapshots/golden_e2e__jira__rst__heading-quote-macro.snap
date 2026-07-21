@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+h1.
+
+   degraded
+
+bq.
+
+.. code:: java
+
+   raw
+
+{code:java} stays a heading
+---------------------------

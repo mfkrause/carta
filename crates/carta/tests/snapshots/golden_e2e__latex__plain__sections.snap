@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Introduction
+
+Some introductory text.
+
+Background
+
+More detail here.
+
+Fine Points
+
+Even more detail.
+
+Conclusion
+
+Final remarks.

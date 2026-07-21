@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><u>underlined</u> and <del>struck</del>.</p>

@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "top_level" , [] , [] )
+    [ Str "Top" , Space , Str "level" ]
+, Header 2 ( "second" , [] , [] ) [ Str "Second" ]
+, Header 3 ( "third" , [] , [] ) [ Str "Third" ]
+, Header 4 ( "fourth" , [] , [] ) [ Str "Fourth" ]
+, Header 5 ( "fifth" , [] , [] ) [ Str "Fifth" ]
+, Header 6 ( "sixth" , [] , [] ) [ Str "Sixth" ]
+]

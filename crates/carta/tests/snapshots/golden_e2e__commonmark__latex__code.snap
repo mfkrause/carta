@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+indented code block
+second line
+\end{verbatim}
+
+\begin{verbatim}
+let x = 1;
+x < y && y > z;
+\end{verbatim}
+
+\begin{verbatim}
+tilde fence
+\end{verbatim}

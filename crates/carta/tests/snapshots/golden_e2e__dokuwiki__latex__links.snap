@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An internal link to \url{start} and one to a
+\href{/some/namespace/page}{page} target.
+
+A named internal link to \href{start}{the start page} guides the reader.
+
+External links such as \href{https://example.com}{Example} and the bare
+form \url{https://example.org} both work, as does an email like
+\href{mailto:user@example.com}{\nolinkurl{user@example.com}}.
+
+An interwiki shortcut points at
+\href{https://en.wikipedia.org/wiki/Wiki}{Wiki} for background reading.

@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{MACRO DEFINITIONS}\label{macro-definitions}
+
+Text after the first definition is kept. Text after the second
+definition is kept.
+
+\section{MACRO INVOCATION}\label{macro-invocation}
+
+Hello Alice and Bob.
+
+The stored value is 42 today.
+
+\emph{}

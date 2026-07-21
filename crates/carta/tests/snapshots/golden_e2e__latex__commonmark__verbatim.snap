@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Some code follows.
+
+    def hello():
+        print("world")
+
+``` python
+x = 1 + 2
+```

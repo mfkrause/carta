@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<caption>A caption</caption>
+<thead>
+<tr>
+<th><p>Header</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p>Cell</p></td>
+</tr>
+</tbody>
+</table>

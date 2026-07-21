@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Str "reference"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "name:" , Space , Str "with" , Space , Str "colon" ]
+        ( "http://example.com/colon" , "" )
+    , Space
+    , Str "points"
+    , Space
+    , Str "at"
+    , Space
+    , Str "an"
+    , Space
+    , Str "escaped-colon"
+    , Space
+    , Str "target."
+    ]
+]

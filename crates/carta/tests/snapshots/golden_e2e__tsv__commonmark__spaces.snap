@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>word</th>
+<th>has spaces</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>foo bar</td>
+<td>baz qux</td>
+</tr>
+</tbody>
+</table>

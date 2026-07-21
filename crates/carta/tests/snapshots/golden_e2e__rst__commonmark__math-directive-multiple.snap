@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+*a* = *b* + *c*
+*d* = *e* − *f*

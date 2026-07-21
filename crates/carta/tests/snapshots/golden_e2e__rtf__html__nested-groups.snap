@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><strong>bold <em>nested italic</em> still bold</strong> done.</p>

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+1.  one
+    - bullet under number
+      1.  number under bullet
+2.  two

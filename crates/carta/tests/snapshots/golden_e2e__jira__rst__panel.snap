@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: panel
+
+   .. container:: panelheader
+
+      **Notice**
+
+   Body text inside the panel.

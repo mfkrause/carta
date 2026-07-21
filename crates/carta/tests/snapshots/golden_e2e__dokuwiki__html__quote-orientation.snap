@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A possessive it‘s keeps a ’quoted’ phrase from nesting inside the
+same kind.</p>

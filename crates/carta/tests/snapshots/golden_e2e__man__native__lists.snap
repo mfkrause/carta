@@ -1,0 +1,86 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "options" , [] , [] ) [ Str "OPTIONS" ]
+, DefinitionList
+    [ ( [ Strong [ Str "-v" ] ]
+      , [ [ Para
+              [ Str "Produce"
+              , Space
+              , Str "verbose"
+              , Space
+              , Str "output."
+              ]
+          ]
+        ]
+      )
+    , ( [ Strong [ Str "-f" , Space , Emph [ Str "file" ] ] ]
+      , [ [ Para
+              [ Str "Read"
+              , Space
+              , Str "input"
+              , Space
+              , Str "from"
+              , Space
+              , Str "the"
+              , Space
+              , Str "named"
+              , Space
+              , Str "file."
+              ]
+          ]
+        ]
+      )
+    ]
+, Header 1 ( "bullets" , [] , [] ) [ Str "BULLETS" ]
+, BulletList
+    [ [ Para
+          [ Str "First" , Space , Str "bullet" , Space , Str "item." ]
+      ]
+    , [ Para
+          [ Str "Second"
+          , Space
+          , Str "bullet"
+          , Space
+          , Str "item."
+          ]
+      ]
+    ]
+, Header 1 ( "numbered" , [] , [] ) [ Str "NUMBERED" ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Para
+          [ Str "First"
+          , Space
+          , Str "numbered"
+          , Space
+          , Str "item."
+          ]
+      ]
+    , [ Para
+          [ Str "Second"
+          , Space
+          , Str "numbered"
+          , Space
+          , Str "item."
+          ]
+      ]
+    ]
+, Header 1 ( "plain" , [] , [] ) [ Str "PLAIN" ]
+, BlockQuote
+    [ Para
+        [ Str "An"
+        , Space
+        , Str "indented"
+        , Space
+        , Str "paragraph"
+        , Space
+        , Str "with"
+        , Space
+        , Str "no"
+        , Space
+        , Str "marker."
+        ]
+    ]
+]

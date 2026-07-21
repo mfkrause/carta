@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+text<ref>a footnote body</ref>more text.
+
+<references />

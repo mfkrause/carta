@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An empty \textless sub\textgreater\textless/sub\textgreater, a
+whitespace-only \textless sup\textgreater{} \textless/sup\textgreater,
+and a blank \textless del\textgreater\textless/del\textgreater{} all
+stay literal text.

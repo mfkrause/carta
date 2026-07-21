@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "literal"
+    , Space
+    , Code ( "" , [] , [] ) "spanning two lines"
+    , Space
+    , Str "folds"
+    , Space
+    , Str "the"
+    , Space
+    , Str "line"
+    , Space
+    , Str "break"
+    , Space
+    , Str "to"
+    , Space
+    , Str "a"
+    , Space
+    , Str "single"
+    , Space
+    , Str "space."
+    ]
+]

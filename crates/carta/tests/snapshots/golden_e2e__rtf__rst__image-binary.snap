@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+before |image|\ after
+
+.. |image| image:: 9a51c9653b72c164609958137e451b35168e28b7.png

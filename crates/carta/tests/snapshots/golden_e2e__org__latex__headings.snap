@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{First level heading}\label{first-level-heading}
+
+Body text under the first heading.
+
+\subsection{\texorpdfstring{Second level heading
+{\textsc{work}}~{\textsc{urgent}}}{Second level heading work~urgent}}\label{second-level-heading}
+
+\subsubsection{Third level heading}\label{third-level-heading}

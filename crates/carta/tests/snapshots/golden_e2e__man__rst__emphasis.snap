@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+FONTS
+=====
+
+**bold words**
+
+*italic words*
+
+**bold**\ then\ **roman**
+
+roman\ *then*\ italic
+
+**bold**\ *italic*\ **pairs**
+
+plain **bold** and *italic* and **both** back to plain
+
+nested **outer** *inner* still bold *done*
+
+a font macro called with an explicit empty argument keeps its wrapper:

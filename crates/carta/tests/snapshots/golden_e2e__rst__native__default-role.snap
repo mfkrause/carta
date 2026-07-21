@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Emph
+        [ Str "the"
+        , Space
+        , Str "configured"
+        , Space
+        , Str "default"
+        , Space
+        , Str "role"
+        ]
+    , Space
+    , Str "applied."
+    ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Span
+        ( "" , [ "title-ref" ] , [] )
+        [ Str "the"
+        , Space
+        , Str "standard"
+        , Space
+        , Str "default"
+        , Space
+        , Str "role"
+        ]
+    , Space
+    , Str "restored."
+    ]
+]

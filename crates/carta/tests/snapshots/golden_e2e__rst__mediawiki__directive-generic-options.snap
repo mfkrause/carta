@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="gadget" class="widget shiny" data-power="high">
+The widget body.
+
+</div>

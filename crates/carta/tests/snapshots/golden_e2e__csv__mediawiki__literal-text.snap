@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! markup
+! link
+|-
+| *not italic*
+| [not a link](url)
+|}

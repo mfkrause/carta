@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Some code follows.
+
+<pre>def hello():
+    print(&quot;world&quot;)</pre>
+<syntaxhighlight lang="python">x = 1 + 2</syntaxhighlight>

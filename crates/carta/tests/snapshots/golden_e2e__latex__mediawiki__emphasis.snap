@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Text with ''emphasis'' and '''bold''' and ''italic''.
+
+A run with '''bold and ''nested emphasis'' inside''' it.
+
+Also <u>underlined</u>, small caps, and <s>struck out</s>.

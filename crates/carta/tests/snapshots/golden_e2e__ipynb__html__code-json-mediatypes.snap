@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="geo" class="cell code" data-execution_count="1">
+<pre class="python"><code>feature</code></pre>
+<div class="output display_data">
+<pre class="json"><code>{&quot;coordinates&quot;:[1,2],&quot;type&quot;:&quot;Point&quot;}</code></pre>
+</div>
+</div>
+<div id="tie" class="cell code" data-execution_count="2">
+<pre class="python"><code>rendered</code></pre>
+<div class="output display_data">
+<pre class="json"><code>{&quot;j&quot;:2}</code></pre>
+</div>
+</div>

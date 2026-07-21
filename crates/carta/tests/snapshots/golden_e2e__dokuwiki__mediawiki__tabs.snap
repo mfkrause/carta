@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre>  code here
+</pre>
+<pre>      x
+</pre>
+<pre>  * item
+</pre>
+para
+
+<pre>  more
+</pre>

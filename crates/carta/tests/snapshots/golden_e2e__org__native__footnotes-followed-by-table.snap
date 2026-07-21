@@ -1,0 +1,69 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "See"
+    , Space
+    , Str "the"
+    , Space
+    , Str "note"
+    , Note
+        [ Para
+            [ Str "The"
+            , Space
+            , Str "note"
+            , Space
+            , Str "body"
+            , Space
+            , Str "paragraph."
+            ]
+        , Table
+            ( "" , [] , [] )
+            (Caption Nothing [])
+            [ ( AlignDefault , ColWidthDefault )
+            , ( AlignDefault , ColWidthDefault )
+            ]
+            (TableHead ( "" , [] , [] ) [])
+            [ TableBody
+                ( "" , [] , [] )
+                (RowHeadColumns 0)
+                []
+                [ Row
+                    ( "" , [] , [] )
+                    [ Cell
+                        ( "" , [] , [] )
+                        AlignDefault
+                        (RowSpan 1)
+                        (ColSpan 1)
+                        [ Plain [ Str "Column" , Space , Str "A" ] ]
+                    , Cell
+                        ( "" , [] , [] )
+                        AlignDefault
+                        (RowSpan 1)
+                        (ColSpan 1)
+                        [ Plain [ Str "Column" , Space , Str "B" ] ]
+                    ]
+                , Row
+                    ( "" , [] , [] )
+                    [ Cell
+                        ( "" , [] , [] )
+                        AlignDefault
+                        (RowSpan 1)
+                        (ColSpan 1)
+                        [ Plain [ Str "1" ] ]
+                    , Cell
+                        ( "" , [] , [] )
+                        AlignDefault
+                        (RowSpan 1)
+                        (ColSpan 1)
+                        [ Plain [ Str "2" ] ]
+                    ]
+                ]
+            ]
+            (TableFoot ( "" , [] , [] ) [])
+        ]
+    , Space
+    , Str "below."
+    ]
+]

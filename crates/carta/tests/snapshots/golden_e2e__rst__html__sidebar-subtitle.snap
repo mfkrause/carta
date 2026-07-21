@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="sidebar" data-subtitle="The Subtitle">
+<p><strong>The Title: The Subtitle</strong></p>
+<p>The body of the sidebar.</p>
+</div>

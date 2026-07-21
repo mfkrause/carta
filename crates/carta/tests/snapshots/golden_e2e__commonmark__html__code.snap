@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre><code>indented code block
+second line</code></pre>
+<pre class="rust"><code>let x = 1;
+x &lt; y &amp;&amp; y &gt; z;</code></pre>
+<pre><code>tilde fence</code></pre>

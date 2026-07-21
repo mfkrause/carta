@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An <a href="http://example.com" title="a title">inline link</a> and a
+<a href="http://example.com/ref">reference link</a>.</p>
+<p>An autolink <a href="http://example.com">http://example.com</a> and
+an image <img src="pic.png" title="img title" alt="alt text" />.</p>

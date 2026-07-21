@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+DASH AND PLUS
+=============
+
+- Dash bullet.
+
+- Plus bullet.
+
+PARENTHESIZED
+=============
+
+(1) First parenthesized.
+
+(2) Second parenthesized.
+
+FONT MARKUP AND EMPTY
+=====================
+
+term
+   A designator whose font markup is reduced to plain text.
+
+   An empty designator yields an empty term.

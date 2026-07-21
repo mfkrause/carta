@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div color="red">
+<p>red text spanning<br />
+a block</p>
+</div>
+<div color="#123456">
+<p>a bare hexadecimal value</p>
+</div>

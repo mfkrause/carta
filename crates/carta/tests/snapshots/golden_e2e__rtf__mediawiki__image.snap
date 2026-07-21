@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Before pic. [[File:0db275746ba70a75bf5175616412bddd5236ced5.png|image]] After pic.

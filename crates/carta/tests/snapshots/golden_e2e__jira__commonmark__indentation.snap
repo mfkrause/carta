@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+leading space starts this paragraph.
+
+more deeply indented text keeps one leading space.
+
+- - - thrice nested bullet item
+
+<!-- -->
+
+- indented marker is still a bullet
+
+----
+
+-  bullet with extra leading space in its text

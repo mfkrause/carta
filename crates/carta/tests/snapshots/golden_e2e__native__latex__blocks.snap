@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Title}\label{h}
+
+A \emph{para}
+
+\begin{itemize}
+\tightlist
+\item
+  a
+\item
+  b
+\end{itemize}
+
+\begin{verbatim}
+let x = 1;
+\end{verbatim}

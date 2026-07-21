@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\[\[|text\]\]
+
+\[\[\]\]
+
+\[\[|\]\]
+
+[]()
+
+{{}}
+
+{{|cap}}
+
+<img src="" class="align-center" alt="" />
+
+(())
+
+(( ))

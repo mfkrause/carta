@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Inline"
+    , Space
+    , RawInline (Format "html") "<b>bold</b>"
+    , Str ","
+    , Space
+    , Str "then"
+    , Space
+    , Code ( "" , [ "pycode" , "python" ] , [] ) "print(x)"
+    , Str ","
+    , Space
+    , Str "then"
+    , Space
+    , Span
+        ( "" , [ "warning" , "attention" ] , [] ) [ Str "flagged" ]
+    , Str "."
+    ]
+]

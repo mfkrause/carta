@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="boom" class="cell code" data-execution_count="3">
+<syntaxhighlight lang="python">raise Error</syntaxhighlight>
+<div class="output error" data-ename="Err" data-evalue="bad">
+<pre>Traceback
+Err: bad
+</pre>
+</div>
+
+</div>

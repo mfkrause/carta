@@ -1,0 +1,64 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visit"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com" ]
+        ( "http://example.com" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "ftp://files.example.org" ]
+        ( "ftp://files.example.org" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "data."
+    ]
+, Para
+    [ Str "Reach"
+    , Space
+    , Str "us"
+    , Space
+    , Str "at"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "irc://chat.example" ]
+        ( "irc://chat.example" , "" )
+    , Space
+    , Str "or"
+    , Space
+    , Str "via"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "gopher://old.example" ]
+        ( "gopher://old.example" , "" )
+    , Space
+    , Str "archive."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "non-registered"
+    , Space
+    , Str "foo://nope"
+    , Space
+    , Str "scheme"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "text."
+    ]
+]

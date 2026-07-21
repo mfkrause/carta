@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An inline image <img src="logo.png" alt="image" /> sits within this
+line of text.</p>

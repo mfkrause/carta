@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "equations" , [ "cell" , "markdown" ] , [] )
+    [ Para
+        [ Str "Inline"
+        , Space
+        , Str "math"
+        , Space
+        , Math InlineMath "a^2 + b^2 = c^2"
+        , Space
+        , Str "within"
+        , Space
+        , Str "a"
+        , Space
+        , Str "sentence,"
+        , Space
+        , Str "and"
+        , Space
+        , Str "a"
+        , Space
+        , Str "display"
+        , Space
+        , Str "equation:"
+        ]
+    , Para [ Math DisplayMath "E = mc^2" ]
+    ]
+]

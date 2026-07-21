@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See \href{http://python.org}{Python} first, then reference
+\href{http://python.org}{Python} again later.

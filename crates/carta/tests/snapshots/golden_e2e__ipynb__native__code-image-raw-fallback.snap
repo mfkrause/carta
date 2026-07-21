@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "broken-plot"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "9" ) ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "draw()"
+    , Div
+        ( "" , [ "output" , "display_data" ] , [] )
+        [ Para
+            [ Image
+                ( "" , [] , [] )
+                []
+                ( "05c9998ab9e54c4fb6cbbb6331ec7daf8f4c6f1c.png" , "" )
+            ]
+        ]
+    ]
+]

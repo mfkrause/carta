@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visit <u>[http://example.com our site]</u> and '''[http://other.com bold]'''[http://other.com plain].

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An <span id="target"></span> anchor marks a spot.</p>
+<p>Text continues after the anchor span.</p>

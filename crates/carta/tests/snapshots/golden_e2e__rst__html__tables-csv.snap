@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<caption>Frozen Delights!</caption>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 18%" />
+<col style="width: 54%" />
+</colgroup>
+<thead>
+<tr>
+<th>Treat</th>
+<th>Quantity</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Albatross</td>
+<td>2.99</td>
+<td>On a stick!</td>
+</tr>
+<tr>
+<td>Crunchy Frog</td>
+<td>1.49</td>
+<td>If we took the bones out</td>
+</tr>
+<tr>
+<td>Gannet Ripple</td>
+<td>1.99</td>
+<td>On a stick!</td>
+</tr>
+</tbody>
+</table>

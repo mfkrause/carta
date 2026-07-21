@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- a
+- b
+
+5.  five
+6.  six
+
+a.  one
+b.  two
+
+- outer
+  - inner

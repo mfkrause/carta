@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="refspace" class="cell markdown">
+See [[my%20file.html|ref]].
+
+</div>

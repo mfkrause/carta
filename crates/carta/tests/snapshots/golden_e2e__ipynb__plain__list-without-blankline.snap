@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A bullet list opens right after a paragraph line, with no blank between:
+
+- apples
+- pears
+
+An ordered list interrupts the same way:
+
+1.  second
+2.  third
+
+A parenthesized or roman marker has a list shape but no enabled style
+here, so it breaks off as its own plain paragraph rather than folding
+in:
+
+(5) parenthesized
+
+A decimal marker closed by a single paren stays prose and folds in, so
+these two lines remain one paragraph: 1) not a list 2) still prose

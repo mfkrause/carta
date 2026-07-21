@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A statement<ref>First paragraph of the note.
+
+Second paragraph of the note.</ref> with a multi-paragraph footnote.
+
+<references />

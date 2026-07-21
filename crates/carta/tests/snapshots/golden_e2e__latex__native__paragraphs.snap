@@ -1,0 +1,79 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "This"
+    , Space
+    , Str "is"
+    , Space
+    , Str "the"
+    , Space
+    , Str "first"
+    , Space
+    , Str "paragraph."
+    , Space
+    , Str "It"
+    , Space
+    , Str "has"
+    , Space
+    , Str "several"
+    , Space
+    , Str "sentences"
+    , Space
+    , Str "that"
+    , Space
+    , Str "flow"
+    , SoftBreak
+    , Str "across"
+    , Space
+    , Str "multiple"
+    , Space
+    , Str "source"
+    , Space
+    , Str "lines,"
+    , Space
+    , Str "joined"
+    , Space
+    , Str "with"
+    , Space
+    , Str "soft"
+    , Space
+    , Str "breaks."
+    ]
+, Para
+    [ Str "Here"
+    , Space
+    , Str "is"
+    , Space
+    , Str "a"
+    , Space
+    , Str "second"
+    , Space
+    , Str "paragraph,"
+    , Space
+    , Str "separated"
+    , Space
+    , Str "from"
+    , Space
+    , Str "the"
+    , Space
+    , Str "first"
+    , Space
+    , Str "by"
+    , Space
+    , Str "a"
+    , Space
+    , Str "blank"
+    , SoftBreak
+    , Str "line"
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "source"
+    , Space
+    , Str "text."
+    ]
+]

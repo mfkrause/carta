@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{FONTS}\label{fonts}
+
+\textbf{bold words}
+
+\emph{italic words}
+
+\textbf{bold}then\textbf{roman}
+
+roman\emph{then}italic
+
+\textbf{bold}\emph{italic}\textbf{pairs}
+
+plain \textbf{bold} and \emph{italic} and \emph{\textbf{both}} back to
+plain
+
+nested \textbf{outer} \emph{inner} still bold \emph{done}
+
+a font macro called with an explicit empty argument keeps its wrapper:
+\textbf{}

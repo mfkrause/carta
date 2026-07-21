@@ -1,0 +1,68 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "tag"
+    , Space
+    , Str "that"
+    , Space
+    , Str "never"
+    , Space
+    , Str "closes:"
+    , Space
+    , Str "<a"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "going"
+    , Space
+    , Str "as"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "Something"
+    , Space
+    , Str "that"
+    , Space
+    , Str "is"
+    , Space
+    , Str "not"
+    , Space
+    , Str "a"
+    , Space
+    , Str "tag"
+    , Space
+    , Str "at"
+    , Space
+    , Str "all:"
+    , Space
+    , Str "<notatag"
+    , Space
+    , Str "lingers"
+    , Space
+    , Str "here."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "lone"
+    , Space
+    , Str "bracket"
+    , Space
+    , Str "<"
+    , Space
+    , Str "on"
+    , Space
+    , Str "its"
+    , Space
+    , Str "own"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "literal."
+    ]
+]

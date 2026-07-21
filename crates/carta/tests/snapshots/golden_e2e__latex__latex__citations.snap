@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+As shown by \cite{knuth1984} and \citep[p.~5]{lamport1994}, this holds.

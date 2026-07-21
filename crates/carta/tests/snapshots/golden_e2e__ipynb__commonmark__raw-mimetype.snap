@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="embed" class="cell raw" data-format="text/html"
+data-raw_mimetype="text/latex">
+
+</div>

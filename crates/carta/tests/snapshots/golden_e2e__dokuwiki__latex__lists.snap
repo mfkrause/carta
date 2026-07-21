@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  First bullet
+\item
+  Second bullet
+\item
+  Third bullet
+\end{itemize}
+
+\begin{enumerate}
+\tightlist
+\item
+  First ordered
+\item
+  Second ordered
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  Parent bullet
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Nested child
+  \item
+    Another child
+  \end{itemize}
+\end{itemize}

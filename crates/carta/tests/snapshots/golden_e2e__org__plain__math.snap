@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math a² + b² = c² appears mid-sentence.
+
+Dollar-delimited math E = mc² also renders inline.
+
+Display math is set apart:
+
+$$
+\int_0^1 x^2 \, dx = \frac{1}{3}
+$$

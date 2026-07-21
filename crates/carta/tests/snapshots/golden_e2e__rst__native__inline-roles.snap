@@ -1,0 +1,66 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Water"
+    , Space
+    , Str "is"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O"
+    , Space
+    , Str "and"
+    , Space
+    , Str "the"
+    , Space
+    , Str "area"
+    , Space
+    , Str "is"
+    , Space
+    , Str "x"
+    , Superscript [ Str "2" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Use"
+    , Space
+    , Emph [ Str "emphasised" , Space , Str "text" ]
+    , Str ","
+    , Space
+    , Strong [ Str "strong" , Space , Str "text" ]
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , SoftBreak
+    , Span
+        ( "" , [ "title-ref" ] , [] )
+        [ Str "Title" , Space , Str "Reference" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Inline"
+    , Space
+    , Str "code"
+    , Space
+    , Str "through"
+    , Space
+    , Str "a"
+    , Space
+    , Str "role:"
+    , Space
+    , Code ( "" , [] , [] ) "value = 1"
+    , Space
+    , Str "and"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "math"
+    , SoftBreak
+    , Math InlineMath "a^2 + b^2 = c^2"
+    , Str "."
+    ]
+]

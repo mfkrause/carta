@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>— <em>a<br />
+b</em> carries the citation across a soft break.</p>

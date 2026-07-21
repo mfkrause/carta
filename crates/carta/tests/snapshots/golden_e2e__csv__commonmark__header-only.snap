@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>header one</th>
+<th>header two</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>only header row above</td>
+<td></td>
+</tr>
+</tbody>
+</table>

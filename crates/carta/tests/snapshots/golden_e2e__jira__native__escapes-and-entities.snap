@@ -1,0 +1,64 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Backslash"
+    , Space
+    , Str "before"
+    , Space
+    , Str "a"
+    , Space
+    , Str "digit"
+    , Space
+    , Str "a\\1b"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "literal,"
+    , Space
+    , Str "but"
+    , Space
+    , Str "a*b"
+    , Space
+    , Str "escapes"
+    , Space
+    , Str "the"
+    , Space
+    , Str "star."
+    ]
+, Para
+    [ Str "Entities"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "decode,"
+    , Space
+    , Str "yet"
+    , Space
+    , Str "&#x41;"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "as"
+    , Space
+    , Str "written."
+    ]
+, Para
+    [ Str "Monospace"
+    , Space
+    , Str "decodes"
+    , Space
+    , Str "entities"
+    , Space
+    , Str "too:"
+    , Space
+    , Code ( "" , [] , [] ) "& and \169"
+    , Space
+    , Str "inside."
+    ]
+]

@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1 ( "" , [] , [] ) [ Str "First" , Space , Str "section" ]
+, Para [ Str "Intro" , Space , Str "paragraph." ]
+, Header
+    2 ( "" , [] , [] ) [ Str "A" , Space , Str "subsection" ]
+, Para
+    [ Str "Body"
+    , Space
+    , Str "of"
+    , Space
+    , Str "the"
+    , Space
+    , Str "subsection."
+    ]
+, Header
+    2
+    ( "" , [] , [] )
+    [ Str "Another" , Space , Str "subsection" ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Second" , Space , Str "section" ]
+, Para [ Str "Closing" , Space , Str "words." ]
+]

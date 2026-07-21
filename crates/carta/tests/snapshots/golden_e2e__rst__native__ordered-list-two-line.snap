@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ OrderedList
+    ( 1 , UpperAlpha , Period )
+    [ [ Plain
+          [ Str "A"
+          , Space
+          , Str "genuine"
+          , Space
+          , Str "first"
+          , Space
+          , Str "item."
+          ]
+      ]
+    ]
+, Para
+    [ Str "B."
+    , Space
+    , Str "A"
+    , Space
+    , Str "second"
+    , Space
+    , Str "item"
+    , Space
+    , Str "whose"
+    , Space
+    , Str "text"
+    , Space
+    , Str "wraps"
+    , SoftBreak
+    , Str "onto"
+    , Space
+    , Str "a"
+    , Space
+    , Str "following"
+    , Space
+    , Str "line."
+    ]
+]

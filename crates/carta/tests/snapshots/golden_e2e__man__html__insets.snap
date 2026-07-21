@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="insets">INSETS</h1>
+<p>Leading paragraph at the section level.</p>
+<blockquote>
+<p>An inset paragraph one level in.</p>
+<blockquote>
+<p>A further inset paragraph two levels in.</p>
+</blockquote>
+</blockquote>
+<p>Trailing paragraph back at the section level.</p>

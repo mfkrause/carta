@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ CodeBlock
+    ( "" , [ "python" ] , [] )
+    "def greet(name):\n    return \"hello, \" + name"
+, Para
+    [ Str "A"
+    , Space
+    , Str "parsed-literal"
+    , Space
+    , Str "block"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "markup:"
+    ]
+, Div
+    ( "" , [ "parsed-literal" ] , [] )
+    [ Para
+        [ Str "text"
+        , Space
+        , Str "with"
+        , Space
+        , Strong [ Str "strong" ]
+        , Space
+        , Str "emphasis"
+        ]
+    ]
+]

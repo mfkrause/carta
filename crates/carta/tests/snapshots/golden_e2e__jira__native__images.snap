@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "image"
+    , Space
+    , Image ( "" , [] , [] ) [] ( "photo.png" , "" )
+    , Space
+    , Str "in"
+    , Space
+    , Str "a"
+    , Space
+    , Str "line."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "sized"
+    , Space
+    , Str "one"
+    , Space
+    , Image
+        ( ""
+        , []
+        , [ ( "align" , "right" ) , ( "width" , "200" ) ]
+        )
+        []
+        ( "chart.png" , "" )
+    , Space
+    , Str "follows."
+    ]
+]

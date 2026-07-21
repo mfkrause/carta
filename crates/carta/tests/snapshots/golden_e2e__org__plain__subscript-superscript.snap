@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water is H_(2O) and also H₂O.
+
+Einstein wrote E = mc² and x^(n) grows.
+
+A grouped subscript a_(bc)d and glucose C₆H₁₂O₆.
+
+A double underscore H__2__O stays literal.

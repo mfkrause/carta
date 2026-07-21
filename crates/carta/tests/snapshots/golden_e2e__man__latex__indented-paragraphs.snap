@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{DASH AND PLUS}\label{dash-and-plus}
+
+\begin{itemize}
+\item
+  Dash bullet.
+\item
+  Plus bullet.
+\end{itemize}
+
+\section{PARENTHESIZED}\label{parenthesized}
+
+\begin{enumerate}
+\def\labelenumi{(\arabic{enumi})}
+\item
+  First parenthesized.
+\item
+  Second parenthesized.
+\end{enumerate}
+
+\section{FONT MARKUP AND EMPTY}\label{font-markup-and-empty}
+
+\begin{description}
+\item[term]
+A designator whose font markup is reduced to plain text.
+\item[]
+An empty designator yields an empty term.
+\end{description}

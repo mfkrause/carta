@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( ""
+    , [ "meta" ]
+    , [ ( "description" , "A short description." )
+      , ( "keywords" , "one, two" )
+      ]
+    )
+    []
+, Div
+    ( "" , [ "title" ] , [] )
+    [ Para
+        [ Str "A" , Space , Str "Document" , Space , Str "Title" ]
+    ]
+, Div ( "" , [ "sectnum" ] , [] ) []
+, Div ( "" , [ "target-notes" ] , [] ) []
+]

@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  First item
+
+  \begin{itemize}
+  \item
+    Nested item
+  \end{itemize}
+\end{itemize}
+
+\begin{itemize}
+\item
+  Third item
+\end{itemize}

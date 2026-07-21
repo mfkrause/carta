@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A single letter that is also a numeral defaults to alphabetic:</p>
+<ol start="3" type="a">
+<li>third by letter</li>
+<li>fourth by letter</li>
+</ol>
+<p>The letter i alone is read as a roman numeral:</p>
+<ol type="i">
+<li>one</li>
+<li>two</li>
+</ol>

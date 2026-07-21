@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+h1.
+
+\begin{quote}
+degraded
+\end{quote}
+
+bq.
+
+\begin{verbatim}
+raw
+\end{verbatim}
+
+\subsection{\{code:java\} stays a heading}

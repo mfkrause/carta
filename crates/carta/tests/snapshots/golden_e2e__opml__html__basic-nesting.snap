@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>First section</h1>
+<p>Intro paragraph.</p>
+<h2>A subsection</h2>
+<p>Body of the subsection.</p>
+<h2>Another subsection</h2>
+<h1>Second section</h1>
+<p>Closing words.</p>

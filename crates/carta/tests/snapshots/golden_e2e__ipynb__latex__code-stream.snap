@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{streams}
+\begin{verbatim}
+import sys
+print(42)
+sys.stderr.write("warning\n")
+\end{verbatim}
+
+\begin{verbatim}
+42
+\end{verbatim}
+
+\begin{verbatim}
+warning
+\end{verbatim}

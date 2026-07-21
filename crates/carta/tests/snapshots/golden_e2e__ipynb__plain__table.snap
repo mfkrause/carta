@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+  name   value
+  ------ -------
+  one    1
+  two    2
+
+The table above lists two entries.

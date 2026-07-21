@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "" , [] , [] )
+    [ Str "Atx" , Space , Str "level" , Space , Str "one" ]
+, Header
+    2
+    ( "" , [] , [] )
+    [ Str "Atx" , Space , Str "level" , Space , Str "two" ]
+, Header
+    6
+    ( "" , [] , [] )
+    [ Str "Atx" , Space , Str "level" , Space , Str "six" ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Setext" , Space , Str "level" , Space , Str "one" ]
+, Header
+    2
+    ( "" , [] , [] )
+    [ Str "Setext" , Space , Str "level" , Space , Str "two" ]
+]

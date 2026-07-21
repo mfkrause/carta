@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A line with \textbf{strong} and \emph{emphasis} together.
+
+Then \ul{inserted}, \textsuperscript{superscript} and
+\textsubscript{subscript} text.
+
+Finally \st{deleted} words and a \texttt{monospaced} span.
+
+Nested \textbf{\emph{strong emphasis}} in one run.

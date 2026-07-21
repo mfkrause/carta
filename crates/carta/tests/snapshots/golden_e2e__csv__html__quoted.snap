@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>product</th>
+<th>note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Widget, deluxe</td>
+<td>ships "today"</td>
+</tr>
+<tr>
+<td>multi<br />
+line cell</td>
+<td>plain</td>
+</tr>
+</tbody>
+</table>

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\textbf{\emph{italic text}}
+
+\textbf{unstyled text}
+
+\section{chapter title}

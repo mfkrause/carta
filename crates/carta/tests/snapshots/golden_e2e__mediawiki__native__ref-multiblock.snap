@@ -1,0 +1,42 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "statement"
+    , Note
+        [ Para
+            [ Str "First"
+            , Space
+            , Str "paragraph"
+            , Space
+            , Str "of"
+            , Space
+            , Str "the"
+            , Space
+            , Str "note."
+            ]
+        , Para
+            [ Str "Second"
+            , Space
+            , Str "paragraph"
+            , Space
+            , Str "of"
+            , Space
+            , Str "the"
+            , Space
+            , Str "note."
+            ]
+        ]
+    , Space
+    , Str "with"
+    , Space
+    , Str "a"
+    , Space
+    , Str "multi-paragraph"
+    , Space
+    , Str "footnote."
+    ]
+]

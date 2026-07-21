@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "["
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com]x" ]
+        ( "http://example.com%5Dx" , "" )
+    ]
+]

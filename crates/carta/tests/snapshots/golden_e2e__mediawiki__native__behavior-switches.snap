@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Lead"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "after"
+    , Space
+    , Str "two"
+    , Space
+    , Str "switches."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "sentence"
+    , Space
+    , Str "with"
+    , Space
+    , Str "an"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "switch"
+    , Space
+    , Str "removed."
+    ]
+, Para
+    [ Str "__NOTOC__"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "literal"
+    , Space
+    , Str "here."
+    ]
+]

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Literal '''not bold''' and [[not a link]] here.</p>

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A literal block is introduced by a double colon:
+
+<pre>literal text is preserved
+    including its indentation
+verbatim</pre>
+The marker can also stand alone:
+
+<pre>another literal block</pre>

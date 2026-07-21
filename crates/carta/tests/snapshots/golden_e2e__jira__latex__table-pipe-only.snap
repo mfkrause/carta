@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A line of only pipes is plain text, never a table:
+
+\textbar{}
+
+\textbar\textbar{}
+
+\textbar\textbar\textbar{}
+
+A table stops at a following pipe-only line:
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}l@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+a \\
+\end{longtable}
+}
+
+\textbar{}
+
+A pipe-only line before a table stays a paragraph:
+
+\textbar{}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}l@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+b \\
+\end{longtable}
+}

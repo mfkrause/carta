@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A url stops at a bracket <a
+href="http://example.com">http://example.com</a>[x and at an angle <a
+href="http://example.org">http://example.org</a>&lt;y but keeps parens
+<a href="http://example.net/a(b).">http://example.net/a(b).</a></p>

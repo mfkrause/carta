@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\tightlist
+\item[Author]
+Ada Writer
+\item[Version]
+1.0
+\item[Note]
+A field whose value begins on the next line and spans an indented block.
+\end{description}

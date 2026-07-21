@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "AT&T"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "and"
+    , Space
+    , Str "A"
+    , Space
+    , Str "and"
+    , Space
+    , Str "B"
+    , Space
+    , Str "here."
+    ]
+]

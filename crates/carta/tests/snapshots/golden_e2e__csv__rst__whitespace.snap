@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+==== ============ =========
+col1 col2         col3
+==== ============ =========
+a    spaced text  trailing
+==== ============ =========

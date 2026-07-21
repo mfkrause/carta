@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="sized-plot" class="cell code" data-execution_count="7">
+<pre class="python"><code>draw()</code></pre>
+<div class="output display_data">
+<p><img src="ddd8a63b8957c29356d1015e6040f47158d26c1d.png"
+data-needs_background="light" width="320" height="240" /></p>
+</div>
+</div>

@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ LineBlock
+    [ [ Str "The"
+      , Space
+      , Str "long"
+      , Space
+      , Str "opening"
+      , Space
+      , Str "line"
+      , Space
+      , Str "of"
+      , Space
+      , Str "verse"
+      , Space
+      , Str "that"
+      , Space
+      , Str "wraps"
+      , Space
+      , Str "onto"
+      , Space
+      , Str "a"
+      , Space
+      , Str "second"
+      , Space
+      , Str "physical"
+      , Space
+      , Str "line"
+      ]
+    , [ Str "A" , Space , Str "short" , Space , Str "line" ]
+    , [ Str "The"
+      , Space
+      , Str "final"
+      , Space
+      , Str "line"
+      , Space
+      , Str "that"
+      , Space
+      , Str "also"
+      , Space
+      , Str "runs"
+      , Space
+      , Str "across"
+      , Space
+      , Str "two"
+      , Space
+      , Str "source"
+      , Space
+      , Str "lines"
+      ]
+    ]
+]

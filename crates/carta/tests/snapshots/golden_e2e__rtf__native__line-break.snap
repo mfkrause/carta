@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "one"
+    , Space
+    , Str "line"
+    , LineBreak
+    , Str "second"
+    , Space
+    , Str "line"
+    , Space
+    , Str "after"
+    , Space
+    , Str "break."
+    ]
+]

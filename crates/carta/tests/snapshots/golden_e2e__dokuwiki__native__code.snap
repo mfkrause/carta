@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "code"
+    , Space
+    , Str "region:"
+    ]
+, CodeBlock
+    ( "" , [] , [] ) "plain text\n  preserved exactly\n"
+, Para
+    [ Str "A"
+    , Space
+    , Str "highlighted"
+    , Space
+    , Str "region"
+    , Space
+    , Str "names"
+    , Space
+    , Str "its"
+    , Space
+    , Str "language:"
+    ]
+, CodeBlock
+    ( "" , [ "python" ] , [] )
+    "def greet(name):\n    return \"hello \" + name\n"
+, Para
+    [ Str "A"
+    , Space
+    , Str "file"
+    , Space
+    , Str "region"
+    , Space
+    , Str "behaves"
+    , Space
+    , Str "the"
+    , Space
+    , Str "same"
+    , Space
+    , Str "way:"
+    ]
+, CodeBlock ( "" , [] , [] ) "contents of a file\n"
+]

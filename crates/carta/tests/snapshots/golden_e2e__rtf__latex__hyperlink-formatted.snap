@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visit \ul{\mbox{\href{http://example.com}{our site}}} and
+\textbf{\href{http://other.com}{bold}}\href{http://other.com}{ plain}.

@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+NO-FILL
+
+    the quick brown fox
+      jumps over the lazy dog
+
+EXAMPLE
+
+    configure --prefix=/usr
+    make install
+
+TAB-SEPARATED
+
+    col1	col2	col3

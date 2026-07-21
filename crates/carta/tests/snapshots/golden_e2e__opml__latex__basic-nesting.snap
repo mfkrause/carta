@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{First section}
+
+Intro paragraph.
+
+\subsection{A subsection}
+
+Body of the subsection.
+
+\subsection{Another subsection}
+
+\section{Second section}
+
+Closing words.

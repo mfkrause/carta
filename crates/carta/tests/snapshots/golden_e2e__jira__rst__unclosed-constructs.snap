@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+| An unclosed [link with no closing bracket anywhere on this line.
+| An unclosed image !photo.png with no second bang to end it.
+| An unclosed color span {color:red}tinted text that never closes.

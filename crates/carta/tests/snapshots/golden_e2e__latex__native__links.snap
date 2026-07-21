@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visit"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "our" , Space , Str "site" ]
+        ( "https://example.com" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "details,"
+    , Space
+    , Str "or"
+    , Space
+    , Str "go"
+    , Space
+    , Str "to"
+    , SoftBreak
+    , Link
+        ( "" , [ "uri" ] , [] )
+        [ Str "https://example.org" ]
+        ( "https://example.org" , "" )
+    , Space
+    , Str "directly."
+    ]
+]

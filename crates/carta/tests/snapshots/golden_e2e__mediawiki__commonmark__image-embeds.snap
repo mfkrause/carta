@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<figure>
+<img src="Foo.jpg" title="A caption" />
+<figcaption>A caption</figcaption>
+</figure>
+
+<figure>
+<img src="My_Photo.jpg" title="My_Photo.jpg" />
+<figcaption>My_Photo.jpg</figcaption>
+</figure>
+
+<figure>
+<img src="Chart.png" title="Sized chart" width="100" height="200" />
+<figcaption>Sized chart</figcaption>
+</figure>
+
+An inline ![icon](Icon.svg "icon") sits in this paragraph.

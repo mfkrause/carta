@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Code ( "" , [] , [] ) "a b"
+    , Space
+    , Str "joins"
+    , Space
+    , Str "the"
+    , Space
+    , Str "monospaced"
+    , Space
+    , Str "text"
+    , Space
+    , Str "across"
+    , Space
+    , Str "a"
+    , Space
+    , Str "break."
+    ]
+, Para
+    [ Str "Nested"
+    , Space
+    , Code ( "" , [] , [] ) "a b c"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "one"
+    , Space
+    , Str "monospaced"
+    , Space
+    , Str "span."
+    ]
+]

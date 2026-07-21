@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Intro paragraph mentions inline.</p>
+<p>A paragraph with and a <a href=":Category:Linked" class="wikilink"
+title="normal link">normal link</a>.</p>
+<p><a href="Category:Physics" class="wikilink"
+title="Category:Physics">Category:Physics</a> <a href="Category:Science"
+class="wikilink" title="sort key">sort key</a></p>

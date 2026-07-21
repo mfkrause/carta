@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+; <code>-a</code>
+: Output all.
+; <code>-b, --brief</code>
+: Be brief about it.
+; <code>--verbose</code>
+: Talk a great deal.
+; <code>-f FILE</code>
+: Read input from FILE.
+
+The description may also start on the next line:
+
+; <code>--output=FILE</code>
+: Write output to FILE instead of standard output.

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "Para" , Space , Str "one." ]
+, Para
+    [ Str "Callout" , Space , Str "text" , Space , Str "here." ]
+, Para [ Str "Para" , Space , Str "two." ]
+]

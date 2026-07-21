@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+--- \emph{a\\
+b} carries the citation across a soft break.

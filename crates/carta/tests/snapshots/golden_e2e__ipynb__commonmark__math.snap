@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="equations" class="cell markdown">
+
+Inline math *a*<sup>2</sup> + *b*<sup>2</sup> = *c*<sup>2</sup> within a
+sentence, and a display equation:
+
+*E* = *m**c*<sup>2</sup>
+
+</div>

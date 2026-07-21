@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "center" ] , [] )
+    [ Para
+        [ Str "Centered"
+        , Space
+        , Str "text"
+        , Space
+        , Str "here."
+        ]
+    ]
+, Div
+    ( "" , [ "unknownenv" ] , [] )
+    [ Para
+        [ Str "Content"
+        , Space
+        , Str "in"
+        , Space
+        , Str "an"
+        , Space
+        , Str "unmodeled"
+        , Space
+        , Str "environment."
+        ]
+    ]
+]

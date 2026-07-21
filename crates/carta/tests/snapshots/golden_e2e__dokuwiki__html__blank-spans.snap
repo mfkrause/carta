@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An empty &lt;sub&gt;&lt;/sub&gt;, a whitespace-only &lt;sup&gt;
+&lt;/sup&gt;, and a blank &lt;del&gt;&lt;/del&gt; all stay literal
+text.</p>

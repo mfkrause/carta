@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="cell markdown">
+<p>A code fence whose info string names no language opens no code block;
+it folds into the paragraph, where its delimiters read as an inline code
+span:</p>
+<p><code>python {.foo} code</code></p>
+<p>Inside such a fold no later line opens a block of its own:</p>
+<p><code>not a language # still text, not a heading</code></p>
+<p>A fence with no closing fence folds the same way:</p>
+<p>``` unterminated</p>
+</div>

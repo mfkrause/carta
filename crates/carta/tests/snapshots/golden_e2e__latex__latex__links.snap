@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visit \href{https://example.com}{our site} for details, or go to
+\url{https://example.org} directly.

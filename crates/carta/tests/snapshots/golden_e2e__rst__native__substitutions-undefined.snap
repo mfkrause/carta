@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "This"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "references"
+    , Space
+    , Str "an"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "|undefined|" ]
+        ( "##SUBST##|undefined|" , "" )
+    , Space
+    , Str "substitution"
+    , Space
+    , Str "that"
+    , Space
+    , Str "is"
+    , Space
+    , Str "never"
+    , Space
+    , Str "declared."
+    ]
+]

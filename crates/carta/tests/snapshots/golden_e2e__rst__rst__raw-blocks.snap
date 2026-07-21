@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. raw:: html
+
+   <hr class="custom">
+
+.. raw:: latex
+
+   \medskip

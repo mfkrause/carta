@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "above"
+    , Space
+    , Str "the"
+    , Space
+    , Str "transition."
+    ]
+, HorizontalRule
+, Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "below"
+    , Space
+    , Str "the"
+    , Space
+    , Str "transition."
+    ]
+]

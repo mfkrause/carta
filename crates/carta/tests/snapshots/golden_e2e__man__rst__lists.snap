@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+OPTIONS
+=======
+
+**-v**
+   Produce verbose output.
+
+**-f file**
+   Read input from the named file.
+
+BULLETS
+=======
+
+- First bullet item.
+
+- Second bullet item.
+
+NUMBERED
+========
+
+1. First numbered item.
+
+2. Second numbered item.
+
+PLAIN
+=====
+
+   An indented paragraph with no marker.

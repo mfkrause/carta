@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A span like //this// is shown verbatim with its markers intact.</p>
+<p>The tag form **also** escapes formatting just the same.</p>

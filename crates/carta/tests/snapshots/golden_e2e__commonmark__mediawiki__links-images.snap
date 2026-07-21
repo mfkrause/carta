@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An [http://example.com inline link] and a [http://example.com/ref reference link].
+
+An autolink http://example.com and an image [[File:pic.png|alt text]].

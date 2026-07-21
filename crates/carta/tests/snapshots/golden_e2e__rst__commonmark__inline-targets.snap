@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An <span id="inline-target">inline target</span> marks a spot that other
+text can point back to.
+
+Here is <span id="another-one">another one</span> in the middle of a
+sentence.

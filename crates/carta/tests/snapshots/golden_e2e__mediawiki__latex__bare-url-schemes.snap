@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visit \url{http://example.com} and \url{ftp://files.example.org} for
+data.
+
+Reach us at \url{irc://chat.example} or via the
+\url{gopher://old.example} archive.
+
+A non-registered foo://nope scheme stays plain text.

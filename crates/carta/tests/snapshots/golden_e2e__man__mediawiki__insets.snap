@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="insets"></span>
+= INSETS =
+
+Leading paragraph at the section level.
+
+<blockquote>An inset paragraph one level in.
+
+<blockquote>A further inset paragraph two levels in.
+</blockquote>
+</blockquote>
+Trailing paragraph back at the section level.

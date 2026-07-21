@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "Main" , Space , Str "Page" ]
+        ( "Main_Page" , "Main Page" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "the" , Space , Str "label" ]
+        ( "Page" , "the label" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "Pages" ]
+        ( "Page" , "Page" )
+    , Space
+    , Str "here."
+    ]
+]

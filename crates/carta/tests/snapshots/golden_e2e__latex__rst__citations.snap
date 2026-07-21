@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+As shown by :raw-latex:`\cite{knuth1984}` and
+:raw-latex:`\citep[p.~5]{lamport1994}`, this holds.

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "a\8212b"
+    , Space
+    , Str "then"
+    , Space
+    , Str "c\8212d."
+    ]
+]

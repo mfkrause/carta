@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "Foo" ]
+        ( "Help:Foo" , "Foo" )
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "b"
+        , Space
+        , Link
+            ( "" , [ "wikilink" ] , [] ) [ Str "c" ] ( "c" , "c" )
+        , Space
+        , Str "d"
+        ]
+        ( "A" , "b c d" )
+    ]
+]

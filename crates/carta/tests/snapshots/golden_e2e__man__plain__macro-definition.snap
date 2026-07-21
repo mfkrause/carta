@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+MACRO DEFINITIONS
+
+Text after the first definition is kept. Text after the second
+definition is kept.
+
+MACRO INVOCATION
+
+Hello Alice and Bob.
+
+The stored value is 42 today.

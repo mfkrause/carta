@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="name">NAME</h1>
+<p>program - do something useful</p>
+<h1 id="description">DESCRIPTION</h1>
+<p>A short paragraph of running text whose lines are filled into a
+single paragraph separated by spaces.</p>

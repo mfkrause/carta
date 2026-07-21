@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt><a href="http://example.com">http://example.com</a></dt>
+<dd>
+a definition
+</dd>
+</dl>

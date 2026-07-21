@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! left
+! right
+|-
+| x
+|
+|-
+|
+| y
+|}

@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "sized-plot"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "7" ) ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "draw()"
+    , Div
+        ( "" , [ "output" , "display_data" ] , [] )
+        [ Para
+            [ Image
+                ( ""
+                , []
+                , [ ( "height" , "240" )
+                  , ( "needs_background" , "light" )
+                  , ( "width" , "320" )
+                  ]
+                )
+                []
+                ( "ddd8a63b8957c29356d1015e6040f47158d26c1d.png" , "" )
+            ]
+        ]
+    ]
+]

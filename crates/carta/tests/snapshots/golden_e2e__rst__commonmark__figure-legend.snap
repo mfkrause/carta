@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<figure>
+<img src="chart.png" alt="The caption line." />
+<figcaption>The caption line.
+<p>A first legend paragraph.</p>
+<p>A second legend paragraph.</p></figcaption>
+</figure>

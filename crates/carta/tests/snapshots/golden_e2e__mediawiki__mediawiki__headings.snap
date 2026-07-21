@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="top_level"></span>
+= Top level =
+
+<span id="second"></span>
+== Second ==
+
+<span id="third"></span>
+=== Third ===
+
+<span id="fourth"></span>
+==== Fourth ====
+
+<span id="fifth"></span>
+===== Fifth =====
+
+<span id="sixth"></span>
+====== Sixth ======

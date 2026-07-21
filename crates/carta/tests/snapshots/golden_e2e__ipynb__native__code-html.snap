@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "render"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "4" ) ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "show_table()"
+    , Div
+        ( "" , [ "output" , "display_data" ] , [] )
+        [ RawBlock
+            (Format "html") "<table><tr><td>cell</td></tr></table>"
+        ]
+    ]
+]

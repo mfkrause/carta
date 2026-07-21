@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water H\textsubscript{2}O and E=mc\textsuperscript{2} and \st{gone}
+\st{old} here.
+
+Use \texttt{fn()} and \texttt{mono} and {Ctrl} here.

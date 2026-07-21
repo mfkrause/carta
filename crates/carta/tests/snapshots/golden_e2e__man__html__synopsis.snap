@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="synopsis">SYNOPSIS</h1>
+<p><strong>prog</strong> [ <strong>-v</strong> ] [ <strong>-o</strong>
+file ] [<em>files</em>...]</p>

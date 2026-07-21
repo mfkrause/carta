@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Visible text before.</p>
+<p>A custom tag unwraps to its text.</p>

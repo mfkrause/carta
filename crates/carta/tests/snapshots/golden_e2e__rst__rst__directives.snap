@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+|An architecture diagram|
+
+.. math:: E = mc^2
+
+.. |An architecture diagram| image:: diagram.png

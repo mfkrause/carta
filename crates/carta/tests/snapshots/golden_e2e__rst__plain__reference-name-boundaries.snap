@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A dotted name like a.b+c is a single reference.
+
+A word such as file__name__ has no reference.

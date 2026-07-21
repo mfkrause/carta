@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "tagged"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "2" )
+      , ( "code_folding" , "\"007\"" )
+      , ( "collapsed" , "\"true\"" )
+      , ( "lines_to_next_cell" , "3" )
+      , ( "slideshow" , "open" )
+      , ( "trusted" , "true" )
+      ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "value = 1" ]
+]

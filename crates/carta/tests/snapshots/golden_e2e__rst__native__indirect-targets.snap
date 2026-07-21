@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Follow"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "alias" ]
+        ( "https://example.com/page" , "" )
+    , Space
+    , Str "to"
+    , Space
+    , Str "its"
+    , Space
+    , Str "destination."
+    ]
+]

@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "First"
+    , Space
+    , Str "line"
+    , SoftBreak
+    , Str "second"
+    , Space
+    , Str "line"
+    , Space
+    , Str "of"
+    , Space
+    , Str "same"
+    , Space
+    , Str "paragraph."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "new"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "here."
+    ]
+]

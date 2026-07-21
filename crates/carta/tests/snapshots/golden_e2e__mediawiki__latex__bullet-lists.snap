@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  one
+\item
+  two
+
+  \begin{itemize}
+  \tightlist
+  \item
+    two a
+  \item
+    two b
+  \end{itemize}
+\item
+  three
+\end{itemize}

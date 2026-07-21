@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "h1." ]
+, BlockQuote [ Para [ Str "degraded" ] ]
+, Para [ Str "bq." ]
+, CodeBlock ( "" , [ "java" ] , [] ) "raw\n"
+, Header
+    2
+    ( "" , [] , [] )
+    [ Str "{code:java}"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "a"
+    , Space
+    , Str "heading"
+    ]
+]

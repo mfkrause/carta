@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Lowercase \url{http://example.com} autolinks but HTTP://example.com does
+not, nor does {[}HTTP://example.org{]}.

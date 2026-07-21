@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Code
+        ( "" , [] , [] )
+        "preformatted\160line\160with\160\160spaced\160gaps"
+    ]
+]

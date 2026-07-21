@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "\8217\8217"
+    , Space
+    , Str "x"
+    , Space
+    , Str "\8217\8217"
+    ]
+, Para
+    [ Str "a" , Space , Str "\8217\8217" , Space , Str "b" ]
+]

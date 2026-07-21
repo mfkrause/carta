@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Start middle \protect\phantomsection\label{named}{anchor text} end.

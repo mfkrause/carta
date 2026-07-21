@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ CodeBlock
+    ( ""
+    , [ "python" , "numberLines" ]
+    , [ ( "startFrom" , "10" ) ]
+    )
+    "first = 1\nsecond = 2"
+]

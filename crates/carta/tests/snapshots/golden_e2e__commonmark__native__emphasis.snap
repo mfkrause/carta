@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , Emph [ Str "emphasis" ]
+    , Str ","
+    , Space
+    , Strong [ Str "strong" , Space , Str "emphasis" ]
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "inline code"
+    , Str "."
+    ]
+, Para
+    [ Str "Nested"
+    , Space
+    , Emph
+        [ Str "emphasis"
+        , Space
+        , Str "with"
+        , Space
+        , Strong [ Str "strong" ]
+        , Space
+        , Str "inside"
+        ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "code"
+    , Space
+    , Str "span"
+    , Space
+    , Code ( "" , [] , [] ) "a < b && c"
+    , Str "."
+    ]
+]

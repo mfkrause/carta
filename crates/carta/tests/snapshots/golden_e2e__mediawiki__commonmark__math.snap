@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+The formula *x*<sup>2</sup> + *y*<sup>2</sup> = *z*<sup>2</sup> is
+famous.

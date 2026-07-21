@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Some \emph{italic} and \textbf{bold} and \textbf{\emph{both}} words.

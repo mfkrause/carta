@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "leading"
+    , Space
+    , Str "space"
+    , Space
+    , Str "!pic.png|"
+    , Space
+    , Str "width=100!"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "literal."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "kept"
+    , Space
+    , Str "trailing"
+    , Space
+    , Str "space"
+    , Space
+    , Image
+        ( "" , [] , [ ( "align" , "right " ) ] )
+        []
+        ( "pic.png" , "" )
+    , Space
+    , Str "makes"
+    , Space
+    , Str "an"
+    , Space
+    , Str "image."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "spaced"
+    , Space
+    , Str "!pic.png|thumbnail"
+    , Space
+    , Str "!"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "literal."
+    ]
+]

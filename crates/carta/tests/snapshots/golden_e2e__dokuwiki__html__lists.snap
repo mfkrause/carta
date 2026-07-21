@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li>First bullet</li>
+<li>Second bullet</li>
+<li>Third bullet</li>
+</ul>
+<ol>
+<li>First ordered</li>
+<li>Second ordered</li>
+</ol>
+<ul>
+<li>Parent bullet
+<ul>
+<li>Nested child</li>
+<li>Another child</li>
+</ul></li>
+</ul>

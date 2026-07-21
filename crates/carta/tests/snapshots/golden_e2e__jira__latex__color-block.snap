@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+red text spanning\\
+a block
+
+a bare hexadecimal value

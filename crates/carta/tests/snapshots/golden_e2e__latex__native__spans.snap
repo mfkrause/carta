@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Span
+        ( "" , [] , [ ( "style" , "color: red" ) ] )
+        [ Str "colored" , Space , Str "phrase" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Span
+        ( "" , [ "roman" ] , [] )
+        [ Str "roman" , Space , Str "run" ]
+    , Space
+    , Str "here."
+    ]
+]

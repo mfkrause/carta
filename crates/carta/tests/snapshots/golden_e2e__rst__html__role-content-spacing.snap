@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Text <span class="title-ref"> spaced </span> and more after the
+role.</p>

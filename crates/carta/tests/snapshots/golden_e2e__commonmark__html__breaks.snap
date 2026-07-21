@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>first line<br />
+second line after a hard break</p>
+<p>first second after a soft break</p>

@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell code
+   :name: result
+
+   .. code:: python
+
+      2 + 2
+
+   .. container:: output execute_result
+
+      ::
+
+         4
+
+   .. container:: output display_data
+
+      .. code:: json
+
+         {"v":4}

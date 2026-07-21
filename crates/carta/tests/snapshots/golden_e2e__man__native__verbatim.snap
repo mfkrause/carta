@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "no-fill" , [] , [] ) [ Str "NO-FILL" ]
+, CodeBlock
+    ( "" , [] , [] )
+    "the quick brown fox\n  jumps over the lazy dog"
+, Header 1 ( "example" , [] , [] ) [ Str "EXAMPLE" ]
+, CodeBlock
+    ( "" , [] , [] ) "configure --prefix=/usr\nmake install"
+, Header
+    1 ( "tab-separated" , [] , [] ) [ Str "TAB-SEPARATED" ]
+, CodeBlock ( "" , [] , [] ) "col1\tcol2\tcol3"
+]

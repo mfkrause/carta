@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="embed" class="cell raw" data-format="text/html">
+<aside class="note">A raw HTML block passed through verbatim.</aside>
+</div>

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="top-section">Top Section</h1>
+<p>Body text under the top section.</p>
+<h2 id="nested-section">Nested Section</h2>
+<p>Body text under the nested section.</p>
+<h3 id="deeper-section">Deeper Section</h3>
+<p>Body text under the deeper section.</p>

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An inline image
+\pandocbounded{\includegraphics[keepaspectratio,alt={logo.png}]{/wiki/logo.png}}
+sits in the text.
+
+A captioned image
+\pandocbounded{\includegraphics[keepaspectratio,alt={A photo}]{/wiki/photo.jpg}}
+follows here.

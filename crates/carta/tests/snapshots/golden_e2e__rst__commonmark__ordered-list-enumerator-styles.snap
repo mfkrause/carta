@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A single letter that is also a numeral defaults to alphabetic:
+
+3.  third by letter
+4.  fourth by letter
+
+The letter i alone is read as a roman numeral:
+
+1.  one
+2.  two

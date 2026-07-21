@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Str "first"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "spans"
+    , SoftBreak
+    , Str "two"
+    , Space
+    , Str "source"
+    , Space
+    , Str "lines"
+    , Space
+    , Str "joined"
+    , Space
+    , Str "by"
+    , Space
+    , Str "a"
+    , Space
+    , Str "soft"
+    , Space
+    , Str "break."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "second"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "follows"
+    , Space
+    , Str "after"
+    , Space
+    , Str "a"
+    , Space
+    , Str "blank"
+    , Space
+    , Str "line."
+    ]
+]

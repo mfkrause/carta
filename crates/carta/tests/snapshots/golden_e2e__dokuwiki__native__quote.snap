@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BlockQuote
+    [ Plain
+        [ Str "A"
+        , Space
+        , Str "first"
+        , Space
+        , Str "line"
+        , Space
+        , Str "of"
+        , Space
+        , Str "the"
+        , Space
+        , Str "quotation"
+        , LineBreak
+        , Str "continues"
+        , Space
+        , Str "on"
+        , Space
+        , Str "a"
+        , Space
+        , Str "second"
+        , Space
+        , Str "line."
+        , LineBreak
+        , Str "back"
+        , Space
+        , Str "on"
+        , Space
+        , Str "the"
+        , Space
+        , Str "same"
+        , Space
+        , Str "level."
+        ]
+    ]
+]

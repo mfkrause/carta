@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Top Section}\label{top-section}
+
+Body text under the top section.
+
+\subsection{Nested Section}\label{nested-section}
+
+Body text under the nested section.
+
+\subsubsection{Deeper Section}\label{deeper-section}
+
+Body text under the deeper section.

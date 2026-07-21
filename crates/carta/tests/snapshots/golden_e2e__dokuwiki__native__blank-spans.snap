@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "empty"
+    , Space
+    , Str "<sub></sub>,"
+    , Space
+    , Str "a"
+    , Space
+    , Str "whitespace-only"
+    , Space
+    , Str "<sup>"
+    , Space
+    , Str "</sup>,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "blank"
+    , SoftBreak
+    , Str "<del></del>"
+    , Space
+    , Str "all"
+    , Space
+    , Str "stay"
+    , Space
+    , Str "literal"
+    , Space
+    , Str "text."
+    ]
+]

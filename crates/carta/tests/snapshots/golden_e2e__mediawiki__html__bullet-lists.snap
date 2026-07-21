@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li>one</li>
+<li>two
+<ul>
+<li>two a</li>
+<li>two b</li>
+</ul></li>
+<li>three</li>
+</ul>

@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ol type="1">
+<li>First</li>
+<li>Second</li>
+<li>Third</li>
+</ol>
+<p>Lower-alpha with parens:</p>
+<ol type="a">
+<li>Alpha</li>
+<li>Beta</li>
+</ol>
+<p>Roman starting past one:</p>
+<ol start="4" type="i">
+<li>Four</li>
+<li>Five</li>
+</ol>
+<p>Auto-numbered items continue the established style:</p>
+<ol type="1">
+<li>Explicit one</li>
+<li>Explicit two</li>
+<li>Auto three</li>
+<li>Auto four</li>
+</ol>

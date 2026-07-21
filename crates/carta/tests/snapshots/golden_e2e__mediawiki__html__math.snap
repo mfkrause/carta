@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>The formula <span class="math inline">\(x^2 + y^2 = z^2\)</span> is
+famous.</p>

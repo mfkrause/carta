@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "statement"
+    , Space
+    , Str "needs"
+    , Space
+    , Str "a"
+    , Space
+    , Str "citation"
+    , Note
+        [ Para
+            [ Str "The"
+            , Space
+            , Str "first"
+            , Space
+            , Str "footnote"
+            , Space
+            , Str "body."
+            ]
+        ]
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Str "another"
+    , Space
+    , Str "needs"
+    , Space
+    , Str "a"
+    , Space
+    , Str "different"
+    , Space
+    , Str "one"
+    , Note
+        [ Para
+            [ Str "The"
+            , Space
+            , Str "second"
+            , Space
+            , Str "footnote"
+            , Space
+            , Str "body."
+            ]
+        ]
+    , Str "."
+    ]
+]

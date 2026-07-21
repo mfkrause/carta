@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+* First bullet
+* Second bullet
+* Third bullet
+
+# First ordered
+# Second ordered
+
+* Parent bullet
+** Nested child
+** Another child

@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="streams" class="cell code" data-execution_count="1">
+<pre class="python"><code>import sys
+print(42)
+sys.stderr.write(&quot;warning\n&quot;)</code></pre>
+<div class="output stream stdout">
+<pre><code>42
+</code></pre>
+</div>
+<div class="output stream stderr">
+<pre><code>warning
+</code></pre>
+</div>
+</div>

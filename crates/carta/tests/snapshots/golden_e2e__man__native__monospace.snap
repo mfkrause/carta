@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "fonts" , [] , [] ) [ Str "FONTS" ]
+, Para
+    [ Str "plain"
+    , Space
+    , Code ( "" , [] , [] ) "mono"
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Code ( "" , [] , [] ) "monobold" ]
+    , Space
+    , Str "and"
+    , Space
+    , Emph [ Code ( "" , [] , [] ) "monoital" ]
+    , Space
+    , Str "back."
+    ]
+, Para
+    [ Str "bracket"
+    , Space
+    , Code ( "" , [] , [] ) "mono"
+    , Space
+    , Str "and"
+    , Space
+    , Str "single"
+    , Space
+    , Code ( "" , [] , [] ) "mono"
+    , Space
+    , Str "end."
+    ]
+]

@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+  code here
+\end{verbatim}
+
+\begin{verbatim}
+      x
+\end{verbatim}
+
+\begin{verbatim}
+  * item
+\end{verbatim}
+
+para
+
+\begin{verbatim}
+  more
+\end{verbatim}

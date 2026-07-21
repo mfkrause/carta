@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Strong text can hold emphasis: \textbf{bold with *italic* inside}.
+
+Emphasis closes at the first lone star: \emph{onetwo}* three*.
+
+A doubled run opens strong even mid-word: \textbf{a*b*c}.

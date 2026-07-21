@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><a href="http://x.com">link </a>after</p>
+<p><a href="http://y.com"> lead</a>tail</p>
+<p><strong><a href="http://z.com">bold link </a></strong>next</p>

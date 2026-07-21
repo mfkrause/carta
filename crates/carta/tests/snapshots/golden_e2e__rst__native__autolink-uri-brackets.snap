@@ -1,0 +1,42 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visit"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com/path_(disambiguation)" ]
+        ( "http://example.com/path_(disambiguation)" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "the"
+    , Space
+    , Str "article."
+    ]
+, Para
+    [ Str "Wrapped"
+    , Space
+    , Str "in"
+    , Space
+    , Str "parentheses"
+    , Space
+    , Str "(see"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com/page" ]
+        ( "http://example.com/page" , "" )
+    , Str ")"
+    , Space
+    , Str "the"
+    , Space
+    , Str "trailing"
+    , Space
+    , Str "one"
+    , Space
+    , Str "drops."
+    ]
+]

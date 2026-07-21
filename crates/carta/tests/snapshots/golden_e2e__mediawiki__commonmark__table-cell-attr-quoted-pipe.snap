@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<tbody>
+<tr>
+<td style="background:red|orange"><p>cell with a pipe inside the
+attribute</p></td>
+</tr>
+<tr>
+<td><p>spanning cell</p></td>
+</tr>
+</tbody>
+</table>

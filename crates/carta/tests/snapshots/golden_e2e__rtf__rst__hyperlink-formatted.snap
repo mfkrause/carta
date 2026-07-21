@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visit `our site <http://example.com>`__ and `bold <http://other.com>`__
+`plain <http://other.com>`__.

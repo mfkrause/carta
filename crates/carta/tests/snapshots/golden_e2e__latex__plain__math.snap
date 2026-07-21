@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math a² + b² = c² and dollar math E = mc² within a sentence.
+
+A display equation follows.
+
+y = mx + b

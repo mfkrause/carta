@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Visit <a
+href="http://example.com/path_(disambiguation)">http://example.com/path_(disambiguation)</a>
+for the article.</p>
+<p>Wrapped in parentheses (see <a
+href="http://example.com/page">http://example.com/page</a>) the trailing
+one drops.</p>

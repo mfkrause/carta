@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>[[|text]]</p>
+<p>[[]]</p>
+<p>[[|]]</p>
+<p><a href=""></a></p>
+<p>{{}}</p>
+<p>{{|cap}}</p>
+<p><img src="" class="align-center" alt="" /></p>
+<p>(())</p>
+<p>(( ))</p>

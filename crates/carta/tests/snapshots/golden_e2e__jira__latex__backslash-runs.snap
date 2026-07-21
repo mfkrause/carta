@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Run of two: a\\
+b
+
+Run of three: a\textbackslash\textbackslash b
+
+Run of four: a\textbackslash{}\\
+b
+
+Run of five: a\textbackslash\textbackslash\textbackslash b

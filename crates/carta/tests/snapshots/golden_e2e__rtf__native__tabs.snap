@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "a"
+    , Space
+    , Str "b"
+    , Space
+    , Str "c"
+    , Space
+    , Str "between"
+    , Space
+    , Str "tabs."
+    ]
+]

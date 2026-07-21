@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  first bullet
+\item
+  second bullet
+
+  \begin{itemize}
+  \item
+    nested bullet
+  \end{itemize}
+\end{itemize}
+
+\begin{enumerate}
+\item
+  first number
+\item
+  second number
+
+  \begin{enumerate}
+  \item
+    nested number
+  \end{enumerate}
+\end{enumerate}

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><span color="red">a<br />
+b</span> keeps the span inline when the close is not alone.</p>
+<p>A <span color="#123456">bare hex</span> span stays inline too.</p>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A statement needs a citation<ref>The first footnote body.</ref>, and another needs a different one<ref>The second footnote body.</ref>.
+
+<references />

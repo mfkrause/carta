@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Python" ]
+        ( "http://python.org" , "" )
+    , Space
+    , Str "first,"
+    , Space
+    , Str "then"
+    , Space
+    , Str "reference"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Python" ]
+        ( "http://python.org" , "" )
+    , Space
+    , Str "again"
+    , Space
+    , Str "later."
+    ]
+]

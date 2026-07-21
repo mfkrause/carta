@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "empty" , [] , [] ) [ Str "EMPTY" ]
+, BulletList
+    [ [ Para [] ]
+    , [ Para
+          [ Str "the"
+          , Space
+          , Str "second"
+          , Space
+          , Str "bullet"
+          , Space
+          , Str "has"
+          , Space
+          , Str "a"
+          , Space
+          , Str "body."
+          ]
+      ]
+    ]
+, DefinitionList [ ( [ Str "label" ] , [ [ Para [] ] ] ) ]
+, Para [ Strong [ Str "-x" ] ]
+]

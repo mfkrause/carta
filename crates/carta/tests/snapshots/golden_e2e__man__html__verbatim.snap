@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="no-fill">NO-FILL</h1>
+<pre><code>the quick brown fox
+  jumps over the lazy dog</code></pre>
+<h1 id="example">EXAMPLE</h1>
+<pre><code>configure --prefix=/usr
+make install</code></pre>
+<h1 id="tab-separated">TAB-SEPARATED</h1>
+<pre><code>col1	col2	col3</code></pre>

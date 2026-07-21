@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph with an inline
+
+<pre>embedded
+</pre>
+region splits around the code block, but a &lt;HTML&gt;raw&lt;/HTML&gt; fragment does not.

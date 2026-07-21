@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BlockQuote
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "quoted"
+        , Space
+        , Str "paragraph"
+        , Space
+        , Str "inside"
+        , Space
+        , Str "a"
+        , Space
+        , Str "block"
+        , Space
+        , Str "quote."
+        ]
+    , Para
+        [ Str "A"
+        , Space
+        , Str "second"
+        , Space
+        , Str "quoted"
+        , Space
+        , Str "paragraph."
+        ]
+    ]
+]

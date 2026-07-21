@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "text"
+    , Space
+    , Str "with"
+    , Space
+    , Superscript [ Str "superscript" ]
+    , Space
+    , Str "and"
+    , Space
+    , Subscript [ Str "subscript" ]
+    , Space
+    , Str "here."
+    ]
+]

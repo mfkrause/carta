@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+    indented code block
+    second line
+
+``` rust
+let x = 1;
+x < y && y > z;
+```
+
+    tilde fence

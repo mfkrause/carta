@@ -1,0 +1,83 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "escapes" , [] , [] ) [ Str "ESCAPES" ]
+, Para
+    [ Str "Color"
+    , Space
+    , Str "changes"
+    , Space
+    , Str "and"
+    , Space
+    , Str "fills"
+    , Space
+    , Str "carry"
+    , Space
+    , Str "no"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "font"
+    , Space
+    , Str "family"
+    , Space
+    , Str "name"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "register"
+    , Space
+    , Str "and"
+    , Space
+    , Str "an"
+    , Space
+    , Str "environment"
+    , Space
+    , Str "value"
+    , Space
+    , Str "are"
+    , Space
+    , Str "dropped."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "macro"
+    , Space
+    , Str "string"
+    , Space
+    , Str "leaves"
+    , Space
+    , Str "nothing,"
+    , Space
+    , Str "a"
+    , Space
+    , Str "break"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "leader"
+    , Space
+    , Str "vanish,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "named"
+    , Space
+    , Str "glyph"
+    , Space
+    , Str "\\"
+    , Space
+    , Str "resolves."
+    ]
+]

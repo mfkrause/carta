@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{geo}
+\begin{verbatim}
+feature
+\end{verbatim}
+
+\begin{verbatim}
+{"coordinates":[1,2],"type":"Point"}
+\end{verbatim}
+
+\protect\phantomsection\label{tie}
+\begin{verbatim}
+rendered
+\end{verbatim}
+
+\begin{verbatim}
+{"j":2}
+\end{verbatim}

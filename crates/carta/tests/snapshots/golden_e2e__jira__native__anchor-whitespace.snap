@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Span ( "abc" , [] , [] ) []
+    , Space
+    , Str "marks"
+    , Space
+    , Str "a"
+    , Space
+    , Str "spot."
+    ]
+]

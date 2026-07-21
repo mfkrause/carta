@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "image"
+    , Space
+    , Image
+        ( "" , [] , [] )
+        [ Str "logo.png" ]
+        ( "/wiki/logo.png" , "" )
+    , Space
+    , Str "sits"
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "captioned"
+    , Space
+    , Str "image"
+    , Space
+    , Image
+        ( "" , [] , [] )
+        [ Str "A" , Space , Str "photo" ]
+        ( "/wiki/photo.jpg" , "" )
+    , Space
+    , Str "follows"
+    , Space
+    , Str "here."
+    ]
+]

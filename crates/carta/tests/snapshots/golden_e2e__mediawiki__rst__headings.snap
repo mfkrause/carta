@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. _top_level:
+
+Top level
+=========
+
+Second
+------
+
+Third
+~~~~~
+
+Fourth
+^^^^^^
+
+Fifth
+'''''
+
+Sixth

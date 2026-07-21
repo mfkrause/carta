@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "span"
+    , Space
+    , Str "like"
+    , Space
+    , Str "//this//"
+    , Space
+    , Str "is"
+    , Space
+    , Str "shown"
+    , Space
+    , Str "verbatim"
+    , Space
+    , Str "with"
+    , Space
+    , Str "its"
+    , Space
+    , Str "markers"
+    , Space
+    , Str "intact."
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "tag"
+    , Space
+    , Str "form"
+    , Space
+    , Str "**also**"
+    , Space
+    , Str "escapes"
+    , Space
+    , Str "formatting"
+    , Space
+    , Str "just"
+    , Space
+    , Str "the"
+    , Space
+    , Str "same."
+    ]
+]

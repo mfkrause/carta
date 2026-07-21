@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "" , [] , [] )
+    [ Str "Tom"
+    , Space
+    , Str "&"
+    , Space
+    , Str "Jerry"
+    , Space
+    , Str "and"
+    , Space
+    , Str "friends"
+    ]
+, Para
+    [ Str "Plain" , Space , Str "note" , Space , Str "text." ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Numeric"
+    , Space
+    , Str "A"
+    , Space
+    , Str "B"
+    , Space
+    , Str "here"
+    ]
+]

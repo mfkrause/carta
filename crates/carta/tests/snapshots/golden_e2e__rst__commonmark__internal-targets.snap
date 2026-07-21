@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="intro">
+
+This paragraph carries the target identifier.
+
+</div>
+
+Jump back to the [intro](#intro) section.

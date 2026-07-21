@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><p>Name</p></th>
+<th><p>Role</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><p>Ada</p></td>
+<td><p>Engineer</p></td>
+</tr>
+<tr>
+<td><p>Grace</p></td>
+<td><p>Admiral</p></td>
+</tr>
+</tbody>
+</table>

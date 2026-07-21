@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="intro" class="cell markdown">
+<span id="notebook-title"></span>
+= Notebook title =
+
+A paragraph with ''emphasis'', '''strong''', a [https://example.com link], and <code>inline code</code>.
+
+* first item
+* second item
+
+<blockquote>A short blockquote.
+</blockquote>
+</div>

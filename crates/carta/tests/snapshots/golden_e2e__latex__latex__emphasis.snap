@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Text with \emph{emphasis} and \textbf{bold} and \emph{italic}.
+
+A run with \textbf{bold and \emph{nested emphasis} inside} it.
+
+Also \ul{underlined}, \textsc{small caps}, and \st{struck out}.

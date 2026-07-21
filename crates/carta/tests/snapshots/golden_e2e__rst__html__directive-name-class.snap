@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="important-note" class="note highlighted">
+<div class="title">
+<p>Note</p>
+</div>
+<p>Remember to hydrate.</p>
+</div>

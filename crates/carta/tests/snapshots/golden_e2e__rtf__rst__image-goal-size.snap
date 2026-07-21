@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Photo |image| and |image1| here.
+
+.. |image| image:: 4caece539b039b16e16206ea2478f8c5ffb2ca05.png
+   :width: 1in
+   :height: 0.5in
+.. |image1| image:: 30567f6b52af60449a6113d3c80fb9f850b7426a.jpg
+   :width: 2in

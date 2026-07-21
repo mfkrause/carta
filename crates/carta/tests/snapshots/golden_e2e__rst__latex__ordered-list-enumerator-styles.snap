@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A single letter that is also a numeral defaults to alphabetic:
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi}.}
+\setcounter{enumi}{2}
+\tightlist
+\item
+  third by letter
+\item
+  fourth by letter
+\end{enumerate}
+
+The letter i alone is read as a roman numeral:
+
+\begin{enumerate}
+\def\labelenumi{\roman{enumi}.}
+\tightlist
+\item
+  one
+\item
+  two
+\end{enumerate}

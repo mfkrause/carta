@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Lowercase"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com" ]
+        ( "http://example.com" , "" )
+    , Space
+    , Str "autolinks"
+    , Space
+    , Str "but"
+    , Space
+    , Str "HTTP://example.com"
+    , Space
+    , Str "does"
+    , Space
+    , Str "not,"
+    , Space
+    , Str "nor"
+    , Space
+    , Str "does"
+    , Space
+    , Str "[HTTP://example.org]."
+    ]
+]

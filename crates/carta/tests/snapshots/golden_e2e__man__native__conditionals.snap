@@ -1,0 +1,48 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1 ( "conditionals" , [] , [] ) [ Str "CONDITIONALS" ]
+, Para
+    [ Str "nroff-only"
+    , Space
+    , Str "text"
+    , Space
+    , Str "is"
+    , Space
+    , Str "kept"
+    , Space
+    , Str "a"
+    , Space
+    , Str "true"
+    , Space
+    , Str "constant"
+    , Space
+    , Str "is"
+    , Space
+    , Str "kept"
+    , Space
+    , Str "the"
+    , Space
+    , Str "if-else"
+    , Space
+    , Str "true"
+    , Space
+    , Str "branch"
+    , Space
+    , Str "is"
+    , Space
+    , Str "kept"
+    , Space
+    , Str "this"
+    , Space
+    , Str "else"
+    , Space
+    , Str "branch"
+    , Space
+    , Str "is"
+    , Space
+    , Str "kept"
+    ]
+]

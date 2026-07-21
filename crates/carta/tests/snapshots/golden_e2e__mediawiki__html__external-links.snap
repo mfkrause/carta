@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A <a href="http://example.com">labeled</a> and <a
+href="http://example.org">1</a> and bare <a
+href="http://example.net">http://example.net</a> here.</p>

@@ -1,0 +1,57 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "link"
+    , Space
+    , Str "with"
+    , Space
+    , Str "an"
+    , Space
+    , Str "empty"
+    , Space
+    , Str "explicit"
+    , Space
+    , Str "label"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "start" ] ( "start" , "" )
+    , Space
+    , Str "falls"
+    , Space
+    , Str "back"
+    , Space
+    , Str "to"
+    , Space
+    , Str "its"
+    , Space
+    , Str "target,"
+    , SoftBreak
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "media"
+    , Space
+    , Str "reference"
+    , Space
+    , Str "with"
+    , Space
+    , Str "an"
+    , Space
+    , Str "empty"
+    , Space
+    , Str "caption"
+    , Space
+    , Image
+        ( "" , [] , [] ) [ Str "img.png" ] ( "/wiki/img.png" , "" )
+    , Space
+    , Str "does"
+    , Space
+    , Str "the"
+    , Space
+    , Str "same."
+    ]
+]

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{a\\
+b} keeps the span inline when the close is not alone.
+
+A {bare hex} span stays inline too.

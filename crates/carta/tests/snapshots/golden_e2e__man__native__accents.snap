@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "accents" , [] , [] ) [ Str "ACCENTS" ]
+, Para
+    [ Str "Caf\233"
+    , Space
+    , Str "na\239ve"
+    , Space
+    , Str "Stra\223e"
+    , Space
+    , Str "\231edilla"
+    , Space
+    , Str "angle"
+    , Space
+    , Str "\10216"
+    , Space
+    , Str "x"
+    , Space
+    , Str "\10217"
+    , Space
+    , Str "and"
+    , Space
+    , Str "the"
+    , Space
+    , Str "\339"
+    , Space
+    , Str "ligature"
+    , Space
+    , Str "plus"
+    , Space
+    , Str "\248."
+    ]
+]

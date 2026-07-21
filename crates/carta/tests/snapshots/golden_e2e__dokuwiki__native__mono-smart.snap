@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Monospace"
+    , Space
+    , Str "with"
+    , Space
+    , Str "a"
+    , Space
+    , Str "paired"
+    , Space
+    , Code ( "" , [] , [] ) "say \8220hi\8221 now"
+    , Space
+    , Str "double"
+    , Space
+    , Str "quote"
+    , Space
+    , Str "folds"
+    , Space
+    , Str "inside"
+    , Space
+    , Str "the"
+    , Space
+    , Str "code,"
+    , SoftBreak
+    , Str "while"
+    , Space
+    , Str "an"
+    , Space
+    , Str "unpaired"
+    , Space
+    , Quoted
+        SingleQuote [ Str "\8217it\8217s" , Space , Str "here" ]
+    , Str "\8217"
+    , Space
+    , Str "apostrophe"
+    , Space
+    , Str "is"
+    , Space
+    , Str "read"
+    , Space
+    , Str "as"
+    , Space
+    , Str "a"
+    , Space
+    , Str "quote"
+    , Space
+    , Str "span"
+    , Space
+    , Str "instead."
+    ]
+]

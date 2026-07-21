@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Monospace with a paired <code>say “hi” now</code> double quote folds
+inside the code, while an unpaired ‘’it’s here’’ apostrophe is read as a
+quote span instead.</p>

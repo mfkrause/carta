@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A leading space !pic.png| width=100! stays literal.
+
+A kept trailing space [[File:pic.png]] makes an image.
+
+A spaced !pic.png|thumbnail ! stays literal.

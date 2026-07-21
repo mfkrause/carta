@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="links" class="cell markdown">
+<p>A bracketed <a href="two%20words">destination</a> and an angle
+autolink <a href="https://example.com/a%5Eb"
+class="uri">https://example.com/a^b</a> are percent-encoded, and so is a
+bare <a href="https://example.com/p%5Eq"
+class="uri">https://example.com/p^q</a> that the notebook dialect
+autolinks.</p>
+</div>

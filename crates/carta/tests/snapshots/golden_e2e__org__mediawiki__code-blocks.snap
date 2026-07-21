@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<syntaxhighlight lang="python">def greet(name):
+    return "Hello, " + name
+</syntaxhighlight>
+<pre>Literal example text
+spanning two lines.
+</pre>

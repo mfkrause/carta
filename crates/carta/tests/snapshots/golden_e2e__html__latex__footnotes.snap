@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A sentence with a footnote\footnote{The first note.} and a second
+one\footnote{The second note has two paragraphs.
+
+  This is the second.}.

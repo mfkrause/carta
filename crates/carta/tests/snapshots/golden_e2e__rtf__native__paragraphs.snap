@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Hello"
+    , Space
+    , Str "world."
+    , Space
+    , Str "This"
+    , Space
+    , Str "is"
+    , Space
+    , Str "a"
+    , Space
+    , Str "paragraph."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "second"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , Str "several"
+    , Space
+    , Str "words."
+    ]
+]

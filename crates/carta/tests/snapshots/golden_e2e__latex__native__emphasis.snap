@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Emph [ Str "emphasis" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "bold" ]
+    , Space
+    , Str "and"
+    , Space
+    , Emph [ Str "italic" ]
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "run"
+    , Space
+    , Str "with"
+    , Space
+    , Strong
+        [ Str "bold"
+        , Space
+        , Str "and"
+        , Space
+        , Emph [ Str "nested" , Space , Str "emphasis" ]
+        , Space
+        , Str "inside"
+        ]
+    , Space
+    , Str "it."
+    ]
+, Para
+    [ Str "Also"
+    , Space
+    , Underline [ Str "underlined" ]
+    , Str ","
+    , Space
+    , SmallCaps [ Str "small" , Space , Str "caps" ]
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Strikeout [ Str "struck" , Space , Str "out" ]
+    , Str "."
+    ]
+]

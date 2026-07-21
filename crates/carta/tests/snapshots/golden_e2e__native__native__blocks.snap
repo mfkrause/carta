@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "h" , [] , [] ) [ Str "Title" ]
+, Para [ Str "A" , Space , Emph [ Str "para" ] ]
+, BulletList
+    [ [ Plain [ Str "a" ] ] , [ Plain [ Str "b" ] ] ]
+, CodeBlock ( "" , [ "rust" ] , [] ) "let x = 1;"
+]

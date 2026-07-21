@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- First bullet.
+
+- Second bullet with **bold**.
+
+#. First numbered item.
+
+#. Second numbered item.
+
+- Outer item.
+
+  - Nested item.

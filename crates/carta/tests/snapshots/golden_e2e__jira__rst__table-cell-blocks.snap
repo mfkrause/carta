@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+========= ==========
+List cell Quote cell
+========= ==========
+- one        q
+h1. plain a
+          
+             q
+          
+          b
+========= ==========

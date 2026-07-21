@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="deffold" class="cell markdown">
+<p>A line of prose</p>
+<p>: not a definition list in this dialect</p>
+</div>

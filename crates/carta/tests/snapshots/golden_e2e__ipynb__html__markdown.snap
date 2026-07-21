@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="intro" class="cell markdown">
+<h1 id="notebook-title">Notebook title</h1>
+<p>A paragraph with <em>emphasis</em>, <strong>strong</strong>, a <a
+href="https://example.com">link</a>, and <code>inline code</code>.</p>
+<ul>
+<li>first item</li>
+<li>second item</li>
+</ul>
+<blockquote>
+<p>A short blockquote.</p>
+</blockquote>
+</div>

@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "First"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "spanning"
+    , LineBreak
+    , Str "two"
+    , Space
+    , Str "source"
+    , Space
+    , Str "lines."
+    ]
+, Para
+    [ Str "Second"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "after"
+    , Space
+    , Str "a"
+    , Space
+    , Str "blank"
+    , Space
+    , Str "line."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "forced"
+    , LineBreak
+    , Str "break"
+    , Space
+    , Str "here."
+    ]
+]

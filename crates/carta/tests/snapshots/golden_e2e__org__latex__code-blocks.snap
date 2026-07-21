@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+def greet(name):
+    return "Hello, " + name
+\end{verbatim}
+
+\begin{verbatim}
+Literal example text
+spanning two lines.
+\end{verbatim}

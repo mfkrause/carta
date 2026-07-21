@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An inline image
+\pandocbounded{\includegraphics[keepaspectratio,alt={image}]{logo.png}}
+sits within this line of text.

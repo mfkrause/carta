@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="figure" class="cell markdown">
+<p>An embedded attachment:</p>
+<p><img src="figure-diagram.png" alt="a diagram" /></p>
+</div>

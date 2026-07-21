@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Plain [ Str "first" ] ]
+    , [ Plain [ Str "second" ]
+      , OrderedList
+          ( 1 , DefaultStyle , DefaultDelim )
+          [ [ Plain [ Str "nested" ] ] ]
+      ]
+    , [ Plain [ Str "third" ] ]
+    ]
+]

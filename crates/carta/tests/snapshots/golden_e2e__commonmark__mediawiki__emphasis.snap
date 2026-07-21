@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph with ''emphasis'', '''strong emphasis''', and <code>inline code</code>.
+
+Nested ''emphasis with '''strong''' inside'' and a code span <code>a &lt; b &amp;&amp; c</code>.

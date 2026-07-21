@@ -1,0 +1,70 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "labeled" , Space , Str "link" ]
+        ( "http://example.com" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "bare"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.org" ]
+        ( "http://example.org" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.net" ]
+        ( "http://example.net" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "the"
+    , Space
+    , Str "autolink"
+    , Space
+    , Str "and"
+    , Space
+    , Str "email"
+    , Space
+    , Str "me@example.com"
+    , Space
+    , Str "too."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Link
+        ( "" , [ "attachment" ] , [] )
+        [ Str "file.txt" ]
+        ( "file.txt" , "" )
+    , Space
+    , Str "attachment"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Link
+        ( "" , [ "user-account" ] , [] )
+        [ Str "~username" ]
+        ( "~username" , "" )
+    , Space
+    , Str "user"
+    , Space
+    , Str "mention."
+    ]
+]

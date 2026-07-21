@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell code
+   :name: geo
+
+   .. code:: python
+
+      feature
+
+   .. container:: output display_data
+
+      .. code:: json
+
+         {"coordinates":[1,2],"type":"Point"}
+
+.. container:: cell code
+   :name: tie
+
+   .. code:: python
+
+      rendered
+
+   .. container:: output display_data
+
+      .. code:: json
+
+         {"j":2}

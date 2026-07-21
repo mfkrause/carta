@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="deffold" class="cell markdown">
+A line of prose
+
+<nowiki></nowiki>: not a definition list in this dialect
+
+</div>

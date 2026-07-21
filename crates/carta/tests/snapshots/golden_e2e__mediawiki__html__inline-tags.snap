@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Water H<sub>2</sub>O and E=mc<sup>2</sup> and <del>gone</del>
+<del>old</del> here.</p>
+<p>Use <code>fn()</code> and <code>mono</code> and <kbd>Ctrl</kbd>
+here.</p>

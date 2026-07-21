@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="equations" class="cell markdown">
+<p>Inline math <span class="math inline">\(a^2 + b^2 = c^2\)</span>
+within a sentence, and a display equation:</p>
+<p><span class="math display">\[E = mc^2\]</span></p>
+</div>

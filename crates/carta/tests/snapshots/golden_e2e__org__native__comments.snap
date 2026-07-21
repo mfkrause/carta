@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ RawBlock (Format "org") "#+comment: A keyword comment."
+, Para
+    [ Str "Visible"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "text"
+    , Space
+    , Str "remains."
+    ]
+]

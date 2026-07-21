@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "Author" ]
+      , [ [ Plain [ Str "Ada" , Space , Str "Writer" ] ] ]
+      )
+    , ( [ Str "Version" ] , [ [ Plain [ Str "1.0" ] ] ] )
+    , ( [ Str "Note" ]
+      , [ [ Plain
+              [ Str "A"
+              , Space
+              , Str "field"
+              , Space
+              , Str "whose"
+              , Space
+              , Str "value"
+              , Space
+              , Str "begins"
+              , Space
+              , Str "on"
+              , Space
+              , Str "the"
+              , Space
+              , Str "next"
+              , Space
+              , Str "line"
+              , Space
+              , Str "and"
+              , SoftBreak
+              , Str "spans"
+              , Space
+              , Str "an"
+              , Space
+              , Str "indented"
+              , Space
+              , Str "block."
+              ]
+          ]
+        ]
+      )
+    ]
+]

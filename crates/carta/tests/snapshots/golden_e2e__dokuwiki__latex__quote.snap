@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{quote}
+A first line of the quotation\\
+continues on a second line.\\
+back on the same level.
+\end{quote}

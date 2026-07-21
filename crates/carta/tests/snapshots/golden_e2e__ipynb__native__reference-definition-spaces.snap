@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "refspace" , [ "cell" , "markdown" ] , [] )
+    [ Para
+        [ Str "See"
+        , Space
+        , Link
+            ( "" , [] , [] )
+            [ Str "ref" ]
+            ( "my%20file.html" , "the title" )
+        , Str "."
+        ]
+    ]
+]

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><strong>bold</strong> and <em>italic</em> and
+<strong><em>both</em></strong>.</p>

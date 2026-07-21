@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1></h1>
+<h1>Has text</h1>
+<p>Note for the second outline.</p>

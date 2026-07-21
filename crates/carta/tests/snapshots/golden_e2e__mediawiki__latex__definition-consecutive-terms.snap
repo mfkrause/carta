@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\tightlist
+\item[first\\
+second]
+shared definition
+\end{description}

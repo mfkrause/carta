@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{deffold}
+A line of prose
+
+: not a definition list in this dialect

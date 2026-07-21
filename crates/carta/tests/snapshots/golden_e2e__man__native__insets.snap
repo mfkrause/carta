@@ -1,0 +1,66 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "insets" , [] , [] ) [ Str "INSETS" ]
+, Para
+    [ Str "Leading"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "at"
+    , Space
+    , Str "the"
+    , Space
+    , Str "section"
+    , Space
+    , Str "level."
+    ]
+, BlockQuote
+    [ Para
+        [ Str "An"
+        , Space
+        , Str "inset"
+        , Space
+        , Str "paragraph"
+        , Space
+        , Str "one"
+        , Space
+        , Str "level"
+        , Space
+        , Str "in."
+        ]
+    , BlockQuote
+        [ Para
+            [ Str "A"
+            , Space
+            , Str "further"
+            , Space
+            , Str "inset"
+            , Space
+            , Str "paragraph"
+            , Space
+            , Str "two"
+            , Space
+            , Str "levels"
+            , Space
+            , Str "in."
+            ]
+        ]
+    ]
+, Para
+    [ Str "Trailing"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "back"
+    , Space
+    , Str "at"
+    , Space
+    , Str "the"
+    , Space
+    , Str "section"
+    , Space
+    , Str "level."
+    ]
+]

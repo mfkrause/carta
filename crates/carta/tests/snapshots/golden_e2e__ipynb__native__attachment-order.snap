@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "order" , [ "cell" , "markdown" ] , [] )
+    [ Para
+        [ Str "Two"
+        , Space
+        , Str "attachments,"
+        , Space
+        , Str "referenced"
+        , Space
+        , Str "out"
+        , Space
+        , Str "of"
+        , Space
+        , Str "key"
+        , Space
+        , Str "order:"
+        ]
+    , Para
+        [ Image
+            ( "" , [] , [] ) [ Str "beta" ] ( "order-beta.png" , "" )
+        ]
+    , Para
+        [ Image
+            ( "" , [] , [] ) [ Str "alpha" ] ( "order-alpha.png" , "" )
+        ]
+    ]
+]

@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="one"></span>
+= One =
+
+<span id="anchor"></span>
+== Two ==
+
+A paragraph.
+
+<blockquote>quoted
+</blockquote>
+<syntaxhighlight lang="rust">let x = 1;</syntaxhighlight>
+
+-----
+
+<div id="d" class="note">
+body
+
+</div>

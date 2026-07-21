@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "figure" , [ "cell" , "markdown" ] , [] )
+    [ Para
+        [ Str "An"
+        , Space
+        , Str "embedded"
+        , Space
+        , Str "attachment:"
+        ]
+    , Para
+        [ Image
+            ( "" , [] , [] )
+            [ Str "a" , Space , Str "diagram" ]
+            ( "figure-diagram.png" , "" )
+        ]
+    ]
+]

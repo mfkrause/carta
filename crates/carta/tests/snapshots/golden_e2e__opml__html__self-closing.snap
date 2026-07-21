@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>Level one</h1>
+<h2>Level two</h2>
+<h3>Level three</h3>

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>Heading with note</h1>
+<p>First paragraph with <em>emphasis</em> and
+<strong>strong</strong>.</p>
+<p>Second paragraph after a blank line.</p>

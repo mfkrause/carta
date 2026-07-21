@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A. A genuine first item.
+
+B. A second item whose text wraps onto a following line.

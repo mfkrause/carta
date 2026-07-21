@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+   :name: dialect
+
+   #. first
+
+   #. second
+
+   #. auto one
+
+   #. auto two
+
+   1) prose only 2) still prose
+
+   Visit http://example.com or write user@example.com or ping 5@home.
+
+   Nested **bold italic** text.

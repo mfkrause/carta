@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Emphasis stays literal in "*quoted emphasis*" and strong in "**quoted
+strong**".
+
+Angle brackets also suppress markup as in \textless*not
+emphasis*\textgreater.
+
+Interpreted text in "`quoted interpreted text`" stays literal.
+
+A phrase reference in "`quoted phrase`\_" and a simple reference in
+"link\_" stay literal.
+
+An inline literal "\texttt{stays\ code}" because literals are never
+suppressed.

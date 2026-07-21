@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+He said “hello there” and then ‘goodbye’ quietly.
+
+An em-dash—like this—and an en-dash 1–10 too.

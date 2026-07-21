@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Text with <strong>bold</strong>, <em>italic</em>, <u>underline</u>,
+<del>strikethrough</del>, <code class="verbatim">verbatim</code>, and
+<code>code</code> markup.</p>

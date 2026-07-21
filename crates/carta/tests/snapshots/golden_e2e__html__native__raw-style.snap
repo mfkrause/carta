@@ -1,0 +1,43 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Str "before"
+    , Space
+    , Str "the"
+    , Space
+    , Str "stylesheet."
+    ]
+, Para
+    [ RawInline
+        (Format "html") "<style>.a { color: red; }</style>"
+    ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "between"
+    , Space
+    , Str "stylesheets."
+    ]
+, Para
+    [ RawInline
+        (Format "html")
+        "<style type=\"text/css\">.b { color: blue; }</style>"
+    , SoftBreak
+    , RawInline
+        (Format "html")
+        "<style media=\"print\">.c { display: none; }</style>"
+    ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "stylesheets."
+    ]
+]

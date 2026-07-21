@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+   :name: equations
+
+   Inline math :math:`a^2 + b^2 = c^2` within a sentence, and a display
+   equation:
+
+   .. math:: E = mc^2

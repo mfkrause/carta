@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>Apple</dt>
+<dd>
+<p>A red fruit.</p>
+</dd>
+<dt>Banana</dt>
+<dd>
+<p>A yellow fruit.</p>
+</dd>
+</dl>

@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "possessive"
+    , Space
+    , Str "it"
+    , Quoted
+        SingleQuote
+        [ Str "s"
+        , Space
+        , Str "keeps"
+        , Space
+        , Str "a"
+        , Space
+        , Str "\8217quoted"
+        ]
+    , Space
+    , Str "phrase"
+    , Space
+    , Str "from"
+    , Space
+    , Str "nesting"
+    , Space
+    , Str "inside"
+    , Space
+    , Str "the"
+    , Space
+    , Str "same"
+    , Space
+    , Str "kind."
+    ]
+]

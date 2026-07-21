@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Str "formula"
+    , Space
+    , Math InlineMath "x^2 + y^2 = z^2"
+    , Space
+    , Str "is"
+    , Space
+    , Str "famous."
+    ]
+]

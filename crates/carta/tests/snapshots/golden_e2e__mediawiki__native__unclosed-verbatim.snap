@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "unclosed"
+    , Space
+    , Str "nowiki"
+    , Space
+    , Str "swallows"
+    , Space
+    , Str "the"
+    , Space
+    , Str "rest"
+    , Space
+    , Str "inline:"
+    , Space
+    , Str "literal"
+    , Space
+    , Str "'''text'''"
+    , Space
+    , Str "and"
+    , Space
+    , Str "[[links]]"
+    , Space
+    , Str "until"
+    , Space
+    , Str "the"
+    , Space
+    , Str "end."
+    ]
+, Para
+    [ Str "And"
+    , Space
+    , Str "separately,"
+    , Space
+    , Str "an"
+    , Space
+    , Str "unclosed"
+    , Space
+    , Str "pre"
+    , Space
+    , Str "block:"
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "preformatted content\nthat has no closing tag\nso it runs to the end of input"
+]

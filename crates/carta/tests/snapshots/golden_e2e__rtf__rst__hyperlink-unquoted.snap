@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Visit `the site <http://example.com>`__, `a nested
+link <http://nested.example.com>`__, `mail
+me <mailto:hi@example.com>`__, or `x <http://x.com>`__.

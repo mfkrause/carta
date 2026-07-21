@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Strong [ Emph [ Str "italic" , Space , Str "text" ] ] ]
+, Para [ Strong [ Str "unstyled" , Space , Str "text" ] ]
+, Header
+    1 ( "" , [] , [] ) [ Str "chapter" , Space , Str "title" ]
+]

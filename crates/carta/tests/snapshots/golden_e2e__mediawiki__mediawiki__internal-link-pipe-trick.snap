@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[[Help:Foo|Foo]] and [[A|b <span class="wikilink">c</span> d]]

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Power comes from the <a href="https://example.com/star">Sol</a>
+above.</p>

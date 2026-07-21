@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math \(a^2 + b^2 = c^2\) and dollar math \(E = mc^2\) within a
+sentence.
+
+A display equation follows.
+
+\[y = m x + b\]

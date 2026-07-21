@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Plain [ Str "First" , Space , Str "item" ] ]
+    , [ Plain [ Str "Second" , Space , Str "item" ] ]
+    , [ Plain [ Str "Third" , Space , Str "item" ] ]
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "nested"
+    , Space
+    , Str "list"
+    , Space
+    , Str "inside"
+    , Space
+    , Str "a"
+    , Space
+    , Str "loose"
+    , Space
+    , Str "list:"
+    ]
+, BulletList
+    [ [ Para [ Str "Parent" , Space , Str "one" ]
+      , BulletList
+          [ [ Plain [ Str "Child" , Space , Str "one" ] ]
+          , [ Plain [ Str "Child" , Space , Str "two" ] ]
+          ]
+      ]
+    , [ Para [ Str "Parent" , Space , Str "two" ]
+      , Para
+          [ Str "Second"
+          , Space
+          , Str "paragraph"
+          , Space
+          , Str "of"
+          , Space
+          , Str "parent"
+          , Space
+          , Str "two."
+          ]
+      ]
+    ]
+]

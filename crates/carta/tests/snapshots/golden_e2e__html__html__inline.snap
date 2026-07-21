@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An <em>emphasis</em>, <strong>strong</strong>, and <code>code</code>
+run.</p>
+<p>A <a href="http://example.com" title="t">link</a> and an <img
+src="pic.png" alt="alt" /> image.</p>
+<p>Entities &amp; © and raw inline.</p>

@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="introduction"></span>
+= Introduction =
+
+Some introductory text.
+
+<span id="background"></span>
+== Background ==
+
+More detail here.
+
+<span id="fine-points"></span>
+=== Fine Points ===
+
+Even more detail.
+
+<span id="conclusion"></span>
+= Conclusion =
+
+Final remarks.

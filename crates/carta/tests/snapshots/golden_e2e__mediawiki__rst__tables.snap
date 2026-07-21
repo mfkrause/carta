@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+===== ===
+Name  Age
+===== ===
+Alice 30
+Bob   25
+===== ===

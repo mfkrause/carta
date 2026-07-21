@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Code ( "" , [] , [] ) "inline code"
+    , Space
+    , Str "in"
+    , Space
+    , Str "it."
+    ]
+, CodeBlock
+    ( "" , [] , [] ) "a whole code line\nand another line"
+, Para
+    [ Str "Back" , Space , Str "to" , Space , Str "prose." ]
+]

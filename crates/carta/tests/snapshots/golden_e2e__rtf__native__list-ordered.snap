@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Para [ Str "First" , Space , Str "item" ] ]
+    , [ Para [ Str "Second" , Space , Str "item" ] ]
+    ]
+]

@@ -1,0 +1,66 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "no-op-requests" , [] , [] )
+    [ Str "NO-OP" , Space , Str "REQUESTS" ]
+, Para
+    [ Str "First"
+    , Space
+    , Str "line"
+    , Space
+    , Str "of"
+    , Space
+    , Str "a"
+    , Space
+    , Str "filled"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "that"
+    , Space
+    , Str "continues"
+    , Space
+    , Str "across"
+    , Space
+    , Str "a"
+    , Space
+    , Str "bare"
+    , Space
+    , Str "control"
+    , Space
+    , Str "character"
+    , Space
+    , Str "and"
+    , Space
+    , Str "across"
+    , Space
+    , Str "a"
+    , Space
+    , Str "no-op"
+    , Space
+    , Str "dotted"
+    , Space
+    , Str "request"
+    , Space
+    , Str "and"
+    , Space
+    , Str "across"
+    , Space
+    , Str "an"
+    , Space
+    , Str "empty"
+    , Space
+    , Str "apostrophe"
+    , Space
+    , Str "request"
+    , Space
+    , Str "without"
+    , Space
+    , Str "a"
+    , Space
+    , Str "break."
+    ]
+]

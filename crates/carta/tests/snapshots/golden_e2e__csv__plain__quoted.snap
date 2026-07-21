@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+  --------------------------------
+  product          note
+  ---------------- ---------------
+  Widget, deluxe   ships "today"
+
+  multi            plain
+  line cell        
+  --------------------------------

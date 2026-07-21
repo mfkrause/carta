@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ LineBlock
+    [ [ Str "Lend"
+      , Space
+      , Str "us"
+      , Space
+      , Str "a"
+      , Space
+      , Str "couple"
+      , Space
+      , Str "of"
+      , Space
+      , Str "bob"
+      ]
+    , [ Str "till" , Space , Str "Thursday." ]
+    , []
+    , [ Str "I'm"
+      , Space
+      , Str "short"
+      , Space
+      , Str "of"
+      , Space
+      , Str "a"
+      , Space
+      , Str "couple"
+      , Space
+      , Str "of"
+      , Space
+      , Str "bob."
+      ]
+    ]
+]

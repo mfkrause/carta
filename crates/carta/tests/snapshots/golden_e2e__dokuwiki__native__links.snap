@@ -1,0 +1,122 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "internal"
+    , Space
+    , Str "link"
+    , Space
+    , Str "to"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "start" ] ( "start" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "one"
+    , Space
+    , Str "to"
+    , Space
+    , Str "a"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "page" ]
+        ( "/some/namespace/page" , "" )
+    , Space
+    , Str "target."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "named"
+    , Space
+    , Str "internal"
+    , Space
+    , Str "link"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "the" , Space , Str "start" , Space , Str "page" ]
+        ( "start" , "" )
+    , Space
+    , Str "guides"
+    , Space
+    , Str "the"
+    , Space
+    , Str "reader."
+    ]
+, Para
+    [ Str "External"
+    , Space
+    , Str "links"
+    , Space
+    , Str "such"
+    , Space
+    , Str "as"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Example" ]
+        ( "https://example.com" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "the"
+    , Space
+    , Str "bare"
+    , Space
+    , Str "form"
+    , SoftBreak
+    , Link
+        ( "" , [] , [] )
+        [ Str "https://example.org" ]
+        ( "https://example.org" , "" )
+    , Space
+    , Str "both"
+    , Space
+    , Str "work,"
+    , Space
+    , Str "as"
+    , Space
+    , Str "does"
+    , Space
+    , Str "an"
+    , Space
+    , Str "email"
+    , Space
+    , Str "like"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "user@example.com" ]
+        ( "mailto:user@example.com" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "interwiki"
+    , Space
+    , Str "shortcut"
+    , Space
+    , Str "points"
+    , Space
+    , Str "at"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Wiki" ]
+        ( "https://en.wikipedia.org/wiki/Wiki" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "background"
+    , Space
+    , Str "reading."
+    ]
+]

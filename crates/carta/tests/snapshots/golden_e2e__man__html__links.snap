@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="see-also">SEE ALSO</h1>
+<p>Visit the <a href="https://example.com/project">project home page</a>
+for more information.</p>
+<p>Report bugs to <a href="mailto:bugs@example.com">the
+maintainers</a>.</p>

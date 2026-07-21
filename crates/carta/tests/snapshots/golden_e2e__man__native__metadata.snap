@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "name" , [] , [] ) [ Str "NAME" ]
+, Para
+    [ Str "program"
+    , Space
+    , Str "-"
+    , Space
+    , Str "do"
+    , Space
+    , Str "something"
+    , Space
+    , Str "useful"
+    ]
+, Header 1 ( "description" , [] , [] ) [ Str "DESCRIPTION" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "short"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "of"
+    , Space
+    , Str "running"
+    , Space
+    , Str "text"
+    , Space
+    , Str "whose"
+    , Space
+    , Str "lines"
+    , Space
+    , Str "are"
+    , Space
+    , Str "filled"
+    , Space
+    , Str "into"
+    , Space
+    , Str "a"
+    , Space
+    , Str "single"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "separated"
+    , Space
+    , Str "by"
+    , Space
+    , Str "spaces."
+    ]
+]

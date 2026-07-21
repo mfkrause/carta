@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Use"
+    , Space
+    , Code ( "" , [] , [] ) "git status"
+    , Space
+    , Str "to"
+    , Space
+    , Str "inspect"
+    , Space
+    , Str "the"
+    , Space
+    , Str "tree,"
+    , Space
+    , Str "or"
+    , Space
+    , Str "run"
+    , Space
+    , Code ( "" , [] , [] ) "make build"
+    , Space
+    , Str "to"
+    , Space
+    , Str "compile."
+    ]
+]

@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "[[|text]]" ]
+, Para [ Str "[[]]" ]
+, Para [ Str "[[|]]" ]
+, Para [ Link ( "" , [] , [] ) [ Str "" ] ( "" , "" ) ]
+, Para [ Str "{{}}" ]
+, Para [ Str "{{|cap}}" ]
+, Para
+    [ Image
+        ( "" , [ "align-center" ] , [] ) [ Str "" ] ( "" , "" )
+    ]
+, Para [ Str "(())" ]
+, Para [ Str "((" , Space , Str "))" ]
+]

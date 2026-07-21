@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An \emph{emphasis}, \textbf{strong}, and \texttt{code} run.
+
+A \href{http://example.com}{link} and an
+\pandocbounded{\includegraphics[keepaspectratio,alt={alt}]{pic.png}}
+image.
+
+Entities \& © and raw inline.

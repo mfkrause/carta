@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A plain code region:
+
+::
+
+   plain text
+     preserved exactly
+
+A highlighted region names its language:
+
+.. code:: python
+
+   def greet(name):
+       return "hello " + name
+
+A file region behaves the same way:
+
+::
+
+   contents of a file

@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Span
+        ( "" , [] , [ ( "color" , "red" ) ] )
+        [ Str "a" , LineBreak , Str "b" ]
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "the"
+    , Space
+    , Str "span"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "when"
+    , Space
+    , Str "the"
+    , Space
+    , Str "close"
+    , Space
+    , Str "is"
+    , Space
+    , Str "not"
+    , Space
+    , Str "alone."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Span
+        ( "" , [] , [ ( "color" , "#123456" ) ] )
+        [ Str "bare" , Space , Str "hex" ]
+    , Space
+    , Str "span"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "too."
+    ]
+]

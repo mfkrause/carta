@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Text before the stylesheet.
+
+<style>.a { color: red; }</style>
+
+Text between stylesheets.
+
+<style type="text/css">.b { color: blue; }</style>
+<style media="print">.c { display: none; }</style>
+
+Text after the stylesheets.

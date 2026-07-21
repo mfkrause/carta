@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="fonts">FONTS</h1>
+<p>plain <code>mono</code> and <strong><code>monobold</code></strong>
+and <em><code>monoital</code></em> back.</p>
+<p>bracket <code>mono</code> and single <code>mono</code> end.</p>

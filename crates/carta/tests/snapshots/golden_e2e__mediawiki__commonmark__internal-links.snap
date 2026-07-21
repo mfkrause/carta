@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See <a href="Main_Page" class="wikilink" title="Main Page">Main Page</a>
+and <a href="Page" class="wikilink" title="the label">the label</a> and
+<a href="Page" class="wikilink" title="Page">Pages</a> here.

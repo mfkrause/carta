@@ -1,0 +1,76 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Water"
+    , Space
+    , Str "is"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2O" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "also"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O."
+    ]
+, Para
+    [ Str "Einstein"
+    , Space
+    , Str "wrote"
+    , Space
+    , Str "E"
+    , Space
+    , Str "="
+    , Space
+    , Str "mc"
+    , Superscript [ Str "2" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "x"
+    , Superscript [ Str "n" ]
+    , Space
+    , Str "grows."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "grouped"
+    , Space
+    , Str "subscript"
+    , Space
+    , Str "a"
+    , Subscript [ Str "bc" ]
+    , Str "d"
+    , Space
+    , Str "and"
+    , Space
+    , Str "glucose"
+    , Space
+    , Str "C"
+    , Subscript [ Str "6" ]
+    , Str "H"
+    , Subscript [ Str "12" ]
+    , Str "O"
+    , Subscript [ Str "6" ]
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "double"
+    , Space
+    , Str "underscore"
+    , Space
+    , Str "H__2__O"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "literal."
+    ]
+]

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{broken-plot}
+\begin{verbatim}
+draw()
+\end{verbatim}
+
+\pandocbounded{\includegraphics[keepaspectratio]{05c9998ab9e54c4fb6cbbb6331ec7daf8f4c6f1c.png}}

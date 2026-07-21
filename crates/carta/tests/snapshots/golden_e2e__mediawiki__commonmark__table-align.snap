@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th style="text-align: center;"><p>Centered</p></th>
+<th style="text-align: left;"><p>Left</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;"><p>one</p></td>
+<td style="text-align: left;"><p>two</p></td>
+</tr>
+</tbody>
+</table>

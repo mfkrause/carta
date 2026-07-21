@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "image"
+    , Space
+    , Image ( "" , [] , [] ) [ Str "image" ] ( "logo.png" , "" )
+    , Space
+    , Str "sits"
+    , Space
+    , Str "within"
+    , Space
+    , Str "this"
+    , Space
+    , Str "line"
+    , Space
+    , Str "of"
+    , Space
+    , Str "text."
+    ]
+]

@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A line of only pipes is plain text, never a table:
+
+|
+
+||
+
+|||
+
+A table stops at a following pipe-only line:
+
+{| class="wikitable"
+|-
+| a
+|}
+
+|
+
+A pipe-only line before a table stays a paragraph:
+
+|
+
+{| class="wikitable"
+|-
+| b
+|}

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water is H\ :sub:`2`\ O and the area is x\ :sup:`2`.
+
+Use *emphasised text*, **strong text**, and a Title Reference.
+
+Inline code through a role: ``value = 1`` and inline math
+:math:`a^2 + b^2 = c^2`.

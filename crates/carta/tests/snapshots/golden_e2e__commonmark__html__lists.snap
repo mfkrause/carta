@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li>tight bullet one</li>
+<li>tight bullet two</li>
+<li>tight bullet three</li>
+</ul>
+<ol type="1">
+<li>ordered one</li>
+<li>ordered two</li>
+</ol>
+<ol start="3" type="1">
+<li>ordered with paren</li>
+</ol>
+<p>Loose bullets:</p>
+<ul>
+<li><p>loose one</p></li>
+<li><p>loose two</p></li>
+</ul>
+<p>Nested:</p>
+<ul>
+<li>outer
+<ul>
+<li>inner one</li>
+<li>inner two</li>
+</ul></li>
+</ul>

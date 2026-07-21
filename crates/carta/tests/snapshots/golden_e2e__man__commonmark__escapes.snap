@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# ESCAPES
+
+tab here and drop joined with updown then mark and zerowidth.
+
+first line ends with a continuationand keeps going with no space.

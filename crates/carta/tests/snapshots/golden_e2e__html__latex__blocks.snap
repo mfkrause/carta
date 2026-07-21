@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{One}\label{one}
+
+\subsection{Two}\label{anchor}
+
+A paragraph.
+
+\begin{quote}
+quoted
+\end{quote}
+
+\begin{verbatim}
+let x = 1;
+\end{verbatim}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\protect\phantomsection\label{d}
+body

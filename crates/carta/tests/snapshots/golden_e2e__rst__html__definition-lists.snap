@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>term one</dt>
+<dd>
+<p>The definition of the first term.</p>
+</dd>
+<dt>term two</dt>
+<dd>
+<p>The definition of the second term, which runs across two source
+lines.</p>
+</dd>
+</dl>

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{links}
+A bracketed \href{two\%20words}{destination} and an angle autolink
+\url{https://example.com/a\%5Eb} are percent-encoded, and so is a bare
+\url{https://example.com/p\%5Eq} that the notebook dialect autolinks.

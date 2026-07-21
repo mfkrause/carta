@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Hello world. This is a paragraph.
+
+A second paragraph with several words.

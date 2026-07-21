@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "literal"
+    , Space
+    , Str "block"
+    , Space
+    , Str "is"
+    , Space
+    , Str "introduced"
+    , Space
+    , Str "by"
+    , Space
+    , Str "a"
+    , Space
+    , Str "double"
+    , Space
+    , Str "colon:"
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "literal text is preserved\n    including its indentation\nverbatim"
+, Para
+    [ Str "The"
+    , Space
+    , Str "marker"
+    , Space
+    , Str "can"
+    , Space
+    , Str "also"
+    , Space
+    , Str "stand"
+    , Space
+    , Str "alone:"
+    ]
+, CodeBlock ( "" , [] , [] ) "another literal block"
+]

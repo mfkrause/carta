@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "" , [] , [] )
+    [ Str "Heading" , Space , Str "with" , Space , Str "note" ]
+, Para
+    [ Str "First"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , Emph [ Str "emphasis" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "strong" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Second"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "after"
+    , Space
+    , Str "a"
+    , Space
+    , Str "blank"
+    , Space
+    , Str "line."
+    ]
+]

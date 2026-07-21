@@ -1,0 +1,61 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "single"
+    , Space
+    , Str "letter"
+    , Space
+    , Str "that"
+    , Space
+    , Str "is"
+    , Space
+    , Str "also"
+    , Space
+    , Str "a"
+    , Space
+    , Str "numeral"
+    , Space
+    , Str "defaults"
+    , Space
+    , Str "to"
+    , Space
+    , Str "alphabetic:"
+    ]
+, OrderedList
+    ( 3 , LowerAlpha , Period )
+    [ [ Plain
+          [ Str "third" , Space , Str "by" , Space , Str "letter" ]
+      ]
+    , [ Plain
+          [ Str "fourth" , Space , Str "by" , Space , Str "letter" ]
+      ]
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "letter"
+    , Space
+    , Str "i"
+    , Space
+    , Str "alone"
+    , Space
+    , Str "is"
+    , Space
+    , Str "read"
+    , Space
+    , Str "as"
+    , Space
+    , Str "a"
+    , Space
+    , Str "roman"
+    , Space
+    , Str "numeral:"
+    ]
+, OrderedList
+    ( 1 , LowerRoman , Period )
+    [ [ Plain [ Str "one" ] ] , [ Plain [ Str "two" ] ] ]
+]

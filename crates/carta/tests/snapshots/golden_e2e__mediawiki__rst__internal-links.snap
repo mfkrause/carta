@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See `Main Page <Main_Page>`__ and `the label <Page>`__ and
+`Pages <Page>`__ here.

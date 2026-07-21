@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1 ( "" , [] , [] ) [ Str "Heading" , Space , Str "one" ]
+, Header
+    2 ( "" , [] , [] ) [ Str "Heading" , Space , Str "two" ]
+, Header
+    3 ( "" , [] , [] ) [ Str "Heading" , Space , Str "three" ]
+, Header
+    4 ( "" , [] , [] ) [ Str "Heading" , Space , Str "four" ]
+, Header
+    5 ( "" , [] , [] ) [ Str "Heading" , Space , Str "five" ]
+, Header
+    6 ( "" , [] , [] ) [ Str "Heading" , Space , Str "six" ]
+]

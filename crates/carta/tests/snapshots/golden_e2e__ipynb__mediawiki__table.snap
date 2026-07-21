@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="grid" class="cell markdown">
+{| class="wikitable"
+|-
+! name
+! value
+|-
+| one
+| 1
+|-
+| two
+| 2
+|}
+
+The table above lists two entries.
+
+</div>

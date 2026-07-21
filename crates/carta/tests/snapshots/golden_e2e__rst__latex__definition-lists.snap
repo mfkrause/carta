@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\item[term one]
+The definition of the first term.
+\item[term two]
+The definition of the second term, which runs across two source lines.
+\end{description}

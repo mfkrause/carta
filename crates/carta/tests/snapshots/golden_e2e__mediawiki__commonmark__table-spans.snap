@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<tbody>
+<tr>
+<td colspan="2"><p>wide</p></td>
+</tr>
+<tr>
+<td><p>a</p></td>
+<td><p>b</p></td>
+</tr>
+<tr>
+<td rowspan="2"><p>tall</p></td>
+<td><p>top</p></td>
+</tr>
+<tr>
+<td><p>bottom</p></td>
+</tr>
+</tbody>
+</table>

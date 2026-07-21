@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ol>
+<li>first</li>
+<li>second
+<ol>
+<li>nested</li>
+</ol></li>
+<li>third</li>
+</ol>

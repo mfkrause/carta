@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Str "body"
+    , Space
+    , Str "of"
+    , Space
+    , Str "the"
+    , Space
+    , Str "document"
+    , Space
+    , Str "begins"
+    , Space
+    , Str "here."
+    ]
+]

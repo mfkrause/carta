@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>This is the first paragraph. It has several sentences that flow
+across multiple source lines, joined with soft breaks.</p>
+<p>Here is a second paragraph, separated from the first by a blank line
+in the source text.</p>

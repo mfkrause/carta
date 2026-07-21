@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [] , [ ( "color" , "red" ) ] )
+    [ Para
+        [ Str "red"
+        , Space
+        , Str "text"
+        , Space
+        , Str "spanning"
+        , LineBreak
+        , Str "a"
+        , Space
+        , Str "block"
+        ]
+    ]
+, Div
+    ( "" , [] , [ ( "color" , "#123456" ) ] )
+    [ Para
+        [ Str "a"
+        , Space
+        , Str "bare"
+        , Space
+        , Str "hexadecimal"
+        , Space
+        , Str "value"
+        ]
+    ]
+]

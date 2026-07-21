@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See the note\footnote{The note body paragraph.
+
+  {\def\LTcaptype{none} % do not increment counter
+  \begin{longtable}[]{@{}ll@{}}
+  \toprule\noalign{}
+  \endhead
+  \bottomrule\noalign{}
+  \endlastfoot
+  Column A & Column B \\
+  1 & 2 \\
+  \end{longtable}
+  }} below.

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>First line second line of same paragraph.</p>
+<p>A new paragraph here.</p>

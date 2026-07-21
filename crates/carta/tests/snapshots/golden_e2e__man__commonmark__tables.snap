@@ -1,0 +1,58 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# TABLES
+
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: right;">Age</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Ada</td>
+<td style="text-align: right;">36</td>
+</tr>
+<tr>
+<td style="text-align: left;">Grace Hopper</td>
+<td style="text-align: right;">85</td>
+</tr>
+</tbody>
+</table>
+
+A second table without a header rule follows.
+
+<table>
+<tbody>
+<tr>
+<td style="text-align: center;">Left</td>
+<td style="text-align: center;">Right</td>
+</tr>
+<tr>
+<td style="text-align: center;">one</td>
+<td style="text-align: center;">two</td>
+</tr>
+</tbody>
+</table>
+
+A table with a multi-line text block follows.
+
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;">Name</td>
+<td style="text-align: left;">A long description</td>
+</tr>
+<tr>
+<td style="text-align: left;">Left</td>
+<td style="text-align: left;">Right</td>
+</tr>
+</tbody>
+</table>
+
+A table with a horizontal span follows.
+
+TABLE

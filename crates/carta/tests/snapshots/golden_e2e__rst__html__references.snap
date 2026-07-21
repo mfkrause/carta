@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>See the <a href="https://example.org/docs">documentation</a> for
+details, or visit the <a href="https://example.org/">project
+home</a>.</p>
+<p>An inline link points to <a href="https://example.org/spec">the
+spec</a> directly.</p>

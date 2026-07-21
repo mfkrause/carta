@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+   :name: heading
+
+   .. rubric:: Analysis
+      :name: analysis
+
+   A short narrative cell before the computation.
+
+.. container:: cell code
+   :name: compute
+
+   .. code:: python
+
+      total = 2 + 2
+      print(total)
+
+   .. container:: output stream stdout
+
+      ::
+
+         4
+
+   .. container:: output execute_result
+
+      ::
+
+         4
+
+.. container:: cell raw
+   :name: footer
+
+   .. raw:: html
+
+      <footer>End of notebook.</footer>

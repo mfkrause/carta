@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre class="java"><code>first line
+content</code></pre>
+<p>after the block</p>

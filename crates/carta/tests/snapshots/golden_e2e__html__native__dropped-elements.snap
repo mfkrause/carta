@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visible"
+    , Space
+    , Str "text"
+    , Space
+    , Str "before."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "custom"
+    , Space
+    , Str "tag"
+    , Space
+    , Str "unwraps"
+    , Space
+    , Str "to"
+    , Space
+    , Str "its"
+    , Space
+    , Str "text."
+    ]
+]

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A literal \texttt{spanning\ two\ lines} folds the line break to a single
+space.

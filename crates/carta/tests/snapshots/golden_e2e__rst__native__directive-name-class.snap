@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "important-note" , [ "note" , "highlighted" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) [ Para [ Str "Note" ] ]
+    , Para
+        [ Str "Remember"
+        , Space
+        , Str "to"
+        , Space
+        , Str "hydrate."
+        ]
+    ]
+]

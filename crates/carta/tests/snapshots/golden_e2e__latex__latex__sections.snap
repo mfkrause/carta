@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Introduction}\label{introduction}
+
+Some introductory text.
+
+\subsection{Background}\label{background}
+
+More detail here.
+
+\subsubsection{Fine Points}\label{fine-points}
+
+Even more detail.
+
+\section{Conclusion}\label{conclusion}
+
+Final remarks.

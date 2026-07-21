@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={A caption describing the figure.}]{photo.png}}
+\caption{A caption describing the figure.}
+\end{figure}

@@ -1,0 +1,166 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "lists" , [ "cell" , "markdown" ] , [] )
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "bullet"
+        , Space
+        , Str "list"
+        , Space
+        , Str "opens"
+        , Space
+        , Str "right"
+        , Space
+        , Str "after"
+        , Space
+        , Str "a"
+        , Space
+        , Str "paragraph"
+        , Space
+        , Str "line,"
+        , Space
+        , Str "with"
+        , Space
+        , Str "no"
+        , Space
+        , Str "blank"
+        , Space
+        , Str "between:"
+        ]
+    , BulletList
+        [ [ Plain [ Str "apples" ] ] , [ Plain [ Str "pears" ] ] ]
+    , Para
+        [ Str "An"
+        , Space
+        , Str "ordered"
+        , Space
+        , Str "list"
+        , Space
+        , Str "interrupts"
+        , Space
+        , Str "the"
+        , Space
+        , Str "same"
+        , Space
+        , Str "way:"
+        ]
+    , OrderedList
+        ( 1 , DefaultStyle , DefaultDelim )
+        [ [ Plain [ Str "second" ] ] , [ Plain [ Str "third" ] ] ]
+    , Para
+        [ Str "A"
+        , Space
+        , Str "parenthesized"
+        , Space
+        , Str "or"
+        , Space
+        , Str "roman"
+        , Space
+        , Str "marker"
+        , Space
+        , Str "has"
+        , Space
+        , Str "a"
+        , Space
+        , Str "list"
+        , Space
+        , Str "shape"
+        , Space
+        , Str "but"
+        , Space
+        , Str "no"
+        , Space
+        , Str "enabled"
+        , Space
+        , Str "style"
+        , Space
+        , Str "here,"
+        , Space
+        , Str "so"
+        , Space
+        , Str "it"
+        , SoftBreak
+        , Str "breaks"
+        , Space
+        , Str "off"
+        , Space
+        , Str "as"
+        , Space
+        , Str "its"
+        , Space
+        , Str "own"
+        , Space
+        , Str "plain"
+        , Space
+        , Str "paragraph"
+        , Space
+        , Str "rather"
+        , Space
+        , Str "than"
+        , Space
+        , Str "folding"
+        , Space
+        , Str "in:"
+        ]
+    , Para [ Str "(5)" , Space , Str "parenthesized" ]
+    , Para
+        [ Str "A"
+        , Space
+        , Str "decimal"
+        , Space
+        , Str "marker"
+        , Space
+        , Str "closed"
+        , Space
+        , Str "by"
+        , Space
+        , Str "a"
+        , Space
+        , Str "single"
+        , Space
+        , Str "paren"
+        , Space
+        , Str "stays"
+        , Space
+        , Str "prose"
+        , Space
+        , Str "and"
+        , Space
+        , Str "folds"
+        , Space
+        , Str "in,"
+        , Space
+        , Str "so"
+        , Space
+        , Str "these"
+        , Space
+        , Str "two"
+        , SoftBreak
+        , Str "lines"
+        , Space
+        , Str "remain"
+        , Space
+        , Str "one"
+        , Space
+        , Str "paragraph:"
+        , SoftBreak
+        , Str "1)"
+        , Space
+        , Str "not"
+        , Space
+        , Str "a"
+        , Space
+        , Str "list"
+        , SoftBreak
+        , Str "2)"
+        , Space
+        , Str "still"
+        , Space
+        , Str "prose"
+        ]
+    ]
+]

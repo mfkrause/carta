@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span data-label="identity">
+*e*<sup>*i**π*</sup> + 1 = 0
+</span>

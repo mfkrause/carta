@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+&lt;code&gt; an unclosed code tag at line start stays literal text

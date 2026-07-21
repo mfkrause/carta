@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>The first paragraph spans two source lines joined by a soft
+break.</p>
+<p>A second paragraph follows after a blank line.</p>

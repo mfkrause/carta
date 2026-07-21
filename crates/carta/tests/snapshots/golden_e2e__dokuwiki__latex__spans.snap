@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water is H\textsubscript{2}O and the area is 10m\textsuperscript{2} in
+size.
+
+This sentence has a \st{deleted} word in the middle.

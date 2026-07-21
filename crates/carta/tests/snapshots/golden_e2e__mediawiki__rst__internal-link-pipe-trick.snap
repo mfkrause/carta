@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+`Foo <Help:Foo>`__ and `b <A>`__ `c <c>`__ `d <A>`__

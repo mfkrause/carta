@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+This paragraph references an `\|undefined\| <##SUBST##|undefined|>`__
+substitution that is never declared.

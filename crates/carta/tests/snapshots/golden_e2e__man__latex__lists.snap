@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{OPTIONS}\label{options}
+
+\begin{description}
+\item[\textbf{-v}]
+Produce verbose output.
+\item[\textbf{-f \emph{file}}]
+Read input from the named file.
+\end{description}
+
+\section{BULLETS}\label{bullets}
+
+\begin{itemize}
+\item
+  First bullet item.
+\item
+  Second bullet item.
+\end{itemize}
+
+\section{NUMBERED}\label{numbered}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  First numbered item.
+\item
+  Second numbered item.
+\end{enumerate}
+
+\section{PLAIN}\label{plain}
+
+\begin{quote}
+An indented paragraph with no marker.
+\end{quote}

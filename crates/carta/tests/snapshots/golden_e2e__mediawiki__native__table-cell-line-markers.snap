@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para
+                    [ Str "*"
+                    , Space
+                    , Str "first"
+                    , Space
+                    , Str "line"
+                    , Space
+                    , Str "literal"
+                    ]
+                , BulletList
+                    [ [ Plain
+                          [ Str "second"
+                          , Space
+                          , Str "line"
+                          , Space
+                          , Str "list"
+                          ]
+                      ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

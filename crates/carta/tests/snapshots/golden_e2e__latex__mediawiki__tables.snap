@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! style="text-align: left;"| Name
+! style="text-align: center;"| Score
+! style="text-align: right;"| Rank
+|-
+| style="text-align: left;"| Alice
+| style="text-align: center;"| 90
+| style="text-align: right;"| 1
+|-
+| style="text-align: left;"| Bob
+| style="text-align: center;"| 85
+| style="text-align: right;"| 2
+|-
+| colspan="2" style="text-align: center;"| Combined
+| style="text-align: right;"| 3
+|}

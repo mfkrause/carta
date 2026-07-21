@@ -1,0 +1,43 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "introductory"
+    , Space
+    , Str "paragraph."
+    ]
+, BlockQuote
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "block"
+        , Space
+        , Str "quote"
+        , Space
+        , Str "is"
+        , Space
+        , Str "set"
+        , Space
+        , Str "off"
+        , Space
+        , Str "by"
+        , Space
+        , Str "indentation"
+        , SoftBreak
+        , Str "relative"
+        , Space
+        , Str "to"
+        , Space
+        , Str "the"
+        , Space
+        , Str "surrounding"
+        , Space
+        , Str "text."
+        ]
+    , Para
+        [ Str "--" , Space , Str "An" , Space , Str "Attribution" ]
+    ]
+]

@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Figure
+    ( "fig:sample" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "A" , Space , Str "sample" , Space , Str "diagram." ]
+       ])
+    [ Plain [ Image ( "" , [] , [] ) [] ( "diagram.png" , "" ) ]
+    ]
+]

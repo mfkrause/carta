@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A plain © sign decodes in running text.</p>
+<p>Monospace <code>&amp;</code> decodes, as do a <sub>©</sub> subscript,
+a <sup>®</sup> superscript, and a <del>©</del> deletion.</p>
+<p>A link label <a href="start">&amp;copy;</a> keeps the entity literal,
+and so does a &amp;copy; span and a verbatim block:</p>
+<pre><code>&amp;copy;
+</code></pre>

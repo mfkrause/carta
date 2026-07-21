@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<math display="block">a = b + c</math><math display="block">d = e - f</math>

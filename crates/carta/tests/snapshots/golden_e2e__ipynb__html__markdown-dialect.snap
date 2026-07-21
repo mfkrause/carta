@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="dialect" class="cell markdown">
+<ol>
+<li><p>first</p></li>
+<li><p>second</p></li>
+<li><p>auto one</p></li>
+<li><p>auto two</p></li>
+</ol>
+<p>1) prose only 2) still prose</p>
+<p>Visit <a href="http://example.com" class="uri">http://example.com</a>
+or write <a href="mailto:user@example.com"
+class="email">user@example.com</a> or ping <a href="mailto:5@home"
+class="email">5@home</a>.</p>
+<p>Nested <strong><em>bold italic</em></strong> text.</p>
+</div>

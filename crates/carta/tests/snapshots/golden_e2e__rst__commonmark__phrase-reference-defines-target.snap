@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See [Python](http://python.org) first, then reference
+[Python](http://python.org) again later.

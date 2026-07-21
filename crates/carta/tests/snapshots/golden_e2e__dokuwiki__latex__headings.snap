@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Top Level}
+
+An introductory paragraph beneath the top heading.
+
+\subsection{Second Level}
+
+\subsubsection{Third Level}
+
+\paragraph{Fourth Level}
+
+\subparagraph{Fifth Level}
+
+Closing paragraph text.

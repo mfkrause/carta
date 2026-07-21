@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A described link [Example Site](https://example.com) and a plain link
+<https://example.org>.

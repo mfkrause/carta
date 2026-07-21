@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="lists" class="cell markdown">
+<p>A bullet list opens right after a paragraph line, with no blank
+between:</p>
+<ul>
+<li>apples</li>
+<li>pears</li>
+</ul>
+<p>An ordered list interrupts the same way:</p>
+<ol>
+<li>second</li>
+<li>third</li>
+</ol>
+<p>A parenthesized or roman marker has a list shape but no enabled style
+here, so it breaks off as its own plain paragraph rather than folding
+in:</p>
+<p>(5) parenthesized</p>
+<p>A decimal marker closed by a single paren stays prose and folds in,
+so these two lines remain one paragraph: 1) not a list 2) still
+prose</p>
+</div>

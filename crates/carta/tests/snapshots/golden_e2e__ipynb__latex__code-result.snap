@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{result}
+\begin{verbatim}
+2 + 2
+\end{verbatim}
+
+\begin{verbatim}
+4
+\end{verbatim}
+
+\begin{verbatim}
+{"v":4}
+\end{verbatim}

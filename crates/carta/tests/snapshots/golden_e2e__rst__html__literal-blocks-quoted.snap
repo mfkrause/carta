@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>The following block is quoted rather than indented:</p>
+<pre><code>&gt; This is a quoted literal block.
+&gt; Every line begins with the same marker.</code></pre>

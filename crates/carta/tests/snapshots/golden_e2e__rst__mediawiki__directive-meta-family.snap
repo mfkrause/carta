@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="meta" data-description="A short description." data-keywords="one, two">
+</div>
+
+<div class="title">
+A Document Title
+
+</div>
+
+<div class="sectnum">
+</div>
+
+<div class="target-notes">
+</div>

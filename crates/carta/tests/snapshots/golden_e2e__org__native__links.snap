@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "described"
+    , Space
+    , Str "link"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Example" , Space , Str "Site" ]
+        ( "https://example.com" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "link"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "https://example.org" ]
+        ( "https://example.org" , "" )
+    , Str "."
+    ]
+]

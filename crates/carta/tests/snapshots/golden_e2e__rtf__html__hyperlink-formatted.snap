@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Visit <u><a href="http://example.com">our site</a></u> and <strong><a
+href="http://other.com">bold</a></strong><a href="http://other.com">
+plain</a>.</p>

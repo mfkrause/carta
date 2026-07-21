@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+INSETS
+======
+
+Leading paragraph at the section level.
+
+   An inset paragraph one level in.
+
+      A further inset paragraph two levels in.
+
+Trailing paragraph back at the section level.

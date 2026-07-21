@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Adjacent"
+    , Space
+    , Str "runs"
+    , Space
+    , Strong [ Str "a" , Str "b" ]
+    , Space
+    , Str "merge"
+    , Space
+    , Str "into"
+    , Space
+    , Str "one"
+    , Space
+    , Str "strong"
+    , Space
+    , Str "span."
+    ]
+, Para
+    [ Str "Doubled"
+    , Space
+    , Str "markers"
+    , Space
+    , Strong [ Strong [ Str "x" ] ]
+    , Space
+    , Str "nest"
+    , Space
+    , Str "two"
+    , Space
+    , Str "strong"
+    , Space
+    , Str "spans."
+    ]
+, Para
+    [ Str "Doubled"
+    , Space
+    , Str "dashes"
+    , Space
+    , Strikeout [ Strikeout [ Str "x" ] ]
+    , Space
+    , Str "nest"
+    , Space
+    , Str "two"
+    , Space
+    , Str "strikeout"
+    , Space
+    , Str "spans."
+    ]
+]

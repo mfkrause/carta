@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph with \emph{emphasis}, \textbf{strong emphasis}, and
+\texttt{inline\ literal} text.
+
+A second paragraph that spans two source lines joined by a soft break.
+
+Escapes keep a literal *asterisk* intact, and an inline literal can
+attach to a word like with\texttt{code} mid-sentence.

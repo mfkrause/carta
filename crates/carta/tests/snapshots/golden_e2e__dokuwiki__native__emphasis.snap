@@ -1,0 +1,70 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "This"
+    , Space
+    , Str "is"
+    , Space
+    , Strong [ Str "bold" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "this"
+    , Space
+    , Str "is"
+    , Space
+    , Emph [ Str "italic" ]
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "You"
+    , Space
+    , Str "can"
+    , Space
+    , Str "also"
+    , Space
+    , Str "use"
+    , Space
+    , Underline [ Str "underline" ]
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "monospaced"
+    , Space
+    , Str "words"
+    , Space
+    , Str "in"
+    , Space
+    , Str "a"
+    , Space
+    , Str "line."
+    ]
+, Para
+    [ Str "Markers"
+    , Space
+    , Str "combine,"
+    , Space
+    , Str "as"
+    , Space
+    , Str "in"
+    , Space
+    , Strong
+        [ Emph
+            [ Str "bold" , Space , Str "and" , Space , Str "italic" ]
+        ]
+    , Space
+    , Str "and"
+    , Space
+    , Emph
+        [ Str "nested"
+        , Space
+        , Strong [ Str "strong" ]
+        , Space
+        , Str "here"
+        ]
+    , Str "."
+    ]
+]

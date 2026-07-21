@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An internal link to <a href="start">start</a> and one to a <a
+href="/some/namespace/page">page</a> target.</p>
+<p>A named internal link to <a href="start">the start page</a> guides
+the reader.</p>
+<p>External links such as <a href="https://example.com">Example</a> and
+the bare form <a href="https://example.org">https://example.org</a> both
+work, as does an email like <a
+href="mailto:user@example.com">user@example.com</a>.</p>
+<p>An interwiki shortcut points at <a
+href="https://en.wikipedia.org/wiki/Wiki">Wiki</a> for background
+reading.</p>

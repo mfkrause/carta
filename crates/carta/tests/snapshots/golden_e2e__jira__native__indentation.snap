@@ -1,0 +1,91 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Space
+    , Str "leading"
+    , Space
+    , Str "space"
+    , Space
+    , Str "starts"
+    , Space
+    , Str "this"
+    , Space
+    , Str "paragraph."
+    ]
+, Para
+    [ Space
+    , Str "more"
+    , Space
+    , Str "deeply"
+    , Space
+    , Str "indented"
+    , Space
+    , Str "text"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "one"
+    , Space
+    , Str "leading"
+    , Space
+    , Str "space."
+    ]
+, BulletList
+    [ [ BulletList
+          [ [ BulletList
+                [ [ Para
+                      [ Str "thrice"
+                      , Space
+                      , Str "nested"
+                      , Space
+                      , Str "bullet"
+                      , Space
+                      , Str "item"
+                      ]
+                  ]
+                ]
+            ]
+          ]
+      ]
+    ]
+, BulletList
+    [ [ Para
+          [ Str "indented"
+          , Space
+          , Str "marker"
+          , Space
+          , Str "is"
+          , Space
+          , Str "still"
+          , Space
+          , Str "a"
+          , Space
+          , Str "bullet"
+          ]
+      ]
+    ]
+, Para [ Space , Str "----" ]
+, BulletList
+    [ [ Para
+          [ Space
+          , Str "bullet"
+          , Space
+          , Str "with"
+          , Space
+          , Str "extra"
+          , Space
+          , Str "leading"
+          , Space
+          , Str "space"
+          , Space
+          , Str "in"
+          , Space
+          , Str "its"
+          , Space
+          , Str "text"
+          ]
+      ]
+    ]
+]

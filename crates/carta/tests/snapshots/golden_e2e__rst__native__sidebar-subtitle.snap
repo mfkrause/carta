@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "sidebar" ] , [ ( "subtitle" , "The Subtitle" ) ] )
+    [ Para
+        [ Strong
+            [ Str "The"
+            , Space
+            , Str "Title:"
+            , Space
+            , Str "The"
+            , Space
+            , Str "Subtitle"
+            ]
+        ]
+    , Para
+        [ Str "The"
+        , Space
+        , Str "body"
+        , Space
+        , Str "of"
+        , Space
+        , Str "the"
+        , Space
+        , Str "sidebar."
+        ]
+    ]
+]

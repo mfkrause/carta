@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Text with <em>emphasis</em> and <strong>bold</strong> and
+<em>italic</em>.</p>
+<p>A run with <strong>bold and <em>nested emphasis</em> inside</strong>
+it.</p>
+<p>Also <u>underlined</u>, <span class="smallcaps">small caps</span>,
+and <del>struck out</del>.</p>

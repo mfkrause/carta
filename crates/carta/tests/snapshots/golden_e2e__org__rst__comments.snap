@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. raw:: org
+
+   #+comment: A keyword comment.
+
+Visible paragraph text remains.

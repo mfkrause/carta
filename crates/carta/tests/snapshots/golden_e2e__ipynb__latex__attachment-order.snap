@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{order}
+Two attachments, referenced out of key order:
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={beta}]{order-beta.png}}
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={alpha}]{order-alpha.png}}

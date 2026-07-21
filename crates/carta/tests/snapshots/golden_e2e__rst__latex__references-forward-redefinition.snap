@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A \href{http://example.com/second}{Forward} reference resolves to a
+target defined later in the document.
+
+See \hyperref[section-one]{Section One} for the section reference.
+
+\section{Section One}\label{section-one}
+
+Body text under the first section.

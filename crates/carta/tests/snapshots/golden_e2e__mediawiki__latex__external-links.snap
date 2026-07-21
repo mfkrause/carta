@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A \href{http://example.com}{labeled} and \href{http://example.org}{1}
+and bare \url{http://example.net} here.

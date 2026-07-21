@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Some" , Space , Str "code" , Space , Str "follows." ]
+, CodeBlock
+    ( "" , [] , [] ) "def hello():\n    print(\"world\")"
+, CodeBlock
+    ( "" , [ "python" ] , [ ( "language" , "Python" ) ] )
+    "x = 1 + 2"
+]

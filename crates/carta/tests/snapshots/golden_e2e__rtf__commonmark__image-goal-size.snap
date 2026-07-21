@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Photo <img src="4caece539b039b16e16206ea2478f8c5ffb2ca05.png"
+style="width:1in;height:0.5in" alt="image" /> and
+<img src="30567f6b52af60449a6113d3c80fb9f850b7426a.jpg"
+style="width:2in" alt="image" /> here.

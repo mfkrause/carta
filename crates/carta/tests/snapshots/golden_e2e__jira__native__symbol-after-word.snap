@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Done\128077"
+    , Space
+    , Str "ships"
+    , Space
+    , Str "and"
+    , Space
+    , Str "cool\128578"
+    , Space
+    , Str "and"
+    , Space
+    , Str "cool\128539"
+    , Space
+    , Str "stay"
+    , Space
+    , Str "glued."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "symbol"
+    , Space
+    , Str "a\10071"
+    , Space
+    , Str "abuts"
+    , Space
+    , Str "the"
+    , Space
+    , Str "word"
+    , Space
+    , Str "before"
+    , Space
+    , Str "it."
+    ]
+]

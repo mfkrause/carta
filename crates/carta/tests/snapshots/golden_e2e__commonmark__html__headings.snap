@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>Atx level one</h1>
+<h2>Atx level two</h2>
+<h6>Atx level six</h6>
+<h1>Setext level one</h1>
+<h2>Setext level two</h2>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\href{File:clip.webm}{thumbtime=5\textbar a clip}
+
+\href{File:photo.jpg}{upright=1.4\textbar a photo}

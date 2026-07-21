@@ -1,0 +1,43 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Inline"
+    , Space
+    , Str "math"
+    , Space
+    , Math InlineMath "a^2 + b^2 = c^2"
+    , Space
+    , Str "appears"
+    , Space
+    , Str "mid-sentence."
+    ]
+, Para
+    [ Str "Dollar-delimited"
+    , Space
+    , Str "math"
+    , Space
+    , Math InlineMath "E = mc^2"
+    , Space
+    , Str "also"
+    , Space
+    , Str "renders"
+    , Space
+    , Str "inline."
+    ]
+, Para
+    [ Str "Display"
+    , Space
+    , Str "math"
+    , Space
+    , Str "is"
+    , Space
+    , Str "set"
+    , Space
+    , Str "apart:"
+    ]
+, Para
+    [ Math DisplayMath "\n\\int_0^1 x^2 \\, dx = \\frac{1}{3}\n"
+    ]
+]

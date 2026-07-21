@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An unclosed nowiki swallows the rest inline: literal
+\textquotesingle\textquotesingle\textquotesingle text\textquotesingle\textquotesingle\textquotesingle{}
+and {[}{[}links{]}{]} until the end.
+
+And separately, an unclosed pre block:
+
+\begin{verbatim}
+preformatted content
+that has no closing tag
+so it runs to the end of input
+\end{verbatim}

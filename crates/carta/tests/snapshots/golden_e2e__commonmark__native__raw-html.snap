@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ RawBlock
+    (Format "html")
+    "<div class=\"block\">\nA raw HTML block.\n</div>\n"
+, Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , RawInline (Format "html") "<span>"
+    , Str "inline"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "HTML"
+    , RawInline (Format "html") "</span>"
+    , Space
+    , Str "inside."
+    ]
+]

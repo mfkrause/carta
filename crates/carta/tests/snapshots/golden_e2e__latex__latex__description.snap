@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\item[Apple]
+A red fruit.
+\item[Banana]
+A yellow fruit.
+\end{description}

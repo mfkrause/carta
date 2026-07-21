@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="second target"></span>
+= Section Title<span id="first target"></span> =
+
+Body under the section.

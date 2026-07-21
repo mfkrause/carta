@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "see-also" , [] , [] )
+    [ Str "SEE" , Space , Str "ALSO" ]
+, Para
+    [ Str "Visit"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "project" , Space , Str "home" , Space , Str "page" ]
+        ( "https://example.com/project" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "more"
+    , Space
+    , Str "information."
+    ]
+, Para
+    [ Str "Report"
+    , Space
+    , Str "bugs"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "the" , Space , Str "maintainers" ]
+        ( "mailto:bugs@example.com" , "" )
+    , Str "."
+    ]
+]

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+  Heading A    Heading B         Heading C
+  ------------ ----------------- ------------
+  left cell    a centered cell   right cell
+  second row   another value     last cell

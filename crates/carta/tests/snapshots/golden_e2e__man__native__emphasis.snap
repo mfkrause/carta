@@ -1,0 +1,78 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "fonts" , [] , [] ) [ Str "FONTS" ]
+, Para [ Strong [ Str "bold" , Space , Str "words" ] ]
+, Para [ Emph [ Str "italic" , Space , Str "words" ] ]
+, Para
+    [ Strong [ Str "bold" ]
+    , Str "then"
+    , Strong [ Str "roman" ]
+    ]
+, Para [ Str "roman" , Emph [ Str "then" ] , Str "italic" ]
+, Para
+    [ Strong [ Str "bold" ]
+    , Emph [ Str "italic" ]
+    , Strong [ Str "pairs" ]
+    ]
+, Para
+    [ Str "plain"
+    , Space
+    , Strong [ Str "bold" ]
+    , Space
+    , Str "and"
+    , Space
+    , Emph [ Str "italic" ]
+    , Space
+    , Str "and"
+    , Space
+    , Emph [ Strong [ Str "both" ] ]
+    , Space
+    , Str "back"
+    , Space
+    , Str "to"
+    , Space
+    , Str "plain"
+    ]
+, Para
+    [ Str "nested"
+    , Space
+    , Strong [ Str "outer" ]
+    , Space
+    , Emph [ Str "inner" ]
+    , Space
+    , Str "still"
+    , Space
+    , Str "bold"
+    , Space
+    , Emph [ Str "done" ]
+    ]
+, Para
+    [ Str "a"
+    , Space
+    , Str "font"
+    , Space
+    , Str "macro"
+    , Space
+    , Str "called"
+    , Space
+    , Str "with"
+    , Space
+    , Str "an"
+    , Space
+    , Str "explicit"
+    , Space
+    , Str "empty"
+    , Space
+    , Str "argument"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "its"
+    , Space
+    , Str "wrapper:"
+    , Space
+    , Strong []
+    ]
+]

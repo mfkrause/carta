@@ -1,0 +1,43 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "As"
+    , Space
+    , Str "shown"
+    , Space
+    , Str "by"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "knuth1984"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ RawInline (Format "latex") "\\cite{knuth1984}" ]
+    , Space
+    , Str "and"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "lamport1994"
+            , citationPrefix = []
+            , citationSuffix = [ Str "p.\160\&5" ]
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ RawInline (Format "latex") "\\citep[p.~5]{lamport1994}" ]
+    , Str ","
+    , Space
+    , Str "this"
+    , Space
+    , Str "holds."
+    ]
+]

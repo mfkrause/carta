@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A plain © sign decodes in running text.
+
+Monospace \texttt{\&} decodes, as do a \textsubscript{©} subscript, a
+\textsuperscript{®} superscript, and a \st{©} deletion.
+
+A link label \href{start}{\&copy;} keeps the entity literal, and so does
+a \&copy; span and a verbatim block:
+
+\begin{verbatim}
+&copy;
+\end{verbatim}

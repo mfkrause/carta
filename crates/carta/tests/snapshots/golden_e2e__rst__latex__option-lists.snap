@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\item[\texttt{-a}]
+Output all.
+\item[\texttt{-b,\ -\/-brief}]
+Be brief about it.
+\item[\texttt{-\/-verbose}]
+Talk a great deal.
+\item[\texttt{-f\ FILE}]
+Read input from FILE.
+\end{description}
+
+The description may also start on the next line:
+
+\begin{description}
+\item[\texttt{-\/-output=FILE}]
+Write output to FILE instead of standard output.
+\end{description}

@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  First item
+\item
+  Second item
+\item
+  Third item
+\end{itemize}
+
+A nested list inside a loose list:
+
+\begin{itemize}
+\item
+  Parent one
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Child one
+  \item
+    Child two
+  \end{itemize}
+\item
+  Parent two
+
+  Second paragraph of parent two.
+\end{itemize}

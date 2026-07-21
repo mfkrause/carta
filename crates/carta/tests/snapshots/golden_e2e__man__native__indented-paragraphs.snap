@@ -1,0 +1,77 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "dash-and-plus" , [] , [] )
+    [ Str "DASH" , Space , Str "AND" , Space , Str "PLUS" ]
+, BulletList
+    [ [ Para [ Str "Dash" , Space , Str "bullet." ] ]
+    , [ Para [ Str "Plus" , Space , Str "bullet." ] ]
+    ]
+, Header
+    1 ( "parenthesized" , [] , [] ) [ Str "PARENTHESIZED" ]
+, OrderedList
+    ( 1 , Decimal , TwoParens )
+    [ [ Para [ Str "First" , Space , Str "parenthesized." ] ]
+    , [ Para [ Str "Second" , Space , Str "parenthesized." ] ]
+    ]
+, Header
+    1
+    ( "font-markup-and-empty" , [] , [] )
+    [ Str "FONT"
+    , Space
+    , Str "MARKUP"
+    , Space
+    , Str "AND"
+    , Space
+    , Str "EMPTY"
+    ]
+, DefinitionList
+    [ ( [ Str "term" ]
+      , [ [ Para
+              [ Str "A"
+              , Space
+              , Str "designator"
+              , Space
+              , Str "whose"
+              , Space
+              , Str "font"
+              , Space
+              , Str "markup"
+              , Space
+              , Str "is"
+              , Space
+              , Str "reduced"
+              , Space
+              , Str "to"
+              , Space
+              , Str "plain"
+              , Space
+              , Str "text."
+              ]
+          ]
+        ]
+      )
+    , ( []
+      , [ [ Para
+              [ Str "An"
+              , Space
+              , Str "empty"
+              , Space
+              , Str "designator"
+              , Space
+              , Str "yields"
+              , Space
+              , Str "an"
+              , Space
+              , Str "empty"
+              , Space
+              , Str "term."
+              ]
+          ]
+        ]
+      )
+    ]
+]

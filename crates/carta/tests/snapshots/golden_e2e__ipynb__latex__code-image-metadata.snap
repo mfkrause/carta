@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{sized-plot}
+\begin{verbatim}
+draw()
+\end{verbatim}
+
+\includegraphics[width=3.33333in,height=2.5in]{ddd8a63b8957c29356d1015e6040f47158d26c1d.png}

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+This is \textbf{bold} and this is \emph{italic} text.
+
+You can also use \ul{underline} and \texttt{monospaced} words in a line.
+
+Markers combine, as in \textbf{\emph{bold and italic}} and \emph{nested
+\textbf{strong} here}.

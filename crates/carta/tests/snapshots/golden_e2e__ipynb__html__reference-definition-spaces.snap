@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="refspace" class="cell markdown">
+<p>See <a href="my%20file.html" title="the title">ref</a>.</p>
+</div>

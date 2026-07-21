@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+thumbtime=5|a clip
+
+upright=1.4|a photo

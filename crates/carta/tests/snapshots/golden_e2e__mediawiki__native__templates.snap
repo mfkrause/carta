@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Str "an"
+    , Space
+    , Str "inline"
+    , Space
+    , RawInline (Format "mediawiki") "{{tl|template}}"
+    , Space
+    , Str "reference."
+    ]
+, RawBlock
+    (Format "mediawiki") "{{Infobox|name=Test|value=42}}"
+]

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A described link \href{https://example.com}{Example Site} and a plain
+link \url{https://example.org}.

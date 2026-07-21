@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A sentence with a footnote.[1] And more.
+
+[1] This is the footnote text.

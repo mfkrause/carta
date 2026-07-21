@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section[Section Title]{\texorpdfstring{Section
+Title\protect\hypertarget{firstux20target}{}{}}{Section Title}}\label{secondux20target}
+
+Body under the section.

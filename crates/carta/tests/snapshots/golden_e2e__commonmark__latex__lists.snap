@@ -1,0 +1,55 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  tight bullet one
+\item
+  tight bullet two
+\item
+  tight bullet three
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  ordered one
+\item
+  ordered two
+\end{enumerate}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi})}
+\setcounter{enumi}{2}
+\tightlist
+\item
+  ordered with paren
+\end{enumerate}
+
+Loose bullets:
+
+\begin{itemize}
+\item
+  loose one
+\item
+  loose two
+\end{itemize}
+
+Nested:
+
+\begin{itemize}
+\tightlist
+\item
+  outer
+
+  \begin{itemize}
+  \tightlist
+  \item
+    inner one
+  \item
+    inner two
+  \end{itemize}
+\end{itemize}

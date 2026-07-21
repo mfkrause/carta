@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline <b>bold</b>, then `print(x)`, then
+<span class="warning attention">flagged</span>.

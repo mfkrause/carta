@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Str "following"
+    , Space
+    , Str "block"
+    , Space
+    , Str "is"
+    , Space
+    , Str "quoted"
+    , Space
+    , Str "rather"
+    , Space
+    , Str "than"
+    , Space
+    , Str "indented:"
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "> This is a quoted literal block.\n> Every line begins with the same marker."
+]

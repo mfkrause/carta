@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Level one}
+
+\subsection{Level two}
+
+\subsubsection{Level three}

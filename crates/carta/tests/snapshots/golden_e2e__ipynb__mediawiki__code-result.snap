@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="result" class="cell code" data-execution_count="2">
+<syntaxhighlight lang="python">2 + 2</syntaxhighlight>
+<div class="output execute_result" data-execution_count="2">
+<pre>4</pre>
+</div>
+
+<div class="output display_data">
+<syntaxhighlight lang="json">{"v":4}</syntaxhighlight>
+</div>
+
+</div>

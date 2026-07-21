@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{longtable}[]{@{}ll@{}}
+\caption{A captioned table}\tabularnewline
+\toprule\noalign{}
+Name & Age \\
+\midrule\noalign{}
+\endfirsthead
+\toprule\noalign{}
+Name & Age \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Alice & 30 \\
+Bob & 25 \\
+\end{longtable}

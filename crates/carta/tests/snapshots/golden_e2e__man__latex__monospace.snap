@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{FONTS}\label{fonts}
+
+plain \texttt{mono} and \textbf{\texttt{monobold}} and
+\emph{\texttt{monoital}} back.
+
+bracket \texttt{mono} and single \texttt{mono} end.

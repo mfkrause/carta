@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Read"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "introduction" ] ( "#_Toc1" , "" )
+    , Space
+    , Str "first."
+    ]
+]

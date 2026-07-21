@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Overlapping markers as in **a <em>b** c</em> pair greedily from the
+outside.</p>

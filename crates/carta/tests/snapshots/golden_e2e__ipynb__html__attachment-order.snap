@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="order" class="cell markdown">
+<p>Two attachments, referenced out of key order:</p>
+<p><img src="order-beta.png" alt="beta" /></p>
+<p><img src="order-alpha.png" alt="alpha" /></p>
+</div>

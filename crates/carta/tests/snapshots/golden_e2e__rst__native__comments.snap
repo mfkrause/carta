@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "before"
+    , Space
+    , Str "the"
+    , Space
+    , Str "comment."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "comment."
+    ]
+]

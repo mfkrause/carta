@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A statement\footnote{First paragraph of the note.
+
+  Second paragraph of the note.} with a multi-paragraph footnote.

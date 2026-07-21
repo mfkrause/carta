@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A <a href="http://example.com/a%20path">named</a> link and an <a
+href="http://example.com/another%20path">anonymous</a> link whose
+destinations contain spaces.</p>

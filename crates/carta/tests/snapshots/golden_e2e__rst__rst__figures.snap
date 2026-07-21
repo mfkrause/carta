@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. figure:: photo.png
+   :alt: A caption describing the figure.
+
+   A caption describing the figure.

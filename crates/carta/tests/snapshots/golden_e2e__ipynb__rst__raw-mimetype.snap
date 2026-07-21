@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell raw
+   :name: embed
+
+   .. raw:: latex
+
+      \emph{passed through to the LaTeX writer}

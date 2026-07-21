@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  {[}x{]} A completed task
+\item
+  {[} {]} A pending task
+\end{itemize}

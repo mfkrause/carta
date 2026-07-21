@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A `labeled link <http://example.com>`__ and a bare http://example.org.
+
+See http://example.net for the autolink and email me@example.com too.
+
+An `file.txt <file.txt>`__ attachment and a `~username <~username>`__
+user mention.

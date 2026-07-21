@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{Foo.jpg}}
+\caption{A caption}
+\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{My_Photo.jpg}}
+\caption{My\_Photo.jpg}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=1.04167in,height=2.08333in]{Chart.png}
+\caption{Sized chart}
+\end{figure}
+
+An inline \pandocbounded{\includesvg[keepaspectratio]{Icon.svg}} sits in
+this paragraph.

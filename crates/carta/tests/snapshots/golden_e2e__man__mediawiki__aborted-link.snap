@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="links"></span>
+= LINKS =
+
+before
+
+'''bold label'''
+
+following text.

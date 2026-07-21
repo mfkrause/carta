@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="note">raw block</div>
+
+An inline <span>fragment</span> sits within a paragraph.

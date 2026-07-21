@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "boom"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "3" ) ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "raise Error"
+    , Div
+        ( ""
+        , [ "output" , "error" ]
+        , [ ( "ename" , "Err" ) , ( "evalue" , "bad" ) ]
+        )
+        [ CodeBlock ( "" , [] , [] ) "Traceback\nErr: bad\n" ]
+    ]
+]

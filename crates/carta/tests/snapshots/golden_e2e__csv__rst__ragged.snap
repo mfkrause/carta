@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+= = ==
+a b c
+= = ==
+1 2 
+4 5 6
+8 9 10
+= = ==

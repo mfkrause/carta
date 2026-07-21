@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="grid" class="cell markdown">
+
+<table>
+<thead>
+<tr>
+<th>name</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>one</td>
+<td>1</td>
+</tr>
+<tr>
+<td>two</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+
+The table above lists two entries.
+
+</div>

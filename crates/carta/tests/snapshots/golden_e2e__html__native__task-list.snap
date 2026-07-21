@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Plain
+          [ Str "[x]"
+          , Space
+          , Str "A"
+          , Space
+          , Str "completed"
+          , Space
+          , Str "task"
+          ]
+      ]
+    , [ Plain
+          [ Str "["
+          , Space
+          , Str "]"
+          , Space
+          , Str "A"
+          , Space
+          , Str "pending"
+          , Space
+          , Str "task"
+          ]
+      ]
+    ]
+]

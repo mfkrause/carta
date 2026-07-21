@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+    def greet(name):
+        return "hello, " + name
+
+A parsed-literal block keeps inline markup:
+
+text with strong emphasis

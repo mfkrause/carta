@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An unclosed nowiki swallows the rest inline: literal '''text''' and
+[[links]] until the end.
+
+And separately, an unclosed pre block:
+
+::
+
+   preformatted content
+   that has no closing tag
+   so it runs to the end of input

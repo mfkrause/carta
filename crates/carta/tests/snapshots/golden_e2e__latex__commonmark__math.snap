@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math *a*<sup>2</sup> + *b*<sup>2</sup> = *c*<sup>2</sup> and
+dollar math *E* = *m**c*<sup>2</sup> within a sentence.
+
+A display equation follows.
+
+*y* = *m**x* + *b*

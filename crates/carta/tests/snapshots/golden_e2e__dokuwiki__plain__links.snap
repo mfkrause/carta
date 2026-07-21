@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An internal link to start and one to a page target.
+
+A named internal link to the start page guides the reader.
+
+External links such as Example and the bare form https://example.org
+both work, as does an email like user@example.com.
+
+An interwiki shortcut points at Wiki for background reading.

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Visit <a href="http://example.com">the site</a>, <a
+href="http://nested.example.com">a nested link</a>, <a
+href="mailto:hi@example.com">mail me</a>, or <a
+href="http://x.com">x</a>.</p>

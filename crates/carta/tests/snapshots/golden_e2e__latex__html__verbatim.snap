@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Some code follows.</p>
+<pre><code>def hello():
+    print(&quot;world&quot;)</code></pre>
+<pre class="python" data-language="Python"><code>x = 1 + 2</code></pre>

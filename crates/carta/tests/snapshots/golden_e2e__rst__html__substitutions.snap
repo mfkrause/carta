@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>The <span>Example Project</span> toolkit is documented online.</p>

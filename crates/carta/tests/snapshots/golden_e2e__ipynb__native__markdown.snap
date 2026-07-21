@@ -1,0 +1,51 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "intro" , [ "cell" , "markdown" ] , [] )
+    [ Header
+        1
+        ( "notebook-title" , [] , [] )
+        [ Str "Notebook" , Space , Str "title" ]
+    , Para
+        [ Str "A"
+        , Space
+        , Str "paragraph"
+        , Space
+        , Str "with"
+        , Space
+        , Emph [ Str "emphasis" ]
+        , Str ","
+        , Space
+        , Strong [ Str "strong" ]
+        , Str ","
+        , Space
+        , Str "a"
+        , Space
+        , Link
+            ( "" , [] , [] )
+            [ Str "link" ]
+            ( "https://example.com" , "" )
+        , Str ","
+        , Space
+        , Str "and"
+        , Space
+        , Code ( "" , [] , [] ) "inline code"
+        , Str "."
+        ]
+    , BulletList
+        [ [ Plain [ Str "first" , Space , Str "item" ] ]
+        , [ Plain [ Str "second" , Space , Str "item" ] ]
+        ]
+    , BlockQuote
+        [ Para
+            [ Str "A"
+            , Space
+            , Str "short"
+            , Space
+            , Str "blockquote."
+            ]
+        ]
+    ]
+]

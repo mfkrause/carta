@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+    feature
+
+    {"coordinates":[1,2],"type":"Point"}
+
+    rendered
+
+    {"j":2}

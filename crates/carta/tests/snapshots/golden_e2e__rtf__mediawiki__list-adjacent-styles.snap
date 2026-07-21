@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# First decimal
+# Second decimal
+
+<ol style="list-style-type: lower-alpha;">
+<li><p>First alpha</p></li>
+<li><p>Second alpha</p></li></ol>

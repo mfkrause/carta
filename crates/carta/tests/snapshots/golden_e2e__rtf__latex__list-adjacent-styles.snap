@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  First decimal
+\item
+  Second decimal
+\end{enumerate}
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi}.}
+\item
+  First alpha
+\item
+  Second alpha
+\end{enumerate}

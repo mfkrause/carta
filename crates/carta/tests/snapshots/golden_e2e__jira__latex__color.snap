@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An empty \{color:\}value stays literal text.
+
+A real {red span} renders as a coloured span.

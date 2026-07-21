@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A dash —, a decimal 8212, a sign ©, a pair <span>A B</span>, and an
+escape —.</p>

@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{[}{[}\textbar text{]}{]}
+
+{[}{[}{]}{]}
+
+{[}{[}\textbar{]}{]}
+
+\url{}
+
+\{\{\}\}
+
+\{\{\textbar cap\}\}
+
+\pandocbounded{\includegraphics[keepaspectratio,alt={}]{}}
+
+(())
+
+(( ))

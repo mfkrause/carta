@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{enumerate}
+\tightlist
+\item
+  first
+\item
+  second
+
+  \begin{enumerate}
+  \tightlist
+  \item
+    nested
+  \end{enumerate}
+\item
+  third
+\end{enumerate}

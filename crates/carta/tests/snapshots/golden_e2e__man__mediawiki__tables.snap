@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="tables"></span>
+= TABLES =
+
+{| class="wikitable"
+|-
+! style="text-align: left;"| Name
+! style="text-align: right;"| Age
+|-
+| style="text-align: left;"| Ada
+| style="text-align: right;"| 36
+|-
+| style="text-align: left;"| Grace Hopper
+| style="text-align: right;"| 85
+|}
+
+A second table without a header rule follows.
+
+{| class="wikitable"
+|-
+| style="text-align: center;"| Left
+| style="text-align: center;"| Right
+|-
+| style="text-align: center;"| one
+| style="text-align: center;"| two
+|}
+
+A table with a multi-line text block follows.
+
+{| class="wikitable"
+|-
+| style="text-align: left;"| Name
+| style="text-align: left;"| A long description
+|-
+| style="text-align: left;"| Left
+| style="text-align: left;"| Right
+|}
+
+A table with a horizontal span follows.
+
+TABLE

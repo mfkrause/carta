@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- first bullet
+
+- second bullet
+
+  - nested bullet
+
+#. first number
+
+#. second number
+
+   #. nested number

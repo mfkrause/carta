@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1 ( "introduction" , [] , [] ) [ Str "Introduction" ]
+, Para
+    [ Str "Some"
+    , Space
+    , Str "introductory"
+    , Space
+    , Str "text."
+    ]
+, Header 2 ( "background" , [] , [] ) [ Str "Background" ]
+, Para
+    [ Str "More" , Space , Str "detail" , Space , Str "here." ]
+, Header
+    3
+    ( "fine-points" , [] , [] )
+    [ Str "Fine" , Space , Str "Points" ]
+, Para
+    [ Str "Even" , Space , Str "more" , Space , Str "detail." ]
+, Header 1 ( "conclusion" , [] , [] ) [ Str "Conclusion" ]
+, Para [ Str "Final" , Space , Str "remarks." ]
+]

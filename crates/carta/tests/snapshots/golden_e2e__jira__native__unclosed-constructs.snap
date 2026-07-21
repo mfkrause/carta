@@ -1,0 +1,68 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "unclosed"
+    , Space
+    , Str "[link"
+    , Space
+    , Str "with"
+    , Space
+    , Str "no"
+    , Space
+    , Str "closing"
+    , Space
+    , Str "bracket"
+    , Space
+    , Str "anywhere"
+    , Space
+    , Str "on"
+    , Space
+    , Str "this"
+    , Space
+    , Str "line."
+    , LineBreak
+    , Str "An"
+    , Space
+    , Str "unclosed"
+    , Space
+    , Str "image"
+    , Space
+    , Str "!photo.png"
+    , Space
+    , Str "with"
+    , Space
+    , Str "no"
+    , Space
+    , Str "second"
+    , Space
+    , Str "bang"
+    , Space
+    , Str "to"
+    , Space
+    , Str "end"
+    , Space
+    , Str "it."
+    , LineBreak
+    , Str "An"
+    , Space
+    , Str "unclosed"
+    , Space
+    , Str "color"
+    , Space
+    , Str "span"
+    , Space
+    , Str "{color:red}tinted"
+    , Space
+    , Str "text"
+    , Space
+    , Str "that"
+    , Space
+    , Str "never"
+    , Space
+    , Str "closes."
+    ]
+]

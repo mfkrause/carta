@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  first with a dash
+\item
+  second with a dash
+\item
+  third with a star
+\item
+  fourth with a star
+\item
+  fifth with a plus
+\end{itemize}

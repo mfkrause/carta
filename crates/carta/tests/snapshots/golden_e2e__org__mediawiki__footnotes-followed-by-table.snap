@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See the note<ref>The note body paragraph.
+
+{| class="wikitable"
+|-
+| Column A
+| Column B
+|-
+| 1
+| 2
+|}</ref> below.
+
+<references />

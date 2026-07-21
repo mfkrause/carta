@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><code>a b</code> joins the monospaced text across a break.</p>
+<p>Nested <code>a b c</code> stays one monospaced span.</p>

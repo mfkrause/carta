@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+def greet(name):
+    return "hello, " + name
+\end{verbatim}
+
+A parsed-literal block keeps inline markup:
+
+text with \textbf{strong} emphasis

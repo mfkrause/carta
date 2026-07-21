@@ -1,0 +1,72 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Unclosed"
+    , Space
+    , Str "/italic"
+    , Space
+    , Str "and"
+    , Space
+    , Str "*bold"
+    , Space
+    , Str "with"
+    , Space
+    , Str "no"
+    , Space
+    , Str "closing"
+    , Space
+    , Str "marker"
+    , Space
+    , Str "on"
+    , Space
+    , Str "this"
+    , Space
+    , Str "line."
+    , SoftBreak
+    , Str "A"
+    , Space
+    , Str "run"
+    , Space
+    , Str "of"
+    , Space
+    , Str "never-closing"
+    , Space
+    , Str "italic"
+    , Space
+    , Str "markers:"
+    , Space
+    , Str "/a"
+    , Space
+    , Str "/a"
+    , Space
+    , Str "/a"
+    , Space
+    , Str "/a"
+    , Space
+    , Str "/a"
+    , Space
+    , Str "/a"
+    , Space
+    , Str "/a"
+    , SoftBreak
+    , Str "Trailing"
+    , Space
+    , Str "_underline,"
+    , Space
+    , Str "=verbatim,"
+    , Space
+    , Str "~code,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "+strike"
+    , Space
+    , Str "that"
+    , Space
+    , Str "never"
+    , Space
+    , Str "close."
+    ]
+]

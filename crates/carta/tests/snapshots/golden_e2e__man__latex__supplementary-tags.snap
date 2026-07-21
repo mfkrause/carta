@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{OPTIONS}\label{options}
+
+\begin{description}
+\item[\textbf{-a}\\
+\textbf{-\/-all}]
+Describe both spellings of the option.
+\item[\textbf{-v}]
+Verbose output.
+\end{description}

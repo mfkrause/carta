@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: widget shiny
+   :name: gadget
+
+   The widget body.

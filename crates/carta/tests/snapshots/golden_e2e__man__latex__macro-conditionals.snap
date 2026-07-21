@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{MACRO CONDITIONALS}\label{macro-conditionals}
+
+before inner text after kept following text
+\href{https://example.com}{firstsecond}

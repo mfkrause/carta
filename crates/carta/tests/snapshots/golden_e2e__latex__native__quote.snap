@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Before" , Space , Str "the" , Space , Str "quote." ]
+, BlockQuote
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "quoted"
+        , Space
+        , Str "paragraph"
+        , Space
+        , Str "of"
+        , Space
+        , Str "text."
+        ]
+    , Para
+        [ Str "A"
+        , Space
+        , Str "second"
+        , Space
+        , Str "quoted"
+        , Space
+        , Str "paragraph."
+        ]
+    ]
+, Para
+    [ Str "After" , Space , Str "the" , Space , Str "quote." ]
+]

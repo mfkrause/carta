@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+  ------------------------------
+  A Title Longer Than Its Rule
+  ------------------------------
+
+Body paragraph after.

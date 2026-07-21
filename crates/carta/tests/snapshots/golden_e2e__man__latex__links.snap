@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{SEE ALSO}\label{see-also}
+
+Visit the \href{https://example.com/project}{project home page} for more
+information.
+
+Report bugs to \href{mailto:bugs@example.com}{the maintainers}.

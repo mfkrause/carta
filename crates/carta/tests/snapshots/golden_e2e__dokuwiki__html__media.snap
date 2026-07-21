@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An inline image <img src="/wiki/logo.png" alt="logo.png" /> sits in
+the text.</p>
+<p>A captioned image <img src="/wiki/photo.jpg" alt="A photo" /> follows
+here.</p>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>First Heading</h1>
+<p>Body text.</p>
+<h2>Sub Heading</h2>

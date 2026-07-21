@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A \href{http://example.com}{labeled link} and a bare
+\url{http://example.org}.
+
+See \url{http://example.net} for the autolink and email me@example.com
+too.
+
+An \url{file.txt} attachment and a \url{~username} user mention.

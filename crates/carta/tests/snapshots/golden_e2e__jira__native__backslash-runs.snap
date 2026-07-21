@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Run"
+    , Space
+    , Str "of"
+    , Space
+    , Str "two:"
+    , Space
+    , Str "a"
+    , LineBreak
+    , Str "b"
+    ]
+, Para
+    [ Str "Run"
+    , Space
+    , Str "of"
+    , Space
+    , Str "three:"
+    , Space
+    , Str "a\\\\b"
+    ]
+, Para
+    [ Str "Run"
+    , Space
+    , Str "of"
+    , Space
+    , Str "four:"
+    , Space
+    , Str "a\\"
+    , LineBreak
+    , Str "b"
+    ]
+, Para
+    [ Str "Run"
+    , Space
+    , Str "of"
+    , Space
+    , Str "five:"
+    , Space
+    , Str "a\\\\\\b"
+    ]
+]

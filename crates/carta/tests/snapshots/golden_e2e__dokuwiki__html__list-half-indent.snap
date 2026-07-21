@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li>first item at indent two</li>
+<li>a sibling at indent three sits on the same level</li>
+</ul>

@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "\8212"
+    , Space
+    , Emph [ Str "a" , LineBreak , Str "b" ]
+    , Space
+    , Str "carries"
+    , Space
+    , Str "the"
+    , Space
+    , Str "citation"
+    , Space
+    , Str "across"
+    , Space
+    , Str "a"
+    , Space
+    , Str "soft"
+    , Space
+    , Str "break."
+    ]
+]

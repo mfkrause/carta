@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Literal \textquotesingle\textquotesingle\textquotesingle not
+bold\textquotesingle\textquotesingle\textquotesingle{} and {[}{[}not a
+link{]}{]} here.

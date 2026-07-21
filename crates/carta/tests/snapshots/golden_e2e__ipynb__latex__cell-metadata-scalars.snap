@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{tagged}
+\begin{verbatim}
+value = 1
+\end{verbatim}

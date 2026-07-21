@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "This"
+    , Space
+    , Str "page"
+    , Space
+    , Str "suppresses"
+    , Space
+    , Str "its"
+    , Space
+    , Str "table"
+    , Space
+    , Str "of"
+    , Space
+    , Str "contents."
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "cache"
+    , Space
+    , Str "control"
+    , Space
+    , Str "macro"
+    , Space
+    , Str "is"
+    , Space
+    , Str "dropped"
+    , Space
+    , Str "from"
+    , Space
+    , Str "the"
+    , Space
+    , Str "rendered"
+    , Space
+    , Str "text."
+    ]
+]

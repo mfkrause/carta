@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Backslash before a digit a\1b stays literal, but a*b escapes the star.
+
+Entities © and © decode, yet &amp;#x41; stays as written.
+
+Monospace decodes entities too: <code>&amp; and ©</code> inside.

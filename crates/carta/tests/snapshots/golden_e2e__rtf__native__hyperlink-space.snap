@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "link" , Space ]
+        ( "http://x.com" , "" )
+    , Str "after"
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Space , Str "lead" ]
+        ( "http://y.com" , "" )
+    , Str "tail"
+    ]
+, Para
+    [ Strong
+        [ Link
+            ( "" , [] , [] )
+            [ Str "bold" , Space , Str "link" , Space ]
+            ( "http://z.com" , "" )
+        ]
+    , Str "next"
+    ]
+]

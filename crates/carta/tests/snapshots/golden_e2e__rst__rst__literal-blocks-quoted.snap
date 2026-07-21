@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+The following block is quoted rather than indented:
+
+::
+
+   > This is a quoted literal block.
+   > Every line begins with the same marker.

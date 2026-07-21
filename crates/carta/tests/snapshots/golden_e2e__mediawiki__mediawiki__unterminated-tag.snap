@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A tag that never closes: &lt;a keeps going as text.
+
+Something that is not a tag at all: &lt;notatag lingers here.
+
+A lone bracket &lt; on its own stays literal.

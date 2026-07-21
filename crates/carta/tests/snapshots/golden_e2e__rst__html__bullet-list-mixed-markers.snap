@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li>first with a dash</li>
+<li>second with a dash</li>
+<li>third with a star</li>
+<li>fourth with a star</li>
+<li>fifth with a plus</li>
+</ul>

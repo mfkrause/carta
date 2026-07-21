@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="fonts">FONTS</h1>
+<p><strong>bold words</strong></p>
+<p><em>italic words</em></p>
+<p><strong>bold</strong>then<strong>roman</strong></p>
+<p>roman<em>then</em>italic</p>
+<p><strong>bold</strong><em>italic</em><strong>pairs</strong></p>
+<p>plain <strong>bold</strong> and <em>italic</em> and
+<em><strong>both</strong></em> back to plain</p>
+<p>nested <strong>outer</strong> <em>inner</em> still bold
+<em>done</em></p>
+<p>a font macro called with an explicit empty argument keeps its
+wrapper: <strong></strong></p>

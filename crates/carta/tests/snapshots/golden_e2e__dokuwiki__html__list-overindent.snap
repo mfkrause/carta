@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li>parent item at indent two</li>
+</ul>
+<pre><code>    * a jump of more than one level closes the list and indents as code
+</code></pre>

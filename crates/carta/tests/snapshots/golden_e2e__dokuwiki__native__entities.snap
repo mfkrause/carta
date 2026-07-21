@@ -1,0 +1,91 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "sign"
+    , Space
+    , Str "decodes"
+    , Space
+    , Str "in"
+    , Space
+    , Str "running"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "Monospace"
+    , Space
+    , Code ( "" , [] , [] ) "&"
+    , Space
+    , Str "decodes,"
+    , Space
+    , Str "as"
+    , Space
+    , Str "do"
+    , Space
+    , Str "a"
+    , Space
+    , Subscript [ Str "\169" ]
+    , Space
+    , Str "subscript,"
+    , Space
+    , Str "a"
+    , SoftBreak
+    , Superscript [ Str "\174" ]
+    , Space
+    , Str "superscript,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Strikeout [ Str "\169" ]
+    , Space
+    , Str "deletion."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "link"
+    , Space
+    , Str "label"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "&copy;" ] ( "start" , "" )
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "the"
+    , Space
+    , Str "entity"
+    , Space
+    , Str "literal,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "so"
+    , Space
+    , Str "does"
+    , Space
+    , Str "a"
+    , SoftBreak
+    , Str "&copy;"
+    , Space
+    , Str "span"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "verbatim"
+    , Space
+    , Str "block:"
+    ]
+, CodeBlock ( "" , [] , [] ) "&copy;\n"
+]

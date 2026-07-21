@@ -1,0 +1,64 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Span
+        ( "" , [ "custom" ] , [] )
+        [ Str "bare" , Space , Str "custom" , Space , Str "role" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Emph
+        [ Str "role"
+        , Space
+        , Str "with"
+        , Space
+        , Str "a"
+        , Space
+        , Str "base"
+        ]
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Span
+        ( "" , [ "alert" , "important" ] , [] )
+        [ Str "role"
+        , Space
+        , Str "carrying"
+        , Space
+        , Str "its"
+        , Space
+        , Str "own"
+        , Space
+        , Str "classes"
+        ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Strong
+        [ Str "base"
+        , Space
+        , Str "that"
+        , Space
+        , Str "wins"
+        , Space
+        , Str "over"
+        , Space
+        , Str "a"
+        , Space
+        , Str "class"
+        , Space
+        , Str "list"
+        ]
+    , Str "."
+    ]
+]

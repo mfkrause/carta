@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A line with strong and emphasis together.
+
+Then inserted, ^(superscript) and _(subscript) text.
+
+Finally ~~deleted~~ words and a monospaced span.
+
+Nested strong emphasis in one run.

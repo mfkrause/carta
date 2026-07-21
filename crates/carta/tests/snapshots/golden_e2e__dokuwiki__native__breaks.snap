@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "line"
+    , Space
+    , Str "ending"
+    , Space
+    , Str "with"
+    , Space
+    , Str "a"
+    , Space
+    , Str "forced"
+    , Space
+    , Str "break"
+    , LineBreak
+    , Str "continues"
+    , Space
+    , Str "on"
+    , Space
+    , Str "the"
+    , Space
+    , Str "next"
+    , Space
+    , Str "visual"
+    , Space
+    , Str "line."
+    ]
+, HorizontalRule
+, Para
+    [ Str "Text"
+    , Space
+    , Str "after"
+    , Space
+    , Str "a"
+    , Space
+    , Str "horizontal"
+    , Space
+    , Str "rule"
+    , Space
+    , Str "shows"
+    , Space
+    , Str "the"
+    , Space
+    , Str "divider"
+    , Space
+    , Str "above."
+    ]
+]

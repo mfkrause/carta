@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Before the quote.
+
+<blockquote>A quoted paragraph of text.
+
+A second quoted paragraph.
+</blockquote>
+After the quote.

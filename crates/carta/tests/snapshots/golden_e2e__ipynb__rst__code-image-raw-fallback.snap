@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell code
+   :name: broken-plot
+
+   .. code:: python
+
+      draw()
+
+   .. container:: output display_data
+
+      |image1|
+
+.. |image1| image:: 05c9998ab9e54c4fb6cbbb6331ec7daf8f4c6f1c.png

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><a href="Help:Foo" class="wikilink" title="Foo">Foo</a> and <a
+href="A" class="wikilink" title="b c d">b <span
+class="wikilink">c</span> d</a></p>

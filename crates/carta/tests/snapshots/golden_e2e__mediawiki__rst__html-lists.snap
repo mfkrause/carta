@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- first item
+- second item
+
+3. third
+4. fourth
+
+- outer
+
+  - nested
+
+- sibling

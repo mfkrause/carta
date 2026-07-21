@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Run of two: a<br />
+b</p>
+<p>Run of three: a\\b</p>
+<p>Run of four: a\<br />
+b</p>
+<p>Run of five: a\\\b</p>

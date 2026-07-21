@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visit"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "the" , Space , Str "site" ]
+        ( "http://example.com" , "" )
+    , Str ","
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "a" , Space , Str "nested" , Space , Str "link" ]
+        ( "http://nested.example.com" , "" )
+    , Str ","
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "mail" , Space , Str "me" ]
+        ( "mailto:hi@example.com" , "" )
+    , Str ","
+    , Space
+    , Str "or"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "x" ] ( "http://x.com" , "" )
+    , Str "."
+    ]
+]

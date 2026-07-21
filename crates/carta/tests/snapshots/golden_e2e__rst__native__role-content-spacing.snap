@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Span
+        ( "" , [ "title-ref" ] , [] )
+        [ Space , Str "spaced" , Space ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "more"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "role."
+    ]
+]

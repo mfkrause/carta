@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Heading one}
+
+\subsection{Heading two}
+
+\subsubsection{Heading three}
+
+\paragraph{Heading four}
+
+\subparagraph{Heading five}
+
+Heading six

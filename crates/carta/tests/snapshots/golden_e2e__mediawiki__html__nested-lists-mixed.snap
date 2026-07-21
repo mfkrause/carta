@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ol>
+<li>one
+<ul>
+<li>bullet under number
+<ol>
+<li>number under bullet</li>
+</ol></li>
+</ul></li>
+<li>two</li>
+</ol>

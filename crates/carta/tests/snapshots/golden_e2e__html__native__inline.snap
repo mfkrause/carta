@@ -1,0 +1,49 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Emph [ Str "emphasis" ]
+    , Str ","
+    , Space
+    , Strong [ Str "strong" ]
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "code"
+    , Space
+    , Str "run."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "link" ]
+        ( "http://example.com" , "t" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "an"
+    , Space
+    , Image ( "" , [] , [] ) [ Str "alt" ] ( "pic.png" , "" )
+    , Space
+    , Str "image."
+    ]
+, Para
+    [ Str "Entities"
+    , Space
+    , Str "&"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "and"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "inline."
+    ]
+]

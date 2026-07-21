@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Lend us a couple of bob
+till Thursday.
+
+I'm short of a couple of bob.

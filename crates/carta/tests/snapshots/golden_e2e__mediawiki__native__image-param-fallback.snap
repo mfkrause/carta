@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "thumbtime=5|a" , Space , Str "clip" ]
+        ( "File:clip.webm" , "thumbtime=5|a clip" )
+    ]
+, Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "upright=1.4|a" , Space , Str "photo" ]
+        ( "File:photo.jpg" , "upright=1.4|a photo" )
+    ]
+]

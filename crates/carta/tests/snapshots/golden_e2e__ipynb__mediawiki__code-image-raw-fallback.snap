@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="broken-plot" class="cell code" data-execution_count="9">
+<syntaxhighlight lang="python">draw()</syntaxhighlight>
+<div class="output display_data">
+[[File:05c9998ab9e54c4fb6cbbb6331ec7daf8f4c6f1c.png]]
+
+</div>
+
+</div>

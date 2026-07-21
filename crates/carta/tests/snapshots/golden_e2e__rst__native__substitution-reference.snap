@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Power"
+    , Space
+    , Str "comes"
+    , Space
+    , Str "from"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Sol" ]
+        ( "https://example.com/star" , "" )
+    , Space
+    , Str "above."
+    ]
+]

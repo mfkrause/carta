@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<blockquote>
+<p>A quoted paragraph inside a block quote.</p>
+<p>A second quoted paragraph.</p>
+</blockquote>

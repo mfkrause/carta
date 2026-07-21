@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+* a
+* b
+
+<ol start="5">
+<li>five</li>
+<li>six</li></ol>
+
+<ol style="list-style-type: lower-alpha;">
+<li>one</li>
+<li>two</li></ol>
+
+* outer
+** inner

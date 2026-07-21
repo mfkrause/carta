@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See \href{Main_Page}{Main Page} and \href{Page}{the label} and
+\href{Page}{Pages} here.

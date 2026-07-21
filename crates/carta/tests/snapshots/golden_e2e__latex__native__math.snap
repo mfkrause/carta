@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Inline"
+    , Space
+    , Str "math"
+    , Space
+    , Math InlineMath "a^2 + b^2 = c^2"
+    , Space
+    , Str "and"
+    , Space
+    , Str "dollar"
+    , Space
+    , Str "math"
+    , Space
+    , Math InlineMath "E = mc^2"
+    , Space
+    , Str "within"
+    , Space
+    , Str "a"
+    , SoftBreak
+    , Str "sentence."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "display"
+    , Space
+    , Str "equation"
+    , Space
+    , Str "follows."
+    ]
+, Para [ Math DisplayMath "y = m x + b" ]
+]

@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Plain
+          [ Str "parent"
+          , Space
+          , Str "item"
+          , Space
+          , Str "at"
+          , Space
+          , Str "indent"
+          , Space
+          , Str "two"
+          ]
+      ]
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "    * a jump of more than one level closes the list and indents as code\n"
+]

@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<blockquote>A block quote.
+
+<blockquote>A nested block quote.
+</blockquote>
+Back to the outer level.
+</blockquote>

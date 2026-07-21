@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Plain [ Str "one" ] ]
+    , [ Plain [ Str "two" ]
+      , BulletList
+          [ [ Plain [ Str "two" , Space , Str "a" ] ]
+          , [ Plain [ Str "two" , Space , Str "b" ] ]
+          ]
+      ]
+    , [ Plain [ Str "three" ] ]
+    ]
+]

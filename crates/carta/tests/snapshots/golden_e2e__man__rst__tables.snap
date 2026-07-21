@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+TABLES
+======
+
+============ ===
+Name         Age
+============ ===
+Ada          36
+Grace Hopper 85
+============ ===
+
+A second table without a header rule follows.
+
+==== =====
+Left Right
+one  two
+==== =====
+
+A table with a multi-line text block follows.
+
+==== ==================
+Name A long description
+Left Right
+==== ==================
+
+A table with a horizontal span follows.
+
+TABLE

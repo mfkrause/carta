@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre class="python"><code>def greet(name):
+    return &quot;hello, &quot; + name</code></pre>
+<p>A parsed-literal block keeps inline markup:</p>
+<div class="parsed-literal">
+<p>text with <strong>strong</strong> emphasis</p>
+</div>

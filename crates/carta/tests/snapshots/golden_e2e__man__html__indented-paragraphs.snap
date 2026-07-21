@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="dash-and-plus">DASH AND PLUS</h1>
+<ul>
+<li><p>Dash bullet.</p></li>
+<li><p>Plus bullet.</p></li>
+</ul>
+<h1 id="parenthesized">PARENTHESIZED</h1>
+<ol type="1">
+<li><p>First parenthesized.</p></li>
+<li><p>Second parenthesized.</p></li>
+</ol>
+<h1 id="font-markup-and-empty">FONT MARKUP AND EMPTY</h1>
+<dl>
+<dt>term</dt>
+<dd>
+<p>A designator whose font markup is reduced to plain text.</p>
+</dd>
+<dt></dt>
+<dd>
+<p>An empty designator yields an empty term.</p>
+</dd>
+</dl>

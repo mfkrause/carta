@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. _second target:
+
+Section Title
+=============
+
+Body under the section.

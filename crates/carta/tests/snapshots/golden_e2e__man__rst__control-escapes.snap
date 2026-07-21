@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+ESCAPES
+=======
+
+Color changes and fills carry no text.
+
+A font family name and a register and an environment value are dropped.
+
+A macro string leaves nothing, a break and a leader vanish, and a named
+glyph \\ resolves.

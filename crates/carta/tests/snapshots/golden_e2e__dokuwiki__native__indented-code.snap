@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "introduces"
+    , Space
+    , Str "an"
+    , Space
+    , Str "indented"
+    , Space
+    , Str "code"
+    , Space
+    , Str "sample."
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "this line is indented code\nso is this second line\n"
+, Para
+    [ Str "A"
+    , Space
+    , Str "trailing"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "follows"
+    , Space
+    , Str "the"
+    , Space
+    , Str "sample."
+    ]
+]

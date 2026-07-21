@@ -1,0 +1,49 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "See"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "documentation" ]
+        ( "https://example.org/docs" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "details,"
+    , Space
+    , Str "or"
+    , Space
+    , Str "visit"
+    , Space
+    , Str "the"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "project" , Space , Str "home" ]
+        ( "https://example.org/" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "link"
+    , Space
+    , Str "points"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "the" , Space , Str "spec" ]
+        ( "https://example.org/spec" , "" )
+    , Space
+    , Str "directly."
+    ]
+]

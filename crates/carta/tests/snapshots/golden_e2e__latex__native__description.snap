@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "Apple" ]
+      , [ [ Para
+              [ Str "A" , Space , Str "red" , Space , Str "fruit." ]
+          ]
+        ]
+      )
+    , ( [ Str "Banana" ]
+      , [ [ Para
+              [ Str "A" , Space , Str "yellow" , Space , Str "fruit." ]
+          ]
+        ]
+      )
+    ]
+]

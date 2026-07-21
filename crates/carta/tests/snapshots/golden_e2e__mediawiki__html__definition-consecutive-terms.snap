@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>first<br />
+second</dt>
+<dd>
+shared definition
+</dd>
+</dl>

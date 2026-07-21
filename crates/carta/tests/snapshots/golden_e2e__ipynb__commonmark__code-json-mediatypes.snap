@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="geo" class="cell code" data-execution_count="1">
+
+``` python
+feature
+```
+
+<div class="output display_data">
+
+``` json
+{"coordinates":[1,2],"type":"Point"}
+```
+
+</div>
+
+</div>
+
+<div id="tie" class="cell code" data-execution_count="2">
+
+``` python
+rendered
+```
+
+<div class="output display_data">
+
+``` json
+{"j":2}
+```
+
+</div>
+
+</div>

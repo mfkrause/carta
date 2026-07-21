@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A line with **strong** and *emphasis* together.
+
+Then <u>inserted</u>, <sup>superscript</sup> and <sub>subscript</sub>
+text.
+
+Finally <s>deleted</s> words and a `monospaced` span.
+
+Nested ***strong emphasis*** in one run.

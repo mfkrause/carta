@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="fig:sample" class="figure">
+[[File:diagram.png]]
+</div>

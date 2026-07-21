@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+int x = 1;
+no *markup* is interpreted here
+\end{verbatim}
+
+\begin{verbatim}
+raw & <text> stays literal
+\end{verbatim}

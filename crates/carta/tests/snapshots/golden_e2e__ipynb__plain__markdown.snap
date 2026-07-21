@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Notebook title
+
+A paragraph with emphasis, strong, a link, and inline code.
+
+- first item
+- second item
+
+  A short blockquote.

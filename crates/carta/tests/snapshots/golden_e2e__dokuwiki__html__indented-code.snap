@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A paragraph introduces an indented code sample.</p>
+<pre><code>this line is indented code
+so is this second line
+</code></pre>
+<p>A trailing paragraph follows the sample.</p>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[The caption line.
+A first legend paragraph.
+A second legend paragraph.]

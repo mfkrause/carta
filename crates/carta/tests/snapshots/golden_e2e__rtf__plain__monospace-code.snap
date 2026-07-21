@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Text with inline code in it.
+
+    a whole code line
+    and another line
+
+Back to prose.

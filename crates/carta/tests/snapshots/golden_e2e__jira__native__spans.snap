@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Span ( "target" , [] , [] ) []
+    , Space
+    , Str "anchor"
+    , Space
+    , Str "marks"
+    , Space
+    , Str "a"
+    , Space
+    , Str "spot."
+    ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "continues"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "anchor"
+    , Space
+    , Str "span."
+    ]
+]

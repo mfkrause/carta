@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , RawInline (Format "html") "<span class=\"x\">"
+    , Str "inline"
+    , Space
+    , Str "span"
+    , RawInline (Format "html") "</span>"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "raw."
+    ]
+]

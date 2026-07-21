@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A [labeled](http://example.com) and [1](http://example.org) and bare
+<http://example.net> here.

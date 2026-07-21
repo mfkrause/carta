@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "result"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "2" ) ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "2 + 2"
+    , Div
+        ( ""
+        , [ "output" , "execute_result" ]
+        , [ ( "execution_count" , "2" ) ]
+        )
+        [ CodeBlock ( "" , [] , [] ) "4" ]
+    , Div
+        ( "" , [ "output" , "display_data" ] , [] )
+        [ CodeBlock ( "" , [ "json" ] , [] ) "{\"v\":4}" ]
+    ]
+]

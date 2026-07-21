@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: center;">Score</th>
+<th style="text-align: right;">Rank</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Alice</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;">Bob</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr>
+<td colspan="2" style="text-align: center;">Combined</td>
+<td style="text-align: right;">3</td>
+</tr>
+</tbody>
+</table>

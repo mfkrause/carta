@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A [Forward](http://example.com/second) reference resolves to a target
+defined later in the document.
+
+See [Section One](#section-one) for the section reference.
+
+# Section One
+
+Body text under the first section.

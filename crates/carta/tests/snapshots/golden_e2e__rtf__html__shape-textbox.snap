@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Para one.</p>
+<p>Callout text here.</p>
+<p>Para two.</p>

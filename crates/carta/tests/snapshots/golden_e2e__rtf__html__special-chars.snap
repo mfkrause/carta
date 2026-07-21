@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>em—dash and en–dash, a bullet • here.</p>
+<p>escaped {braces} and backslash \ end.</p>
+<p>non breaking space.</p>

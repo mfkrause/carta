@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[A caption]
+
+[]
+
+[]
+
+An inline [icon] sits in this paragraph.

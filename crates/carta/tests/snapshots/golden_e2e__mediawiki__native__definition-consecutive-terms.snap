@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "first" , LineBreak , Str "second" ]
+      , [ [ Plain [ Str "shared" , Space , Str "definition" ] ] ]
+      )
+    ]
+]

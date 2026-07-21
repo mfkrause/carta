@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A reference to a note [1]_ in the text.
+
+A separate top-level paragraph.
+
+.. [1]
+   First paragraph of the note.
+
+   Second paragraph of the note.

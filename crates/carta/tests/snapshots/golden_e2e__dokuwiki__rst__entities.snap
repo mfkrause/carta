@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A plain © sign decodes in running text.
+
+Monospace ``&`` decodes, as do a :sub:`©` subscript, a :sup:`®`
+superscript, and a [STRIKEOUT:©] deletion.
+
+A link label `&copy; <start>`__ keeps the entity literal, and so does a
+&copy; span and a verbatim block:
+
+::
+
+   &copy;

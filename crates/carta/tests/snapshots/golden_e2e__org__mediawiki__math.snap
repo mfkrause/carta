@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math <math display="inline">a^2 + b^2 = c^2</math> appears mid-sentence.
+
+Dollar-delimited math <math display="inline">E = mc^2</math> also renders inline.
+
+Display math is set apart:
+
+<math display="block">
+\int_0^1 x^2 \, dx = \frac{1}{3}
+</math>

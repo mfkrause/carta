@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "term" , Space , Str "one" ]
+      , [ [ Para
+              [ Str "The"
+              , Space
+              , Str "definition"
+              , Space
+              , Str "of"
+              , Space
+              , Str "the"
+              , Space
+              , Str "first"
+              , Space
+              , Str "term."
+              ]
+          ]
+        ]
+      )
+    , ( [ Str "term" , Space , Str "two" ]
+      , [ [ Para
+              [ Str "The"
+              , Space
+              , Str "definition"
+              , Space
+              , Str "of"
+              , Space
+              , Str "the"
+              , Space
+              , Str "second"
+              , Space
+              , Str "term,"
+              , Space
+              , Str "which"
+              , SoftBreak
+              , Str "runs"
+              , Space
+              , Str "across"
+              , Space
+              , Str "two"
+              , Space
+              , Str "source"
+              , Space
+              , Str "lines."
+              ]
+          ]
+        ]
+      )
+    ]
+]

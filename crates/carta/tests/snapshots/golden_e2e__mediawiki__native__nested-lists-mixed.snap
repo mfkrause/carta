@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Plain [ Str "one" ]
+      , BulletList
+          [ [ Plain
+                [ Str "bullet"
+                , Space
+                , Str "under"
+                , Space
+                , Str "number"
+                ]
+            , OrderedList
+                ( 1 , DefaultStyle , DefaultDelim )
+                [ [ Plain
+                      [ Str "number"
+                      , Space
+                      , Str "under"
+                      , Space
+                      , Str "bullet"
+                      ]
+                  ]
+                ]
+            ]
+          ]
+      ]
+    , [ Plain [ Str "two" ] ]
+    ]
+]

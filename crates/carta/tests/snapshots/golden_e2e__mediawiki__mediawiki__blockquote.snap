@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<blockquote>A quoted paragraph with ''emphasis''.
+</blockquote>

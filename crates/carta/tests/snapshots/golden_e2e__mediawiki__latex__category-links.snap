@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Intro paragraph mentions inline.
+
+A paragraph with and a \href{:Category:Linked}{normal link}.
+
+\url{Category:Physics} \href{Category:Science}{sort key}

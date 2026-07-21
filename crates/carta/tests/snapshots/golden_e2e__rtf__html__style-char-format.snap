@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><strong><em>italic text</em></strong></p>
+<p><strong>unstyled text</strong></p>
+<h1>chapter title</h1>

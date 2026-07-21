@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "named" ]
+        ( "http://example.com/a%20path" , "" )
+    , Space
+    , Str "link"
+    , Space
+    , Str "and"
+    , Space
+    , Str "an"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "anonymous" ]
+        ( "http://example.com/another%20path" , "" )
+    , Space
+    , Str "link"
+    , Space
+    , Str "whose"
+    , Space
+    , Str "destinations"
+    , Space
+    , Str "contain"
+    , Space
+    , Str "spaces."
+    ]
+]

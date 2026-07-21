@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+  -------------------------
+  Fruit        Color
+  ------------ ------------
+  Apple        Red
+
+  Lemon        Yellow
+  -------------------------

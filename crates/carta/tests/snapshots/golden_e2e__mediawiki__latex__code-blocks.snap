@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+def f():
+    return 1
+\end{verbatim}
+
+\begin{verbatim}
+plain preformatted
+  text block
+\end{verbatim}

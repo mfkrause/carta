@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# SEE ALSO
+
+Visit the [project home page](https://example.com/project) for more
+information.
+
+Report bugs to [the maintainers](mailto:bugs@example.com).

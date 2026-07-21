@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "trailing"
+    , Space
+    , Str "forced"
+    , Space
+    , Str "break"
+    , Space
+    , Str "is"
+    , Space
+    , Str "dropped"
+    ]
+, Para
+    [ Str "Middle"
+    , LineBreak
+    , Str "break"
+    , Space
+    , Str "is"
+    , Space
+    , Str "kept"
+    ]
+]

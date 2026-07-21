@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Use \texttt{git\ status} to inspect the tree, or run
+\texttt{make\ build} to compile.

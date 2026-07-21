@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A line ending with a forced break
+continues on the next visual line.
+
+------------------------------------------------------------------------
+
+Text after a horizontal rule shows the divider above.

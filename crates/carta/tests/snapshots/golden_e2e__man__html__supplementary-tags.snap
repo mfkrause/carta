@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="options">OPTIONS</h1>
+<dl>
+<dt><strong>-a</strong><br />
+<strong>--all</strong></dt>
+<dd>
+<p>Describe both spellings of the option.</p>
+</dd>
+<dt><strong>-v</strong></dt>
+<dd>
+<p>Verbose output.</p>
+</dd>
+</dl>

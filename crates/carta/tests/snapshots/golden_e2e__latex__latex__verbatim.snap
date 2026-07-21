@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Some code follows.
+
+\begin{verbatim}
+def hello():
+    print("world")
+\end{verbatim}
+
+\begin{verbatim}
+x = 1 + 2
+\end{verbatim}

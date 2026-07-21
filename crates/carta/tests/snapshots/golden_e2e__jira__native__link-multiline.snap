@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "a" , LineBreak , Str "b" ]
+        ( "http://x.com" , "" )
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "the"
+    , Space
+    , Str "break"
+    , Space
+    , Str "inside"
+    , Space
+    , Str "the"
+    , Space
+    , Str "link"
+    , Space
+    , Str "label."
+    ]
+]

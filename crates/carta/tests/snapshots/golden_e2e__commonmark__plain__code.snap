@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+    indented code block
+    second line
+
+    let x = 1;
+    x < y && y > z;
+
+    tilde fence

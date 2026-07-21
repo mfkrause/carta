@@ -1,0 +1,71 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visit"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "https://example.org/path?q=1" ]
+        ( "https://example.org/path?q=1" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "details,"
+    , Space
+    , Str "or"
+    , Space
+    , Str "write"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "me@example.com" ]
+        ( "mailto:me@example.com" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "parenthesised"
+    , Space
+    , Str "reference"
+    , Space
+    , Str "("
+    , Link
+        ( "" , [] , [] )
+        [ Str "https://example.org/page" ]
+        ( "https://example.org/page" , "" )
+    , Str ")"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "its"
+    , Space
+    , Str "bounds."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "address"
+    , Space
+    , Str "such"
+    , Space
+    , Str "as"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "user@host.co.uk" ]
+        ( "mailto:user@host.co.uk" , "" )
+    , Space
+    , Str "becomes"
+    , Space
+    , Str "a"
+    , Space
+    , Str "mail"
+    , Space
+    , Str "link."
+    ]
+]

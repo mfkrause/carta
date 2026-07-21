@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{ESCAPES}\label{escapes}
+
+An em dash --- and an en dash -- and a hyphen - in a row.
+
+Quotation ``quoted'' and a bullet · and copyright © sign.
+
+A Unicode escape É and the trademark ™ symbol.
+
+first line of text\\
+second line after an explicit break

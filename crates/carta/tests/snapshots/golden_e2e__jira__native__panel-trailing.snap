@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "{panel:title=x}trailing" , LineBreak , Str "body" ]
+]

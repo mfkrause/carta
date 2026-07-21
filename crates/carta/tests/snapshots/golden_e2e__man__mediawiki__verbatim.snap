@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="no-fill"></span>
+= NO-FILL =
+
+<pre>the quick brown fox
+  jumps over the lazy dog</pre>
+<span id="example"></span>
+= EXAMPLE =
+
+<pre>configure --prefix=/usr
+make install</pre>
+<span id="tab-separated"></span>
+= TAB-SEPARATED =
+
+<pre>col1	col2	col3</pre>

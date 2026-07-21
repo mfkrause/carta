@@ -1,0 +1,42 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Intro"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "mentions"
+    , Space
+    , Str "inline."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "normal" , Space , Str "link" ]
+        ( ":Category:Linked" , "normal link" )
+    , Str "."
+    ]
+, Para
+    [ Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "Category:Physics" ]
+        ( "Category:Physics" , "Category:Physics" )
+    , Space
+    , Link
+        ( "" , [ "wikilink" ] , [] )
+        [ Str "sort" , Space , Str "key" ]
+        ( "Category:Science" , "sort key" )
+    ]
+]

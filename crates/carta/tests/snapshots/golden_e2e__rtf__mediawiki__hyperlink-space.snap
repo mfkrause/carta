@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[http://x.com link]after
+
+[http://y.com lead]tail
+
+'''[http://z.com bold link]'''next

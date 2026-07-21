@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Span
+        ( "" , [] , [] ) [ Str "Example" , Space , Str "Project" ]
+    , Space
+    , Str "toolkit"
+    , Space
+    , Str "is"
+    , Space
+    , Str "documented"
+    , Space
+    , Str "online."
+    ]
+]

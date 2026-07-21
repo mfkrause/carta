@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Named"
+    , Space
+    , Str "&"
+    , Space
+    , Str "decimal"
+    , Space
+    , Str "#"
+    , Space
+    , Str "and"
+    , Space
+    , Str "hex"
+    , Space
+    , Str "\9731"
+    , Space
+    , Str "entities,"
+    , Space
+    , Str "plus"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\160"
+    , Space
+    , Str "here."
+    ]
+]

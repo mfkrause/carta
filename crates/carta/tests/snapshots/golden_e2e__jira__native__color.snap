@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "empty"
+    , Space
+    , Str "{color:}value"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "literal"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "real"
+    , Space
+    , Span
+        ( "" , [] , [ ( "color" , "red" ) ] )
+        [ Str "red" , Space , Str "span" ]
+    , Space
+    , Str "renders"
+    , Space
+    , Str "as"
+    , Space
+    , Str "a"
+    , Space
+    , Str "coloured"
+    , Space
+    , Str "span."
+    ]
+]

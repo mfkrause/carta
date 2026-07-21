@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>As shown by <span class="citation" data-cites="knuth1984"></span> and
+<span class="citation" data-cites="lamport1994"></span>, this holds.</p>

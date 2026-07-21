@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell code
+   :name: render
+
+   .. code:: python
+
+      show_table()
+
+   .. container:: output display_data
+
+      .. raw:: html
+
+         <table><tr><td>cell</td></tr></table>

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="macro-conditionals"></span>
+= MACRO CONDITIONALS =
+
+before inner text after kept following text [https://example.com firstsecond]

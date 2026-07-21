@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Start"
+    , Space
+    , Str "middle"
+    , Space
+    , Span
+        ( "named" , [] , [] ) [ Str "anchor" , Space , Str "text" ]
+    , Space
+    , Str "end."
+    ]
+]

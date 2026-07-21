@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A <span class="custom">bare custom role</span> and a ''role with a base''.
+
+A <span class="alert important">role carrying its own classes</span> and a '''base that wins over a class list'''.

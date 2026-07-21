@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Top level}\label{top_level}
+
+\subsection{Second}\label{second}
+
+\subsubsection{Third}\label{third}
+
+\paragraph{Fourth}\label{fourth}
+
+\subparagraph{Fifth}\label{fifth}
+
+Sixth

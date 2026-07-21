@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="tagged" class="cell code" data-execution_count="2"
+data-code_folding="&quot;007&quot;" data-collapsed="&quot;true&quot;"
+data-lines_to_next_cell="3" data-slideshow="open" data-trusted="true">
+
+``` python
+value = 1
+```
+
+</div>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water H₂O and E=mc² and ~~gone~~ ~~old~~ here.
+
+Use fn() and mono and Ctrl here.

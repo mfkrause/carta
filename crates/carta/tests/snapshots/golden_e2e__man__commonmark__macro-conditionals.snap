@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# MACRO CONDITIONALS
+
+before inner text after kept following text
+[firstsecond](https://example.com)

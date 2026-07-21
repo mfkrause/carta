@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "macro-conditionals" , [] , [] )
+    [ Str "MACRO" , Space , Str "CONDITIONALS" ]
+, Para
+    [ Str "before"
+    , Space
+    , Str "inner"
+    , Space
+    , Str "text"
+    , Space
+    , Str "after"
+    , Space
+    , Str "kept"
+    , Space
+    , Str "following"
+    , Space
+    , Str "text"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "firstsecond" ]
+        ( "https://example.com" , "" )
+    ]
+]

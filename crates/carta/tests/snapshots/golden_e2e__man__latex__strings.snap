@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{STRINGS}\label{strings}
+
+Hello, `` quoted '' world, ® ™ and \textbf{strong} text.

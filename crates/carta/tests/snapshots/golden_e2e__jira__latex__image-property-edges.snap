@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A leading space !pic.png\textbar{} width=100! stays literal.
+
+A kept trailing space
+\pandocbounded{\includegraphics[keepaspectratio]{pic.png}} makes an
+image.
+
+A spaced !pic.png\textbar thumbnail ! stays literal.

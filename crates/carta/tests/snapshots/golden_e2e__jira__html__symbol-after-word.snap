@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Done👍 ships and cool🙂 and cool😛 stay glued.</p>
+<p>A symbol a❗ abuts the word before it.</p>

@@ -1,0 +1,62 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "dialect" , [ "cell" , "markdown" ] , [] )
+    [ OrderedList
+        ( 1 , DefaultStyle , DefaultDelim )
+        [ [ Para [ Str "first" ] ]
+        , [ Para [ Str "second" ] ]
+        , [ Para [ Str "auto" , Space , Str "one" ] ]
+        , [ Para [ Str "auto" , Space , Str "two" ] ]
+        ]
+    , Para
+        [ Str "1)"
+        , Space
+        , Str "prose"
+        , Space
+        , Str "only"
+        , SoftBreak
+        , Str "2)"
+        , Space
+        , Str "still"
+        , Space
+        , Str "prose"
+        ]
+    , Para
+        [ Str "Visit"
+        , Space
+        , Link
+            ( "" , [ "uri" ] , [] )
+            [ Str "http://example.com" ]
+            ( "http://example.com" , "" )
+        , Space
+        , Str "or"
+        , Space
+        , Str "write"
+        , Space
+        , Link
+            ( "" , [ "email" ] , [] )
+            [ Str "user@example.com" ]
+            ( "mailto:user@example.com" , "" )
+        , Space
+        , Str "or"
+        , Space
+        , Str "ping"
+        , Space
+        , Link
+            ( "" , [ "email" ] , [] )
+            [ Str "5@home" ]
+            ( "mailto:5@home" , "" )
+        , Str "."
+        ]
+    , Para
+        [ Str "Nested"
+        , Space
+        , Strong [ Emph [ Str "bold" , Space , Str "italic" ] ]
+        , Space
+        , Str "text."
+        ]
+    ]
+]

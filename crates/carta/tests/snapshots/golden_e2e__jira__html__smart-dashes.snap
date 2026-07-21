@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Spaced – en and — em dashes appear mid-line.</p>
+<p>A word hugging three word-– folds to a hyphen and en dash.</p>
+<p>A word hugging four word-— folds to a hyphen and em dash.</p>
+<p>Two hyphens word-- stay literal before a space.</p>
+<p>A trailing run sits at the very end --</p>

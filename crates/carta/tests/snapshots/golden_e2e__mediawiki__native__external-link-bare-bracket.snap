@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Unclosed"
+    , Space
+    , Str "["
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com" ]
+        ( "http://example.com" , "" )
+    , Space
+    , Str "here."
+    ]
+]

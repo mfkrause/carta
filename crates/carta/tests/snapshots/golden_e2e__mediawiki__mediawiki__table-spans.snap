@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+| colspan="2"| wide
+|-
+| a
+| b
+|-
+| rowspan="2"| tall
+| top
+|-
+| bottom
+|}

@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{enumerate}
+\tightlist
+\item
+  one
+
+  \begin{itemize}
+  \tightlist
+  \item
+    bullet under number
+
+    \begin{enumerate}
+    \tightlist
+    \item
+      number under bullet
+    \end{enumerate}
+  \end{itemize}
+\item
+  two
+\end{enumerate}

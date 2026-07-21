@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain [ Str "First" ] ]
+    , [ Plain [ Str "Second" ] ]
+    , [ Plain [ Str "Third" ] ]
+    ]
+, Para
+    [ Str "Lower-alpha"
+    , Space
+    , Str "with"
+    , Space
+    , Str "parens:"
+    ]
+, OrderedList
+    ( 1 , LowerAlpha , OneParen )
+    [ [ Plain [ Str "Alpha" ] ] , [ Plain [ Str "Beta" ] ] ]
+, Para
+    [ Str "Roman"
+    , Space
+    , Str "starting"
+    , Space
+    , Str "past"
+    , Space
+    , Str "one:"
+    ]
+, OrderedList
+    ( 4 , LowerRoman , Period )
+    [ [ Plain [ Str "Four" ] ] , [ Plain [ Str "Five" ] ] ]
+, Para
+    [ Str "Auto-numbered"
+    , Space
+    , Str "items"
+    , Space
+    , Str "continue"
+    , Space
+    , Str "the"
+    , Space
+    , Str "established"
+    , Space
+    , Str "style:"
+    ]
+, OrderedList
+    ( 1 , Decimal , Period )
+    [ [ Plain [ Str "Explicit" , Space , Str "one" ] ]
+    , [ Plain [ Str "Explicit" , Space , Str "two" ] ]
+    , [ Plain [ Str "Auto" , Space , Str "three" ] ]
+    , [ Plain [ Str "Auto" , Space , Str "four" ] ]
+    ]
+]

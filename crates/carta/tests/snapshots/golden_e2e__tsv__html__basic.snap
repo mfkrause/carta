@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Age</th>
+<th>City</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alice</td>
+<td>30</td>
+<td>Berlin</td>
+</tr>
+<tr>
+<td>Bob</td>
+<td>25</td>
+<td>Hamburg</td>
+</tr>
+</tbody>
+</table>

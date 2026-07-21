@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Span
+        ( "inline-target" , [] , [] )
+        [ Str "inline" , Space , Str "target" ]
+    , Space
+    , Str "marks"
+    , Space
+    , Str "a"
+    , Space
+    , Str "spot"
+    , Space
+    , Str "that"
+    , Space
+    , Str "other"
+    , Space
+    , Str "text"
+    , Space
+    , Str "can"
+    , Space
+    , Str "point"
+    , Space
+    , Str "back"
+    , Space
+    , Str "to."
+    ]
+, Para
+    [ Str "Here"
+    , Space
+    , Str "is"
+    , Space
+    , Span
+        ( "another-one" , [] , [] )
+        [ Str "another" , Space , Str "one" ]
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "middle"
+    , Space
+    , Str "of"
+    , Space
+    , Str "a"
+    , Space
+    , Str "sentence."
+    ]
+]

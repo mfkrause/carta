@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ RawBlock (Format "html") "<hr class=\"custom\">"
+, RawBlock (Format "latex") "\\medskip"
+]

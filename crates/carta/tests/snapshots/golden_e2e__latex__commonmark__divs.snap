@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="center">
+
+Centered text here.
+
+</div>
+
+<div class="unknownenv">
+
+Content in an unmodeled environment.
+
+</div>

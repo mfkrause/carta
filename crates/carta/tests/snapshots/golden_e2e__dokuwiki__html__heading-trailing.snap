@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h5>Head</h5>
+<p>extra</p>
+<h5>Head</h5>
+<p>== more ==</p>
+<h5>a</h5>
+<p>b</p>

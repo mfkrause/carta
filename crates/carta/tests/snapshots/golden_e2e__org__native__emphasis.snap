@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Strong [ Str "bold" ]
+    , Str ","
+    , Space
+    , Emph [ Str "italic" ]
+    , Str ","
+    , Space
+    , Underline [ Str "underline" ]
+    , Str ","
+    , Space
+    , Strikeout [ Str "strikethrough" ]
+    , Str ","
+    , Space
+    , Code ( "" , [ "verbatim" ] , [] ) "verbatim"
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "code"
+    , Space
+    , Str "markup."
+    ]
+]

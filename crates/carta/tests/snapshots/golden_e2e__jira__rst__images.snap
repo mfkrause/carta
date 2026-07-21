@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An image |image1| in a line.
+
+A sized one |image2| follows.
+
+.. |image1| image:: photo.png
+.. |image2| image:: chart.png
+   :width: 200px

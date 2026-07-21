@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water is H<sub>2</sub>O and the area is 5<sup>2</sup> units.

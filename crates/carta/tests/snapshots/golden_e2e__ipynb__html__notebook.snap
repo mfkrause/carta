@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="heading" class="cell markdown" data-scrolled="true">
+<h1 id="analysis">Analysis</h1>
+<p>A short narrative cell before the computation.</p>
+</div>
+<div id="compute" class="cell code" data-execution_count="1">
+<pre class="python"><code>total = 2 + 2
+print(total)</code></pre>
+<div class="output stream stdout">
+<pre><code>4
+</code></pre>
+</div>
+<div class="output execute_result" data-execution_count="1">
+<pre><code>4</code></pre>
+</div>
+</div>
+<div id="footer" class="cell raw" data-format="text/html">
+<footer>End of notebook.</footer>
+</div>

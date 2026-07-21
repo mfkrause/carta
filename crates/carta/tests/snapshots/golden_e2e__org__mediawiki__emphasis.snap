@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Text with '''bold''', ''italic'', <u>underline</u>, <s>strikethrough</s>, <code>verbatim</code>, and <code>code</code> markup.

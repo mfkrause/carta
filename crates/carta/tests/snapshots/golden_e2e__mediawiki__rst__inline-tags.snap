@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water H\ :sub:`2`\ O and E=mc\ :sup:`2` and [STRIKEOUT:gone]
+[STRIKEOUT:old] here.
+
+Use ``fn()`` and ``mono`` and Ctrl here.

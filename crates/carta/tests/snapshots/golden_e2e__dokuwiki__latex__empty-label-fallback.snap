@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A link with an empty explicit label \url{start} falls back to its
+target, and a media reference with an empty caption
+\pandocbounded{\includegraphics[keepaspectratio,alt={img.png}]{/wiki/img.png}}
+does the same.

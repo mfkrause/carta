@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A paragraph with <em>emphasis</em>, <strong>strong emphasis</strong>,
+and <code>inline code</code>.</p>
+<p>Nested <em>emphasis with <strong>strong</strong> inside</em> and a
+code span <code>a &lt; b &amp;&amp; c</code>.</p>

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A sentence with a footnote [1]_ and a second one [2]_.
+
+.. [1]
+   The first note.
+
+.. [2]
+   The second note has two paragraphs.
+
+   This is the second.

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<a href="File:clip.webm" class="wikilink"
+title="thumbtime=5|a clip">thumbtime=5|a clip</a>
+
+<a href="File:photo.jpg" class="wikilink"
+title="upright=1.4|a photo">upright=1.4|a photo</a>

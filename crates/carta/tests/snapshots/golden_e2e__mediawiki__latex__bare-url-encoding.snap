@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Link \url{http://example.com/a\%5Bb\%5Dc\%7Cd} here.

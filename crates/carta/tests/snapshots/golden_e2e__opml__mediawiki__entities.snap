@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+= Tom &amp; Jerry and friends =
+
+Plain note text.
+
+= Numeric A B here =

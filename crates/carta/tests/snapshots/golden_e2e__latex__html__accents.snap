@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Café, naïve, r̂ole, Straße, çedilla, š, and ñ.</p>
+<p>Special glyphs: LaTeX, TeX, …, &amp; ampersand, and §section.</p>

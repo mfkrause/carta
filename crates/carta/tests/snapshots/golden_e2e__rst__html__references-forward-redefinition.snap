@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A <a href="http://example.com/second">Forward</a> reference resolves
+to a target defined later in the document.</p>
+<p>See <a href="#section-one">Section One</a> for the section
+reference.</p>
+<h1 id="section-one">Section One</h1>
+<p>Body text under the first section.</p>

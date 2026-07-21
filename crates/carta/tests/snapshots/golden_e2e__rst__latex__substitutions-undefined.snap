@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+This paragraph references an
+\hyperref[ux5cux23SUBSTux5cux23ux5cux23ux5cux257Cundefinedux5cux257C]{\textbar undefined\textbar{}}
+substitution that is never declared.

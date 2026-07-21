@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Text with \textbf{bold}, \emph{italic}, \ul{underline},
+\st{strikethrough}, \texttt{verbatim}, and \texttt{code} markup.

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. code:: python
+
+   def greet(name):
+       return "Hello, " + name
+
+::
+
+   Literal example text
+   spanning two lines.

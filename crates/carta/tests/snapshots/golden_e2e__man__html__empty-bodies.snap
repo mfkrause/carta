@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="empty">EMPTY</h1>
+<ul>
+<li></li>
+<li><p>the second bullet has a body.</p></li>
+</ul>
+<dl>
+<dt>label</dt>
+<dd>
+
+</dd>
+</dl>
+<p><strong>-x</strong></p>

@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table style="width:36%;">
+<colgroup>
+<col style="width: 18%" />
+<col style="width: 18%" />
+</colgroup>
+<thead>
+<tr>
+<th>Fruit</th>
+<th>Color</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apple</td>
+<td>Red</td>
+</tr>
+<tr>
+<td>Lemon</td>
+<td>Yellow</td>
+</tr>
+</tbody>
+</table>

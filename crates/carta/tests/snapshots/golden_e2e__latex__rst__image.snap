@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An inline image |image| sits within this line of text.
+
+.. |image| image:: logo.png

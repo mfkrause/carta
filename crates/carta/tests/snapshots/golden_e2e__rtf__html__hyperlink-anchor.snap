@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Read the <a href="#_Toc1">introduction</a> first.</p>

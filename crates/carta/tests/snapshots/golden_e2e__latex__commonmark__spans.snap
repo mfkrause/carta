@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A <span style="color: red">colored phrase</span> and a
+<span class="roman">roman run</span> here.

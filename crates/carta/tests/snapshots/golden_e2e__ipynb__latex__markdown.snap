@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{intro}
+\section{Notebook title}\label{notebook-title}
+
+A paragraph with \emph{emphasis}, \textbf{strong}, a
+\href{https://example.com}{link}, and \texttt{inline\ code}.
+
+\begin{itemize}
+\tightlist
+\item
+  first item
+\item
+  second item
+\end{itemize}
+
+\begin{quote}
+A short blockquote.
+\end{quote}

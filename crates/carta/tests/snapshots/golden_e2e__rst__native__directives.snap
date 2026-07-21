@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Image
+        ( "" , [] , [] )
+        [ Str "An architecture diagram" ]
+        ( "diagram.png" , "" )
+    ]
+, Para [ Math DisplayMath "E = mc^2" ]
+]

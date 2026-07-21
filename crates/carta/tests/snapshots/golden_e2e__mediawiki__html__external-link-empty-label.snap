@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>[<a href="http://example.com%5Dx">http://example.com]x</a></p>

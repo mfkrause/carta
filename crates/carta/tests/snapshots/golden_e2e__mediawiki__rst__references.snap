@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A claim [1]_ here.
+
+.. [1]
+   The source.

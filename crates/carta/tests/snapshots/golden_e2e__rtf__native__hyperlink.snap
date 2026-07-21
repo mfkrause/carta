@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Visit"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "the" , Space , Str "site" ]
+        ( "http://example.com" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "more."
+    ]
+]

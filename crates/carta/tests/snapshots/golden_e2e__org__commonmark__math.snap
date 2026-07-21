@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math *a*<sup>2</sup> + *b*<sup>2</sup> = *c*<sup>2</sup> appears
+mid-sentence.
+
+Dollar-delimited math *E* = *m**c*<sup>2</sup> also renders inline.
+
+Display math is set apart:
+
+$$
+\int_0^1 x^2 \\ dx = \frac{1}{3}
+$$

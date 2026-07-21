@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Top Section
+===========
+
+Body text under the top section.
+
+Nested Section
+--------------
+
+Body text under the nested section.
+
+Deeper Section
+~~~~~~~~~~~~~~
+
+Body text under the deeper section.

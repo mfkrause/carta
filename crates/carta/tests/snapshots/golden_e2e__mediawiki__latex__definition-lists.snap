@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{description}
+\tightlist
+\item[Term]
+Definition
+\item[Apple]
+A fruit
+\end{description}

@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="options">OPTIONS</h1>
+<dl>
+<dt><strong>-v</strong></dt>
+<dd>
+<p>Produce verbose output.</p>
+</dd>
+<dt><strong>-f <em>file</em></strong></dt>
+<dd>
+<p>Read input from the named file.</p>
+</dd>
+</dl>
+<h1 id="bullets">BULLETS</h1>
+<ul>
+<li><p>First bullet item.</p></li>
+<li><p>Second bullet item.</p></li>
+</ul>
+<h1 id="numbered">NUMBERED</h1>
+<ol type="1">
+<li><p>First numbered item.</p></li>
+<li><p>Second numbered item.</p></li>
+</ol>
+<h1 id="plain">PLAIN</h1>
+<blockquote>
+<p>An indented paragraph with no marker.</p>
+</blockquote>

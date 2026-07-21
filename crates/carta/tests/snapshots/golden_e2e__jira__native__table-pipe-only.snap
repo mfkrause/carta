@@ -1,0 +1,111 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "line"
+    , Space
+    , Str "of"
+    , Space
+    , Str "only"
+    , Space
+    , Str "pipes"
+    , Space
+    , Str "is"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "text,"
+    , Space
+    , Str "never"
+    , Space
+    , Str "a"
+    , Space
+    , Str "table:"
+    ]
+, Para [ Str "|" ]
+, Para [ Str "||" ]
+, Para [ Str "|||" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "table"
+    , Space
+    , Str "stops"
+    , Space
+    , Str "at"
+    , Space
+    , Str "a"
+    , Space
+    , Str "following"
+    , Space
+    , Str "pipe-only"
+    , Space
+    , Str "line:"
+    ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para [ Str "a" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "|" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "pipe-only"
+    , Space
+    , Str "line"
+    , Space
+    , Str "before"
+    , Space
+    , Str "a"
+    , Space
+    , Str "table"
+    , Space
+    , Str "stays"
+    , Space
+    , Str "a"
+    , Space
+    , Str "paragraph:"
+    ]
+, Para [ Str "|" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para [ Str "b" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

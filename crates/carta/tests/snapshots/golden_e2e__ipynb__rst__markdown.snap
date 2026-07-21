@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+   :name: intro
+
+   .. rubric:: Notebook title
+      :name: notebook-title
+
+   A paragraph with *emphasis*, **strong**, a
+   `link <https://example.com>`__, and ``inline code``.
+
+   - first item
+   - second item
+
+   ..
+
+      A short blockquote.

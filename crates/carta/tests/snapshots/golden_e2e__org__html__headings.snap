@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="first-level-heading">First level heading</h1>
+<p>Body text under the first heading.</p>
+<h2 id="second-level-heading">Second level heading <span class="tag"
+data-tag-name="work"><span class="smallcaps">work</span></span> <span
+class="tag" data-tag-name="urgent"><span
+class="smallcaps">urgent</span></span></h2>
+<h3 id="third-level-heading">Third level heading</h3>

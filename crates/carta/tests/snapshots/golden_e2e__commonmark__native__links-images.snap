@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "inline" , Space , Str "link" ]
+        ( "http://example.com" , "a title" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "reference" , Space , Str "link" ]
+        ( "http://example.com/ref" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "autolink"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com" ]
+        ( "http://example.com" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "an"
+    , Space
+    , Str "image"
+    , Space
+    , Image
+        ( "" , [] , [] )
+        [ Str "alt" , Space , Str "text" ]
+        ( "pic.png" , "img title" )
+    , Str "."
+    ]
+]

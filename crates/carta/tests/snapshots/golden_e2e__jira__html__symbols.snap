@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Symbols 👍 and ❌ and ❗ here.</p>
+<p>Ranges 1--2 and an em — dash.</p>
+<p>A — <em>quoted citation</em> line.</p>

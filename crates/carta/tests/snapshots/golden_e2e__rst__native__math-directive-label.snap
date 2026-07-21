@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Span
+        ( "" , [] , [ ( "label" , "identity" ) ] )
+        [ Math DisplayMath "e^{i\\pi} + 1 = 0" ]
+    ]
+]

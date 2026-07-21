@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Unclosed /italic and *bold with no closing marker on this line. A run of
+never-closing italic markers: /a /a /a /a /a /a /a Trailing _underline,
+=verbatim, ~code, and +strike that never close.

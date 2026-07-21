@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "He"
+    , Space
+    , Str "said"
+    , Space
+    , Quoted DoubleQuote [ Str "hello" , Space , Str "there" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "then"
+    , Space
+    , Quoted SingleQuote [ Str "goodbye" ]
+    , Space
+    , Str "quietly."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "em-dash\8212like"
+    , Space
+    , Str "this\8212and"
+    , Space
+    , Str "an"
+    , Space
+    , Str "en-dash"
+    , Space
+    , Str "1\8211\&10"
+    , Space
+    , Str "too."
+    ]
+]

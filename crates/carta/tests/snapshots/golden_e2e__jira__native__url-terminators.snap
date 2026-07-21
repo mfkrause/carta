@@ -1,0 +1,49 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "url"
+    , Space
+    , Str "stops"
+    , Space
+    , Str "at"
+    , Space
+    , Str "a"
+    , Space
+    , Str "bracket"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.com" ]
+        ( "http://example.com" , "" )
+    , Str "[x"
+    , Space
+    , Str "and"
+    , Space
+    , Str "at"
+    , Space
+    , Str "an"
+    , Space
+    , Str "angle"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.org" ]
+        ( "http://example.org" , "" )
+    , Str "<y"
+    , Space
+    , Str "but"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "parens"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "http://example.net/a(b)." ]
+        ( "http://example.net/a(b)." , "" )
+    ]
+]

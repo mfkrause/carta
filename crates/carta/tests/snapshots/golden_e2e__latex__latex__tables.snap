@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lcr@{}}
+\toprule\noalign{}
+Name & Score & Rank \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Alice & 90 & 1 \\
+Bob & 85 & 2 \\
+\multicolumn{2}{@{}c}{%
+Combined} & 3 \\
+\end{longtable}
+}

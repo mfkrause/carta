@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See <http://example.com/path>. Also (http://example.org/a) end.

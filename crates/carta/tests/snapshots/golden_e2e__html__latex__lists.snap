@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\tightlist
+\item
+  a
+\item
+  b
+\end{itemize}
+
+\begin{enumerate}
+\setcounter{enumi}{4}
+\tightlist
+\item
+  five
+\item
+  six
+\end{enumerate}
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi}.}
+\tightlist
+\item
+  one
+\item
+  two
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  outer
+
+  \begin{itemize}
+  \tightlist
+  \item
+    inner
+  \end{itemize}
+\end{itemize}

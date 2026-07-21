@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! word
+! has spaces
+|-
+| foo bar
+| baz qux
+|}

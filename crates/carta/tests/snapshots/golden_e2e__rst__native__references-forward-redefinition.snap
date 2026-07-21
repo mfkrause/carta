@@ -1,0 +1,66 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Forward" ]
+        ( "http://example.com/second" , "" )
+    , Space
+    , Str "reference"
+    , Space
+    , Str "resolves"
+    , Space
+    , Str "to"
+    , Space
+    , Str "a"
+    , Space
+    , Str "target"
+    , Space
+    , Str "defined"
+    , Space
+    , Str "later"
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "document."
+    ]
+, Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Section" , Space , Str "One" ]
+        ( "#section-one" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "the"
+    , Space
+    , Str "section"
+    , Space
+    , Str "reference."
+    ]
+, Header
+    1
+    ( "section-one" , [] , [] )
+    [ Str "Section" , Space , Str "One" ]
+, Para
+    [ Str "Body"
+    , Space
+    , Str "text"
+    , Space
+    , Str "under"
+    , Space
+    , Str "the"
+    , Space
+    , Str "first"
+    , Space
+    , Str "section."
+    ]
+]

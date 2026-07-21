@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Literal"
+    , Space
+    , Str "'''not"
+    , Space
+    , Str "bold'''"
+    , Space
+    , Str "and"
+    , Space
+    , Str "[[not"
+    , Space
+    , Str "a"
+    , Space
+    , Str "link]]"
+    , Space
+    , Str "here."
+    ]
+]

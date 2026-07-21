@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>Chapter Title</h1>
+<p>Body paragraph.</p>
+<h2>Section Title</h2>

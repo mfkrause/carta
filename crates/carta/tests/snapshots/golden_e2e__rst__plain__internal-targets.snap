@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+This paragraph carries the target identifier.
+
+Jump back to the intro section.

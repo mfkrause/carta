@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "dotted"
+    , Space
+    , Str "name"
+    , Space
+    , Str "like"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "a.b+c" ] ( "" , "" )
+    , Space
+    , Str "is"
+    , Space
+    , Str "a"
+    , Space
+    , Str "single"
+    , Space
+    , Str "reference."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "word"
+    , Space
+    , Str "such"
+    , Space
+    , Str "as"
+    , Space
+    , Str "file__name__"
+    , Space
+    , Str "has"
+    , Space
+    , Str "no"
+    , Space
+    , Str "reference."
+    ]
+]

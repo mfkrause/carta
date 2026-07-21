@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An ''emphasis'', '''strong''', and <code>code</code> run.
+
+A [http://example.com link] and an [[File:pic.png|alt]] image.
+
+Entities &amp; © and raw inline.

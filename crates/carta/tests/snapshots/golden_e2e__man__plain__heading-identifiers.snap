@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+!!!
+
+A heading that slugs to nothing falls back to a reserved identifier.
+
+???
+
+Another empty slug is disambiguated against the fallback.
+
+Foo
+
+A base identifier.
+
+Foo
+
+A repeat gains a numeric suffix.
+
+Foo 1
+
+A title that already carries the suffix is disambiguated further.
+
+İ here
+
+A dotted capital I lowercases to a letter plus a combining mark that the
+identifier drops.
+
+WordͅEnd
+
+A letter-like combining mark is not a letter and is dropped from the
+identifier.

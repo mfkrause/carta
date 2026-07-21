@@ -1,0 +1,47 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "A" , Space , Str "caption" ] ])
+    [ Plain
+        [ Image ( "" , [] , [] ) [] ( "Foo.jpg" , "A caption" ) ]
+    ]
+, Figure
+    ( "" , [] , [] )
+    (Caption Nothing [ Plain [ Str "My_Photo.jpg" ] ])
+    [ Plain
+        [ Image
+            ( "" , [] , [] ) [] ( "My_Photo.jpg" , "My_Photo.jpg" )
+        ]
+    ]
+, Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "Sized" , Space , Str "chart" ] ])
+    [ Plain
+        [ Image
+            ( "" , [] , [ ( "width" , "100" ) , ( "height" , "200" ) ] )
+            []
+            ( "Chart.png" , "Sized chart" )
+        ]
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Image
+        ( "" , [] , [] ) [ Str "icon" ] ( "Icon.svg" , "icon" )
+    , Space
+    , Str "sits"
+    , Space
+    , Str "in"
+    , Space
+    , Str "this"
+    , Space
+    , Str "paragraph."
+    ]
+]

@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "options" , [] , [] ) [ Str "OPTIONS" ]
+, DefinitionList
+    [ ( [ Strong [ Str "-a" ]
+        , LineBreak
+        , Strong [ Str "--all" ]
+        ]
+      , [ [ Para
+              [ Str "Describe"
+              , Space
+              , Str "both"
+              , Space
+              , Str "spellings"
+              , Space
+              , Str "of"
+              , Space
+              , Str "the"
+              , Space
+              , Str "option."
+              ]
+          ]
+        ]
+      )
+    , ( [ Strong [ Str "-v" ] ]
+      , [ [ Para [ Str "Verbose" , Space , Str "output." ] ] ]
+      )
+    ]
+]

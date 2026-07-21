@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "escapes" , [] , [] ) [ Str "ESCAPES" ]
+, Para
+    [ Str "tab"
+    , Space
+    , Str "here"
+    , Space
+    , Str "and"
+    , Space
+    , Str "drop"
+    , Space
+    , Str "joined"
+    , Space
+    , Str "with"
+    , Space
+    , Str "updown"
+    , Space
+    , Str "then"
+    , Space
+    , Str "mark"
+    , Space
+    , Str "and"
+    , Space
+    , Str "zerowidth."
+    ]
+, Para
+    [ Str "first"
+    , Space
+    , Str "line"
+    , Space
+    , Str "ends"
+    , Space
+    , Str "with"
+    , Space
+    , Str "a"
+    , Space
+    , Str "continuationand"
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "going"
+    , Space
+    , Str "with"
+    , Space
+    , Str "no"
+    , Space
+    , Str "space."
+    ]
+]

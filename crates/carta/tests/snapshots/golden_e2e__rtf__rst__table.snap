@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+== ==
+A1 B1
+A2 B2
+== ==
+
+After the table.

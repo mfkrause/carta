@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water is H\ :sub:`2`\ O and the area is 10m\ :sup:`2` in size.
+
+This sentence has a [STRIKEOUT:deleted] word in the middle.

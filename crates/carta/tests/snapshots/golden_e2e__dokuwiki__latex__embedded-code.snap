@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph with an inline
+
+\begin{verbatim}
+embedded
+\end{verbatim}
+
+region splits around the code block, but a
+\textless HTML\textgreater raw\textless/HTML\textgreater{} fragment does
+not.

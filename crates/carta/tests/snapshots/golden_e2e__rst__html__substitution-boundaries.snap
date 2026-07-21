@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A substitution joins wordJOINEDafter with no surrounding spaces.</p>
+<p>two words</p>
+<p>A leading inline <span>two words</span> keeps company with other
+text.</p>
+<p>see the <a href="https://example.com">site</a></p>

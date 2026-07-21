@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+First paragraph spanning<br />
+two source lines.
+
+Second paragraph after a blank line.
+
+A forced<br />
+break here.

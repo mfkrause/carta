@@ -1,0 +1,60 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "line"
+    , Space
+    , Str "with"
+    , Space
+    , Strong [ Str "strong" ]
+    , Space
+    , Str "and"
+    , Space
+    , Emph [ Str "emphasis" ]
+    , Space
+    , Str "together."
+    ]
+, Para
+    [ Str "Then"
+    , Space
+    , Underline [ Str "inserted" ]
+    , Str ","
+    , Space
+    , Superscript [ Str "superscript" ]
+    , Space
+    , Str "and"
+    , Space
+    , Subscript [ Str "subscript" ]
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "Finally"
+    , Space
+    , Strikeout [ Str "deleted" ]
+    , Space
+    , Str "words"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Code ( "" , [] , [] ) "monospaced"
+    , Space
+    , Str "span."
+    ]
+, Para
+    [ Str "Nested"
+    , Space
+    , Strong [ Emph [ Str "strong" , Space , Str "emphasis" ] ]
+    , Space
+    , Str "in"
+    , Space
+    , Str "one"
+    , Space
+    , Str "run."
+    ]
+]

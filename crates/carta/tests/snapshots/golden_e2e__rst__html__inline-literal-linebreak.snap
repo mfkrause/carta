@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A literal <code>spanning two lines</code> folds the line break to a
+single space.</p>

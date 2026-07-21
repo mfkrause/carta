@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Text with <em>the configured default role</em> applied.</p>
+<p>Text with <span class="title-ref">the standard default role</span>
+restored.</p>

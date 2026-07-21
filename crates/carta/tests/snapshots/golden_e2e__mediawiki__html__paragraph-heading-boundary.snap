@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>intro</p>
+<h2 id="b_c">b c</h2>

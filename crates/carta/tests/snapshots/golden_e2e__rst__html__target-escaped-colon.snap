@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>The reference <a href="http://example.com/colon">name: with colon</a>
+points at an escaped-colon target.</p>

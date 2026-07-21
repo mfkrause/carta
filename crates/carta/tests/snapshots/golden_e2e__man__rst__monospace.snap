@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+FONTS
+=====
+
+plain ``mono`` and **``monobold``** and *``monoital``* back.
+
+bracket ``mono`` and single ``mono`` end.

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+  Name    Role
+  ------- ----------
+  Ada     Engineer
+  Grace   Admiral

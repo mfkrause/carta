@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Here"
+    , Space
+    , Str "is"
+    , Space
+    , Str "a"
+    , Space
+    , Str "simple"
+    , Space
+    , Str "footnote"
+    , Note
+        [ Para
+            [ Str "The"
+            , Space
+            , Str "footnote"
+            , Space
+            , Str "definition"
+            , Space
+            , Str "body."
+            ]
+        ]
+    , Space
+    , Str "reference."
+    ]
+]

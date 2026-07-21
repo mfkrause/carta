@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+above
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+between
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+below

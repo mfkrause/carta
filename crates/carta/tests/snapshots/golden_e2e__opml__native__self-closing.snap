@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1 ( "" , [] , [] ) [ Str "Level" , Space , Str "one" ]
+, Header
+    2 ( "" , [] , [] ) [ Str "Level" , Space , Str "two" ]
+, Header
+    3 ( "" , [] , [] ) [ Str "Level" , Space , Str "three" ]
+]

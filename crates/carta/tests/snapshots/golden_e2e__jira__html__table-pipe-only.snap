@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A line of only pipes is plain text, never a table:</p>
+<p>|</p>
+<p>||</p>
+<p>|||</p>
+<p>A table stops at a following pipe-only line:</p>
+<table>
+<tbody>
+<tr>
+<td><p>a</p></td>
+</tr>
+</tbody>
+</table>
+<p>|</p>
+<p>A pipe-only line before a table stays a paragraph:</p>
+<p>|</p>
+<table>
+<tbody>
+<tr>
+<td><p>b</p></td>
+</tr>
+</tbody>
+</table>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>one two line.</p>
+<p>three line.</p>
+<p>four five.</p>

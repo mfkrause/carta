@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  First
+\item
+  Second
+\item
+  Third
+\end{enumerate}
+
+Lower-alpha with parens:
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi})}
+\tightlist
+\item
+  Alpha
+\item
+  Beta
+\end{enumerate}
+
+Roman starting past one:
+
+\begin{enumerate}
+\def\labelenumi{\roman{enumi}.}
+\setcounter{enumi}{3}
+\tightlist
+\item
+  Four
+\item
+  Five
+\end{enumerate}
+
+Auto-numbered items continue the established style:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Explicit one
+\item
+  Explicit two
+\item
+  Auto three
+\item
+  Auto four
+\end{enumerate}

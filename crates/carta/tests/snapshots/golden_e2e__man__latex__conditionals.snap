@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{CONDITIONALS}\label{conditionals}
+
+nroff-only text is kept a true constant is kept the if-else true branch
+is kept this else branch is kept

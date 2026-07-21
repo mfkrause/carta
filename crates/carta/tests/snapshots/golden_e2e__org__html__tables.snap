@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Score</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alice</td>
+<td>10</td>
+</tr>
+<tr>
+<td>Bob</td>
+<td>7</td>
+</tr>
+</tbody>
+</table>

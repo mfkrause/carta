@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Analysis
+
+A short narrative cell before the computation.
+
+    total = 2 + 2
+    print(total)
+
+    4
+
+    4

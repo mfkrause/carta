@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+fixed-width line one
+fixed-width line two
+\end{verbatim}

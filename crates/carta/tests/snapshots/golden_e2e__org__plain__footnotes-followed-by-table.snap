@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+See the note[1] below.
+
+[1] The note body paragraph.
+
+  ---------- ----------
+  Column A   Column B
+  1          2
+  ---------- ----------

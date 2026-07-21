@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# Task
+
+Body under the task.
+
+# Notes
+
+<div class="MYDRAWER drawer">
+
+Custom drawers are kept as a div.
+
+</div>

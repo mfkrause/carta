@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "synopsis" , [] , [] ) [ Str "SYNOPSIS" ]
+, Para
+    [ Strong [ Str "prog" ]
+    , Space
+    , Str "["
+    , Space
+    , Strong [ Str "-v" ]
+    , Space
+    , Str "]"
+    , Space
+    , Str "["
+    , Space
+    , Strong [ Str "-o" ]
+    , Space
+    , Str "file"
+    , Space
+    , Str "]"
+    , Space
+    , Str "["
+    , Emph [ Str "files" ]
+    , Str "...]"
+    ]
+]

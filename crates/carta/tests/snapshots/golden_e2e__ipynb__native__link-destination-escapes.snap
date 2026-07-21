@@ -1,0 +1,60 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "links" , [ "cell" , "markdown" ] , [] )
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "bracketed"
+        , Space
+        , Link
+            ( "" , [] , [] )
+            [ Str "destination" ]
+            ( "two%20words" , "" )
+        , Space
+        , Str "and"
+        , Space
+        , Str "an"
+        , Space
+        , Str "angle"
+        , Space
+        , Str "autolink"
+        , SoftBreak
+        , Link
+            ( "" , [ "uri" ] , [] )
+            [ Str "https://example.com/a^b" ]
+            ( "https://example.com/a%5Eb" , "" )
+        , Space
+        , Str "are"
+        , Space
+        , Str "percent-encoded,"
+        , Space
+        , Str "and"
+        , Space
+        , Str "so"
+        , Space
+        , Str "is"
+        , Space
+        , Str "a"
+        , Space
+        , Str "bare"
+        , SoftBreak
+        , Link
+            ( "" , [ "uri" ] , [] )
+            [ Str "https://example.com/p^q" ]
+            ( "https://example.com/p%5Eq" , "" )
+        , Space
+        , Str "that"
+        , Space
+        , Str "the"
+        , Space
+        , Str "notebook"
+        , Space
+        , Str "dialect"
+        , Space
+        , Str "autolinks."
+        ]
+    ]
+]

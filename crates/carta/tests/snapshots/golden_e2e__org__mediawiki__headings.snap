@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="first-level-heading"></span>
+= First level heading =
+
+Body text under the first heading.
+
+<span id="second-level-heading"></span>
+== Second level heading <span class="tag" data-tag-name="work">work</span> <span class="tag" data-tag-name="urgent">urgent</span> ==
+
+<span id="third-level-heading"></span>
+=== Third level heading ===

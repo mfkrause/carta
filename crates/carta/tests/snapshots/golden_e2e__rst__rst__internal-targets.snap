@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container::
+   :name: intro
+
+   This paragraph carries the target identifier.
+
+Jump back to the `intro <#intro>`__ section.

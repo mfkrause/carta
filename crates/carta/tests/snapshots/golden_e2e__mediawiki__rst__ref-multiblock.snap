@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A statement [1]_ with a multi-paragraph footnote.
+
+.. [1]
+   First paragraph of the note.
+
+   Second paragraph of the note.

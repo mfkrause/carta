@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "geo"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "1" ) ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "feature"
+    , Div
+        ( "" , [ "output" , "display_data" ] , [] )
+        [ CodeBlock
+            ( "" , [ "json" ] , [] )
+            "{\"coordinates\":[1,2],\"type\":\"Point\"}"
+        ]
+    ]
+, Div
+    ( "tie"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "2" ) ]
+    )
+    [ CodeBlock ( "" , [ "python" ] , [] ) "rendered"
+    , Div
+        ( "" , [ "output" , "display_data" ] , [] )
+        [ CodeBlock ( "" , [ "json" ] , [] ) "{\"j\":2}" ]
+    ]
+]

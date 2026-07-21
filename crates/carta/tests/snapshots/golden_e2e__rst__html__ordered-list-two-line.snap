@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ol type="A">
+<li>A genuine first item.</li>
+</ol>
+<p>B. A second item whose text wraps onto a following line.</p>

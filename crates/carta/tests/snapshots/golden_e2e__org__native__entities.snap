@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Greek"
+    , Space
+    , Str "letters"
+    , Space
+    , Str "\945,"
+    , Space
+    , Str "\946,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\947"
+    , Space
+    , Str "render"
+    , Space
+    , Str "as"
+    , Space
+    , Str "symbols."
+    ]
+]

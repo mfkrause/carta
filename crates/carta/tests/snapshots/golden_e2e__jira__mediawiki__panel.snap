@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="panel">
+<div class="panelheader">
+'''Notice'''
+</div>
+
+Body text inside the panel.
+
+</div>

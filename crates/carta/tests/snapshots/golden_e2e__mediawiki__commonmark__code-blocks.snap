@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+``` python
+def f():
+    return 1
+```
+
+    plain preformatted
+      text block

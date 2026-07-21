@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="see-also"></span>
+= SEE ALSO =
+
+Visit the [https://example.com/project project home page] for more information.
+
+Report bugs to [mailto:bugs@example.com the maintainers].

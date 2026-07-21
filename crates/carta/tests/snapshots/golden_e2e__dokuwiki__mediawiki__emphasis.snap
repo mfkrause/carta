@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+This is '''bold''' and this is ''italic'' text.
+
+You can also use <u>underline</u> and <code>monospaced</code> words in a line.
+
+Markers combine, as in '''''bold and italic''''' and ''nested '''strong''' here''.

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph with ''emphasis'', '''strong emphasis''', and <code>inline literal</code> text.
+
+A second paragraph that spans two source lines joined by a soft break.
+
+Escapes keep a literal *asterisk* intact, and an inline literal can attach to a word like with<code>code</code> mid-sentence.

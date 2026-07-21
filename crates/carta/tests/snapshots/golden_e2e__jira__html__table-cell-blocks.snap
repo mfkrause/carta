@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th><p>List cell</p></th>
+<th><p>Quote cell</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><ul>
+<li><p>one</p></li>
+</ul></td>
+<td><blockquote>
+<p>q</p>
+</blockquote></td>
+</tr>
+<tr>
+<td><p>h1. plain</p></td>
+<td><p>a</p>
+<blockquote>
+<p>q</p>
+</blockquote>
+<p>b</p></td>
+</tr>
+</tbody>
+</table>

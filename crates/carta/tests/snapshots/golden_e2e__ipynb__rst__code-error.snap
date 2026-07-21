@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell code
+   :name: boom
+
+   .. code:: python
+
+      raise Error
+
+   .. container:: output error
+
+      ::
+
+         Traceback
+         Err: bad

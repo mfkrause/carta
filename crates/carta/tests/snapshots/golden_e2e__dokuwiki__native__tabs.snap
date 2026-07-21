@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ CodeBlock ( "" , [] , [] ) "  code here\n"
+, CodeBlock ( "" , [] , [] ) "      x\n"
+, CodeBlock ( "" , [] , [] ) "  * item\n"
+, Para [ Str "para" ]
+, CodeBlock ( "" , [] , [] ) "  more\n"
+]

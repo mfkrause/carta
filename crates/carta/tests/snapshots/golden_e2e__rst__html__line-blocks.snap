@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="line-block">The first line of verse<br />
+The second line of verse<br />
+The closing line of verse</div>

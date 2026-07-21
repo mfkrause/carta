@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+   :name: deffold
+
+   A line of prose
+
+   : not a definition list in this dialect

@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="dialect" class="cell markdown">
+
+1.  first
+
+2.  second
+
+3.  auto one
+
+4.  auto two
+
+1\) prose only 2) still prose
+
+Visit <http://example.com> or write <user@example.com> or ping <5@home>.
+
+Nested ***bold italic*** text.
+
+</div>

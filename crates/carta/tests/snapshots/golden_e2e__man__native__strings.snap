@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "strings" , [] , [] ) [ Str "STRINGS" ]
+, Para
+    [ Str "Hello,"
+    , Space
+    , Str "\8220"
+    , Space
+    , Str "quoted"
+    , Space
+    , Str "\8221"
+    , Space
+    , Str "world,"
+    , Space
+    , Str "\174"
+    , Space
+    , Str "\8482"
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "strong" ]
+    , Space
+    , Str "text."
+    ]
+]

@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>markup</th>
+<th>link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>*not italic*</td>
+<td>[not a link](url)</td>
+</tr>
+</tbody>
+</table>

@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container:: cell markdown
+   :name: grid
+
+   ==== =====
+   name value
+   ==== =====
+   one  1
+   two  2
+   ==== =====
+
+   The table above lists two entries.

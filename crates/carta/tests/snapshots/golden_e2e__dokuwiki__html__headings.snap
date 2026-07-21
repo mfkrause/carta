@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>Top Level</h1>
+<p>An introductory paragraph beneath the top heading.</p>
+<h2>Second Level</h2>
+<h3>Third Level</h3>
+<h4>Fourth Level</h4>
+<h5>Fifth Level</h5>
+<p>Closing paragraph text.</p>

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Heading with note}
+
+First paragraph with \emph{emphasis} and \textbf{strong}.
+
+Second paragraph after a blank line.

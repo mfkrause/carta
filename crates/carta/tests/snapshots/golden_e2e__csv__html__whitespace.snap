@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>col1</th>
+<th>col2 </th>
+<th>col3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> a </td>
+<td>spaced text </td>
+<td>trailing </td>
+</tr>
+</tbody>
+</table>

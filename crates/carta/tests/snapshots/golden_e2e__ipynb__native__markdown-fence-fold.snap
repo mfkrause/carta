@@ -1,0 +1,118 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "cell" , "markdown" ] , [] )
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "code"
+        , Space
+        , Str "fence"
+        , Space
+        , Str "whose"
+        , Space
+        , Str "info"
+        , Space
+        , Str "string"
+        , Space
+        , Str "names"
+        , Space
+        , Str "no"
+        , Space
+        , Str "language"
+        , Space
+        , Str "opens"
+        , Space
+        , Str "no"
+        , Space
+        , Str "code"
+        , Space
+        , Str "block;"
+        , Space
+        , Str "it"
+        , Space
+        , Str "folds"
+        , SoftBreak
+        , Str "into"
+        , Space
+        , Str "the"
+        , Space
+        , Str "paragraph,"
+        , Space
+        , Str "where"
+        , Space
+        , Str "its"
+        , Space
+        , Str "delimiters"
+        , Space
+        , Str "read"
+        , Space
+        , Str "as"
+        , Space
+        , Str "an"
+        , Space
+        , Str "inline"
+        , Space
+        , Str "code"
+        , Space
+        , Str "span:"
+        ]
+    , Para [ Code ( "" , [] , [] ) "python {.foo} code" ]
+    , Para
+        [ Str "Inside"
+        , Space
+        , Str "such"
+        , Space
+        , Str "a"
+        , Space
+        , Str "fold"
+        , Space
+        , Str "no"
+        , Space
+        , Str "later"
+        , Space
+        , Str "line"
+        , Space
+        , Str "opens"
+        , Space
+        , Str "a"
+        , Space
+        , Str "block"
+        , Space
+        , Str "of"
+        , Space
+        , Str "its"
+        , Space
+        , Str "own:"
+        ]
+    , Para
+        [ Code
+            ( "" , [] , [] )
+            "not a language # still text, not a heading"
+        ]
+    , Para
+        [ Str "A"
+        , Space
+        , Str "fence"
+        , Space
+        , Str "with"
+        , Space
+        , Str "no"
+        , Space
+        , Str "closing"
+        , Space
+        , Str "fence"
+        , Space
+        , Str "folds"
+        , Space
+        , Str "the"
+        , Space
+        , Str "same"
+        , Space
+        , Str "way:"
+        ]
+    , Para [ Str "```" , SoftBreak , Str "unterminated" ]
+    ]
+]

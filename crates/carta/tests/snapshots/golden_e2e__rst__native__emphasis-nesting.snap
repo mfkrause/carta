@@ -1,0 +1,65 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Strong"
+    , Space
+    , Str "text"
+    , Space
+    , Str "can"
+    , Space
+    , Str "hold"
+    , Space
+    , Str "emphasis:"
+    , Space
+    , Strong
+        [ Str "bold"
+        , Space
+        , Str "with"
+        , Space
+        , Str "*italic*"
+        , Space
+        , Str "inside"
+        ]
+    , Str "."
+    ]
+, Para
+    [ Str "Emphasis"
+    , Space
+    , Str "closes"
+    , Space
+    , Str "at"
+    , Space
+    , Str "the"
+    , Space
+    , Str "first"
+    , Space
+    , Str "lone"
+    , Space
+    , Str "star:"
+    , Space
+    , Emph [ Str "one" , Str "two" ]
+    , Str "*"
+    , Space
+    , Str "three*."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "doubled"
+    , Space
+    , Str "run"
+    , Space
+    , Str "opens"
+    , Space
+    , Str "strong"
+    , Space
+    , Str "even"
+    , Space
+    , Str "mid-word:"
+    , Space
+    , Strong [ Str "a*b*c" ]
+    , Str "."
+    ]
+]

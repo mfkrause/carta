@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "streams"
+    , [ "cell" , "code" ]
+    , [ ( "execution_count" , "1" ) ]
+    )
+    [ CodeBlock
+        ( "" , [ "python" ] , [] )
+        "import sys\nprint(42)\nsys.stderr.write(\"warning\\n\")"
+    , Div
+        ( "" , [ "output" , "stream" , "stdout" ] , [] )
+        [ CodeBlock ( "" , [] , [] ) "42\n" ]
+    , Div
+        ( "" , [ "output" , "stream" , "stderr" ] , [] )
+        [ CodeBlock ( "" , [] , [] ) "warning\n" ]
+    ]
+]

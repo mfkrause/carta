@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Water is H<sub>2</sub>O and the area is x<sup>2</sup>.
+
+Use ''emphasised text'', '''strong text''', and a <span class="title-ref">Title Reference</span>.
+
+Inline code through a role: <code>value = 1</code> and inline math <math display="inline">a^2 + b^2 = c^2</math>.

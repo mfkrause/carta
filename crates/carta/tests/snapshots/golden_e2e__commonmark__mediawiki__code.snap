@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre>indented code block
+second line</pre>
+<syntaxhighlight lang="rust">let x = 1;
+x < y && y > z;</syntaxhighlight>
+<pre>tilde fence</pre>

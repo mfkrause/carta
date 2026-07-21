@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 5 ( "" , [] , [] ) [ Str "Head" ]
+, Para [ Str "extra" ]
+, Header 5 ( "" , [] , [] ) [ Str "Head" ]
+, Para [ Str "==" , Space , Str "more" , Space , Str "==" ]
+, Header 5 ( "" , [] , [] ) [ Str "a" ]
+, Para [ Str "b" ]
+]

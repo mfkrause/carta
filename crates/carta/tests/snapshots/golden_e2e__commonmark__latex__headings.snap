@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Atx level one}
+
+\subsection{Atx level two}
+
+Atx level six
+
+\section{Setext level one}
+
+\subsection{Setext level two}

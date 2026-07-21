@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Str "main"
+    , Space
+    , Str "text"
+    , Space
+    , Str "follows"
+    , Space
+    , Str "the"
+    , Space
+    , Str "abstract."
+    ]
+]

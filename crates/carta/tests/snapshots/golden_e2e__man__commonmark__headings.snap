@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# First Section
+
+Body text under the first section.
+
+## A Subsection
+
+Body text under the subsection.
+
+# First Section
+
+A repeated heading whose identifier is disambiguated.

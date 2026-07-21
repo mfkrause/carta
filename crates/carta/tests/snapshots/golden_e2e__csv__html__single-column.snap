@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>fruit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>apple</td>
+</tr>
+<tr>
+<td>banana</td>
+</tr>
+<tr>
+<td>cherry</td>
+</tr>
+</tbody>
+</table>

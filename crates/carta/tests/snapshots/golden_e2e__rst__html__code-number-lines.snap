@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre class="python numberLines" data-startFrom="10"><code>first = 1
+second = 2</code></pre>

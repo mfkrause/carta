@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>Heading A</th>
+<th>Heading B</th>
+<th>Heading C</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>left cell</td>
+<td>a centered cell</td>
+<td>right cell</td>
+</tr>
+<tr>
+<td>second row</td>
+<td>another value</td>
+<td>last cell</td>
+</tr>
+</tbody>
+</table>

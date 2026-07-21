@@ -1,0 +1,65 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "macro-definitions" , [] , [] )
+    [ Str "MACRO" , Space , Str "DEFINITIONS" ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "first"
+    , Space
+    , Str "definition"
+    , Space
+    , Str "is"
+    , Space
+    , Str "kept."
+    , Space
+    , Str "Text"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "second"
+    , Space
+    , Str "definition"
+    , Space
+    , Str "is"
+    , Space
+    , Str "kept."
+    ]
+, Header
+    1
+    ( "macro-invocation" , [] , [] )
+    [ Str "MACRO" , Space , Str "INVOCATION" ]
+, Para
+    [ Str "Hello"
+    , Space
+    , Str "Alice"
+    , Space
+    , Str "and"
+    , Space
+    , Str "Bob."
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "stored"
+    , Space
+    , Str "value"
+    , Space
+    , Str "is"
+    , Space
+    , Str "42"
+    , Space
+    , Str "today."
+    ]
+, Para [ Emph [] ]
+]

@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "See"
+    , Space
+    , Span
+        ( "anchor" , [] , [] )
+        [ Str "this" , Space , Str "section" ]
+    , Space
+    , Str "below."
+    ]
+]

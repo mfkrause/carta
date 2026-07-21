@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "embed"
+    , [ "cell" , "raw" ]
+    , [ ( "format" , "text/html" ) ]
+    )
+    [ RawBlock
+        (Format "html")
+        "<aside class=\"note\">A raw HTML block passed through verbatim.</aside>"
+    ]
+]

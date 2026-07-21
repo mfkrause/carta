@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Overlapping"
+    , Space
+    , Str "markers"
+    , Space
+    , Str "as"
+    , Space
+    , Str "in"
+    , Space
+    , Str "**a"
+    , Space
+    , Emph [ Str "b**" , Space , Str "c" ]
+    , Space
+    , Str "pair"
+    , Space
+    , Str "greedily"
+    , Space
+    , Str "from"
+    , Space
+    , Str "the"
+    , Space
+    , Str "outside."
+    ]
+]

@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li><p>First bullet.</p></li>
+<li><p>Second bullet with <strong>bold</strong>.</p></li>
+</ul>
+<ol>
+<li><p>First numbered item.</p></li>
+<li><p>Second numbered item.</p></li>
+</ol>
+<ul>
+<li><p>Outer item.</p>
+<ul>
+<li><p>Nested item.</p></li>
+</ul></li>
+</ul>

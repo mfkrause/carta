@@ -1,0 +1,100 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "escapes" , [] , [] ) [ Str "ESCAPES" ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "em"
+    , Space
+    , Str "dash"
+    , Space
+    , Str "\8212"
+    , Space
+    , Str "and"
+    , Space
+    , Str "an"
+    , Space
+    , Str "en"
+    , Space
+    , Str "dash"
+    , Space
+    , Str "\8211"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "hyphen"
+    , Space
+    , Str "-"
+    , Space
+    , Str "in"
+    , Space
+    , Str "a"
+    , Space
+    , Str "row."
+    ]
+, Para
+    [ Str "Quotation"
+    , Space
+    , Str "\8220quoted\8221"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "bullet"
+    , Space
+    , Str "\183"
+    , Space
+    , Str "and"
+    , Space
+    , Str "copyright"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "sign."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "Unicode"
+    , Space
+    , Str "escape"
+    , Space
+    , Str "\201"
+    , Space
+    , Str "and"
+    , Space
+    , Str "the"
+    , Space
+    , Str "trademark"
+    , Space
+    , Str "\8482"
+    , Space
+    , Str "symbol."
+    ]
+, Para
+    [ Str "first"
+    , Space
+    , Str "line"
+    , Space
+    , Str "of"
+    , Space
+    , Str "text"
+    , LineBreak
+    , Str "second"
+    , Space
+    , Str "line"
+    , Space
+    , Str "after"
+    , Space
+    , Str "an"
+    , Space
+    , Str "explicit"
+    , Space
+    , Str "break"
+    ]
+]

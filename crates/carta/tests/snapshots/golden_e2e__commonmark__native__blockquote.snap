@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BlockQuote
+    [ Para
+        [ Str "A" , Space , Str "block" , Space , Str "quote." ]
+    , BlockQuote
+        [ Para
+            [ Str "A"
+            , Space
+            , Str "nested"
+            , Space
+            , Str "block"
+            , Space
+            , Str "quote."
+            ]
+        ]
+    , Para
+        [ Str "Back"
+        , Space
+        , Str "to"
+        , Space
+        , Str "the"
+        , Space
+        , Str "outer"
+        , Space
+        , Str "level."
+        ]
+    ]
+]

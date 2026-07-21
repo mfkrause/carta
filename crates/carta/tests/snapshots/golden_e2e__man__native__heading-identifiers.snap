@@ -1,0 +1,154 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "section" , [] , [] ) [ Str "!!!" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "heading"
+    , Space
+    , Str "that"
+    , Space
+    , Str "slugs"
+    , Space
+    , Str "to"
+    , Space
+    , Str "nothing"
+    , Space
+    , Str "falls"
+    , Space
+    , Str "back"
+    , Space
+    , Str "to"
+    , Space
+    , Str "a"
+    , Space
+    , Str "reserved"
+    , Space
+    , Str "identifier."
+    ]
+, Header 1 ( "section-1" , [] , [] ) [ Str "???" ]
+, Para
+    [ Str "Another"
+    , Space
+    , Str "empty"
+    , Space
+    , Str "slug"
+    , Space
+    , Str "is"
+    , Space
+    , Str "disambiguated"
+    , Space
+    , Str "against"
+    , Space
+    , Str "the"
+    , Space
+    , Str "fallback."
+    ]
+, Header 1 ( "foo" , [] , [] ) [ Str "Foo" ]
+, Para
+    [ Str "A" , Space , Str "base" , Space , Str "identifier." ]
+, Header 1 ( "foo-1" , [] , [] ) [ Str "Foo" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "repeat"
+    , Space
+    , Str "gains"
+    , Space
+    , Str "a"
+    , Space
+    , Str "numeric"
+    , Space
+    , Str "suffix."
+    ]
+, Header
+    1 ( "foo-1-1" , [] , [] ) [ Str "Foo" , Space , Str "1" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "title"
+    , Space
+    , Str "that"
+    , Space
+    , Str "already"
+    , Space
+    , Str "carries"
+    , Space
+    , Str "the"
+    , Space
+    , Str "suffix"
+    , Space
+    , Str "is"
+    , Space
+    , Str "disambiguated"
+    , Space
+    , Str "further."
+    ]
+, Header
+    1 ( "i-here" , [] , [] ) [ Str "\304" , Space , Str "here" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "dotted"
+    , Space
+    , Str "capital"
+    , Space
+    , Str "I"
+    , Space
+    , Str "lowercases"
+    , Space
+    , Str "to"
+    , Space
+    , Str "a"
+    , Space
+    , Str "letter"
+    , Space
+    , Str "plus"
+    , Space
+    , Str "a"
+    , Space
+    , Str "combining"
+    , Space
+    , Str "mark"
+    , Space
+    , Str "that"
+    , Space
+    , Str "the"
+    , Space
+    , Str "identifier"
+    , Space
+    , Str "drops."
+    ]
+, Header 1 ( "wordend" , [] , [] ) [ Str "Word\837End" ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "letter-like"
+    , Space
+    , Str "combining"
+    , Space
+    , Str "mark"
+    , Space
+    , Str "is"
+    , Space
+    , Str "not"
+    , Space
+    , Str "a"
+    , Space
+    , Str "letter"
+    , Space
+    , Str "and"
+    , Space
+    , Str "is"
+    , Space
+    , Str "dropped"
+    , Space
+    , Str "from"
+    , Space
+    , Str "the"
+    , Space
+    , Str "identifier."
+    ]
+]

@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. _a_b_c.d:
+
+A, B-C.D!
+---------

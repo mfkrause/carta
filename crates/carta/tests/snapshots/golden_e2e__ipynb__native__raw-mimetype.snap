@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "embed"
+    , [ "cell" , "raw" ]
+    , [ ( "format" , "text/html" )
+      , ( "raw_mimetype" , "text/latex" )
+      ]
+    )
+    [ RawBlock
+        (Format "latex")
+        "\\emph{passed through to the LaTeX writer}"
+    ]
+]

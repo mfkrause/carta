@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1 ( "" , [] , [] ) [ Str "Top" , Space , Str "Level" ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "introductory"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "beneath"
+    , Space
+    , Str "the"
+    , Space
+    , Str "top"
+    , Space
+    , Str "heading."
+    ]
+, Header
+    2 ( "" , [] , [] ) [ Str "Second" , Space , Str "Level" ]
+, Header
+    3 ( "" , [] , [] ) [ Str "Third" , Space , Str "Level" ]
+, Header
+    4 ( "" , [] , [] ) [ Str "Fourth" , Space , Str "Level" ]
+, Header
+    5 ( "" , [] , [] ) [ Str "Fifth" , Space , Str "Level" ]
+, Para
+    [ Str "Closing"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "text."
+    ]
+]

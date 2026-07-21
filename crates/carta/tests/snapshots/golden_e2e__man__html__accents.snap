@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="accents">ACCENTS</h1>
+<p>Café naïve Straße çedilla angle ⟨ x ⟩ and the œ ligature plus ø.</p>

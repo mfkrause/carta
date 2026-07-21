@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ol start="3" type="a">
+<li><p>Gamma</p></li>
+<li><p>Delta</p></li>
+</ol>
