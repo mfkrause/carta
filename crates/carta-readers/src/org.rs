@@ -11,6 +11,7 @@
 //! reference expands to a [`Inline::Note`] carrying the definition's blocks.
 
 use std::borrow::Cow;
+use std::cell::Cell as ScanBudget;
 use std::collections::BTreeMap;
 use std::mem;
 
@@ -1231,6 +1232,7 @@ fn parse_inlines(text: &str, ext: Extensions, notes: &BTreeMap<String, Vec<Block
         notes,
         out: Vec::new(),
         word: String::new(),
+        budget: ScanBudget::new(chars.len().saturating_mul(8).saturating_add(64)),
     };
     scanner.run();
     scanner.finish()
@@ -1242,6 +1244,12 @@ struct Inlines<'a> {
     notes: &'a BTreeMap<String, Vec<Block>>,
     out: Vec<Inline>,
     word: String,
+    // A dense run of unclosable openers would otherwise make each failed forward scan re-walk the
+    // whole suffix, so the total cost grows quadratically. A step budget proportional to the span
+    // keeps every forward scan linear over the span: it is far above what any genuine construct
+    // needs, so a real close is always found, while a pathological run gives up and leaves the
+    // opener as literal text.
+    budget: ScanBudget<usize>,
 }
 
 impl Inlines<'_> {
@@ -1263,6 +1271,17 @@ impl Inlines<'_> {
 
     fn at(&self, i: usize) -> Option<char> {
         self.chars.get(i).copied()
+    }
+
+    /// Charges one step against the shared forward-scan budget, returning `false` once it is spent so
+    /// the caller abandons an over-long scan and leaves the opener as literal text.
+    fn spend(&self) -> bool {
+        let remaining = self.budget.get();
+        if remaining == 0 {
+            return false;
+        }
+        self.budget.set(remaining - 1);
+        true
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1426,6 +1445,9 @@ impl Inlines<'_> {
         let mut newlines = 0;
         let mut j = i + 1;
         while let Some(c) = self.at(j) {
+            if !self.spend() {
+                return None;
+            }
             if c == '\n' {
                 newlines += 1;
                 if newlines > 1 {
@@ -1554,6 +1576,9 @@ impl Inlines<'_> {
         let closing: Vec<char> = close.chars().collect();
         let mut j = start;
         while j < self.chars.len() {
+            if !self.spend() {
+                break;
+            }
             if self.matches_at(j, &closing) {
                 let inner: String = self.chars.get(start..j).unwrap_or(&[]).iter().collect();
                 self.push_inline(Inline::Math(kind, inner.into()));
@@ -1644,6 +1669,9 @@ impl Inlines<'_> {
     fn find_double_close(&self, from: usize) -> Option<usize> {
         let mut j = from;
         while j + 1 < self.chars.len() {
+            if !self.spend() {
+                return None;
+            }
             if self.at(j) == Some(']') && self.at(j + 1) == Some(']') {
                 return Some(j);
             }
@@ -1693,6 +1721,9 @@ impl Inlines<'_> {
         let mut depth = 0usize;
         let mut j = open;
         while let Some(c) = self.at(j) {
+            if !self.spend() {
+                return None;
+            }
             match c {
                 '[' => depth += 1,
                 ']' => {
@@ -1764,6 +1795,9 @@ impl Inlines<'_> {
             let start = i + 2;
             let mut j = start;
             while j + 1 < self.chars.len() {
+                if !self.spend() {
+                    return None;
+                }
                 if self.at(j) == Some('$') && self.at(j + 1) == Some('$') {
                     let inner: String = self.chars.get(start..j).unwrap_or(&[]).iter().collect();
                     return Some((Inline::Math(MathType::DisplayMath, inner.into()), j + 2));
@@ -1816,6 +1850,9 @@ impl Inlines<'_> {
         let content_start = j + 1;
         let mut k = content_start;
         while k + 1 < self.chars.len() {
+            if !self.spend() {
+                return None;
+            }
             if self.at(k) == Some('@') && self.at(k + 1) == Some('@') {
                 let content: String = self
                     .chars
@@ -2351,6 +2388,22 @@ mod tests {
         match &b[0] {
             Block::Para(inlines) => {
                 assert!(inlines.contains(&Inline::Strong(vec![Inline::Str("world".into())])));
+                assert!(inlines.contains(&Inline::Emph(vec![Inline::Str("italic".into())])));
+            }
+            other => panic!("expected paragraph, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn emphasis_after_realistic_leading_text_still_parses() {
+        // A genuine emphasis preceded by a long run of ordinary prose (including a stray slash used as
+        // punctuation) must still parse: the forward-scan budget is far above what real content spends,
+        // so it never fires on valid input.
+        let lead = "The quick brown fox jumps over the lazy dog and/or cat. ".repeat(40);
+        let input = format!("{lead}then *bold* and /italic/ close it out.");
+        match &blocks(&input)[0] {
+            Block::Para(inlines) => {
+                assert!(inlines.contains(&Inline::Strong(vec![Inline::Str("bold".into())])));
                 assert!(inlines.contains(&Inline::Emph(vec![Inline::Str("italic".into())])));
             }
             other => panic!("expected paragraph, got {other:?}"),

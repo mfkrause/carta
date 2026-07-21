@@ -856,10 +856,13 @@ fn parse_table_row(chars: &[char], start: usize, end: usize) -> Vec<(bool, Strin
                     depth = depth.saturating_sub(1);
                     i += 1;
                 }
-                Some('!') if depth == 0 => match parse_image(chars, i, end) {
-                    Some((_, next)) => i = next,
-                    None => i += 1,
-                },
+                Some('!') if depth == 0 => {
+                    let mut budget = scan_budget(i, end);
+                    match parse_image(chars, i, end, &mut budget) {
+                        Some((_, next)) => i = next,
+                        None => i += 1,
+                    }
+                }
                 Some('|') if depth == 0 => break,
                 _ => i += 1,
             }
@@ -1060,13 +1063,47 @@ fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
     }
 }
 
+/// A forward-scan step budget proportional to the span. A dense run of unclosable openers would
+/// otherwise make each failed construct re-scan the whole suffix, so the total cost grows
+/// quadratically; charging one step per position examined keeps the scanning linear over the span.
+/// It is far above what any genuine construct needs, so a real close is always found, while a
+/// pathological run gives up and leaves the opener as literal text.
+fn scan_budget(lo: usize, hi: usize) -> usize {
+    hi.saturating_sub(lo)
+        .saturating_mul(8)
+        .saturating_add(64)
+        .min(200_000)
+}
+
+/// Finds the first index in `range` whose character satisfies `pred`, charging one budget step per
+/// position examined and abandoning the scan (returning `None`) once the budget is spent.
+fn find_within(
+    chars: &[char],
+    range: std::ops::Range<usize>,
+    budget: &mut usize,
+    pred: impl Fn(char) -> bool,
+) -> Option<usize> {
+    for k in range {
+        if *budget == 0 {
+            return None;
+        }
+        *budget -= 1;
+        if chars.get(k).copied().is_some_and(&pred) {
+            return Some(k);
+        }
+    }
+    None
+}
+
 /// Scans `lo..hi` left to right into tokens: literal runs accumulate into [`Tok::Text`], a flanking
 /// delimiter becomes a [`Tok::Delim`], and a self-contained construct (link, image, brace span,
 /// citation, autolink, symbol) becomes a [`Tok::Atom`].
+#[allow(clippy::too_many_lines)]
 fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usize) -> Vec<Tok> {
     let mut toks: Vec<Tok> = Vec::new();
     let mut pending = String::new();
     let mut i = lo;
+    let mut budget = scan_budget(lo, hi);
 
     while i < hi {
         let Some(&c) = chars.get(i) else {
@@ -1150,7 +1187,9 @@ fn scan_tokens(chars: &[char], lo: usize, hi: usize, autolink: bool, depth: usiz
                 }
             }
             '[' | '!' | '{' => {
-                if let Some((node, next)) = scan_construct(c, chars, i, hi, autolink, depth) {
+                if let Some((node, next)) =
+                    scan_construct(c, chars, i, hi, autolink, depth, &mut budget)
+                {
                     push_text(&mut pending, &mut toks);
                     toks.push(Tok::Atom(node));
                     i = next;
@@ -1250,11 +1289,12 @@ fn scan_construct(
     hi: usize,
     autolink: bool,
     depth: usize,
+    budget: &mut usize,
 ) -> Option<(Inline, usize)> {
     match c {
-        '[' => parse_link(chars, i, hi, depth),
-        '!' => parse_image(chars, i, hi),
-        _ => parse_brace_inline(chars, i, hi, autolink, depth),
+        '[' => parse_link(chars, i, hi, depth, budget),
+        '!' => parse_image(chars, i, hi, budget),
+        _ => parse_brace_inline(chars, i, hi, autolink, depth, budget),
     }
 }
 
@@ -1549,14 +1589,10 @@ fn closes_monospace(chars: &[char], open: usize, j: usize) -> bool {
 /// `None` when the span is never closed.
 fn match_monospace_close(chars: &[char], i: usize, hi: usize) -> Option<usize> {
     // A dense run of unbalanced `{` would otherwise make each failed nested open re-scan the whole
-    // suffix, so the search cost grows exponentially. A step budget proportional to the span keeps
-    // it linear per span: it is far above what any genuine span needs, so a real close is always
-    // found, while a pathological run gives up and leaves the braces as literal text.
-    let mut budget = hi
-        .saturating_sub(i)
-        .saturating_mul(8)
-        .saturating_add(64)
-        .min(200_000);
+    // suffix, so the search cost grows exponentially. The shared forward-scan budget keeps it linear
+    // per span: it is far above what any genuine span needs, so a real close is always found, while a
+    // pathological run gives up and leaves the braces as literal text.
+    let mut budget = scan_budget(i, hi);
     match_monospace_close_within(chars, i, hi, &mut budget, 0)
 }
 
@@ -1602,6 +1638,7 @@ fn parse_brace_inline(
     hi: usize,
     autolink: bool,
     depth: usize,
+    budget: &mut usize,
 ) -> Option<(Inline, usize)> {
     if chars.get(i + 1) == Some(&'{') {
         // Monospaced span: `{{ … }}`. The close is the `}}` that balances this open, so a nested
@@ -1617,9 +1654,9 @@ fn parse_brace_inline(
 
     if matches_at(chars, i, "{color:") {
         let value_start = i + "{color:".len();
-        let value_end = (value_start..hi).find(|&k| chars.get(k) == Some(&'}'))?;
+        let value_end = find_within(chars, value_start..hi, budget, |c| c == '}')?;
         let value = color_value(&slice_to_string(chars, value_start, value_end))?;
-        let close = match_color_close(chars, value_end + 1, hi)?;
+        let close = match_color_close(chars, value_end + 1, hi, budget)?;
         let inner = inlines_with(chars, value_end + 1, close, autolink, depth + 1);
         let attr = Attr {
             id: carta_ast::Text::default(),
@@ -1631,7 +1668,7 @@ fn parse_brace_inline(
 
     if matches_at(chars, i, "{anchor:") {
         let name_start = i + "{anchor:".len();
-        let name_end = (name_start..hi).find(|&k| chars.get(k) == Some(&'}'))?;
+        let name_end = find_within(chars, name_start..hi, budget, |c| c == '}')?;
         let name: String = chars
             .get(name_start..name_end)
             .unwrap_or_default()
@@ -1673,10 +1710,14 @@ fn color_value(value: &str) -> Option<String> {
 /// Finds the `{color}` that closes the inline colour span whose content begins at `from`, balancing
 /// nested `{color:…}` opens so an inner close does not end the outer span early. Returns the index of
 /// the closing token, or `None` when the span is never closed within `from..hi`.
-fn match_color_close(chars: &[char], from: usize, hi: usize) -> Option<usize> {
+fn match_color_close(chars: &[char], from: usize, hi: usize, budget: &mut usize) -> Option<usize> {
     let mut depth = 1usize;
     let mut k = from;
     while k < hi {
+        if *budget == 0 {
+            return None;
+        }
+        *budget -= 1;
         if matches_at(chars, k, "{color:") {
             depth += 1;
             k += "{color:".len();
@@ -1693,8 +1734,14 @@ fn match_color_close(chars: &[char], from: usize, hi: usize) -> Option<usize> {
     None
 }
 
-fn parse_link(chars: &[char], i: usize, hi: usize, depth: usize) -> Option<(Inline, usize)> {
-    let close = (i + 1..hi).find(|&k| chars.get(k) == Some(&']'))?;
+fn parse_link(
+    chars: &[char],
+    i: usize,
+    hi: usize,
+    depth: usize,
+    budget: &mut usize,
+) -> Option<(Inline, usize)> {
+    let close = find_within(chars, i + 1..hi, budget, |c| c == ']')?;
     let pipes: Vec<usize> = (i + 1..close)
         .filter(|&k| chars.get(k) == Some(&'|'))
         .collect();
@@ -1766,12 +1813,12 @@ fn classify_link_target(
     None
 }
 
-fn parse_image(chars: &[char], i: usize, hi: usize) -> Option<(Inline, usize)> {
+fn parse_image(chars: &[char], i: usize, hi: usize, budget: &mut usize) -> Option<(Inline, usize)> {
     // The character immediately after the opening `!` must not be whitespace.
     if !non_space(chars, i + 1) {
         return None;
     }
-    let close = (i + 1..hi).find(|&k| chars.get(k) == Some(&'!'))?;
+    let close = find_within(chars, i + 1..hi, budget, |c| c == '!')?;
     let content = slice_to_string(chars, i + 1, close);
     let (src, props) = match content.split_once('|') {
         Some((s, p)) => (s.to_string(), Some(p.to_string())),
@@ -1974,6 +2021,30 @@ mod tests {
     #[test]
     fn empty_input_yields_no_blocks() {
         assert!(blocks("").is_empty());
+    }
+
+    #[test]
+    fn link_budget_does_not_fire_on_genuine_content() {
+        // A genuine link preceded by ordinary prose must parse identically whether the forward-scan
+        // budget is the default proportional cap or effectively unbounded, proving the cap is far
+        // above what real content spends and never fires on valid input.
+        let lead = "See the docs and other notes here, for example: ".repeat(20);
+        let chars: Vec<char> = format!("{lead}[Example|https://example.com] end.")
+            .chars()
+            .collect();
+        let open = chars
+            .iter()
+            .position(|&c| c == '[')
+            .expect("input has a link opener");
+        let mut default_budget = scan_budget(0, chars.len());
+        let mut huge_budget = usize::MAX;
+        let with_default = parse_link(&chars, open, chars.len(), 0, &mut default_budget);
+        let with_huge = parse_link(&chars, open, chars.len(), 0, &mut huge_budget);
+        assert!(
+            with_default.is_some(),
+            "genuine link must parse under the default budget"
+        );
+        assert_eq!(with_default, with_huge);
     }
 
     #[test]
