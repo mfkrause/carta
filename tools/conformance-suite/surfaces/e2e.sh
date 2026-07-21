@@ -10,9 +10,10 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-FORMATS="commonmark html native json rst ipynb mediawiki dokuwiki jira man latex org rtf"
+FORMATS="${1:-$(shared_input_formats)}"
+# TARGETS is a deliberately curated subset: the full format x target cross-product is expensive,
+# and exhaustive per-target coverage belongs to the writer surface.
 TARGETS="html latex rst plain commonmark mediawiki native json"
-[ $# -gt 0 ] && FORMATS="$1"
 
 for fmt in $FORMATS; do
   dir="$CORPUS/text/$fmt"

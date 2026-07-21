@@ -37,6 +37,16 @@ run_one() {
 
 [ $# -ge 1 ] || { echo "usage: run.sh <surface|all> [arg]" >&2; exit 2; }
 
+# Package-shaped binary targets have dedicated surfaces; the writer surface's text diff cannot
+# compare them, so redirect instead of dispatching a run that can only fail confusingly.
+if [ "$1" = "writer" ] && [ $# -ge 2 ]; then
+  case "$2" in
+    epub*) echo "error: $2 targets are exercised by the epub surface: run.sh epub" >&2; exit 2 ;;
+    docx) echo "error: docx targets are exercised by the docx surface: run.sh docx" >&2; exit 2 ;;
+    odt) echo "error: odt targets are exercised by the odt surface: run.sh odt" >&2; exit 2 ;;
+  esac
+fi
+
 if [ "$1" = "all" ]; then
   rc=0
   for surface in $SURFACES; do

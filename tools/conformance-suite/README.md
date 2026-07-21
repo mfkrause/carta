@@ -11,6 +11,8 @@ tools/conformance-suite/run.sh writer       # one surface
 tools/conformance-suite/run.sh writer rst   # one surface, narrowed to a format/target
 ```
 
+The `reader`, `writer`, and `e2e` surfaces derive their format lists at runtime from the two binaries: the intersection of `carta --list-input-formats` / `--list-output-formats` with the oracle's, so a newly landed reader or writer enters conformance automatically — no script edit. Corpus presence still gates each per-format group (`corpus/text/<fmt>/` for reader/e2e), so adding corpus cases remains the human step. The derived writer list excludes the package-shaped binary targets (`epub*`, `docx`, `odt`), which have dedicated surfaces, and `html5`, an alias of `html`. A positional argument still narrows a run to one format/target, as above; `run.sh writer epub3|docx|odt` fails fast and points at the dedicated surface instead. `e2e`'s *target* list stays a curated subset (the full cross-product is expensive).
+
 Each surface prints one line per group:
 
 ```

@@ -10,8 +10,7 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-FORMATS="commonmark html native json csv tsv opml rst ipynb mediawiki dokuwiki jira man latex org rtf"
-[ $# -gt 0 ] && FORMATS="$1"
+FORMATS="${1:-$(shared_input_formats)}"
 CASE="${2:-}"
 
 # The case-stem of a corpus file: its basename with the extension stripped.

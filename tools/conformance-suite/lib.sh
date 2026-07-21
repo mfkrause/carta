@@ -42,6 +42,25 @@ require_tools() {
   [ "$missing" -eq 0 ] || exit 1
 }
 
+# Format lists are derived from the two binaries at runtime: a surface exercises exactly the
+# formats both carta and the oracle claim to support, so a newly landed reader or writer enters
+# conformance without a script edit. Corpus presence still gates per-format groups on the
+# reader/e2e side. One name per line from each binary, intersected, emitted space-separated.
+shared_input_formats() {
+  comm -12 \
+    <("$OX" --list-input-formats | sort) \
+    <("$ORACLE" --list-input-formats | sort) | tr '\n' ' '
+}
+
+# Output targets shared by both binaries, minus the package-shaped binary targets (epub*, docx,
+# odt) — they have no text form to diff and carry their own surfaces — and html5, which both
+# binaries treat as an alias of html, so the html group already covers it.
+shared_output_formats() {
+  comm -12 \
+    <("$OX" --list-output-formats | sort) \
+    <("$ORACLE" --list-output-formats | sort) | grep -vE '^(epub|docx|odt|html5$)' | tr '\n' ' '
+}
+
 # A target whose output is compared structurally as JSON rather than byte-for-byte.
 is_json_target() { [ "$1" = "json" ]; }
 
