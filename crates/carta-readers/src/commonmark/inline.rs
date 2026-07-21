@@ -3516,24 +3516,26 @@ fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
 /// Split a text run into `Str` tokens separated by `Space` inlines, collapsing each run of
 /// spaces to a single `Space`.
 fn push_text_inlines(out: &mut Vec<Inline>, text: &str) {
-    let mut chars = text.chars().peekable();
-    // Built directly as `Text` so a word short enough for inline storage never touches the heap.
-    let mut word = Text::default();
-    while let Some(ch) = chars.next() {
-        if ch == ' ' {
-            if !word.is_empty() {
-                out.push(Inline::Str(std::mem::take(&mut word)));
-            }
-            while chars.peek() == Some(&' ') {
-                chars.next();
+    // Word boundaries are single spaces, so scanning bytes is exact: multi-byte UTF-8 units are
+    // all >= 0x80 and every slice below starts and ends at a character boundary. Each word is
+    // copied out in one step, which keeps short words on the stack and long ones to one memcpy.
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while let Some(&byte) = bytes.get(i) {
+        if byte == b' ' {
+            while bytes.get(i) == Some(&b' ') {
+                i += 1;
             }
             out.push(Inline::Space);
         } else {
-            word.push(ch);
+            let start = i;
+            while bytes.get(i).is_some_and(|&b| b != b' ') {
+                i += 1;
+            }
+            if let Some(word) = text.get(start..i) {
+                out.push(Inline::Str(Text::from(word)));
+            }
         }
-    }
-    if !word.is_empty() {
-        out.push(Inline::Str(word));
     }
 }
 

@@ -1559,30 +1559,29 @@ fn inlines_from_text(text: &str) -> Vec<Inline> {
 /// Append `text` to an inline run, collapsing each whitespace span to a single break: a span that
 /// spans a line is a soft break, otherwise a space. Non-whitespace merges into the trailing string.
 fn push_text(out: &mut Vec<Inline>, text: &str) {
-    let mut chars = text.chars().peekable();
-    while let Some(&c) = chars.peek() {
-        if c.is_ascii_whitespace() {
+    // Span boundaries are ASCII whitespace, so scanning bytes is exact: multi-byte UTF-8 units
+    // are all >= 0x80 and every slice below starts and ends at a character boundary. Each
+    // non-whitespace span is appended in one step instead of character by character.
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while let Some(&byte) = bytes.get(i) {
+        if byte.is_ascii_whitespace() {
             let mut newline = false;
-            while let Some(&w) = chars.peek() {
+            while let Some(&w) = bytes.get(i) {
                 if !w.is_ascii_whitespace() {
                     break;
                 }
-                newline |= w == '\n';
-                chars.next();
+                newline |= w == b'\n';
+                i += 1;
             }
             push_break(out, newline);
         } else {
-            if !matches!(out.last(), Some(Inline::Str(_))) {
-                out.push(Inline::Str(carta_ast::Text::default()));
+            let start = i;
+            while bytes.get(i).is_some_and(|&b| !b.is_ascii_whitespace()) {
+                i += 1;
             }
-            if let Some(Inline::Str(existing)) = out.last_mut() {
-                while let Some(&w) = chars.peek() {
-                    if w.is_ascii_whitespace() {
-                        break;
-                    }
-                    existing.push(w);
-                    chars.next();
-                }
+            if let Some(span) = text.get(start..i) {
+                push_str(out, span);
             }
         }
     }
