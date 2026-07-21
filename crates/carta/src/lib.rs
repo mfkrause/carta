@@ -281,22 +281,22 @@ pub fn parse_metadata_file(
     }
 }
 
-/// Lists every extension carta models, each paired with whether `format` enables it by default.
+/// Lists the extensions a `format` admits, each paired with whether it is enabled by default.
 ///
-/// `format` is a format specifier (`"gfm"`, `"commonmark+strikeout"`, …); `None` reports the
-/// default Markdown dialect's set. Entries are sorted by extension name.
+/// The default state reflects the format's reading defaults, or its writing defaults where it only
+/// writes. `format` is a format specifier (`"gfm"`, `"commonmark+strikeout"`, …); `None` reports the
+/// default Markdown dialect's set. A format that declares a fixed accepted set lists only those
+/// extensions; any other format lists every modeled extension. Entries are sorted by extension name.
 ///
 /// # Errors
 /// [`Error::UnsupportedFormat`] if the base name is recognized by neither a reader nor a writer, or
 /// [`Error::UnknownExtension`] if a `+`/`-` toggle names an extension this build does not recognize.
 pub fn format_extensions(format: Option<&str>) -> Result<Vec<(Extension, bool)>> {
-    let (base, extensions) = parse_format_spec(format.unwrap_or("markdown"))?;
+    let (base, extensions) = format_spec::parse_reader_format_spec(format.unwrap_or("markdown"))?;
     if !registry::reader_recognizes(&base) && !registry::writer_recognizes(&base) {
         return Err(Error::UnsupportedFormat(base));
     }
 
-    // A format that declares a fixed extension set lists only those; otherwise every modeled
-    // extension is reported with its default state.
     let supported = format_spec::supported_extensions(&base);
     let mut entries: Vec<(Extension, bool)> = Extension::ALL
         .iter()

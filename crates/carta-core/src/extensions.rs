@@ -497,6 +497,59 @@ pub mod presets {
     // the emitted text. Some entries name constructs the shared Markdown engine does not yet branch on;
     // they are recorded so the dialect's default surface is complete and takes effect once modeled.
 
+    /// Reader defaults for the extended Markdown dialect (`markdown`): the broad writer set plus the
+    /// two constructs the writer preset omits — user-defined `LaTeX` macro expansion and the shortcut
+    /// reference-link form.
+    pub const MARKDOWN_READ: Extensions = Extensions::from_list(&[
+        Extension::AllSymbolsEscapable,
+        Extension::AutoIdentifiers,
+        Extension::BacktickCodeBlocks,
+        Extension::BlankBeforeBlockquote,
+        Extension::BlankBeforeHeader,
+        Extension::BracketedSpans,
+        Extension::Citations,
+        Extension::DefinitionLists,
+        Extension::EscapedLineBreaks,
+        Extension::ExampleLists,
+        Extension::FancyLists,
+        Extension::FencedCodeAttributes,
+        Extension::FencedCodeBlocks,
+        Extension::FencedDivs,
+        Extension::Footnotes,
+        Extension::GridTables,
+        Extension::HeaderAttributes,
+        Extension::ImplicitFigures,
+        Extension::ImplicitHeaderReferences,
+        Extension::InlineCodeAttributes,
+        Extension::InlineNotes,
+        Extension::IntrawordUnderscores,
+        Extension::LatexMacros,
+        Extension::LineBlocks,
+        Extension::LinkAttributes,
+        Extension::MarkdownInHtmlBlocks,
+        Extension::MultilineTables,
+        Extension::NativeDivs,
+        Extension::NativeSpans,
+        Extension::PandocTitleBlock,
+        Extension::PipeTables,
+        Extension::RawAttribute,
+        Extension::RawHtml,
+        Extension::RawTex,
+        Extension::ShortcutReferenceLinks,
+        Extension::SimpleTables,
+        Extension::Smart,
+        Extension::SpaceInAtxHeader,
+        Extension::Startnum,
+        Extension::Strikeout,
+        Extension::Subscript,
+        Extension::Superscript,
+        Extension::TableAttributes,
+        Extension::TableCaptions,
+        Extension::TaskLists,
+        Extension::TexMathDollars,
+        Extension::YamlMetadataBlock,
+    ]);
+
     /// Reader defaults for the original Markdown dialect (`markdown_strict`): only raw HTML, plus the
     /// shortcut and spaced reference-link forms.
     pub const MARKDOWN_STRICT_READ: Extensions = Extensions::from_list(&[
@@ -576,6 +629,54 @@ pub mod presets {
         Extension::Superscript,
         Extension::TexMathDollars,
         Extension::TexMathDoubleBackslash,
+    ]);
+
+    /// Reader defaults for `GitHub`-Flavored Markdown (`gfm`): the writer set plus recognition of a
+    /// `---`-delimited YAML metadata block, which the writer preset omits.
+    pub const GFM_READ: Extensions = Extensions::from_list(&[
+        Extension::Alerts,
+        Extension::Autolink,
+        Extension::BacktickCodeBlocks,
+        Extension::Emoji,
+        Extension::Footnotes,
+        Extension::GfmAutoIdentifiers,
+        Extension::PipeTables,
+        Extension::RawHtml,
+        Extension::Strikeout,
+        Extension::TaskLists,
+        Extension::TexMathDollars,
+        Extension::TexMathGfm,
+        Extension::YamlMetadataBlock,
+    ]);
+
+    /// Reader defaults for the `commonmark_x` dialect: the writer set plus recognition of a
+    /// `---`-delimited YAML metadata block, which the writer preset omits.
+    pub const COMMONMARK_X_READ: Extensions = Extensions::from_list(&[
+        Extension::Alerts,
+        Extension::Attributes,
+        Extension::BacktickCodeBlocks,
+        Extension::BracketedSpans,
+        Extension::DefinitionLists,
+        Extension::Emoji,
+        Extension::FancyLists,
+        Extension::FencedCodeAttributes,
+        Extension::FencedDivs,
+        Extension::Footnotes,
+        Extension::GfmAutoIdentifiers,
+        Extension::HeaderAttributes,
+        Extension::ImplicitHeaderReferences,
+        Extension::InlineCodeAttributes,
+        Extension::LinkAttributes,
+        Extension::PipeTables,
+        Extension::RawAttribute,
+        Extension::RawHtml,
+        Extension::Smart,
+        Extension::Strikeout,
+        Extension::Subscript,
+        Extension::Superscript,
+        Extension::TaskLists,
+        Extension::TexMathDollars,
+        Extension::YamlMetadataBlock,
     ]);
 }
 
