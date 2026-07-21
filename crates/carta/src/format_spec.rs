@@ -19,13 +19,14 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_mmd" => presets::MARKDOWN_MMD,
         "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
-        // These formats default to `smart`: quotes, dashes, and ellipses are folded into their
-        // typographic forms — TeX ligatures for `beamer`, the corresponding glyphs for `typst` and
-        // `dokuwiki` — unless `-smart` asks for the literal Unicode punctuation instead.
-        "beamer" | "typst" | "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
-        // Reading LaTeX additionally assigns header identifiers from title text and expands
+        // Both default to `smart`: quotes, dashes, and ellipses are folded into their typographic
+        // glyphs unless `-smart` asks for the literal Unicode punctuation instead. Typst additionally
+        // recognizes `[@key]` citations by default.
+        "typst" => Extensions::from_list(&[Extension::Smart, Extension::Citations]),
+        "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
+        // The LaTeX family additionally assigns header identifiers from title text and expands
         // user-defined macros by default; both can be turned off with a `-` toggle.
-        "latex" => Extensions::from_list(&[
+        "latex" | "beamer" => Extensions::from_list(&[
             Extension::Smart,
             Extension::AutoIdentifiers,
             Extension::LatexMacros,
@@ -38,7 +39,7 @@ fn default_extensions(base: &str) -> Extensions {
         ]),
         // An EPUB's content documents are XHTML, so reading one preserves the same structural HTML
         // constructs: native divs and spans, and raw HTML passthrough.
-        "epub" => Extensions::from_list(&[
+        "epub" | "epub2" | "epub3" => Extensions::from_list(&[
             Extension::NativeDivs,
             Extension::NativeSpans,
             Extension::RawHtml,
@@ -73,10 +74,32 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::ListsWithoutPrecedingBlankline,
             Extension::PipeTables,
             Extension::RawHtml,
+            Extension::ShortcutReferenceLinks,
             Extension::SpaceInAtxHeader,
             Extension::Strikeout,
             Extension::TaskLists,
             Extension::TexMathDollars,
+        ]),
+        // Writing AsciiDoc assigns header identifiers from title text by default.
+        "asciidoc" => Extensions::from_list(&[Extension::AutoIdentifiers]),
+        // Plain text is the Markdown writer stripped of inline and block markup, but it keeps the
+        // structural extensions that shape how blocks are laid out: the list, table, definition, and
+        // figure forms, blank-line spacing rules, intra-word underscores, and macro expansion.
+        "plain" => Extensions::from_list(&[
+            Extension::BlankBeforeBlockquote,
+            Extension::BlankBeforeHeader,
+            Extension::DefinitionLists,
+            Extension::ExampleLists,
+            Extension::FancyLists,
+            Extension::GridTables,
+            Extension::ImplicitFigures,
+            Extension::IntrawordUnderscores,
+            Extension::LatexMacros,
+            Extension::MultilineTables,
+            Extension::SimpleTables,
+            Extension::Startnum,
+            Extension::Strikeout,
+            Extension::TableCaptions,
         ]),
         _ => Extensions::empty(),
     }
@@ -89,6 +112,11 @@ fn default_extensions(base: &str) -> Extensions {
 /// writes with the same defaults.
 fn reader_default_extensions(base: &str) -> Extensions {
     match base {
+        // An OPML outline embeds Markdown in its node text, so reading one parses that text with the
+        // extended Markdown dialect's defaults.
+        "markdown" | "opml" => presets::MARKDOWN_READ,
+        "gfm" => presets::GFM_READ,
+        "commonmark_x" => presets::COMMONMARK_X_READ,
         "markdown_strict" => presets::MARKDOWN_STRICT_READ,
         "markdown_github" => presets::MARKDOWN_GITHUB_READ,
         "markdown_phpextra" => presets::MARKDOWN_PHPEXTRA_READ,
@@ -102,18 +130,82 @@ fn reader_default_extensions(base: &str) -> Extensions {
 /// `Some(set)` means the format admits exactly these extensions: a `+`/`-` toggle naming anything
 /// outside the set is rejected, and only members appear in `--list-extensions`. `None` means the
 /// format declares no fixed set, so any modeled extension may be toggled.
+#[allow(clippy::too_many_lines)] // A per-format lookup table: one arm per accepted set.
+#[allow(clippy::match_same_arms)] // Formats sharing an accepted set stay separate arms for their own notes.
 pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
-    match base {
-        "dokuwiki" => Some(Extensions::from_list(&[
+    let set = match base {
+        "commonmark" | "commonmark_x" | "gfm" => Extensions::from_list(&[
+            // not modeled: sourcepos
+            Extension::Alerts,
+            Extension::AsciiIdentifiers,
+            Extension::Attributes,
+            Extension::Autolink,
+            Extension::BracketedSpans,
+            Extension::DefinitionLists,
+            Extension::EastAsianLineBreaks,
+            Extension::Emoji,
+            Extension::FancyLists,
+            Extension::FencedDivs,
+            Extension::Footnotes,
+            Extension::GfmAutoIdentifiers,
+            Extension::HardLineBreaks,
+            Extension::ImplicitFigures,
+            Extension::ImplicitHeaderReferences,
+            Extension::PipeTables,
+            Extension::RawAttribute,
+            Extension::RawHtml,
+            Extension::RebaseRelativePaths,
+            Extension::Smart,
+            Extension::Strikeout,
+            Extension::Subscript,
+            Extension::Superscript,
+            Extension::TaskLists,
+            Extension::TexMathDollars,
+            Extension::TexMathGfm,
+            Extension::WikilinksTitleAfterPipe,
+            Extension::WikilinksTitleBeforePipe,
+            Extension::YamlMetadataBlock,
+        ]),
+        "html" | "html4" | "html5" | "epub" | "epub2" | "epub3" => Extensions::from_list(&[
+            // not modeled: epub_html_exts
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::EmptyParagraphs,
+            Extension::GfmAutoIdentifiers,
+            Extension::LineBlocks,
+            Extension::LiterateHaskell,
+            Extension::NativeDivs,
+            Extension::NativeSpans,
+            Extension::RawHtml,
+            Extension::RawTex,
+            Extension::Smart,
+            Extension::TaskLists,
+            Extension::TexMathDollars,
+            Extension::TexMathDoubleBackslash,
+            Extension::TexMathSingleBackslash,
+        ]),
+        "latex" | "beamer" => Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::EmptyParagraphs,
+            Extension::GfmAutoIdentifiers,
+            Extension::LatexMacros,
+            Extension::LiterateHaskell,
+            Extension::RawTex,
+            Extension::Smart,
+            Extension::TaskLists,
+        ]),
+        "rst" => Extensions::from_list(&[
             Extension::AsciiIdentifiers,
             Extension::AutoIdentifiers,
             Extension::EastAsianLineBreaks,
             Extension::GfmAutoIdentifiers,
-            Extension::RawHtml,
+            Extension::LiterateHaskell,
             Extension::Smart,
-            Extension::TexMathDollars,
-        ])),
-        "docx" => Some(Extensions::from_list(&[
+        ]),
+        "docx" => Extensions::from_list(&[
             Extension::AsciiIdentifiers,
             Extension::AutoIdentifiers,
             Extension::Citations,
@@ -122,17 +214,220 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::GfmAutoIdentifiers,
             Extension::NativeNumbering,
             Extension::Styles,
-        ])),
-        "odt" => Some(Extensions::from_list(&[
+        ]),
+        "odt" => Extensions::from_list(&[
+            // not modeled: xrefs_name, xrefs_number
             Extension::AsciiIdentifiers,
             Extension::AutoIdentifiers,
             Extension::EastAsianLineBreaks,
             Extension::EmptyParagraphs,
             Extension::GfmAutoIdentifiers,
             Extension::NativeNumbering,
-        ])),
-        _ => None,
-    }
+        ]),
+        "dokuwiki" => Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::GfmAutoIdentifiers,
+            Extension::RawHtml,
+            Extension::Smart,
+            Extension::TexMathDollars,
+        ]),
+        "org" => Extensions::from_list(&[
+            // not modeled: smart_quotes, special_strings
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::Citations,
+            Extension::EastAsianLineBreaks,
+            Extension::FancyLists,
+            Extension::GfmAutoIdentifiers,
+            Extension::Smart,
+            Extension::TaskLists,
+        ]),
+        "man" => Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::GfmAutoIdentifiers,
+        ]),
+        "mediawiki" => Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::GfmAutoIdentifiers,
+            Extension::Smart,
+        ]),
+        "typst" => Extensions::from_list(&[
+            Extension::Citations,
+            Extension::EastAsianLineBreaks,
+            Extension::Smart,
+        ]),
+        "asciidoc" => Extensions::from_list(&[
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::EastAsianLineBreaks,
+            Extension::GfmAutoIdentifiers,
+        ]),
+        "markdown" | "markdown_github" | "markdown_mmd" | "markdown_phpextra"
+        | "markdown_strict" | "opml" | "plain" => Extensions::from_list(&[
+            Extension::Abbreviations,
+            Extension::Alerts,
+            Extension::AllSymbolsEscapable,
+            Extension::AngleBracketsEscapable,
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::Autolink,
+            Extension::BacktickCodeBlocks,
+            Extension::BlankBeforeBlockquote,
+            Extension::BlankBeforeHeader,
+            Extension::BracketedSpans,
+            Extension::Citations,
+            Extension::DefinitionLists,
+            Extension::EastAsianLineBreaks,
+            Extension::Emoji,
+            Extension::EscapedLineBreaks,
+            Extension::ExampleLists,
+            Extension::FancyLists,
+            Extension::FencedCodeAttributes,
+            Extension::FencedCodeBlocks,
+            Extension::FencedDivs,
+            Extension::Footnotes,
+            Extension::FourSpaceRule,
+            Extension::GfmAutoIdentifiers,
+            Extension::GridTables,
+            Extension::Gutenberg,
+            Extension::HardLineBreaks,
+            Extension::HeaderAttributes,
+            Extension::IgnoreLineBreaks,
+            Extension::ImplicitFigures,
+            Extension::ImplicitHeaderReferences,
+            Extension::InlineCodeAttributes,
+            Extension::InlineNotes,
+            Extension::IntrawordUnderscores,
+            Extension::LatexMacros,
+            Extension::LineBlocks,
+            Extension::LinkAttributes,
+            Extension::ListsWithoutPrecedingBlankline,
+            Extension::LiterateHaskell,
+            Extension::Mark,
+            Extension::MarkdownAttribute,
+            Extension::MarkdownInHtmlBlocks,
+            Extension::MmdHeaderIdentifiers,
+            Extension::MmdLinkAttributes,
+            Extension::MmdTitleBlock,
+            Extension::MultilineTables,
+            Extension::NativeDivs,
+            Extension::NativeSpans,
+            Extension::OldDashes,
+            Extension::PandocTitleBlock,
+            Extension::PipeTables,
+            Extension::RawAttribute,
+            Extension::RawHtml,
+            Extension::RawTex,
+            Extension::RebaseRelativePaths,
+            Extension::ShortSubsuperscripts,
+            Extension::ShortcutReferenceLinks,
+            Extension::SimpleTables,
+            Extension::Smart,
+            Extension::SpaceInAtxHeader,
+            Extension::SpacedReferenceLinks,
+            Extension::Startnum,
+            Extension::Strikeout,
+            Extension::Subscript,
+            Extension::Superscript,
+            Extension::TableAttributes,
+            Extension::TableCaptions,
+            Extension::TaskLists,
+            Extension::TexMathDollars,
+            Extension::TexMathDoubleBackslash,
+            Extension::TexMathSingleBackslash,
+            Extension::WikilinksTitleAfterPipe,
+            Extension::WikilinksTitleBeforePipe,
+            Extension::YamlMetadataBlock,
+        ]),
+        "ipynb" => Extensions::from_list(&[
+            Extension::Abbreviations,
+            Extension::Alerts,
+            Extension::AllSymbolsEscapable,
+            Extension::AngleBracketsEscapable,
+            Extension::AsciiIdentifiers,
+            Extension::AutoIdentifiers,
+            Extension::Autolink,
+            Extension::BacktickCodeBlocks,
+            Extension::BlankBeforeBlockquote,
+            Extension::BlankBeforeHeader,
+            Extension::BracketedSpans,
+            Extension::Citations,
+            Extension::DefinitionLists,
+            Extension::EastAsianLineBreaks,
+            Extension::Emoji,
+            Extension::EscapedLineBreaks,
+            Extension::ExampleLists,
+            Extension::FancyLists,
+            Extension::FencedCodeAttributes,
+            Extension::FencedCodeBlocks,
+            Extension::FencedDivs,
+            Extension::Footnotes,
+            Extension::FourSpaceRule,
+            Extension::GfmAutoIdentifiers,
+            Extension::GridTables,
+            Extension::Gutenberg,
+            Extension::HardLineBreaks,
+            Extension::HeaderAttributes,
+            Extension::IgnoreLineBreaks,
+            Extension::ImplicitFigures,
+            Extension::ImplicitHeaderReferences,
+            Extension::InlineCodeAttributes,
+            Extension::InlineNotes,
+            Extension::IntrawordUnderscores,
+            Extension::LatexMacros,
+            Extension::LineBlocks,
+            Extension::LinkAttributes,
+            Extension::ListsWithoutPrecedingBlankline,
+            Extension::LiterateHaskell,
+            Extension::Mark,
+            Extension::MarkdownAttribute,
+            Extension::MarkdownInHtmlBlocks,
+            Extension::MmdHeaderIdentifiers,
+            Extension::MmdLinkAttributes,
+            Extension::MmdTitleBlock,
+            Extension::MultilineTables,
+            Extension::NativeDivs,
+            Extension::NativeSpans,
+            Extension::OldDashes,
+            Extension::PandocTitleBlock,
+            Extension::PipeTables,
+            Extension::RawAttribute,
+            Extension::RawHtml,
+            Extension::RawMarkdown,
+            Extension::RawTex,
+            Extension::RebaseRelativePaths,
+            Extension::ShortSubsuperscripts,
+            Extension::ShortcutReferenceLinks,
+            Extension::SimpleTables,
+            Extension::Smart,
+            Extension::SpaceInAtxHeader,
+            Extension::SpacedReferenceLinks,
+            Extension::Startnum,
+            Extension::Strikeout,
+            Extension::Subscript,
+            Extension::Superscript,
+            Extension::TableAttributes,
+            Extension::TableCaptions,
+            Extension::TaskLists,
+            Extension::TexMathDollars,
+            Extension::TexMathDoubleBackslash,
+            Extension::TexMathSingleBackslash,
+            Extension::WikilinksTitleAfterPipe,
+            Extension::WikilinksTitleBeforePipe,
+            Extension::YamlMetadataBlock,
+        ]),
+        "jira" | "native" | "json" | "csv" | "tsv" | "rtf" | "revealjs" => {
+            Extensions::from_list(&[Extension::EastAsianLineBreaks])
+        }
+        _ => return None,
+    };
+    Some(set)
 }
 
 /// Splits a format specifier into its base name and the [`Extensions`] it selects.
@@ -236,8 +531,17 @@ mod tests {
 
     #[test]
     fn unknown_extension_is_an_error() {
-        let err = parse_format_spec("commonmark+bogus").unwrap_err();
+        // A base with no declared accepted set rejects an unrecognized name as unknown.
+        let err = parse_format_spec("unregistered_format+bogus").unwrap_err();
         assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
+
+        // A base that declares an accepted set reports the same name as unsupported for it.
+        let err = parse_format_spec("commonmark+bogus").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, format }
+                if extension == "bogus" && format == "commonmark"
+        ));
     }
 
     #[test]
@@ -301,8 +605,13 @@ mod tests {
 
     #[test]
     fn html_unknown_extension_is_an_error() {
+        // HTML declares an accepted set, so an unrecognized name is unsupported for the format.
         let err = parse_format_spec("html+bogus").unwrap_err();
-        assert!(matches!(err, Error::UnknownExtension(name) if name == "bogus"));
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, format }
+                if extension == "bogus" && format == "html"
+        ));
     }
 
     #[test]
@@ -399,13 +708,24 @@ mod tests {
     }
 
     #[test]
-    fn supported_set_is_only_declared_for_listed_formats() {
+    fn supported_set_is_declared_for_recognized_formats_only() {
         use super::supported_extensions;
-        assert!(supported_extensions("dokuwiki").is_some());
-        assert!(supported_extensions("docx").is_some());
-        assert!(supported_extensions("odt").is_some());
-        assert!(supported_extensions("commonmark").is_none());
-        assert!(supported_extensions("html").is_none());
+        for base in [
+            "dokuwiki",
+            "docx",
+            "odt",
+            "commonmark",
+            "html",
+            "markdown",
+            "rst",
+        ] {
+            assert!(
+                supported_extensions(base).is_some(),
+                "{base} should declare an accepted set"
+            );
+        }
+        // An unrecognized base declares no set, so any modeled toggle is admitted for it.
+        assert!(supported_extensions("unregistered_format").is_none());
     }
 
     #[test]
@@ -460,5 +780,35 @@ mod tests {
                 Error::UnsupportedExtension { format, .. } if format == "odt"
             ));
         }
+    }
+
+    #[test]
+    fn rst_admits_its_declared_extensions_and_rejects_others() {
+        let (_, ext) = parse_format_spec("rst+smart-auto_identifiers").unwrap();
+        assert!(ext.contains(Extension::Smart));
+        assert!(!ext.contains(Extension::AutoIdentifiers));
+
+        // `pipe_tables` is a modeled extension, but not one rst accepts.
+        let err = parse_format_spec("rst+pipe_tables").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, format }
+                if extension == "pipe_tables" && format == "rst"
+        ));
+    }
+
+    #[test]
+    fn commonmark_admits_its_declared_extensions_and_rejects_others() {
+        let (_, ext) = parse_format_spec("commonmark+strikeout+task_lists").unwrap();
+        assert!(ext.contains(Extension::Strikeout));
+        assert!(ext.contains(Extension::TaskLists));
+
+        // `latex_macros` is a modeled extension, but not one commonmark accepts.
+        let err = parse_format_spec("commonmark+latex_macros").unwrap_err();
+        assert!(matches!(
+            err,
+            Error::UnsupportedExtension { extension, format }
+                if extension == "latex_macros" && format == "commonmark"
+        ));
     }
 }

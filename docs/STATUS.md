@@ -433,8 +433,11 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 ## Extensions
 
 Reader-side toggles on the CommonMark engine. The enum defines 77 names; the reader branches on the
-**Supported** set below and accepts every other name as a recorded no-op toggle, so a format spec
-naming one parses and records it rather than aborting.
+**Supported** set below and treats every other name within a format's accepted set as a recorded
+no-op toggle, so a format spec naming one parses and records it rather than aborting. Each format
+declares the set of extensions it accepts — exactly the names `--list-extensions=<format>` prints,
+with the sign each carries when the format is read (or written, where it only writes) — and a `+`/`-`
+toggle naming anything outside that set is rejected.
 
 **Supported:** `smart`, `strikeout`, `superscript`, `subscript`, `pipe_tables`, `footnotes`,
 `task_lists`, `autolink_bare_uris`, `tex_math_dollars`, `fenced_divs`, `bracketed_spans`,

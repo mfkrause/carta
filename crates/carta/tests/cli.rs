@@ -244,6 +244,51 @@ fn list_extensions_rejects_an_unknown_format() {
     );
 }
 
+#[test]
+fn list_extensions_rejects_a_toggle_outside_the_format_set() {
+    // reStructuredText admits no pipe-table toggle, so requesting one fails naming both the
+    // extension and the format.
+    let result = run(&["--list-extensions=rst+pipe_tables"], "");
+    assert!(!result.success);
+    assert!(
+        result.stderr.contains("pipe_tables") && result.stderr.contains("rst"),
+        "stderr: {}",
+        result.stderr
+    );
+}
+
+#[test]
+fn list_extensions_lists_exactly_the_rst_accepted_set() {
+    let result = run(&["--list-extensions=rst"], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        lines(&result.stdout),
+        vec![
+            "-ascii_identifiers",
+            "+auto_identifiers",
+            "-east_asian_line_breaks",
+            "-gfm_auto_identifiers",
+            "-literate_haskell",
+            "-smart",
+        ]
+    );
+}
+
+#[test]
+fn list_extensions_reports_github_reader_defaults() {
+    let result = run(&["--list-extensions=markdown_github"], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    let extensions = lines(&result.stdout);
+    assert!(
+        extensions.contains(&"+shortcut_reference_links"),
+        "{extensions:?}"
+    );
+    assert!(
+        extensions.contains(&"+space_in_atx_header"),
+        "{extensions:?}"
+    );
+}
+
 #[cfg(all(feature = "read-ipynb", feature = "write-markdown"))]
 #[test]
 fn extract_media_writes_files_and_rewrites_references() {
