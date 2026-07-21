@@ -23,12 +23,16 @@ workspace = true
 
 [features]
 # The JSON interchange (de)serialization: the AST's serde derives, the hand-written array codecs,
-# and the `from_json`/`to_json`/`to_json_writer` entry points. Off by default so builds that never
-# touch JSON omit serde, serde_json, and the derive proc-macro stack.
-serde = ["dep:serde", "dep:serde_json", "compact_str/serde"]
+# the standalone JSON codec, and the `from_json`/`to_json`/`to_json_writer` entry points. Off by
+# default so builds that never touch JSON omit serde, serde_json, and the derive proc-macro stack.
+serde = ["dep:serde", "dep:serde_json", "dep:ryu", "dep:itoa", "compact_str/serde"]
 
 [dependencies]
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
+# Number formatting for the JSON codec: shortest round-tripping decimals for floats and fast integer
+# rendering. Pulled in only alongside the JSON codec.
+ryu = { version = "1", optional = true }
+itoa = { version = "1", optional = true }
 unicode-general-category = { workspace = true }
 compact_str = { workspace = true }

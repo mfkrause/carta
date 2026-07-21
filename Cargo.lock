@@ -158,6 +158,8 @@ name = "carta-ast"
 version = "0.0.6"
 dependencies = [
  "compact_str",
+ "itoa",
+ "ryu",
  "serde",
  "serde_json",
  "unicode-general-category",
