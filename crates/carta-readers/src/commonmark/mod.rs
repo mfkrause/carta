@@ -193,7 +193,7 @@ const TAB_STOP: usize = 4;
 /// spaces.
 fn normalize(input: &str) -> Cow<'_, str> {
     let without_bom = input.strip_prefix('\u{feff}').unwrap_or(input);
-    if !without_bom.bytes().any(|b| b == b'\r' || b == b'\t') {
+    if memchr::memchr2(b'\r', b'\t', without_bom.as_bytes()).is_none() {
         return Cow::Borrowed(without_bom);
     }
     let mut out = String::with_capacity(without_bom.len());

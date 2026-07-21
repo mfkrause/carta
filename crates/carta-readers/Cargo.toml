@@ -46,6 +46,8 @@ rtf = []
 [dependencies]
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
+# Vectorized byte search for the tokenizers' delimiter scans.
+memchr = { workspace = true }
 unicode-general-category = { workspace = true, optional = true }
 unicode-normalization = { workspace = true, optional = true }
 caseless = { workspace = true, optional = true }

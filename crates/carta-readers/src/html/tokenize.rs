@@ -301,13 +301,17 @@ fn read_raw_text(input: &str, pos: usize, name: &str, decode: bool) -> (String, 
 fn read_text(input: &str, pos: usize, tokens: &mut Vec<Token>) -> usize {
     let bytes = input.as_bytes();
     let start = pos;
-    let mut i = pos;
-    while let Some(&b) = bytes.get(i) {
-        if b == b'<' && begins_markup(input, i) {
-            break;
+    let mut search = pos;
+    let i = loop {
+        let Some(offset) = memchr::memchr(b'<', bytes.get(search..).unwrap_or_default()) else {
+            break bytes.len();
+        };
+        let at = search + offset;
+        if begins_markup(input, at) {
+            break at;
         }
-        i += 1;
-    }
+        search = at + 1;
+    };
     // A lone `<` that opens no markup is consumed as literal text; it is a single byte, so the
     // one-byte step stays on a character boundary.
     let next = if i == start { start + 1 } else { i };

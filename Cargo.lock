@@ -192,6 +192,7 @@ dependencies = [
  "carta-ast",
  "carta-core",
  "caseless",
+ "memchr",
  "serde",
  "serde_json",
  "unicode-general-category",

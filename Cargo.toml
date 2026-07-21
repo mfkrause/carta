@@ -25,6 +25,7 @@ unicode-normalization = "0.1"
 caseless = "0.2"
 # The `serde` integration is gated: `carta-ast`'s own `serde` feature turns on `compact_str/serde`.
 compact_str = { version = "0.9" }
+memchr = "2"
 miniz_oxide = "0.9"
 fancy-regex = "0.18"
 quick-xml = "0.41"
