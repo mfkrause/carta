@@ -6,7 +6,9 @@
 //! token, and may switch contexts. Cross-definition references (embedded languages, shared keyword
 //! lists) are left symbolic here and resolved against the registry while tokenizing.
 
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 use crate::token::TokenKind;
 
@@ -54,6 +56,10 @@ pub struct KeywordInclude {
 }
 
 /// Word-boundary configuration for keyword matching.
+///
+/// The ASCII delimiter mask is derived lazily from the three configuration fields; mutating them
+/// after the first `is_delimiter` call would leave it stale, so populate the settings fully before
+/// matching starts.
 #[derive(Debug, Clone)]
 pub struct KeywordSettings {
     /// Whether keyword matching is case-sensitive.
@@ -62,6 +68,8 @@ pub struct KeywordSettings {
     pub weak_deliminators: String,
     /// Delimiter characters to add to the standard set.
     pub additional_deliminators: String,
+    /// Bitmask over the 128 ASCII code points, answering `is_delimiter` without string scans.
+    ascii_delimiters: OnceCell<[u64; 2]>,
 }
 
 impl Default for KeywordSettings {
@@ -70,13 +78,48 @@ impl Default for KeywordSettings {
             case_sensitive: true,
             weak_deliminators: String::new(),
             additional_deliminators: String::new(),
+            ascii_delimiters: OnceCell::new(),
         }
     }
 }
 
 impl KeywordSettings {
+    /// Word-boundary settings from the definition's delimiter adjustments.
+    #[must_use]
+    pub fn new(case_sensitive: bool, weak: String, additional: String) -> Self {
+        KeywordSettings {
+            case_sensitive,
+            weak_deliminators: weak,
+            additional_deliminators: additional,
+            ascii_delimiters: OnceCell::new(),
+        }
+    }
+
     /// Whether `c` acts as a word delimiter under these settings.
     pub fn is_delimiter(&self, c: char) -> bool {
+        let code = c as u32;
+        if code < 128 {
+            let mask = self.ascii_delimiters.get_or_init(|| {
+                let mut mask = [0u64; 2];
+                for byte in 0u8..128 {
+                    if self.scan_delimiter(byte as char) {
+                        let i = usize::from(byte);
+                        if let Some(word) = mask.get_mut(i >> 6) {
+                            *word |= 1u64 << (i & 63);
+                        }
+                    }
+                }
+                mask
+            });
+            let i = code as usize;
+            return mask
+                .get(i >> 6)
+                .is_some_and(|word| word & (1u64 << (i & 63)) != 0);
+        }
+        self.scan_delimiter(c)
+    }
+
+    fn scan_delimiter(&self, c: char) -> bool {
         if self.weak_deliminators.contains(c) {
             return false;
         }
@@ -132,6 +175,11 @@ pub struct Rule {
     pub dynamic: bool,
     /// Child rules tried immediately after this rule matches, extending the match.
     pub children: Vec<Rule>,
+    /// Compiled form of a static `RegExpr` matcher, built on first use. `None` inside the cell
+    /// records a pattern that failed to compile, so it is not retried on every attempt.
+    pub(crate) compiled_regex: OnceCell<Option<Rc<fancy_regex::Regex>>>,
+    /// Resolved keyword set for a `Keyword` matcher, built on first use.
+    pub(crate) keyword_set: OnceCell<Rc<crate::highlighter::KeywordSet>>,
 }
 
 /// The text a rule matches.
@@ -314,12 +362,17 @@ mod tests {
 
     #[test]
     fn delimiter_adjustments_apply() {
-        let mut k = KeywordSettings::default();
+        let k = KeywordSettings::default();
         assert!(k.is_delimiter(' '));
         assert!(!k.is_delimiter('a'));
-        k.additional_deliminators = "$".to_string();
+        let k = KeywordSettings::new(true, String::new(), "$".to_string());
         assert!(k.is_delimiter('$'));
-        k.weak_deliminators = ".".to_string();
+        let k = KeywordSettings::new(true, ".".to_string(), "$".to_string());
         assert!(!k.is_delimiter('.'));
+        assert!(k.is_delimiter('$'));
+        // Non-ASCII delimiters take the uncached path.
+        let k = KeywordSettings::new(true, String::new(), "§".to_string());
+        assert!(k.is_delimiter('§'));
+        assert!(!k.is_delimiter('ß'));
     }
 }

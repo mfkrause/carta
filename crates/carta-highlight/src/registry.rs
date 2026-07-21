@@ -37,10 +37,16 @@ const STYLES: &[(&str, &str)] = &[
 ];
 
 /// A catalog of syntax definitions, resolving names to parsed grammars on demand.
+///
+/// Both lookup entry points memoize their results — including misses — keyed by the query string
+/// as given, so a document naming the same language on many code blocks pays the scan over the
+/// bundled catalog once.
 #[derive(Default)]
 pub struct Registry {
     parsed: RefCell<BTreeMap<usize, Rc<Grammar>>>,
     user: Vec<Rc<Grammar>>,
+    resolved: RefCell<BTreeMap<String, Option<Rc<Grammar>>>>,
+    references: RefCell<BTreeMap<String, Option<Rc<Grammar>>>>,
 }
 
 impl std::fmt::Debug for Registry {
@@ -63,6 +69,8 @@ impl Registry {
         let grammar = parse_grammar(xml)?;
         let name = grammar.name.clone();
         self.user.push(Rc::new(grammar));
+        self.resolved.borrow_mut().clear();
+        self.references.borrow_mut().clear();
         Ok(name)
     }
 
@@ -84,23 +92,38 @@ impl Registry {
     /// Resolve a code-block language string to a grammar, following the documented lookup order and
     /// the format's fixed aliases.
     pub fn resolve(&self, lang: &str) -> Option<Rc<Grammar>> {
-        let lower = lang.to_lowercase();
-        match lower.as_str() {
-            "csharp" => return self.resolve("cs"),
-            "fortran" => return self.resolve("for"),
-            _ => {}
+        if let Some(hit) = self.resolved.borrow().get(lang) {
+            return hit.clone();
         }
-        self.by_full_name(&lower)
-            .or_else(|| self.by_short_name(&lower))
-            .or_else(|| self.by_extension(&lower))
+        let lower = lang.to_lowercase();
+        let result = match lower.as_str() {
+            "csharp" => self.resolve("cs"),
+            "fortran" => self.resolve("for"),
+            _ => self
+                .by_full_name(&lower)
+                .or_else(|| self.by_short_name(&lower))
+                .or_else(|| self.by_extension(&lower)),
+        };
+        self.resolved
+            .borrow_mut()
+            .insert(lang.to_string(), result.clone());
+        result
     }
 
     /// Resolve a cross-definition reference, which addresses a definition by its full name (or, as a
     /// fallback, its short name).
     pub fn resolve_reference(&self, name: &str) -> Option<Rc<Grammar>> {
+        if let Some(hit) = self.references.borrow().get(name) {
+            return hit.clone();
+        }
         let lower = name.to_lowercase();
-        self.by_full_name(&lower)
-            .or_else(|| self.by_short_name(&lower))
+        let result = self
+            .by_full_name(&lower)
+            .or_else(|| self.by_short_name(&lower));
+        self.references
+            .borrow_mut()
+            .insert(name.to_string(), result.clone());
+        result
     }
 
     fn by_full_name(&self, lower: &str) -> Option<Rc<Grammar>> {

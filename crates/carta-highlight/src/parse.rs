@@ -155,14 +155,13 @@ fn build_grammar(language: &Node) -> Grammar {
 }
 
 fn build_keyword_settings(node: &Node) -> KeywordSettings {
-    KeywordSettings {
-        case_sensitive: node.attr("casesensitive").is_none_or(is_truthy),
-        weak_deliminators: node.attr("weakDeliminator").unwrap_or_default().to_string(),
-        additional_deliminators: node
-            .attr("additionalDeliminator")
+    KeywordSettings::new(
+        node.attr("casesensitive").is_none_or(is_truthy),
+        node.attr("weakDeliminator").unwrap_or_default().to_string(),
+        node.attr("additionalDeliminator")
             .unwrap_or_default()
             .to_string(),
-    }
+    )
 }
 
 fn build_context(node: &Node) -> Context {
@@ -209,6 +208,8 @@ fn build_rule(node: &Node) -> Option<Rule> {
         column,
         dynamic,
         children,
+        compiled_regex: std::cell::OnceCell::new(),
+        keyword_set: std::cell::OnceCell::new(),
     })
 }
 

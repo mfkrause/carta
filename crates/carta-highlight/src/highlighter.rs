@@ -43,7 +43,7 @@ struct RegexKey {
 }
 
 #[derive(Debug)]
-struct KeywordSet {
+pub(crate) struct KeywordSet {
     words: BTreeSet<String>,
     case_sensitive: bool,
 }
@@ -51,10 +51,16 @@ struct KeywordSet {
 impl KeywordSet {
     fn contains(&self, word: &str) -> bool {
         if self.case_sensitive {
-            self.words.contains(word)
-        } else {
-            self.words.contains(&word.to_lowercase())
+            return self.words.contains(word);
         }
+        // An ASCII word with no uppercase letters is already its own lowercase form.
+        if word
+            .bytes()
+            .all(|b| b.is_ascii() && !b.is_ascii_uppercase())
+        {
+            return self.words.contains(word);
+        }
+        self.words.contains(&word.to_lowercase())
     }
 }
 
@@ -366,7 +372,7 @@ impl<'a> Tokenizer<'a> {
         let saved = (self.pos, self.col, self.prev_char);
         self.pending_captures.clear();
 
-        let matched = self.run_matcher(&rule.matcher, rule.dynamic, grammar)?;
+        let matched = self.run_matcher(rule, grammar)?;
         // A regular expression that matches the empty string (e.g. one ending in an empty
         // alternative) does not count as a match unless the rule only looks ahead; otherwise it would
         // switch contexts without consuming, pre-empting the fall-through the definition intends.
@@ -438,14 +444,10 @@ impl<'a> Tokenizer<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn run_matcher(
-        &mut self,
-        matcher: &Matcher,
-        dynamic: bool,
-        grammar: &Rc<Grammar>,
-    ) -> Option<MatchSpan> {
+    fn run_matcher(&mut self, rule: &Rule, grammar: &Rc<Grammar>) -> Option<MatchSpan> {
+        let dynamic = rule.dynamic;
         let remaining = self.remaining();
-        match matcher {
+        match &rule.matcher {
             Matcher::DetectChar(c) => {
                 let target = if dynamic { self.dynamic_char(*c)? } else { *c };
                 let first = remaining.chars().next()?;
@@ -485,8 +487,8 @@ impl<'a> Tokenizer<'a> {
                 pattern,
                 insensitive,
                 minimal,
-            } => self.match_regex(pattern, *insensitive, *minimal, dynamic),
-            Matcher::Keyword(list) => self.match_keyword(list, grammar),
+            } => self.match_regex(rule, pattern, *insensitive, *minimal),
+            Matcher::Keyword(list) => self.match_keyword(rule, list, grammar),
             Matcher::Int => self.match_number(NumberKind::Int),
             Matcher::Float => self.match_number(NumberKind::Float),
             Matcher::HlCOct => self.match_number(NumberKind::Oct),
@@ -585,7 +587,7 @@ impl<'a> Tokenizer<'a> {
         is_word_boundary(last, next).then_some(span)
     }
 
-    fn match_keyword(&self, list: &str, grammar: &Rc<Grammar>) -> Option<MatchSpan> {
+    fn match_keyword(&self, rule: &Rule, list: &str, grammar: &Rc<Grammar>) -> Option<MatchSpan> {
         if !grammar.keywords.is_delimiter(self.prev_char) {
             return None;
         }
@@ -598,7 +600,9 @@ impl<'a> Tokenizer<'a> {
             return None;
         }
         let word = &remaining[..end];
-        let set = self.hl.keyword_set(grammar, list);
+        let set = rule
+            .keyword_set
+            .get_or_init(|| self.hl.keyword_set(grammar, list));
         set.contains(word).then(|| MatchSpan {
             bytes: end,
             chars: word.chars().count(),
@@ -607,10 +611,10 @@ impl<'a> Tokenizer<'a> {
 
     fn match_regex(
         &mut self,
+        rule: &Rule,
         pattern: &str,
         insensitive: bool,
         minimal: bool,
-        dynamic: bool,
     ) -> Option<MatchSpan> {
         let remaining = self.remaining();
         if pattern.starts_with("\\b") {
@@ -619,37 +623,56 @@ impl<'a> Tokenizer<'a> {
                 return None;
             }
         }
-        let effective = if dynamic {
-            self.substitute_regex(pattern)
+        let regex = if rule.dynamic {
+            let key = RegexKey {
+                pattern: self.substitute_regex(pattern),
+                insensitive,
+                minimal,
+            };
+            self.hl.compiled_regex(&key)?
         } else {
-            pattern.to_string()
+            rule.compiled_regex
+                .get_or_init(|| {
+                    build_regex(&RegexKey {
+                        pattern: pattern.to_string(),
+                        insensitive,
+                        minimal,
+                    })
+                })
+                .clone()?
         };
-        let key = RegexKey {
-            pattern: effective,
-            insensitive,
-            minimal,
+        // Locate the match first; the far costlier capture extraction runs only on a hit, and only
+        // when the pattern has capture groups a dynamic rule could reference.
+        let end = match regex.find(remaining) {
+            Ok(Some(m)) if m.start() == 0 => m.end(),
+            _ => return None,
         };
-        let regex = self.hl.compiled_regex(&key)?;
-        let Ok(Some(caps)) = regex.captures(remaining) else {
-            return None;
-        };
-        let whole = caps.get(0)?;
-        if whole.start() != 0 {
-            return None;
+        if regex.captures_len() > 1 {
+            let Ok(Some(caps)) = regex.captures(remaining) else {
+                return None;
+            };
+            let whole = caps.get(0)?;
+            if whole.start() != 0 {
+                return None;
+            }
+            let mut captures = Vec::with_capacity(caps.len());
+            for i in 0..caps.len() {
+                captures.push(
+                    caps.get(i)
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_default(),
+                );
+            }
+            self.pending_captures = captures;
+            let bytes = whole.end();
+            return Some(MatchSpan {
+                bytes,
+                chars: remaining[..bytes].chars().count(),
+            });
         }
-        let mut captures = Vec::new();
-        for i in 0..caps.len() {
-            captures.push(
-                caps.get(i)
-                    .map(|m| m.as_str().to_string())
-                    .unwrap_or_default(),
-            );
-        }
-        self.pending_captures = captures;
-        let bytes = whole.end();
         Some(MatchSpan {
-            bytes,
-            chars: remaining[..bytes].chars().count(),
+            bytes: end,
+            chars: remaining[..end].chars().count(),
         })
     }
 
