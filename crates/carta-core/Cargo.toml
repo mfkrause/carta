@@ -31,10 +31,13 @@ container = ["dep:miniz_oxide"]
 # Carry a syntax-highlighting configuration in the writer options. Off by default; enabled by
 # `carta-writers`'s `highlight` feature. Pulls in the tokenizer catalog.
 highlight = ["dep:carta-highlight"]
+# The `Error::Json` variant and its `serde_json` dependency. Off by default; enabled by the format
+# features whose readers/writers (de)serialize JSON through the AST codec or `serde_json` directly.
+serde = ["dep:serde_json"]
 
 [dependencies]
 carta-ast = { workspace = true }
 carta-highlight = { workspace = true, optional = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 miniz_oxide = { workspace = true, optional = true }

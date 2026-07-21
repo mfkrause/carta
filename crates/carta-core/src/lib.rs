@@ -32,6 +32,8 @@ pub use stack::{DEEP_STACK, DeepStack, on_deep_stack};
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// JSON input or output could not be (de)serialized.
+    #[cfg(feature = "serde")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
     /// An I/O operation failed.

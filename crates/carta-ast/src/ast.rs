@@ -7,8 +7,6 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
-
 /// Defines a node enum together with `$tags`, the slice of its variant names. These enums use
 /// `#[serde(tag = "t")]` with no per-variant rename, so each variant's identifier *is* its JSON
 /// `t` tag; generating the tag list from the same definition keeps it from drifting out of sync
@@ -45,8 +43,9 @@ pub type Text = compact_str::CompactString;
 /// The AST schema version carried by an interchange document, as an integer component list
 /// (e.g. `[1, 23, 1, 2]`). Stored verbatim so a parsed document re-serializes losslessly; freshly
 /// constructed documents default to [`crate::CURRENT_API_VERSION`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ApiVersion(pub Vec<u32>);
 
 impl Default for ApiVersion {
@@ -88,14 +87,16 @@ pub struct Target {
 
 /// The name of a raw-passthrough format (e.g. `html`, `latex`) for [`Inline::RawInline`] and
 /// [`Block::RawBlock`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Format(pub Text);
 
 node_enum! {
     /// A block-level node of the document body.
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    #[serde(tag = "t", content = "c")]
+    #[derive(Debug, Clone, PartialEq)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Block {
         /// Inline content standing alone without paragraph semantics (a tight list item, a
         /// table cell).
@@ -132,8 +133,9 @@ node_enum! {
 
 node_enum! {
     /// An inline node: a piece of text or an intra-paragraph construct.
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    #[serde(tag = "t", content = "c")]
+    #[derive(Debug, Clone, PartialEq)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Inline {
         /// A run of text.
         Str(Text),
@@ -181,8 +183,9 @@ node_enum! {
 
 node_enum! {
     /// A metadata value. Documents carry a `String`-keyed map of these.
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-    #[serde(tag = "t", content = "c")]
+    #[derive(Debug, Clone, PartialEq)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum MetaValue {
         /// A nested map of metadata values.
         MetaMap(BTreeMap<Text, MetaValue>),
@@ -201,8 +204,9 @@ node_enum! {
 }
 
 /// The quotation-mark kind of an [`Inline::Quoted`] span.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "t")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum QuoteType {
     /// Single quotes.
     SingleQuote,
@@ -211,8 +215,9 @@ pub enum QuoteType {
 }
 
 /// Whether an [`Inline::Math`] payload renders within the line or as its own display block.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "t")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum MathType {
     /// Math rendered within the line of text.
     InlineMath,
@@ -221,8 +226,9 @@ pub enum MathType {
 }
 
 /// The numeral style of an ordered list's markers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "t")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum ListNumberStyle {
     /// The target format's default style.
     DefaultStyle,
@@ -241,8 +247,9 @@ pub enum ListNumberStyle {
 }
 
 /// The punctuation around an ordered list's markers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "t")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum ListNumberDelim {
     /// The target format's default delimiter.
     DefaultDelim,
@@ -255,8 +262,9 @@ pub enum ListNumberDelim {
 }
 
 /// The horizontal alignment of a table column or cell.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "t")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum Alignment {
     /// Left-aligned.
     AlignLeft,
@@ -269,8 +277,9 @@ pub enum Alignment {
 }
 
 /// A table column's width: an explicit fraction of the available width, or the renderer's default.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "t", content = "c")]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
 pub enum ColWidth {
     /// An explicit fraction of the available width.
     ColWidth(f64),
@@ -279,8 +288,9 @@ pub enum ColWidth {
 }
 
 /// How a citation is rendered relative to the sentence around it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "t")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum CitationMode {
     /// The author's name reads as part of the sentence, with the year set off from it.
     AuthorInText,
@@ -302,26 +312,27 @@ pub struct ListAttributes {
 }
 
 /// One cited reference within an [`Inline::Cite`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Citation {
     /// The citation key identifying the referenced source.
-    #[serde(rename = "citationId")]
+    #[cfg_attr(feature = "serde", serde(rename = "citationId"))]
     pub id: Text,
     /// Inline content preceding the key inside the citation (e.g. `see`).
-    #[serde(rename = "citationPrefix")]
+    #[cfg_attr(feature = "serde", serde(rename = "citationPrefix"))]
     pub prefix: Vec<Inline>,
     /// Inline content following the key inside the citation (e.g. a locator such as `p. 12`).
-    #[serde(rename = "citationSuffix")]
+    #[cfg_attr(feature = "serde", serde(rename = "citationSuffix"))]
     pub suffix: Vec<Inline>,
     /// How the citation is rendered relative to the surrounding sentence.
-    #[serde(rename = "citationMode")]
+    #[cfg_attr(feature = "serde", serde(rename = "citationMode"))]
     pub mode: CitationMode,
     /// The sequence number of the note the citation belongs to; `0` before citations are processed.
-    #[serde(rename = "citationNoteNum")]
+    #[cfg_attr(feature = "serde", serde(rename = "citationNoteNum"))]
     pub note_num: i32,
     /// An occurrence hash assigned by a citation processor; `0` before citations are processed.
-    #[serde(rename = "citationHash")]
+    #[cfg_attr(feature = "serde", serde(rename = "citationHash"))]
     pub hash: i32,
 }
 

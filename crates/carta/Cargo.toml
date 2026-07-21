@@ -31,7 +31,7 @@ default = ["full", "cli"]
 # yields the tool; library-only users set `default-features = false` to drop it (and `clap`). It pulls
 # the standalone and metadata-file machinery the CLI drives — pair with format features (or `full`) to
 # choose what the binary can convert.
-cli = ["dep:clap", "standalone", "metadata-file", "fetch"]
+cli = ["dep:clap", "standalone", "metadata-file", "fetch", "carta-ast/serde", "carta-core/serde"]
 # Fetch remote resources over HTTP(S) when inlining them for self-contained HTML (`--embed-resources`):
 # carries the HTTP client. Without it, only local and already-inline resources are inlined and a remote
 # reference is left external. Part of `cli` so the installed tool is self-contained-capable by default.

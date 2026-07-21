@@ -13,11 +13,22 @@ keywords = ["ast", "document", "markup", "serialization"]
 categories = ["text-processing", "data-structures"]
 publish.workspace = true
 
+# docs.rs builds default features only; enable all so the JSON interchange codec is documented.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lints]
 workspace = true
 
+[features]
+# The JSON interchange (de)serialization: the AST's serde derives, the hand-written array codecs,
+# and the `from_json`/`to_json`/`to_json_writer` entry points. Off by default so builds that never
+# touch JSON omit serde, serde_json, and the derive proc-macro stack.
+serde = ["dep:serde", "dep:serde_json", "compact_str/serde"]
+
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 unicode-general-category = { workspace = true }
 compact_str = { workspace = true }
