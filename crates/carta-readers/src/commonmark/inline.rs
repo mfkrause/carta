@@ -806,7 +806,6 @@ fn char_before(text: &str, at: usize) -> Option<char> {
 
 #[allow(clippy::similar_names)]
 fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) -> Vec<Inline> {
-    let raw_tex = ext.contains(Extension::RawTex);
     let mut parser = InlineParser {
         text,
         pos: 0,
@@ -818,8 +817,8 @@ fn parse_inlines(text: &str, refs: &RefMap, notes: RefContext, ext: Extensions) 
         interesting: interesting_chars(ext),
         backtick_runs: None,
         raw_tex_budget: text.len().saturating_mul(8).saturating_add(64),
-        last_brace: raw_tex.then(|| text.rfind('}')).flatten(),
-        last_bracket: raw_tex.then(|| text.rfind(']')).flatten(),
+        last_brace: std::cell::OnceCell::new(),
+        last_bracket: std::cell::OnceCell::new(),
         env_last_close: BTreeMap::new(),
     };
     parser.run();
@@ -886,11 +885,12 @@ struct InlineParser<'a> {
     /// produces). It caps the total look-ahead at O(n) so a run of never-closing openers cannot cost
     /// O(n²); a genuine document, where each group is scanned once, never approaches the ceiling.
     raw_tex_budget: usize,
-    /// Byte offset of the last `}` / last `]` in `text` (`None` when the delimiter is absent, or when
-    /// raw TeX is off and these are never consulted). A group scan starting past its closing
-    /// delimiter's final occurrence cannot balance, so it fails in O(1) without touching the budget.
-    last_brace: Option<usize>,
-    last_bracket: Option<usize>,
+    /// Byte offset of the last `}` / last `]` in `text` (inner `None` when the delimiter is absent),
+    /// computed on the first raw-TeX group scan so buffers that never reach one skip the search. A
+    /// group scan starting past its closing delimiter's final occurrence cannot balance, so it fails
+    /// in O(1) without touching the budget.
+    last_brace: std::cell::OnceCell<Option<usize>>,
+    last_bracket: std::cell::OnceCell<Option<usize>>,
     /// Per environment name, the start offset of the last `\end{NAME}` marker in `text` (inner `None`
     /// when there is none). Scanning for an environment close past this offset cannot succeed.
     env_last_close: BTreeMap<String, Option<usize>>,
@@ -1506,8 +1506,8 @@ impl<'a> InlineParser<'a> {
         // without charging the budget. Exact: closing the group requires a `close` at some later
         // offset, and none exists beyond this one. Only `}` and `]` arise as raw-TeX group closers.
         let last_close = match close {
-            '}' => self.last_brace,
-            ']' => self.last_bracket,
+            '}' => *self.last_brace.get_or_init(|| self.text.rfind('}')),
+            ']' => *self.last_bracket.get_or_init(|| self.text.rfind(']')),
             _ => return None,
         };
         if last_close.is_none_or(|last| start > last) {
