@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+^col1^col2        ^col3     ^
+| a  |spaced text |trailing |

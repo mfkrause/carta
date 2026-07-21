@@ -148,6 +148,25 @@ latex	image-dimensions/image-embedded-png
 typst	image-dimensions/image-embedded-jpeg
 typst	image-dimensions/image-embedded-png
 
+# A table cell whose paragraph opens or closes with a space inline is not yet laid out at parity by
+# these writers, which keep the leading space in the rendered cell (the boundary-space handling has
+# landed only in the latex, rst, and plain table paths); the case activates per writer as each aligns.
+commonmark_x	table/table-cell-boundary-space
+gfm	table/table-cell-boundary-space
+ipynb	table/table-cell-boundary-space
+man	table/table-cell-boundary-space
+markdown	table/table-cell-boundary-space
+markdown_github	table/table-cell-boundary-space
+markdown_mmd	table/table-cell-boundary-space
+markdown_phpextra	table/table-cell-boundary-space
+org	table/table-cell-boundary-space
+typst	table/table-cell-boundary-space
+
+# A hard line break inside a table cell is not yet rendered at parity by the DokuWiki writer, which
+# doubles the break escape and widens the column to the unsplit content; the case is skipped until
+# its in-cell break handling aligns.
+dokuwiki	table/table-cell-linebreak
+
 # Intentional ODT math divergences (see docs/STATUS.md → ODT): every formula embeds as a MathML object
 # part, except two cases whose exact shape the shared math parse tree cannot carry:
 # - frac-styles: `\dfrac`/`\tfrac` collapse to the same fraction node, so the display-style wrapper

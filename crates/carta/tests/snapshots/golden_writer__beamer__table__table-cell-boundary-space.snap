@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+col1 & col2 & col3 \\
+\midrule\noalign{}
+\endhead
+a & spaced text & trailing  \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{frame}

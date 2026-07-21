@@ -1236,8 +1236,11 @@ impl ColumnPlan {
             .col_specs
             .iter()
             .any(|spec| matches!(spec.width, ColWidth::ColWidth(fraction) if fraction > 0.0));
-        let block_cells =
-            all_rows(table).any(|row| row.cells.iter().any(|cell| !is_simple_cell(cell)));
+        let block_cells = all_rows(table).any(|row| {
+            row.cells
+                .iter()
+                .any(|cell| !is_simple_cell(cell) || simple_cell_has_break(cell))
+        });
         let sized = explicit || block_cells;
         let fractions = if explicit {
             table
@@ -1366,6 +1369,7 @@ fn render_row(row: &Row, placements: &[(usize, usize)], context: &TableContext) 
     let mut next = cells.next();
     let mut column = 0usize;
     let mut first = true;
+    let mut trailing_cell_space = false;
     let last_column = placements
         .iter()
         .map(|&(start, span)| start + span.max(1))
@@ -1380,15 +1384,26 @@ fn render_row(row: &Row, placements: &[(usize, usize)], context: &TableContext) 
         first = false;
         match next {
             Some((cell, &(start, span))) if start == column => {
+                let before = tokens.len();
                 render_field(&mut tokens, cell, start, span, context);
+                trailing_cell_space =
+                    tokens.len() > before && matches!(tokens.last(), Some(Token::Space));
                 column += span.max(1);
                 next = cells.next();
             }
-            _ => column += 1,
+            _ => {
+                trailing_cell_space = false;
+                column += 1;
+            }
         }
     }
     while matches!(tokens.last(), Some(Token::Space)) {
         tokens.pop();
+    }
+    // The final cell's own trailing space is visible; a bare column separator left by an empty
+    // final cell is not.
+    if trailing_cell_space {
+        tokens.push(Token::Space);
     }
     glue_suffix(&mut tokens, " \\\\");
     layout_row(&tokens, context.width, context.wrap)
@@ -1525,8 +1540,10 @@ fn glue_suffix(tokens: &mut Vec<Token>, suffix: &str) {
 /// Render a cell's content, wrapping it in a `minipage` when the columns are explicitly sized and
 /// the cell is a header cell or carries block-level content.
 fn render_cell(cell: &Cell, start: usize, context: &TableContext) -> String {
+    let stacked_lines = context.plan.sized && !context.plan.explicit;
     let text = cell_content(
         cell,
+        stacked_lines,
         context.width,
         context.dialect,
         context.wrap,
@@ -1591,6 +1608,7 @@ fn multicolumn_spec(cell: &Cell, start: usize, span: usize, plan: &ColumnPlan) -
 /// render as stacked blocks.
 fn cell_content(
     cell: &Cell,
+    stacked_lines: bool,
     width: usize,
     dialect: Dialect,
     wrap: WrapMode,
@@ -1600,13 +1618,43 @@ fn cell_content(
     if is_simple_cell(cell) {
         match cell.content.first() {
             Some(Block::Plain(inlines) | Block::Para(inlines)) => {
-                flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart, hl))
+                if stacked_lines
+                    && inlines
+                        .iter()
+                        .any(|inline| matches!(inline, Inline::LineBreak))
+                {
+                    stacked_cell(inlines, width, dialect, wrap, smart, hl)
+                } else {
+                    let text =
+                        flatten_pieces(&inline_pieces(inlines, width, dialect, wrap, smart, hl));
+                    text.trim_start_matches(' ').to_owned()
+                }
             }
             _ => String::new(),
         }
     } else {
         render_blocks(&cell.content, width, 0, dialect, wrap, smart, hl)
     }
+}
+
+/// Render a single paragraph that carries hard line breaks as a stack of struts: one
+/// `\hbox{\strut …}` per break-delimited segment, wrapped in a `\vtop` so the cell grows downward.
+fn stacked_cell(
+    inlines: &[Inline],
+    width: usize,
+    dialect: Dialect,
+    wrap: WrapMode,
+    smart: bool,
+    hl: Hl<'_>,
+) -> String {
+    let mut boxes = String::new();
+    for segment in inlines.split(|inline| matches!(inline, Inline::LineBreak)) {
+        let text = flatten_pieces(&inline_pieces(segment, width, dialect, wrap, smart, hl));
+        boxes.push_str("\\hbox{\\strut ");
+        boxes.push_str(&text);
+        boxes.push('}');
+    }
+    format!("\\vtop{{{boxes}}}")
 }
 
 /// Whether a cell holds at most a single paragraph, so it can render without a minipage box.
@@ -1616,6 +1664,16 @@ fn is_simple_cell(cell: &Cell) -> bool {
         [block] => matches!(block, Block::Plain(_) | Block::Para(_)),
         _ => false,
     }
+}
+
+/// Whether a cell is a single paragraph split by a hard line break; such a cell forces the sized
+/// table form so its lines can stack.
+fn simple_cell_has_break(cell: &Cell) -> bool {
+    matches!(
+        cell.content.as_slice(),
+        [Block::Plain(inlines) | Block::Para(inlines)]
+            if inlines.iter().any(|inline| matches!(inline, Inline::LineBreak))
+    )
 }
 
 /// Flatten layout pieces to a string, keeping hard breaks as newlines.

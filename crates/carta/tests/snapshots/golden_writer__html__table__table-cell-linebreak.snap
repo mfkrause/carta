@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>product</th>
+<th>note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>multi<br />
+line cell</td>
+<td>plain</td>
+</tr>
+</tbody>
+</table>

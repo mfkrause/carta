@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+\begin{frame}
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+product & note \\
+\midrule\noalign{}
+\endhead
+\vtop{\hbox{\strut multi}\hbox{\strut line cell}} & plain \\
+\bottomrule\noalign{}
+\end{longtable}
+}
+\end{frame}

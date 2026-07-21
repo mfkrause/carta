@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+  -------------------
+  product     note
+  ----------- -------
+  multi       plain
+  line cell   
+
+  -------------------

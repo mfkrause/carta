@@ -1056,11 +1056,16 @@ impl State {
                 }
                 let span = grid::span_count(cell.col_span).min(columns - col);
                 let lines = self.cell_lines(&cell.content, SIMPLE_WIDTH);
-                let content = lines
+                let mut content = lines
                     .iter()
                     .map(|line| display_width(line))
                     .max()
                     .unwrap_or(0);
+                // A space closing the cell is trimmed from the rendered field but still holds a
+                // column of width, so the field's own trailing space fits without crowding the gap.
+                if cell_ends_with_space(&cell.content) {
+                    content += 1;
+                }
                 if let Some(slot) = widths.get_mut(col) {
                     *slot = (*slot).max(content);
                 }
@@ -1088,13 +1093,15 @@ impl State {
 
         let mut lines: Vec<String> = vec![rule.clone()];
         for row in &head {
-            self.simple_row(row, widths, columns, &mut lines);
+            let after_rule = lines.last() == Some(&rule);
+            self.simple_row(row, widths, columns, after_rule, &mut lines);
         }
         if has_header {
             lines.push(rule.clone());
         }
         for row in &data {
-            self.simple_row(row, widths, columns, &mut lines);
+            let after_rule = lines.last() == Some(&rule);
+            self.simple_row(row, widths, columns, after_rule, &mut lines);
         }
         lines.push(rule);
         lines.join("\n")
@@ -1103,7 +1110,14 @@ impl State {
     /// Append one simple-table row: each cell's lines stacked across the column fields, the last
     /// column left unpadded so trailing space is dropped, then a `-` underline when the row carries a
     /// column span.
-    fn simple_row(&mut self, row: &Row, widths: &[usize], columns: usize, lines: &mut Vec<String>) {
+    fn simple_row(
+        &mut self,
+        row: &Row,
+        widths: &[usize],
+        columns: usize,
+        after_rule: bool,
+        lines: &mut Vec<String>,
+    ) {
         let mut col_lines: Vec<Vec<String>> = vec![Vec::new(); columns];
         let mut placements: Vec<(usize, usize)> = Vec::new();
         let mut col = 0;
@@ -1118,12 +1132,13 @@ impl State {
             placements.push((col, span));
             col += span;
         }
-        // A blank first column in a row that has content elsewhere would leave the row line
-        // starting with whitespace, which a simple table reads as a continuation rather than an
-        // empty cell; a lone backslash marks it. A wholly empty row carries no content to protect,
-        // so it stays blank.
+        // A row opening a section (its first line follows a `=` rule) whose first cell is empty would
+        // start with whitespace, which the simple-table grammar reads as a continuation of the rule
+        // rather than an empty cell; a lone backslash holds the column open. A row that follows
+        // another data row may safely start blank, and a wholly empty row has no content to protect.
         let row_has_content = col_lines.iter().any(|lines| !lines.is_empty());
-        if row_has_content
+        if after_rule
+            && row_has_content
             && let Some(first) = col_lines.first_mut()
             && first.is_empty()
         {
@@ -1304,6 +1319,16 @@ impl State {
 /// Width used to render a simple-table cell: large enough that its content never wraps, so a
 /// column's width is the natural extent of its widest cell.
 const SIMPLE_WIDTH: usize = 100_000;
+
+/// Whether a cell's sole paragraph closes with a space inline, which a simple table keeps as part of
+/// the column rather than trimming.
+fn cell_ends_with_space(content: &[Block]) -> bool {
+    matches!(
+        content,
+        [Block::Plain(inlines) | Block::Para(inlines)]
+            if matches!(inlines.last(), Some(Inline::Space))
+    )
+}
 
 /// A simple table's `=` rule: a run of `=` per column width, joined by single spaces.
 fn equals_rule(widths: &[usize]) -> String {

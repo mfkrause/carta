@@ -472,7 +472,9 @@ impl State {
         for (index, cell) in row.cells.iter().enumerate() {
             if let Some(slot) = out.get_mut(index) {
                 let pieces = self.pieces(cell_inlines(cell));
-                *slot = join_pieces(&pieces, ' ');
+                join_pieces(&pieces, ' ')
+                    .trim_start_matches(' ')
+                    .clone_into(slot);
             }
         }
         out
