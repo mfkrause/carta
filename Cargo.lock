@@ -138,7 +138,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "carta"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -155,7 +155,7 @@ dependencies = [
 
 [[package]]
 name = "carta-ast"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "compact_str",
  "serde",
@@ -165,7 +165,7 @@ dependencies = [
 
 [[package]]
 name = "carta-core"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "carta-ast",
  "carta-highlight",
@@ -176,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "carta-highlight"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "fancy-regex",
  "miniz_oxide",
@@ -187,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "carta-readers"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "carta-ast",
  "carta-core",
@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "carta-writers"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "carta-ast",
  "carta-core",
