@@ -24,14 +24,14 @@ env:
 
 jobs:
   fuzz:
-    name: fuzz ${{ matrix.target }}
+    name: fuzz
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        # Keep in sync with the replay matrix in ci.yml and the targets in fuzz/Cargo.toml.
-        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man, latex, org, rtf, highlight, docx, epub, odt]
+    # One job loops every target serially, sharing a single compile. At the default 300 s/target
+    # budget that is 20 × 300 s = 100 min of fuzzing plus one compile — far under GitHub's 6 h job
+    # ceiling, so no matrix or sharding is needed. The timeout below leaves headroom for a manually
+    # dispatched budget well above the default; only a budget beyond ~1000 s/target would approach
+    # the ceiling and warrant splitting into shards.
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v7
       - name: Install nightly toolchain
@@ -42,20 +42,29 @@ jobs:
       - uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
         with:
           tool: cargo-fuzz
+      - name: List fuzz targets
+        id: targets
+        # Derive the target set from fuzz/Cargo.toml so it never drifts from the [[bin]] table.
+        run: echo "list=$(grep '^name = ' fuzz/Cargo.toml | grep -v 'carta-fuzz' | cut -d'"' -f2 | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       - name: Restore evolved corpus
         uses: actions/cache@v6
         with:
-          path: fuzz/corpus/${{ matrix.target }}
+          path: fuzz/corpus
           # A fresh key every run so each night writes back the grown corpus; restore-keys pulls
           # the most recent prior corpus, so coverage compounds across nights instead of starting
-          # cold each time.
-          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          # cold each time. The `-all-` segment keeps this whole-tree cache namespace distinct from
+          # the old per-target keys so a stale single-target cache is never restored.
+          key: fuzz-corpus-all-${{ github.run_id }}
           restore-keys: |
-            fuzz-corpus-${{ matrix.target }}-
-      - name: Fuzz ${{ matrix.target }}
-        # The first corpus dir is writable — new interesting inputs land there and are cached for
-        # the next night; the committed seeds are added read-only. -timeout / -rss_limit_mb turn a
-        # hang or runaway allocation into a reported crash instead of a silently stuck runner.
+            fuzz-corpus-all-
+      - name: Fuzz all targets
+        # Loop the derived target set, keeping the per-target -max_total_time budget identical to
+        # the old matrix so total nightly fuzz time is unchanged (now serial). The first corpus dir
+        # is writable — new interesting inputs land there and are cached for the next night; the
+        # committed seeds are added read-only. -timeout / -rss_limit_mb turn a hang or runaway
+        # allocation into a reported crash instead of a silently stuck runner. fail-fast: false
+        # semantics are preserved — every target fuzzes, failures are collected and reported
+        # together so crash reproducers for all targets get uploaded.
         # Pin the gnu target: musl links libc statically and the sanitizer cannot instrument it.
         #
         # malloc_context_size=0 stops ASan from recording a call stack for every allocation. Those
@@ -69,16 +78,25 @@ jobs:
         env:
           ASAN_OPTIONS: malloc_context_size=0
         run: |
-          mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            --target x86_64-unknown-linux-gnu \
-            fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} \
-            -- -max_total_time=${{ github.event.inputs.seconds || '300' }} \
-               -timeout=10 -rss_limit_mb=2048
+          failed=""
+          for t in ${{ steps.targets.outputs.list }}; do
+            echo "::group::fuzz $t"
+            mkdir -p "fuzz/corpus/$t"
+            cargo +nightly fuzz run "$t" \
+              --target x86_64-unknown-linux-gnu \
+              "fuzz/corpus/$t" "fuzz/seeds/$t" \
+              -- -max_total_time=${{ github.event.inputs.seconds || '300' }} \
+                 -timeout=10 -rss_limit_mb=2048 || failed="$failed $t"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "fuzz findings:$failed" >&2
+            exit 1
+          fi
       - name: Upload crash reproducers
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: fuzz-artifacts-${{ matrix.target }}
-          path: fuzz/artifacts/${{ matrix.target }}/
+          name: fuzz-artifacts
+          path: fuzz/artifacts/
           if-no-files-found: ignore

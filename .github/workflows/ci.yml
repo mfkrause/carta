@@ -155,12 +155,7 @@ jobs:
   fuzz-replay:
     name: fuzz build · regression replay
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        # One entry per fuzz target (see fuzz/Cargo.toml). Add new targets here.
-        target: [commonmark, json, native, html, csv, tsv, opml, rst, ipynb, mediawiki, dokuwiki, jira, man, latex, org, rtf, highlight, docx, epub, odt]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Install nightly toolchain
@@ -171,12 +166,19 @@ jobs:
       - uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
         with:
           tool: cargo-fuzz
-      - name: Build and replay ${{ matrix.target }} seed corpus
-        # A deterministic PR gate, not a bug hunt: compile the target and replay its committed
+      - name: List fuzz targets
+        id: targets
+        # Derive the target set from fuzz/Cargo.toml so it never drifts from the [[bin]] table.
+        run: echo "list=$(grep '^name = ' fuzz/Cargo.toml | grep -v 'carta-fuzz' | cut -d'"' -f2 | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+      - name: Build and replay all seed corpora
+        # A deterministic PR gate, not a bug hunt: compile each target and replay its committed
         # seed corpus once with no mutation (-runs=0), so a change that reintroduces a fixed
         # crash fails here reproducibly. Random-seeded discovery fuzzing runs on a schedule in
         # fuzz.yml, never as a PR gate — so an unrelated PR is never blocked by a newly-surfaced
-        # latent bug in some other reader.
+        # latent bug in some other reader. The list is derived from fuzz/Cargo.toml above, so a new
+        # [[bin]] is picked up automatically; a target without committed seeds fails loudly here.
+        # The loop keeps fail-fast: false semantics — every target runs, failures are collected and
+        # reported together at the end.
         #
         #   -runs=0        execute each committed seed once, then exit; no mutation.
         #   -timeout=10    abort (and report) any single input running >10s; -max_total_time is
@@ -186,12 +188,27 @@ jobs:
         #
         # Pin the gnu target: the prebuilt cargo-fuzz is a musl binary that defaults to its own
         # musl triple, but musl links libc statically and the sanitizer cannot instrument it.
-        timeout-minutes: 15
-        run: >
-          cargo +nightly fuzz run ${{ matrix.target }}
-          --target x86_64-unknown-linux-gnu
-          fuzz/seeds/${{ matrix.target }}
-          -- -runs=0 -timeout=10 -rss_limit_mb=2048
+        run: |
+          test -d fuzz/seeds || { echo "no seeds dir" >&2; exit 1; }
+          failed=""
+          for t in ${{ steps.targets.outputs.list }}; do
+            echo "::group::replay $t"
+            if [ ! -d "fuzz/seeds/$t" ]; then
+              echo "::error::no committed seeds for fuzz target $t" >&2
+              failed="$failed $t"
+              echo "::endgroup::"
+              continue
+            fi
+            cargo +nightly fuzz run "$t" \
+              --target x86_64-unknown-linux-gnu \
+              "fuzz/seeds/$t" \
+              -- -runs=0 -timeout=10 -rss_limit_mb=2048 || failed="$failed $t"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "replay failures:$failed" >&2
+            exit 1
+          fi
 
   typos:
     name: typos

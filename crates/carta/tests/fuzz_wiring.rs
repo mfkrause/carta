@@ -1,10 +1,11 @@
 //! Structural guard keeping the fuzz wiring in lockstep with the reader set.
 //!
-//! Fuzzing a reader takes four hand-maintained pieces that must agree: a target source in
-//! `fuzz/fuzz_targets/`, a `[[bin]]` in `fuzz/Cargo.toml`, at least one committed seed in
-//! `fuzz/seeds/<target>/` for the deterministic PR replay, and an entry in the `target:` matrix of
-//! both CI workflows. Adding a reader without all four is a silent coverage gap — the reader simply
-//! goes unfuzzed. These tests turn that gap into a loud, offline failure that names what is missing.
+//! Fuzzing a reader takes three hand-maintained pieces that must agree: a target source in
+//! `fuzz/fuzz_targets/`, a `[[bin]]` in `fuzz/Cargo.toml`, and at least one committed seed in
+//! `fuzz/seeds/<target>/` for the deterministic PR replay. (Both CI workflows derive their target
+//! list from `fuzz/Cargo.toml` at runtime, so there is no matrix to keep in sync.) Adding a reader
+//! without all three is a silent coverage gap — the reader simply goes unfuzzed. These tests turn
+//! that gap into a loud, offline failure that names what is missing.
 
 // Test harness code: panicking on a malformed workspace layout is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -73,28 +74,6 @@ fn cargo_bin_names() -> BTreeSet<String> {
     names
 }
 
-/// The single-line `target: [...]` matrix of a workflow under `.github/workflows/`.
-fn matrix_targets(workflow: &str) -> BTreeSet<String> {
-    let path = repo_root().join(".github/workflows").join(workflow);
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-    let line = text
-        .lines()
-        .find(|line| line.trim_start().starts_with("target: ["))
-        .unwrap_or_else(|| panic!("no `target: [...]` matrix line in {workflow}"));
-    let items = line
-        .split_once('[')
-        .and_then(|(_, rest)| rest.split_once(']'))
-        .unwrap_or_else(|| panic!("malformed matrix line in {workflow}"))
-        .0;
-    items
-        .split(',')
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(str::to_owned)
-        .collect()
-}
-
 #[test]
 fn every_reader_has_a_fuzz_target() {
     let targets = fuzz_targets();
@@ -135,17 +114,4 @@ fn targets_seeds_and_bins_agree() {
         "fuzz/fuzz_targets/ and the [[bin]] table in fuzz/Cargo.toml disagree: each target source \
          needs a matching [[bin]] entry."
     );
-}
-
-#[test]
-fn ci_matrices_list_every_fuzz_target() {
-    let targets = fuzz_targets();
-    for workflow in ["ci.yml", "fuzz.yml"] {
-        assert_eq!(
-            matrix_targets(workflow),
-            targets,
-            "the `target:` matrix in .github/workflows/{workflow} does not match the fuzz targets \
-             (fuzz/fuzz_targets/). Keep both workflow matrices in sync with the target set."
-        );
-    }
 }
