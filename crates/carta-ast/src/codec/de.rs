@@ -30,8 +30,13 @@ enum Content {
 }
 
 pub(super) fn from_json_bytes(bytes: &[u8]) -> Parsed<Document> {
+    // One validation pass up front lets every later string slice come out of `text` without
+    // re-checking UTF-8; slice boundaries always fall on ASCII delimiter bytes.
+    let text = std::str::from_utf8(bytes)
+        .map_err(|error| serde_json::Error::custom(format_args!("invalid UTF-8: {error}")))?;
     let mut reader = Reader {
         input: bytes,
+        text,
         pos: 0,
         depth: 0,
     };
@@ -45,6 +50,7 @@ pub(super) fn from_json_bytes(bytes: &[u8]) -> Parsed<Document> {
 
 struct Reader<'a> {
     input: &'a [u8],
+    text: &'a str,
     pos: usize,
     depth: usize,
 }
@@ -280,6 +286,7 @@ impl Reader<'_> {
             Some((start, end)) => {
                 let mut inner = Reader {
                     input: self.input,
+                    text: self.text,
                     pos: start,
                     depth: self.depth,
                 };
@@ -959,8 +966,7 @@ impl Reader<'_> {
             }
             self.consume_digits();
         }
-        let slice = self.input.get(start..self.pos).unwrap_or(&[]);
-        let text = std::str::from_utf8(slice).map_err(|_| self.make_error("invalid number"))?;
+        let text = self.text.get(start..self.pos).unwrap_or_default();
         Ok((text, is_float))
     }
 
@@ -975,15 +981,15 @@ impl Reader<'_> {
     fn parse_text(&mut self) -> Parsed<Text> {
         self.expect(b'"', "'\"'")?;
         let start = self.pos;
+        // Most payload strings are a handful of clean bytes, so a scalar scan beats a vectorized
+        // search's per-call setup here.
         loop {
             let byte = *self
                 .input
                 .get(self.pos)
                 .ok_or_else(|| self.make_error("unterminated string"))?;
             if byte == b'"' {
-                let slice = self.input.get(start..self.pos).unwrap_or(&[]);
-                let text = std::str::from_utf8(slice)
-                    .map_err(|_| self.make_error("invalid UTF-8 in string"))?;
+                let text = self.text.get(start..self.pos).unwrap_or_default();
                 let value = Text::from(text);
                 self.pos += 1;
                 return Ok(value);
@@ -997,10 +1003,7 @@ impl Reader<'_> {
 
     fn parse_escaped_text(&mut self, start: usize) -> Parsed<Text> {
         let mut out = String::new();
-        let clean = self.input.get(start..self.pos).unwrap_or(&[]);
-        out.push_str(
-            std::str::from_utf8(clean).map_err(|_| self.make_error("invalid UTF-8 in string"))?,
-        );
+        out.push_str(self.text.get(start..self.pos).unwrap_or_default());
         loop {
             let byte = *self
                 .input
@@ -1027,11 +1030,7 @@ impl Reader<'_> {
                         }
                         self.pos += 1;
                     }
-                    let clean = self.input.get(run_start..self.pos).unwrap_or(&[]);
-                    out.push_str(
-                        std::str::from_utf8(clean)
-                            .map_err(|_| self.make_error("invalid UTF-8 in string"))?,
-                    );
+                    out.push_str(self.text.get(run_start..self.pos).unwrap_or_default());
                 }
             }
         }

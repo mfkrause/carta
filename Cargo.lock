@@ -159,6 +159,7 @@ version = "0.0.6"
 dependencies = [
  "compact_str",
  "itoa",
+ "memchr",
  "ryu",
  "serde",
  "serde_json",

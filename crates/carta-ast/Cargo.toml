@@ -25,7 +25,7 @@ workspace = true
 # The JSON interchange (de)serialization: the AST's serde derives, the hand-written array codecs,
 # the standalone JSON codec, and the `from_json`/`to_json`/`to_json_writer` entry points. Off by
 # default so builds that never touch JSON omit serde, serde_json, and the derive proc-macro stack.
-serde = ["dep:serde", "dep:serde_json", "dep:ryu", "dep:itoa", "compact_str/serde"]
+serde = ["dep:serde", "dep:serde_json", "dep:ryu", "dep:itoa", "dep:memchr", "compact_str/serde"]
 
 [dependencies]
 serde = { workspace = true, optional = true }
@@ -34,5 +34,7 @@ serde_json = { workspace = true, optional = true }
 # rendering. Pulled in only alongside the JSON codec.
 ryu = { version = "1", optional = true }
 itoa = { version = "1", optional = true }
+# Vectorized byte search for the JSON codec's string scans.
+memchr = { workspace = true, optional = true }
 unicode-general-category = { workspace = true }
 compact_str = { workspace = true }
