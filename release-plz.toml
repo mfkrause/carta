@@ -15,16 +15,35 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). W
 version is below `0.1.0`, anything may change at any time.
 """
 
+# The `<!-- N -->` prefixes fix the group order (groups otherwise sort alphabetically); the body
+# template below strips them before rendering.
 commit_parsers = [
-  { message = "^feat", group = "added" },
-  { message = "^changed", group = "changed" },
-  { message = "^deprecated", group = "deprecated" },
-  { message = "^removed", group = "removed" },
-  { message = "^fix", group = "fixed" },
-  { message = "^perf", group = "performance" },
-  { message = "^security", group = "security" },
-  { message = ".*", group = "other" },
+  { message = "^ci", skip = true },
+  { message = "^docs", skip = true },
+  { message = "^chore", skip = true },
+  { message = "^feat", group = "<!-- 0 -->added" },
+  { message = "^fix", group = "<!-- 1 -->fixed" },
+  { message = "^perf", group = "<!-- 2 -->performance" },
+  { message = "^sec", group = "<!-- 3 -->security" },
+  { message = "^revert", group = "<!-- 4 -->reverted" },
+  { message = ".*", group = "<!-- 5 -->other" },
 ]
+
+# release-plz's stock body template, plus the `striptags` filter on the group name so the
+# ordering comments above never reach the rendered changelog.
+body = """
+## [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+
+{% for commit in commits %}
+{%- if commit.scope -%}
+- *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}
+{% else -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}
+{% endif -%}
+{% endfor -%}
+{% endfor %}"""
 
 # The five crates share one version (`version_group`), so a release bumps and publishes them
 # together. `carta` is the single release representative: it owns the one root CHANGELOG.md
