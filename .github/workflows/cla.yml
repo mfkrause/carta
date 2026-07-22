@@ -1,0 +1,66 @@
+name: CLA
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, closed, synchronize]
+
+# Signature recording and the branch bootstrap both write to the cla-signatures
+# branch; serialize runs so concurrent signings don't conflict. A queued run that
+# gets superseded is recoverable with a `recheck` comment.
+concurrency:
+  group: cla
+  cancel-in-progress: false
+
+jobs:
+  cla:
+    name: signature check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write # re-runs the failed PR check after a signature lands
+      contents: write # commits signature records to the cla-signatures branch
+      issues: write # creates the cla-signed label
+      pull-requests: write # posts and edits the signing prompt comment
+      statuses: write # sets the CLA commit status on the PR
+    # pull_request_target grants a write token on PRs from forks; safe here because
+    # this job never checks out or executes PR code.
+    if: (github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.comment.body, 'recheck') || contains(github.event.comment.body, 'I have read the CLA Document and I hereby sign the CLA'))) || github.event_name == 'pull_request_target'
+    steps:
+      - name: Ensure signature branch exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/cla-signatures" --silent 2>/dev/null; then
+            base_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH" --jq .sha)
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref=refs/heads/cla-signatures -f sha="$base_sha"
+          fi
+      # Upstream was archived 2026-03 (v2.6.1 final). The SHA pin makes the code
+      # immutable, so the remaining risk is runtime rot, not tampering; migrate to a
+      # credible successor once one exists.
+      - uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-document: https://github.com/mfkrause/carta/blob/main/CLA.md
+          path-to-signatures: signatures/version1/cla.json
+          branch: cla-signatures
+          allowlist: mfkrause,dependabot[bot],github-actions[bot],release-plz[bot]
+          custom-notsigned-prcomment: >
+            Thank you for your contribution! Before it can be merged, you need to
+            sign the [Contributor License Agreement](https://github.com/mfkrause/carta/blob/main/CLA.md)
+            (a one-time step covering all your future contributions). Please read it,
+            then sign by posting the comment below.
+          lock-pullrequest-aftermerge: false
+      - name: Label signed PR
+        if: (github.event_name == 'pull_request_target' || github.event.issue.pull_request) && github.event.action != 'closed' && (github.event.pull_request.user.type || github.event.issue.user.type) != 'Bot'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          gh label create cla-signed --repo "$GITHUB_REPOSITORY" \
+            --color 0e8a16 --description "All contributors have signed the CLA" --force
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=cla-signed"
