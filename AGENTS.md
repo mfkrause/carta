@@ -58,7 +58,7 @@ Tests are split so the everyday suite is **fully offline** and oracle-backed par
 - Review/accept golden snapshots after an intentional output change: `cargo insta review` (**never** hand-edit `.snap` files).
 - Conformance (Layer 2, against pinned pandoc): `tools/conformance-suite/run.sh all`, or one surface e.g. `tools/conformance-suite/run.sh writer html`. Each surface prints `RESULT <surface> <group> pass=N fail=N err=N skip=N` and exits non-zero on any fail/err. Requires `.oracle/` and `jq`.
 - Benchmark vs pandoc (perf, not correctness; manual, never CI): `tools/bench-suite/run.sh all`, or one surface e.g. `tools/bench-suite/run.sh writer latex`. Requires `hyperfine`, `jq`, `.oracle/`; builds the release binary itself.
-- Fuzz a reader (nightly + `cargo-fuzz`): `cargo +nightly fuzz run commonmark` (see `fuzz/README.md`)
+- Fuzz a reader or writer (nightly + `cargo-fuzz`): `cargo +nightly fuzz run read_commonmark` / `write_commonmark` (see `fuzz/README.md`)
 - Coverage gate (offline product crates, floored at 90%): `cargo llvm-cov --workspace --summary-only --fail-under-lines 90` (run `cargo llvm-cov clean --workspace` first — stale profraw skews the result).
 - Install/pin pandoc: `tools/install-pandoc.sh` (writes to gitignored `.oracle/`, records version)
 - Fetch pandoc's test corpus: `tools/fetch-pandoc-tests.sh` (sparse, gitignored, **test files only — no source**; see below)

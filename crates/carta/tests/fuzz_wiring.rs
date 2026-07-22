@@ -78,11 +78,12 @@ fn cargo_bin_names() -> BTreeSet<String> {
 fn every_reader_has_a_fuzz_target() {
     let targets = fuzz_targets();
     for reader in carta::supported_input_formats() {
+        let target = format!("read_{reader}");
         assert!(
-            targets.contains(reader),
-            "reader `{reader}` has no fuzz target. Add fuzz/fuzz_targets/{reader}.rs (with a \
-             matching [[bin]] in fuzz/Cargo.toml), a seed under fuzz/seeds/{reader}/, and `{reader}` \
-             to the target matrices in ci.yml and fuzz.yml."
+            targets.contains(&target),
+            "reader `{reader}` has no fuzz target. Add fuzz/fuzz_targets/{target}.rs (with a \
+             matching [[bin]] in fuzz/Cargo.toml) and a seed under fuzz/seeds/{target}/; both CI \
+             workflows pick the new target up from fuzz/Cargo.toml automatically."
         );
     }
 }

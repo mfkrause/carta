@@ -18,113 +18,113 @@ carta-highlight = { path = "../crates/carta-highlight" }
 # One target per reader: each ingests untrusted bytes and must never panic. The `highlight` target is
 # the analog for the tokenizer, which walks untrusted code through a regex-driven state machine.
 [[bin]]
-name = "commonmark"
-path = "fuzz_targets/commonmark.rs"
+name = "read_commonmark"
+path = "fuzz_targets/read_commonmark.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "json"
-path = "fuzz_targets/json.rs"
+name = "read_json"
+path = "fuzz_targets/read_json.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "native"
-path = "fuzz_targets/native.rs"
+name = "read_native"
+path = "fuzz_targets/read_native.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "html"
-path = "fuzz_targets/html.rs"
+name = "read_html"
+path = "fuzz_targets/read_html.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "csv"
-path = "fuzz_targets/csv.rs"
+name = "read_csv"
+path = "fuzz_targets/read_csv.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "tsv"
-path = "fuzz_targets/tsv.rs"
+name = "read_tsv"
+path = "fuzz_targets/read_tsv.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "opml"
-path = "fuzz_targets/opml.rs"
+name = "read_opml"
+path = "fuzz_targets/read_opml.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "rst"
-path = "fuzz_targets/rst.rs"
+name = "read_rst"
+path = "fuzz_targets/read_rst.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "ipynb"
-path = "fuzz_targets/ipynb.rs"
+name = "read_ipynb"
+path = "fuzz_targets/read_ipynb.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "mediawiki"
-path = "fuzz_targets/mediawiki.rs"
+name = "read_mediawiki"
+path = "fuzz_targets/read_mediawiki.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "dokuwiki"
-path = "fuzz_targets/dokuwiki.rs"
+name = "read_dokuwiki"
+path = "fuzz_targets/read_dokuwiki.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "jira"
-path = "fuzz_targets/jira.rs"
+name = "read_jira"
+path = "fuzz_targets/read_jira.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "man"
-path = "fuzz_targets/man.rs"
+name = "read_man"
+path = "fuzz_targets/read_man.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "latex"
-path = "fuzz_targets/latex.rs"
+name = "read_latex"
+path = "fuzz_targets/read_latex.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "org"
-path = "fuzz_targets/org.rs"
+name = "read_org"
+path = "fuzz_targets/read_org.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "rtf"
-path = "fuzz_targets/rtf.rs"
+name = "read_rtf"
+path = "fuzz_targets/read_rtf.rs"
 test = false
 doc = false
 bench = false
@@ -137,22 +137,22 @@ doc = false
 bench = false
 
 [[bin]]
-name = "docx"
-path = "fuzz_targets/docx.rs"
+name = "read_docx"
+path = "fuzz_targets/read_docx.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "epub"
-path = "fuzz_targets/epub.rs"
+name = "read_epub"
+path = "fuzz_targets/read_epub.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "odt"
-path = "fuzz_targets/odt.rs"
+name = "read_odt"
+path = "fuzz_targets/read_odt.rs"
 test = false
 doc = false
 bench = false
