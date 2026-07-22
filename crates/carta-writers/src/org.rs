@@ -152,7 +152,10 @@ impl State {
     }
 
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
-        let stars = "*".repeat(usize::try_from(level.max(1)).unwrap_or(1));
+        // Org outlines nest without a syntactic ceiling, so the star run is capped at a depth far
+        // beyond any real outline; an absurd level cannot force an unbounded allocation.
+        const MAX_HEADLINE_LEVEL: i32 = 32;
+        let stars = "*".repeat(usize::try_from(level.clamp(1, MAX_HEADLINE_LEVEL)).unwrap_or(1));
         let text = self.flat(inlines);
         let heading = format!("{stars} {text}");
         let props = properties(attr);

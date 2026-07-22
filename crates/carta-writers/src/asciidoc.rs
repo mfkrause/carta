@@ -139,7 +139,12 @@ impl State {
     }
 
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
-        let depth = usize::try_from(level.max(0)).unwrap_or(0).saturating_add(1);
+        // The cap sits one past the deepest section AsciiDoc defines, so every meaningful level
+        // keeps a distinct marker while an absurd level cannot force an unbounded allocation.
+        const MAX_SECTION_LEVEL: i32 = 6;
+        let depth = usize::try_from(level.clamp(0, MAX_SECTION_LEVEL))
+            .unwrap_or(0)
+            .saturating_add(1);
         let equals = "=".repeat(depth);
         // A section title is a single line: it is never reflowed, whatever the wrap mode.
         let text = self.inline_string(inlines);

@@ -30,9 +30,9 @@ use crate::common::{
 };
 use crate::grid;
 use crate::markdown_common::{
-    attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
-    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, push_html,
-    quote_block,
+    attr_is_empty, atx_heading_marker, autolink, code_span, destination, indent_code,
+    is_autolink_class, is_html_format, longest_backtick_run, needs_separator,
+    offset_horizontal_rule, push_html, quote_block,
 };
 
 /// The rendering configuration shared by every entry point and exposed to sibling writers that embed
@@ -590,7 +590,7 @@ impl State {
     }
 
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
-        let hashes = "#".repeat(usize::try_from(level.max(1)).unwrap_or(1));
+        let hashes = atx_heading_marker(level);
         let text = self.inlines_oneline(inlines);
         let auto_identifiers = self.config.has(Extension::AutoIdentifiers)
             || self.config.has(Extension::GfmAutoIdentifiers);

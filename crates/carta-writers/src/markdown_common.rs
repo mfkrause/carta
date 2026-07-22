@@ -31,6 +31,15 @@ pub(crate) fn offset_horizontal_rule(item: &[Block], body: String) -> String {
     }
 }
 
+/// The deepest heading an ATX marker can express: `######`.
+const MAX_ATX_HEADING_LEVEL: i32 = 6;
+
+/// The `#` run opening an ATX heading. The level is clamped into the marker's expressible range,
+/// which also bounds the allocation against an absurd level in the document model.
+pub(crate) fn atx_heading_marker(level: i32) -> String {
+    "#".repeat(usize::try_from(level.clamp(1, MAX_ATX_HEADING_LEVEL)).unwrap_or(1))
+}
+
 /// Prefix every line of a blockquote body with `> ` (a bare `>` on an otherwise empty line).
 pub(crate) fn quote_block(body: &str) -> String {
     if body.is_empty() {

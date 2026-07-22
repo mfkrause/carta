@@ -19,9 +19,9 @@ use crate::common::{
     render_html_attr, render_html_fragment_attr,
 };
 use crate::markdown_common::{
-    attr_is_empty, autolink, code_span, destination, indent_code, is_autolink_class,
-    is_html_format, longest_backtick_run, needs_separator, offset_horizontal_rule, push_html,
-    quote_block,
+    attr_is_empty, atx_heading_marker, autolink, code_span, destination, indent_code,
+    is_autolink_class, is_html_format, longest_backtick_run, needs_separator,
+    offset_horizontal_rule, push_html, quote_block,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -118,7 +118,7 @@ impl State {
                 fill_groups(&pieces, &groups, width, 0, hang, self.wrap)
             }
             Block::Header(level, _, inlines) => {
-                let hashes = "#".repeat(usize::try_from((*level).max(1)).unwrap_or(1));
+                let hashes = atx_heading_marker(*level);
                 let text = self.inlines_oneline(inlines, false);
                 if text.is_empty() {
                     format!("{hashes} ")
