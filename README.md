@@ -73,15 +73,7 @@ carta -f commonmark -t html -s --toc --number-sections input.md -o output.html
 carta --list-input-formats
 carta --list-output-formats
 carta --list-extensions=gfm
-
-# self-contained HTML, inlining referenced resources as data: URIs
-carta -f commonmark -t html -s --embed-resources input.md -o output.html
-
-# same, but never touch the network (safe for untrusted documents)
-carta -f html -t html -s --embed-resources --sandbox untrusted.html
 ```
-
-`--embed-resources` inlines a document's referenced media into HTML output, fetching any `http(s)://` URL the document points at. Because the document controls those URLs, converting an untrusted document this way is a server-side request forgery (SSRF) vector. Pass `--sandbox` to disable all network access: remote references are left external instead of fetched, and a warning is emitted.
 
 ### Library
 
