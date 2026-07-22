@@ -26,8 +26,12 @@ workspace = true
 # the standalone JSON codec, and the `from_json`/`to_json`/`to_json_writer` entry points. Off by
 # default so builds that never touch JSON omit serde, serde_json, and the derive proc-macro stack.
 serde = ["dep:serde", "dep:serde_json", "dep:ryu", "dep:itoa", "dep:memchr", "compact_str/serde"]
+# `Arbitrary` impls across the document model, so a fuzzer can synthesize valid-but-pathological
+# documents and drive the writers with them. Off by default; enabled by the fuzz targets.
+arbitrary = ["dep:arbitrary", "compact_str/arbitrary"]
 
 [dependencies]
+arbitrary = { version = "1", features = ["derive"], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 # Number formatting for the JSON codec: shortest round-tripping decimals for floats and fast integer
