@@ -2,8 +2,8 @@
 
 Hand-authored test inputs that drive both layers of the test suite:
 
-- **Layer 1 — golden tests** (`crates/carta/tests/`, offline): snapshot carta's own output for every corpus case with [`insta`](https://insta.rs). Committed snapshots live under `crates/carta/tests/snapshots/`; review changes with `cargo insta review`, never by hand-editing `.snap` files.
-- **Layer 2 — conformance suite** (`tools/conformance-suite/`, requires `.oracle/`): convert every corpus case with both carta and pandoc and diff the results.
+- **Golden tests** (`crates/carta/tests/`, offline): snapshot carta's own output for every corpus case with [`insta`](https://insta.rs). Committed snapshots live under `crates/carta/tests/snapshots/`; review changes with `cargo insta review`, never by hand-editing `.snap` files.
+- **Conformance suite** (`tools/conformance-suite/`, requires `.oracle/`): convert every corpus case with both carta and pandoc and diff the results.
 
 ## Layout
 
@@ -29,7 +29,7 @@ Small source documents, one construct family per file, per reader format. These 
 
 ### `binary/<format>/`
 
-Reader fixtures for **byte-container** formats — those whose input is a binary archive (e.g. a zipped office/e-book container) or otherwise not valid UTF-8, so a reader takes raw bytes (`carta_core::BytesReader`). This tree is read verbatim as bytes; `text/` is decoded as UTF-8 and would reject such a fixture. Because a binary fixture cannot be written by hand, generate it (assemble the container's parts and zip them deterministically) and commit the bytes — do not emit it via the oracle, which can bake generator metadata into the file. Both layers discover this tree automatically alongside `text/`.
+Reader fixtures for **byte-container** formats whose input is a binary archive (e.g. a zipped office/e-book container) or otherwise not valid UTF-8, so a reader takes raw bytes (`carta_core::BytesReader`). This tree is read verbatim as bytes; `text/` is decoded as UTF-8 and would reject such a fixture. Because a binary fixture cannot be written by hand, generate it (assemble the container's parts and zip them deterministically) and commit the bytes (do not emit it via the oracle, which can bake generator metadata into the file).
 
 ## Adding a case
 

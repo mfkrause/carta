@@ -1,14 +1,138 @@
 # carta status
 
-Per-format detail behind the [README support matrix](../README.md#status); the README grid is the
-at-a-glance roster. Measured against pinned pandoc **3.10** (`pandoc-api-version 1.23.1`).
+Per-format status including extension coverage for carta. Measured against pinned pandoc **3.10** (`pandoc-api-version 1.23.1`).
 
 ✅ usable (basically done, any remaining parity gaps are minor and unlikely to affect regular use) · 🚧 in development (large parity gaps or breaking issues, not recommended for use yet) · ❌ not started · ➖ not applicable (pandoc has no such direction)
 
-Each entry lists only what is still missing or known to diverge. An entry with no list has no tracked
-gap.
+Each entry lists only what is still missing or known to diverge. An entry with no list has no tracked gap.
 
 ---
+
+## Formats At A Glance
+
+### Markdown family
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| CommonMark (`commonmark`) | ✅ | ✅ |
+| CommonMark-X (`commonmark_x`) | ✅ | ✅ |
+| GitHub-Flavored Markdown (`gfm`) | ✅ | ✅ |
+| Pandoc Markdown (`markdown`) | ✅ | ✅ |
+| Markdown strict (`markdown_strict`) | ✅ | ✅ |
+| MultiMarkdown (`markdown_mmd`) | ✅ | ✅ |
+| PHP Markdown Extra (`markdown_phpextra`) | ✅ | ✅ |
+| GitHub Markdown, legacy (`markdown_github`) | ✅ | ✅ |
+| Djot (`djot`) | ❌ | ❌ |
+| Markua (`markua`) | ➖ | ❌ |
+
+### HTML & slides
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| HTML (`html`, `html5`, `html4`) | ✅ | ✅ |
+| Chunked HTML (`chunkedhtml`) | ➖ | ❌ |
+| reveal.js (`revealjs`) | ➖ | ✅ |
+| Beamer (`beamer`) | ➖ | ✅ |
+| Slidy (`slidy`) | ➖ | ❌ |
+| S5 (`s5`) | ➖ | ❌ |
+| Slideous (`slideous`) | ➖ | ❌ |
+| DZSlides (`dzslides`) | ➖ | ❌ |
+| PowerPoint (`pptx`) | ❌ | ❌ |
+
+### TeX & typesetting
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| LaTeX (`latex`) | ✅ | ✅ |
+| Typst (`typst`) | ❌ | ✅ |
+| ConTeXt (`context`) | ➖ | ❌ |
+| Texinfo (`texinfo`) | ➖ | ❌ |
+| PDF (`pdf`) | ➖ | ❌ |
+
+### Lightweight markup
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| reStructuredText (`rst`) | ✅ | ✅ |
+| AsciiDoc (`asciidoc`) | ❌ | ✅ |
+| AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ❌ |
+| Asciidoctor (`asciidoctor`) | ➖ | ❌ |
+| Org mode (`org`) | ✅ | ✅ |
+| Textile (`textile`) | ❌ | ❌ |
+| Muse (`muse`) | ❌ | ❌ |
+| Haddock (`haddock`) | ❌ | ❌ |
+| txt2tags (`t2t`) | ❌ | ➖ |
+| Perl POD (`pod`) | ❌ | ➖ |
+
+### Wikis
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| MediaWiki (`mediawiki`) | ✅ | ✅ |
+| DokuWiki (`dokuwiki`) | ✅ | ✅ |
+| Jira (`jira`) | ✅ | ✅ |
+| Creole (`creole`) | ❌ | ➖ |
+| TikiWiki (`tikiwiki`) | ❌ | ➖ |
+| TWiki (`twiki`) | ❌ | ➖ |
+| Vimwiki (`vimwiki`) | ❌ | ➖ |
+| XWiki (`xwiki`) | ➖ | ❌ |
+| ZimWiki (`zimwiki`) | ➖ | ❌ |
+
+### roff
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| man (`man`) | ✅ | ✅ |
+| mdoc (`mdoc`) | ❌ | ➖ |
+| ms (`ms`) | ➖ | ❌ |
+| vimdoc (`vimdoc`) | ➖ | ❌ |
+
+### Word processor, ebook & notebook
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| Word (`docx`) | ✅ | ✅ |
+| OpenDocument Text (`odt`) | ✅ | ✅ |
+| OpenDocument (`opendocument`) | ➖ | ❌ |
+| EPUB (`epub`, `epub2`, `epub3`) | ✅ | ✅ |
+| Jupyter Notebook (`ipynb`) | ✅ | ✅ |
+| FictionBook2 (`fb2`) | ❌ | ❌ |
+| InDesign ICML (`icml`) | ➖ | ❌ |
+| Rich Text Format (`rtf`) | ✅ | ✅ |
+| Spreadsheet (`xlsx`) | ❌ | ➖ |
+
+### XML & publishing
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| DocBook (`docbook`, `docbook4`, `docbook5`) | ❌ | ❌ |
+| JATS (`jats`, `jats_archiving`, `jats_articleauthoring`, `jats_publishing`) | ❌ | ❌ |
+| BITS (`bits`) | ❌ | ➖ |
+| TEI (`tei`) | ➖ | ❌ |
+| Generic XML (`xml`) | ❌ | ❌ |
+
+### Bibliography
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| BibTeX (`bibtex`) | ❌ | ❌ |
+| BibLaTeX (`biblatex`) | ❌ | ❌ |
+| CSL JSON (`csljson`) | ❌ | ❌ |
+| RIS (`ris`) | ❌ | ➖ |
+| EndNote XML (`endnotexml`) | ❌ | ➖ |
+
+### Data, interchange & terminal
+
+| Format | Reader | Writer |
+| --- | :---: | :---: |
+| Pandoc JSON (`json`) | ✅ | ✅ |
+| Native Pandoc AST (`native`) | ✅ | ✅ |
+| OPML (`opml`) | ✅ | ✅ |
+| CSV (`csv`) | ✅ | ➖ |
+| TSV (`tsv`) | ✅ | ➖ |
+| Plain text (`plain`) | ➖ | ✅ |
+| BBCode (`bbcode`, `bbcode_phpbb`, `bbcode_steam`, …) | ➖ | ❌ |
+| ANSI terminal (`ansi`) | ➖ | ❌ |
 
 ## Readers
 

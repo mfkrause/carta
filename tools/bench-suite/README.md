@@ -1,6 +1,6 @@
 # Benchmark suite
 
-Times `carta` against the pinned pandoc binary on **equivalent work** and reports how much faster (and leaner) carta is.
+Times `carta` against pandoc on equivalent work and reports how much faster (and leaner) carta is.
 
 ## Prerequisites
 

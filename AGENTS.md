@@ -66,12 +66,9 @@ Tests are split so the everyday suite is **fully offline** and oracle-backed par
 
 ## Status docs
 
-Two files track feature parity and must stay in sync with the code:
+`docs/STATUS.md` tracks per-format status including extensions honored, known gaps, and the parity backlog.
 
-- `README.md` — the `## Status` table (format-level reader/writer support).
-- `docs/STATUS.md` — per-format detail: extensions honored, known gaps, and the parity backlog.
-
-Whenever you implement, extend, or change support for a format, extension, or cross-cutting feature (standalone output, TOC, citations, …), update **both** files in the same change.
+Whenever you implement, extend, or change support for a format, extension, or cross-cutting feature (standalone output, TOC, citations, …), update this file.
 
 ## Git guardrails
 
@@ -82,4 +79,3 @@ The repo may be edited by several agents at once. Touch only what you own, and n
 - **No history rewrites on shared branches; never force-push.** Rewriting your own commits on a local, unshared branch is allowed only when explicitly asked.
 - Branch off `main` for non-trivial changes; don't commit directly to `main`.
 - **Conventional Commits, one logical change per commit.** Commit each relevant piece of work as you finish it, with a subject of the form `<type>[(scope)][!]: <description>` (types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, plus additional repo-specifics ones called `wip` for WIP and `sec` for security). The `commit-msg` hook enforces this.
-- Commit freely as you go; **push only when asked.**

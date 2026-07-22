@@ -4,7 +4,7 @@
 
 # carta
 
-**A universal document converter written in Rust.** Read a markup format, render it back out in another. A performant and lightweight reimplementation of [pandoc](https://pandoc.org).
+**A universal document converter written in Rust.** Read a markup format, render it back out in another. A performant and lightweight reimplementation of [pandoc](https://github.com/jgm/pandoc).
 
 [![crates.io](https://img.shields.io/crates/v/carta.svg)](https://crates.io/crates/carta)
 [![docs.rs](https://img.shields.io/docsrs/carta)](https://docs.rs/carta)
@@ -15,143 +15,17 @@
 </div>
 
 > [!WARNING]
-> carta is an **early-stage alpha under active development**. Not all of pandoc's formats are implemented yet and the API is still unstable.
+> carta is still in active development. Not all of pandoc's formats and features are implemented yet and the API is still unstable.
 
 ## Goals
 
-- **Performance** and a **smaller binary** than pandoc.
-- **Feature parity** with pandoc across all formats and extensions.
+- **Performance** and a **lightweight binary**.
 - A **developer-friendly library**, with the CLI as a thin shell over it.
+- **Feature parity** with pandoc across all formats and extensions.
 
 ## Status
 
-This tracks carta's status of all formats pandoc supports. See [`STATUS.md`](docs/STATUS.md) for a detailed per-format breakdown including extension coverage, and the full feature backlog.
-
-✅ usable · 🚧 in development, not recommended for use yet · ❌ not started · ➖ not applicable (pandoc has no such direction)
-
-**Markdown family**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| CommonMark (`commonmark`) | ✅ | ✅ |
-| CommonMark-X (`commonmark_x`) | ✅ | ✅ |
-| GitHub-Flavored Markdown (`gfm`) | ✅ | ✅ |
-| Pandoc Markdown (`markdown`) | ✅ | ✅ |
-| Markdown strict (`markdown_strict`) | ✅ | ✅ |
-| MultiMarkdown (`markdown_mmd`) | ✅ | ✅ |
-| PHP Markdown Extra (`markdown_phpextra`) | ✅ | ✅ |
-| GitHub Markdown, legacy (`markdown_github`) | ✅ | ✅ |
-| Djot (`djot`) | ❌ | ❌ |
-| Markua (`markua`) | ➖ | ❌ |
-
-**HTML & slides**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| HTML (`html`, `html5`, `html4`) | ✅ | ✅ |
-| Chunked HTML (`chunkedhtml`) | ➖ | ❌ |
-| reveal.js (`revealjs`) | ➖ | ✅ |
-| Beamer (`beamer`) | ➖ | ✅ |
-| Slidy (`slidy`) | ➖ | ❌ |
-| S5 (`s5`) | ➖ | ❌ |
-| Slideous (`slideous`) | ➖ | ❌ |
-| DZSlides (`dzslides`) | ➖ | ❌ |
-| PowerPoint (`pptx`) | ❌ | ❌ |
-
-**TeX & typesetting**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| LaTeX (`latex`) | ✅ | ✅ |
-| Typst (`typst`) | ❌ | ✅ |
-| ConTeXt (`context`) | ➖ | ❌ |
-| Texinfo (`texinfo`) | ➖ | ❌ |
-| PDF (`pdf`) | ➖ | ❌ |
-
-**Lightweight markup**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| reStructuredText (`rst`) | ✅ | ✅ |
-| AsciiDoc (`asciidoc`) | ❌ | ✅ |
-| AsciiDoc legacy (`asciidoc_legacy`) | ➖ | ❌ |
-| Asciidoctor (`asciidoctor`) | ➖ | ❌ |
-| Org mode (`org`) | ✅ | ✅ |
-| Textile (`textile`) | ❌ | ❌ |
-| Muse (`muse`) | ❌ | ❌ |
-| Haddock (`haddock`) | ❌ | ❌ |
-| txt2tags (`t2t`) | ❌ | ➖ |
-| Perl POD (`pod`) | ❌ | ➖ |
-
-**Wikis**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| MediaWiki (`mediawiki`) | ✅ | ✅ |
-| DokuWiki (`dokuwiki`) | ✅ | ✅ |
-| Jira (`jira`) | ✅ | ✅ |
-| Creole (`creole`) | ❌ | ➖ |
-| TikiWiki (`tikiwiki`) | ❌ | ➖ |
-| TWiki (`twiki`) | ❌ | ➖ |
-| Vimwiki (`vimwiki`) | ❌ | ➖ |
-| XWiki (`xwiki`) | ➖ | ❌ |
-| ZimWiki (`zimwiki`) | ➖ | ❌ |
-
-**roff**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| man (`man`) | ✅ | ✅ |
-| mdoc (`mdoc`) | ❌ | ➖ |
-| ms (`ms`) | ➖ | ❌ |
-| vimdoc (`vimdoc`) | ➖ | ❌ |
-
-**Word processor, ebook & notebook**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| Word (`docx`) | ✅ | ✅ |
-| OpenDocument Text (`odt`) | ✅ | ✅ |
-| OpenDocument (`opendocument`) | ➖ | ❌ |
-| EPUB (`epub`, `epub2`, `epub3`) | ✅ | ✅ |
-| Jupyter Notebook (`ipynb`) | ✅ | ✅ |
-| FictionBook2 (`fb2`) | ❌ | ❌ |
-| InDesign ICML (`icml`) | ➖ | ❌ |
-| Rich Text Format (`rtf`) | ✅ | ✅ |
-| Spreadsheet (`xlsx`) | ❌ | ➖ |
-
-**XML & publishing**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| DocBook (`docbook`, `docbook4`, `docbook5`) | ❌ | ❌ |
-| JATS (`jats`, `jats_archiving`, `jats_articleauthoring`, `jats_publishing`) | ❌ | ❌ |
-| BITS (`bits`) | ❌ | ➖ |
-| TEI (`tei`) | ➖ | ❌ |
-| Generic XML (`xml`) | ❌ | ❌ |
-
-**Bibliography**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| BibTeX (`bibtex`) | ❌ | ❌ |
-| BibLaTeX (`biblatex`) | ❌ | ❌ |
-| CSL JSON (`csljson`) | ❌ | ❌ |
-| RIS (`ris`) | ❌ | ➖ |
-| EndNote XML (`endnotexml`) | ❌ | ➖ |
-
-**Data, interchange & terminal**
-
-| Format | Reader | Writer |
-| --- | :---: | :---: |
-| Pandoc JSON (`json`) | ✅ | ✅ |
-| Native Pandoc AST (`native`) | ✅ | ✅ |
-| OPML (`opml`) | ✅ | ✅ |
-| CSV (`csv`) | ✅ | ➖ |
-| TSV (`tsv`) | ✅ | ➖ |
-| Plain text (`plain`) | ➖ | ✅ |
-| BBCode (`bbcode`, `bbcode_phpbb`, `bbcode_steam`, …) | ➖ | ❌ |
-| ANSI terminal (`ansi`) | ➖ | ❌ |
+carta already supports the most-used pandoc formats, with support for the remaining formats being in active development. You can see a per-format breakdown including extension coverage as well as the full feature backlog in [`STATUS.md`](docs/STATUS.md).
 
 ## Installation
 
@@ -229,7 +103,6 @@ cargo build -p carta --no-default-features --features read-commonmark,write-html
 cargo build                         # build the workspace
 cargo nextest run --workspace       # run tests
 cargo clippy --all-targets          # lint
-cargo +nightly fuzz run commonmark  # fuzz a reader (see fuzz/README.md)
 ```
 
 ## License

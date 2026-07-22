@@ -36,8 +36,6 @@ RUSTFLAGS="-D warnings" cargo clippy --all-targets --all-features  # lint (as CI
 tools/check.sh                             # everything CI gates a PR on, in one command
 ```
 
-The everyday suite is fully offline and is what CI gates every pull request on.
-
 ### Snapshot tests
 
 Golden output is captured with [`insta`](https://insta.rs). After an intentional change
@@ -51,16 +49,13 @@ CI rejects stale or unreferenced snapshots, so keep them tidy.
 
 ## Making a change
 
-- **Branch off `main`** for anything non-trivial; do not commit directly to `main`.
+- **Branch off `main`**; do not commit directly to `main`.
 - **One logical change per commit.** Commit messages follow
   [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `docs`,
   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, …); the `commit-msg` hook enforces
   the format.
-- **Keep output deterministic** and **avoid panics in library paths** (both are lint-enforced).
-- When you add, extend, or change support for a format or extension, update
-  [`README.md`](README.md) (the status table) and/or [`docs/STATUS.md`](docs/STATUS.md) in
-  the same change.
-- Make sure `cargo fmt`, `cargo clippy`, and the test suite are green before opening a PR.
+- **Keep output deterministic** and **avoid panics in library paths**.
+- When you add, extend, or change support for a format or extension, remember to update [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Opening a pull request
 
