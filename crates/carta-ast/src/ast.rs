@@ -44,6 +44,7 @@ pub type Text = compact_str::CompactString;
 /// (e.g. `[1, 23, 1, 2]`). Stored verbatim so a parsed document re-serializes losslessly; freshly
 /// constructed documents default to [`crate::CURRENT_API_VERSION`].
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ApiVersion(pub Vec<u32>);
@@ -56,6 +57,7 @@ impl Default for ApiVersion {
 
 /// A whole document: schema version, metadata, and the block sequence.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Document {
     /// The AST schema version the document carries.
     pub api_version: ApiVersion,
@@ -67,6 +69,7 @@ pub struct Document {
 
 /// Identifier, classes, and ordered key/value pairs attached to many nodes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Attr {
     /// The element's identifier (the `#id` of an attribute block).
     pub id: Text,
@@ -78,6 +81,7 @@ pub struct Attr {
 
 /// A link or image destination: URL and title.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Target {
     /// The destination URL.
     pub url: Text,
@@ -88,6 +92,7 @@ pub struct Target {
 /// The name of a raw-passthrough format (e.g. `html`, `latex`) for [`Inline::RawInline`] and
 /// [`Block::RawBlock`].
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Format(pub Text);
@@ -95,6 +100,7 @@ pub struct Format(pub Text);
 node_enum! {
     /// A block-level node of the document body.
     #[derive(Debug, Clone, PartialEq)]
+    #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Block {
@@ -134,6 +140,7 @@ node_enum! {
 node_enum! {
     /// An inline node: a piece of text or an intra-paragraph construct.
     #[derive(Debug, Clone, PartialEq)]
+    #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum Inline {
@@ -184,6 +191,7 @@ node_enum! {
 node_enum! {
     /// A metadata value. Documents carry a `String`-keyed map of these.
     #[derive(Debug, Clone, PartialEq)]
+    #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
     pub enum MetaValue {
@@ -205,6 +213,7 @@ node_enum! {
 
 /// The quotation-mark kind of an [`Inline::Quoted`] span.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum QuoteType {
@@ -216,6 +225,7 @@ pub enum QuoteType {
 
 /// Whether an [`Inline::Math`] payload renders within the line or as its own display block.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum MathType {
@@ -227,6 +237,7 @@ pub enum MathType {
 
 /// The numeral style of an ordered list's markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum ListNumberStyle {
@@ -248,6 +259,7 @@ pub enum ListNumberStyle {
 
 /// The punctuation around an ordered list's markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum ListNumberDelim {
@@ -263,6 +275,7 @@ pub enum ListNumberDelim {
 
 /// The horizontal alignment of a table column or cell.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum Alignment {
@@ -278,6 +291,7 @@ pub enum Alignment {
 
 /// A table column's width: an explicit fraction of the available width, or the renderer's default.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "t", content = "c"))]
 pub enum ColWidth {
@@ -289,6 +303,7 @@ pub enum ColWidth {
 
 /// How a citation is rendered relative to the sentence around it.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "t"))]
 pub enum CitationMode {
@@ -302,6 +317,7 @@ pub enum CitationMode {
 
 /// The leading-marker configuration of an ordered list: start number, numeral style, delimiter.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ListAttributes {
     /// The number the first item carries.
     pub start: i32,
@@ -313,6 +329,7 @@ pub struct ListAttributes {
 
 /// One cited reference within an [`Inline::Cite`].
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Citation {
@@ -338,6 +355,7 @@ pub struct Citation {
 
 /// A table (or figure) caption: an optional short form plus the full block-level caption.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Caption {
     /// The optional short form, for contexts where the full caption does not fit (a list of
     /// tables, say).
@@ -348,6 +366,7 @@ pub struct Caption {
 
 /// One table column's specification.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ColSpec {
     /// The column's horizontal alignment.
     pub align: Alignment,
@@ -360,6 +379,7 @@ pub struct ColSpec {
 /// node enums: attribute-bearing and otherwise heavy payloads are boxed so the common lightweight
 /// variants set each enum's size.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Table {
     /// The table's attributes.
     pub attr: Attr,
@@ -377,6 +397,7 @@ pub struct Table {
 
 /// A table's header section.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct TableHead {
     /// The section's attributes.
     pub attr: Attr,
@@ -386,6 +407,7 @@ pub struct TableHead {
 
 /// One body section of a table.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct TableBody {
     /// The section's attributes.
     pub attr: Attr,
@@ -399,6 +421,7 @@ pub struct TableBody {
 
 /// A table's footer section.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct TableFoot {
     /// The section's attributes.
     pub attr: Attr,
@@ -408,6 +431,7 @@ pub struct TableFoot {
 
 /// One table row.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Row {
     /// The row's attributes.
     pub attr: Attr,
@@ -417,6 +441,7 @@ pub struct Row {
 
 /// One table cell.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Cell {
     /// The cell's attributes.
     pub attr: Attr,
