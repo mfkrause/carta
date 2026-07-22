@@ -340,8 +340,15 @@ impl State {
                 if column >= columns {
                     break;
                 }
-                let row_span = usize::try_from(cell.row_span.max(1)).unwrap_or(1);
-                let col_span = usize::try_from(cell.col_span.max(1)).unwrap_or(1);
+                // Clamp each span to the slots that actually exist: a cell may not extend past the
+                // grid, and iterating an out-of-range span would loop over hundreds of millions of
+                // absent slots to no effect.
+                let row_span = usize::try_from(cell.row_span.max(1))
+                    .unwrap_or(1)
+                    .min(rows.len() - index);
+                let col_span = usize::try_from(cell.col_span.max(1))
+                    .unwrap_or(1)
+                    .min(columns - column);
                 let cell_lines = self.cell_lines(cell);
                 if let Some(slot) = grid.get_mut(index).and_then(|line| line.get_mut(column)) {
                     *slot = Some(cell_lines);
@@ -1008,6 +1015,51 @@ mod tests {
         assert_eq!(
             render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
             "[[http://e.com/a%20b][click]]"
+        );
+    }
+
+    #[test]
+    fn oversized_cell_spans_stay_bounded() {
+        use carta_ast::{
+            Alignment, Attr, Caption, Cell, ColSpec, ColWidth, Table, TableFoot, TableHead,
+        };
+        let cell = Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignLeft,
+            row_span: i32::MAX,
+            col_span: i32::MAX,
+            content: Vec::new(),
+        };
+        let table = Table {
+            attr: Attr::default(),
+            caption: Caption::default(),
+            col_specs: vec![ColSpec {
+                align: Alignment::AlignLeft,
+                width: ColWidth::ColWidthDefault,
+            }],
+            head: TableHead {
+                attr: Attr::default(),
+                rows: vec![Row {
+                    attr: Attr::default(),
+                    cells: vec![cell],
+                }],
+            },
+            bodies: Vec::new(),
+            foot: TableFoot::default(),
+        };
+        // A cell whose spans dwarf the grid must be clamped to the real slots rather than iterating
+        // the full span product; the render completes promptly and stays small.
+        let document = Document {
+            blocks: vec![Block::Table(Box::new(table))],
+            ..Document::default()
+        };
+        let output = OrgWriter
+            .write(&document, &WriterOptions::default())
+            .unwrap();
+        assert!(
+            output.len() < 1_000,
+            "unbounded table output: {} bytes",
+            output.len()
         );
     }
 }

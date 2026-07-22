@@ -369,15 +369,19 @@ impl State {
             .map(
                 |index| match table.col_specs.get(index).map(|spec| &spec.width) {
                     Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
-                        // A bounded fraction scaled to a small column width: `floor`/`max(0.0)`
-                        // make the conversion exact and non-negative.
+                        // `floor`/`max(0.0)` make the fraction-to-width conversion exact and
+                        // non-negative; the final `min(width)` clamps a spec whose fraction exceeds
+                        // the whole line — a meaningless width that would otherwise allocate a rule
+                        // of that many characters.
                         #[allow(
                             clippy::cast_precision_loss,
                             clippy::cast_possible_truncation,
                             clippy::cast_sign_loss
                         )]
-                        let scaled =
-                            (fraction * width.saturating_sub(1) as f64).floor().max(0.0) as usize;
+                        let scaled = (fraction * width.saturating_sub(1) as f64)
+                            .floor()
+                            .max(0.0)
+                            .min(width as f64) as usize;
                         scaled.max(minword.get(index).copied().unwrap_or(0) + 2)
                     }
                     _ => natural.get(index).copied().unwrap_or(0) + 2,
@@ -1201,5 +1205,44 @@ mod tests {
             Inline::Emph(vec![Inline::Str("a".to_owned().into())]),
         ])])]);
         assert_eq!(fallback, "_(a)");
+    }
+
+    #[test]
+    fn absurd_column_width_stays_bounded() {
+        use carta_ast::{Caption, Cell, ColSpec, TableBody, TableFoot, TableHead};
+        let cell = Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignLeft,
+            row_span: 1,
+            col_span: 1,
+            content: vec![Block::Para(vec![Inline::Str("x".to_owned().into())])],
+        };
+        let table = Table {
+            attr: Attr::default(),
+            caption: Caption::default(),
+            col_specs: vec![ColSpec {
+                align: Alignment::AlignLeft,
+                width: ColWidth::ColWidth(1.9e53),
+            }],
+            head: TableHead::default(),
+            bodies: vec![TableBody {
+                attr: Attr::default(),
+                row_head_columns: 0,
+                head: Vec::new(),
+                body: vec![Row {
+                    attr: Attr::default(),
+                    cells: vec![cell],
+                }],
+            }],
+            foot: TableFoot::default(),
+        };
+        // A fractional spec far past the whole line must not inflate the rule into a huge
+        // allocation; the output stays within a handful of line widths.
+        let output = render(vec![Block::Table(Box::new(table))]);
+        assert!(
+            output.len() < 1_000,
+            "unbounded table output: {} bytes",
+            output.len()
+        );
     }
 }

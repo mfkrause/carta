@@ -202,7 +202,7 @@ fn render_block_env(
     if !attr.id.is_empty() {
         lines.push(anchor(&attr.id));
     }
-    let rendered = render_body(body, group_level + 1, wrap, smart, hl);
+    let rendered = render_body(body, group_level.saturating_add(1), wrap, smart, hl);
     if !rendered.is_empty() {
         lines.push(rendered);
     }
@@ -335,6 +335,18 @@ mod tests {
     #[test]
     fn bare_content_is_a_titleless_frame() {
         assert_eq!(render(vec![para("x")]), "\\begin{frame}\nx\n\\end{frame}");
+    }
+
+    #[test]
+    fn extreme_header_level_does_not_overflow() {
+        // A header nested at the maximum level drives the block-environment grouping to the top of
+        // the level range; deepening it by one must saturate rather than wrap.
+        let out = render(vec![
+            header(1, "", "Frame"),
+            header(i32::MAX, "id", "Deep"),
+            para("body"),
+        ]);
+        assert!(out.contains("\\begin{block}{Deep}"));
     }
 
     #[test]

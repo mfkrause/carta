@@ -434,10 +434,13 @@ pub(crate) fn merged_width(content: &[usize], start: usize, span: usize) -> usiz
 
 /// The content width a fractional column spec maps to in a grid table, scaled against the fill
 /// column.
-// Layout arithmetic over a bounded fraction (0.0–1.0): truncation by `floor` is intended.
+// Layout arithmetic over a fraction: truncation by `floor` is intended. A fraction wider than the
+// whole line has no layout meaning, so the scaled span is clamped to the line width before the
+// border reservation — an out-of-range fraction cannot inflate the column into a huge allocation.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn explicit_grid_width(fraction: f64, width: usize) -> i64 {
-    (fraction * width as f64).floor() as i64 - 3
+    let scaled = (fraction * width as f64).floor().min(width as f64);
+    scaled as i64 - 3
 }
 
 /// Resolve grid content widths: explicit fractional specs when present, otherwise a
@@ -503,7 +506,9 @@ fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize, width: usiz
             _ => None,
         })
         .sum();
-    let merged = (span_fraction * width as f64).floor() as i64;
+    // Clamp the combined span budget to the line width: a fractional sum wider than the whole line
+    // has no layout meaning and would otherwise widen every covered column without bound.
+    let merged = (span_fraction * width as f64).floor().min(width as f64) as i64;
     let span = span.max(1) as i64;
     (merged / span + merged % span - 1).max(0) as usize
 }
@@ -1077,5 +1082,39 @@ mod tests {
             WrapMode::Auto,
         );
         assert_eq!(widths, vec![22, 12, 12, 12]);
+    }
+
+    #[test]
+    fn explicit_grid_width_clamps_an_out_of_range_fraction_to_the_line() {
+        // A fraction within [0, 1] scales as usual: floor(fraction * width) minus the border
+        // reservation.
+        assert_eq!(explicit_grid_width(0.5, 72), 33);
+        assert_eq!(explicit_grid_width(1.0, 72), 69);
+        // A fraction far past the whole line clamps to the line width before the reservation, so the
+        // column can never balloon into an unbounded allocation.
+        assert_eq!(explicit_grid_width(1.0e53, 72), 69);
+        assert_eq!(explicit_grid_width(f64::INFINITY, 72), 69);
+    }
+
+    #[test]
+    fn colspan_width_floor_clamps_an_out_of_range_fraction_to_the_line() {
+        // A well-formed span budget resolves normally; an absurd fractional sum clamps to the line
+        // width, keeping every covered column bounded.
+        let normal = [sized(11.0 / 72.0), sized(11.0 / 72.0)];
+        assert_eq!(colspan_width_floor(&normal, 0, 2, 72), 10);
+        let absurd = [sized(1.0e40), sized(1.0e40)];
+        assert_eq!(colspan_width_floor(&absurd, 0, 2, 72), 35);
+    }
+
+    #[test]
+    fn out_of_range_fraction_keeps_grid_widths_bounded() {
+        let specs = [sized(1.9e53), sized(0.0)];
+        let natural = [1, 1];
+        let minword = [1, 1];
+        let widths = grid_content_widths(&specs, &natural, &minword, &[], 2, 72, WrapMode::Auto);
+        assert!(
+            widths.iter().all(|&w| w <= 72),
+            "an absurd fraction must not inflate a column: {widths:?}"
+        );
     }
 }
