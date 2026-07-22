@@ -19,24 +19,28 @@ use carta::{
 };
 #[cfg(feature = "write-html")]
 use carta::{Resource, inline_resources};
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, CommandFactory, Parser};
 
 mod datadir;
 mod filters;
 
 #[cfg(not(feature = "highlight"))]
-const LIST_FLAGS: [&str; 4] = [
+const LIST_FLAGS: [&str; 6] = [
     "list_input_formats",
     "list_output_formats",
     "list_extensions",
     "print_default_template",
+    "completions",
+    "man",
 ];
 #[cfg(feature = "highlight")]
-const LIST_FLAGS: [&str; 7] = [
+const LIST_FLAGS: [&str; 9] = [
     "list_input_formats",
     "list_output_formats",
     "list_extensions",
     "print_default_template",
+    "completions",
+    "man",
     "list_highlight_languages",
     "list_highlight_styles",
     "print_highlight_style",
@@ -219,6 +223,12 @@ struct Cli {
     /// Print the built-in default template for FORMAT and exit.
     #[arg(short = 'D', long = "print-default-template", value_name = "FORMAT")]
     print_default_template: Option<String>,
+    /// Print a completion script for SHELL and exit.
+    #[arg(long = "completions", value_name = "SHELL", hide = true)]
+    completions: Option<clap_complete::Shell>,
+    /// Print this command line's man page as roff source and exit.
+    #[arg(long = "man", hide = true)]
+    man: bool,
     /// Print version information and exit.
     #[arg(long = "version", action = ArgAction::Version)]
     version: Option<bool>,
@@ -255,6 +265,19 @@ fn exit_code(error: &Error) -> ExitCode {
 }
 
 fn run(cli: &Cli) -> Result<()> {
+    if let Some(shell) = cli.completions {
+        clap_complete::generate(
+            shell,
+            &mut Cli::command(),
+            "carta",
+            &mut io::stdout().lock(),
+        );
+        return Ok(());
+    }
+    if cli.man {
+        clap_mangen::Man::new(Cli::command()).render(&mut io::stdout().lock())?;
+        return Ok(());
+    }
     if cli.list_input_formats {
         return print_lines(&carta::input_format_names());
     }

@@ -33,6 +33,12 @@ carta already supports the most-used pandoc formats, with support for the remain
 
 Download the archive for your platform from the [latest release][latest-release]. Builds are provided for Linux (x86-64 gnu and static musl, arm64), macOS (Intel and Apple Silicon), and Windows (x86-64).
 
+With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) installed, the matching prebuilt binary can be fetched directly:
+
+```sh
+cargo binstall carta
+```
+
 ### From crates.io
 
 ```sh

@@ -22,6 +22,16 @@ exclude = ["/tests"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+# Points `cargo binstall` at the prebuilt release archives (`carta-<target>.tar.gz`, `.zip` on
+# Windows), each containing the binary at the archive root.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ bin }-{ target }{ archive-suffix }"
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
 [lints]
 workspace = true
 
@@ -31,7 +41,16 @@ default = ["full", "cli"]
 # yields the tool; library-only users set `default-features = false` to drop it (and `clap`). It pulls
 # the standalone and metadata-file machinery the CLI drives — pair with format features (or `full`) to
 # choose what the binary can convert.
-cli = ["dep:clap", "standalone", "metadata-file", "fetch", "carta-ast/serde", "carta-core/serde"]
+cli = [
+    "dep:clap",
+    "dep:clap_complete",
+    "dep:clap_mangen",
+    "standalone",
+    "metadata-file",
+    "fetch",
+    "carta-ast/serde",
+    "carta-core/serde",
+]
 # Fetch remote resources over HTTP(S) when inlining them for self-contained HTML (`--embed-resources`):
 # carries the HTTP client. Without it, only local and already-inline resources are inlined and a remote
 # reference is left external. Part of `cli` so the installed tool is self-contained-capable by default.
@@ -106,6 +125,9 @@ carta-writers = { path = "../carta-writers", version = "0.0.6", default-features
 serde_json = { workspace = true, optional = true }
 # CLI-only; kept out of a library build via the optional `cli` feature.
 clap = { workspace = true, optional = true }
+# Generators behind the binary's `--completions <shell>` and `--man` flags.
+clap_complete = { version = "4", optional = true }
+clap_mangen = { version = "0.3", optional = true }
 # The HTTP client used to fetch remote resources for self-contained HTML. Gated behind `fetch`; a
 # rustls TLS stack keeps the build free of a system OpenSSL dependency.
 ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
