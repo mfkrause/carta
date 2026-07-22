@@ -47,7 +47,8 @@ jobs:
           path-to-document: https://github.com/mfkrause/carta/blob/main/CLA.md
           path-to-signatures: signatures/version1/cla.json
           branch: cla-signatures
-          allowlist: mfkrause,dependabot[bot],github-actions[bot],release-plz[bot]
+          # carta-release[bot] is the GitHub App release-plz authenticates as.
+          allowlist: mfkrause,dependabot[bot],github-actions[bot],carta-release[bot]
           custom-notsigned-prcomment: >
             Thank you for your contribution! Before it can be merged, you need to
             sign the [Contributor License Agreement](https://github.com/mfkrause/carta/blob/main/CLA.md)
