@@ -69,5 +69,21 @@ Use the issue templates — they prompt for the input, the exact command, and th
 vs. actual output, which is what makes a report actionable. Security issues follow a
 separate, private process described in [`SECURITY.md`](.github/SECURITY.md).
 
-By contributing, you agree that your contributions are licensed under the same terms as
-the project (see [`LICENSE`](LICENSE)).
+## Contributor License Agreement
+
+Before your first pull request can be merged, you need to sign the
+[Contributor License Agreement](CLA.md). It's a one-time step: a bot will
+prompt you on your first PR, and you sign by posting a single comment. You keep
+full ownership of your contribution.
+
+**Why a CLA?** Being upfront about this: carta is licensed under the AGPL-3.0,
+and its maintainer also uses it in their own commercial software and may license it commercially to companies that can't use
+AGPL software. The CLA grants the maintainer the right to distribute your
+contribution under such commercial terms. This model is
+what funds carta's development. The public version is available under the
+AGPL. If you're not comfortable with this, we absolutely understand! Issues,
+discussions, and bug reports are just as valuable and need no signature.
+
+If you contribute on behalf of your employer, your employer may also need to
+execute the Corporate CLA (Part B of [`CLA.md`](CLA.md)); see the instructions
+at the end of that part.
