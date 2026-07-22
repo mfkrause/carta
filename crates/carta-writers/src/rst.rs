@@ -17,7 +17,7 @@ use crate::common::{
     Dimension, FILL_COLUMN, Piece, ascii_punctuation, attribute_value, block_inlines, body_rows,
     clean_prefix_len, display_width, fill, fill_cell, fill_hang, format_length_dimension,
     format_percent_dimension, indent_block, is_known_scheme, is_uri_scheme, label_matches_url,
-    offset_as_i32, ordered_marker, parse_dimension, quote_marks,
+    offset_as_i32, ordered_marker, pad_marker, parse_dimension, quote_marks,
 };
 use crate::grid;
 
@@ -437,7 +437,7 @@ impl State {
         let mut units = Vec::new();
         for (offset, item) in items.iter().enumerate() {
             let marker = markers.get(offset).cloned().unwrap_or_default();
-            let first = format!("{marker:<field$}");
+            let first = pad_marker(&marker, field);
             let simple = is_simple_item(item);
             let body = self.item_body(item, width.saturating_sub(field));
             units.push((simple, indent_block(&body, &first, &rest)));

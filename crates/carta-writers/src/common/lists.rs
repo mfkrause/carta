@@ -71,6 +71,16 @@ pub(crate) fn ordered_marker(
     wrap_delim(&numeral(number, style), delim)
 }
 
+/// Left-align a marker in a field of the given character width by appending spaces. A marker
+/// already at or past the field width is returned unpadded, so no field width can make this fail.
+pub(crate) fn pad_marker(marker: &str, field: usize) -> String {
+    let padding = field.saturating_sub(marker.chars().count());
+    let mut out = String::with_capacity(marker.len() + padding);
+    out.push_str(marker);
+    out.push_str(&" ".repeat(padding));
+    out
+}
+
 /// Render a number in a list's numeral style.
 pub(crate) fn numeral(number: i32, style: ListNumberStyle) -> String {
     match style {
@@ -102,7 +112,10 @@ pub(crate) fn alpha(number: i32, upper: bool) -> String {
     String::from_utf8(letters).unwrap_or_else(|_| number.to_string())
 }
 
-/// Roman numeral for a positive number; non-positive input falls back to the decimal form.
+/// Roman numeral for a number in `1..=3999`, the range the subtractive notation covers. Anything
+/// outside that range falls back to the decimal form; besides having no conventional Roman
+/// spelling, such numbers would need one repeated `m` per thousand, so the fallback also caps the
+/// numeral at a handful of characters no matter the input.
 pub(crate) fn roman(number: i32, upper: bool) -> String {
     const UNITS: [(i32, &str); 13] = [
         (1000, "m"),
@@ -119,7 +132,7 @@ pub(crate) fn roman(number: i32, upper: bool) -> String {
         (4, "iv"),
         (1, "i"),
     ];
-    if number < 1 {
+    if !(1..=3999).contains(&number) {
         return number.to_string();
     }
     let mut remaining = number;
@@ -157,6 +170,21 @@ mod tests {
         assert_eq!(alpha(-3, true), "-3");
         assert_eq!(roman(0, false), "0");
         assert_eq!(roman(-1, true), "-1");
+    }
+
+    #[test]
+    fn roman_out_of_range_falls_back_to_decimal() {
+        assert_eq!(roman(3999, false), "mmmcmxcix");
+        assert_eq!(roman(4000, false), "4000");
+        assert_eq!(roman(i32::MAX, true), i32::MAX.to_string());
+    }
+
+    #[test]
+    fn pad_marker_left_aligns_within_field() {
+        assert_eq!(pad_marker("3.", 4), "3.  ");
+        assert_eq!(pad_marker("iv)", 3), "iv)");
+        assert_eq!(pad_marker("long-marker", 4), "long-marker");
+        assert_eq!(pad_marker("", 2), "  ");
     }
 
     #[test]
