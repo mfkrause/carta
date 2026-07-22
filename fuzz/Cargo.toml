@@ -9,14 +9,14 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+carta-ast = { path = "../crates/carta-ast", features = ["arbitrary"] }
 carta-core = { path = "../crates/carta-core" }
 carta-readers = { path = "../crates/carta-readers" }
+carta-writers = { path = "../crates/carta-writers" }
 carta-highlight = { path = "../crates/carta-highlight" }
 
 # One target per reader: each ingests untrusted bytes and must never panic. The `highlight` target is
 # the analog for the tokenizer, which walks untrusted code through a regex-driven state machine.
-# Writers are not fuzzed yet — they consume a typed `Document`, not bytes, so a writer target needs an
-# `Arbitrary` AST generator. TODO: add `arbitrary` impls across the AST and a target per writer.
 [[bin]]
 name = "commonmark"
 path = "fuzz_targets/commonmark.rs"
@@ -153,6 +153,172 @@ bench = false
 [[bin]]
 name = "odt"
 path = "fuzz_targets/odt.rs"
+test = false
+doc = false
+bench = false
+
+# One `write_*` target per writer module: each synthesizes an `Arbitrary` document (the JSON and
+# native readers accept untrusted ASTs, so writers sit on the untrusted-input path too) and asserts
+# the writer neither panics nor produces irreproducible output. Modules with several writer variants
+# sharing one code path (markdown, html, epub) drive all variants from one target.
+
+[[bin]]
+name = "write_asciidoc"
+path = "fuzz_targets/write_asciidoc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_beamer"
+path = "fuzz_targets/write_beamer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_commonmark"
+path = "fuzz_targets/write_commonmark.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_docx"
+path = "fuzz_targets/write_docx.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_dokuwiki"
+path = "fuzz_targets/write_dokuwiki.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_epub"
+path = "fuzz_targets/write_epub.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_html"
+path = "fuzz_targets/write_html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_ipynb"
+path = "fuzz_targets/write_ipynb.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_jira"
+path = "fuzz_targets/write_jira.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_json"
+path = "fuzz_targets/write_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_latex"
+path = "fuzz_targets/write_latex.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_man"
+path = "fuzz_targets/write_man.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_markdown"
+path = "fuzz_targets/write_markdown.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_mediawiki"
+path = "fuzz_targets/write_mediawiki.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_native"
+path = "fuzz_targets/write_native.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_odt"
+path = "fuzz_targets/write_odt.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_opml"
+path = "fuzz_targets/write_opml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_org"
+path = "fuzz_targets/write_org.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_plain"
+path = "fuzz_targets/write_plain.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_revealjs"
+path = "fuzz_targets/write_revealjs.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_rst"
+path = "fuzz_targets/write_rst.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_rtf"
+path = "fuzz_targets/write_rtf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_typst"
+path = "fuzz_targets/write_typst.rs"
 test = false
 doc = false
 bench = false

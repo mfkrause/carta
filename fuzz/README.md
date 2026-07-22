@@ -1,6 +1,6 @@
 # Fuzzing
 
-Coverage-guided fuzz targets for carta's readers, built on [`cargo-fuzz`] / [libFuzzer].
+Coverage-guided fuzz targets for carta's readers and writers, built on [`cargo-fuzz`] / [libFuzzer].
 
 ## Prerequisites
 
@@ -28,12 +28,14 @@ cargo +nightly fuzz run commonmark -- -runs=100000
 
 One target per reader (see `Cargo.toml` for the current list); each feeds arbitrary bytes into the reader and asserts it never panics.
 
-Writers are not fuzzed yet: a writer consumes a typed `Document`, not bytes, so a writer target needs an `arbitrary`-derived AST generator to produce valid-but-pathological documents (TODO).
+One `write_<format>` target per writer module: the whole AST derives [`Arbitrary`], so libFuzzer's byte mutations become structured mutations of a typed `Document`.
 
 ## Corpus layout
 
-- **`seeds/<target>/`** — committed. A small representative input per reader, plus every crash/timeout reproducer we have fixed.
+- **`seeds/<target>/`** — committed. A small representative input per reader, plus every crash/timeout reproducer we have fixed. Writer targets have no hand-written seeds, libFuzzer grows a corpus from scratch.
 - **`artifacts/<target>/`** — gitignored. Where libFuzzer drops a reproducer when it finds a crash, hang, or OOM.
+
+[`Arbitrary`]: https://docs.rs/arbitrary
 
 When a discovery run finds a bug, fix the reader, then copy the reproducer from `artifacts/<target>/` into `seeds/<target>/` and commit it.
 
