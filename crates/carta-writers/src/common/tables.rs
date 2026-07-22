@@ -18,6 +18,8 @@ pub(crate) enum GridSlot<'cell> {
 /// rows a span can extend over (a table head, a body's own head rows, a body's rows, a foot).
 #[derive(Debug)]
 pub(crate) struct RowSpanGrid {
+    /// The table's declared column count; a cell's column span cannot cover columns past it.
+    columns: usize,
     /// Per column, how many upcoming rows a span opened in an earlier row still covers.
     pending: Vec<i32>,
 }
@@ -25,6 +27,7 @@ pub(crate) struct RowSpanGrid {
 impl RowSpanGrid {
     pub(crate) fn new(columns: usize) -> Self {
         Self {
+            columns,
             pending: vec![0; columns],
         }
     }
@@ -69,7 +72,13 @@ impl RowSpanGrid {
                 column = column.saturating_add(1);
             }
             slots.push(GridSlot::Cell(column, cell));
-            let col_span = usize::try_from(cell.col_span).unwrap_or(1).max(1);
+            // A column span covers real columns only up to the table's own edge; clamping to the
+            // columns actually remaining keeps a rogue span value from driving unbounded
+            // covered-slot and tracking work.
+            let remaining = self.columns.saturating_sub(column).max(1);
+            let col_span = usize::try_from(cell.col_span)
+                .unwrap_or(1)
+                .clamp(1, remaining);
             let end = column.saturating_add(col_span);
             for _ in 1..col_span {
                 slots.push(GridSlot::Covered);
@@ -110,4 +119,71 @@ pub(crate) fn body_rows(table: &carta_ast::Table) -> Vec<&carta_ast::Row> {
         .iter()
         .flat_map(|body| body.head.iter().chain(body.body.iter()))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use carta_ast::Cell;
+
+    fn cell(row_span: i32, col_span: i32) -> Cell {
+        Cell {
+            attr: carta_ast::Attr::default(),
+            align: carta_ast::Alignment::AlignDefault,
+            row_span,
+            col_span,
+            content: Vec::new(),
+        }
+    }
+
+    fn slot_kinds(slots: &[GridSlot]) -> Vec<char> {
+        slots
+            .iter()
+            .map(|slot| match slot {
+                GridSlot::Cell(_, _) => 'c',
+                GridSlot::Covered => '-',
+            })
+            .collect()
+    }
+
+    #[test]
+    fn column_span_within_table_covers_following_columns() {
+        let mut grid = RowSpanGrid::new(3);
+        let row = [cell(1, 2), cell(1, 1)];
+        assert_eq!(slot_kinds(&grid.place_slots(&row)), ['c', '-', 'c']);
+    }
+
+    #[test]
+    fn column_span_clamps_to_table_edge() {
+        let mut grid = RowSpanGrid::new(3);
+        let row = [cell(1, 1), cell(1, i32::MAX)];
+        assert_eq!(slot_kinds(&grid.place_slots(&row)), ['c', 'c', '-']);
+    }
+
+    #[test]
+    fn column_span_in_zero_column_table_stays_single() {
+        let mut grid = RowSpanGrid::new(0);
+        let row = [cell(1, i32::MAX), cell(1, i32::MAX)];
+        assert_eq!(slot_kinds(&grid.place_slots(&row)), ['c', 'c']);
+    }
+
+    #[test]
+    fn nonpositive_spans_occupy_one_column_and_one_row() {
+        let mut grid = RowSpanGrid::new(2);
+        let first = [cell(0, -5), cell(-1, 0)];
+        assert_eq!(slot_kinds(&grid.place_slots(&first)), ['c', 'c']);
+        let second = [cell(1, 1), cell(1, 1)];
+        assert_eq!(slot_kinds(&grid.place_slots(&second)), ['c', 'c']);
+    }
+
+    #[test]
+    fn oversized_row_span_covers_each_following_row() {
+        let mut grid = RowSpanGrid::new(2);
+        let first = [cell(i32::MAX, 1), cell(1, 1)];
+        assert_eq!(slot_kinds(&grid.place_slots(&first)), ['c', 'c']);
+        let second = [cell(1, 1)];
+        assert_eq!(slot_kinds(&grid.place_slots(&second)), ['-', 'c']);
+        let third = [cell(1, 1)];
+        assert_eq!(slot_kinds(&grid.place_slots(&third)), ['-', 'c']);
+    }
 }
