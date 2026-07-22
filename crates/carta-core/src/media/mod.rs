@@ -18,6 +18,7 @@ pub use sha1::hex as sha1_hex;
 use crate::walk;
 use carta_ast::Block;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Component, Path};
 
 /// One entry in a [`MediaBag`]: a resource's bytes together with its MIME type, when the source
 /// recorded one.
@@ -128,6 +129,43 @@ pub fn content_addressed_name(mime: &str, bytes: &[u8]) -> String {
     format!("{}.{}", sha1_hex(bytes), extension_for_mime(mime))
 }
 
+/// The safe on-disk name a resource is extracted under. Media names originate in
+/// untrusted container documents, so a name with a `..` component, an absolute
+/// path, or a drive/root prefix must never let a write escape the extraction
+/// directory. A name that lexically stays within the directory is preserved
+/// (benign nested paths like `media/img.png` still nest); any escaping name
+/// falls back to the content-addressed name, which is always a single safe
+/// segment. The write step and the reference rewrite both call this, so the
+/// extracted file and the rewritten link always agree.
+#[must_use]
+pub fn extraction_target(name: &str, item: &MediaItem) -> String {
+    match sanitized_relative(name) {
+        Some(safe) => safe,
+        None => content_addressed_name(
+            item.mime.as_deref().unwrap_or("application/octet-stream"),
+            &item.bytes,
+        ),
+    }
+}
+
+/// A forward-slash-joined relative path when `name` stays within its base
+/// directory (only plain `Normal` components, at least one of them); `None` when
+/// any component is a root, a drive/UNC prefix, or `..`.
+fn sanitized_relative(name: &str) -> Option<String> {
+    let mut parts: Vec<&str> = Vec::new();
+    for component in Path::new(name).components() {
+        match component {
+            Component::Normal(part) => parts.push(part.to_str()?),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    Some(parts.join("/"))
+}
+
 /// The path a resource named `name` occupies when a document's media is extracted under `dir`: the
 /// directory and the name joined with `/`. A reference rewritten to this path resolves to the file
 /// the extraction writes out.
@@ -141,8 +179,9 @@ pub fn extracted_path(dir: &str, name: &str) -> String {
 /// file reference. A reference to anything the bag does not hold is left untouched.
 pub fn rewrite_extracted_references(blocks: &mut [Block], media: &MediaBag, dir: &str) {
     walk::for_each_image_target(blocks, &mut |target| {
-        if media.contains(target.url.as_str()) {
-            target.url = extracted_path(dir, target.url.as_str()).into();
+        if let Some(item) = media.get(target.url.as_str()) {
+            let safe = extraction_target(target.url.as_str(), item);
+            target.url = extracted_path(dir, &safe).into();
         }
     });
 }
@@ -222,10 +261,66 @@ fn mime_for_extension(reference: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        MediaBag, content_addressed_name, embed_referenced_media, extension_for_mime,
-        extracted_path, rewrite_extracted_references,
+        MediaBag, MediaItem, content_addressed_name, embed_referenced_media, extension_for_mime,
+        extracted_path, extraction_target, rewrite_extracted_references,
     };
     use carta_ast::{Block, Inline, Target};
+
+    fn png_item() -> MediaItem {
+        MediaItem {
+            mime: Some("image/png".into()),
+            bytes: vec![1, 2, 3],
+        }
+    }
+
+    #[test]
+    fn extraction_target_preserves_benign_names() {
+        let item = png_item();
+        assert_eq!(extraction_target("logo.png", &item), "logo.png");
+        assert_eq!(extraction_target("media/img.png", &item), "media/img.png");
+        assert_eq!(
+            extraction_target("./media/./img.png", &item),
+            "media/img.png"
+        );
+    }
+
+    #[test]
+    fn extraction_target_rejects_escaping_names() {
+        let item = png_item();
+        let content_addressed = content_addressed_name("image/png", &[1, 2, 3]);
+
+        let parent = extraction_target("../../etc/evil", &item);
+        assert_eq!(parent, content_addressed);
+        assert!(!parent.contains(".."));
+
+        assert_eq!(extraction_target("/etc/cron.d/x", &item), content_addressed);
+        assert_eq!(extraction_target(".", &item), content_addressed);
+    }
+
+    #[test]
+    fn extraction_target_falls_back_to_default_mime_when_absent() {
+        let item = MediaItem {
+            mime: None,
+            bytes: vec![4, 5, 6],
+        };
+        assert_eq!(
+            extraction_target("../escape", &item),
+            content_addressed_name("application/octet-stream", &[4, 5, 6])
+        );
+    }
+
+    #[test]
+    fn rewrite_points_escaping_reference_at_its_safe_name() {
+        let mut bag = MediaBag::new();
+        bag.insert("../../evil.png", Some("image/png".into()), vec![1, 2, 3]);
+        let mut blocks = vec![Block::Para(vec![image("../../evil.png")])];
+        rewrite_extracted_references(&mut blocks, &bag, "out");
+        let expected = format!("out/{}", content_addressed_name("image/png", &[1, 2, 3]));
+        let first = blocks.first().expect("one block");
+        let url = image_url(first);
+        assert_eq!(url, expected);
+        assert!(!url.contains(".."));
+    }
 
     #[test]
     fn extension_falls_back_to_subtype_without_suffix() {

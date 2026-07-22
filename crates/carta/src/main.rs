@@ -667,7 +667,8 @@ fn fetch_remote(url: &str) -> Option<Resource> {
 /// directories) and rewrites the document's references to those resources to point at the files.
 fn extract_media(dir: &Path, media: &MediaBag, blocks: &mut [Block]) -> Result<()> {
     for (name, item) in media.iter() {
-        let path = dir.join(name);
+        let safe = media::extraction_target(name, item);
+        let path = dir.join(&safe);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
