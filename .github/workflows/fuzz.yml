@@ -27,10 +27,10 @@ jobs:
     name: fuzz
     runs-on: ubuntu-latest
     # One job loops every target serially, sharing a single compile. At the default 300 s/target
-    # budget that is 20 × 300 s = 100 min of fuzzing plus one compile — far under GitHub's 6 h job
-    # ceiling, so no matrix or sharding is needed. The timeout below leaves headroom for a manually
-    # dispatched budget well above the default; only a budget beyond ~1000 s/target would approach
-    # the ceiling and warrant splitting into shards.
+    # budget that is 43 × 300 s ≈ 3.6 h of fuzzing plus one compile — under GitHub's 6 h job
+    # ceiling, so no matrix or sharding is needed. The timeout below leaves little headroom beyond
+    # the default budget; a manually dispatched budget above ~400 s/target would approach the
+    # ceiling and warrant splitting into shards.
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v7
