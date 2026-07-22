@@ -81,6 +81,11 @@ struct Cli {
     /// HTML file.
     #[arg(long = "self-contained")]
     self_contained: bool,
+    /// Disable network access: remote (`http(s)://`) resources referenced by the document are not
+    /// fetched. References that would be embedded are left external and a warning is emitted. Use when
+    /// converting untrusted documents to avoid fetching document-controlled URLs.
+    #[arg(long = "sandbox")]
+    sandbox: bool,
     /// Produce a standalone document, wrapping the body in the format's template.
     #[arg(short = 's', long = "standalone")]
     standalone: bool,
@@ -380,7 +385,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         Output::Text(html) if embed_resources && cli.extract_media.is_none() => {
             let search_path = resource_search_path(cli);
             Output::Text(inline_resources(&html, |reference| {
-                resolve_embed(reference, &embed_bag, &search_path)
+                resolve_embed(reference, &embed_bag, &search_path, cli.sandbox)
             }))
         }
         output => output,
@@ -572,7 +577,12 @@ fn resolve_resource(reference: &str, search_path: &[PathBuf]) -> Option<Vec<u8>>
 /// the `fetch` feature — a resource retrieved over HTTP(S). A reference that resolves nowhere is left
 /// external (the pass keeps it as written).
 #[cfg(feature = "write-html")]
-fn resolve_embed(reference: &str, bag: &MediaBag, search_path: &[PathBuf]) -> Option<Resource> {
+fn resolve_embed(
+    reference: &str,
+    bag: &MediaBag,
+    search_path: &[PathBuf],
+    sandbox: bool,
+) -> Option<Resource> {
     if let Some(item) = bag.get(reference) {
         return Some(Resource {
             bytes: item.bytes.clone(),
@@ -580,6 +590,10 @@ fn resolve_embed(reference: &str, bag: &MediaBag, search_path: &[PathBuf]) -> Op
         });
     }
     if is_remote_url(reference) {
+        if sandbox {
+            eprintln!("carta: not fetching {reference} (--sandbox); leaving reference external");
+            return None;
+        }
         return fetch_remote(reference);
     }
     let bytes = resolve_resource(reference, search_path)?;
@@ -637,7 +651,12 @@ fn fetch_remote(url: &str) -> Option<Resource> {
     // A self-contained page may legitimately embed large media, so lift the read ceiling well above
     // the client's conservative default rather than truncate a big resource mid-download.
     const LIMIT: u64 = 128 * 1024 * 1024;
-    match ureq::get(url).call() {
+    let config = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(30)))
+        .max_redirects(5)
+        .build();
+    let agent = ureq::Agent::from(config);
+    match agent.get(url).call() {
         Ok(mut response) => {
             let mime = response.body().mime_type().map(str::to_owned);
             match response.body_mut().with_config().limit(LIMIT).read_to_vec() {
