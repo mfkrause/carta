@@ -66,7 +66,7 @@ body:
     validations:
       required: false
   - type: textarea
-    id: context
+    id: additional-context
     attributes:
       label: Additional context
       description: Operating system, anything else that might help.
