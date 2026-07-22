@@ -444,3 +444,37 @@ fn self_contained_implies_standalone_and_warns() {
         result.stdout
     );
 }
+
+#[test]
+fn closed_stdout_pipe_exits_cleanly() {
+    use std::io::Read;
+    let big = "# H\n\nparagraph text here\n\n".repeat(20_000);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_carta"))
+        .args(["-f", "commonmark", "-t", "html"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn carta");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(big.as_bytes())
+        .ok();
+    // Read a little, then drop the handle to close the read end of the pipe.
+    let mut stdout = child.stdout.take().expect("stdout");
+    let mut buf = [0u8; 64];
+    let _ = stdout.read(&mut buf);
+    drop(stdout);
+    let output = child.wait_with_output().expect("wait");
+    assert!(
+        output.status.success(),
+        "expected clean exit on closed pipe"
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "stderr not empty: {:?}",
+        output.stderr
+    );
+}

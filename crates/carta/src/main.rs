@@ -224,11 +224,18 @@ struct Cli {
 fn main() -> ExitCode {
     match run(&Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
+        Err(error) if is_broken_pipe(&error) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("carta: {error}");
             exit_code(&error)
         }
     }
+}
+
+/// A closed downstream pipe (`carta … | head`) is not an error: a well-behaved filter terminates
+/// silently when its consumer goes away.
+fn is_broken_pipe(error: &Error) -> bool {
+    matches!(error, Error::Io(io) if io.kind() == io::ErrorKind::BrokenPipe)
 }
 
 /// Maps a conversion error to a process exit status. A toggle naming an extension the format does
