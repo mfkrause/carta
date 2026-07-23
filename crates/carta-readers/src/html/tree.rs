@@ -17,7 +17,7 @@ pub(super) struct Element {
     pub(super) name: String,
     pub(super) attrs: Vec<(String, String)>,
     pub(super) children: Vec<Node>,
-    /// True for an element that stands alone with no end tag — a content-less void element
+    /// True for an element that stands alone with no end tag: a content-less void element
     /// (`<br>`, `<wbr>`, …) written without a self-closing slash. An explicit self-closing slash on
     /// any element instead yields an open/close pair, so it does not set this flag.
     pub(super) void: bool,

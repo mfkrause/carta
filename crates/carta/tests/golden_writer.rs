@@ -2,19 +2,18 @@
 //! rendered to every target, minus the `(target, feature)` pairs listed in `corpus/exclusions.tsv`.
 //!
 //! The corpus is full-model AST-JSON, so this exercises writer node shapes no reader can produce.
-//! Snapshots freeze current output and run offline; differential parity is the conformance suite's
-//! job. Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
+//! Snapshots freeze current output and run offline. Reviewed with `cargo insta review`; never
+//! hand-edit the `.snap` files.
 //!
 //! Each target and each extension spec gets its own `#[test]` so a single failing case cannot abort
 //! the rest and nextest can run and parallelize them independently. A guard test asserts the target
-//! macro's list still equals `TARGETS`, and another asserts the ext macro's list equals the
-//! `corpus/ast-ext/` directory set. Snapshot names are unchanged: the `assert_snapshot!` first
-//! argument still fixes each `.snap` filename.
+//! macro's list equals `TARGETS`, and another asserts the ext macro's list equals the
+//! `corpus/ast-ext/` directory set. The `assert_snapshot!` first argument fixes each `.snap`
+//! filename.
 
 // Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-// The corpus is JSON AST, so the JSON reader is the interchange every case is read through; without
-// it there is nothing to render. Per-target, output is snapshotted only when that writer is compiled.
+// The corpus is JSON AST: without the JSON reader there is nothing to render.
 #![cfg(feature = "read-json")]
 
 mod common;
@@ -87,8 +86,7 @@ fn writer_snapshots_for(target: &str) {
 /// spec whose base writer is not compiled, or is byte-shaped (no string form), is skipped at runtime.
 fn writer_ext_snapshots_for(spec: &str) {
     let base = spec.split(['+', '-']).next().unwrap_or(spec);
-    // Only text-shaped targets are snapshotted here; a byte-shaped one (its base writer resolves to
-    // `AnyWriter::Bytes`) has no string form and is exercised by its own container test.
+    // Byte-shaped targets have no string form; their own container tests exercise them.
     if !matches!(carta::any_writer_for(base), Ok(carta::AnyWriter::Text(_))) {
         return;
     }

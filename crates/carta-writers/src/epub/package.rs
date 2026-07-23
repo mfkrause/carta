@@ -81,8 +81,7 @@ fn build_metadata(
     for (index, identifier) in meta.identifiers.iter().enumerate() {
         push_identifier(&mut block, epub3, index, identifier);
     }
-    // A publication must name itself: `dc:title` is required, so an untitled document falls back to a
-    // placeholder rather than omitting the element and yielding an invalid package.
+    // `dc:title` is required, so an untitled document gets a placeholder rather than an invalid package.
     block.push(
         Element::new("dc:title")
             .attr("id", "epub-title-1")
@@ -140,9 +139,8 @@ fn build_metadata(
     if let Some(rights) = &meta.rights_text {
         block.push(Element::new("dc:rights").text(rights));
     }
-    // The cover pointer and the modified timestamp are singletons — `dcterms:modified` must occur
-    // exactly once. When a carried-through fragment already declares one, the generated one is
-    // skipped rather than emitted a second time.
+    // The cover pointer and `dcterms:modified` are singletons; skip the generated one when a
+    // carried-through fragment already declares it.
     if let Some(cover) = cover_id
         && !extra_has_meta(meta, "name", "cover")
     {
@@ -270,8 +268,7 @@ const ACCESSIBILITY_META: &[(&str, &str)] = &[
 fn build_manifest(items: &[ManifestItem]) -> Element {
     let mut manifest = Element::new("manifest");
     for item in items {
-        // The cover image leads with its `properties`, ahead of the identity; every other item
-        // carries `properties` last, after the media type.
+        // The cover image leads with `properties`; every other item carries it last.
         let element = if item.properties.as_deref() == Some("cover-image") {
             Element::new("item")
                 .attr("properties", "cover-image")

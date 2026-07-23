@@ -1,11 +1,10 @@
-//! The media bag: a document's embedded resources — images and other binary payloads — carried
+//! The media bag: a document's embedded resources (images and other binary payloads), carried
 //! alongside the syntax tree rather than inside it.
 //!
-//! A container format (a notebook today; a word-processor or e-book package later) references its
-//! resources by name while storing their bytes out of band. Keeping those bytes out of the syntax
-//! tree mirrors that split: a reader fills a [`MediaBag`] as it decodes, a writer consumes it to
-//! re-embed the bytes, and the extract step writes them out as files and rewrites the references to
-//! point at them. The tree stays a pure model of structure; the bytes travel next to it.
+//! A container format references its resources by name while storing their bytes out of band.
+//! Keeping those bytes out of the syntax tree mirrors that split: a reader fills a [`MediaBag`] as
+//! it decodes, a writer consumes it to re-embed the bytes, and the extract step writes them out as
+//! files and rewrites the references to point at them.
 
 mod base64;
 mod sha1;
@@ -32,8 +31,8 @@ pub struct MediaItem {
 
 /// A document's embedded resources, keyed by the name the document references each one under.
 ///
-/// Entries are held in sorted order, so iteration — and any file extraction or re-embedding derived
-/// from it — is byte-reproducible across runs.
+/// Entries are held in sorted order, so iteration (and any file extraction or re-embedding derived
+/// from it) is byte-reproducible across runs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MediaBag {
     items: BTreeMap<String, MediaItem>,
@@ -188,7 +187,7 @@ pub fn rewrite_extracted_references(blocks: &mut [Block], media: &MediaBag, dir:
 
 /// Pulls into `media` every image the document references but does not already carry, so a container
 /// writer can embed it. Each distinct reference is offered to `resolve`, which turns it into the
-/// resource's bytes — reading a file, fetching a URL, whatever the caller supports — or returns `None`
+/// resource's bytes (reading a file, fetching a URL, whatever the caller supports) or returns `None`
 /// to leave the reference as written. References already held in the bag, and those that name a URL or
 /// an inline `data:` payload, are skipped without consulting the resolver. The resource is recorded
 /// under the reference itself, with the MIME type its extension implies.
@@ -216,7 +215,7 @@ pub fn embed_referenced_media(
     }
 }
 
-/// Whether a reference points outside the local filesystem — a URL or an inline `data:` payload —
+/// Whether a reference points outside the local filesystem (a URL or an inline `data:` payload)
 /// rather than a file the caller could read.
 fn is_remote_reference(url: &str) -> bool {
     url.starts_with("data:") || url.starts_with("//") || url.contains("://")

@@ -8,7 +8,7 @@
 //! is drawn from the document head: `title`, `ownerName` (as the author list), and `dateModified`
 //! (as the date), each taken as plain text.
 //!
-//! XML is parsed by a small hand-written scanner over the subset the format uses — elements,
+//! XML is parsed by a small hand-written scanner over the subset the format uses: elements,
 //! attributes with entity decoding, self-closing tags, and nesting. The scanner is panic-free on
 //! malformed input: unrecognized or unbalanced markup is skipped rather than rejected.
 
@@ -127,9 +127,8 @@ fn note_options() -> ReaderOptions {
 
 fn build_meta(head: Option<&Element>) -> BTreeMap<String, MetaValue> {
     let mut meta = BTreeMap::new();
-    // The element's text content, or `None` when the element is absent. A present element with empty
-    // or whitespace-only content is distinguished from an absent one, which matters for the author
-    // list: a present `ownerName` always contributes an entry, even an empty one.
+    // present-but-empty is distinct from absent: a present `ownerName` always contributes an
+    // author entry, even an empty one
     let value = |name: &str| -> Option<&str> {
         head.and_then(|head| head.children.iter().find(|child| child.name == name))
             .map(|element| {
@@ -153,7 +152,7 @@ fn build_meta(head: Option<&Element>) -> BTreeMap<String, MetaValue> {
 }
 
 /// Tokenize a metadata value into inlines, preserving boundary whitespace. Each maximal
-/// non-whitespace run becomes one `Str`; each maximal whitespace run becomes a single break — a
+/// non-whitespace run becomes one `Str`; each maximal whitespace run becomes a single break, a
 /// `SoftBreak` when the run spans a line ending, otherwise a `Space`. Leading and trailing
 /// whitespace is kept, unlike inline body text where it is trimmed. Smart typography is not applied:
 /// metadata values keep their straight quotes, hyphens, and dots verbatim.
@@ -217,7 +216,6 @@ fn next_element(chars: &[char], pos: &mut usize) -> Option<Element> {
     }
 }
 
-/// Skip past characters until the next `<`.
 fn skip_to_tag(chars: &[char], pos: &mut usize) {
     while let Some(&ch) = chars.get(*pos) {
         if ch == '<' {
@@ -334,8 +332,7 @@ fn parse_children(chars: &[char], pos: &mut usize) -> (Vec<Element>, String) {
             *pos = (*pos).saturating_add(1);
         }
     }
-    // The raw text is returned untrimmed: a metadata value's boundary whitespace is significant and
-    // is turned into boundary `Space`/`SoftBreak` inlines by [`tokenize_meta`].
+    // untrimmed: boundary whitespace becomes boundary `Space`/`SoftBreak` inlines in [`tokenize_meta`]
     (children, text)
 }
 
@@ -432,8 +429,8 @@ fn smart_inlines(inlines: Vec<Inline>) -> Vec<Inline> {
     pair_quotes(folded)
 }
 
-/// Recurse into one inline applying the textual smart transforms (dashes, dots, and — in code and
-/// string contexts — directional quote glyphs). Quote *pairing* into `Quoted` spans is left to
+/// Recurse into one inline applying the textual smart transforms (dashes, dots, and, in code and
+/// string contexts, directional quote glyphs). Quote *pairing* into `Quoted` spans is left to
 /// [`pair_quotes`], which sees the whole run.
 fn fold_inline(inline: Inline) -> Inline {
     match inline {
@@ -457,7 +454,7 @@ fn fold_inline(inline: Inline) -> Inline {
 }
 
 /// Fold the dash and dot runs of a plain text string: `---` and longer fold to em/en dashes, `...`
-/// folds to an ellipsis. Straight quotes are left untouched here — they are resolved by
+/// folds to an ellipsis. Straight quotes are left untouched here; they are resolved by
 /// [`pair_quotes`], which can see their surrounding context across the whole run.
 fn fold_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
@@ -509,8 +506,7 @@ fn smart_code(text: &str) -> String {
             Item::Text(text) => out.push_str(text),
             Item::Break(_) => {}
             Item::Quote(quote) => out.push(match quote.partner {
-                // The opener of a matched pair turns to the left glyph, its closer to the right
-                // glyph; an unmatched quote keeps its directional fallback.
+                // a matched pair turns to left/right glyphs; an unmatched quote keeps its directional fallback
                 Some(partner) if partner > index => paired_code_glyph(quote.ch, true),
                 Some(_) => paired_code_glyph(quote.ch, false),
                 None => quote.glyph,
@@ -562,7 +558,7 @@ fn pair_quotes(inlines: Vec<Inline>) -> Vec<Inline> {
 /// Whether the character before a quote permits it to open a span: the start of the run, whitespace,
 /// or one of a small set of leading characters (a dash glyph, a dot, a backslash, a currency sign,
 /// an ellipsis, or an already-curled quote). A quote glued to a letter, a digit, or an opening
-/// bracket does not satisfy this — there it reads as a closer or apostrophe instead.
+/// bracket does not satisfy this; there it reads as a closer or apostrophe instead.
 fn open_context(before: Option<char>) -> bool {
     match before {
         None => true,
@@ -588,14 +584,14 @@ fn open_context(before: Option<char>) -> bool {
 }
 
 /// Whether a quote opens a span here: its preceding character permits opening and a non-whitespace
-/// character follows it. A quote followed by whitespace (or the run's end) cannot open — it reads as
+/// character follows it. A quote followed by whitespace (or the run's end) cannot open; it reads as
 /// a closing glyph or apostrophe.
 fn opens_quote(before: Option<char>, after: Option<char>) -> bool {
     open_context(before) && after.is_some_and(|next| !next.is_whitespace())
 }
 
 /// Whether a quote at this position may end a quoted span. A double quote always closes an open
-/// double quote. A single quote closes only when it is not glued to a following alphanumeric — that
+/// double quote. A single quote closes only when it is not glued to a following alphanumeric; that
 /// case is an apostrophe inside or after a word (`it's`, `dogs'`), not a closing quote.
 fn can_close_quote(ch: char, after: Option<char>) -> bool {
     if ch == '"' {
@@ -606,7 +602,7 @@ fn can_close_quote(ch: char, after: Option<char>) -> bool {
 
 /// The directional glyph an unpaired straight quote becomes. A single quote always becomes the right
 /// single glyph (`’`), which doubles as the apostrophe. A double quote becomes the left glyph (`“`)
-/// only where it reads as an opener — its preceding character permits opening (start of run,
+/// only where it reads as an opener: its preceding character permits opening (start of run,
 /// whitespace, a dash, or one of the other leading characters) and a non-space character follows it;
 /// otherwise it becomes the right glyph (`”`).
 fn directional_quote(ch: char, before: Option<char>, after: Option<char>) -> char {
@@ -690,7 +686,7 @@ fn classify_run(run: &[RunTok]) -> Vec<Item> {
 
 /// Match quote openers to closers across the classified run with a stack of still-open quotes.
 /// Scanning left to right, a quote of a kind already open closes that span (recorded as a mutual
-/// partner link), abandoning any inner openers of the other kind that never closed — so a span does
+/// partner link), abandoning any inner openers of the other kind that never closed, so a span does
 /// not straddle a closed inner span. A quote with no open partner of its kind opens a new span where
 /// its context permits; quotes of one kind do not nest within their own kind. A single quote never
 /// forms an empty pair, so `''` stays two apostrophes.
@@ -778,7 +774,7 @@ fn render_items(items: &[Item], cursor: &mut usize) -> Vec<Inline> {
     out
 }
 
-/// For each token in the run, the character immediately before and after it (skipping nothing —
+/// For each token in the run, the character immediately before and after it (skipping nothing:
 /// breaks count as spaces, run edges as `None`). Used to decide quote flanking with full context.
 fn run_context(run: &[RunTok]) -> Vec<(Option<char>, Option<char>)> {
     let plain: Vec<Option<char>> = run
@@ -926,8 +922,7 @@ mod tests {
 
     #[test]
     fn text_attribute_decodes_entities_twice_then_parses_code() {
-        // The XML layer decodes the attribute once (`&amp;amp;` becomes `&amp;`); the inline parse
-        // decodes again (`&amp;` becomes `&`) and reads the `<code>` element.
+        // the XML layer decodes once (`&amp;amp;` → `&amp;`); the inline parse decodes again and reads `<code>`
         let inlines = first_header_inlines(&outline("a &lt;code&gt;c&lt;/code&gt; b &amp;amp; z"));
         assert_eq!(
             inlines,
@@ -1191,8 +1186,7 @@ mod tests {
 
     #[test]
     fn text_attribute_resolves_an_unpaired_double_quote_directionally() {
-        // An opener-context quote followed by a word becomes the left glyph; one with no following
-        // word becomes the right glyph.
+        // an opener-context quote before a word becomes the left glyph; otherwise the right
         let opener = first_header_inlines(&outline("&quot;open only"));
         assert_eq!(
             opener.first(),
@@ -1292,8 +1286,7 @@ mod tests {
 
     #[test]
     fn note_body_uses_the_markdown_preset() {
-        // A definition list is a Markdown-dialect construct absent from bare CommonMark; its presence
-        // confirms the note body is parsed with the extended Markdown extension set.
+        // a definition list proves the note body uses the extended Markdown extension set
         let document = read(
             "<opml><body><outline text=\"H\" _note=\"Term&#10;:   Definition\"/></body></opml>",
         );
@@ -1370,8 +1363,7 @@ mod tests {
 
     #[test]
     fn present_but_empty_owner_contributes_an_empty_author() {
-        // A present `ownerName`, even with empty content, yields one author entry — distinct from an
-        // absent element, which yields none.
+        // a present `ownerName`, even empty, yields one author entry; an absent element yields none
         let document = read("<opml><head><ownerName></ownerName></head><body></body></opml>");
         let Some(MetaValue::MetaList(authors)) = document.meta.get("author") else {
             panic!("expected an author list");

@@ -38,7 +38,7 @@ const STYLES: &[(&str, &str)] = &[
 
 /// A catalog of syntax definitions, resolving names to parsed grammars on demand.
 ///
-/// Both lookup entry points memoize their results — including misses — keyed by the query string
+/// Both lookup entry points memoize their results (including misses) keyed by the query string
 /// as given, so a document naming the same language on many code blocks pays the scan over the
 /// bundled catalog once.
 #[derive(Default)]

@@ -152,8 +152,7 @@ impl State {
     }
 
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
-        // Org outlines nest without a syntactic ceiling, so the star run is capped at a depth far
-        // beyond any real outline; an absurd level cannot force an unbounded allocation.
+        // Org has no syntactic depth ceiling; the cap keeps an absurd level from unbounded allocation.
         const MAX_HEADLINE_LEVEL: i32 = 32;
         let stars = "*".repeat(usize::try_from(level.clamp(1, MAX_HEADLINE_LEVEL)).unwrap_or(1));
         let text = self.flat(inlines);
@@ -342,8 +341,7 @@ impl State {
                 if column >= columns {
                     break;
                 }
-                // Clamp each span to the slots that actually exist: a cell may not extend past the
-                // grid, and iterating an out-of-range span would loop over hundreds of millions of
+                // Clamp spans to real slots: an out-of-range span would loop over millions of
                 // absent slots to no effect.
                 let row_span = usize::try_from(cell.row_span.max(1))
                     .unwrap_or(1)
@@ -587,7 +585,7 @@ impl State {
     }
 
     /// Render inlines to a flat, single-block string: the fill pieces joined with spaces for breaks.
-    /// Used where inline content may not reflow — headings, list terms, captions, table cells, and the
+    /// Used where inline content may not reflow: headings, list terms, captions, table cells, and the
     /// interior of a markup span.
     fn flat(&mut self, inlines: &[Inline]) -> String {
         let pieces = self.pieces(inlines);
@@ -671,7 +669,7 @@ fn is_raw_org_block(block: &Block) -> bool {
     matches!(block, Block::RawBlock(format, _) if format.0.eq_ignore_ascii_case("org"))
 }
 
-/// Whether a list is tight — every item's blocks are plain text or a nested tight list, so items are
+/// Whether a list is tight: every item's blocks are plain text or a nested tight list, so items are
 /// separated by a single newline. Any paragraph, quote, code, or loose nested list makes it loose.
 fn list_is_tight(items: &[Vec<Block>]) -> bool {
     items.iter().all(|item| item.iter().all(tight_block))
@@ -833,7 +831,6 @@ fn is_raw_org(format: &Format) -> bool {
     )
 }
 
-/// The index of the first class naming a special Org block, matched case-insensitively.
 /// The drawer name of a `Div` marked as a drawer: the first class other than the `drawer` marker,
 /// or `None` when the div is not a drawer or carries no name.
 fn drawer_name(classes: &[Text]) -> Option<&str> {
@@ -904,7 +901,7 @@ fn org_path(url: &str) -> String {
     format!("file:{url}")
 }
 
-/// Whether a URL opens with a `scheme:` prefix — a non-empty run of scheme characters before a colon.
+/// Whether a URL opens with a `scheme:` prefix: a non-empty run of scheme characters before a colon.
 fn has_scheme(url: &str) -> bool {
     match url.split_once(':') {
         Some((scheme, _)) => {
@@ -931,8 +928,8 @@ fn special_strings(text: &str) -> String {
     out
 }
 
-/// A rendered table cell: its lines, and the width its column must reserve — the widest line plus
-/// any boundary spaces of a sole-paragraph cell that the rendering drops.
+/// A rendered table cell: its lines, and the width its column must reserve (the widest line plus
+/// any boundary spaces of a sole-paragraph cell that the rendering drops).
 struct RenderedCell {
     lines: Vec<String>,
     sizing_width: usize,
@@ -1078,8 +1075,7 @@ mod tests {
             bodies: Vec::new(),
             foot: TableFoot::default(),
         };
-        // A cell whose spans dwarf the grid must be clamped to the real slots rather than iterating
-        // the full span product; the render completes promptly and stays small.
+        // Spans dwarfing the grid must clamp to real slots, not iterate the full span product.
         let document = Document {
             blocks: vec![Block::Table(Box::new(table))],
             ..Document::default()

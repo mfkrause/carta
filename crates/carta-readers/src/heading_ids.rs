@@ -2,16 +2,16 @@
 //!
 //! Two slug shapes are available, selected by the active extension:
 //!
-//! - `auto_identifiers` — keep alphanumerics, `_`, `-`, `.`, and whitespace; collapse each
+//! - `auto_identifiers`: keep alphanumerics, `_`, `-`, `.`, and whitespace; collapse each
 //!   whitespace run to a single `-`; strip the leading run up to the first letter.
-//! - `gfm_auto_identifiers` — keep alphanumerics, combining marks, `_`, and `-`; turn each
+//! - `gfm_auto_identifiers`: keep alphanumerics, combining marks, `_`, and `-`; turn each
 //!   whitespace character into a single `-`; drop everything else (including `.`); no leading strip.
 //!
 //! Two disambiguation strategies sit on top of the slug:
 //!
-//! - native — an empty slug becomes `section`; repeats increment a numeric suffix until the whole
+//! - native: an empty slug becomes `section`; repeats increment a numeric suffix until the whole
 //!   identifier is unused against every identifier already issued or reserved.
-//! - count-suffix — repeats are disambiguated by a per-base occurrence count (which can itself
+//! - count-suffix: repeats are disambiguated by a per-base occurrence count (which can itself
 //!   collide with a slug that already carries that suffix), and an empty slug stays empty.
 //!
 //! The disambiguation strategy is chosen by the dialect, not the slug shape: the broad Markdown
@@ -61,7 +61,7 @@ impl IdScheme {
     ///
     /// In the broad Markdown dialect, `auto_identifiers` is the master switch: with it off, no header
     /// is numbered even if `gfm_auto_identifiers` is on (the latter only chooses the slug algorithm).
-    /// The bare `CommonMark` engine has no such master switch — there `gfm_auto_identifiers` alone
+    /// The bare `CommonMark` engine has no such master switch: there `gfm_auto_identifiers` alone
     /// drives numbering.
     pub(crate) fn select(extensions: Extensions, markdown: bool) -> Option<Self> {
         if markdown && !extensions.contains(Extension::AutoIdentifiers) {
@@ -162,7 +162,7 @@ impl IdRegistry {
     }
 
     /// Derive an identifier under `scheme`'s slug algorithm but with the native (increment-until-
-    /// unique, empty-becomes-`section`) disambiguation — the strategy the broad Markdown dialect
+    /// unique, empty-becomes-`section`) disambiguation, the strategy the broad Markdown dialect
     /// applies to every slug shape, including the GitHub slug. The bare `CommonMark` engine instead
     /// pairs each slug shape with its own disambiguation via [`Self::assign`].
     #[cfg(feature = "commonmark")]
@@ -226,8 +226,7 @@ mod tests {
     #[cfg(feature = "commonmark")]
     #[test]
     fn markdown_pairs_the_gfm_slug_with_native_disambiguation() {
-        // The broad Markdown dialect keeps the GitHub slug shape but disambiguates natively: an
-        // empty slug becomes `section` and increments, unlike the bare engine's count-suffix.
+        // GitHub slug shape, native disambiguation: empty becomes `section`, unlike count-suffix.
         let mut registry = IdRegistry::default();
         assert_eq!(registry.assign_markdown(IdScheme::Gfm, "???"), "section");
         assert_eq!(registry.assign_markdown(IdScheme::Gfm, "!!!"), "section-1");
@@ -309,8 +308,7 @@ mod tests {
             registry.assign_with_separator("same".to_owned(), '-'),
             "same-1"
         );
-        // The `_` separator has its own memo, so it starts probing at 1, not at the `-` memo's 2 — the
-        // bare `same` is already in `seen`, so `same_1` is the first available `_` candidate.
+        // The `_` separator's own memo starts probing at 1, not at the `-` memo's 2.
         assert_eq!(
             registry.assign_with_separator("same".to_owned(), '_'),
             "same_1"

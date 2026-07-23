@@ -1,10 +1,6 @@
-//! Shared helpers for the text-oriented writers, organized into cohesive submodules: the line-fill
-//! engine ([`fill`]), column-width measurement ([`width`]), list-tightness and numerals ([`lists`]),
-//! footnote plumbing ([`notes`]), image-dimension and attribute helpers ([`dimensions`]), URI-scheme
-//! recognition ([`uri`]), markup escaping and HTML attributes ([`html_attr`]), the table grid model
-//! ([`tables`]), and text-grid table layout ([`table_layout`]). The submodule layout is a private
-//! organizational detail — every item is re-exported here, so consumers import from `crate::common`
-//! rather than reaching into a submodule.
+//! Shared helpers for the text-oriented writers. The submodule layout is a private organizational
+//! detail; every item is re-exported here, so consumers import from `crate::common` rather than
+//! reaching into a submodule.
 //!
 //! This root also holds a few cross-cutting helpers (smart-quote glyphs, ASCII punctuation fallback,
 //! list-offset conversion, raw-passthrough emission). A single-writer build leaves whole submodule
@@ -96,7 +92,7 @@ pub(crate) fn offset_as_i32(offset: usize) -> i32 {
 /// escaper copies this prefix verbatim and resumes its per-character work at the first trigger.
 ///
 /// `is_trigger` must classify bytes so the returned length always falls on a `char` boundary: match
-/// only ASCII bytes (`< 0x80`), or — for an escaper that acts on non-ASCII input — additionally
+/// only ASCII bytes (`< 0x80`), or, for an escaper that acts on non-ASCII input, additionally
 /// treat *every* byte `>= 0x80` as a trigger. Under that contract the first trigger byte is either an
 /// ASCII byte or the leading byte of a multibyte character, never a continuation byte.
 pub(crate) fn clean_prefix_len(text: &str, is_trigger: impl Fn(u8) -> bool) -> usize {

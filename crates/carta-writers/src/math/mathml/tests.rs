@@ -1,5 +1,5 @@
 //! Golden checks for the Presentation MathML backend. Each expected string is a fixed golden: the
-//! exact `<math>` element tree the backend emits for one construct. The suite is fully offline —
+//! exact `<math>` element tree the backend emits for one construct. The suite is fully offline:
 //! every value is embedded here, so nothing is generated at test time.
 
 use super::to_mathml;
@@ -7,8 +7,7 @@ use super::to_mathml;
 /// `(source, display, expected `<math>` element)` triples. `display` selects inline vs block layout;
 /// a display-mode limit operator stacks its scripts under and over rather than beside it.
 const GOLDENS: &[(&str, bool, Option<&str>)] = &[
-    // Bare characters and math classes: digits as `<mn>`, letters as `<mi>`, operators/relations/
-    // delimiters/punctuation as `<mo>`; a hyphen prints as the minus sign; `:=` is one relation.
+    // digits `<mn>`, letters `<mi>`, operator classes `<mo>`; hyphen prints minus; `:=` is one relation
     (
         "x",
         false,
@@ -114,8 +113,7 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mo>:=</mo><mi>b</mi></mrow></math>",
         ),
     ),
-    // Greek letters, symbols, named functions, inter-atom spacings, and an unknown command (its
-    // literal name in an `<mi>`).
+    // Greek, symbols, named functions, spacings, and an unknown command as a literal `<mi>`
     (
         "\\alpha",
         false,
@@ -343,8 +341,7 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><msqrt><mn>1</mn></msqrt><mn>2</mn></mrow></math>",
         ),
     ),
-    // Accents: each mark over its base, an unmapped accent falling back to a macron; `\underline`
-    // sets a combining low line under its base instead.
+    // accents over their base, unmapped falls back to macron; `\underline` sets a combining low line
     (
         "\\hat{a}",
         false,
@@ -493,8 +490,8 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>emph</mi><mi>x</mi></mrow></math>",
         ),
     ),
-    // Styled alphabets: each `\math…` maps its identifier and number leaves into the font-variant
-    // block and tags them; an operator leaf and a symbol with no styled form are left as they are.
+    // `\math…` styles map identifier/number leaves into the font-variant block; operator leaves
+    // and unstyled symbols are left as they are
     (
         "\\mathbb{R}",
         false,
@@ -614,8 +611,7 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi mathvariant=\"bold-italic\">𝒂</mi><mi mathvariant=\"bold-italic\">𝒃</mi></mrow></math>",
         ),
     ),
-    // The cancel family and `\boxed` draw their argument inside an `<menclose>` with the matching
-    // strike or box notation.
+    // the cancel family and `\boxed` use `<menclose>` with the matching notation
     (
         "\\cancel{x}",
         false,
@@ -644,9 +640,8 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><menclose notation=\"box\"><mi>x</mi></menclose></math>",
         ),
     ),
-    // Binomials, matrices with every delimiter, an explicit-alignment array, cases, and the
-    // alignment grids (aligned collapses the inter-column gap, eqnarray cycles right/center/left,
-    // flalign cycles left/right, gathered centers, substack stacks each row as a grouped cell).
+    // binomials, matrices with every delimiter, arrays, cases, and each alignment grid's
+    // column-alignment cycle
     (
         "\\binom{n}{k}",
         false,
@@ -745,8 +740,7 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><msub><mi>x</mi><mtable><mtr><mtd columnalign=\"center\" style=\"text-align: center\"><mi>a</mi></mtd></mtr><mtr><mtd columnalign=\"center\" style=\"text-align: center\"><mi>b</mi></mtd></mtr></mtable></msub></math>",
         ),
     ),
-    // Explicit fences (each stretchy delimiter side, a dropped `.` side, and a `\middle` divider) and
-    // the plain-glyph bracket macros.
+    // explicit fences (stretchy sides, dropped `.`, `\middle`) and the plain-glyph bracket macros
     (
         "\\left(a\\right)",
         false,
@@ -817,8 +811,8 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mo stretchy=\"true\" form=\"prefix\">(</mo><mi>a</mi><mo>|</mo><mi>b</mi><mo stretchy=\"true\" form=\"postfix\">)</mo></mrow></math>",
         ),
     ),
-    // Sized delimiters carry a percentage min/max size; an opening one is a prefix operator, a
-    // relation-class glyph takes no fence form, an ordinary glyph stays an `<mi>`.
+    // sized delimiters carry percentage min/max; opener is prefix, relation glyphs take no fence
+    // form, ordinary glyphs stay `<mi>`
     (
         "\\big(",
         false,
@@ -883,8 +877,7 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mrow><mi>a</mi><mrow><mspace width=\"0.222em\"></mspace><mo stretchy=\"true\" form=\"prefix\">(</mo><mi>n</mi><mo stretchy=\"true\" form=\"postfix\">)</mo></mrow></mrow></math>",
         ),
     ),
-    // Negation: a precomposed negated relation, a combining solidus over a relation/letter/digit, and
-    // a Greek letter struck through.
+    // negation: precomposed relation, combining solidus over relation/letter/digit, struck Greek
     (
         "\\not= b",
         false,
@@ -920,8 +913,7 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mi>α\u{338}</mi></math>",
         ),
     ),
-    // Stacks, horizontal braces (bare, with a matching-side label, and with a remaining ordinary
-    // script pair), and extensible arrows with an above- and an under-label.
+    // stacks, horizontal braces (bare, labelled, ordinary script pair), and extensible arrows
     (
         "\\overset{a}{b}",
         false,
@@ -1003,9 +995,8 @@ const GOLDENS: &[(&str, bool, Option<&str>)] = &[
         false,
         Some("<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"></math>"),
     ),
-    // Display mode: the root carries `display=\"block\"`, and a limit operator (a named function, a
-    // large operator command, or the raw large-operator glyph) stacks its scripts under and over it,
-    // while an integral keeps them beside it.
+    // display mode: root carries `display=\"block\"`; limit operators stack their scripts,
+    // integrals keep them beside
     (
         "x^2",
         true,
@@ -1085,8 +1076,7 @@ fn xml_special_characters_are_escaped() {
 
 #[test]
 fn deeply_nested_input_does_not_panic() {
-    // A pathological brace nest is bounded by the depth limit: it returns some result without
-    // overflowing the stack.
+    // a pathological brace nest is bounded by the depth limit: no stack overflow
     let source = format!("{}x{}", "{".repeat(400), "}".repeat(400));
     let _ = to_mathml(&source, false);
 }

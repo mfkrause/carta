@@ -1,7 +1,7 @@
 //! A deterministic ZIP archive builder and reader.
 //!
 //! The builder writes entries with a fixed modification timestamp and no extra fields, so identical
-//! inputs always produce byte-identical archives — a hard requirement for reproducible output. An
+//! inputs always produce byte-identical archives, a hard requirement for reproducible output. An
 //! entry is either stored uncompressed ([`ZipArchive::store`]) or DEFLATE-compressed
 //! ([`ZipArchive::deflate`], falling back to stored when compression would not shrink it). The
 //! reader ([`read`]) parses such archives back into their entries, so a round trip is exact.
@@ -69,7 +69,7 @@ impl ZipArchive {
         self.write_entry(name, data, METHOD_STORE, data, VERSION_STORE)
     }
 
-    /// Adds `data` under `name`, DEFLATE-compressed — unless compression fails to shrink it, in
+    /// Adds `data` under `name`, DEFLATE-compressed, unless compression fails to shrink it, in
     /// which case the entry is stored (so an already-compressed image never grows).
     pub fn deflate(&mut self, name: &str, data: &[u8]) -> Result<()> {
         let compressed = miniz_oxide::deflate::compress_to_vec(data, DEFLATE_LEVEL);
@@ -228,9 +228,7 @@ pub fn read(archive: &[u8]) -> Result<Vec<ZipEntry>> {
 
         let data = match method {
             METHOD_STORE => raw.to_vec(),
-            // Decompress no further than the central directory's declared uncompressed size, so a
-            // crafted entry whose tiny payload would otherwise inflate without bound cannot exhaust
-            // memory; a result that disagrees with the declared size marks a corrupt archive.
+            // cap inflation at the declared size so a crafted entry cannot exhaust memory
             METHOD_DEFLATE => {
                 let out =
                     miniz_oxide::inflate::decompress_to_vec_with_limit(raw, uncompressed_size)
@@ -367,14 +365,14 @@ mod tests {
         // The canonical CRC-32 check value for the ASCII string "123456789".
         assert_eq!(crc32(b"123456789"), 0xCBF4_3926);
         assert_eq!(crc32(b""), 0);
-        // A multi-KB buffer, checked against the reference bitwise formulation the table replaces.
+        // A multi-KB buffer, checked against the direct bitwise formulation.
         let buffer: Vec<u8> = (0..4096u32)
             .map(|index| u8::try_from((index * 31 + 7) % 256).unwrap_or(0))
             .collect();
         assert_eq!(crc32(&buffer), crc32_bitwise(&buffer));
     }
 
-    /// The pre-table bitwise CRC-32, kept in the test to pin the table-driven result to it.
+    /// The direct bitwise CRC-32, kept in the test to pin the table-driven result to it.
     fn crc32_bitwise(data: &[u8]) -> u32 {
         let mut crc: u32 = 0xFFFF_FFFF;
         for &byte in data {
@@ -451,9 +449,7 @@ mod tests {
 
     #[test]
     fn read_rejects_deflate_exceeding_declared_size() {
-        // A deflated entry whose central-directory record understates the uncompressed size is
-        // rejected rather than inflated past that bound — the guard against a decompression bomb
-        // that would otherwise expand a tiny payload into an unbounded allocation.
+        // decompression-bomb guard: an understated declared size is rejected, never inflated past
         let mut archive = ZipArchive::new();
         archive
             .deflate("big", b"AAAAAAAAAAAAAAAA".repeat(64).as_slice())

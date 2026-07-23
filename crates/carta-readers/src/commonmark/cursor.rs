@@ -2,7 +2,7 @@
 //!
 //! The block phase scans each line through a `Cursor`: it tracks a byte offset and the
 //! corresponding visual column (so tab stops expand correctly) and exposes the line-level probes
-//! the open-block algorithm needs — indentation width, ATX/setext headings, thematic breaks, fenced
+//! the open-block algorithm needs: indentation width, ATX/setext headings, thematic breaks, fenced
 //! code openers, and list markers. It holds no tree state; recognizing a construct and acting on it
 //! are separate concerns owned by the block phase.
 
@@ -24,8 +24,7 @@ pub(super) struct FenceInfo {
 /// A parsed list marker: its kind, the number style and delimiter, the start number for ordered
 /// lists, the marker's own width in columns, and whether only whitespace follows it (an empty item
 /// opener).
-// The flags are independent facts about one parsed marker (its kind, ambiguity, and trailing
-// whitespace); collapsing them into an enum would conflate dimensions a caller reads separately.
+// independent facts about one marker; an enum would conflate dimensions read separately
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub(super) struct ListMarkerParse {
@@ -187,8 +186,7 @@ impl<'a> Cursor<'a> {
                     self.column += 1;
                 }
                 Some(b'\t') => {
-                    // A tab spanning the target is consumed whole; overshooting the column is
-                    // acceptable for indentation.
+                    // a tab spanning the target is consumed whole; overshooting is fine for indentation
                     self.offset += 1;
                     self.column += TAB_STOP - (self.column % TAB_STOP);
                 }
@@ -389,8 +387,8 @@ impl<'a> Cursor<'a> {
         Some(label)
     }
 
-    /// If the cursor sits at a definition-list marker — a single `:` or `~` followed by a space, a
-    /// tab, or the line's end — return whether only whitespace follows it (an empty definition). The
+    /// If the cursor sits at a definition-list marker (a single `:` or `~` followed by a space, a
+    /// tab, or the line's end), return whether only whitespace follows it (an empty definition). The
     /// marker char is not consumed.
     pub(super) fn definition_marker_at(&self) -> Option<bool> {
         let byte = self.peek()?;
@@ -406,7 +404,7 @@ impl<'a> Cursor<'a> {
     /// If the cursor sits at a list marker, return its parse. With `fancy` set, ordered enumerators
     /// also recognize alphabetic and roman styles and the `(x)` parenthesized delimiter; otherwise
     /// only decimal `n.`/`n)` enumerators count. With `hash_placeholder` set, the `#` auto-number
-    /// placeholder is recognized too — the greedy Markdown dialect honors `#.` independently of the
+    /// placeholder is recognized too: the greedy Markdown dialect honors `#.` independently of the
     /// fancy alphabetic and roman enumerators.
     pub(super) fn list_marker_at(
         &self,
@@ -495,10 +493,8 @@ impl<'a> Cursor<'a> {
         if !matches!(self.bytes.get(after), None | Some(b' ' | b'\t')) {
             return None;
         }
-        // A single uppercase letter followed by a period needs two spaces of separation before
-        // content, so a sentence opener like "B. Franklin" is not mistaken for a list (the gap is
-        // unnecessary when the item is empty, since nothing follows to be confused). A multi-letter
-        // roman numeral like "II." is unambiguous and needs only one space.
+        // a lone capital plus `.` needs two spaces before content ("B. Franklin" is prose, and an
+        // empty item needs no gap); a multi-letter roman numeral like "II." needs only one
         if delim == ListNumberDelim::Period
             && len == 1
             && matches!(
@@ -528,8 +524,7 @@ impl<'a> Cursor<'a> {
     /// Parse a parenthesized enumerator `(x)` at the cursor (fancy lists only).
     fn paren_enumerator_at(&self) -> Option<ListMarkerParse> {
         let body = self.offset + 1;
-        // The parenthesized `#` placeholder opens a default-style list with the two-parenthesis
-        // delimiter, just like `(1)` but auto-numbered.
+        // `(#)` opens a default-style two-parenthesis list, like `(1)` but auto-numbered
         if self.bytes.get(body) == Some(&b'#') {
             return self.paren_hash_marker_at(body);
         }
@@ -631,7 +626,7 @@ impl<'a> Cursor<'a> {
     }
 }
 
-/// Consume an example-list label — a run of `[A-Za-z0-9_-]` — at `start`, returning it and its byte
+/// Consume an example-list label (a run of `[A-Za-z0-9_-]`) at `start`, returning it and its byte
 /// length. An empty run is valid: it marks the anonymous `@`.
 fn parse_example_label(bytes: &[u8], start: usize) -> (String, usize) {
     let mut len = 0;
@@ -665,8 +660,7 @@ fn parse_enum_body(bytes: &[u8], start: usize) -> Option<(ListNumberStyle, i32, 
         while let Some(byte) = bytes.get(start + len) {
             if byte.is_ascii_digit() {
                 len += 1;
-                // An ordered-list start caps at 9 digits; a longer run is not a marker. Enforce the
-                // cap before accumulating so `value` cannot overflow.
+                // start caps at 9 digits; enforce before accumulating so `value` cannot overflow
                 if len > 9 {
                     return None;
                 }
@@ -725,7 +719,7 @@ fn alpha_value(byte: u8) -> i32 {
     i32::from(byte.to_ascii_lowercase() - b'a') + 1
 }
 
-/// Whether at least two columns of whitespace begin at `idx` — two spaces, or a single tab.
+/// Whether at least two columns of whitespace begin at `idx`: two spaces, or a single tab.
 fn two_spaces_at(bytes: &[u8], idx: usize) -> bool {
     match bytes.get(idx) {
         Some(b'\t') => true,

@@ -4,7 +4,7 @@
 //! Each array record (de)serializes through a Rust tuple: a tuple of references serializes as a
 //! JSON array, and a JSON array deserializes into a tuple. [`array_record`] generates both
 //! directions from one ordered field list, so the wire order is declared once and cannot drift
-//! between serialize and deserialize. [`Document`] is the exception — it is a fixed three-key
+//! between serialize and deserialize. [`Document`] is the exception: it is a fixed three-key
 //! object whose first key is the [`crate::API_VERSION_KEY`] constant (kept out of
 //! `#[serde(rename)]` so the literal stays confined to that constant), so it keeps a small map
 //! serializer and a `MapAccess` visitor.
@@ -24,7 +24,7 @@ use crate::ast::{
 
 /// Generates `Serialize`/`Deserialize` for a struct whose JSON representation is a positional
 /// array, from a single ordered `field: Type` list. Declaring the order once removes the hazard of
-/// hand-written impls silently disagreeing — easy to miss where adjacent fields share a type, as in
+/// hand-written impls silently disagreeing, easy to miss where adjacent fields share a type, as in
 /// a cell's `row_span`/`col_span` or a table body's `head`/`body`.
 macro_rules! array_record {
     ($name:ident { $($field:ident : $ty:ty),+ $(,)? }) => {

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Startup surface: time a near-empty conversion to isolate process spin-up (pandoc's runtime vs
-# carta's). This is the explicit startup figure that keeps the small-input comparison honest — the
-# bulk of any small-input gap is this, not parsing.
+# Startup surface: time a near-empty conversion to isolate process spin-up, the bulk of any small-input gap.
 # Usage: surfaces/startup.sh [from:to]   (no arg = curated default pairs)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"

@@ -3,8 +3,8 @@
 //! [`number_sections`] splices a section number into each numbered heading: a leading
 //! `header-section-number` span carrying the number, a following space, and a `number` key/value
 //! attribute. [`build_toc`] produces a nested bullet list linking to the document's headings, which a
-//! writer renders into the `toc` template variable. Both number headings the same way — a counter per
-//! level, the result joined from the document's shallowest heading level — so a heading and its
+//! writer renders into the `toc` template variable. Both number headings the same way (a counter per
+//! level, the result joined from the document's shallowest heading level), so a heading and its
 //! contents entry always carry the same number.
 
 use carta_ast::{Attr, Block, Inline, Target, Text};
@@ -98,9 +98,8 @@ fn number_in(blocks: &mut [Block], counters: &mut Counters) {
         match block {
             Block::Header(level, attr, inlines) => {
                 if let Some(computed) = counters.advance(*level, &attr.classes) {
-                    // A heading may carry its own `number` — an authored override. It keeps its slot
-                    // in the sequence (the counters still advance), but the authored value is shown
-                    // and no second `number` is added.
+                    // an authored `number` override keeps its slot (counters still advance) but is
+                    // shown instead, with no second attribute added
                     let number = if let Some((_, value)) =
                         attr.attributes.iter().find(|(key, _)| key == "number")
                     {
@@ -166,8 +165,7 @@ fn collect_entries(
     for block in blocks {
         match block {
             Block::Header(level, attr, inlines) => {
-                // Every heading advances the counters so numbers stay consistent with the body, even
-                // those deeper than `depth` that the contents list omits.
+                // every heading advances the counters, even those deeper than `depth` the list omits
                 let number = counters.advance(*level, &attr.classes);
                 if (1..=depth).contains(&usize::try_from(*level).unwrap_or(0)) {
                     entries.push(Entry {
@@ -206,7 +204,7 @@ fn nest(entries: &[Entry]) -> Vec<Vec<Block>> {
 }
 
 /// The inlines for one contents entry. A numbered entry leads with a `toc-section-number` span and a
-/// space. When the heading carries an id, the entry is a link targeting it — and, with `anchors`, the
+/// space. When the heading carries an id, the entry is a link targeting it and, with `anchors`, the
 /// link also carries its own id (the heading id prefixed with `toc-`) so it can be linked back to.
 /// When the heading has no id there is nothing to target, so the entry is plain text.
 fn toc_entry(
@@ -420,8 +418,7 @@ mod tests {
             header(2, &[], "D"),
         ];
         number_sections(&mut blocks);
-        // The authored number shows verbatim without a duplicate attribute, and the sibling after it
-        // keeps counting as though it had advanced normally.
+        // authored number shows verbatim without a duplicate attribute; the next sibling keeps counting
         assert_eq!(number_at(&blocks, 2), Some("7.3".to_owned()));
         assert_eq!(number_at(&blocks, 3), Some("1.3".to_owned()));
         let Some(Block::Header(_, attr, inlines)) = blocks.get(2) else {

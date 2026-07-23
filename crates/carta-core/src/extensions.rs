@@ -1,8 +1,8 @@
 //! Format extensions: the set of optional syntax features a reader or writer may honor.
 //!
 //! [`Extension`] is one named feature; [`Extensions`] is a deterministic, allocation-free set of them
-//! backed by a fixed array of 64-bit words. The set carries no 128-variant ceiling, so it scales to
-//! the full extension set. [`presets`] holds the per-flavor sets; strict `CommonMark` is the empty set.
+//! backed by a fixed array of 64-bit words. [`presets`] holds the per-flavor sets; strict
+//! `CommonMark` is the empty set.
 
 /// Generates the [`Extension`] enum together with the `ALL`/`COUNT`/`name` metadata, keeping the
 /// variant list as the single source of truth for the bitset sizing in [`Extensions`].
@@ -213,10 +213,8 @@ define_extensions! {
 const WORD_BITS: usize = u64::BITS as usize;
 const WORDS: usize = Extension::COUNT.div_ceil(WORD_BITS);
 
-// The bitset indexing in `from_list` is sound only while each variant's discriminant equals its
-// position in `ALL` (so every `ext as usize` lands in `0..COUNT`). The macro emits no explicit
-// discriminants, so this holds — asserted at compile time here, turning a future edit that breaks
-// contiguity into a build failure rather than an out-of-bounds index.
+// `from_list` indexing is sound only while each discriminant equals its `ALL` position; the
+// assertion turns a contiguity break into a build failure, not an out-of-bounds index.
 #[allow(clippy::indexing_slicing)]
 const _: () = {
     let mut i = 0;
@@ -246,9 +244,7 @@ impl Extensions {
 
     /// The set containing exactly `list`. Const so presets are `const` values.
     #[must_use]
-    // Const indexing: contiguity (asserted above) gives `bit < COUNT`, so `bit / WORD_BITS < WORDS`;
-    // `i < list.len()`. Both indices are in bounds, and slice `get` is not usable across all const
-    // contexts on the pinned toolchain.
+    // In bounds by the contiguity assertion; slice `get` is not const-usable on the pinned toolchain.
     #[allow(clippy::indexing_slicing)]
     pub const fn from_list(list: &[Extension]) -> Self {
         let mut words = [0u64; WORDS];
@@ -421,10 +417,8 @@ pub mod presets {
         Extension::SpaceInAtxHeader,
     ]);
 
-    /// The legacy GitHub Markdown dialect (`markdown_github`). The set is restricted to the
-    /// variants that exist and affect writer output: backtick-fenced code, pipe tables, strikeout,
-    /// task lists, footnotes, autolinking, emoji, and alerts, but no smart typography, math, spans,
-    /// or fenced divs.
+    /// The legacy GitHub Markdown dialect (`markdown_github`): the variants that exist and affect
+    /// writer output. No smart typography, math, spans, or fenced divs.
     pub const MARKDOWN_GITHUB: Extensions = Extensions::from_list(&[
         Extension::Strikeout,
         Extension::PipeTables,
@@ -441,10 +435,9 @@ pub mod presets {
         Extension::IntrawordUnderscores,
     ]);
 
-    /// The PHP Markdown Extra dialect (`markdown_phpextra`). The set is restricted to the variants
-    /// that exist and affect writer output: definition lists, fenced (tilde) code blocks, footnotes,
-    /// header and link attributes, pipe tables, and raw HTML. It has no backtick code fences, so code
-    /// fences are written with tildes, and no smart typography, math, strikeout, spans, or fenced divs.
+    /// The PHP Markdown Extra dialect (`markdown_phpextra`): the variants that exist and affect
+    /// writer output. It has no backtick code fences, so code fences are written with tildes, and
+    /// no smart typography, math, strikeout, spans, or fenced divs.
     pub const MARKDOWN_PHPEXTRA: Extensions = Extensions::from_list(&[
         Extension::DefinitionLists,
         Extension::FencedCodeBlocks,
@@ -457,12 +450,8 @@ pub mod presets {
         Extension::RawHtml,
     ]);
 
-    /// The `MultiMarkdown` dialect (`markdown_mmd`). The set is restricted to the variants that
-    /// exist and affect writer output: backtick-fenced code, definition lists, footnotes, pipe
-    /// tables, implicit figures and header references, sub/superscript, dollar math, raw HTML and raw
-    /// attributes, auto identifiers, `MultiMarkdown`'s trailing `[id]` header identifiers, and the
-    /// `data-markdown`
-    /// div marker. It has no header attribute blocks, strikeout, task lists, smart typography, spans,
+    /// The `MultiMarkdown` dialect (`markdown_mmd`): the variants that exist and affect writer
+    /// output. It has no header attribute blocks, strikeout, task lists, smart typography, spans,
     /// or fenced divs. With `tex_math_dollars` on and taking precedence, a `tex_math_double_backslash`
     /// surface would not change this dialect's writer output, so it is left out of the preset and math
     /// is emitted as `$…$`.
@@ -484,21 +473,18 @@ pub mod presets {
         Extension::TexMathDollars,
     ]);
 
-    /// The original Markdown dialect (`markdown_strict`). The set is restricted to the variants that
-    /// exist and affect writer output — only raw HTML. With no fenced or backtick code, tables,
-    /// definition lists,
-    /// footnotes, task lists, math, or any attribute syntax, every richer construct falls back to
-    /// indented code, an HTML block, or a raw glyph. Lacking `intraword_underscores`, every `_` is
-    /// escaped; lacking `pipe_tables`, a literal `|` is left unescaped.
+    /// The original Markdown dialect (`markdown_strict`): only raw HTML. With no fenced or backtick
+    /// code, tables, definition lists, footnotes, task lists, math, or any attribute syntax, every
+    /// richer construct falls back to indented code, an HTML block, or a raw glyph. Lacking
+    /// `intraword_underscores`, every `_` is escaped; lacking `pipe_tables`, a literal `|` is left
+    /// unescaped.
     pub const MARKDOWN_STRICT: Extensions = Extensions::from_list(&[Extension::RawHtml]);
 
-    // The reader default sets below are broader than the writer presets above: a reader enables every
-    // construct the dialect can parse, whereas the writer presets carry only the extensions that shape
-    // the emitted text. Some entries name constructs the shared Markdown engine does not yet branch on;
-    // they are recorded so the dialect's default surface is complete and takes effect once modeled.
+    // Reader defaults are broader than writer presets: readers enable every parseable construct.
+    // Some entries are not yet branched on by the engine; recorded so they take effect once modeled.
 
     /// Reader defaults for the extended Markdown dialect (`markdown`): the broad writer set plus the
-    /// two constructs the writer preset omits — user-defined `LaTeX` macro expansion and the shortcut
+    /// two constructs the writer preset omits, user-defined `LaTeX` macro expansion and the shortcut
     /// reference-link form.
     pub const MARKDOWN_READ: Extensions = Extensions::from_list(&[
         Extension::AllSymbolsEscapable,
@@ -558,10 +544,9 @@ pub mod presets {
         Extension::SpacedReferenceLinks,
     ]);
 
-    /// Reader defaults for the GitHub Markdown dialect (`markdown_github`): the GitHub construct set —
-    /// strikeout, task lists, pipe tables, footnotes, bare-URI autolinking, emoji, alerts, backtick and
-    /// fenced code, auto identifiers in both forms, intra-word underscores, lists that open without a
-    /// preceding blank line, and the escaping/heading-spacing leniencies.
+    /// Reader defaults for the GitHub Markdown dialect (`markdown_github`): the GitHub construct
+    /// set, including lists that open without a preceding blank line and the escaping and
+    /// heading-spacing leniencies.
     pub const MARKDOWN_GITHUB_READ: Extensions = Extensions::from_list(&[
         Extension::Alerts,
         Extension::AllSymbolsEscapable,
@@ -582,9 +567,8 @@ pub mod presets {
         Extension::TaskLists,
     ]);
 
-    /// Reader defaults for the PHP Markdown Extra dialect (`markdown_phpextra`): abbreviations,
-    /// definition lists, fenced code, footnotes, header and link attributes, intra-word underscores,
-    /// the `data-markdown` div marker, pipe tables, raw HTML, and the reference-link forms.
+    /// Reader defaults for the PHP Markdown Extra dialect (`markdown_phpextra`): the writer set
+    /// plus abbreviations and the reference-link forms.
     pub const MARKDOWN_PHPEXTRA_READ: Extensions = Extensions::from_list(&[
         Extension::Abbreviations,
         Extension::DefinitionLists,
@@ -600,12 +584,10 @@ pub mod presets {
         Extension::SpacedReferenceLinks,
     ]);
 
-    /// Reader defaults for the `MultiMarkdown` dialect (`markdown_mmd`): auto identifiers, backtick
-    /// code, definition lists, footnotes, implicit figures and header references, intra-word
-    /// underscores, the `data-markdown` div marker, `MultiMarkdown`'s trailing `[id]` header
-    /// identifiers, its link-attribute and title-block forms, pipe tables, raw HTML and raw attributes,
-    /// single-character sub/superscripts, the reference-link forms, sub/superscript spans, dollar math,
-    /// and the double-backslash math delimiters.
+    /// Reader defaults for the `MultiMarkdown` dialect (`markdown_mmd`): the writer set plus
+    /// `MultiMarkdown`'s link-attribute and title-block forms, single-character sub/superscripts,
+    /// the reference-link forms, the all-symbols escaping leniency, and the double-backslash math
+    /// delimiters.
     pub const MARKDOWN_MMD_READ: Extensions = Extensions::from_list(&[
         Extension::AllSymbolsEscapable,
         Extension::AutoIdentifiers,

@@ -2,15 +2,15 @@
 //! `ascii_identifiers` extension.
 //!
 //! The five folds here have **different semantics by design**, so each reader's identifier output
-//! stays byte-stable — they are co-located, not unified:
+//! stays byte-stable; they are co-located, not unified:
 //!
 //! - [`fold_to_ascii`] (the broad Latin `match`): folds an accented Latin letter to its base,
 //!   covering the Latin-Extended-Additional block, and drops every character with no single-letter
 //!   ASCII base (including whole non-Latin scripts).
-//! - [`rst_asciify`] (the narrow Latin `match`): the same mechanism with a smaller table — it omits
+//! - [`rst_asciify`] (the narrow Latin `match`): the same mechanism with a smaller table; it omits
 //!   the Latin-Extended-Additional block and several accent rows, so its output differs from
 //!   [`fold_to_ascii`] for the characters it does not list.
-//! - [`docx_asciify`] (the stroked-letter `match`): the same mechanism with its own table — it
+//! - [`docx_asciify`] (the stroked-letter `match`): the same mechanism with its own table; it
 //!   omits the Latin-Extended-Additional block and the combining-accent rows but folds the stroked
 //!   letters (`Đ`, `Ħ`, `Ł`, `Ø`, `Ŧ`) that every other fold drops.
 //! - [`transliterate_ascii`] (the code-point table): binary-searches a per-code-point base and drops
@@ -146,9 +146,7 @@ pub(crate) fn rst_asciify(text: &str) -> String {
 
 /// The base ASCII letter an accented Latin letter reduces to, or `None` when the character has no
 /// such base (ligatures, stroked letters, and non-Latin scripts are dropped).
-// Laid out as parallel uppercase and lowercase blocks, each alphabetical by base letter, so the
-// mapping stays auditable; an uppercase and a lowercase accent reducing to the same base letter are
-// kept on separate lines rather than merged.
+// parallel upper/lowercase blocks, alphabetical by base, kept unmerged for auditability
 #[cfg(feature = "rst")]
 #[allow(clippy::match_same_arms)]
 fn rst_ascii_base(ch: char) -> Option<char> {
@@ -783,8 +781,7 @@ mod tests {
         assert_eq!(fold_to_ascii("Straße"), "Strae");
         // A non-Latin script leaves nothing behind.
         assert_eq!(fold_to_ascii("Λόγος"), "");
-        // Latin Extended Additional letters fold to their base; an accented letter folds to the
-        // lowercase base (bare ASCII keeps its case), so the dotted capitals here become h and z.
+        // accented letters fold to the lowercase base (bare ASCII keeps case): dotted capitals become h and z
         assert_eq!(fold_to_ascii("Việt Ḩ Ẓ"), "Viet h z");
         // A letter in that block with no single-ASCII base is dropped.
         assert_eq!(fold_to_ascii("ẞ"), "");

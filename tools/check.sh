@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
-# Local CI gate: run the fast, offline checks that CI gates a pull request on, in one command.
-#
-# Mirrors the `lint`, `test`, and `typos`/`deny` CI jobs so a warning-only change surfaces here
-# instead of after a push. Uses RUSTFLAGS="-D warnings" (as CI does) so warnings fail the build.
-#
-# NOT included here (slow or oracle/network-dependent): CI additionally runs the conformance suite
-# (tools/conformance-suite, needs .oracle/), coverage (cargo llvm-cov), and the minimal-versions
-# build (cargo hack). Run those separately when relevant.
-#
-# Usage: tools/check.sh
+# Local CI gate: the fast offline checks CI runs on a PR, with RUSTFLAGS="-D warnings" as CI sets.
+# Not included (slow or oracle/network-dependent): conformance suite, coverage, minimal-versions.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

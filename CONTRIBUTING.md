@@ -49,13 +49,13 @@ CI rejects stale or unreferenced snapshots, so keep them tidy.
 
 ## Making a change
 
-- **Branch off `main`**; do not commit directly to `main`.
-- **One logical change per commit.** Commit messages follow
+- Branch off `main`; do not commit directly to `main`.
+- One logical change per commit. Commit messages follow
   [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `docs`,
   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, …); the `commit-msg` hook enforces
   the format.
-- **Keep output deterministic** and **avoid panics in library paths**.
-- When you add, extend, or change support for a format or extension, remember to update [`docs/STATUS.md`](docs/STATUS.md).
+- Keep output deterministic and avoid panics in library paths.
+- When you add, extend, or change support for a format or extension, update [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Opening a pull request
 
@@ -76,13 +76,13 @@ Before your first pull request can be merged, you need to sign the
 prompt you on your first PR, and you sign by posting a single comment. You keep
 full ownership of your contribution.
 
-**Why a CLA?** Being upfront about this: carta is licensed under the AGPL-3.0,
-and its maintainer also uses it in their own commercial software and may license it commercially to companies that can't use
-AGPL software. The CLA grants the maintainer the right to distribute your
-contribution under such commercial terms. This model is
-what funds carta's development. The public version is available under the
-AGPL. If you're not comfortable with this, we absolutely understand! Issues,
-discussions, and bug reports are just as valuable and need no signature.
+Why a CLA? carta is licensed under the AGPL-3.0, and its maintainer also uses
+it in their own commercial software and may license it commercially to
+companies that can't use AGPL software. The CLA grants the maintainer the right
+to distribute your contribution under such commercial terms; this model funds
+carta's development. The public version stays available under the AGPL. If
+you're not comfortable with this, issues, discussions, and bug reports are just
+as valuable and need no signature.
 
 If you contribute on behalf of your employer, your employer may also need to
 execute the Corporate CLA (Part B of [`CLA.md`](CLA.md)); see the instructions

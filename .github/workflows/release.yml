@@ -1,9 +1,5 @@
 name: release binaries
 
-# Builds prebuilt `carta` executables and attaches them to the GitHub release that release-plz
-# publishes. Each target builds on a native runner where possible to avoid cross-compilation; the
-# archives ship the license and README alongside the binary.
-
 on:
   release:
     types: [published]

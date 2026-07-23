@@ -1,7 +1,7 @@
 //! The document-property parts: `docProps/core.xml`, `docProps/app.xml` and `docProps/custom.xml`.
 //!
-//! Core properties carry a fixed set of well-known fields — title, author, category, description,
-//! language, subject and keywords — alongside the creation and modification timestamps. Every other
+//! Core properties carry a fixed set of well-known fields (title, author, category, description,
+//! language, subject and keywords) alongside the creation and modification timestamps. Every other
 //! metadata field routes to the custom properties, one named property each. The application part
 //! identifies the producer and is otherwise fixed.
 
@@ -123,8 +123,7 @@ pub(super) fn custom_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
             "xmlns:vt",
             "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes",
         );
-    // Property identifiers begin at 2: identifiers 0 and 1 are reserved by the format. Every field
-    // that is not a core or application property becomes one custom property, in sorted key order.
+    // Property identifiers begin at 2: identifiers 0 and 1 are reserved by the format.
     let mut pid = 2;
     for (key, value) in meta {
         if CORE_KEYS.contains(&key.as_str()) {

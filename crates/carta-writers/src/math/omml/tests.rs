@@ -1,6 +1,5 @@
 //! Golden checks for the OMML backend. Each expected string is a fixed golden: the exact OMML
-//! element tree the backend emits for one construct. The suite is fully offline — every value is
-//! embedded here, so nothing is generated at test time.
+//! element tree the backend emits for one construct.
 
 use super::to_omml;
 
@@ -19,7 +18,6 @@ const INLINE: &[(&str, &str)] = &[
         "\\Gamma",
         "<m:oMath><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>Γ</m:t></m:r></m:oMath>",
     ),
-    // Scripts.
     (
         "x^2",
         "<m:oMath><m:sSup><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup></m:oMath>",
@@ -48,7 +46,6 @@ const INLINE: &[(&str, &str)] = &[
         "_x",
         "<m:oMath><m:sSub><m:e><m:r><m:t>\u{200B}</m:t></m:r></m:e><m:sub><m:r><m:t>x</m:t></m:r></m:sub></m:sSub></m:oMath>",
     ),
-    // Fractions and radicals.
     (
         "\\frac{a}{b}",
         "<m:oMath><m:f><m:fPr><m:type m:val=\"bar\" /></m:fPr><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:oMath>",
@@ -78,7 +75,6 @@ const INLINE: &[(&str, &str)] = &[
         "\\lim_x",
         "<m:oMath><m:sSub><m:e><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>lim</m:t></m:r></m:e><m:sub><m:r><m:t>x</m:t></m:r></m:sub></m:sSub></m:oMath>",
     ),
-    // Accents and bars.
     (
         "\\bar{x}",
         "<m:oMath><m:acc><m:accPr><m:chr m:val=\"‾\" /></m:accPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:acc></m:oMath>",
@@ -91,7 +87,6 @@ const INLINE: &[(&str, &str)] = &[
         "\\overline{x}",
         "<m:oMath><m:bar><m:barPr><m:pos m:val=\"top\" /></m:barPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:bar></m:oMath>",
     ),
-    // Delimiters, matrices, cases, binomials.
     (
         "\\left(a\\right)",
         "<m:oMath><m:d><m:dPr><m:begChr m:val=\"(\" /><m:sepChr m:val=\"\" /><m:endChr m:val=\")\" /><m:grow /></m:dPr><m:e><m:r><m:t>a</m:t></m:r></m:e></m:d></m:oMath>",
@@ -108,8 +103,7 @@ const INLINE: &[(&str, &str)] = &[
         "\\binom{n}{k}",
         "<m:oMath><m:d><m:dPr><m:begChr m:val=\"(\" /><m:sepChr m:val=\"\" /><m:endChr m:val=\")\" /><m:grow /></m:dPr><m:e><m:f><m:fPr><m:type m:val=\"noBar\" /></m:fPr><m:num><m:r><m:t>n</m:t></m:r></m:num><m:den><m:r><m:t>k</m:t></m:r></m:den></m:f></m:e></m:d></m:oMath>",
     ),
-    // Styled alphabets: the auto-italic default, forced upright/italic, and script variants — with
-    // the wrapper threaded through a nested command.
+    // Styled alphabets: auto-italic default, forced upright/italic, and script variants.
     (
         "\\mathbb{R}",
         "<m:oMath><m:r><m:rPr><m:scr m:val=\"double-struck\" /><m:sty m:val=\"p\" /></m:rPr><m:t>R</m:t></m:r></m:oMath>",
@@ -134,7 +128,6 @@ const INLINE: &[(&str, &str)] = &[
         "\\mathcal{A}",
         "<m:oMath><m:r><m:rPr><m:scr m:val=\"script\" /><m:sty m:val=\"p\" /></m:rPr><m:t>A</m:t></m:r></m:oMath>",
     ),
-    // Text wrappers.
     (
         "\\text{if}",
         "<m:oMath><m:r><m:rPr><m:nor /><m:sty m:val=\"p\" /></m:rPr><m:t>if</m:t></m:r></m:oMath>",
@@ -143,7 +136,6 @@ const INLINE: &[(&str, &str)] = &[
         "\\operatorname{sn}",
         "<m:oMath><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>sn</m:t></m:r></m:oMath>",
     ),
-    // Spacing and the assignment relation.
     (
         "a\\,b",
         "<m:oMath><m:r><m:t>a</m:t></m:r><m:r><m:t>\u{2009}</m:t></m:r><m:r><m:t>b</m:t></m:r></m:oMath>",
@@ -162,8 +154,7 @@ const INLINE: &[(&str, &str)] = &[
         "\\overbrace{a+b}",
         "<m:oMath><m:groupChr><m:groupChrPr><m:chr m:val=\"⏞\" /><m:pos m:val=\"top\" /><m:vertJc m:val=\"bot\" /></m:groupChrPr><m:e><m:r><m:t>a</m:t></m:r><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>+</m:t></m:r><m:r><m:t>b</m:t></m:r></m:e></m:groupChr></m:oMath>",
     ),
-    // An under-brace carrying a superscript label: the label becomes the bracket's limit, the
-    // superscript wraps the whole group.
+    // Under-brace with superscript label: the label becomes the bracket's limit.
     (
         "\\underbrace{a+b}^{n}",
         "<m:oMath><m:sSup><m:e><m:limLow><m:e><m:r><m:t>a</m:t></m:r><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>+</m:t></m:r><m:r><m:t>b</m:t></m:r></m:e><m:lim><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>⏟</m:t></m:r></m:lim></m:limLow></m:e><m:sup><m:r><m:t>n</m:t></m:r></m:sup></m:sSup></m:oMath>",
@@ -183,8 +174,7 @@ const INLINE: &[(&str, &str)] = &[
         "\\not= b",
         "<m:oMath><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>≠</m:t></m:r><m:r><m:t>b</m:t></m:r></m:oMath>",
     ),
-    // `\not` before a relation with no precomposed form strikes it with a combining solidus, boxed
-    // so the two glyphs set as a single operator.
+    // No precomposed form: combining solidus, boxed so both glyphs set as one operator.
     (
         "\\not\\vdash",
         "<m:oMath><m:box><m:boxPr><m:opEmu m:val=\"on\" /></m:boxPr><m:e><m:r><m:rPr><m:sty m:val=\"p\" /></m:rPr><m:t>\u{22A2}\u{338}</m:t></m:r></m:e></m:box></m:oMath>",
@@ -249,8 +239,7 @@ fn display_wraps_in_para() {
 
 #[test]
 fn unconvertible_constructs_degrade_to_none() {
-    // An unknown control sequence, and constructs with no single-line OMML rendering, report the
-    // whole expression as unconvertible rather than emitting a broken tree or panicking.
+    // report the whole expression unconvertible rather than emit a broken tree or panic
     assert_eq!(to_omml("\\thiscommanddoesnotexist", false), None);
     assert_eq!(to_omml("\\phantom{x}", false), None);
     // A base with no meaningful struck-through form leaves the whole `\not` expression unconvertible.
@@ -274,7 +263,6 @@ fn deeply_nested_input_does_not_panic() {
 
 #[test]
 fn empty_input_renders_empty_math() {
-    // Whitespace-only or empty math parses to no atoms and lowers to an empty (self-closed) element,
-    // a successful conversion rather than a fallback to verbatim source.
+    // empty math lowers to a self-closed element: a successful conversion, not a fallback
     assert_eq!(to_omml("", false).as_deref(), Some("<m:oMath />"));
 }

@@ -81,7 +81,7 @@ fn section_level(slide: &Slide) -> Option<i32> {
 }
 
 /// Whether the top-level sectioning marker at `index` is followed by at least one nested slide
-/// before the next top-level marker — the condition that wraps its group in an outer `<section>`.
+/// before the next top-level marker, the condition that wraps its group in an outer `<section>`.
 fn opens_outer(slides: &[Slide], index: usize, top: i32) -> bool {
     matches!(
         slides.get(index + 1),

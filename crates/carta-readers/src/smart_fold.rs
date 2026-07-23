@@ -30,8 +30,8 @@ pub(crate) fn fold_dash_run_greedy(n: usize) -> String {
 
 /// Fold a run of `len` hyphens (`len >= 2`) into the fewest em (`—`) and en (`–`) dashes that sum to
 /// its length: a multiple of three is all em dashes, an even length is all en dashes, and an odd
-/// length that is not a multiple of three takes one or two en dashes — whichever leaves a multiple of
-/// three — with the rest em dashes.
+/// length that is not a multiple of three takes one or two en dashes (whichever leaves a multiple of
+/// three) with the rest em dashes.
 ///
 /// The other smart readers fold dash runs greedily instead ([`fold_dash_run_greedy`]), so this
 /// minimal decomposition is `CommonMark`-only.
@@ -50,8 +50,6 @@ pub(crate) fn fold_dash_run_thirds(len: usize) -> String {
     out.extend(std::iter::repeat_n('\u{2013}', en));
     out
 }
-
-// --- quote flanking ---
 
 /// Which quote kinds already enclose the current scan. A quote of a kind already open does not open
 /// again; the straight quote folds to its apostrophe or curly glyph instead. Readers without nested

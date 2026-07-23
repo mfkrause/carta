@@ -52,7 +52,6 @@ const NS: &str = concat!(
     " xmlns:math=\"http://www.w3.org/1998/Math/MathML\"",
 );
 
-/// The XML declaration prefixing every part.
 const DECL: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 
 /// The two table-cell styles a table references; emitted once when the document contains any table.
@@ -120,7 +119,6 @@ impl BytesWriter for OdtWriter {
     }
 }
 
-/// Assembles the complete ODT archive from the rendered parts.
 fn write_odt(document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
     let mut builder = Builder::new(options);
     builder.document(document);
@@ -171,7 +169,6 @@ struct Image {
     file_name: String,
     /// The MIME type, recorded in the manifest.
     mime: String,
-    /// The raw file bytes.
     bytes: Vec<u8>,
 }
 
@@ -228,9 +225,7 @@ impl Deco {
 /// A horizontal alignment that a table cell realizes through an automatic paragraph style.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AlignKind {
-    /// Centered content.
     Center,
-    /// Trailing-edge (right) content.
     Right,
 }
 
@@ -290,8 +285,6 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Renders the whole document body: the title block, an optional table of contents, then the
-    /// document blocks.
     fn document(&mut self, document: &Document) {
         self.title_block(&document.meta);
         self.abstract_block(&document.meta);
@@ -301,7 +294,6 @@ impl<'a> Builder<'a> {
         self.render_blocks(&document.blocks, None);
     }
 
-    /// Assembles `content.xml` from the collected automatic styles and the rendered body.
     fn finish_content(&self) -> String {
         let mut out = String::with_capacity(self.body.len() + 4096);
         out.push_str(DECL);
@@ -364,9 +356,6 @@ impl<'a> Builder<'a> {
     }
 
     /// A paragraph node: styled with the flowing first/body distinction, or with an imposed style.
-    ///
-    /// The flowing style is chosen after the content is rendered, because a footnote whose body
-    /// carries a block-level element (a code listing, say) marks the paragraph that anchors it.
     fn paragraph_like(&mut self, inlines: &[Inline], fixed: Option<&str>) {
         if inlines.iter().any(is_block_math) {
             self.paragraphs_split_on_block_math(inlines);
@@ -405,8 +394,8 @@ impl<'a> Builder<'a> {
 
     /// Renders a paragraph whose inlines carry a display formula. A display formula stands alone in
     /// the text flow, so the run is broken at every formula boundary: the text on either side becomes
-    /// its own paragraph — with the spacing that flanked the formula trimmed away, and an all-spacing
-    /// remainder dropped — and each formula, or a cluster of formulas set directly against one
+    /// its own paragraph (with the spacing that flanked the formula trimmed away, and an all-spacing
+    /// remainder dropped) and each formula, or a cluster of formulas set directly against one
     /// another, its own. Every piece takes the flowing body styles regardless of the surrounding
     /// block style.
     fn paragraphs_split_on_block_math(&mut self, inlines: &[Inline]) {
@@ -491,9 +480,8 @@ impl<'a> Builder<'a> {
                     self.body.push_str(text);
                 }
             }
-            // Paragraphs, line blocks and containers are handled before dispatch reaches here; the
-            // arms below keep the match total without a panicking fallback, mirroring the flowing
-            // dispatch so they cannot drift from it.
+            // Already handled before dispatch; these arms keep the match total without a panicking
+            // fallback.
             Block::Para(inlines) | Block::Plain(inlines) => self.paragraph_like(inlines, None),
             Block::LineBlock(lines) => self.line_block_like(lines, None),
             Block::Div(attr, inner) => self.div(attr, inner, None),
@@ -573,7 +561,6 @@ impl<'a> Builder<'a> {
         self.body.push_str("</text:list>");
     }
 
-    /// Emits the `<text:list-item>` children of a list.
     fn list_items(&mut self, items: &[Vec<Block>], item_style: &str) {
         for item in items {
             self.body.push_str("<text:list-item>");
@@ -713,7 +700,6 @@ impl<'a> Builder<'a> {
         self.body.push_str("</table:table>");
     }
 
-    /// Records the table's automatic table and column styles.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn push_table_style(&mut self, n: usize, columns: usize, specs: &[ColSpec], has_widths: bool) {
         let _ = write!(
@@ -808,8 +794,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    // The cell, its two header flags, its grid position, the column specs, and its column/row spans
-    // are all distinct inputs to one emission; bundling them would only add indirection.
+    // All distinct inputs to one emission; bundling them would only add indirection.
     #[allow(clippy::too_many_arguments)]
     fn emit_cell(
         &mut self,
@@ -954,7 +939,6 @@ impl<'a> Builder<'a> {
         name
     }
 
-    /// The title, subtitle, author, and date paragraphs standing at the head of the body.
     fn title_block(&mut self, meta: &BTreeMap<Text, MetaValue>) {
         if let Some(inlines) = meta_inlines(meta, "title") {
             self.paragraph("Title", &inlines);
@@ -1025,7 +1009,6 @@ impl<'a> Builder<'a> {
 
     // --- inline rendering ------------------------------------------------------------------------
 
-    /// Entry point for rendering an inline sequence, with no decoration active.
     fn inlines(&mut self, inlines: &[Inline]) {
         self.walk(inlines, &[]);
     }
@@ -1106,7 +1089,6 @@ impl<'a> Builder<'a> {
         });
     }
 
-    /// Flushes the pending run, then renders a formatting node's content with one more decoration.
     fn nested<'i>(
         &mut self,
         run: &mut Vec<&'i Inline>,
@@ -1652,9 +1634,7 @@ fn format_scientific(significant: &str, exponent: isize) -> String {
 // --- style fragment builders ---------------------------------------------------------------------
 
 fn deco_style_xml(index: usize, key: &[Deco]) -> String {
-    // Superscript and Subscript both realize as a single text-position property, so a run that
-    // carries both (nested in either order) must not repeat the attribute; the superscript position
-    // is the one kept.
+    // Super- and subscript share one text-position property; a run carrying both keeps superscript.
     let drops_subscript = key.contains(&Deco::Superscript) && key.contains(&Deco::Subscript);
     let mut properties = String::new();
     for deco in key {
@@ -1737,7 +1717,6 @@ fn meta_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
     let _ = write!(out, "<dc:description>{description}</dc:description>");
     let _ = write!(out, "<dc:subject>{subject}</dc:subject>");
     let _ = write!(out, "<meta:keyword>{keywords}</meta:keyword>");
-    // The document language is recorded only when the metadata names one.
     if !language.is_empty() {
         let _ = write!(out, "<dc:language>{language}</dc:language>");
     }
@@ -1748,8 +1727,7 @@ fn meta_xml(meta: &BTreeMap<Text, MetaValue>) -> String {
     let _ = write!(out, "<dc:creator>{creator}</dc:creator>");
     let _ = write!(out, "<meta:creation-date>{stamp}</meta:creation-date>");
     let _ = write!(out, "<dc:date>{stamp}</dc:date>");
-    // Every field the standard elements above do not claim is preserved as a custom property, keyed
-    // by its metadata name. The map iterates in key order, so the properties come out sorted.
+    // Unclaimed fields become custom properties keyed by name; map order keeps them sorted.
     for (key, value) in meta {
         if is_standard_meta(key.as_str()) {
             continue;
@@ -2084,8 +2062,8 @@ fn is_opendocument(format: &Format) -> bool {
 /// after any `//authority`, leaving scheme, authority, query, and fragment untouched. The step is
 /// withheld from a target with a URI scheme (already absolute), from one whose path component is
 /// empty (a bare query or fragment addresses the document itself), and from one carrying a character
-/// no URI reference admits — a non-ASCII letter, a control byte, a stray backslash, a space, a
-/// bracket, or a malformed percent escape — since that cannot be resolved as a path.
+/// no URI reference admits (a non-ASCII letter, a control byte, a stray backslash, a space, a
+/// bracket, or a malformed percent escape), since that cannot be resolved as a path.
 fn parent_prefix_index(url: &str) -> Option<usize> {
     if has_scheme(url) || !is_relative_reference(url) {
         return None;
@@ -2112,7 +2090,7 @@ fn authority_end(url: &str) -> usize {
 /// characters the grammar excludes (space, `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`,
 /// `}`), and every `%` the start of a two-digit hexadecimal escape. The brackets `[` and `]` are
 /// admitted only within a `//authority`, where they delimit an IP-literal host. The first path
-/// segment — the run before the first `/`, `?`, or `#` — additionally admits no colon, since a colon
+/// segment (the run before the first `/`, `?`, or `#`) additionally admits no colon, since a colon
 /// there would parse as a scheme delimiter rather than as part of the path.
 fn is_relative_reference(url: &str) -> bool {
     let authority = authority_end(url);
@@ -2140,7 +2118,7 @@ fn is_relative_reference(url: &str) -> bool {
     !first_segment.contains(':')
 }
 
-/// Whether a URL opens with a `scheme:` prefix — a non-empty run of scheme characters before a colon.
+/// Whether a URL opens with a `scheme:` prefix: a non-empty run of scheme characters before a colon.
 fn has_scheme(url: &str) -> bool {
     match url.split_once(':') {
         Some((scheme, _)) => {
@@ -2153,7 +2131,6 @@ fn has_scheme(url: &str) -> bool {
     }
 }
 
-/// The value of a named attribute, if present.
 fn attr_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
     attr.attributes
         .iter()
@@ -2161,7 +2138,6 @@ fn attr_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
         .map(|(_, value)| value.as_str())
 }
 
-/// The non-empty `custom-style` attribute value, if any.
 fn custom_style(attr: &Attr) -> Option<&str> {
     attr_value(attr, "custom-style").filter(|value| !value.is_empty())
 }
@@ -2232,7 +2208,6 @@ fn language_country(lang: &str) -> (String, String) {
     (language, country)
 }
 
-/// A region subtag is either a two-letter alphabetic code or a three-digit numeric code.
 fn is_region_subtag(tag: &str) -> bool {
     (tag.len() == 2 && tag.bytes().all(|byte| byte.is_ascii_alphabetic()))
         || (tag.len() == 3 && tag.bytes().all(|byte| byte.is_ascii_digit()))

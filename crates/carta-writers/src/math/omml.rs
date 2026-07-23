@@ -9,7 +9,7 @@
 //!
 //! Word sets math italics automatically: a run with no style property renders latin letters and
 //! lowercase Greek in italic and everything else upright. A glyph that must defy that default
-//! carries an explicit style property — `<m:sty m:val="p"/>` forces upright, and a styled-alphabet
+//! carries an explicit style property: `<m:sty m:val="p"/>` forces upright, and a styled-alphabet
 //! wrapper (`\mathbb`, `\mathbf`, …) spells out its bold/italic and script variant on every run.
 
 use super::inlines::NegatedBase;
@@ -50,10 +50,6 @@ pub(crate) fn to_omml(tex: &str, display: bool) -> Option<String> {
     root.render(&mut out);
     Some(out)
 }
-
-// ----------------------------------------------------------------------------
-// Minimal XML element tree
-// ----------------------------------------------------------------------------
 
 /// An XML element node: a tag, its ordered attributes, and its ordered children. Empty elements
 /// serialize self-closed (`<m:deg />`); text is escaped for element content, attribute values for
@@ -151,10 +147,6 @@ fn non_empty(mut runs: Vec<Element>) -> Vec<Element> {
     runs
 }
 
-// ----------------------------------------------------------------------------
-// Run styling
-// ----------------------------------------------------------------------------
-
 /// Whether a glyph is italic, an upright digit, or upright by default under Word's automatic math
 /// italicization. The three collapse to two run-property outcomes at the top level (only `Upright`
 /// forces a style property) but stay distinct inside a styled wrapper, where a digit and an operator
@@ -248,10 +240,6 @@ fn leaf(text: &str, ink: Ink, style: Style) -> Element {
     run(text, leaf_properties(ink, style))
 }
 
-// ----------------------------------------------------------------------------
-// Sequence and atom lowering
-// ----------------------------------------------------------------------------
-
 /// The side of a growing fence a sized delimiter forms: an opening delimiter starts one, a closing
 /// delimiter seals one.
 #[derive(Clone, Copy, PartialEq)]
@@ -262,7 +250,7 @@ enum FenceSide {
 
 /// The fence side a sized delimiter (`\big(`, `\Bigg\rangle`, …) forms, when it is one that pairs.
 /// Ordinary, relational, and punctuation followers, the plain double bar, and the backslash never
-/// pair and so return `None` — each renders as its plain upright glyph.
+/// pair and so return `None`; each renders as its plain upright glyph.
 fn big_delim_side(inner: &Body) -> Option<FenceSide> {
     match inner {
         Body::Char(c) => match c {
@@ -320,9 +308,8 @@ fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Optio
     let mut fences: Vec<FenceFrame<'_>> = Vec::new();
     let mut index = 0;
     while let Some(atom) = atoms.get(index) {
-        // A scriptless sized delimiter that pairs opens or seals a fence: an opener starts a new
-        // fence, a closer seals it around the run since the nearest still-open opener. A closer with
-        // no open fence, and any delimiter that does not pair, falls through to render as plain text.
+        // A scriptless sized delimiter opens or seals a fence; an unmatched closer or non-pairing
+        // delimiter falls through to plain text.
         if let Body::Big(_, inner) = &atom.body
             && atom.sub.is_none()
             && atom.sup.is_none()
@@ -379,9 +366,8 @@ fn lower_seq(atoms: &[Atom], style: Style, depth: usize, display: bool) -> Optio
 fn lower_atom(atom: &Atom, style: Style, depth: usize, display: bool) -> Option<Vec<Element>> {
     let mut base = nucleus(&atom.body, style, depth)?;
     let mut runs = atom.script_runs();
-    // In display mode a limit-stacking operator sets its scripts beneath and above it rather than to
-    // its sides: a named limit operator (`\lim`, `\max`, `\operatorname*{…}`) and a large set/logic
-    // operator (`\bigcup`, `\bigwedge`, …) both place their scripts as stacked limits.
+    // In display mode a limit-stacking operator (`\lim`, `\bigcup`, …) sets its scripts beneath
+    // and above rather than to its sides.
     if display
         && atom.siblings.is_empty()
         && stacks_display_limits(&atom.body)
@@ -395,16 +381,15 @@ fn lower_atom(atom: &Atom, style: Style, depth: usize, display: bool) -> Option<
             depth,
         )?]);
     }
-    // A horizontal brace turns its matching-side label — a superscript over an over-brace, a
-    // subscript under an under-brace — into the brace's limit rather than an ordinary script.
+    // A horizontal brace's matching-side label becomes the brace's limit, not an ordinary script.
     if let Body::Brace(kind, _) = &atom.body {
         base = brace_label(*kind, base, &mut runs, style, depth)?;
     }
     if runs.is_empty() {
         return Some(base);
     }
-    // Each run either packs onto the accumulating base (a paired or sealed script) or restarts on a
-    // fresh empty base (a flat-chain sibling), which is emitted as a following sibling element.
+    // Each run packs onto the accumulating base (paired/sealed) or restarts on a fresh empty base
+    // (flat-chain sibling), emitted as a following sibling element.
     let mut out = Vec::new();
     let mut current = base;
     for script_run in &runs {
@@ -676,8 +661,7 @@ fn negated(base: &str) -> Option<Vec<Element>> {
             glyph.push('\u{0338}');
             vec![operator_box(run(&glyph, Some(upright_props())))]
         }
-        // A struck-through letter or symbol keeps its ordinary run styling; only relations gain the
-        // operator box, so both non-relation bases render the same way here.
+        // Only relations gain the operator box; struck non-relation bases keep ordinary run styling.
         NegatedBase::Italic(mut glyph) | NegatedBase::Upright(mut glyph) => {
             glyph.push('\u{0338}');
             vec![run(&glyph, None)]
@@ -821,10 +805,6 @@ fn command_nucleus(name: &str, style: Style) -> Option<Vec<Element>> {
     Some(vec![leaf(&text, ink, style)])
 }
 
-// ----------------------------------------------------------------------------
-// Leaf glyphs
-// ----------------------------------------------------------------------------
-
 /// A single source character's glyph text and ink.
 fn char_glyph(c: char) -> (String, Ink) {
     // In math a hyphen-minus is the subtraction/negation operator, drawn with the minus-sign glyph.
@@ -910,10 +890,6 @@ fn spacing(name: &str) -> Option<(&'static str, bool)> {
     })
 }
 
-// ----------------------------------------------------------------------------
-// N-ary operators
-// ----------------------------------------------------------------------------
-
 /// An n-ary operator's glyph and limit placement, when the body is one. The large operators that are
 /// not n-ary (`\bigcup`, `\bigoplus`, …) render as ordinary scripted glyphs instead.
 fn n_ary_operator(body: &Body) -> Option<(char, &'static str)> {
@@ -988,10 +964,6 @@ fn optional_slot(atoms: Option<&[Atom]>, style: Style, depth: usize) -> Option<V
         None => Some(vec![filler()]),
     }
 }
-
-// ----------------------------------------------------------------------------
-// Two-dimensional structures
-// ----------------------------------------------------------------------------
 
 fn fraction(
     numerator: &[Atom],
@@ -1207,9 +1179,9 @@ enum ColumnJustify<'a> {
     Left,
     /// Every column right-justified.
     Right,
-    /// Right, center, left, repeating — each successive alignment marker meets a column boundary.
+    /// Right, center, left, repeating: each successive alignment marker meets a column boundary.
     RightCenterLeft,
-    /// Left, right, repeating — the two edges of a flush-both-sides layout.
+    /// Left, right, repeating: the two edges of a flush-both-sides layout.
     LeftRight,
     /// Each column set to the justification an array's column specification declares for it; columns
     /// past the end of the specification center.
@@ -1274,8 +1246,8 @@ fn grid(
         GridKind::Substack | GridKind::Gathered => {
             vec![grid_body(rows, ColumnJustify::Center, style, depth)?]
         }
-        // With alignment markers each line's cells join into an equation-array line; with none — a
-        // single column of expressions — the block is instead a right-justified single-column matrix.
+        // With alignment markers cells join into equation-array lines; with none the block is a
+        // right-justified single-column matrix.
         GridKind::Aligned => {
             let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
             if columns <= 1 {
@@ -1344,10 +1316,6 @@ fn equation_array(rows: &[Vec<Vec<Atom>>], style: Style, depth: usize) -> Option
     }
     Some(array)
 }
-
-// ----------------------------------------------------------------------------
-// Styled alphabets and text
-// ----------------------------------------------------------------------------
 
 /// The style a styled-alphabet or math-class wrapper imposes on its argument. A class wrapper sets
 /// its argument upright; an alphabet wrapper selects a script variant and bold/italic axes. An

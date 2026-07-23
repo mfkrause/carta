@@ -5,10 +5,10 @@
 use std::path::{Path, PathBuf};
 
 /// The effective data directory: the explicit `--data-dir` when given, otherwise the per-user data
-/// location — `$XDG_DATA_HOME/carta`, or `$HOME/.local/share/carta` when that variable is unset.
+/// location: `$XDG_DATA_HOME/carta`, or `$HOME/.local/share/carta` when that variable is unset.
 ///
 /// Returns `None` only when no directory can be determined (no flag and no home location), in which
-/// case lookups against it are simply skipped. A returned path is not required to exist: callers test
+/// case lookups against it are skipped. A returned path is not required to exist: callers test
 /// for the specific file they want and fall through when it is absent.
 pub(crate) fn resolve(explicit: Option<&Path>) -> Option<PathBuf> {
     resolve_from(

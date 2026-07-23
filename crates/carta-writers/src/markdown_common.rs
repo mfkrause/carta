@@ -131,8 +131,8 @@ pub(crate) fn destination(target: &Target) -> String {
     }
 }
 
-/// The angle-bracket autolink form when a link's single-`Str` text is the visible form of its URL —
-/// the URL itself or its percent-decoded form, for a genuine URI — or the address of a `mailto:`
+/// The angle-bracket autolink form when a link's single-`Str` text is the visible form of its URL
+/// (the URL itself or its percent-decoded form, for a genuine URI) or the address of a `mailto:`
 /// URL, else `None`. The angle-bracket form carries the encoded URL, not the decoded text.
 pub(crate) fn autolink(inlines: &[Inline], target: &Target) -> Option<String> {
     let [Inline::Str(text)] = inlines else {

@@ -19,7 +19,7 @@ pub(crate) fn list_is_tight(items: &[Vec<Block>]) -> bool {
         .all(|item| matches!(item.first(), None | Some(Block::Plain(_))))
 }
 
-/// Whether a list is loose — at least one item carries a top-level paragraph. A loose list's items
+/// Whether a list is loose: at least one item carries a top-level paragraph. A loose list's items
 /// are separated with a blank line and each item's blocks are laid out with blank lines; a tight
 /// list uses single newlines throughout.
 #[cfg_attr(

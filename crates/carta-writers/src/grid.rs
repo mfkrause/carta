@@ -186,14 +186,8 @@ fn place(table: &GridTable, columns: usize) -> Layout {
     }
 }
 
-/// The border line above row `boundary` (or the bottom border when `boundary` equals the row
-/// count). `=` marks a section change and the bottom of a footed table. A column's segment is
-/// blank where a cell spans the boundary vertically; the junction between two columns is `+`
-/// where a horizontal segment meets a vertical divider, `|` where only a divider passes through,
-/// the fill character where a horizontal run crosses a merged (column-spanned) boundary, and a
-/// space inside a spanned rectangle. The alignment-marking separator always divides every column.
-/// For each column, whether this boundary draws a horizontal rule there: it does unless a row span
-/// crosses the boundary in that column, in which case the cell continues uninterrupted.
+/// For each column, whether boundary `boundary` draws a horizontal rule there: it does unless a
+/// row span crosses the boundary in that column, letting the cell continue uninterrupted.
 fn drawn_columns(layout: &Layout, boundary: usize, row_count: usize, columns: usize) -> Vec<bool> {
     (0..columns)
         .map(|col| {
@@ -242,16 +236,12 @@ fn separator(table: &GridTable, layout: &Layout, boundary: usize) -> String {
             .copied()
     };
     let exposes = |row: usize, col: usize| cell_at(row, col - 1) != cell_at(row, col);
-    // The separator that leads a section (the top border, or a boundary where the section changes)
-    // divides a column wherever any row of the section below splits it, so a span heading a
-    // multi-row section does not erase a boundary that a lower row re-exposes. A boundary inside a
-    // section divides where the row immediately below splits it.
+    // A section-leading separator divides wherever any row of the section below splits the column;
+    // an interior boundary uses only the row immediately below.
     let leads_section = boundary < row_count
         && (boundary == 0 || layout.sections.get(boundary - 1) != layout.sections.get(boundary));
-    // Whether a vertical divider passes through the boundary point between column `col - 1` and
-    // `col`: when the cells on either side differ in the row above or below, or — on the
-    // alignment-marking separator — when an adjacent column carries an alignment colon there that
-    // a merged run would otherwise swallow.
+    // A divider passes between `col - 1` and `col` when the flanking cells differ above or below,
+    // or when an adjacent alignment colon must not be swallowed by a merged run.
     let divider = |col: usize| -> bool {
         let aligned = marks_alignment
             && table.aligns.is_some_and(|aligns| {
@@ -370,8 +360,7 @@ fn content_line(
             .take(span)
             .sum::<usize>()
             + span.saturating_sub(1);
-        // A spanning cell's content renders entirely within its first row's lines; the rows it
-        // covers below show blanks.
+        // A spanning cell renders all content in its first row; covered rows below show blanks.
         let text = if cell.start_row == row {
             cell.lines.get(line_index).map_or("", String::as_str)
         } else {
@@ -440,9 +429,8 @@ pub(crate) fn merged_width(content: &[usize], start: usize, span: usize) -> usiz
 
 /// The content width a fractional column spec maps to in a grid table, scaled against the fill
 /// column.
-// Layout arithmetic over a fraction: truncation by `floor` is intended. A fraction wider than the
-// whole line has no layout meaning, so the scaled span is clamped to the line width before the
-// border reservation — an out-of-range fraction cannot inflate the column into a huge allocation.
+// `floor` truncation intended; the fraction clamps to the line width so an out-of-range spec
+// cannot inflate the column into a huge allocation.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn explicit_grid_width(fraction: f64, width: usize) -> i64 {
     let scaled = (fraction * width as f64).floor().min(width as f64);
@@ -497,8 +485,7 @@ pub(crate) fn grid_content_widths(
 /// of the covered columns, `merged = floor(fraction * total)` gives the character budget for the
 /// span; that budget is split evenly, `floor(merged / span)`, with the `merged % span` leftover
 /// characters folded back in, and one character per column is held back for the cell's own padding.
-// Layout arithmetic over small bounded widths: the signed intermediate is clamped by `max(0)` before
-// converting back, and column counts never approach `i64`/`usize` limits.
+// Signed intermediates clamp via `max(0)`; column counts never approach integer limits.
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
@@ -512,8 +499,7 @@ fn colspan_width_floor(specs: &[ColSpec], start: usize, span: usize, width: usiz
             _ => None,
         })
         .sum();
-    // Clamp the combined span budget to the line width: a fractional sum wider than the whole line
-    // has no layout meaning and would otherwise widen every covered column without bound.
+    // Clamp the span budget to the line width; an over-wide sum would widen every column without bound.
     let merged = (span_fraction * width as f64).floor().min(width as f64) as i64;
     let span = span.max(1) as i64;
     (merged / span + merged % span - 1).max(0) as usize
@@ -533,8 +519,7 @@ fn auto_grid_widths(
     width: usize,
     wrap: WrapMode,
 ) -> Vec<usize> {
-    // With no width wrapping, cells render on a single line, so each column grows to hold its
-    // widest cell rather than being squeezed into a shared budget.
+    // Without wrapping each column grows to its widest cell instead of sharing a budget.
     if wrap == WrapMode::None {
         return (0..columns)
             .map(|index| natural.get(index).copied().unwrap_or(0))
@@ -1054,14 +1039,11 @@ mod tests {
 
     #[test]
     fn colspan_width_floor_folds_the_remainder_back_into_each_column() {
-        // A three-column span whose fractions sum to a 35-character budget (k = 13, 11, 11 of 72)
-        // splits to floor(35/3) = 11, then folds the 35 % 3 = 2 leftover back in and reserves one
-        // padding column: every covered column settles at 12.
+        // Budget 35 over three columns: floor(35/3) = 11, plus the 35 % 3 = 2 leftover, minus one padding: 12.
         let three = [sized(13.0 / 72.0), sized(11.0 / 72.0), sized(11.0 / 72.0)];
         assert_eq!(colspan_width_floor(&three, 0, 3, 72), 12);
 
-        // A two-column span summing to a 22-character budget divides evenly with no remainder,
-        // leaving floor(22/2) - 1 = 10.
+        // Even 22-character budget: floor(22/2) - 1 = 10.
         let two = [sized(11.0 / 72.0), sized(11.0 / 72.0)];
         assert_eq!(colspan_width_floor(&two, 0, 2, 72), 10);
     }
@@ -1076,8 +1058,7 @@ mod tests {
         ];
         let natural = [1, 1, 1, 1];
         let minword = [1, 1, 1, 1];
-        // A span over the last three columns (floor 12) and a span over the last two (floor 10);
-        // the wider floor wins on the overlap.
+        // Floors 12 (three-column span) and 10 (two-column span); the wider wins on the overlap.
         let widths = grid_content_widths(
             &specs,
             &natural,
@@ -1092,20 +1073,17 @@ mod tests {
 
     #[test]
     fn explicit_grid_width_clamps_an_out_of_range_fraction_to_the_line() {
-        // A fraction within [0, 1] scales as usual: floor(fraction * width) minus the border
-        // reservation.
+        // In-range fractions scale as floor(fraction * width) minus the border reservation.
         assert_eq!(explicit_grid_width(0.5, 72), 33);
         assert_eq!(explicit_grid_width(1.0, 72), 69);
-        // A fraction far past the whole line clamps to the line width before the reservation, so the
-        // column can never balloon into an unbounded allocation.
+        // Out-of-range fractions clamp to the line width first.
         assert_eq!(explicit_grid_width(1.0e53, 72), 69);
         assert_eq!(explicit_grid_width(f64::INFINITY, 72), 69);
     }
 
     #[test]
     fn colspan_width_floor_clamps_an_out_of_range_fraction_to_the_line() {
-        // A well-formed span budget resolves normally; an absurd fractional sum clamps to the line
-        // width, keeping every covered column bounded.
+        // An absurd fractional sum clamps to the line width, keeping covered columns bounded.
         let normal = [sized(11.0 / 72.0), sized(11.0 / 72.0)];
         assert_eq!(colspan_width_floor(&normal, 0, 2, 72), 10);
         let absurd = [sized(1.0e40), sized(1.0e40)];

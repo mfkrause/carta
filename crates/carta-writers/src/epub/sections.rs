@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 const SECTION_CLASS: &str = "section";
 
 /// Transform a flat block sequence into the nested section structure an EPUB body uses. Each heading
-/// and the blocks beneath it — up to the next heading of the same or a shallower level — become a
+/// and the blocks beneath it (up to the next heading of the same or a shallower level) become a
 /// `Div` marked with the [`SECTION_CLASS`], a `level{N}` class, and the heading's own classes; the
 /// heading's identifier moves onto that wrapper, and the heading keeps its classes and key/value
 /// pairs. Content preceding the first heading is gathered into a leading section headed by the
@@ -25,10 +25,7 @@ pub(crate) fn make_sections(blocks: &[Block], title: &[Inline]) -> Vec<Block> {
         .unwrap_or(blocks.len());
     let (preamble, rest) = blocks.split_at(boundary);
     let mut out = Vec::new();
-    // Track the identifiers assigned so far, so a section whose heading carries none is given a
-    // unique one rather than an empty string that no navigation link could target. Seed it with
-    // every identifier the document already carries explicitly — on a heading or any other element —
-    // so a derived slug is disambiguated against them and cannot silently duplicate an author's own.
+    // seed with every explicit id in the document so a derived slug cannot duplicate an author's own
     let mut seen = BTreeSet::new();
     let mut explicit = BTreeMap::new();
     super::record_ids(blocks, "", &mut explicit);
@@ -37,8 +34,7 @@ pub(crate) fn make_sections(blocks: &[Block], title: &[Inline]) -> Vec<Block> {
         out.push(synthetic_section(title, preamble, &mut seen));
     }
     out.extend(build_sections(rest, &mut seen));
-    // A document with a title but no body still yields one chapter: an unnumbered leading section
-    // holding just the title, so the book has a first page rather than none.
+    // a title-only document still yields one chapter so the book has a first page
     if out.is_empty() && !title.is_empty() {
         out.push(synthetic_section(title, &[], &mut seen));
     }
@@ -57,8 +53,7 @@ fn build_sections(blocks: &[Block], seen: &mut BTreeSet<String>) -> Vec<Block> {
                 .position(|block| matches!(block, Block::Header(inner, ..) if *inner <= *level))
                 .unwrap_or(rest.len());
             let (body, tail) = rest.split_at(end);
-            // Resolve this section's identifier before its descendants', so a derived slug is made
-            // unique in document order.
+            // resolve this id before descendants' so derived slugs are unique in document order
             let id = section_id(attr, inlines, seen);
             let inner = build_sections(body, seen);
             out.push(section_div(*level, attr, inlines, id, inner));
@@ -71,7 +66,6 @@ fn build_sections(blocks: &[Block], seen: &mut BTreeSet<String>) -> Vec<Block> {
     out
 }
 
-/// Build one section `Div` from a heading, its resolved identifier, and its already-sectioned body.
 fn section_div(level: i32, attr: &Attr, inlines: &[Inline], id: Text, body: Vec<Block>) -> Block {
     let mut classes = vec![
         Text::from(SECTION_CLASS),
@@ -115,8 +109,6 @@ fn section_id(attr: &Attr, inlines: &[Inline], seen: &mut BTreeSet<String>) -> T
     Text::from(unique_id(base, seen))
 }
 
-/// Return `base` if it is unused, otherwise `base-1`, `base-2`, … until one is free, recording the
-/// chosen identifier so later calls avoid it.
 fn unique_id(base: String, seen: &mut BTreeSet<String>) -> String {
     if seen.insert(base.clone()) {
         return base;
@@ -243,7 +235,6 @@ mod tests {
         )
     }
 
-    /// The identifiers of the top-level section wrappers, in document order.
     fn section_ids(blocks: &[Block]) -> Vec<String> {
         blocks
             .iter()
@@ -302,8 +293,7 @@ mod tests {
 
     #[test]
     fn derived_slug_avoids_a_later_explicit_id() {
-        // The second heading's explicit identifier is what the first heading's text would slug to;
-        // seeding it up front pushes the derived one aside instead of duplicating it.
+        // seeding the later explicit id pushes the derived slug aside instead of duplicating it
         let blocks = vec![
             header(1, "", "Installation"),
             header(1, "installation", "Setup"),

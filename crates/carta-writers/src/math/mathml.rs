@@ -3,8 +3,8 @@
 //!
 //! The tree is the same one the other backends consume; here it is walked into a small element tree
 //! and serialized. A single-element sequence renders bare, a longer one inside an `<mrow>`, which
-//! keeps grouping minimal the way MathML expects. The walk is total and panic-free — every construct
-//! renders to some valid MathML, falling back to a text node for input with no structural form — and
+//! keeps grouping minimal the way MathML expects. The walk is total and panic-free (every construct
+//! renders to some valid MathML, falling back to a text node for input with no structural form) and
 //! is bounded against pathological nesting by an explicit depth limit.
 
 use super::parse::{
@@ -26,8 +26,6 @@ pub(crate) fn to_mathml(tex: &str, display: bool) -> Option<String> {
     let mut root = Element::new("math")
         .attr("xmlns", "http://www.w3.org/1998/Math/MathML")
         .attr("display", if display { "block" } else { "inline" });
-    // The whole expression forms one grouped row: a single element renders bare, a longer sequence
-    // inside one `<mrow>`, an empty expression as no content at all.
     root.children = if body.is_empty() {
         Vec::new()
     } else {
@@ -37,10 +35,6 @@ pub(crate) fn to_mathml(tex: &str, display: bool) -> Option<String> {
     root.render(&mut out);
     Some(out)
 }
-
-// ----------------------------------------------------------------------------
-// Minimal XML element tree
-// ----------------------------------------------------------------------------
 
 /// An XML element node: a tag, its ordered attributes, and its ordered children.
 struct Element {
@@ -106,10 +100,6 @@ fn leaf(tag: &'static str, text: impl Into<String>) -> Node {
     Node::Element(Element::new(tag).text(text))
 }
 
-// ----------------------------------------------------------------------------
-// Sequence and grouping
-// ----------------------------------------------------------------------------
-
 /// Lower a run of atoms to a run of nodes, flattening each atom's own nodes into one sequence.
 fn lower_seq(atoms: &[Atom], display: bool, depth: usize) -> Vec<Node> {
     if depth > MAX_DEPTH {
@@ -140,14 +130,9 @@ fn slot(atoms: &[Atom], display: bool, depth: usize) -> Node {
     group(lower_seq(atoms, display, depth + 1))
 }
 
-// ----------------------------------------------------------------------------
-// Atom lowering
-// ----------------------------------------------------------------------------
-
 /// Lower one atom: its nucleus wrapped by whatever script chain it carries.
 fn lower_atom(atom: &Atom, display: bool, depth: usize) -> Vec<Node> {
-    // A horizontal brace turns its matching-side label into a stacked limit rather than an ordinary
-    // script, so it is resolved before the generic script pass sees the atom.
+    // A horizontal brace stacks its matching-side label, so it resolves before the script pass.
     if let Body::Brace(kind, inner) = &atom.body {
         return brace_atom(*kind, inner, atom, display, depth);
     }
@@ -209,7 +194,7 @@ fn is_under_over(body: &Body) -> bool {
     }
 }
 
-/// Wrap a base node in a subscript, superscript, or both — beside the base (`msub`/`msup`/`msubsup`)
+/// Wrap a base node in a subscript, superscript, or both: beside the base (`msub`/`msup`/`msubsup`)
 /// or stacked under and over it (`munder`/`mover`/`munderover`).
 fn apply_scripts(
     base: Node,
@@ -246,10 +231,6 @@ fn apply_sibling(base: Node, sibling: &Sibling, stack: bool, display: bool, dept
         ScriptKind::Sup => apply_scripts(base, None, Some(&sibling.atoms), stack, display, depth),
     }
 }
-
-// ----------------------------------------------------------------------------
-// Nucleus lowering
-// ----------------------------------------------------------------------------
 
 /// Lower an atom's nucleus (its body without scripts) to zero or more nodes.
 fn nucleus(body: &Body, display: bool, depth: usize) -> Vec<Node> {
@@ -368,10 +349,6 @@ fn prime_marks(count: u8) -> String {
         other => "\u{2032}".repeat(usize::from(other)),
     }
 }
-
-// ----------------------------------------------------------------------------
-// Two-dimensional structures
-// ----------------------------------------------------------------------------
 
 fn fraction(
     style: FracStyle,
@@ -842,10 +819,6 @@ fn cell_attributes(align: ColumnAlign, collapse: bool) -> (&'static str, String)
     (dir, style)
 }
 
-// ----------------------------------------------------------------------------
-// Braces, stacks, arrows
-// ----------------------------------------------------------------------------
-
 /// Lower a horizontal brace: the group under (or over) its brace glyph, with a matching-side label
 /// (a superscript over an over-brace, a subscript under an under-brace) stacked as an outer limit.
 fn brace_atom(
@@ -864,8 +837,7 @@ fn brace_atom(
     let brace_mark = Node::Element(Element::new("mo").attr("accent", "true").text(glyph));
     let core = Node::Element(Element::new(wrapper).node(body).node(brace_mark));
 
-    // The matching-side script (a superscript over an over-brace, a subscript under an under-brace)
-    // becomes the brace's stacked label; any other script applies as an ordinary script.
+    // The matching-side script becomes the stacked label; any other applies as an ordinary script.
     let (label, remaining_subscript, remaining_superscript) = match kind {
         BraceKind::Over => (atom.sup.as_deref(), atom.sub.as_deref(), None),
         BraceKind::Under => (atom.sub.as_deref(), None, atom.sup.as_deref()),
@@ -943,10 +915,6 @@ fn ext_arrow(
         ),
     }
 }
-
-// ----------------------------------------------------------------------------
-// Delimiters and negation
-// ----------------------------------------------------------------------------
 
 /// A stretchable delimiter fence around some content: an opening `<mo>`, the content, and a closing
 /// `<mo>`, all inside an `<mrow>`. An empty delimiter contributes no glyph on its side.
@@ -1112,10 +1080,6 @@ fn negated_group(atoms: &[Atom], display: bool, depth: usize) -> Node {
             )),
     )
 }
-
-// ----------------------------------------------------------------------------
-// Modulo
-// ----------------------------------------------------------------------------
 
 /// Lower a modulo operator to its node sequence: a leading space, an optional opening parenthesis,
 /// the `mod` word with a function-application marker, a following space, the bracketed modulus for the

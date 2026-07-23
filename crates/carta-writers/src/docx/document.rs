@@ -1,28 +1,5 @@
-//! Rendering of the document body — blocks and inlines — into `word/document.xml`, along with the
+//! Rendering of the document body (blocks and inlines) into `word/document.xml`, along with the
 //! footnote entries, list plan and embedded images the body gives rise to.
-//!
-//! A top-level paragraph opens the body with the `FirstParagraph` style and switches to `BodyText`
-//! once another paragraph precedes it; a heading, list, table, figure, block quote or other
-//! structural block resets that run so the next paragraph opens fresh again, while a raw-passthrough
-//! block is transparent to it. A heading carrying an identifier opens a bookmark spanning its whole
-//! outline section: the `bookmarkEnd` is deferred until a heading of the same or a shallower level
-//! begins, or the body ends, and nested sections close from the inside out. A code block carrying an
-//! identifier is wrapped in a bookmark too, but one that closes immediately after the block.
-//!
-//! A bulleted or ordered list binds each item's lead paragraph to a concrete list number and its
-//! continuation paragraphs to the scaffold number, deepening the indent level for nested lists. A
-//! table lays out a grid: columns take their width from the column fractions, header rows are marked
-//! as repeating, and a cell that spans rows or columns leaves merge-continuation cells behind it. A
-//! footnote reference drops a numbered mark into the runs and queues its block content for the
-//! footnotes part. An image resolves to a drawing sized from the picture's pixel dimensions when its
-//! bytes are on hand, and degrades to its descriptive text otherwise.
-//!
-//! Inline content becomes a sequence of runs: consecutive text joined by single spaces collapses
-//! into one run, a space at a formatting boundary and every soft break stand as their own run, and
-//! each formatted span (emphasis, strong, code, …) contributes its own run carrying the accumulated
-//! run properties. Math lowers to an Office Math fragment placed directly in the paragraph, or to a
-//! delimited literal when its source cannot be rendered; `openxml` raw passthrough is emitted
-//! verbatim and raw passthrough in any other format contributes nothing.
 
 use super::numbering::ListPlan;
 use super::wml_root;
@@ -144,9 +121,9 @@ struct Bookmark {
 
 /// The paragraph styles a nested container renders its `Para` and `Plain` blocks under. The styles
 /// are usually fixed names, but a custom-style div supplies borrowed ones, hence the lifetime.
-/// `list_ambient` is the style a nested list's loose item paragraphs inherit from the container — a
+/// `list_ambient` is the style a nested list's loose item paragraphs inherit from the container (a
 /// block quote and a definition pass their own style down to the lists they hold, whereas a table
-/// cell imposes none — mirroring the `ambient` a custom-style div threads through the top level.
+/// cell imposes none), mirroring the `ambient` a custom-style div threads through the top level.
 #[derive(Clone, Copy)]
 struct FlowStyle<'a> {
     para: &'a str,
@@ -178,14 +155,12 @@ pub(super) fn document_xml(
     let mut ctx = Ctx {
         prev_paragraph: false,
         bookmarks: Vec::new(),
-        // Bookmark ids count up from 1, staying clear of the free-id range the footnotes and images
-        // draw from so every emitted id is distinct.
+        // Counts from 1, clear of the free-id range footnotes and images draw from.
         next_bookmark_id: 1,
         plan: ListPlan::default(),
         next_id: FIRST_FREE_ID,
         notes: Vec::new(),
         comments: Vec::new(),
-        // Insertions and deletions carry independent change ids, each counting up from one.
         next_insertion: 1,
         next_deletion: 1,
         images: Vec::new(),
@@ -206,17 +181,14 @@ pub(super) fn document_xml(
     close_bookmarks(&mut body, &mut ctx.bookmarks, i32::MIN);
     body.push(section_properties());
 
-    // Comment bodies are rendered after the main walk, in the order their ranges opened. Rendering
-    // them first lets any footnote a comment carries join the footnote queue below.
+    // Rendered before footnotes so a footnote inside a comment joins the queue below.
     let queued_comments = std::mem::take(&mut ctx.comments);
     let mut comments = Vec::with_capacity(queued_comments.len());
     for comment in &queued_comments {
         comments.push(render_comment_entry(comment, &mut ctx));
     }
 
-    // Footnote bodies are rendered after the main walk, in the order their references appeared. A
-    // note nested inside another note is appended as it is discovered, so the loop revisits the
-    // growing queue until it is drained.
+    // A note nested in a note appends mid-loop, so the growing queue is revisited until drained.
     let mut footnotes = Vec::new();
     let mut index = 0;
     while let Some((id, note_blocks)) = ctx.notes.get(index).cloned() {
@@ -236,7 +208,7 @@ pub(super) fn document_xml(
     }
 }
 
-/// Renders the document's title block — its title, subtitle, authors, date and abstract — as the
+/// Renders the document's title block (its title, subtitle, authors, date and abstract) as the
 /// styled paragraphs that open the body, in that order. Only the fields the document carries appear.
 /// These paragraphs are laid down before the body's own blocks and leave the first/body alternation
 /// untouched, so the first body paragraph still opens with the `FirstParagraph` style.
@@ -319,14 +291,11 @@ fn section_properties() -> Element {
 fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: Option<&str>) {
     match block {
         Block::Para(inlines) | Block::Plain(inlines) => {
-            // A display equation set among text is lifted onto its own centred line, so a paragraph
-            // that carries one is split around it rather than emitted whole.
+            // A display equation lifts onto its own line; the paragraph splits around it.
             if ambient.is_none() && inlines.iter().any(is_display_equation) {
                 render_split_paragraph(inlines, body, ctx);
                 return;
             }
-            // An empty paragraph carries nothing and is dropped rather than emitted as a blank line,
-            // unless empty paragraphs are being preserved.
             if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
                 return;
             }
@@ -339,9 +308,8 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
             body.push(line_block_paragraph(style, lines, ctx));
             ctx.prev_paragraph = true;
         }
-        // A div is transparent to the first/body alternation: its blocks join the body as though
-        // written directly. A `custom-style` div additionally imposes its named paragraph style on
-        // its direct paragraphs, which a nested custom-style div overrides in turn.
+        // A div is transparent to the first/body alternation; a custom-style div restyles its
+        // direct paragraphs (a nested one overrides).
         Block::Div(attr, blocks) => {
             let mark = open_bookmark(attr.id.as_str(), body, ctx);
             let child_ambient = custom_style(attr)
@@ -360,15 +328,13 @@ fn render_top_block(block: &Block, body: &mut Element, ctx: &mut Ctx, ambient: O
             open_heading(*level, attr.id.as_str(), inlines, body, ctx);
             ctx.prev_paragraph = false;
         }
-        // A code block anchors a bookmark around just itself when it carries an identifier.
         Block::CodeBlock(attr, code) => {
             let id = attr.id.clone();
             let para = code_paragraph(attr, code, None, &ctx.highlighter);
             push_anchored(body, ctx, id.as_str(), para);
             ctx.prev_paragraph = false;
         }
-        // Raw passthrough carries markup, not paragraph flow, so it neither opens nor closes the
-        // first/body alternation: an `openxml` payload is emitted verbatim, any other format drops.
+        // Raw markup neither opens nor closes the first/body alternation; only openxml passes through.
         Block::RawBlock(format, payload) => {
             if format.0.as_str() == "openxml" {
                 body.push_raw(payload);
@@ -599,7 +565,6 @@ fn open_bookmark(id: &str, out: &mut Element, ctx: &mut Ctx) -> Option<u32> {
     Some(mark)
 }
 
-/// Closes a bookmark opened by [`open_bookmark`], if one was opened.
 fn close_bookmark(mark: Option<u32>, out: &mut Element) {
     if let Some(mark) = mark {
         out.push(Element::new("w:bookmarkEnd").attr("w:id", &mark.to_string()));
@@ -638,8 +603,7 @@ fn heading_style(level: i32) -> &'static str {
 /// and every other block taking its own natural shape.
 fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle) {
     match block {
-        // A display equation set among a nested paragraph's text is lifted onto its own centred line,
-        // just as at the top level, so the paragraph is split around each one rather than left inline.
+        // Display equations lift onto their own centred line, as at the top level.
         Block::Para(inlines) if inlines.iter().any(is_display_equation) => {
             styled_flow_with_display(style.para, None, inlines, ctx, out);
         }
@@ -653,8 +617,7 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
                 out.push(paragraph(style.plain, inlines, ctx));
             }
         }
-        // A heading nested inside a container is not a document-outline section, so it degrades to a
-        // styled paragraph without the section-spanning bookmark the top-level walk would open.
+        // A nested heading is not an outline section: styled paragraph, no bookmark.
         Block::Header(level, _, inlines) => {
             out.push(paragraph(heading_style(*level), inlines, ctx));
         }
@@ -680,8 +643,7 @@ fn render_flow(block: &Block, out: &mut Element, ctx: &mut Ctx, style: FlowStyle
             render_figure(attr.id.as_str(), caption, blocks, out, ctx);
         }
         Block::Table(table) => render_table(table, out, ctx, None),
-        // A custom-style div re-styles its direct paragraphs and imposes that style on the loose lists
-        // it holds; a plain one is transparent, passing the surrounding style through.
+        // A custom-style div restyles its paragraphs and loose lists; a plain one is transparent.
         Block::Div(attr, blocks) => {
             let inner = match custom_style(attr).or_else(|| bibliography_style(attr)) {
                 Some(name) => FlowStyle {
@@ -732,7 +694,6 @@ fn custom_style(attr: &Attr) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-/// Whether an attribute set names the given class.
 fn has_class(attr: &Attr, class: &str) -> bool {
     attr.classes.iter().any(|name| name.as_str() == class)
 }
@@ -828,10 +789,8 @@ fn render_bullet_list(
     depth: u32,
     ambient: Option<&str>,
 ) {
-    // A list whose every item leads with a checkbox is a task list: each item binds to a checkbox
-    // number its state selects, with the leading glyph and the space after it dropped from the text,
-    // so the box itself stands as the item's marker. Each item takes its own number so an unchecked
-    // item and a checked one can carry different boxes.
+    // A list whose every item leads with a checkbox is a task list: each item binds to its own
+    // state-selected checkbox number, with the leading glyph and following space stripped.
     if let Some(states) = task_list_states(items) {
         for (item, checked) in items.iter().zip(states) {
             let num_id = ctx.plan.checkbox(checked);
@@ -846,8 +805,8 @@ fn render_bullet_list(
     }
 }
 
-/// The checked state of every item when the list is a task list — one whose every item leads with a
-/// ballot-box marker — else `None`. An empty list is never a task list.
+/// The checked state of every item when the list is a task list (one whose every item leads with a
+/// ballot-box marker), else `None`. An empty list is never a task list.
 fn task_list_states(items: &[Vec<Block>]) -> Option<Vec<bool>> {
     if items.is_empty() {
         return None;
@@ -916,9 +875,9 @@ fn render_list_item(
 
 /// Renders one block of a list item. Each paragraph the block yields binds to the item's own number
 /// on the first paragraph and to the continuation number thereafter, keeping the whole item indented
-/// under one marker; a nested table takes the item's indent instead; and a nested list — when it
-/// leads the item, with no paragraph ahead of it to carry the marker — is preceded by an empty
-/// numbered paragraph that holds the item's marker.
+/// under one marker; a nested table takes the item's indent instead; and a nested list that leads
+/// the item, with no paragraph ahead of it to carry the marker, is preceded by an empty numbered
+/// paragraph that holds the item's marker.
 fn render_item_block(
     block: &Block,
     num_id: u32,
@@ -942,8 +901,7 @@ fn render_item_block(
                 ctx,
             ));
         }
-        // A loose item's paragraph takes the style a surrounding custom-style div imposes, alongside
-        // the item's own numbering; without such a div it carries no explicit style.
+        // A loose paragraph takes the surrounding custom-style, plus the item's numbering.
         Block::Para(inlines) => {
             if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
                 return;
@@ -957,8 +915,7 @@ fn render_item_block(
                 ctx,
             ));
         }
-        // A heading nested in a list item is not an outline section, so it takes its level's style
-        // without opening a bookmark, and joins the item's numbering like any other paragraph.
+        // A nested heading is no outline section: level style, no bookmark, item numbering.
         Block::Header(level, _, inlines) => {
             let style = heading_style(*level);
             let number = list_number(lead_used, num_id, ctx);
@@ -979,8 +936,8 @@ fn render_item_block(
                 &ctx.highlighter,
             ));
         }
-        // A block quote's own paragraphs each take the block-quote style and join the item's
-        // numbering; any other block it holds renders as it would directly in the item.
+        // Block-quote paragraphs take the quote style and the item's numbering; other blocks
+        // render as if directly in the item.
         Block::BlockQuote(blocks) => {
             for inner in blocks {
                 match inner {
@@ -1010,8 +967,7 @@ fn render_item_block(
             lead_empty_paragraph(num_id, depth, lead_used, out, ctx);
             render_ordered_list(attrs, items, out, ctx, depth + 1, ambient);
         }
-        // A transparent div contributes its blocks to the item directly, so its paragraphs number
-        // like the item's own.
+        // A transparent div's paragraphs number like the item's own.
         Block::Div(attr, blocks) if custom_style(attr).is_none() => {
             for inner in blocks {
                 render_item_block(inner, num_id, depth, lead_used, out, ctx, ambient);
@@ -1113,8 +1069,7 @@ fn render_table(table: &Table, out: &mut Element, ctx: &mut Ctx, indent: Option<
     let has_foot = !table.foot.rows.is_empty();
 
     let mark = open_bookmark(table.attr.id.as_str(), out, ctx);
-    // A table opens a fresh first/body paragraph run: its first cell paragraph is a `FirstParagraph`,
-    // unless a caption precedes it and takes that opening slot, leaving the cells to continue as body.
+    // A table opens a fresh first/body run; a preceding caption takes the opening slot.
     ctx.prev_paragraph = false;
     render_caption(
         &table.caption.long,
@@ -1131,8 +1086,7 @@ fn render_table(table: &Table, out: &mut Element, ctx: &mut Ctx, indent: Option<
     tbl.push(table_properties(table, has_head, has_foot, indent));
     tbl.push(table_grid(&table.col_specs));
 
-    // The remaining rows each cell of a row spans are tracked across rows so a row-spanning cell
-    // leaves a merge-continuation cell in every row below it, for the width it covers.
+    // Carried row-spans leave a merge-continuation cell in each row below, at the covered width.
     let mut carried = vec![0u32; columns];
     let mut carried_span = vec![1u32; columns];
 
@@ -1204,8 +1158,7 @@ fn table_properties(table: &Table, has_head: bool, has_foot: bool, indent: Optio
         );
     }
 
-    // A table nested in a list item is left-aligned and shifted one indent step per nesting level so
-    // it sits under its item's text rather than at the page margin.
+    // A list-nested table shifts one indent step per level to sit under its item's text.
     if let Some(depth) = indent {
         properties.push(Element::new("w:jc").attr("w:val", "left"));
         properties.push(
@@ -1354,10 +1307,8 @@ fn render_normal_cell(
         wrote |= render_cell_block(block, &mut tc, jc, ctx);
         previous = Some(block);
     }
-    // A cell must hold at least one paragraph and must not end on a table. A cell with no content
-    // takes a compact filler paragraph; one whose content is present but renders to nothing (a
-    // comment, a raw block for another target, a list of empty items) takes a bare filler paragraph,
-    // as does a cell whose content ends on a nested table, so the table is not the cell's final child.
+    // A cell must hold a paragraph and must not end on a table: empty content gets a compact
+    // filler, content that rendered nothing or ended on a table gets a bare filler paragraph.
     if !wrote {
         if cell.content.is_empty() {
             tc.push(Element::new("w:p").child(paragraph_props(Some("Compact"), None, None)));
@@ -1374,9 +1325,8 @@ fn render_normal_cell(
 /// Returns whether it emitted anything.
 fn render_cell_block(block: &Block, tc: &mut Element, jc: Option<&str>, ctx: &mut Ctx) -> bool {
     match block {
-        // A cell's paragraphs join the table's first/body run: the very first paragraph in the table
-        // opens as `FirstParagraph` and every one after it continues as `BodyText`. A display equation
-        // among the text is lifted onto its own centred paragraph in that same style.
+        // Cell paragraphs join the table's first/body run; display equations lift onto their own
+        // centred paragraph in the same style.
         Block::Para(inlines) => {
             if inlines.is_empty() && !ctx.features.keep_empty_paragraphs {
                 return false;
@@ -1396,8 +1346,7 @@ fn render_cell_block(block: &Block, tc: &mut Element, jc: Option<&str>, ctx: &mu
                 return false;
             }
             tc.push(styled_paragraph(Some("Compact"), None, jc, inlines, ctx));
-            // A cell's compact paragraph still advances the table's first/body run, so the next
-            // paragraph in the table continues as body text rather than reopening as the first.
+            // A compact paragraph still advances the table's first/body run.
             ctx.prev_paragraph = true;
             true
         }
@@ -1695,8 +1644,7 @@ fn render_footnote_entry(id: u32, blocks: &[Block], ctx: &mut Ctx) -> Element {
         footnote.push(para);
         blocks.get(1..).unwrap_or(&[])
     } else {
-        // A note whose first block is not a paragraph gets a standalone marker paragraph, and
-        // every block then follows as continuation content.
+        // A note whose first block is not a paragraph gets a standalone marker paragraph.
         footnote.push(
             Element::new("w:p")
                 .child(paragraph_props(Some("FootnoteText"), None, None))
@@ -1766,7 +1714,6 @@ fn paragraph_props(
     properties
 }
 
-/// Builds a paragraph with a paragraph style and the runs its inline content yields.
 fn paragraph(style: &str, inlines: &[Inline], ctx: &mut Ctx) -> Element {
     styled_paragraph(Some(style), None, None, inlines, ctx)
 }
@@ -1802,8 +1749,8 @@ fn code_paragraph(attr: &Attr, code: &str, numbering: Option<(u32, u32)>, hl: &D
 }
 
 /// The token runs for a code block whose language a highlighter recognizes, or `None` when the block
-/// carries no recognized language class and should fall back to the plain code style. Every token —
-/// including plain and whitespace-only ones — is wrapped in its own styled run, and consecutive
+/// carries no recognized language class and should fall back to the plain code style. Every token,
+/// including plain and whitespace-only ones, is wrapped in its own styled run, and consecutive
 /// source lines are joined by break runs.
 #[cfg(feature = "highlight")]
 fn highlighted_code_runs(attr: &Attr, code: &str, hl: &DocxHl) -> Option<Vec<Element>> {
@@ -1899,7 +1846,7 @@ fn horizontal_rule() -> Element {
 
 /// The run properties accumulated down a chain of nested inline formatting. Rendered in the fixed
 /// schema order so output stays stable regardless of nesting order.
-// Each flag is an independent on/off run-property toggle, so a flat set of bools is the natural shape.
+// Independent on/off toggles; a flat set of bools is the natural shape.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Default)]
 struct RunProps {
@@ -2001,8 +1948,7 @@ impl RunProps {
         if let Some(style) = &self.style {
             rpr.push(Element::new("w:rStyle").attr("w:val", style_id(style.as_ref()).as_ref()));
         }
-        // The East Asian font hint follows any character style but precedes the weight and slant
-        // toggles, keeping the property order the schema fixes.
+        // The East Asian hint follows the character style but precedes the toggles (schema order).
         if self.east_asian {
             rpr.push(Element::new("w:rFonts").attr("w:hint", "eastAsia"));
         }
@@ -2047,7 +1993,6 @@ fn text_run(props: &RunProps, text: &str) -> Element {
     run
 }
 
-/// A run holding a single line break.
 fn break_run(props: &RunProps) -> Element {
     let mut run = run_with_props(props);
     run.push(Element::new("w:br"));
@@ -2092,14 +2037,12 @@ fn is_east_asian(c: char) -> bool {
 #[allow(clippy::too_many_lines)]
 fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut Element) {
     let mut buffer = String::new();
-    // Whether the buffered text so far is East Asian, so a run of one kind flushes before the other
-    // begins.
+    // East Asian kind of the buffered text; a kind change flushes first.
     let mut buffer_hint = false;
     let mut index = 0;
     while let Some(inline) = inlines.get(index) {
         match inline {
-            // Consecutive text pieces with nothing between them share a run; the run is East Asian
-            // when any of its characters call for the hint. A change of kind ends the buffered run.
+            // Consecutive text shares a run; a change of East Asian kind flushes the buffer.
             Inline::Str(_) => {
                 let mut text = String::new();
                 while let Some(Inline::Str(piece)) = inlines.get(index) {
@@ -2116,10 +2059,8 @@ fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut El
                 buffer.push_str(&text);
                 continue;
             }
-            // A space flanked on both sides by text joins the non-East-Asian side of it: it stays
-            // with a non-East-Asian run before it, else opens the non-East-Asian run after it, and
-            // when East Asian text sits on both sides it stands alone. Against a formatting boundary
-            // (or with nothing before it) it stands alone too.
+            // A space joins the non-East-Asian side of its neighbours; between two East Asian runs
+            // or at a formatting boundary it stands alone.
             Inline::Space => {
                 let next_hint = match inlines.get(index + 1) {
                     Some(Inline::Str(piece)) => Some(piece.chars().any(is_east_asian)),
@@ -2213,10 +2154,8 @@ fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut El
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 render_runs(source, props, ctx, out);
             }
-            // A span contributes its inline content, drawing a `custom-style` attribute as the
-            // character style on its runs. A comment range is a span pair: the opening marker holds
-            // the comment's text and author, which move to the comments part, and both markers drop
-            // range boundaries into the flow rather than any visible text.
+            // A span contributes its content, with `custom-style` as the character style. A comment
+            // range is a span pair: the opening marker's text and author move to the comments part.
             Inline::Span(attr, children) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 if has_class(attr, "comment-start") {
@@ -2246,11 +2185,8 @@ fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut El
                     close_bookmark(mark, out);
                 }
             }
-            // A link wraps its content in a hyperlink whose runs carry the link character style. A
-            // destination beginning with '#' points at the in-document bookmark of that name; any
-            // other destination is reached through an external relationship. Nested content is
-            // rendered before this link claims its own relationship id, so an inner link is numbered
-            // ahead of the outer one it sits inside.
+            // A '#' destination targets the in-document bookmark; any other goes through an external
+            // relationship. Content renders first, so an inner link is numbered ahead of its outer.
             Inline::Link(_, children, target) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let mut hyperlink = Element::new("w:hyperlink");
@@ -2268,8 +2204,6 @@ fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut El
                 };
                 out.push(hyperlink);
             }
-            // An image resolves to a sized drawing when its bytes are on hand, and degrades to its
-            // descriptive text otherwise.
             Inline::Image(attr, alt, target) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 match image_drawing_for(attr, target, alt, ctx) {
@@ -2281,8 +2215,7 @@ fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut El
                     None => render_runs(alt, props, ctx, out),
                 }
             }
-            // Math lowers to an Office Math fragment set directly among the runs; when its source
-            // has no renderable form it degrades to the delimited literal source.
+            // Unrenderable math degrades to the delimited literal source.
             Inline::Math(kind, source) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 let display = matches!(kind, MathType::DisplayMath);
@@ -2293,8 +2226,7 @@ fn render_runs(inlines: &[Inline], props: &RunProps, ctx: &mut Ctx, out: &mut El
                     out.push(text_run(props, &format!("{delimiter}{source}{delimiter}")));
                 }
             }
-            // An `openxml` raw payload is emitted verbatim; passthrough in any other format has no
-            // run form and contributes nothing. Either way it bounds the surrounding runs.
+            // Only openxml passes through; any format still bounds the surrounding runs.
             Inline::RawInline(format, payload) => {
                 flush_text(&mut buffer, &mut buffer_hint, props, out);
                 if format.0.as_str() == "openxml" {
@@ -2367,14 +2299,12 @@ fn image_drawing_for(
 fn image_extent(bytes: &[u8], attributes: &[(carta_ast::Text, carta_ast::Text)]) -> (i64, i64) {
     const EMU_PER_PX: f64 = 9525.0;
     const EMU_PER_INCH: i64 = 914_400;
-    // The page's text width: the width a picture requested as a fraction of the page is measured
-    // against, and never drawn wider than.
+    // Page text width: fractional widths are measured against it and capped by it.
     const DEFAULT_WIDTH: f64 = 5_334_000.0;
     let (natural_px_w, natural_px_h) = image_dimensions(bytes);
     let natural_w = f64::from(natural_px_w);
     let natural_h = f64::from(natural_px_h);
-    // A percentage width scales the page's text width, capped at the picture's own natural width, and
-    // the height follows the natural aspect ratio; any height request is disregarded in this case.
+    // Percent width scales the text width, capped at natural width; height follows the aspect ratio.
     if let Some(fraction) = dimension_fraction(attributes, "width") {
         let (dpi_x, _) = image_dpi(bytes);
         let intrinsic_w = i64::from(natural_px_w) * EMU_PER_INCH / i64::from(dpi_x.max(1));

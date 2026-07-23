@@ -76,8 +76,7 @@ fn div_final_block_tightens_only_when_the_close_tag_trails_content() {
 
 #[test]
 fn multibyte_attribute_values_do_not_leak_into_following_content() {
-    // The open tag is consumed by byte length, so a multibyte character in an attribute value
-    // leaves no stray bytes (e.g. the trailing `>`) to be re-read as a spurious block.
+    // Open tag is consumed by byte length: a multibyte attribute value must leave no stray bytes to re-read.
     let out = md("<div class=\"café\">\n\nx\n\n</div>\n");
     let [IrBlock::Div(attr, content)] = out.as_slice() else {
         panic!("expected one div, got {out:?}");
@@ -97,8 +96,7 @@ fn content_after_the_close_tag_is_a_following_block() {
 
 #[test]
 fn raw_html_block_trailing_newline_depends_on_dialect() {
-    // A raw HTML block (here a verbatim `<pre>`) keeps its final newline in the strict dialect
-    // and drops it in the markdown dialect.
+    // The strict dialect keeps a raw HTML block's final newline; the markdown dialect drops it.
     let input = "<pre>\nhi\n</pre>\n";
     let strict = parse(input, presets::COMMONMARK, false).0;
     let [IrBlock::RawHtml(text)] = strict.as_slice() else {
@@ -164,8 +162,7 @@ fn native_divs_off_renders_a_div_as_a_raw_element() {
 
 #[test]
 fn both_extensions_off_spans_a_block_element_to_its_balanced_close() {
-    // With neither extension, a block-level tag at the left margin is kept verbatim as one raw
-    // block spanning to its balanced close — blank lines included — rather than parsed as a div.
+    // With neither extension, a block-level tag is one verbatim raw block to its balanced close, not a div.
     let out = with("<div>\n\nfoo\n\n</div>\n", &[]);
     let [IrBlock::RawHtml(html)] = out.as_slice() else {
         panic!("expected one raw HTML block, got {out:?}");
@@ -175,8 +172,7 @@ fn both_extensions_off_spans_a_block_element_to_its_balanced_close() {
 
 #[test]
 fn inline_and_unknown_tags_are_not_block_elements() {
-    // `<em>`/`<span>` are inline and `<custom>` is unrecognized: none open a block element, so
-    // none produce a div.
+    // `<em>`/`<span>` are inline and `<custom>` is unrecognized: none open a block element or produce a div.
     for input in ["<em>\n\nx\n\n</em>\n", "<custom>\n\nx\n\n</custom>\n"] {
         let out = md(input);
         assert!(
@@ -239,7 +235,6 @@ fn parse_open_tag_records_a_valueless_attribute_as_an_empty_value() {
 fn find_close_tag_locates_the_matching_name_and_skips_unrelated_ones() {
     let found = html_element::find_close_tag("foo</div>bar", "div").expect("a close tag");
     assert_eq!(&"foo</div>bar"[found.start..found.end], "</div>");
-    // A different name is not the match.
     assert!(html_element::find_close_tag("</span>", "div").is_none());
     // Trailing whitespace before `>` is allowed; a bare name is not a close tag.
     assert!(html_element::find_close_tag("</div >", "div").is_some());

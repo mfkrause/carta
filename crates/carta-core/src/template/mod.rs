@@ -41,8 +41,7 @@ impl Value {
     }
 
     /// Whether this value is true in a conditional. An empty string and a list with no truthy
-    /// element are false; a map is true by mere presence; a `Bool` follows its flag — the one value
-    /// that is non-empty yet still false when `false`.
+    /// element are false; a map is true by mere presence; a `Bool` follows its flag.
     #[must_use]
     pub fn is_truthy(&self) -> bool {
         match self {

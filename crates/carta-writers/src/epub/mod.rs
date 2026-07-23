@@ -1,4 +1,4 @@
-//! The EPUB container writer: it lays a document out as a reflowable e-book — a ZIP archive of
+//! The EPUB container writer: it lays a document out as a reflowable e-book, a ZIP archive of
 //! XHTML chapter files, a package document, navigation, a stylesheet and any embedded resources.
 //!
 //! Both EPUB dialects are produced from the same pipeline. The document body is split into chapter
@@ -39,7 +39,6 @@ pub(crate) enum Version {
 }
 
 impl Version {
-    /// Whether this is the EPUB 3 dialect.
     pub(crate) fn is_epub3(self) -> bool {
         matches!(self, Version::Epub3)
     }
@@ -104,7 +103,6 @@ impl BytesWriter for Epub2Writer {
     }
 }
 
-/// Assemble the complete EPUB archive for `version`.
 fn write_epub(version: Version, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
     let epub = &options.epub;
     let epub3 = version.is_epub3();
@@ -118,18 +116,15 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         .map_or(1, |level| i32::try_from(level).unwrap_or(i32::MAX));
     let toc_depth = options.toc_depth.unwrap_or(3);
 
-    // Structure the body into nested sections, then gather the referenced images — rewriting each
-    // reference to its stored path in place, so both the chapters and the navigation see the stored
-    // paths. Split into chapter files, record which file every identifier lands in, and rewrite the
-    // internal fragment links so each resolves across the split.
+    // Image references are rewritten to stored paths before the chapter split so both the chapters
+    // and the navigation see them; fragment links are rewritten to resolve across the split.
     let mut sectioned = build_sectioned(document, options);
     let (media, cover, fonts) = gather_media(epub, &mut sectioned, options);
     let mut chapters = build_chapter_files(&sectioned, split_level);
     let id_files = map_ids_to_files(&chapters);
     rewrite_internal_links(&mut chapters, &id_files);
 
-    // Render each chapter body, then seed the publication identifier from that content so a book
-    // without an explicit identifier still gets a stable one.
+    // Render chapters first so a book without an explicit identifier seeds a stable one from content.
     let bodies: Vec<String> = chapters
         .iter()
         .map(|chapter| crate::html::render_epub_chapter(&chapter.blocks, epub3, options))
@@ -173,8 +168,7 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         &stylesheet_names,
         options.source_name.as_deref(),
     );
-    // Both the package and the navigation control file record the cover under the manifest id of
-    // its stored image, so each reference resolves to a listed item.
+    // Package and navigation record the cover under its stored image's manifest id so references resolve.
     let cover_id = cover
         .as_ref()
         .and_then(|cover| media.get(cover.media_index))
@@ -414,8 +408,7 @@ fn gather_media(
         .fonts
         .iter()
         .map(|(name, bytes)| {
-            // Sanitize the source name so the stored path and its href carry no space or other
-            // character that would need escaping, and derive the manifest id from that safe name.
+            // Sanitize the source name so path and href need no escaping; the manifest id derives from it.
             let file = safe_filename(basename(name));
             Asset {
                 item_id: item_id_for(&file),
@@ -433,7 +426,7 @@ fn gather_media(
 /// Resolve the two metadata views. The document's own metadata builds the title page and the
 /// per-file titles; a supplied Dublin Core fragment overrides only the publication (package)
 /// metadata. The two views diverge when the fragment names, say, a title the document itself does
-/// not — the package records the fragment's, while the title page stays as the document authored it.
+/// not: the package records the fragment's, while the title page stays as the document authored it.
 /// The resolved language, however, is one value applied to every document, so the package view's
 /// language flows back to the document view. Returns `(package, document)`.
 fn resolve_metadata(document: &Document, epub: &EpubOptions, seed: &str) -> (BookMeta, BookMeta) {
@@ -484,14 +477,13 @@ fn collect_images(body: &mut [Block], options: &WriterOptions, media: &mut Vec<A
         {
             target.url = format!("../{}", asset.href).into();
         } else if is_relative_resource(target.url.as_str()) {
-            // Chapters live one level down in `text/`; a relative resource that is not embedded
-            // still needs to climb back to the container root to resolve.
+            // Chapters live in `text/`; a non-embedded relative resource must climb to the container root.
             target.url = format!("../{}", target.url).into();
         }
     });
 }
 
-/// Whether a reference is a working-directory-relative local path — one that a chapter, nested a
+/// Whether a reference is a working-directory-relative local path, one that a chapter, nested a
 /// level down, must reach with a `../` prefix. Absolute paths, scheme URLs, protocol-relative URLs
 /// and inline `data:` payloads resolve on their own and are left untouched.
 fn is_relative_resource(url: &str) -> bool {
@@ -504,7 +496,7 @@ fn is_relative_resource(url: &str) -> bool {
         || is_windows_drive_path(url))
 }
 
-/// Whether `url` begins with a Windows drive-letter root such as `C:\` or `C:/` — an absolute path
+/// Whether `url` begins with a Windows drive-letter root such as `C:\` or `C:/`: an absolute path
 /// that must not be treated as working-directory-relative and climbed with `../`.
 fn is_windows_drive_path(url: &str) -> bool {
     let mut chars = url.chars();
@@ -590,8 +582,7 @@ fn build_manifest(
             properties: None,
         });
     }
-    // The cover image is listed ahead of the content images; both precede the fonts. The manifest
-    // `properties` attribute belongs to the EPUB 3 vocabulary, so EPUB 2 omits it here.
+    // Cover before content images, both before fonts; manifest `properties` is EPUB 3 only.
     for asset in media.iter().filter(|asset| asset.properties.is_some()) {
         let mut item = asset.manifest_item();
         if !epub3 {
@@ -623,9 +614,8 @@ fn build_spine(
             linear: None,
         });
     }
-    // The title page drops out of the linear reading order when it carries no content — but only
-    // when something else already stands in that order. A publication must keep at least one linear
-    // resource, so when nothing else would, the title page stays linear even if empty.
+    // An empty title page leaves the linear order only when another linear resource remains: a
+    // publication must keep at least one.
     let another_linear = has_cover || toc || !chapters.is_empty();
     spine.push(SpineItem {
         idref: String::from("title_page_xhtml"),
@@ -672,8 +662,8 @@ fn join(dir: &str, rel: &str) -> String {
 }
 
 /// The manifest id for a file: its base name reduced to a valid XML name. Every character that an
-/// XML name may not carry — a dot, a space, anything but an ASCII letter, digit, hyphen or
-/// underscore — becomes an underscore, and a leading character an XML name may not begin with (a
+/// XML name may not carry (a dot, a space, anything but an ASCII letter, digit, hyphen or
+/// underscore) becomes an underscore, and a leading character an XML name may not begin with (a
 /// digit or hyphen) is prefixed with one, so the result is always a usable id.
 fn item_id_for(basename: &str) -> String {
     let mut id: String = basename
@@ -711,8 +701,8 @@ fn safe_filename(name: &str) -> String {
         .collect()
 }
 
-/// Record which file every identifier in `blocks` lands in — section wrappers, explicit divisions,
-/// headings, code and figures, and inline spans, links, images and code — descending through all
+/// Record which file every identifier in `blocks` lands in (section wrappers, explicit divisions,
+/// headings, code and figures, and inline spans, links, images and code), descending through all
 /// nested content so the map covers every possible link target.
 fn record_ids(blocks: &[Block], file: &str, map: &mut BTreeMap<String, String>) {
     for block in blocks {
@@ -760,8 +750,8 @@ fn record_ids(blocks: &[Block], file: &str, map: &mut BTreeMap<String, String>) 
     }
 }
 
-/// Record the identifiers carried by the inline nodes that can bear one — spans, links, images and
-/// code — descending through every nested inline sequence.
+/// Record the identifiers carried by the inline nodes that can bear one (spans, links, images and
+/// code), descending through every nested inline sequence.
 fn record_inline_ids(inlines: &[Inline], file: &str, map: &mut BTreeMap<String, String>) {
     for inline in inlines {
         match inline {
@@ -799,7 +789,7 @@ fn record_id(id: &carta_ast::Text, file: &str, map: &mut BTreeMap<String, String
     }
 }
 
-/// The block content held within a table — its caption and every cell — gathered so identifier
+/// The block content held within a table (its caption and every cell), gathered so identifier
 /// collection can descend into it with the ordinary block walk.
 fn table_blocks(table: &carta_ast::Table) -> Vec<Block> {
     let mut blocks = table.caption.long.clone();

@@ -1,28 +1,12 @@
 #!/usr/bin/env bash
-# DOCX surface: exercise carta's DOCX writer structurally against the oracle.
-#
-# Group `docx/docx` converts each corpus/ast case with both tools, unpacks the two Office Open XML
-# packages, and diffs every part that carries document content after canonicalizing the XML — the one
-# comparison that survives the format's cosmetic freedom. Canonicalization (a small standard-library
-# parser, no external tool) parses each part, sorts every element's attributes, drops insignificant
-# inter-element whitespace while keeping leaf text under xml:space="preserve", assigns each namespace a
-# fixed prefix, and re-serializes in document order. On top of that it folds the few values a writer
-# picks freely (a reproducible timestamp) and removes two design artifacts that are not content — the
-# navigation bookmarks around headings and the section geometry (page size, margins) a document
-# inherits from its styling — so the structural comparison sees only genuine divergences.
-#
-# The styling design each tool ships is its own and is not compared: the styles, settings, web
-# settings, font table, theme, and the extended-properties summary are skipped. Every other part —
-# the content types, the relationship graphs, the document body, footnotes, comments, list numbering,
-# and the core/custom properties — is compared; embedded binary resources (images) are compared
-# byte-for-byte. Cases excluded via corpus/exclusions.tsv are skipped and counted.
+# DOCX surface: convert each corpus/ast case with both tools, unpack the OOXML packages, and diff
+# every content part after XML canonicalization; styling parts skip, binaries compare byte-for-byte.
 #
 # Usage: surfaces/docx.sh
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
-# Both tools stamp the package's property dates from SOURCE_DATE_EPOCH; pin it so the timestamps are
-# reproducible and identical on both sides (carta uses 1 when it is unset).
+# pin SOURCE_DATE_EPOCH so property dates match on both sides (carta defaults to 1 when unset)
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
 
 # Styling-design parts: each tool's own look, not compared.
@@ -34,16 +18,14 @@ docx_skip_part() {
   return 1
 }
 
-# Canonicalize one XML part to a stable, comparable form on stdout. A whole-file parse (standard
-# library only) sorts attributes, folds insignificant whitespace, pins namespace prefixes, strips the
-# heading bookmarks and the inherited section geometry, and normalizes the reproducible timestamp.
+# Canonicalize one XML part to stdout: sort attributes, fold whitespace, pin namespace prefixes,
+# strip bookmarks and section geometry, normalize the timestamp. Standard library only.
 docx_canon() {
   python3 - "$1" <<'PY'
 import sys, re
 import xml.etree.ElementTree as ET
 
-# Every namespace a DOCX part uses, each pinned to a fixed prefix so both sides serialize identically
-# regardless of how the emitter declared them.
+# namespaces pinned to fixed prefixes so both sides serialize identically
 NS = {
     'http://schemas.openxmlformats.org/wordprocessingml/2006/main': 'w',
     'http://schemas.openxmlformats.org/officeDocument/2006/math': 'm',
@@ -69,7 +51,7 @@ NS = {
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 PRESERVE = '{http://www.w3.org/XML/1998/namespace}space'
-# Not content: heading navigation anchors and the section geometry inherited from the styling.
+# not content: heading anchors and inherited section geometry
 DROP = {W + 'bookmarkStart', W + 'bookmarkEnd', W + 'sectPr'}
 
 
@@ -105,8 +87,7 @@ def serialize(el, out):
     for k, v in sorted((qname(k), v) for k, v in el.attrib.items()):
         out.append(' %s="%s"' % (k, esc_attr(v)))
     text = keep(el.text, preserve)
-    # An element left with nothing but dropped nodes canonicalizes the same as a genuinely empty one,
-    # so the ignored bookmarks and section geometry stay invisible to the comparison.
+    # an element holding only dropped nodes canonicalizes as genuinely empty
     kids = [c for c in el if isinstance(c.tag, str) and c.tag not in DROP]
     if not text and not kids:
         out.append('/>')
@@ -128,7 +109,7 @@ except Exception as e:  # a malformed part must surface as a divergence, not a c
 out = []
 serialize(root, out)
 s = ''.join(out)
-# A property date is reproducible but free; fold it so only its presence and placement are compared.
+# property dates are free; fold so only presence and placement compare
 s = re.sub(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', 'TIMESTAMP', s)
 # One element per line keeps a divergence diff readable.
 s = re.sub(r'><', '>\n<', s)
@@ -159,8 +140,7 @@ $d"
   printf '%s' "$bad"
 }
 
-# Convert one case with both tools under the given target spec, unpack the two packages, and diff
-# them. The oracle takes normalization flags; carta takes the bare spec.
+# The oracle takes normalization flags; carta takes the bare spec.
 docx_case() {
   local label="$1" target="$2" input="$3" onorm="$4" work detail repro
   work="$WORK/docx/${label//\//-}"

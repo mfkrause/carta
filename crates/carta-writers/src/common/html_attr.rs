@@ -104,7 +104,7 @@ pub(crate) fn render_html_attr(attr: &Attr) -> String {
     render_attr_tokens(attr, escape_attr)
 }
 
-/// As [`render_html_attr`], but entity-encoding both quote characters in each value — the escaping
+/// As [`render_html_attr`], but entity-encoding both quote characters in each value: the escaping
 /// a link or image tag's attributes take in HTML fragments embedded in text output.
 #[cfg_attr(
     not(any(feature = "commonmark", feature = "gfm", feature = "markdown")),

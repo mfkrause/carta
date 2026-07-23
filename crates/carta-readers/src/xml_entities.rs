@@ -1,9 +1,9 @@
-//! Decoding of XML entity references — the five predefined named entities and numeric character
-//! references — shared by the readers that scan XML text.
+//! Decoding of XML entity references (the five predefined named entities and numeric character
+//! references), shared by the readers that scan XML text.
 
 /// Replaces the five predefined XML entities and numeric character references, preserving multi-byte
-/// UTF-8. XML defines no other named entities, so a name outside the five — and any malformed or
-/// out-of-range numeric reference — is left verbatim.
+/// UTF-8. XML defines no other named entities, so a name outside the five, and any malformed or
+/// out-of-range numeric reference, is left verbatim.
 pub(crate) fn decode_entities(text: &str) -> String {
     if !text.contains('&') {
         return text.to_owned();

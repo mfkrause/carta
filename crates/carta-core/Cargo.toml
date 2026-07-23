@@ -22,17 +22,13 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [features]
-# The standalone template engine (`carta_core::template`). Off by default; enabled by `carta`'s
-# `standalone` feature.
+# The template engine (`carta_core::template`); enabled by `carta`'s `standalone` feature.
 template = []
-# Packaging primitives for container formats (`carta_core::container`): the ZIP builder/reader and
-# XML emitter. Off by default; enabled by `carta`'s `write-epub` feature. Pulls in DEFLATE support.
+# Container packaging (`carta_core::container`: ZIP, XML emitter); enabled by `carta`'s `write-epub`.
 container = ["dep:miniz_oxide"]
-# Carry a syntax-highlighting configuration in the writer options. Off by default; enabled by
-# `carta-writers`'s `highlight` feature. Pulls in the tokenizer catalog.
+# Highlighting configuration in the writer options; enabled by `carta-writers`'s `highlight`.
 highlight = ["dep:carta-highlight"]
-# The `Error::Json` variant and its `serde_json` dependency. Off by default; enabled by the format
-# features whose readers/writers (de)serialize JSON through the AST codec or `serde_json` directly.
+# `Error::Json` and `serde_json`; enabled by format features that (de)serialize JSON.
 serde = ["dep:serde_json"]
 
 [dependencies]

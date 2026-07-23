@@ -45,7 +45,7 @@ pub(crate) struct Cell {
 const TEXT_WIDTH: f64 = 72.0;
 
 /// Whether `line` is a valid grid top border: a `+...+` ruling of `+`, `-`, and alignment colons,
-/// with at least one column. A `=` is rejected — it belongs only to the header divider, never the
+/// with at least one column. A `=` is rejected; it belongs only to the header divider, never the
 /// top border.
 pub(crate) fn is_top_border(line: &str) -> bool {
     is_ruling(trim(line), false)
@@ -58,13 +58,13 @@ pub(crate) fn is_grid_line(line: &str) -> bool {
     trimmed.starts_with('|') || is_ruling(trimmed, true)
 }
 
-/// Strip leading block indentation and trailing whitespace, leaving the line's structural content.
+/// Strip leading block indentation and trailing whitespace.
 fn trim(line: &str) -> &str {
     line.trim_start_matches(' ').trim_end()
 }
 
-/// Whether `s` (already trimmed) is a ruling line: `+`-delimited segments of `-`, `:`, and —
-/// when `allow_eq` — `=`, with no empty segment.
+/// Whether `s` (already trimmed) is a ruling line: `+`-delimited segments of `-`, `:`, and (when
+/// `allow_eq`) `=`, with no empty segment.
 fn is_ruling(s: &str, allow_eq: bool) -> bool {
     let bytes = s.as_bytes();
     bytes.len() >= 3
@@ -76,8 +76,8 @@ fn is_ruling(s: &str, allow_eq: bool) -> bool {
 }
 
 /// Parse the accumulated text of a grid-table candidate. Returns `None` when the text is not a
-/// complete, well-formed grid table — no top border, no closing border, a stray non-grid line, or no
-/// content row — so the caller keeps it as an ordinary paragraph. Row- and column-spanning tables,
+/// complete, well-formed grid table (no top border, no closing border, a stray non-grid line, or no
+/// content row), so the caller keeps it as an ordinary paragraph. Row- and column-spanning tables,
 /// whose borders break the regular grid, are also returned as `None`: this parser models only the
 /// rectangular grid where every border's `+` markers share one set of column boundaries.
 pub(crate) fn parse(text: &str) -> Option<GridTable> {
@@ -98,24 +98,20 @@ pub(crate) fn parse(text: &str) -> Option<GridTable> {
 
     let mut rows: Vec<Row> = Vec::new();
     let mut pending: Vec<&str> = Vec::new();
-    // The row count standing before each `=` divider, in order; these are the major section breaks
-    // that split the rows into header, body, and footer.
+    // Row counts before each `=` divider: the section breaks splitting header, body, and footer.
     let mut dividers: Vec<usize> = Vec::new();
 
     for (idx, line) in lines.iter().enumerate() {
         if is_ruling(line, true) {
-            // Every border's `+` markers fall on the same column boundaries; a border whose pluses
-            // sit elsewhere, or a body separator carrying alignment colons (legal only on the top
-            // border and the `=` header divider), describes a row or column span. Spans are not
-            // modeled here, so such a candidate is left to the caller as ordinary prose.
+            // Pluses off the shared boundaries, or alignment colons anywhere but the top border and
+            // `=` divider, imply a span; spans are not modeled, so leave the candidate as prose.
             if border_columns(line) != boundaries {
                 return None;
             }
             if idx > 0 && !line.contains('=') && line.contains(':') {
                 return None;
             }
-            // The top border opens the table; every later border closes the segment before it into a
-            // row — even an empty segment between two adjacent borders, which is an empty row.
+            // The top border opens the table; each later border closes the preceding segment into a row, even empty.
             if idx > 0 {
                 rows.push(build_row(&pending, &boundaries));
                 pending.clear();
@@ -124,8 +120,7 @@ pub(crate) fn parse(text: &str) -> Option<GridTable> {
                 dividers.push(rows.len());
             }
         } else if line.starts_with('|') {
-            // A content line carries a `|` at every column boundary; a gap there would merge cells
-            // across a column, another span this parser does not model.
+            // A content line needs a `|` at every boundary; a gap would merge cells (an unmodeled span).
             if !has_column_separators(line, &boundaries) {
                 return None;
             }
@@ -138,8 +133,7 @@ pub(crate) fn parse(text: &str) -> Option<GridTable> {
         return None;
     }
 
-    // Alignment is read from the `=` header divider when the table has one, otherwise from the top
-    // border; ordinary row separators never set it.
+    // Alignment comes from the `=` divider when present, else the top border; row separators never set it.
     let mut aligns = vec![Alignment::AlignDefault; column_count];
     let align_source = lines
         .iter()
@@ -196,7 +190,7 @@ fn has_column_separators(line: &str, boundaries: &[usize]) -> bool {
     })
 }
 
-/// The character positions of the `+` markers on a border line — the column boundaries.
+/// The character positions of the `+` markers on a border line: the column boundaries.
 fn border_columns(border: &str) -> Vec<usize> {
     border
         .chars()
@@ -434,7 +428,7 @@ mod tests {
         assert_eq!(text_at(&table.head, 0, 0), "h");
         assert_eq!(text_at(&table.body, 0, 0), "b");
         assert_eq!(text_at(&table.foot, 0, 0), "f");
-        // A plain `-` closing border keeps the trailing rows in the body — no footer.
+        // A plain `-` closing border keeps the trailing rows in the body, with no footer.
         let no_foot = parse("+---+\n| h |\n+===+\n| b |\n+===+\n| f |\n+---+").unwrap();
         assert!(no_foot.foot.is_empty());
         assert_eq!(no_foot.body.len(), 2);

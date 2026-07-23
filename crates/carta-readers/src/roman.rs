@@ -1,8 +1,8 @@
 //! Roman numeral evaluation.
 //!
 //! Three deliberately distinct algorithms live side by side, one per reader. They disagree on
-//! ill-formed numerals — `iix` is 8 to the reverse scan, 10 to the forward lookahead, and rejected
-//! by the strict place-wise parser — and each reader's list parsing depends on its own reading, so
+//! ill-formed numerals (`iix` is 8 to the reverse scan, 10 to the forward lookahead, and rejected
+//! by the strict place-wise parser) and each reader's list parsing depends on its own reading, so
 //! they are not interchangeable.
 
 /// The value of a roman numeral read right to left: a digit smaller than the largest digit seen so
@@ -62,11 +62,11 @@ pub(crate) fn roman_value_loose_forward(text: &str) -> Option<i32> {
 
 /// Value of a roman numeral in well-formed place order, or `None` if the run is not a valid numeral.
 ///
-/// The numeral is read place by place — thousands, hundreds, tens, ones — and the whole run must be
+/// The numeral is read place by place (thousands, hundreds, tens, ones) and the whole run must be
 /// consumed. Thousands repeat without bound; each lower place takes its subtractive pair (`CM`/`CD`,
 /// `XC`/`XL`, `IX`/`IV`), an optional half-digit (`D`/`L`/`V`), and up to four repeats of its unit
-/// digit. Ill-formed runs — a repeated half-digit (`VV`), an out-of-order digit (`IIX`), or an
-/// invalid subtraction (`IL`) — are rejected.
+/// digit. Ill-formed runs are rejected: a repeated half-digit (`VV`), an out-of-order digit
+/// (`IIX`), or an invalid subtraction (`IL`).
 #[cfg(feature = "commonmark")]
 pub(crate) fn roman_value_strict(run: &[u8]) -> Option<i32> {
     let lower: Vec<u8> = run.iter().map(u8::to_ascii_lowercase).collect();

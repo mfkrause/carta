@@ -4,9 +4,9 @@
 //! constructor names applied to their arguments, with tuples, lists, and records laid out by a
 //! pretty-printer with a line width of 72 and a ribbon width of 60. Strings are escaped with
 //! backslash escapes, using symbolic names for control characters. A fragment renders the block
-//! list alone; a standalone document renders the whole value — `Pandoc <meta> <blocks>`, with the
-//! metadata as `Meta { unMeta = fromList [ … ] }`. The result carries no trailing newline; the
-//! caller appends one. This format has no public specification.
+//! list alone; a standalone document renders the whole value, the top-level constructor applied to
+//! the metadata and blocks, with the metadata as `Meta { unMeta = fromList [ … ] }`. The result
+//! carries no trailing newline; the caller appends one. This format has no public specification.
 
 use std::collections::BTreeMap;
 
@@ -50,7 +50,7 @@ fn render_doc(tree: &Doc) -> String {
     printer.out
 }
 
-/// The whole document as one value: `Pandoc <meta> <blocks>`.
+/// The whole document as one value: the top-level constructor applied to the metadata and blocks.
 fn document_doc(document: &Document) -> Doc {
     let meta = cons(
         "Meta",
@@ -161,7 +161,7 @@ impl Printer {
     }
 
     /// Lay out `doc` at the current cursor. `trailing` is the width of same-line content that will
-    /// follow this node before the next line break — the closing delimiters a flat layout would have
+    /// follow this node before the next line break: the closing delimiters a flat layout would have
     /// to share the line with. A node fits only when it and that trailing run both stay within budget,
     /// so a value sitting just inside the limit still breaks once its closing `)` or `]` is counted.
     fn render(&mut self, doc: &Doc, trailing: usize) {
@@ -348,8 +348,8 @@ fn text_atom(value: &str) -> Doc {
     atom(show_string(value))
 }
 
-/// Where an integer appears: as a constructor argument, where a negative value is parenthesized as
-/// `show` renders it at that precedence, or standing alone, where it is not.
+/// Where an integer appears: as a constructor argument, where a negative value must be
+/// parenthesized to parse at that precedence, or standing alone, where it need not be.
 #[derive(Clone, Copy)]
 enum NumberPos {
     Argument,
@@ -664,7 +664,7 @@ const CONTROL_NAMES: [&str; 32] = [
     "RS", "US",
 ];
 
-/// Render a string as `show` would: surrounded by double quotes, with backslash and quote escaped,
+/// Render a string literal: surrounded by double quotes, with backslash and quote escaped,
 /// control characters named, and every non-ASCII character emitted as a decimal escape. A `\&`
 /// separator is inserted where a numeric or `\SO` escape would otherwise merge with the following
 /// character.

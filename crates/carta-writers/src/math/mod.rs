@@ -14,9 +14,7 @@
 //!
 //! Both entry points are panic-free and bounded against pathological nesting.
 
-// The inline backend lowers the expression tree into a writer-agnostic inline list; the text writers
-// render it, but a build with only a container writer (which lowers to MathML or OMML instead)
-// compiles it without calling it.
+// Text writers render the inline lowering; container-only builds compile it but never call it.
 #[cfg_attr(
     not(any(
         feature = "commonmark",
@@ -30,14 +28,10 @@
     allow(dead_code)
 )]
 mod inlines;
-// The MathML backend lowers the same expression tree into Presentation MathML for the formula
-// objects the `OpenDocument` writer embeds. Only that writer's feature compiles it: its markup
-// escaping lives in `carta-core`'s container support, which that feature pulls in.
+// Presentation MathML for the odt writer's formula objects; only that feature pulls in the escaping support.
 #[cfg(feature = "odt")]
 mod mathml;
-// The OMML backend lowers the same expression tree into Office Math markup for the word-processing
-// writer. Only that writer's feature compiles it: its markup escaping lives in `carta-core`'s
-// container support, which that feature pulls in.
+// Office Math markup for the docx writer; only that feature pulls in the escaping support.
 #[cfg(feature = "docx")]
 mod omml;
 mod parse;
@@ -68,8 +62,7 @@ pub(crate) fn to_inlines(tex: &str) -> Option<Vec<Inline>> {
     if ends_with_control_space(&atoms) {
         return None;
     }
-    // Whitespace-only or empty math parses to no atoms and lowers to no inlines: that is a
-    // successful (empty) conversion, not a fallback to verbatim source.
+    // Empty math lowers to no inlines: a successful empty conversion, not verbatim fallback.
     inlines::lower(&atoms)
 }
 
@@ -110,16 +103,14 @@ pub(crate) fn to_typst_display(tex: &str) -> Option<String> {
 /// the closing `$`. Returns `None` when the expression cannot be translated. With `display` set, the
 /// markup is lowered for display context: a prime on a limit operator stacks as a superscript
 /// (`\sum'` → `sum^(')`) the way display math sets primes above the operator.
-// Only the Typst writer lowers math to Typst markup; builds without it still compile this entry
-// point (and the chain it drives) but never call it.
+// Only the Typst writer calls this; other builds compile it unused.
 #[cfg_attr(not(feature = "typst"), allow(dead_code))]
 pub(crate) fn to_typst_labeled(tex: &str, display: bool) -> Option<TypstMath> {
     let atoms = parse::parse(tex)?;
     if is_bare_binary_operator(&atoms) {
         return None;
     }
-    // Whitespace-only or empty math parses to no atoms and lowers to the empty string: that is a
-    // successful (empty) conversion, which the writer renders as bare `$$`.
+    // Empty math lowers to the empty string, rendered as bare `$$`.
     let (body, label) = typst::lower_labeled(&atoms, display)?;
     Some(TypstMath { body, label })
 }

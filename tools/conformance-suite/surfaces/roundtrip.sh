@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
-# Round-trip surface: exercise the JSON codec over realistic ASTs and confirm identity.
-#
-# For each `.native` document in the fetched corpus, mint the JSON AST with pandoc
-# (`pandoc -f native -t json`), feed that JSON through `carta -f json -t json`, and require the
-# result to match structurally. This proves carta decodes and re-encodes the interchange AST
-# without loss. The native corpus is gitignored and only present once tools/fetch-pandoc-tests.sh
-# has run; absent it, the surface reports zero cases.
-#
-# Usage: surfaces/roundtrip.sh
+# Round-trip surface: for each fetched-corpus .native doc, mint the JSON AST with pandoc, feed it
+# through `carta -f json -t json`, and require structural identity. Corpus absent: zero cases.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools

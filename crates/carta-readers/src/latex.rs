@@ -35,8 +35,7 @@ impl Reader for LatexReader {
         let ext = options.extensions;
         let (preamble, body) = split_document(input);
 
-        // Section levels depend on which top-level sectioning command the document uses, so the whole
-        // body is scanned once before any header is emitted.
+        // section levels depend on the highest sectioning command used, so scan the whole body first
         let base_level = base_section_level(body);
 
         let mut parser = Parser {
@@ -79,8 +78,7 @@ impl Reader for LatexReader {
 /// the preamble is everything before it and the body is the text up to a matching `\end{document}`;
 /// without one, the whole source is the body and there is no preamble.
 fn split_document(input: &str) -> (Option<&str>, &str) {
-    // The `\begin{document}`/`\end{document}` needles end in `}`, so a plain substring search cannot
-    // latch onto a longer control word.
+    // the needles end in `}`, so substring search cannot latch onto a longer control word
     if let Some(begin) = input.find("\\begin{document}") {
         let after = &input[begin + "\\begin{document}".len()..];
         let body = match after.find("\\end{document}") {
@@ -128,7 +126,7 @@ enum Stop<'a> {
     Eof,
     /// A matching `\end{name}` (or end of input).
     Env(&'a str),
-    /// A `\item`, a matching `\end{name}`, or end of input — used inside a list environment.
+    /// A `\item`, a matching `\end{name}`, or end of input; used inside a list environment.
     Item(&'a str),
 }
 
@@ -267,12 +265,10 @@ impl Parser {
         self.cur().is_none()
     }
 
-    /// Whether the cursor is at the literal string `s`.
     fn looking_at(&self, s: &str) -> bool {
         s.chars().enumerate().all(|(i, c)| self.at(i) == Some(c))
     }
 
-    /// Consumes the literal `s` if the cursor is at it.
     fn eat(&mut self, s: &str) -> bool {
         if self.looking_at(s) {
             self.advance_chars(s.chars().count());
@@ -305,7 +301,6 @@ impl Parser {
         blocks
     }
 
-    /// Whether the current position satisfies `stop`.
     fn at_stop(&self, stop: &Stop) -> bool {
         match stop {
             Stop::Eof => self.eof(),
@@ -376,8 +371,7 @@ impl Parser {
             let _ = env;
             return true;
         }
-        // A control word that cannot begin a block (a stray `\item` or `\par`) is dropped whole,
-        // along with an immediately following optional argument.
+        // a stray non-block control word (`\item`, `\par`) is dropped whole with a following optional arg
         if self.cur() == Some('\\') && self.at(1).is_some_and(|c| c.is_ascii_alphabetic()) {
             self.bump();
             while self.cur().is_some_and(|c| c.is_ascii_alphabetic()) {
@@ -418,7 +412,7 @@ impl Parser {
         if self.cur() != Some('\\') {
             return None;
         }
-        // `\begin{env}` — an environment, unless it is a math environment (which is inline content).
+        // `\begin{env}`: an environment, unless it is a math environment (which is inline content).
         if let Some(env) = self.peek_env_after("\\begin") {
             if math_env(&env) {
                 return None;
@@ -445,8 +439,7 @@ impl Parser {
             | "DeclareRobustCommand"
             | "def"
             | "let" => Some(self.parse_macro_definition(&name)),
-            // Commands that emit no block: layout and float directives, package/setup declarations,
-            // and the bibliography, are consumed with their arguments and dropped.
+            // commands that emit no block are consumed with their arguments and dropped
             "par" | "maketitle" | "tableofcontents" | "listoffigures" | "listoftables"
             | "frontmatter" | "mainmatter" | "backmatter" | "appendix" | "clearpage"
             | "cleardoublepage" | "newpage" | "pagebreak" | "noindent" | "bigskip" | "medskip"
@@ -495,7 +488,6 @@ impl Parser {
                 break;
             }
         }
-        // A trailing `*` variant marker binds to the command name.
         while matches!(self.cur(), Some(' ' | '\t')) {
             self.bump();
         }
@@ -582,8 +574,7 @@ impl Parser {
         if self.cur() == Some('}') {
             self.bump();
         }
-        // Pull a label out of the collected inlines: a `\label` renders to an empty span carrying a
-        // `label` attribute, which becomes the header id rather than an inline span.
+        // a `\label` renders as an empty span with a `label` attribute; pull it out as the header id
         let mut kept = Vec::new();
         for inline in inlines {
             if let Inline::Span(attr, content) = &inline
@@ -616,7 +607,6 @@ impl Parser {
 
     fn parse_environment(&mut self, env: &str) -> Vec<Block> {
         self.consume_env_marker("\\begin");
-        // Some environments take a leading argument or options.
         match env {
             "itemize" | "enumerate" => {
                 let _ = self.read_optional_raw();
@@ -714,7 +704,6 @@ impl Parser {
                 raw.push(c);
             }
         }
-        // Append the closing marker as written.
         raw.push_str("\\end{");
         raw.push_str(env);
         raw.push('}');
@@ -958,8 +947,7 @@ impl Parser {
             "math" => Inline::Math(MathType::InlineMath, body.trim().into()),
             "displaymath" => Inline::Math(MathType::DisplayMath, body.trim().into()),
             _ => {
-                // The environment markers are re-emitted on their own lines around the body, with
-                // trailing whitespace stripped but leading indentation of the first line preserved.
+                // markers re-emitted on their own lines; trailing whitespace stripped, first-line indent kept
                 let content = body.trim_end().trim_start_matches(['\n', '\r']);
                 Inline::Math(
                     MathType::DisplayMath,
@@ -1046,8 +1034,8 @@ impl Parser {
                         self.apply_switch(switch, stop, &mut out, &mut buf);
                         break;
                     }
-                    // A control sequence flushes the text buffer itself only when it emits an inline;
-                    // an accent or symbol appends to the buffer so it joins the surrounding word.
+                    // a command flushes the buffer only when it emits an inline; accents and
+                    // symbols append so they join the surrounding word
                     self.exec_control(&mut out, &mut buf);
                 }
                 '{' => {
@@ -1056,8 +1044,7 @@ impl Parser {
                     if self.cur() == Some('}') {
                         self.bump();
                     }
-                    // An empty group leaves the surrounding word intact; a non-empty one becomes a
-                    // grouping span placed after the buffered text.
+                    // an empty group keeps the word intact; a non-empty one becomes a grouping span
                     if let Some(span) = group_span(inner) {
                         emit(&mut out, &mut buf, span);
                     }
@@ -1116,7 +1103,7 @@ impl Parser {
         false
     }
 
-    /// Whether a smart-quote delimiter at `offset` from the cursor closes an open quote — it does
+    /// Whether a smart-quote delimiter at `offset` from the cursor closes an open quote: it does
     /// when the character after it is not alphanumeric.
     fn quote_closes(&self, offset: usize) -> bool {
         match self.at(offset) {
@@ -1221,8 +1208,7 @@ impl Parser {
         };
         match c {
             '\\' => {
-                // A hard line break, with an optional `*` and `[dimen]` that are discarded. It
-                // absorbs any spacing on either side.
+                // hard line break: `*` and `[dimen]` discarded, surrounding spacing absorbed
                 if self.cur() == Some('*') {
                     self.bump();
                 }
@@ -1463,8 +1449,7 @@ impl Parser {
             | "mdseries" | "upshape" | "normalfont" | "sc" | "rm" | "sf" | "boldmath"
             | "unboldmath" | "clearpage" | "newpage" | "nolinebreak" | "sloppy" | "raggedright"
             | "item" => {
-                // Font-switch and spacing commands with no argument contribute nothing. A stray
-                // `\item` outside any list is likewise dropped (list items are handled elsewhere).
+                // no-argument font-switch/spacing commands contribute nothing; a stray `\item` is dropped
             }
             "linebreak" => {
                 let _ = self.read_optional_raw();
@@ -1524,8 +1509,7 @@ impl Parser {
     }
 
     fn read_citation(&mut self, name: &str, out: &mut Vec<Inline>) {
-        // With one bracketed argument it is the note that follows the key; with two, the first
-        // precedes the key and the second follows it.
+        // one bracketed arg is the trailing note; with two, the first precedes the key
         let opt1 = self.read_optional_raw();
         let opt2 = self.read_optional_raw();
         let keys_raw = self.read_group_raw().unwrap_or_default();
@@ -1601,7 +1585,6 @@ impl Parser {
         Some(code)
     }
 
-    /// Reads a braced group as blocks (used for footnote bodies).
     /// A sub-parser over `source` that inherits the shared context (extensions, smart mode, macro
     /// table, section base level, expansion depth) but starts with fresh cursor and output state
     /// (metadata and heading ids). It never inherits float context.
@@ -1870,9 +1853,8 @@ impl Parser {
     /// expansion and contributes no block; with it disabled the definition is left in the output as a
     /// raw LaTeX block, preserving its source verbatim.
     fn parse_macro_definition(&mut self, name: &str) -> Vec<Block> {
-        // The verbatim-capture branch below runs only with `Extension::LatexMacros` disabled, when no
-        // expansion frame is ever pushed, so exactly one frame is live throughout this call and `start`
-        // indexes the same buffer as the final position.
+        // verbatim capture runs only with `LatexMacros` off: no expansion frame is ever pushed, so
+        // `start` indexes the same (sole) buffer as the final position
         let start = self.frames.last().map_or(0, |frame| frame.pos);
         self.consume_control_word();
         if self.cur() == Some('*') {
@@ -1881,8 +1863,7 @@ impl Parser {
         if name == "def" {
             self.parse_def();
         } else if name == "let" {
-            // `\let\a\b` and `\let\a=\b` bind one name to another; the operands are consumed but the
-            // binding itself is not modelled.
+            // `\let\a\b` / `\let\a=\b`: operands consumed, binding not modelled
             let _ = self.take_defined_name();
             if self.cur() == Some('=') {
                 self.bump();
@@ -1997,9 +1978,8 @@ impl Parser {
                 None => args.push(String::new()),
             }
         }
-        // Arguments are consumed from the stream before the expansion frame is pushed, so `#n`
-        // captures the invocation's own arguments and the cursor resumes at the source position where
-        // consumption stopped once the expansion frame is exhausted.
+        // arguments are consumed before the frame is pushed: `#n` sees the invocation's own
+        // arguments and the cursor resumes past them once the frame is exhausted
         let expanded = substitute_macro(&mac.body, &args);
         if !expanded.is_empty() {
             self.frames.push(Frame {
@@ -2029,20 +2009,18 @@ impl Parser {
 
 // --- Free helpers --------------------------------------------------------------------------------
 
-/// Appends the accumulated text buffer as a single [`Inline::Str`] and clears it.
 fn flush_buf(buf: &mut String, out: &mut Vec<Inline>) {
     if !buf.is_empty() {
         out.push(Inline::Str(std::mem::take(buf).into()));
     }
 }
 
-/// Flushes the pending text buffer, then appends an inline — so buffered text stays ahead of it.
+/// Flushes the pending text buffer, then appends an inline, so buffered text stays ahead of it.
 fn emit(out: &mut Vec<Inline>, buf: &mut String, inline: Inline) {
     flush_buf(buf, out);
     out.push(inline);
 }
 
-/// Flushes the pending text buffer, then appends a sequence of inlines.
 fn emit_all(out: &mut Vec<Inline>, buf: &mut String, inlines: Vec<Inline>) {
     flush_buf(buf, out);
     out.extend(inlines);
@@ -2064,7 +2042,6 @@ fn push_whitespace(out: &mut Vec<Inline>, ws: Inline) {
     }
 }
 
-/// Drops leading and trailing spacing inlines from a paragraph's content.
 fn trim_inlines(mut inlines: Vec<Inline>) -> Vec<Inline> {
     while matches!(inlines.first(), Some(Inline::Space | Inline::SoftBreak)) {
         inlines.remove(0);
@@ -2159,7 +2136,6 @@ fn extract_spaces<F: FnOnce(Vec<Inline>) -> Inline>(
     result
 }
 
-/// Wraps inlines in a span carrying a single class.
 fn span_class(inlines: Vec<Inline>, class: &str) -> Inline {
     Inline::Span(
         Box::new(Attr {
@@ -3073,16 +3049,14 @@ mod tests {
         }
     }
 
-    // `#0` is not a parameter reference: only `#1`…`#9` are. A `#0` in a macro body is emitted
-    // verbatim rather than triggering an out-of-range parameter lookup.
+    // `#0` is not a parameter reference (only `#1`…`#9` are) and is emitted verbatim
     #[test]
     fn substitute_macro_preserves_non_parameter_hash_zero() {
         let expanded = substitute_macro("a#0b", &["Y".to_owned()]);
         assert_eq!(expanded, "a#0b");
     }
 
-    // A numbered display environment is captured as display math whose body preserves the full
-    // `\begin{env}` … `\end{env}` source, so downstream numbering markup survives untouched.
+    // a numbered display environment keeps its full `\begin`…`\end` source so numbering markup survives
     #[test]
     fn equation_environment_is_display_math_with_verbatim_body() {
         let blocks = parse("\\begin{equation}\n  f(x) = x + 1\n\\end{equation}\n");
@@ -3097,9 +3071,8 @@ mod tests {
         );
     }
 
-    // A cross-reference becomes a link to the target anchor whose visible text is the bracketed
-    // label, tagged with the reference kind so a caller can recognize it. A `~` tie before the
-    // command is a non-breaking space.
+    // a cross-reference becomes a link tagged with the reference kind; a preceding `~` tie is a
+    // non-breaking space
     #[test]
     fn ref_becomes_tagged_link_with_bracketed_label() {
         let blocks = parse("See Section~\\ref{sec:intro}.\n");
@@ -3125,8 +3098,7 @@ mod tests {
         );
     }
 
-    // The reference kind distinguishes the name-carrying variants: `\cref` and `\autoref` request a
-    // lowercase label, `\Cref` an uppercase one.
+    // `\cref` and `\autoref` request a lowercase label, `\Cref` an uppercase one
     #[test]
     fn cref_variants_carry_their_reference_kind() {
         let kinds = |input: &str| match parse(input).into_iter().next() {
@@ -3148,8 +3120,7 @@ mod tests {
         assert_eq!(kinds("\\Cref{a}"), vec!["ref+Label".to_owned()]);
     }
 
-    // A `width` given as a fraction of `\textwidth` is recorded as a percentage attribute on the
-    // image; the default alt text is `image`.
+    // a `\textwidth`-fraction width becomes a percentage attribute; default alt text is `image`
     #[test]
     fn includegraphics_textwidth_fraction_becomes_percent_width() {
         let blocks = parse("x \\includegraphics[width=0.5\\textwidth]{diagram.png} y\n");
@@ -3172,8 +3143,7 @@ mod tests {
         );
     }
 
-    // With macro expansion off, a definition is preserved verbatim as a raw block rather than
-    // recorded for expansion, so no expansion silently changes the text.
+    // with expansion off, a definition passes through verbatim as a raw block
     #[test]
     fn macro_definition_preserved_verbatim_when_expansion_disabled() {
         let ext = Extensions::from_list(&[Extension::Smart, Extension::AutoIdentifiers]);
@@ -3224,8 +3194,7 @@ mod tests {
         );
     }
 
-    // A long sequence of nested invocations all expand: the nesting depth is released after each
-    // invocation, so it does not accumulate across the sequence and hit the nesting cap.
+    // nesting depth is released after each invocation, so a long sequence does not hit the cap
     #[test]
     fn nested_invocations_do_not_accumulate_depth() {
         let mut source = String::from("\\newcommand{\\a}{\\b}\n\\newcommand{\\b}{Z}\n\n");
@@ -3251,8 +3220,8 @@ mod tests {
         let _ = parse("\\newcommand{\\x}{\\x}\n\n\\x\n");
     }
 
-    // A macro whose expansion ends mid-construct is completed by the following source text: the
-    // command reads its argument across the frame boundary, matching the flattened source.
+    // an expansion ending mid-construct reads its argument across the frame boundary, matching
+    // the flattened source
     #[test]
     fn expansion_completed_by_following_source_matches_flattened() {
         assert_eq!(
@@ -3261,8 +3230,7 @@ mod tests {
         );
     }
 
-    // An expansion frame that empties right before `\end{...}` pops cleanly at the environment
-    // boundary, matching the flattened source.
+    // a frame emptying right before `\end{...}` pops cleanly at the environment boundary
     #[test]
     fn expansion_ending_at_environment_boundary_matches_flattened() {
         assert_eq!(

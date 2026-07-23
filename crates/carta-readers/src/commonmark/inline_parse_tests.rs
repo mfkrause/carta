@@ -107,7 +107,6 @@ fn image(alt: Vec<Inline>, url: &str) -> Inline {
 
 #[test]
 fn nested_emphasis_and_strong() {
-    // *a **b** c* → Emph([a, Strong([b]), c])
     assert_eq!(
         p("*a **b** c*"),
         vec![Inline::Emph(vec![
@@ -122,7 +121,6 @@ fn nested_emphasis_and_strong() {
 
 #[test]
 fn mixed_asterisk_and_underscore() {
-    // *a _b_ c* → Emph([a, Emph([b]), c])
     assert_eq!(
         p("*a _b_ c*"),
         vec![Inline::Emph(vec![
@@ -137,7 +135,6 @@ fn mixed_asterisk_and_underscore() {
 
 #[test]
 fn triple_asterisk_produces_emph_of_strong() {
-    // ***a*** → Emph([Strong([a])])
     assert_eq!(
         p("***a***"),
         vec![Inline::Emph(vec![Inline::Strong(vec![str("a")])])]
@@ -146,15 +143,13 @@ fn triple_asterisk_produces_emph_of_strong() {
 
 #[test]
 fn rule_of_3_prevents_outer_strong() {
-    // **a*b** — the `*` closer + `**` opener sum is 3 which would violate rule-of-3 when one
-    // side can both open and close, so the `*b` ends up literal inside Strong.
+    // **a*b**: closer+opener sum of 3 violates rule-of-3 when one side can both open and close, so `*b` stays literal inside Strong
     assert_eq!(p("**a*b**"), vec![Inline::Strong(vec![str("a*b")])]);
 }
 
 #[test]
 fn rule_of_3_prevents_inner_strong() {
-    // *a**b* — **b closes with * giving sum=3 but both must be mult-of-3 which they aren't,
-    // so the **b is left literal.
+    // *a**b*: sum=3 and neither length is a multiple of 3, so `**b` stays literal
     assert_eq!(p("*a**b*"), vec![Inline::Emph(vec![str("a**b")])]);
 }
 
@@ -162,7 +157,7 @@ fn rule_of_3_prevents_inner_strong() {
 fn unmatched_openers_become_literal() {
     assert_eq!(p("*a"), vec![str("*a")]);
     assert_eq!(p("a*"), vec![str("a*")]);
-    // **a* — the single * can close an emphasis inside the **, leaving ** - 1 = * literal
+    // **a*: the single * can close an emphasis inside the **, leaving ** - 1 = * literal
     assert_eq!(p("**a*"), vec![str("*"), Inline::Emph(vec![str("a")])]);
 }
 
@@ -175,8 +170,7 @@ fn underscore_intraword_stays_literal() {
 
 #[test]
 fn emphasis_flanks_across_multi_byte_neighbors() {
-    // `*` pairs intraword, so multi-byte word characters around the delimiters behave like
-    // ASCII ones.
+    // `*` pairs intraword, so multi-byte word characters behave like ASCII ones
     assert_eq!(
         p("α*β*γ"),
         vec![str("α"), Inline::Emph(vec![str("β")]), str("γ")]
@@ -185,15 +179,13 @@ fn emphasis_flanks_across_multi_byte_neighbors() {
 
 #[test]
 fn emphasis_with_multi_byte_content_at_input_edges() {
-    // The opener sits at the very start of the input and the closer at its very end, so both
-    // boundary lookups run against the buffer's edges.
+    // opener at input start, closer at input end: boundary lookups run against the buffer edges
     assert_eq!(p("*β*"), vec![Inline::Emph(vec![str("β")])]);
 }
 
 #[test]
 fn emphasis_between_emoji_neighbors() {
-    // An emoji is a symbol (punctuation for flanking purposes), not a word character, so the
-    // run still opens and closes around it.
+    // an emoji is punctuation for flanking purposes, so the run still opens and closes around it
     assert_eq!(
         p("😀*a*😀"),
         vec![str("😀"), Inline::Emph(vec![str("a")]), str("😀")]
@@ -228,9 +220,7 @@ fn unmatched_image_opener_keeps_its_bang() {
 
 #[test]
 fn reference_link_with_and_without_ref() {
-    // Without ref: stays literal.
     assert_eq!(p("[a][r]"), vec![str("[a][r]")]);
-    // With ref defined: resolves.
     let refs = ref_map(&[("r", "http://r")]);
     let result = parse_inlines("[a][r]", &refs, no_notes(), no_ext());
     assert_eq!(result, vec![link(vec![str("a")], "http://r")]);
@@ -238,7 +228,6 @@ fn reference_link_with_and_without_ref() {
 
 #[test]
 fn shortcut_reference_resolves_only_with_a_matching_definition() {
-    // No definitions in scope: the brackets stay literal.
     assert_eq!(p("[foo]"), vec![str("[foo]")]);
     // A matching definition resolves the shortcut, with case folding on the label.
     let refs = ref_map(&[("foo", "http://f")]);
@@ -250,8 +239,7 @@ fn shortcut_reference_resolves_only_with_a_matching_definition() {
 
 #[test]
 fn shortcut_label_near_the_length_bound_still_resolves() {
-    // A 999-character label sits under the byte guard, so its lookup runs normally; the guard
-    // only skips spans that are too long to be a label at all.
+    // 999 chars sits under the byte guard; the guard only skips spans too long to be a label
     let label = "a".repeat(999);
     let refs = ref_map(&[(label.as_str(), "http://f")]);
     let source = format!("[{label}]");
@@ -263,8 +251,7 @@ fn shortcut_label_near_the_length_bound_still_resolves() {
 
 #[test]
 fn span_past_the_label_bound_never_resolves_as_shortcut_or_collapsed() {
-    // A span longer than MAX_LABEL_BYTES is no label, even when a definition with the same
-    // oversized key exists: both the shortcut and the collapsed lookup leave it literal.
+    // a span past MAX_LABEL_BYTES is no label even when an oversized definition key matches
     let oversized = "a".repeat(super::MAX_LABEL_BYTES + 1);
     let refs = ref_map(&[(oversized.as_str(), "http://big")]);
     let shortcut = format!("[{oversized}]");
@@ -306,7 +293,6 @@ fn footnote_reference_resolves_at_the_bracket_boundary() {
         parse_inlines("[^x]", &empty_refs(), notes, ext),
         vec![Inline::Note(vec![Block::Para(vec![str("note")])])]
     );
-    // With no footnotes defined, the same syntax stays literal.
     assert_eq!(pe("[^x]", ext), vec![str("[^x]")]);
 }
 
@@ -314,8 +300,7 @@ fn footnote_reference_resolves_at_the_bracket_boundary() {
 fn spaced_reference_link_allows_whitespace_before_the_label() {
     let refs = ref_map(&[("ref", "http://r"), ("text", "http://t")]);
     let ext = exts(&[Extension::SpacedReferenceLinks]);
-    // A space or newline separates the text bracket from the reference label; the display comes
-    // from the first bracket and the target from the second.
+    // display comes from the first bracket, target from the second, separated by space or newline
     assert_eq!(
         parse_inlines("[text] [ref]", &refs, no_notes(), ext),
         vec![link(vec![str("text")], "http://r")]
@@ -329,8 +314,7 @@ fn spaced_reference_link_allows_whitespace_before_the_label() {
         parse_inlines("[text] []", &refs, no_notes(), ext),
         vec![link(vec![str("text")], "http://t")]
     );
-    // A defined text but an undefined second label leaves the whole run literal — the text is
-    // not retried as a shortcut.
+    // an undefined second label leaves the whole run literal: the text is not retried as a shortcut
     let only_text = ref_map(&[("text", "http://t")]);
     assert_eq!(
         parse_inlines("[text] [ref]", &only_text, no_notes(), ext),
@@ -349,8 +333,7 @@ fn spaced_reference_link_allows_whitespace_before_the_label() {
 
 #[test]
 fn nested_bracket_in_link_text() {
-    // [[a]](u) — the inner [a] becomes a literal `[a]` in the link text because it has no
-    // matching target of its own, and the outer pair provides the `(u)` target.
+    // [[a]](u): the inner [a] has no target of its own, so it stays literal in the link text
     assert_eq!(p("[[a]](u)"), vec![link(vec![str("[a]")], "u")]);
 }
 
@@ -361,9 +344,7 @@ fn unmatched_brackets_are_literal() {
 
 #[test]
 fn link_suppresses_earlier_bracket_openers() {
-    // [a [b](u) c](v) — the inner [b](u) is a valid link; its `[` opener then causes
-    // the outer `[a ` opener to be deactivated (it cannot form a link containing a link),
-    // so the outer `[` and `](v)` stay literal.
+    // [a [b](u) c](v): the inner link deactivates the outer opener (no link may contain a link), so `[a ` and `](v)` stay literal
     assert_eq!(
         p("[a [b](u) c](v)"),
         vec![
@@ -414,9 +395,8 @@ fn superscript_caret() {
 
 #[test]
 fn markdown_escaped_space_becomes_non_breaking() {
-    // With the broad escape set a markdown-dialect `\ ` is a non-breaking space bound into the
-    // surrounding word; without it (as in the strict dialect) and in the bare CommonMark engine a
-    // backslash before a space is a literal backslash and the space splits the run.
+    // broad escape set: `\ ` is a non-breaking space bound into the word; strict dialect and bare
+    // engine: literal backslash, and the space splits the run
     assert_eq!(
         pm("a\\ b", exts(&[Extension::AllSymbolsEscapable])),
         vec![str("a\u{a0}b")]
@@ -456,7 +436,6 @@ fn markdown_superscript_rejects_inner_space() {
         pm("^a\\ b^", ext),
         vec![Inline::Superscript(vec![str("a\u{a0}b")])]
     );
-    // No inner whitespace: still a superscript.
     assert_eq!(pm("^ab^", ext), vec![Inline::Superscript(vec![str("ab")])]);
 }
 
@@ -481,8 +460,7 @@ fn short_subsuperscripts_consume_an_alphanumeric_run() {
         pm("x^2.5", ext),
         vec![str("x"), Inline::Superscript(vec![str("2")]), str(".5")]
     );
-    // A closing delimiter in the span forms the delimited pair instead; a leftover unpaired
-    // caret then still opens a short script.
+    // a closing delimiter forms the delimited pair; a leftover unpaired caret still opens a short script
     assert_eq!(
         pm("a^b^c", ext),
         vec![str("a"), Inline::Superscript(vec![str("b")]), str("c")]
@@ -534,8 +512,7 @@ fn markdown_superscript_rejects_space_in_nested_span() {
 
 #[test]
 fn markdown_code_span_trims_surrounding_space() {
-    // The markdown dialect trims a code span's content; the strict dialect strips at most a
-    // single leading and trailing space (and only when the content is not all spaces).
+    // markdown dialect trims code span content; strict strips at most one space per side, never from all-space content
     assert_eq!(pm("`  a  `", no_ext()), vec![code("a")]);
     assert_eq!(p("` a `"), vec![code("a")]);
     assert_eq!(p("`  a  `"), vec![code(" a ")]);
@@ -619,8 +596,7 @@ fn double_tilde_with_subscript_only_becomes_nested_subscript() {
 
 #[test]
 fn single_tilde_skipped_when_strikeout_only() {
-    // `~a~~b~~` with strikeout on but subscript off: length-1 run has no strikeout mapping
-    // (`match_use_count` returns None), so it stays literal; `~~b~~` matches as strikeout.
+    // strikeout on, subscript off: the length-1 run has no mapping and stays literal; `~~b~~` matches as strikeout
     assert_eq!(
         pe("~a~~b~~", exts(&[Extension::Strikeout])),
         vec![str("~a"), Inline::Strikeout(vec![str("b")])]
@@ -629,8 +605,7 @@ fn single_tilde_skipped_when_strikeout_only() {
 
 #[test]
 fn unmatched_tilde_run_stays_literal_when_strikeout_only() {
-    // `~~a~` — the single `~` is a closer that can't find an opener (the `~~` needs length-2
-    // pair and subscript is off), so the whole thing stays literal.
+    // `~~a~`: the single `~` closer finds no opener (`~~` needs a length-2 pair, subscript off), so all stays literal
     assert_eq!(pe("~~a~", exts(&[Extension::Strikeout])), vec![str("~~a~")]);
 }
 
@@ -809,21 +784,13 @@ fn link_and_image_take_attributes() {
 
 #[test]
 fn attributes_require_the_extension() {
-    // Without any attribute extension the block stays literal text.
     assert_eq!(p("[text]{.cls}"), vec![str("[text]{.cls}")]);
 }
 
 #[test]
 fn nested_image_with_inner_link_and_deactivated_bracket() {
-    // ![[[foo](uri1)](uri2)](uri3)
-    //
-    // The outermost `![` is an image opener. The first `[` inside is a plain bracket opener.
-    // `[foo](uri1)` matches as a link; that success deactivates the `[` opener between the
-    // image `![` and `[foo]`. The next `]` encounters that deactivated opener: it must pop
-    // it, literalize it, and emit `]` as text — not look further to the image opener below.
-    // Only the final `](uri3)` closes the image.
-    //
-    // Expected: Image(uri3, alt=[Str("["), Link([Str("foo")], uri1), Str("](uri2)")])
+    // the inner link's success deactivates the `[` between `![` and `[foo]`; the next `]` must pop
+    // and literalize that opener, not reach the image opener; only the final `](uri3)` closes it
     assert_eq!(
         p("![[[foo](uri1)](uri2)](uri3)"),
         vec![image(
@@ -923,17 +890,15 @@ fn code_span_with_no_closer_stays_literal() {
 
 #[test]
 fn code_span_failed_search_does_not_mask_a_different_length_match() {
-    // The length-1 opener finds no lone-backtick closer and stays literal; the length-2 span
-    // that comes right after must still match, since the close index is keyed by run length
-    // and one length's absence does not suppress another's.
+    // the length-1 opener stays literal; the length-2 span after it must still match, since the
+    // close index is keyed by run length and one length's absence does not suppress another's
     assert_eq!(p("`a ``b``"), vec![str("`a"), Inline::Space, code("b")]);
 }
 
 #[test]
 fn code_span_opener_is_a_run_suffix_stays_literal() {
-    // An escape consumes the backslash plus the first backtick of a run, so the opener that
-    // follows is the run's suffix — its length (2 here) need not equal any run's full length.
-    // No length-2 run closes it, so both openers emit their backticks literally.
+    // the escape eats the run's first backtick, so the opener is a run suffix whose length need
+    // not equal any full run's; no length-2 run closes it, so both openers stay literal
     assert_eq!(
         p("\\``` x \\``` x"),
         vec![
@@ -950,8 +915,7 @@ fn code_span_opener_is_a_run_suffix_stays_literal() {
 
 #[test]
 fn code_span_distinct_run_lengths_all_resolve() {
-    // Strictly increasing, distinct run lengths with no closers — the correctness face of the
-    // adversarial quadratic input: every opener stays literal and the text between is intact.
+    // correctness face of the adversarial quadratic input: every opener literal, text between intact
     assert_eq!(
         p("`a ``b ```c"),
         vec![
@@ -966,8 +930,7 @@ fn code_span_distinct_run_lengths_all_resolve() {
 
 #[test]
 fn code_span_close_before_cursor_is_not_reused() {
-    // The second span's close search must start at its own opener, never returning the first
-    // span's already-consumed closer that lies before the cursor.
+    // the close search must start at its own opener, never returning an already-consumed closer
     assert_eq!(p("`a` `b`"), vec![code("a"), Inline::Space, code("b")]);
 }
 
@@ -979,8 +942,7 @@ fn code_span_runs_at_buffer_ends_match() {
 
 #[test]
 fn code_span_index_matches_scan_on_tricky_buffers() {
-    // Nested lengths, adjacent runs of different lengths, and a triple-adjacency opener where a
-    // shorter inner run precedes the matching closer. Expected values encoded literally.
+    // nested lengths, adjacent runs of different lengths, and a shorter inner run before the matching closer
     assert_eq!(p("``x`y``"), vec![code("x`y")]);
     assert_eq!(p("`a ``b`` c`"), vec![code("a ``b`` c")]);
     assert_eq!(p("``a` b``"), vec![code("a` b")]);
@@ -1054,9 +1016,7 @@ fn raw_tex_unbalanced_brace_reverts_whole_command() {
 
 #[test]
 fn raw_tex_unclosed_openers_stay_literal_at_scale() {
-    // A long run of never-closing openers must revert every one to literal text. The close-
-    // delimiter fast-fail and the shared scan budget bound the look-ahead cost without changing
-    // the parse, so the output is the same all-literal shape at any size.
+    // the fast-fail and scan budget bound look-ahead cost without changing the parse: all-literal at any size
     let cases = [
         r"\a{".repeat(4096), // no `}` anywhere: close-delimiter fast-fail
         format!("{}}}", r"\a{".repeat(4096)), // a single far `}` that never balances: budget backstop
@@ -1084,8 +1044,7 @@ fn raw_tex_unclosed_openers_stay_literal_at_scale() {
 
 #[test]
 fn raw_tex_off_leaves_escape_behavior() {
-    // Without the extension a command name is not raw TeX; `\t` is not punctuation so the
-    // backslash stays literal.
+    // without the extension a command name is not raw TeX; `\t` is not punctuation, backslash stays literal
     assert_eq!(p(r"\textbf{b}"), vec![str(r"\textbf{b}")]);
     // A backslash escape of punctuation still works regardless of the extension.
     assert_eq!(pe(r"\*", raw_tex()), vec![str("*")]);
@@ -1093,8 +1052,7 @@ fn raw_tex_off_leaves_escape_behavior() {
 
 #[test]
 fn raw_tex_environment_captured_as_one_inline() {
-    // A complete `\begin{ENV}`…`\end{ENV}` is one raw inline spanning the whole environment,
-    // body and interior newlines included.
+    // a complete `\begin{ENV}`…`\end{ENV}` is one raw inline, body and interior newlines included
     assert_eq!(
         pe("\\begin{equation}\nx\n\\end{equation}", raw_tex()),
         vec![tex("\\begin{equation}\nx\n\\end{equation}")]
@@ -1119,8 +1077,7 @@ fn raw_tex_environment_captured_as_one_inline() {
 
 #[test]
 fn raw_tex_environment_balances_nested_begins() {
-    // A nested environment of the same name deepens the nesting; the capture ends at the
-    // matching outer close, not the first inner one.
+    // a same-name nested environment deepens nesting; capture ends at the matching outer close
     assert_eq!(
         pe(r"\begin{eq}\begin{eq}a\end{eq}\end{eq}", raw_tex()),
         vec![tex(r"\begin{eq}\begin{eq}a\end{eq}\end{eq}")]
@@ -1142,8 +1099,7 @@ fn raw_tex_unmatched_environment_reverts_to_text() {
         pe("\\begin{equation}\nx", raw_tex()),
         vec![str(r"\begin{equation}"), Inline::SoftBreak, str("x")]
     );
-    // A bare `\begin` with no `{ENV}` group is not raw TeX: the backslash precedes a letter,
-    // so it stays literal and the word is plain text.
+    // a bare `\begin` with no `{ENV}` group is not raw TeX: backslash and word stay plain text
     assert_eq!(
         pe(r"\begin x", raw_tex()),
         vec![str(r"\begin"), Inline::Space, str("x")]
@@ -1410,7 +1366,6 @@ fn mark_resolves_inner_emphasis() {
 
 #[test]
 fn mark_off_leaves_double_equals_literal() {
-    // Without the extension the run is plain text.
     assert_eq!(
         pe("a ==x== b", no_ext()),
         vec![
@@ -1443,8 +1398,7 @@ fn mark_lone_equals_stays_literal() {
 #[test]
 fn mark_run_pairs_once_and_leaves_excess_literal() {
     let on = exts(&[Extension::Mark]);
-    // Four-on-four pairs only the innermost two from each side; the outer `==` stay literal and
-    // do not re-pair into a nested mark.
+    // four-on-four pairs only the innermost two per side; the outer `==` never re-pair into a nested mark
     assert_eq!(
         pe("====x====", on),
         vec![str("=="), mark(vec![str("x")]), str("==")]
@@ -1499,7 +1453,7 @@ fn bare_citation_is_author_in_text() {
 
 #[test]
 fn bare_citation_needs_a_non_word_before_the_at() {
-    // Glued to a preceding word, the `@` is literal — no citation, no email autolink here.
+    // Glued to a preceding word, the `@` is literal: no citation, no email autolink here.
     assert_eq!(pe("foo@bar", cites()), vec![str("foo@bar")]);
     // A space before the `@` lets it open a citation.
     assert_eq!(
@@ -1587,8 +1541,7 @@ fn semicolon_separates_entries_sharing_one_number() {
 
 #[test]
 fn comma_nests_a_bare_citation_in_the_suffix() {
-    // `@b` after a comma is not a new entry; it becomes a bare citation inside `a`'s suffix, and
-    // the enclosing group takes the higher number.
+    // `@b` after a comma is a bare citation inside `a`'s suffix; the group takes the higher number
     assert_eq!(
         pe("[@a, @b]", cites()),
         vec![cite(
@@ -1613,7 +1566,6 @@ fn comma_nests_a_bare_citation_in_the_suffix() {
 
 #[test]
 fn document_order_numbers_each_group() {
-    // Two separate groups in one block take consecutive numbers.
     let out = pe("@a and [@b]", cites());
     let nums: Vec<i32> = out
         .iter()
@@ -1627,8 +1579,7 @@ fn document_order_numbers_each_group() {
 
 #[test]
 fn malformed_bracket_falls_back_to_inline_citations() {
-    // A trailing empty segment is not a citation list; the brackets stay literal and the bare
-    // `@a` inside becomes an author-in-text citation.
+    // a trailing empty segment voids the citation list; the bare `@a` becomes author-in-text
     assert_eq!(
         pe("[@a;]", cites()),
         vec![
@@ -1644,8 +1595,7 @@ fn malformed_bracket_falls_back_to_inline_citations() {
 
 #[test]
 fn segment_without_a_key_is_not_a_citation_list() {
-    // The first segment holds no `@`, so the whole bracket is not a citation; only the bare `@b`
-    // citation survives.
+    // no `@` in the first segment voids the bracket; only the bare `@b` citation survives
     assert_eq!(
         pe("[no key; @b]", cites()),
         vec![

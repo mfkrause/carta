@@ -2,7 +2,7 @@
 //!
 //! A manual page is a sequence of control lines (a request or macro, introduced by `.` or `'` in
 //! the first column) and text lines. Text lines are *filled*: consecutive lines collapse into one
-//! paragraph, their words separated by single spaces. Macros structure the page — section headings
+//! paragraph, their words separated by single spaces. Macros structure the page: section headings
 //! (`.SH`/`.SS`), paragraph breaks (`.PP`), tagged and indented lists (`.TP`/`.IP`), relative insets
 //! (`.RS`/`.RE`), verbatim regions (`.nf`/`.EX`), and hyperlinks (`.UR`/`.MT`). Inline font macros
 //! (`.B`, `.I`, `.BR`, …) and the `\f` escape switch between roman, bold, and italic; the `\(xx`,
@@ -35,7 +35,7 @@ const MAX_STRING_DEPTH: usize = 8;
 /// The most lines all macro expansion may produce across a document. The budget is cumulative
 /// rather than per-invocation because argument substitution can synthesize a fresh call line
 /// (`\$` followed by a non-digit leaves the rest of the line intact, so `\$.X` expands to the call
-/// `.X`), and each such invocation restarts with an empty recursion guard — only a shared budget
+/// `.X`), and each such invocation restarts with an empty recursion guard; only a shared budget
 /// makes that cycle terminate.
 const MAX_MACRO_EXPANSION_LINES: usize = 100_000;
 
@@ -151,7 +151,7 @@ impl Font {
         self.wrap_forced(inlines)
     }
 
-    /// Wraps the inlines in this font's markup unconditionally — even when they are empty. A
+    /// Wraps the inlines in this font's markup unconditionally, even when they are empty. A
     /// single-font macro called with an explicit argument keeps its styled wrapper around empty
     /// content, whereas a font run that produces nothing collapses (see [`wrap`]).
     fn wrap_forced(self, inlines: Vec<Inline>) -> Vec<Inline> {
@@ -232,16 +232,13 @@ impl HeadingIds {
             return String::new();
         };
         let text = to_plain_text(inlines);
-        // The slug shape follows the active extension, but a manual page always disambiguates
-        // natively: an empty slug becomes `section` and repeats increment until unused.
+        // Slug shape follows the active extension; empty slugs become `section`, repeats increment.
         let base = match scheme {
             IdScheme::Plain => slug(&text),
             IdScheme::Gfm => slug_gfm(&text),
         };
-        // ASCII folding transliterates the finished slug, so a separator left by a word whose
-        // letters all lack an ASCII base is preserved. The plain shape then re-drops its leading
-        // run up to the first letter, which folding away a leading word can expose; the gfm shape
-        // never strips a leading run.
+        // Folding runs on the finished slug, keeping separators left by unfoldable words. The plain
+        // shape then re-drops the leading run folding can expose; the gfm shape never strips it.
         let base = if self.ascii {
             let folded = fold_to_ascii(&base);
             match scheme {
@@ -262,7 +259,7 @@ struct Parser {
     lines: Vec<String>,
     pos: usize,
     /// Lines from an in-progress macro expansion, not yet consumed. The logical current line is
-    /// this queue's front when non-empty, else `lines[pos]` — expanding a macro call pushes its
+    /// this queue's front when non-empty, else `lines[pos]`: expanding a macro call pushes its
     /// body here instead of splicing it into `lines`, so expansion cost is independent of how much
     /// of the document remains unparsed.
     pending: std::collections::VecDeque<String>,
@@ -399,21 +396,17 @@ impl Parser {
                 Some((inner, inner_rest))
                     if !is_comment(raw) && self.macros.contains_key(inner) =>
                 {
-                    // A nested call to a user macro receives the substituted arguments. The
-                    // substituted argument text debits the budget even though it is not emitted,
-                    // so argument growth across nested calls stays bounded.
+                    // Substituted arguments debit the budget even unemitted, bounding nested-call growth.
                     let substituted = substitute_macro_args(inner_rest, args);
                     budget.debit(substituted.len());
                     let inner_args = split_args(&substituted);
                     self.expand_macro_into(inner, &inner_args, active, out, budget);
                 }
-                // A request line is emitted verbatim; argument references in a request's own
-                // arguments are left for ordinary escape processing, which yields nothing.
+                // Request lines pass verbatim; argument references fall to escape processing (nothing).
                 Some(_) => {
                     budget.debit(raw.len());
                     out.push(raw.clone());
                 }
-                // A text line has its argument references substituted.
                 None => {
                     let substituted = substitute_macro_args(raw, args);
                     budget.debit(substituted.len());
@@ -431,8 +424,7 @@ impl Parser {
     fn parse_blocks(&mut self, ctx: Ctx) -> Vec<Block> {
         let mut blocks = Vec::new();
         let mut fill = Vec::new();
-        // Whether a text line has opened the current paragraph: a paragraph made only of
-        // whitespace-filled lines is still emitted (as `Para []`), unlike a macro-driven flush.
+        // Whether a text line opened the paragraph: whitespace-only paragraphs still emit `Para []`.
         let mut started = false;
         while let Some(line) = self.peek().map(str::to_owned) {
             if line.is_empty() {
@@ -595,8 +587,7 @@ impl Parser {
                         self.parse_link(url, &mut fill);
                         started = true;
                     } else {
-                        // A font macro (or any request) inside the label aborts the link: the open
-                        // paragraph is flushed and the label content is emitted as its own blocks.
+                        // A request inside the label aborts the link; the label emits as its own blocks.
                         flush_para(&mut fill, &mut blocks, &mut started);
                         blocks.extend(self.parse_aborted_link());
                     }
@@ -636,9 +627,7 @@ impl Parser {
                         self.advance();
                     }
                 }
-                // A call to a user-defined macro queues its expanded body ahead of the current
-                // position so the queued lines are parsed in place, before the base document
-                // resumes.
+                // A user-macro call queues its expansion ahead of the current position, parsed in place.
                 _ if self.macros.contains_key(name) => {
                     self.advance();
                     let args = split_args(rest);
@@ -647,8 +636,6 @@ impl Parser {
                         self.pending.push_front(line);
                     }
                 }
-                // An empty request (a bare control character) or one named only with control
-                // characters (`.`, `..`, `'`) is a no-op that leaves the open paragraph filling.
                 _ if is_noop_request(name) => {
                     self.advance();
                 }
@@ -662,8 +649,8 @@ impl Parser {
         blocks
     }
 
-    /// Heading inline content: the macro's arguments joined by spaces, or — when the macro carries
-    /// none — the following input line.
+    /// Heading inline content: the macro's arguments joined by spaces, or, when the macro carries
+    /// none, the following input line.
     fn heading_inlines(&mut self, rest: &str) -> Vec<Inline> {
         if rest.is_empty() {
             let next = self.take_line().unwrap_or_default();
@@ -793,8 +780,7 @@ impl Parser {
                     }
                     let body = self.parse_blocks(Ctx::ITEM);
                     if body.is_empty() {
-                        // A tag with no body of its own takes the rest of the list as its body,
-                        // nesting it; with nothing left to take, the tag stands as a paragraph.
+                        // A bodiless tag takes the rest of the list as its body; else it is a paragraph.
                         let rest = self.parse_list();
                         if rest.is_empty() {
                             flush_pending(&mut pending, &mut out);
@@ -830,8 +816,7 @@ impl Parser {
                                     let body = self.item_body();
                                     push_ordered(&mut pending, &mut out, attrs, body);
                                 }
-                                // A present designator that is neither a bullet nor an enumerator —
-                                // including one that reduces to nothing — is a definition term.
+                                // Neither bullet nor enumerator (even reducing to nothing): a term.
                                 Mark::None | Mark::Text => {
                                     let term = words_to_inlines(&mark);
                                     let body = self.item_body();
@@ -882,7 +867,7 @@ impl Parser {
         tokenize(&line, Font::Regular, &self.strings)
     }
 
-    /// Whether the label that opens at the current position is plain — only text lines (and comments)
+    /// Whether the label that opens at the current position is plain: only text lines (and comments)
     /// up to a `.UE`/`.ME` terminator. A request inside the label, or end of input before the
     /// terminator, makes the label non-plain, so the link is abandoned.
     fn link_label_is_plain(&self) -> bool {
@@ -1038,7 +1023,7 @@ fn alternating(rest: &str, fonts: [Font; 2], strings: &Strings) -> Vec<Inline> {
 }
 
 /// Renders a `.OP` command-option synopsis: the option name (the first argument) is set bold and an
-/// optional argument (the rest) roman, the whole bracketed as optional — `[ -name argument ]`.
+/// optional argument (the rest) roman, the whole bracketed as optional: `[ -name argument ]`.
 fn option_synopsis(rest: &str, strings: &Strings) -> Vec<Inline> {
     let args = split_args(rest);
     let mut out = vec![Inline::Str("[".into())];
@@ -1220,7 +1205,7 @@ fn append_text(fill: &mut Vec<Inline>, inlines: Vec<Inline>) {
     fill.extend(inlines);
 }
 
-/// Whether a line is a control line — one introduced by the `.` or `'` control character.
+/// Whether a line is a control line, one introduced by the `.` or `'` control character.
 fn is_control(line: &str) -> bool {
     line.starts_with('.') || line.starts_with('\'')
 }
@@ -1265,8 +1250,8 @@ fn split_condition(rest: &str) -> (&str, &str) {
 }
 
 /// Evaluates a conditional request's condition. The nroff target (`n`) and the constant `1` are
-/// true; every other condition — the troff target `t`, `0`, other numbers, register and string
-/// tests — is treated as false.
+/// true; every other condition (the troff target `t`, `0`, other numbers, register and string
+/// tests) is treated as false.
 fn condition_true(cond: &str) -> bool {
     cond == "n" || cond == "1"
 }
@@ -1318,13 +1303,9 @@ fn split_args(input: &str) -> Vec<String> {
     args
 }
 
-/// Substitutes a macro call's arguments for `\$N` references in one body line. `\$1`..`\$9` expand to
-/// the corresponding argument (an absent one to nothing) and `\$0` to nothing; a doubled backslash
-/// before the reference (`\\$N`, how a reference is written so it survives definition-time copying) is
-/// treated the same. Every other backslash sequence is left untouched.
 /// Applies copy-mode reduction to a line as it is stored in a macro body: an escaped backslash
-/// `\\` collapses to a single `\`. This defers the remaining escapes — argument references `\$N`
-/// among them — to the moment the macro is invoked, so a body written with `\\$1` and one written
+/// `\\` collapses to a single `\`. This defers the remaining escapes (argument references `\$N`
+/// among them) to the moment the macro is invoked, so a body written with `\\$1` and one written
 /// with `\$1` resolve identically when the macro runs.
 fn reduce_copy_mode(line: &str) -> String {
     if !line.contains('\\') {
@@ -1341,6 +1322,10 @@ fn reduce_copy_mode(line: &str) -> String {
     out
 }
 
+/// Substitutes a macro call's arguments for `\$N` references in one body line. `\$1`..`\$9` expand to
+/// the corresponding argument (an absent one to nothing) and `\$0` to nothing; a doubled backslash
+/// before the reference (`\\$N`, how a reference is written so it survives definition-time copying) is
+/// treated the same. Every other backslash sequence is left untouched.
 fn substitute_macro_args(line: &str, args: &[String]) -> String {
     if !line.contains("\\$") {
         return line.to_owned();
@@ -1357,8 +1342,7 @@ fn substitute_macro_args(line: &str, args: &[String]) -> String {
                 chars.next();
                 push_macro_arg(&mut chars, args, &mut out);
             }
-            // Preserve an escaped backslash intact; consuming one here would let a following
-            // `$` be misread as an argument reference.
+            // Keep `\\` intact; consuming it lets a following `$` read as an argument reference.
             Some('\\') => {
                 chars.next();
                 out.push('\\');
@@ -1558,8 +1542,7 @@ fn scan_into(
                 chars.next();
                 atoms.push(Atom::Char(*font, '.'));
             }
-            // An unpaddable space and a tab are inter-word separators; the tab keeps its own
-            // character so a verbatim region preserves it.
+            // Both separate words; the tab keeps its character so verbatim regions preserve it.
             ' ' => {
                 chars.next();
                 atoms.push(Atom::Space(' '));
@@ -1584,8 +1567,7 @@ fn scan_into(
                 chars.next();
                 atoms.push(Atom::Char(*font, '\u{2006}'));
             }
-            // Escapes that emit nothing: `\c` (continuation), the zero-width `\&` and friends, and
-            // the half-line vertical motions `\u`/`\d`, which take no argument.
+            // Emit nothing: `\c`, the zero-width `\&` family, and the motions `\u`/`\d` (no argument).
             '&' | ')' | ',' | '/' | ':' | '!' | '%' | '{' | '}' | 'c' | 'u' | 'd' => {
                 chars.next();
             }
@@ -1622,9 +1604,8 @@ fn scan_into(
                 chars.next();
                 chars.next();
             }
-            // Color and named-argument escapes whose name (one char, `(xx`, or `[name]`) carries no
-            // text: fill/stroke color (`\m`/`\M`), font family (`\F`), register format (`\g`),
-            // environment value (`\V`), macro-as-string (`\Y`), and macro argument (`\$N`).
+            // Name-taking escapes (one char, `(xx`, or `[name]`) emitting no text: `\m`/`\M`, `\F`,
+            // `\g`, `\V`, `\Y`, `\$N`.
             'm' | 'M' | 'F' | 'g' | 'V' | 'Y' | '$' => {
                 chars.next();
                 let _ = read_escape_name(&mut chars);
@@ -1795,8 +1776,7 @@ fn build_tbl(region: &[String]) -> Option<Block> {
     }
     let data_start = data_start?;
 
-    // A column that horizontally spans its neighbor has no representation in the table model, so a
-    // region whose format declares one is rendered as a placeholder paragraph instead.
+    // Horizontal column spans are unrepresentable; such regions render as a placeholder paragraph.
     if region
         .get(index..data_start)
         .unwrap_or(&[])
@@ -2876,8 +2856,7 @@ mod tests {
 
     #[test]
     fn request_in_link_label_aborts_the_link() {
-        // The label's request makes a link impossible; the label is emitted as its own block and the
-        // text trailing the terminator is dropped.
+        // The request voids the link: the label emits as its own block, trailing text is dropped.
         let doc = read(".TH T 1\nbefore\n.UR u\n.B bold\n.UE after\nnext\n");
         assert_eq!(
             doc.blocks,
@@ -3039,16 +3018,14 @@ mod tests {
 
     #[test]
     fn macro_whose_expansion_synthesizes_its_own_call_terminates() {
-        // `\$` followed by a non-digit is dropped by argument substitution, so the text line
-        // `\$.M` expands to the call line `.M` — a self-call the recursion guard cannot see
-        // because it starts a fresh invocation. Only the document-wide budget stops it.
+        // `\$.M` expands to the call line `.M`, a self-call invisible to the recursion guard
+        // (each is a fresh invocation); only the document-wide budget stops it.
         let _ = read(".TH T 1\n.de M\ntext\n\\$.M\n..\n.M\n");
     }
 
     #[test]
     fn macro_argument_doubling_across_synthesized_calls_terminates() {
-        // Each synthesized re-invocation passes its argument twice, doubling its length; the
-        // byte budget must cut the growth off.
+        // Each re-invocation doubles the argument length; the byte budget must cut it off.
         let _ = read(".TH T 1\n.de M\n\\$.M \"\\$1\\$1\"\n..\n.M xxxxxxxx\n");
     }
 
@@ -3069,8 +3046,7 @@ mod tests {
 
     #[test]
     fn conditional_inside_macro_expansion_reprocesses_the_queued_line() {
-        // `.ie`/`.el` reprocess the *queued* expansion line in place; the base document's
-        // following line must survive untouched.
+        // `.ie`/`.el` reprocess the queued expansion in place; the base document's next line survives.
         let doc = read(".TH T 1\n.de M\n.ie n kept\n.el dropped\n..\n.M\nbase line\n");
         assert_eq!(
             doc.blocks.first(),
@@ -3086,8 +3062,7 @@ mod tests {
 
     #[test]
     fn link_label_spanning_macro_expansion_and_base_document_is_recognized() {
-        // The label opens inside a macro expansion (queued) and its terminator sits in the base
-        // document (unqueued); the lookahead must chain across that seam to find it.
+        // Label opens queued, terminator unqueued; the lookahead must chain across that seam.
         let doc =
             read(".TH T 1\n.de LABEL\n.UR https://example.com\nfirst\n..\n.LABEL\nsecond\n.UE\n");
         let Some(Block::Para(inlines)) = doc.blocks.first() else {

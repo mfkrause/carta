@@ -45,15 +45,14 @@ impl Writer for MediawikiWriter {
 
 /// Tracks whether any footnote was emitted, so the trailing `<references />` block is added only when
 /// the document actually uses notes.
-// The flags are independent render-state bits that can hold at once (a link inside a single-line
-// term, say), not a configuration enum, so they stay as separate booleans.
+// Independent render-state bits that can hold at once, not a configuration enum.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default)]
 struct State {
     has_notes: bool,
     in_link: bool,
     in_term: bool,
-    /// Set while rendering a construct that occupies a single physical line — a compact list item or
+    /// Set while rendering a construct that occupies a single physical line: a compact list item or
     /// a definition term/definition. There a source line break cannot survive as a newline even under
     /// preserve wrapping, so it folds to a space.
     single_line: bool,
@@ -217,8 +216,8 @@ impl State {
                 lines.push(prefix.clone());
                 continue;
             }
-            // An item carries its marker on its first text line; an item whose first block is a
-            // sublist has no such line, so the marker is emitted ahead of the sublist's first line.
+            // An item whose first block is a sublist has no text line to carry the marker; emit it
+            // ahead of the sublist's first line.
             let mut item_has_marker = false;
             for inner in item {
                 match inner {
@@ -277,8 +276,7 @@ impl State {
             .iter()
             .map(|spec| spec.align.clone())
             .collect();
-        // The table's own attributes render on the `{|` line, with `wikitable` always the first
-        // class.
+        // Table attributes render on the `{|` line, `wikitable` always the first class.
         let mut table_attr = table.attr.clone();
         table_attr.classes.insert(0, "wikitable".into());
         let mut out = format!("{{|{}", render_html_attr(&table_attr));
@@ -374,7 +372,7 @@ impl State {
         }
         let body = self.blocks(&cell.content);
         let content = body.trim_end_matches('\n');
-        // An empty cell ends at its last marker — no trailing space.
+        // An empty cell ends at its last marker: no trailing space.
         match (attrs.is_empty(), content.is_empty()) {
             (true, true) => marker.trim_end().to_owned(),
             (true, false) => format!("{marker}{content}"),
@@ -422,8 +420,7 @@ impl State {
                 out.push(' ');
             }
             pending_space = false;
-            // A link or image opens with `[`; if the preceding character is also `[`, the run would
-            // read as the start of an internal link, so an empty `<nowiki/>` breaks the pair.
+            // `[[` would read as an internal-link opener; an empty `<nowiki/>` breaks the pair.
             if out.ends_with('[') && matches!(inline, Inline::Link(..) | Inline::Image(..)) {
                 out.push_str("<nowiki/>");
             }
@@ -458,9 +455,8 @@ impl State {
                 format!("{open}{}{close}", self.inlines_keep_edges(inlines))
             }
             Inline::Code(_, text) => format!("<code>{}</code>", escape_text(text)),
-            // A soft break stays a line break only when the source's own breaks are preserved and the
-            // surrounding construct spans more than a single physical line; otherwise it is inter-word
-            // whitespace, like an ordinary space.
+            // A soft break stays a line break only with preserved source breaks in a multi-line
+            // construct; otherwise it is inter-word whitespace.
             Inline::SoftBreak if self.wrap == WrapMode::Preserve && !self.single_line => {
                 "\n".to_owned()
             }
@@ -547,7 +543,6 @@ impl State {
                 parts.push(alt);
             }
         } else {
-            // The caption is the alternate text, falling back to the title.
             let caption = if alt.is_empty() {
                 target.title.to_string()
             } else {
@@ -1000,8 +995,6 @@ mod tests {
 
     #[test]
     fn image_size_converts_dimensions_to_pixels() {
-        // A width and height together, width alone, and height alone each render in the size syntax,
-        // physical lengths first resolving to whole pixels.
         assert_eq!(
             image_size(&attr(&[("width", "1in"), ("height", "0.5in")])),
             Some("96x48px".to_owned())
@@ -1014,12 +1007,10 @@ mod tests {
             image_size(&attr(&[("height", "1in")])),
             Some("x96px".to_owned())
         );
-        // A bare pixel value passes through unchanged.
         assert_eq!(
             image_size(&attr(&[("width", "120px")])),
             Some("120px".to_owned())
         );
-        // A percentage has no pixel size, so no size is emitted; nor does a sizeless image.
         assert_eq!(image_size(&attr(&[("width", "50%")])), None);
         assert_eq!(image_size(&attr(&[])), None);
     }

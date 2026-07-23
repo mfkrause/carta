@@ -1,7 +1,7 @@
 //! Delimiter-separated value readers (CSV and TSV).
 //!
 //! Both formats render to a single [`Block::Table`]: the first record becomes the table head and
-//! every later record a body row. The first record also fixes the column count — wider records are
+//! every later record a body row. The first record also fixes the column count: wider records are
 //! truncated, narrower ones padded with empty cells.
 //!
 //! The two formats differ only in how records split into fields. CSV uses a comma delimiter and

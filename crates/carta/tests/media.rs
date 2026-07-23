@@ -1,6 +1,6 @@
 //! Facade integration tests for embedded-media handling: reading a notebook lifts its image bytes
 //! into the media bag under a content-addressed name, rendering back re-embeds them from the bag,
-//! and the extract transform rewrites references to on-disk paths. These run fully offline — the
+//! and the extract transform rewrites references to on-disk paths. These run fully offline; the
 //! bytes and names are the code's own deterministic output.
 
 #![cfg(all(feature = "read-ipynb", feature = "write-ipynb"))]
@@ -44,15 +44,13 @@ fn rendering_back_to_a_notebook_re_embeds_from_the_bag() {
     else {
         panic!("ipynb output is text");
     };
-    // The output carries the image's bytes back as an embedded base64 payload.
     assert!(
         rendered.contains(IMAGE_BASE64),
         "re-embedded payload missing from output:\n{rendered}"
     );
 }
 
-// Extraction externalizes the bytes for a text target; a notebook re-embeds, so it is not the
-// extraction target here.
+// A notebook re-embeds, so extraction targets a text format here.
 #[cfg(feature = "write-markdown")]
 #[test]
 fn extraction_rewrites_references_to_the_target_directory() {
@@ -68,8 +66,7 @@ fn extraction_rewrites_references_to_the_target_directory() {
 
     rewrite_extracted_references(&mut document.blocks, &media, "assets/img");
 
-    // Render to a text target with an empty bag: the writer emits the rewritten external reference
-    // rather than re-embedding the bytes.
+    // Empty bag: the writer emits the rewritten external reference, not re-embedded bytes.
     let Output::Text(rendered) = render_document(
         "markdown",
         document,
@@ -83,7 +80,6 @@ fn extraction_rewrites_references_to_the_target_directory() {
         rendered.contains(&format!("assets/img/{name}")),
         "rewritten reference missing from output:\n{rendered}"
     );
-    // With the reference now external, the bytes are no longer embedded.
     assert!(
         !rendered.contains(IMAGE_BASE64),
         "bytes should not be re-embedded after extraction:\n{rendered}"

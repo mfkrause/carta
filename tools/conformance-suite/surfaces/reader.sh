@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Reader surface: parse text into the JSON AST and diff against pandoc.
-#
-# For each `corpus/text/<fmt>/*` case, compare `carta -f <fmt> -t json` against
-# `pandoc -f <fmt> -t json` (jq -S). For commonmark, additionally run every worked example from the
-# CommonMark spec as a dedicated group so the spec-parity count stays visible.
-#
+# Reader surface: diff carta and pandoc JSON ASTs over the corpus, plus every CommonMark spec example.
 # Usage: surfaces/reader.sh [format] [case]   (no arg = every reader format; case = one corpus stem)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
@@ -13,7 +8,6 @@ require_tools
 FORMATS="${1:-$(shared_input_formats)}"
 CASE="${2:-}"
 
-# The case-stem of a corpus file: its basename with the extension stripped.
 stem() { local b; b="$(basename "$1")"; echo "${b%.*}"; }
 
 for fmt in $FORMATS; do
@@ -29,10 +23,8 @@ for fmt in $FORMATS; do
   tally_group
 done
 
-# Byte-container reader formats keep their fixtures under corpus/binary/<fmt>/ (binary archives that
-# are not UTF-8 text, e.g. zipped office/e-book containers, or any file carrying raw high bytes). Each
-# is diffed exactly like a text reader — carta and pandoc both read the file by path — just discovered
-# from the binary tree, so a byte-container reader needs no entry in the FORMATS list above.
+# Byte-container formats keep fixtures under corpus/binary/<fmt>/ (non-UTF-8 archives); diffed
+# like text readers but discovered from the binary tree, so they need no FORMATS entry.
 if [ -d "$CORPUS/binary" ]; then
   for fmt_dir in "$CORPUS"/binary/*; do
     [ -d "$fmt_dir" ] || continue
@@ -49,10 +41,8 @@ if [ -d "$CORPUS/binary" ]; then
   done
 fi
 
-# Extension-toggle cases: each `corpus/text-ext/<spec>/*` directory is named for the full format
-# spec (e.g. `commonmark+strikeout`, `markdown+citations`) it should be parsed with, for both carta
-# and pandoc. The specs build on the markdown-family readers, which the commonmark group compiles, so
-# they run alongside it.
+# Each corpus/text-ext/<spec>/ dir is named for the format spec both tools parse it with; the
+# specs build on the markdown-family readers, so they run with the commonmark group.
 if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
   conf_reset "reader-ext"
   for spec_dir in "$CORPUS"/text-ext/*; do
@@ -68,7 +58,7 @@ if echo "$FORMATS" | grep -qw commonmark && [ -d "$CORPUS/text-ext" ]; then
   tally_group
 fi
 
-# CommonMark spec examples — exhaustive reader parity, reported on its own line.
+# CommonMark spec examples: exhaustive reader parity, reported on its own line.
 if echo "$FORMATS" | grep -qw commonmark; then
   specdir="$WORK/spec"
   extract_spec "$specdir"

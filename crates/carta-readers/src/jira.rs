@@ -1,10 +1,10 @@
-//! Reader for Jira wiki markup — the line-oriented "text formatting notation" used in Jira
+//! Reader for Jira wiki markup, the line-oriented "text formatting notation" used in Jira
 //! issue fields and comments.
 //!
 //! Blocks are recognised by a line prefix (`hN.`, `bq.`, list markers, table pipes, `----`) or a
-//! paired brace macro (`{code}`, `{noformat}`, `{quote}`, `{panel}`). Inline markup — text effects
+//! paired brace macro (`{code}`, `{noformat}`, `{quote}`, `{panel}`). Inline markup (text effects
 //! with flanking delimiters, links, images, monospaced and coloured spans, anchors, symbols, and
-//! emoticons — is applied to the text of each line; markup does not span a line boundary.
+//! emoticons) is applied to the text of each line; markup does not span a line boundary.
 
 use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, ColSpec, ColWidth, Document, Inline, ListAttributes,
@@ -26,16 +26,14 @@ impl Reader for JiraReader {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Block layer
-// ---------------------------------------------------------------------------
 
 fn parse_blocks_from_str(input: &str) -> Vec<Block> {
     blocks_from_str(input, true, true)
 }
 
-/// Parses the content of a single list item as blocks. A list item carries full block structure —
-/// headings, rules, tables, blockquotes, and brace macros — but the stand-alone colour Div is not a
+/// Parses the content of a single list item as blocks. A list item carries full block structure
+/// (headings, rules, tables, blockquotes, and brace macros), but the stand-alone colour Div is not a
 /// list-item construct, so its marker lines stay literal text there.
 fn parse_list_item_blocks(input: &str) -> Vec<Block> {
     blocks_from_str(input, false, true)
@@ -46,9 +44,7 @@ fn parse_list_item_blocks(input: &str) -> Vec<Block> {
 /// paragraph text, and the stand-alone colour Div is not a cell construct.
 fn parse_table_cell(input: &str) -> Vec<Block> {
     let mut blocks = blocks_from_str(input, false, false);
-    // A cell's own paragraphs carry no surrounding whitespace — so the text that resumes after a
-    // brace macro on the same line loses its leading space. The trim does not recurse: paragraphs
-    // nested inside a list or blockquote keep their own leading whitespace.
+    // Trim only top-level paragraphs; ones nested in a list or blockquote keep their whitespace.
     for block in &mut blocks {
         if let Block::Para(inlines) = block {
             trim_edge_whitespace(inlines);
@@ -69,8 +65,7 @@ fn trim_edge_whitespace(inlines: &mut Vec<Inline>) {
 }
 
 fn blocks_from_str(input: &str, color_block: bool, line_prefix_blocks: bool) -> Vec<Block> {
-    // A carriage return is never a line separator or whitespace here: a `\r\n` pair collapses to a
-    // single line break and a lone `\r` is dropped, so every carriage return is removed up front.
+    // `\r\n` collapses to `\n` and a lone `\r` is dropped, so every CR is removed up front.
     let chars: Vec<char> = input.chars().filter(|&c| c != '\r').collect();
     BlockParser {
         chars: &chars,
@@ -95,8 +90,8 @@ struct BlockParser<'a> {
     /// Whether a stand-alone `{color:…}`/`{color}` pair forms a block-level coloured `Div`. Disabled
     /// while parsing a list item's content, where those lines stay literal text.
     color_block: bool,
-    /// Whether a line whose prefix names a block — a heading (`hN.`), a blockquote (`bq.`), or a
-    /// horizontal rule (`----`) — is recognised as that block. Disabled inside a table cell, where
+    /// Whether a line whose prefix names a block (a heading `hN.`, a blockquote `bq.`, or a
+    /// horizontal rule `----`) is recognised as that block. Disabled inside a table cell, where
     /// only lists and brace macros carry block structure and such lines stay paragraph text.
     line_prefix_blocks: bool,
 }
@@ -217,8 +212,7 @@ impl BlockParser<'_> {
     }
 
     fn horizontal_rule_here(&self) -> bool {
-        // A rule is exactly four hyphens at the line start; only trailing whitespace is allowed, so
-        // any leading indentation makes the line an ordinary paragraph instead.
+        // Exactly four hyphens at line start; any leading indentation makes it a paragraph.
         let e = trim_end(self.chars, self.pos, self.line_end());
         e - self.pos == 4 && (self.pos..e).all(|k| self.chars.get(k) == Some(&'-'))
     }
@@ -227,7 +221,7 @@ impl BlockParser<'_> {
         matches_at(self.chars, self.pos, "bq.")
     }
 
-    /// A line beginning with a colour marker — an opening `{color:…}` or a closing `{color}` — starts
+    /// A line beginning with a colour marker (an opening `{color:…}` or a closing `{color}`) starts
     /// a new block, so it ends any paragraph that runs into it.
     fn color_marker_line_here(&self) -> bool {
         matches_at(self.chars, self.pos, "{color:") || matches_at(self.chars, self.pos, "{color}")
@@ -272,8 +266,7 @@ impl BlockParser<'_> {
     fn try_heading(&mut self) -> Option<Block> {
         let level = self.heading_here()?;
         let e = self.line_end();
-        // A bare block macro in the content makes the line a paragraph that the block layer then
-        // splits at the macro, rather than a heading carrying the macro as literal text.
+        // A bare block macro in the content demotes the line to a paragraph, split at the macro.
         if self.first_block_macro(self.pos + 3, e).is_some() {
             return None;
         }
@@ -296,8 +289,7 @@ impl BlockParser<'_> {
             return None;
         }
         let e = self.line_end();
-        // A bare block macro in the content makes the line a paragraph that the block layer then
-        // splits at the macro, rather than a blockquote carrying the macro as literal text.
+        // A bare block macro in the content demotes the line to a paragraph, split at the macro.
         if self.first_block_macro(self.pos + 3, e).is_some() {
             return None;
         }
@@ -309,10 +301,8 @@ impl BlockParser<'_> {
 
     fn parse_paragraph(&mut self) -> Block {
         let para_start = self.pos;
-        // The first line is always part of the paragraph; this guarantees forward progress. Its
-        // leading whitespace is kept (it collapses to a single leading space). Continuation lines
-        // join across the newline, which the inline layer renders as a soft line break, absorbing
-        // the whitespace around it.
+        // The first line always joins (guarantees progress); continuation lines join across the
+        // newline, which the inline layer renders as a break absorbing surrounding whitespace.
         let mut content_end = self.line_end();
         self.advance_line();
         loop {
@@ -326,8 +316,7 @@ impl BlockParser<'_> {
             content_end = e;
             self.advance_line();
         }
-        // A bare block macro that opens partway through the text ends the paragraph at that point;
-        // the block layer processes the macro on the next pass.
+        // A bare block macro ends the paragraph; the block layer handles it on the next pass.
         if let Some(macro_pos) = self.first_block_macro(para_start, content_end) {
             self.pos = macro_pos;
             content_end = macro_pos;
@@ -393,8 +382,7 @@ impl BlockParser<'_> {
         };
 
         let inner = parse_color_block_inner(self.chars.get(content_start..close_line_start)?);
-        // Content that begins with a blank line yields no leading paragraph, so the markup does not
-        // form a block.
+        // Content opening with a blank line yields no leading paragraph, so no block forms.
         match inner.first() {
             None => return None,
             Some(Block::Para(inlines)) if inlines.is_empty() => return None,
@@ -481,9 +469,7 @@ impl BlockParser<'_> {
                 break;
             }
             let e = self.line_end();
-            // A blank line and a horizontal rule both close the list; everything else that is not a
-            // new marker is item content (a continuation line), so headings, tables, blockquotes, and
-            // brace macros that follow an item are absorbed into it rather than ending the list.
+            // A blank line or rule closes the list; any other non-marker line is item continuation.
             if self.is_blank(self.pos, e) || self.horizontal_rule_here() {
                 break;
             }
@@ -497,8 +483,7 @@ impl BlockParser<'_> {
                     k += 1;
                 }
                 let marker = slice_to_string(self.chars, marker_start, k);
-                // Exactly one space separates the marker from the item text; any further leading
-                // whitespace is part of the content.
+                // One space separates marker and text; further whitespace is content.
                 let content_start = k + 1;
                 items.push(ListItem {
                     marker,
@@ -760,7 +745,7 @@ struct ListItem {
 /// Builds the nested list blocks for `items` at the given (1-based) depth, appending sibling lists
 /// to `out`. A marker's length is its nesting depth: items are grouped by the marker character at
 /// this depth, a different character starts a separate sibling list, and any item whose marker is
-/// longer than this depth nests inside the current item — so a lone `*** x` produces three nested
+/// longer than this depth nests inside the current item, so a lone `*** x` produces three nested
 /// lists even with no shallower item preceding it.
 fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
     let mut idx = 0;
@@ -772,8 +757,7 @@ fn build_lists(items: &[ListItem], depth: usize, out: &mut Vec<Block>) {
         let mut list_items: Vec<Vec<Block>> = Vec::new();
         while marker_char(items, idx, depth) == Some(group_char) {
             let mut item_blocks = Vec::new();
-            // An item whose marker length is exactly this depth owns the text; a longer marker is an
-            // implicit parent that carries only its nested child list.
+            // A longer marker is an implicit parent carrying only its nested child list.
             let owns_content = marker_len(items, idx) == depth;
             let child_start = if owns_content {
                 if let Some(item) = items.get(idx) {
@@ -842,8 +826,7 @@ fn parse_table_row(chars: &[char], start: usize, end: usize) -> Vec<(bool, Strin
             i += 1;
         }
         let is_header = run >= 2;
-        // Scan the cell content up to the next delimiter, ignoring pipes nested inside a bracketed
-        // link, a brace span, or an image's property list so an inner `|` does not split the cell.
+        // Pipes nested in brackets, braces, or an image's properties do not split the cell.
         let cell_start = i;
         let mut depth = 0i32;
         while i < end {
@@ -949,9 +932,7 @@ fn panel_params(params: Option<&str>) -> (Option<String>, Vec<(String, String)>)
     (title, attributes)
 }
 
-// ---------------------------------------------------------------------------
 // Inline layer
-// ---------------------------------------------------------------------------
 
 /// URL prefixes accepted as a bracketed link target. Schemes other than `mailto:` require `://`.
 const LINK_URL_PREFIXES: &[&str] = &[
@@ -1025,7 +1006,7 @@ enum Tok {
         open: bool,
         close: bool,
     },
-    /// A fully formed inline node — link, image, span, monospace, line break, or space.
+    /// A fully formed inline node: link, image, span, monospace, line break, or space.
     Atom(Inline),
 }
 
@@ -1296,7 +1277,7 @@ fn scan_construct(
 }
 
 /// Handles a backslash at `i`. A backslash pair `\\` is a forced line break that absorbs the
-/// whitespace around it — unless a third backslash follows, in which case the pair is an escaped
+/// whitespace around it, unless a third backslash follows, in which case the pair is an escaped
 /// backslash producing one literal `\` and the scan continues at the third. A backslash before one
 /// of a fixed set of punctuation marks escapes that mark to a literal; before anything else the
 /// backslash itself stays literal. Returns the next position.
@@ -1335,8 +1316,8 @@ fn scan_backslash(
 
 /// Handles a run of `-` at `i`. A run of two or more hyphens followed by a space or tab folds into
 /// typographic dashes: a word character on its left keeps the first hyphen attached to that word,
-/// then the remaining hyphens fold — two into an en dash, three or more into an em dash preceded by
-/// the surplus hyphens. Otherwise a single `-` is scanned as a strikeout delimiter (or literal text).
+/// then the remaining hyphens fold (two into an en dash, three or more into an em dash preceded by
+/// the surplus hyphens). Otherwise a single `-` is scanned as a strikeout delimiter (or literal text).
 /// Returns the next scan position. The character following the run is read from the full input rather
 /// than the line-content bound, so a hyphen run that ends a line still sees the space trimmed from it.
 fn scan_dash(
@@ -1358,9 +1339,7 @@ fn scan_dash(
     } else {
         run
     };
-    // Fold only when at least two hyphens remain to fold into a typographic dash. A lone leftover
-    // hyphen would render identically to literal text, so it is left as a strikeout delimiter instead
-    // — that way a `--…--` pair whose closing run is followed by a space can still form a span.
+    // A lone leftover hyphen stays a strikeout delimiter so `--x--` before a space can still pair.
     if right_space && fold_run >= 2 {
         if left_word {
             pending.push('-');
@@ -1425,8 +1404,7 @@ fn resolve(toks: Vec<Tok>) -> Vec<Tok> {
                 acc.push(Tok::Atom(make_span(marker, inner)));
                 continue;
             }
-            // The nesting cap is reached: the opener stays unmatched and its already-resolved
-            // content returns to the stack.
+            // Nesting cap reached: the opener stays unmatched; resolved content returns to the stack.
             acc.extend(inner.into_iter().map(Tok::Atom));
         }
         acc.push(Tok::Delim {
@@ -1585,10 +1563,7 @@ fn closes_monospace(chars: &[char], open: usize, j: usize) -> bool {
 /// pairs so an inner span does not end the outer one. Returns the index of the closing `}}`, or
 /// `None` when the span is never closed.
 fn match_monospace_close(chars: &[char], i: usize, hi: usize) -> Option<usize> {
-    // A dense run of unbalanced `{` would otherwise make each failed nested open re-scan the whole
-    // suffix, so the search cost grows exponentially. The shared forward-scan budget keeps it linear
-    // per span: it is far above what any genuine span needs, so a real close is always found, while a
-    // pathological run gives up and leaves the braces as literal text.
+    // The shared budget keeps nested-open scanning linear; a pathological run stays literal.
     let mut budget = scan_budget(i, hi);
     match_monospace_close_within(chars, i, hi, &mut budget, 0)
 }
@@ -1600,7 +1575,7 @@ fn match_monospace_close_within(
     budget: &mut usize,
     depth: usize,
 ) -> Option<usize> {
-    // Each nested `{{` recurses, so cap the nesting to keep deeply stacked braces off the call stack.
+    // Nesting cap keeps deeply stacked braces off the call stack.
     if depth > MAX_INLINE_DEPTH {
         return None;
     }
@@ -1638,8 +1613,7 @@ fn parse_brace_inline(
     budget: &mut usize,
 ) -> Option<(Inline, usize)> {
     if chars.get(i + 1) == Some(&'{') {
-        // Monospaced span: `{{ … }}`. The close is the `}}` that balances this open, so a nested
-        // `{{ … }}` inside is skipped over rather than ending the span early.
+        // Monospaced `{{ … }}`: a nested pair is skipped rather than ending the span early.
         if !can_open_monospace(chars, i) {
             return None;
         }
@@ -1811,7 +1785,6 @@ fn classify_link_target(
 }
 
 fn parse_image(chars: &[char], i: usize, hi: usize, budget: &mut usize) -> Option<(Inline, usize)> {
-    // The character immediately after the opening `!` must not be whitespace.
     if !non_space(chars, i + 1) {
         return None;
     }
@@ -1934,12 +1907,10 @@ fn match_token_symbol(chars: &[char], i: usize, table: &[(&str, char)]) -> Optio
     None
 }
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 /// The separators this format recognises: ASCII space, tab, and line feed. Code points that Unicode
-/// classes as whitespace — a no-break space, em space, form feed, vertical tab, and the like — are
+/// classes as whitespace (a no-break space, em space, form feed, vertical tab, and the like) are
 /// ordinary characters here, kept inside the surrounding word rather than splitting it.
 fn is_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n')
@@ -2022,9 +1993,7 @@ mod tests {
 
     #[test]
     fn link_budget_does_not_fire_on_genuine_content() {
-        // A genuine link preceded by ordinary prose must parse identically whether the forward-scan
-        // budget is the default proportional cap or effectively unbounded, proving the cap is far
-        // above what real content spends and never fires on valid input.
+        // A genuine link must parse identically under the default and an unbounded budget.
         let lead = "See the docs and other notes here, for example: ".repeat(20);
         let chars: Vec<char> = format!("{lead}[Example|https://example.com] end.")
             .chars()

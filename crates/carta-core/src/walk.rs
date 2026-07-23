@@ -2,8 +2,8 @@
 //!
 //! [`for_each_image_target`] and [`for_each_link_target`] visit every image or link target in a block
 //! sequence, descending through all nested inline and block content in document order. Rewriting a
-//! container format's inline resource references — a notebook's `attachment:` links on the way in, its
-//! file names on the way out, an e-book's cross-file fragment links — is the same walk with a
+//! container format's inline resource references (a notebook's `attachment:` links on the way in, its
+//! file names on the way out, an e-book's cross-file fragment links) is the same walk with a
 //! different callback, so the traversal lives here once rather than in each reader and writer.
 
 use carta_ast::{Block, Caption, Inline, Table, Target};
@@ -15,7 +15,7 @@ enum TargetKind {
 }
 
 /// Applies `visit` to every image target throughout `blocks`, descending into every nested inline and
-/// block sequence — list items, table cells, notes, captions, and the rest — in document order.
+/// block sequence (list items, table cells, notes, captions, and the rest) in document order.
 pub fn for_each_image_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Target)) {
     for_each_target(blocks, &mut |target, kind| {
         if matches!(kind, TargetKind::Image) {
@@ -25,7 +25,7 @@ pub fn for_each_image_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Ta
 }
 
 /// Applies `visit` to every link target throughout `blocks`, descending into every nested inline and
-/// block sequence in document order — the same traversal as [`for_each_image_target`].
+/// block sequence in document order, the same traversal as [`for_each_image_target`].
 pub fn for_each_link_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Target)) {
     for_each_target(blocks, &mut |target, kind| {
         if matches!(kind, TargetKind::Link) {
@@ -182,7 +182,6 @@ mod tests {
             target.url = format!("seen:{}", target.url).into();
         });
         assert_eq!(seen, ["a", "b", "c"]);
-        // The mutation is threaded back into the tree.
         let Some(Block::Para(inlines)) = blocks.first() else {
             panic!("expected para");
         };

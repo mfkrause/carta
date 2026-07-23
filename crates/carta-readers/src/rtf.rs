@@ -3,9 +3,7 @@
 //! An RTF document is a tree of brace-delimited groups holding three things: control words
 //! (`\word`, optionally with a numeric argument), control symbols (`\` before a single non-letter),
 //! and literal text. A group scopes formatting: entering one saves the character state, leaving one
-//! restores it. Reading proceeds in one pass over a token stream (`tokenize`), with a stack of
-//! group states carrying the active character formatting and a stack of block-building contexts (a
-//! fresh one opens for each footnote).
+//! restores it.
 //!
 //! Character control words toggle formatting (`\b`, `\i`, `\ul`, `\strike`, `\super`, `\sub`,
 //! `\scaps`, `\caps`); text between them is wrapped in the corresponding inline nodes, nested in a
@@ -15,8 +13,8 @@
 //! `\uN` (a Unicode scalar with a following fallback the reader skips). Structural groups are
 //! recognized by their leading destination word: `\info` fills document metadata, `\pict` decodes an
 //! embedded image into the media bag, `\field` unpacks a hyperlink, `\footnote` becomes a note, and
-//! `\*\bkmkstart`/`\*\bkmkend` bracket a bookmark span. Font, color, and style tables — and any
-//! group flagged ignorable with `\*` — are skipped. A run of `\trowd`/`\cell`/`\row` rows assembles
+//! `\*\bkmkstart`/`\*\bkmkend` bracket a bookmark span. Font, color, and style tables, and any
+//! group flagged ignorable with `\*`, are skipped. A run of `\trowd`/`\cell`/`\row` rows assembles
 //! a table.
 
 use std::borrow::Cow;
@@ -70,22 +68,18 @@ fn decode_input(input: &[u8]) -> Cow<'_, str> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tokenizer
-// ---------------------------------------------------------------------------
-
 /// One lexical unit of an RTF stream.
 #[derive(Debug, Clone)]
 enum Token {
-    /// `{` — opens a group.
+    /// `{`: opens a group.
     GroupStart,
-    /// `}` — closes a group.
+    /// `}`: closes a group.
     GroupEnd,
     /// `\word` with an optional trailing numeric argument.
     Control(String, Option<i32>),
     /// `\` before a single non-letter character (e.g. `\~`, `\-`, `\\`).
     Symbol(char),
-    /// `\'xx` — a raw byte in the document's code page.
+    /// `\'xx`: a raw byte in the document's code page.
     Hex(u8),
     /// The raw bytes introduced by a `\binN` control word: exactly `N` bytes of embedded binary,
     /// carried opaque so their values never re-enter lexing as braces, backslashes, or text.
@@ -167,14 +161,12 @@ fn lex_backslash(chars: &[char], start: usize, tokens: &mut Vec<Token>) -> usize
             } else {
                 None
             };
-            // A control word ends at a delimiter, which is absorbed with the word when it is a
-            // space or a lone punctuation mark that does not itself begin another token.
+            // A delimiter is absorbed with the word unless it begins another token.
             if matches!(chars.get(i), Some(&c) if is_control_delimiter(c)) {
                 i += 1;
             }
-            // `\binN` is followed by exactly N bytes of embedded binary. They are captured here, at
-            // the lexer, so their values never reach the group/text grammar: a `{`, `}`, or `\`
-            // among them is data, not structure, and a raw-byte picture cannot desync brace nesting.
+            // `\binN`'s N raw bytes are captured at the lexer so a `{`, `}`, or `\` among them
+            // is data, not structure, and cannot desync brace nesting.
             if word == "bin"
                 && let Some(count) = param.and_then(|value| usize::try_from(value).ok())
                 && count > 0
@@ -210,10 +202,6 @@ fn lex_backslash(chars: &[char], start: usize, tokens: &mut Vec<Token>) -> usize
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Character state
-// ---------------------------------------------------------------------------
 
 /// The active character formatting. Copied on group entry and restored on exit. Compared for
 /// equality to merge adjacent text sharing the same formatting into one run. Each field is an
@@ -406,10 +394,6 @@ fn wrappers(props: CharProps) -> Vec<Wrapper> {
     path
 }
 
-// ---------------------------------------------------------------------------
-// Inline assembly
-// ---------------------------------------------------------------------------
-
 /// A leaf produced within a paragraph, tagged with the formatting active when it was emitted.
 #[derive(Debug, Clone)]
 struct Atom {
@@ -434,9 +418,6 @@ struct Frame {
     atoms: Vec<Atom>,
 }
 
-/// Builds nested inlines from a flat, formatting-tagged atom sequence. Adjacent atoms sharing a
-/// common wrapper prefix stay inside a single instance of that wrapper; a divergence closes the
-/// wrappers past the shared prefix and opens the new ones.
 /// Unwraps a bold or italic emphasis that spans an entire heading. A heading's level already conveys
 /// prominence, so a single `Strong` or `Emph` enclosing all of its content is replaced by that
 /// content, repeatedly while one remains (so nested bold-in-italic collapses fully). Emphasis over
@@ -455,6 +436,9 @@ fn strip_heading_emphasis(mut inlines: Vec<Inline>) -> Vec<Inline> {
     inlines
 }
 
+/// Builds nested inlines from a flat, formatting-tagged atom sequence. Adjacent atoms sharing a
+/// common wrapper prefix stay inside a single instance of that wrapper; a divergence closes the
+/// wrappers past the shared prefix and opens the new ones.
 fn build_inlines(atoms: Vec<Atom>) -> Vec<Inline> {
     let atoms = collapse_mono(atoms);
     let mut root: Vec<Inline> = Vec::new();
@@ -615,14 +599,9 @@ fn into_wrapper(inline: Inline) -> std::result::Result<(Wrapper, Vec<Inline>), I
     }
 }
 
-// ---------------------------------------------------------------------------
-// Block context
-// ---------------------------------------------------------------------------
-
 /// One block-building context: the emitted blocks plus the paragraph and table under construction.
 /// The document has one; every footnote opens another.
-// The boolean fields are independent state bits that can hold at once (edge-space preservation, an
-// open table paragraph, an active list), not a configuration enum, so they stay as separate flags.
+// The bools are independent state bits that can hold at once, not a configuration enum.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 struct Emitter {
@@ -635,7 +614,7 @@ struct Emitter {
     has_content: bool,
     /// Keeps a space at the leading or trailing edge of the content instead of trimming it. A
     /// paragraph trims its edge whitespace, but a hyperlink's display text is inline and its edge
-    /// space is meaningful — it separates the link from the word beside it — so it is preserved.
+    /// space is meaningful (it separates the link from the word beside it), so it is preserved.
     preserve_edge_space: bool,
     outline_level: Option<i32>,
     in_table_para: bool,
@@ -855,8 +834,8 @@ impl Emitter {
     }
 
     /// Wraps a popped bookmark frame into a span node in its parent frame, and reports whether it
-    /// produced one. A bookmark with no content between its start and end — the point anchors a word
-    /// processor scatters for every cross-reference and revision cursor — carries no span and is
+    /// produced one. A bookmark with no content between its start and end (the point anchors a word
+    /// processor scatters for every cross-reference and revision cursor) carries no span and is
     /// dropped, so an empty span never appears in the output.
     fn fold_bookmark(&mut self, frame: Frame) -> bool {
         let id = frame.bookmark.unwrap_or_default();
@@ -913,9 +892,8 @@ impl Emitter {
     /// block; an outline level makes it a heading.
     fn end_paragraph(&mut self) {
         let mut atoms = self.take_atoms();
-        // A hard break immediately before the paragraph boundary renders no line of its own; one such
-        // trailing break is dropped so the paragraph does not end on a dangling break. A paragraph
-        // left with no content after this — a line that held only the break — is emitted as nothing.
+        // One trailing hard break renders no line and is dropped; a paragraph left empty by this
+        // is emitted as nothing.
         if atoms
             .last()
             .is_some_and(|atom| matches!(atom.kind, AtomKind::LineBreak))
@@ -939,8 +917,7 @@ impl Emitter {
         if self.in_table_para {
             self.cell_blocks.push(block);
         } else if self.list_active {
-            // A list paragraph joins the pending run; any open table is closed ahead of it so the
-            // list and table keep their source order.
+            // Close any open table first so the list and table keep their source order.
             self.finish_table();
             let numbering = usize::try_from(self.list_level)
                 .ok()
@@ -1144,10 +1121,6 @@ fn build_one_list(entries: &[ListParagraph], depth: usize) -> (Block, usize) {
     (block, i)
 }
 
-// ---------------------------------------------------------------------------
-// Parser
-// ---------------------------------------------------------------------------
-
 /// Document-metadata destination words carried into the `meta` map as inline values.
 const META_FIELDS: &[&str] = &[
     "title", "author", "keywords", "subject", "comment", "company", "doccomm", "operator",
@@ -1345,8 +1318,7 @@ impl Parser {
                         emitter.push_char(code_page_char(byte), props);
                     }
                 }
-                // Binary data outside a picture destination carries no text; it is consumed and
-                // dropped (a `\binN` object body that no reader-handled destination collected).
+                // Binary data outside a picture destination carries no text; consumed and dropped.
                 Token::Binary(_) => self.pos += 1,
                 Token::Char(c) => {
                     self.pos += 1;
@@ -1410,8 +1382,7 @@ impl Parser {
             Some("bkmkstart") => self.parse_bookmark(true),
             Some("bkmkend") => self.parse_bookmark(false),
             Some("shppict") => {
-                // A drawing wrapper around a `\pict`; process transparently so the picture inside
-                // is decoded, but do not save/restore character state for it.
+                // Drawing wrapper around `\pict`: process transparently, no character-state save.
                 self.skip_optional_marker();
                 self.pos += 1; // the `shppict` word
                 self.process();
@@ -1488,9 +1459,8 @@ impl Parser {
             "v" => self.state_mut().props.hidden = on,
             "plain" => self.state_mut().props = CharProps::default(),
             "pard" => {
-                // A paragraph reset restores the default paragraph style (`\s0`): its character
-                // formatting and outline level, if the stylesheet defines them, apply to every
-                // paragraph that selects no other style.
+                // `\pard` restores the default style `\s0`, whose formatting and outline level
+                // apply to every paragraph that selects no other style.
                 let mut props = CharProps::default();
                 if let Some(fmt) = self.style_formats.get(&0).copied() {
                     self.apply_style_format(&fmt, &mut props);
@@ -1569,10 +1539,8 @@ impl Parser {
                 }
             }
             "s" => {
-                // A paragraph style reference overlays the style's character formatting on the
-                // current state and, when the stylesheet marks that style with an outline level,
-                // makes the paragraph a heading of that level, just as an inline `\outlinelevel`
-                // would. Later explicit control words in the same paragraph still win.
+                // Overlay the style's formatting and heading level on the current state; later
+                // explicit control words in the same paragraph still win.
                 let num = param.unwrap_or(0);
                 if let Some(fmt) = self.style_formats.get(&num).copied() {
                     let mut props = self.props();
@@ -1586,8 +1554,7 @@ impl Parser {
                 }
             }
             "f" => {
-                // Selecting a font from the font table: a font of the monospace family marks the run
-                // as code, so it later lowers to inline code or a whole-paragraph code block.
+                // A monospace-family font marks the run as code.
                 self.state_mut().props.mono = self.mono_fonts.contains(&param.unwrap_or(0));
             }
             _ => {
@@ -1627,8 +1594,6 @@ impl Parser {
             }
         }
     }
-
-    // --- Structural destinations ------------------------------------------
 
     fn parse_info(&mut self) {
         self.skip_optional_marker();
@@ -2188,8 +2153,7 @@ impl Parser {
         let mut skip: i32 = 0;
         let mut pending_high: Option<u32> = None;
         while let Some(token) = self.tokens.get(self.pos).cloned() {
-            // A `\uN` is followed by `uc` fallback items for readers that cannot render the scalar;
-            // they are consumed here so the fallback `?` never leaks into the collected text.
+            // Consume the `uc` fallback items after `\uN` so the fallback `?` never leaks out.
             if skip > 0 {
                 match token {
                     Token::GroupEnd => skip = 0,
@@ -2297,10 +2261,6 @@ fn picture_attr(goal_width: Option<i32>, goal_height: Option<i32>) -> Attr {
 fn twips_to_inches(twips: i32) -> String {
     format!("{}in", general_decimal(f64::from(twips) / 1440.0))
 }
-
-// ---------------------------------------------------------------------------
-// Character mappings and helpers
-// ---------------------------------------------------------------------------
 
 /// The Unicode string a special-character control word stands for, or `None` if the word carries no
 /// character.
@@ -2414,8 +2374,8 @@ fn decode_hex(hex: &str) -> Vec<u8> {
 }
 
 /// Extracts a link target from a field instruction. A `HYPERLINK` instruction is followed by its
-/// destination, which runs from the keyword to the first backslash — the marker every field switch
-/// (`\l`, `\o`, …) carries — with any quotes removed and outer whitespace trimmed. When no such
+/// destination, which runs from the keyword to the first backslash, the marker every field switch
+/// (`\l`, `\o`, ...) carries, with any quotes removed and outer whitespace trimmed. When no such
 /// destination is present, an `\l` switch names an in-document bookmark, and its argument becomes a
 /// fragment target (`#name`). An instruction without the `HYPERLINK` keyword is not a link and yields
 /// `None`.
@@ -2448,8 +2408,8 @@ fn strip_field_quotes(text: &str) -> String {
         .to_owned()
 }
 
-/// Locates a field switch (`\<name>`) in an instruction and returns the argument that follows it —
-/// the text up to the next switch — with quotes and outer whitespace removed. Returns `None` when no
+/// Locates a field switch (`\<name>`) in an instruction and returns the argument that follows it
+/// (the text up to the next switch), with quotes and outer whitespace removed. Returns `None` when no
 /// switch of that name is present. Matching is by whole control-word name, so `\l` is not found
 /// inside a longer word such as `\line`.
 fn field_switch_argument(tail: &str, name: &str) -> Option<String> {
@@ -2589,8 +2549,7 @@ mod tests {
 
     #[test]
     fn whole_heading_emphasis_is_stripped() {
-        // A styled heading whose entire content is bold drops the emphasis, since the heading level
-        // already conveys prominence.
+        // A fully bold heading drops the emphasis; the level already conveys prominence.
         let doc =
             read(r"{\rtf1\ansi{\stylesheet{\s1\outlinelevel0\b Heading;}}\pard\s1 the title\par}");
         assert_eq!(
@@ -2983,8 +2942,7 @@ mod tests {
 
     #[test]
     fn raw_high_bytes_fall_back_to_latin1() {
-        // Byte 0xE9 sits in a stream that is not valid UTF-8, so the whole document is read as
-        // Latin-1: 0xE9 -> U+00E9 (é). A `\'xx` escape keeps its code-page reading regardless.
+        // Not valid UTF-8, so the whole document reads as Latin-1: 0xE9 -> U+00E9 (é).
         let doc = read_bytes(b"{\\rtf1\\ansi caf\xe9 here\\par}");
         assert_eq!(
             doc.blocks,
@@ -3026,9 +2984,7 @@ mod tests {
 
     #[test]
     fn down_level_numbering_placeholder_is_skipped() {
-        // `\pntext`/`\pntxtb`/`\pntxta` carry the down-level rendering of an auto-number or bullet;
-        // the surrounding text is what belongs to the paragraph, so the placeholders drop out and
-        // the words on either side join directly.
+        // The down-level rendering placeholders drop out; the words on either side join directly.
         let doc = read(r"{\rtf1\ansi before{\pntxtb X}{\pntxta Y}after\par}");
         assert_eq!(doc.blocks, vec![para(vec![s("beforeafter")])]);
 
@@ -3038,17 +2994,15 @@ mod tests {
 
     #[test]
     fn binary_data_is_consumed_by_byte_count() {
-        // `\binN` introduces exactly N raw bytes; they are not text and must not desync the parse.
-        // Here the three bytes `ABC` are swallowed, leaving the words around them adjacent.
+        // `\binN`'s N raw bytes are not text and must not desync the parse.
         let doc = read(r"{\rtf1\ansi price\bin3ABCtag\par}");
         assert_eq!(doc.blocks, vec![para(vec![s("pricetag")])]);
     }
 
     #[test]
     fn binary_picture_decodes_into_media() {
-        // A `\bin`-encoded picture payload decodes just like a hex one. The raw bytes here include
-        // `0x7d` (`}`): captured as data at the lexer, it neither ends the picture group early nor
-        // corrupts the rest of the document.
+        // The payload includes 0x7d (`}`): captured as data at the lexer, it must not end the
+        // picture group early.
         let (doc, media) = read_media_bytes(
             b"{\\rtf1\\ansi before {\\pict\\pngblip\\bin4 \x89\x7d\x50\x47}after\\par}",
         );
@@ -3074,8 +3028,7 @@ mod tests {
 
     #[test]
     fn hyperlink_display_keeps_edge_space() {
-        // A space at the start or end of a link's display text is part of the surrounding sentence
-        // and is preserved, so the link does not fuse with the adjacent word.
+        // Edge spaces in display text are preserved so the link does not fuse with its neighbor.
         let doc = read(
             r#"{\rtf1\ansi {\field{\*\fldinst{HYPERLINK "http://x.com"}}{\fldrslt link }}after\par}"#,
         );

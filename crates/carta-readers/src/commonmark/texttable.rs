@@ -1,10 +1,10 @@
 //! Dash-ruled tables: blocks whose columns are fixed by runs of `-` rather than the `|`/`+` borders
 //! of a pipe or grid table. Three shapes share this module:
 //!
-//! * a single-line *headed* table — one header line above a dash ruling, then one row per line;
-//! * a single-line *headerless* table — a dash ruling, then one row per line, closed by a second
+//! * a single-line *headed* table: one header line above a dash ruling, then one row per line;
+//! * a single-line *headerless* table: a dash ruling, then one row per line, closed by a second
 //!   ruling; and
-//! * a *multi-line* table — a dash ruling, an optional header closed by a second ruling, then rows
+//! * a *multi-line* table: a dash ruling, an optional header closed by a second ruling, then rows
 //!   separated by blank lines whose physical lines join into one cell each, closed by a final ruling.
 //!
 //! Every form slices each line into cells at the dash runs' start columns and reads per-column
@@ -185,8 +185,8 @@ fn parse_headerless(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize
     ))
 }
 
-/// Parse a multi-line table: a dash ruling, then an optional header — the lines up to a second
-/// ruling that appears before any blank line — followed by rows separated by blank lines and closed
+/// Parse a multi-line table: a dash ruling, then an optional header (the lines up to a second
+/// ruling that appears before any blank line), followed by rows separated by blank lines and closed
 /// by a final ruling. Within a row the physical lines join into one cell each; alignment comes from
 /// the header's first line, or the first row when there is no header; widths are fractions derived
 /// from the ruling. Returns `None` when the body is empty, so a two-ruling block with single-line
@@ -205,8 +205,7 @@ fn parse_multiline(lines: &[&str], ext: Extensions) -> Option<(TextTable, usize)
     }
     let starts: Vec<usize> = runs.iter().map(|&(start, _)| start).collect();
 
-    // A header is the run of lines after the top ruling up to a second ruling, but only when that
-    // ruling arrives before any blank line; a blank first means the table has no header.
+    // the header runs to a second ruling only when it arrives before any blank line
     let mut separator: Option<usize> = None;
     let mut scan = 1;
     while let Some(&line) = lines.get(scan) {
@@ -326,8 +325,7 @@ fn multiline_widths(runs: &[(usize, usize)]) -> Vec<f64> {
             next_start.saturating_sub(start)
         } else if let Some(&(prev_start, _)) = index.checked_sub(1).and_then(|prev| runs.get(prev))
         {
-            // The last column takes its run plus one, widened to the preceding column's span when
-            // the two are within two characters.
+            // the last column is its run plus one, widened to the previous span when within two chars
             let natural = len + 1;
             let prev_span = start.saturating_sub(prev_start);
             if natural + 2 >= prev_span {
@@ -625,8 +623,7 @@ mod tests {
 
     #[test]
     fn multiline_last_column_widens_to_its_predecessor() {
-        // The last run (five dashes, a natural width of six) is within two of the first column's
-        // span of seven, so it widens to match: both columns share a width of seven seventy-seconds.
+        // the last run (natural width six) is within two of the first column's seven, so both share 7/72
         let lines = ["------ -----", "x      y", "", "p      q", "------ -----"];
         let (table, _) = parse(&lines, MULTILINE).expect("table");
         assert_eq!(width(&table, 0), Some(7.0 / 72.0));
@@ -643,8 +640,7 @@ mod tests {
 
     #[test]
     fn two_rulings_single_line_rows_stay_simple() {
-        // A dash-led block with single-line rows and no blank is a single-line headerless table:
-        // multi-line parsing finds no body and the simple headerless shape claims it, widths unset.
+        // dash-led single-line rows with no blank: the simple headerless shape claims it, widths unset
         let lines = ["----- -----", "a     b", "c     d", "-----------"];
         let (table, _) = parse(&lines, BOTH).expect("table");
         assert_eq!(table.body.len(), 2);

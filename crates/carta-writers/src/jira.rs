@@ -1,6 +1,6 @@
 //! Jira writer: renders the document model to Jira wiki markup.
 //!
-//! Inline content is not wrapped — a soft break renders as a single space and block structure is
+//! Inline content is not wrapped: a soft break renders as a single space and block structure is
 //! conveyed through Jira's line-oriented markup. Output carries no trailing newline; the caller
 //! appends one. This format has no public specification, so its rules are stated directly here.
 
@@ -66,7 +66,6 @@ impl State {
         out
     }
 
-    /// Render a top-level block sequence.
     fn blocks(&mut self, blocks: &[Block]) -> String {
         let rendered: Vec<(&Block, String)> = blocks
             .iter()
@@ -115,8 +114,7 @@ impl State {
     fn block_quote(&mut self, blocks: &[Block]) -> String {
         if let [Block::Para(inlines) | Block::Plain(inlines)] = blocks {
             let rendered = self.inlines(inlines);
-            // `bq.` carries a single physical line; once a preserved source break splits the quote
-            // across lines, the block `{quote}` form is needed to keep every line inside the quote.
+            // `bq.` holds one physical line; a rendered break forces the block `{quote}` form.
             return if rendered.contains('\n') {
                 format!("{{quote}}\n{rendered}\n{{quote}}")
             } else {
@@ -141,8 +139,7 @@ impl State {
         let prefix = format!("{parent}{marker}");
         let mut lines: Vec<String> = Vec::new();
         for item in items {
-            // An item carries its marker on its first text line; an item whose first block is a
-            // sublist has no such line, so the marker is carried into the sublist's first line.
+            // An item opening with a sublist has no text line; its marker moves into the sublist.
             let mut item_has_marker = false;
             for inner in item {
                 match inner {
@@ -283,8 +280,7 @@ impl State {
                 let text = normalize_whitespace(text);
                 format!("{{{{{}}}}}", escape_text_with(&text, None, None))
             }
-            // A soft break stays a line break only when the source's own breaks are preserved;
-            // otherwise it is inter-word whitespace, like an ordinary space.
+            // A soft break stays a line break only under Preserve; otherwise inter-word space.
             Inline::SoftBreak if self.wrap == WrapMode::Preserve => "\n".to_owned(),
             Inline::Space | Inline::SoftBreak => " ".to_owned(),
             Inline::LineBreak => "\n".to_owned(),
@@ -337,9 +333,7 @@ impl State {
         next: Option<char>,
     ) -> String {
         let display = matches!(kind, MathType::DisplayMath);
-        // Display content stands alone on its line, so its edges abut the framing newlines rather
-        // than the surrounding stream; inline content threads its real neighbors so the edge guards
-        // reflect what flanks it.
+        // Display math stands alone, so its edges abut the framing newlines, not the stream.
         let (left, right) = if display { (None, None) } else { (prev, next) };
         let content = match crate::math::to_inlines(text) {
             Some(inlines) => self.inlines_bounded(&inlines, left, right),
@@ -436,7 +430,7 @@ const NEUTRAL_PUNCT: &[char] = &[
 /// Whether an emphasis span needs braced markers because the character before it is word-like.
 /// A leading marker is recognized bare only after a markup boundary; it must be braced after a word
 /// character or the neutral punctuation that Jira does not treat as a boundary. Only the plain space
-/// and newline that an inter-element break renders to count as a boundary — every other space
+/// and newline that an inter-element break renders to count as a boundary; every other space
 /// (non-breaking, en/em, the typographic spaces math spacing emits) is word-like to Jira, so a
 /// marker resting against one is braced.
 fn bracket_before(prev: Option<char>) -> bool {
@@ -552,7 +546,7 @@ fn normalize_whitespace(text: &str) -> String {
 /// Escape Jira markup characters in text. Braces are always escaped, since they begin Jira's
 /// `{macro}` syntax. A span marker (`* _ + - ^ ~ ! | [ ] &`) is escaped only where it could be
 /// parsed as opening or closing markup: at the string edge, or at a transition between content and a
-/// non-content position (whitespace or another marker) — a marker resting entirely within content or
+/// non-content position (whitespace or another marker); a marker resting entirely within content or
 /// entirely within non-content is left alone. `?` is escaped only when it opens the citation digraph
 /// `??`. An open parenthesis is escaped wherever Jira would read it as the start of an emoticon or
 /// macro, and the colon/semicolon that open a text emoticon (`:)`, `:(`, `;)`, …) are escaped to keep
@@ -561,8 +555,7 @@ fn normalize_whitespace(text: &str) -> String {
 /// elsewhere Jira would consume it as an escape. The `prev`/`after` neighbors are supplied by the
 /// caller so the tests reflect the surrounding inline stream, not just this string's own ends.
 fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> String {
-    // Only these characters open backslash, emoticon, or span markup; text without any of them is
-    // never rewritten, so it is returned verbatim without the per-character walk.
+    // Only these characters open markup; text without any of them is returned verbatim.
     if !text.contains([
         '{', '}', '?', '\\', '(', ':', ';', '*', '_', '+', '-', '^', '~', '!', '|', '[', ']', '&',
     ]) {
@@ -570,21 +563,18 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
     }
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
-    // The character at an absolute offset within this string, falling back to the supplied
-    // neighbor when the offset runs off the trailing end.
+    // Char at offset, falling back to the supplied neighbor past the trailing end.
     let at = |offset: usize| -> Option<char> { chars.get(offset).copied().or(after) };
     let mut offset = 0;
     while let Some(&ch) = chars.get(offset) {
-        // The character one position before, falling back to the caller's preceding neighbor.
         let before = match offset.checked_sub(1) {
             Some(earlier) => chars.get(earlier).copied(),
             None => prev,
         };
         let next = at(offset + 1);
         if ch == '\\' {
-            // A backslash stays literal between two like neighbors (both content, or both spaces) and
-            // is otherwise consumed, so it is emitted as the `&bsol;` entity. A neighbor that is
-            // itself escaped into literal text as part of an emoticon reads as ordinary content here.
+            // Literal between like-category neighbors, else the `&bsol;` entity; an
+            // emoticon-escaped neighbor reads as ordinary content.
             let effective_before = if neutralized_before(&chars, offset) {
                 Some('a')
             } else {
@@ -604,8 +594,7 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
             continue;
         }
         if ch == '(' {
-            // A recognized icon body delimited by `)` is emitted with its inner characters bare, the
-            // opening parenthesis escaped so Jira renders the literal text rather than the icon.
+            // Recognized icon: escape the opening `(` so the text stays literal; body stays bare.
             if let Some(body_len) = emoticon_icon(&chars, offset, after) {
                 out.push_str("\\(");
                 let body_end = offset + 1 + body_len;
@@ -616,8 +605,7 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
                 offset = body_end + 1;
                 continue;
             }
-            // The char before is read as content when it is itself escaped into literal text as the
-            // body of a preceding emoticon, so it does not make this parenthesis markup-significant.
+            // A neighbor escaped as an emoticon body reads as content, not markup-significant.
             let effective_before = if neutralized_before(&chars, offset) {
                 Some('a')
             } else {
@@ -631,8 +619,7 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
             continue;
         }
         if (ch == ':' || ch == ';') && opens_emoticon(ch, next, at(offset + 2), before) {
-            // The leading punctuation of a text emoticon is escaped; its second character, even a
-            // parenthesis, is left bare since the emoticon as a whole is now neutralized.
+            // Escape the emoticon's lead; the body stays bare, the emoticon is now neutralized.
             out.push('\\');
             out.push(ch);
             if let Some(&body) = chars.get(offset + 1) {
@@ -642,9 +629,7 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
             continue;
         }
         if is_marker(ch) {
-            // A `:`/`;`/`(` that opens a text emoticon is escaped into literal text, so for the run
-            // tests it reads as ordinary content rather than as a markup boundary. Replace such a
-            // neighbor with a content sentinel before the test.
+            // An escaped emoticon opener reads as content for the run tests; substitute a sentinel.
             let effective_before = if neutralized_before(&chars, offset) {
                 Some('a')
             } else {
@@ -672,7 +657,7 @@ fn escape_text_with(text: &str, prev: Option<char>, after: Option<char>) -> Stri
 }
 
 /// Whether the character just after the marker at `marker` is the leading punctuation of a text
-/// emoticon (or the open parenthesis of an icon), which the writer escapes into literal text — so it
+/// emoticon (or the open parenthesis of an icon), which the writer escapes into literal text, so it
 /// reads as ordinary content beside the marker rather than as a markup boundary.
 fn neutralized_after(chars: &[char], marker: usize, after: Option<char>) -> bool {
     let pos = marker + 1;
@@ -721,8 +706,8 @@ const EMOTICON_ICONS: &[&str] = &[
     "flagoff",
 ];
 
-/// If an open parenthesis at `paren` begins a recognized icon — one of [`EMOTICON_ICONS`] followed by
-/// a closing parenthesis and a word boundary — return the body's length in characters. The trailing
+/// If an open parenthesis at `paren` begins a recognized icon (one of [`EMOTICON_ICONS`] followed by
+/// a closing parenthesis and a word boundary), return the body's length in characters. The trailing
 /// boundary keeps a word-continued sequence like `foo(x)bar` from being read as an icon.
 fn emoticon_icon(chars: &[char], paren: usize, after: Option<char>) -> Option<usize> {
     let body_start = paren + 1;
@@ -758,7 +743,7 @@ fn needs_paren_escape(prev: Option<char>, next: Option<char>) -> bool {
 
 /// The escape decision for an open parenthesis with access to the surrounding text. A `(` set off by
 /// a plain space on each side is a lone parenthetical in running prose, not the start of an icon, so
-/// it is left bare — unless it rests against the trailing edge of the document, where it would still
+/// it is left bare, unless it rests against the trailing edge of the document, where it would still
 /// open a macro. `after` is the character the surrounding inline stream contributes once this string
 /// is exhausted, so a following space inline keeps the parenthesis in running prose even when nothing
 /// but spaces remain in this string. Every other position falls back to the neighbor-only rule.
@@ -770,8 +755,7 @@ fn needs_paren_escape_in(
     after: Option<char>,
 ) -> bool {
     if before == Some(' ') && next == Some(' ') {
-        // A space-flanked parenthetical opens a macro only at the trailing edge: bare while real
-        // content (in this string or the inline stream beyond it) still follows the trailing spaces.
+        // Space-flanked `(` opens a macro only at the trailing edge; bare while content follows.
         let has_in_string_content = chars
             .get(paren + 1..)
             .unwrap_or_default()
@@ -780,12 +764,10 @@ fn needs_paren_escape_in(
         if has_in_string_content {
             return false;
         }
-        // This string holds only trailing spaces past the parenthesis; the inline stream beyond it
-        // decides. A following space inline keeps it in prose; the document's end escapes it.
+        // Only trailing spaces remain: a following space inline keeps it in prose, document end escapes.
         return after != Some(' ');
     }
-    // A parenthesis whose only markup-significance is the smiley punctuation right after it — within
-    // ordinary content — is left bare; the following emoticon's own escape already neutralizes it.
+    // A `(` significant only via the smiley after it stays bare; the emoticon's escape neutralizes it.
     if !paren_boundary(before) && smiley_follows(chars, paren + 1) {
         return false;
     }
@@ -800,7 +782,7 @@ fn paren_boundary(neighbor: Option<char>) -> bool {
 }
 
 /// Whether a backslash should be emitted literally rather than as the `&bsol;` entity. Jira keeps a
-/// backslash verbatim only when both of its neighbors share the same plain category — both ordinary
+/// backslash verbatim only when both of its neighbors share the same plain category: both ordinary
 /// content, or both spaces. Against a string edge, another backslash, or markup punctuation it would
 /// be consumed as an escape, so it is rendered as the entity there.
 fn backslash_is_literal(prev: Option<char>, next: Option<char>) -> bool {
@@ -884,9 +866,8 @@ fn needs_escape(ch: char, prev: Option<char>, next: Option<char>) -> bool {
     match ch {
         '{' | '}' => true,
         '?' => next == Some('?'),
-        // A marker is markup-significant at the string edge, at a content/non-content transition,
-        // or whenever it abuts another markup-significant character — that last case escapes every
-        // member of a run of two or more adjoining markers, not only the run's outer edges.
+        // Significant at the string edge, a content transition, or abutting another significant
+        // char; the last case escapes every member of a marker run, not just its edges.
         _ if is_marker(ch) => {
             prev.is_none()
                 || next.is_none()
@@ -907,7 +888,6 @@ fn is_neutral(neighbor: Option<char>) -> bool {
     neighbor.is_some_and(|ch| ch == '\\' || NEUTRAL_PUNCT.contains(&ch))
 }
 
-/// Whether a character is a span marker subject to edge/transition escaping.
 fn is_marker(ch: char) -> bool {
     SPAN_MARKERS.contains(&ch)
 }
@@ -959,7 +939,6 @@ mod tests {
 
     #[test]
     fn superscript_lowers_to_caret_markup() {
-        // A variable is italicised (`_a_`) and a superscript becomes a `^…^` run.
         assert_eq!(inline("a^2"), "_a_^2^");
     }
 
@@ -970,8 +949,7 @@ mod tests {
 
     #[test]
     fn binary_operator_and_relation_carry_typographic_spacing() {
-        // The spacing emitted around an operator (`+`) and a relation (`=`) is a word-like space, so
-        // the variables that follow it are guarded with braced emphasis markers.
+        // Math spacing around `+` and `=` is word-like, so following variables get braced markers.
         assert_eq!(
             inline("a^2 + b^2 = c^2"),
             "_a_^2^\u{2005}+\u{2005}{_}b{_}^2^\u{2004}=\u{2004}{_}c{_}^2^"
@@ -1000,8 +978,7 @@ mod tests {
 
     #[test]
     fn integral_lowers_to_symbol_with_scripts_and_thin_space() {
-        // The integral sign carries its limits as sub/superscript markup and the thin space (`\,`)
-        // is a word-like space, so the differential's variable is brace-guarded.
+        // The thin space (`\,`) is word-like, so the differential's variable is brace-guarded.
         assert_eq!(
             inline("\\int_0^1 x \\, dx"),
             "∫{~}0{~}^1^_x_\u{2006}{_}d{_}_x_"
@@ -1010,8 +987,7 @@ mod tests {
 
     #[test]
     fn inline_math_threads_surrounding_text_into_edge_guards() {
-        // Flanked by word text, the leading and trailing emphasis runs are brace-guarded so Jira
-        // still parses them as markup.
+        // Flanking word text forces braced emphasis markers.
         let out = render(vec![para(vec![
             str_inline("x"),
             math(MathType::InlineMath, "a^2"),
@@ -1022,8 +998,7 @@ mod tests {
 
     #[test]
     fn display_math_stands_on_its_own_line() {
-        // Display math is framed by a newline on each side; the document writer's trailing newline
-        // closes the block.
+        // Framed by a newline on each side; the document writer adds the trailing one.
         assert_eq!(display("a^2"), "\n_a_^2^\n");
     }
 
@@ -1041,8 +1016,7 @@ mod tests {
 
     #[test]
     fn inline_fallback_wraps_source_in_single_dollars() {
-        // A construct with no single-line form is emitted verbatim in inline delimiters. Its braces
-        // are escaped by the text path; the backslash sits between ordinary content and stays literal.
+        // No single-line form: verbatim in `$…$`, braces escaped, content-flanked backslash literal.
         assert_eq!(inline("\\frac{1}{2}"), "$\\frac\\{1\\}\\{2\\}$");
     }
 
@@ -1073,8 +1047,7 @@ mod tests {
 
     #[test]
     fn preceding_emphasis_guards_against_convertible_math_starting_with_a_letter() {
-        // Math that opens with an alphanumeric symbol (`ℝ`) forces the emphasis before it to brace
-        // its closing marker.
+        // Math opening with an alphanumeric (`ℝ`) forces braces on the preceding closing marker.
         let out = render(vec![para(vec![
             Inline::Emph(vec![str_inline("word")]),
             math(MathType::InlineMath, "\\mathbb{R}"),
@@ -1096,8 +1069,7 @@ mod tests {
 
     #[test]
     fn deep_nesting_falls_back_without_panicking() {
-        // Pathological brace nesting exceeds the conversion depth limit and must degrade to the
-        // verbatim fallback rather than overflow the stack.
+        // Past the depth limit conversion must degrade to verbatim, not overflow the stack.
         let tex = format!("{}x{}", "{".repeat(5000), "}".repeat(5000));
         let out = inline(&tex);
         assert!(out.starts_with('$') && out.ends_with('$'));
@@ -1110,15 +1082,13 @@ mod tests {
 
     #[test]
     fn lone_backslash_between_words_stays_literal() {
-        // A backslash flanked by ordinary content is kept verbatim; Jira does not consume it there.
         assert_eq!(text("a\\b"), "a\\b");
         assert_eq!(text("path\\to\\file"), "path\\to\\file");
     }
 
     #[test]
     fn backslash_at_an_edge_becomes_the_entity() {
-        // Against the string edge a backslash would be read as an escape, so it is emitted as the
-        // `&bsol;` entity instead.
+        // At the string edge a backslash would read as an escape, so the `&bsol;` entity.
         assert_eq!(text("\\start"), "&bsol;start");
         assert_eq!(text("end\\"), "end&bsol;");
     }
@@ -1137,25 +1107,21 @@ mod tests {
 
     #[test]
     fn backslash_before_a_marker_becomes_the_entity() {
-        // A marker is non-content, a category that differs from the word before it, so the backslash
-        // between them is rendered as the entity. That entity's leading `&` is itself a boundary, so
-        // the marker right after it is markup-significant and is escaped.
+        // Word-vs-marker is a category mismatch, so entity; the entity's `&` then makes the
+        // following marker markup-significant.
         assert_eq!(text("a\\*b"), "a&bsol;\\*b");
-        // At the string edge the backslash is likewise the entity, and the marker after it escaped.
         assert_eq!(text("\\*end"), "&bsol;\\*end");
     }
 
     #[test]
     fn open_paren_inside_a_word_stays_bare() {
-        // Flanked by ordinary content on both sides, an open parenthesis carries no markup meaning.
         assert_eq!(text("a(b)c"), "a(b)c");
         assert_eq!(text("a (b) c"), "a \\(b) c");
     }
 
     #[test]
     fn open_paren_before_an_emoticon_body_is_escaped() {
-        // `(x)`, `(y)`, and the macro-like bodies would render as an icon, so the opening `(` is
-        // escaped while its matching `)` is left alone.
+        // An icon body escapes the opening `(`; the matching `)` stays bare.
         assert_eq!(text("(x)"), "\\(x)");
         assert_eq!(text("(y)"), "\\(y)");
         assert_eq!(text("f(x)"), "f\\(x)");
@@ -1164,9 +1130,7 @@ mod tests {
 
     #[test]
     fn space_flanked_open_paren_escapes_only_at_the_trailing_edge() {
-        // A parenthesis with a plain space on each side is a lone parenthetical in prose and stays
-        // bare while content follows; with only spaces after it, it rests on the trailing edge and
-        // is escaped.
+        // Space-flanked `(` stays bare while content follows; on the trailing edge it escapes.
         assert_eq!(text("a ( b"), "a ( b");
         assert_eq!(text("a ( ( b"), "a ( ( b");
         assert_eq!(text("a ( )"), "a ( )");
@@ -1175,9 +1139,7 @@ mod tests {
 
     #[test]
     fn space_flanked_open_paren_consults_the_inline_stream_for_the_trailing_edge() {
-        // A bare `(` token flanked by `Space` inlines is a lone parenthetical: the trailing-edge test
-        // must consult the surrounding stream, not just this token's own (empty) tail. While a space
-        // inline follows it stays in prose and bare; only the document's end escapes it.
+        // The trailing-edge test must consult the inline stream, not just this token's own tail.
         let prose = render(vec![para(vec![
             str_inline("a"),
             Inline::Space,
@@ -1199,8 +1161,7 @@ mod tests {
             str_inline("("),
         ])]);
         assert_eq!(document_edge, "a \\(");
-        // A following markup inline (no space between) makes the `(` rest against a boundary, so it
-        // is escaped by the neighbor rule.
+        // A markup inline directly after puts the `(` against a boundary: escaped.
         let before_markup = render(vec![para(vec![
             str_inline("a"),
             Inline::Space,
@@ -1224,8 +1185,7 @@ mod tests {
 
     #[test]
     fn text_emoticons_escape_their_leading_punctuation() {
-        // A recognized text emoticon at a boundary has its leading `:`/`;` escaped so Jira renders
-        // the literal characters instead of an icon.
+        // The leading `:`/`;` is escaped so the literal characters render, not an icon.
         assert_eq!(text(":)"), "\\:)");
         assert_eq!(text(":("), "\\:(");
         assert_eq!(text(":P"), "\\:P");
@@ -1245,8 +1205,7 @@ mod tests {
 
     #[test]
     fn wink_letter_emoticon_needs_a_boundary_on_both_sides() {
-        // `;P` and `;D` only read as emoticons with a boundary before and after; a neighboring word
-        // character or `)` suppresses the escape.
+        // `;P`/`;D` need a boundary on both sides; a word char or `)` suppresses the escape.
         assert_eq!(text("a;P"), "a;P");
         assert_eq!(text(";P)"), ";P)");
         assert_eq!(text(" ;P "), " \\;P");
@@ -1256,23 +1215,20 @@ mod tests {
     fn colon_open_paren_emoticon_escapes_the_colon_only() {
         // `:(` at a boundary is a sad-face emoticon: the `:` is escaped and the parenthesis is bare.
         assert_eq!(text(":("), "\\:(");
-        // Followed by a word the sequence is not an emoticon, so the `:` stays bare and the `(`,
-        // resting against the significant `:`, is escaped by its own rule.
+        // Followed by a word it is no emoticon: `:` stays bare, `(` escapes against the significant `:`.
         assert_eq!(text(":(x"), ":\\(x");
     }
 
     #[test]
     fn slash_adjacent_open_paren_stays_bare() {
-        // A slash is ordinary content for the parenthesis rule, so a `(` glued between content and a
-        // slash is not escaped.
+        // A slash is ordinary content for the parenthesis rule.
         assert_eq!(text("a(/"), "a(/");
         assert_eq!(text("/(x"), "/(x");
     }
 
     #[test]
     fn run_of_markers_escapes_every_member() {
-        // Two or more adjoining markers each open or close markup, so all of them are escaped — not
-        // only the run's outer edges.
+        // Adjoining markers each open or close markup, so every member escapes, not just the edges.
         assert_eq!(text("a -- b"), "a \\-\\- b");
         assert_eq!(text("a---b"), "a\\-\\-\\-b");
         assert_eq!(text("__x"), "\\_\\_x");
@@ -1282,8 +1238,7 @@ mod tests {
 
     #[test]
     fn interior_marker_of_a_long_run_is_escaped() {
-        // The middle marker of a three-marker run has a marker on each side, so the run rule escapes
-        // it even though no content/non-content transition crosses it.
+        // A marker flanked by markers escapes even without a content transition across it.
         assert_eq!(text("*_*"), "\\*\\_\\*");
         assert_eq!(text("-+-"), "\\-\\+\\-");
         assert_eq!(text("a*-+b"), "a\\*\\-\\+b");
@@ -1291,16 +1246,14 @@ mod tests {
 
     #[test]
     fn marker_against_punctuation_is_escaped() {
-        // The colon, semicolon, and brace are markup-significant punctuation, so a marker resting
-        // against one is escaped; a closing parenthesis is ordinary content and leaves it bare.
+        // `:` is markup-significant punctuation; `)` is ordinary content and leaves the marker bare.
         assert_eq!(text("a:*:b"), "a:\\*:b");
         assert_eq!(text("a)*)b"), "a)*)b");
     }
 
     #[test]
     fn marker_against_an_entity_backslash_is_escaped() {
-        // A backslash abutting a marker always renders as the `&bsol;` entity, whose `&` is a markup
-        // boundary, so the marker is escaped on that side.
+        // The `&bsol;` entity's `&` is a markup boundary, so the marker escapes on that side.
         assert_eq!(text("a*\\"), "a\\*&bsol;");
         assert_eq!(text("x*\\y"), "x\\*&bsol;y");
         assert_eq!(text("\\*a"), "&bsol;\\*a");
@@ -1308,8 +1261,7 @@ mod tests {
 
     #[test]
     fn marker_against_a_neutralized_emoticon_stays_bare() {
-        // The leading `:`/`;` of a text emoticon (and the open parenthesis of an icon) is escaped
-        // into literal text, so a marker resting against it reads as content-flanked and stays bare.
+        // An escaped emoticon opener reads as content, so the abutting marker stays bare.
         assert_eq!(text("a_:)"), "a_\\:)");
         assert_eq!(text(":(*<>:"), "\\:(*<>:");
         assert_eq!(text("a_(x)"), "a_\\(x)");
@@ -1319,7 +1271,6 @@ mod tests {
 
     #[test]
     fn lone_marker_keeps_the_boundary_rule() {
-        // A single marker surrounded by ordinary content carries no markup meaning and stays bare.
         assert_eq!(text("a*b"), "a*b");
         assert_eq!(text("a - b"), "a - b");
         assert_eq!(text("a_b"), "a_b");
@@ -1335,8 +1286,7 @@ mod tests {
 
     #[test]
     fn inline_code_escapes_its_boundary_markers() {
-        // Inside a monospaced span the leading and trailing markup characters are still escaped, so
-        // Jira keeps the literal text rather than reading the run as markup.
+        // Boundary markup characters inside a monospaced span are still escaped.
         assert_eq!(code("(x)"), "{{\\(x)}}");
         assert_eq!(code("[y]"), "{{\\[y\\]}}");
         assert_eq!(code("*x*"), "{{\\*x\\*}}");
@@ -1345,8 +1295,7 @@ mod tests {
 
     #[test]
     fn inline_code_leaves_interior_content_markers_bare() {
-        // A marker resting between two content characters is ordinary text inside code, so it stays
-        // bare; an abutting run is escaped throughout.
+        // Content-flanked markers stay bare; an abutting run escapes throughout.
         assert_eq!(code("a*b"), "{{a*b}}");
         assert_eq!(code("a|b"), "{{a|b}}");
         assert_eq!(code("a--b"), "{{a\\-\\-b}}");
@@ -1354,8 +1303,7 @@ mod tests {
 
     #[test]
     fn inline_code_handles_backslashes_like_running_text() {
-        // A backslash flanked by content stays literal; one against the edge becomes the `&bsol;`
-        // entity, exactly as in ordinary text.
+        // Same as running text: literal between content, the `&bsol;` entity at the edge.
         assert_eq!(code("a\\b"), "{{a\\b}}");
         assert_eq!(code("a\\"), "{{a&bsol;}}");
     }

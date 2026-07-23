@@ -1,14 +1,7 @@
 name: release-plz
 
-# On every push to main, release-plz keeps a "Release" pull request up to date (version bump +
-# generated changelog) and, once that PR merges and main carries an unpublished version, publishes
-# the crates to crates.io and cuts a single GitHub release. The binary build (release.yml) then
-# attaches prebuilt executables to that release.
-#
-# Auth: a GitHub App token stands in for the default GITHUB_TOKEN so the Release PR and the
-# published release trigger downstream workflows (checks on the PR, binary build on the release) —
-# events raised by the default token deliberately do not. crates.io publishing uses Trusted
-# Publishing (OIDC): no long-lived registry token is stored.
+# A GitHub App token stands in for GITHUB_TOKEN so the release PR and release trigger downstream
+# workflows (default-token events do not); crates.io uses Trusted Publishing (OIDC), no stored token.
 
 on:
   push:

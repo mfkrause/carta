@@ -29,7 +29,7 @@ pub(crate) fn demote_loose_paragraphs(blocks: &mut [IrBlock]) {
 }
 
 /// Attach table captions: a paragraph led by `Table:`, `table:`, or `:` becomes the caption of the
-/// table — pipe, dash-ruled, or grid — immediately before it, or, failing that, immediately after
+/// table (pipe, dash-ruled, or grid) immediately before it, or, failing that, immediately after
 /// it. The caption attaches to the nearer uncaptioned table and is removed from the block list; with
 /// no such table it stays an ordinary paragraph. Working in document order, a caption above a table
 /// is reached first, so it wins over one below. The pass recurses into nested block containers first.
@@ -141,8 +141,7 @@ pub(super) fn split_trailing_attr(text: &str) -> (&str, Option<Attr>) {
     if !trimmed.ends_with('}') {
         return (text, None);
     }
-    // The trailing block opens at some `{`; find the one whose attribute parse consumes exactly to
-    // the end. Earlier `{` characters stay part of the caption text.
+    // Find the `{` whose attribute parse consumes exactly to the end; earlier ones stay caption text.
     for (open, _) in trimmed.char_indices().filter(|&(_, ch)| ch == '{') {
         if let Some(rest) = trimmed.get(open..)
             && let Some((attr, consumed)) = attr::parse_attributes(rest)
@@ -182,7 +181,7 @@ pub(super) fn is_math_environment(name: &str) -> bool {
 }
 
 /// If `s` begins with `\<keyword>` (optionally followed by spaces) then a braced `{name}`, return
-/// the literal brace content. The leading backslash must not itself be escaped — callers pass the
+/// the literal brace content. The leading backslash must not itself be escaped; callers pass the
 /// raw slice from a line start, where this holds. The brace content runs to the first `}` and may be
 /// empty; it is compared exactly elsewhere, so inner spaces are significant.
 pub(super) fn raw_tex_env_name(s: &str, keyword: &[u8]) -> Option<String> {
@@ -284,7 +283,7 @@ pub(super) fn demote_lone_roman(info: ListInfo) -> ListInfo {
 /// - an alphabetic list takes any single letter of its case (so `h. i. j.` is one list, `i` read as
 ///   the ninth letter);
 /// - a roman list takes any roman numeral of its case, plus the single letters whose position is a
-///   roman value (`a`, `e`, `j`) — the same letters a roman sequence can reach.
+///   roman value (`a`, `e`, `j`), the same letters a roman sequence can reach.
 pub(super) fn continues_ordered(list_style: ListNumberStyle, marker: &ListMarkerParse) -> bool {
     use ListNumberStyle::{Decimal, LowerAlpha, LowerRoman, UpperAlpha, UpperRoman};
     let lower = matches!(marker.style, LowerAlpha | LowerRoman);
@@ -317,15 +316,14 @@ fn continues_roman(marker: &ListMarkerParse) -> bool {
     ) || matches!(marker.start, 1 | 3 | 4 | 5 | 9 | 10 | 12 | 13 | 22 | 24)
 }
 
-/// If a fence's info string is exactly an attribute block holding only a raw-format marker — a `{`,
-/// optional whitespace, `=`, a format name, optional whitespace, then `}` — return that name. The
+/// If a fence's info string is exactly an attribute block holding only a raw-format marker (a `{`,
+/// optional whitespace, `=`, a format name, optional whitespace, then `}`), return that name. The
 /// fence's contents are then raw output for that format. A format name is one run of letters,
 /// digits, `-`, or `_`; anything else (extra attributes, a space inside the name, a stray symbol)
 /// is not a raw marker and the fence stays an ordinary code block.
 pub(super) fn raw_block_format(info: &str) -> Option<String> {
     let inner = info.trim().strip_prefix('{')?.strip_suffix('}')?;
-    // The `=` immediately precedes the name: `{= html}` (a gap after `=`) is not a raw marker,
-    // while surrounding whitespace (`{ =html }`) is allowed.
+    // `=` must touch the name: `{= html}` is not a raw marker, `{ =html }` is allowed.
     let name = inner.trim_start().strip_prefix('=')?.trim_end();
     if name.is_empty() || !name.chars().all(is_format_name_char) {
         return None;
@@ -342,8 +340,7 @@ pub(super) fn fence_attr(info: &str, extensions: Extensions) -> Attr {
     if info.is_empty() {
         return Attr::default();
     }
-    // With fenced-code attributes enabled, a `{…}` info string is a full attribute block; the whole
-    // info must be the block, else it falls back to the bare-language reading.
+    // The whole info string must be the `{…}` attribute block, else bare-language reading applies.
     if (extensions.contains(Extension::FencedCodeAttributes)
         || extensions.contains(Extension::Attributes))
         && info.starts_with('{')
@@ -362,8 +359,8 @@ pub(super) fn fence_attr(info: &str, extensions: Extensions) -> Attr {
     }
 }
 
-/// If `line` (already past any container markers and leading indent) opens a fenced div — a run of
-/// three or more colons followed by a valid attribute spec — return the colon count and the parsed
+/// If `line` (already past any container markers and leading indent) opens a fenced div (a run of
+/// three or more colons followed by a valid attribute spec), return the colon count and the parsed
 /// attributes. A bare colon run with no spec is not an opener (it can only close).
 pub(super) fn div_open_fence(line: &str) -> Option<(usize, Attr)> {
     let after_colons = line.trim_start_matches(':');
@@ -420,8 +417,8 @@ const ALERT_TYPES: &[(&str, AlertType)] = &[
     ),
 ];
 
-/// If `line` is exactly an alert marker `[!TYPE]` followed by only trailing whitespace — with no
-/// leading whitespace and a recognized `TYPE` — return its kind. The broad Markdown dialect
+/// If `line` is exactly an alert marker `[!TYPE]` followed by only trailing whitespace, with no
+/// leading whitespace and a recognized `TYPE`, return its kind. The broad Markdown dialect
 /// (`uppercase_only`) admits only the all-uppercase spelling `[!NOTE]`; the `CommonMark` engine
 /// accepts any casing (`[!note]`, `[!Note]`).
 pub(super) fn alert_marker_type(line: &str, uppercase_only: bool) -> Option<&'static AlertType> {
@@ -457,8 +454,7 @@ fn div_open_attr(spec: &str) -> Option<Attr> {
     {
         return Some(attr);
     }
-    // Bare-word form: a single whitespace-free token becomes the sole class, kept verbatim (a
-    // leading dot is not stripped).
+    // Bare-word form: one token becomes the sole class, verbatim (leading dot not stripped).
     if spec.chars().any(char::is_whitespace) {
         return None;
     }
@@ -469,8 +465,8 @@ fn div_open_attr(spec: &str) -> Option<Attr> {
     })
 }
 
-/// If `line` (already past any container markers) is a closing div fence — up to three spaces of
-/// indent, then a run of three or more colons, then only whitespace — return the colon count.
+/// If `line` (already past any container markers) is a closing div fence (up to three spaces of
+/// indent, then a run of three or more colons, then only whitespace), return the colon count.
 pub(super) fn div_close_fence(line: &str) -> Option<usize> {
     let after_spaces = line.trim_start_matches(' ');
     if line.len() - after_spaces.len() > 3 {
@@ -532,7 +528,7 @@ pub(super) fn is_thematic_dash_line(line: &str) -> bool {
 
 /// Whether a line block's current (final) entry is empty: its last line is a `|` marker carrying no
 /// content. A content-bearing line stays non-empty once written, so checking the final line alone is
-/// enough — an empty entry is only ever followed by another marker line, never folded into.
+/// enough: an empty entry is only ever followed by another marker line, never folded into.
 pub(super) fn last_entry_is_empty(text: &str) -> bool {
     let last = text
         .trim_end_matches('\n')
@@ -544,16 +540,15 @@ pub(super) fn last_entry_is_empty(text: &str) -> bool {
 }
 
 /// Split a line block's accumulated raw lines into prepared per-entry strings. A `|`-led line opens
-/// a new entry — its `|` and one following space dropped, any remaining leading spaces kept as
-/// non-breaking spaces so they survive inline parsing — while any other line continues the previous
+/// a new entry (its `|` and one following space dropped, any remaining leading spaces kept as
+/// non-breaking spaces so they survive inline parsing) while any other line continues the previous
 /// entry, joined to it by a single space.
 pub(super) fn line_block_lines(text: &str) -> Vec<String> {
     let mut entries: Vec<String> = Vec::new();
     for raw in text.lines() {
         if let Some(rest) = raw.strip_prefix('|') {
             let rest = rest.strip_prefix(' ').unwrap_or(rest);
-            // Trailing whitespace is dropped first, so an all-space entry collapses to empty
-            // rather than to a run of preserved leading spaces.
+            // Trailing whitespace drops first, so an all-space entry collapses to empty.
             entries.push(preserve_leading_spaces(rest.trim_end_matches([' ', '\t'])));
         } else if let Some(last) = entries.last_mut() {
             last.push(' ');
@@ -562,8 +557,7 @@ pub(super) fn line_block_lines(text: &str) -> Vec<String> {
             entries.push(raw.trim().to_owned());
         }
     }
-    // A whitespace-only continuation folds nothing into its entry but leaves a dangling separator
-    // space; drop any such trailing run, leaving preserved leading spaces untouched.
+    // Whitespace-only continuations leave a dangling separator; drop it, keep leading spaces.
     for entry in &mut entries {
         let kept = entry.trim_end_matches([' ', '\t']).len();
         entry.truncate(kept);
@@ -600,8 +594,8 @@ pub(super) fn strip_atx_closing(content: &str, require_preceding_space: bool) ->
     if without_hashes.len() == trimmed.len() {
         return trimmed.to_owned();
     }
-    // A closing hash run always terminates the heading when the dialect does not require a space
-    // after the opener; otherwise the run must be set off from the content by whitespace.
+    // Without the opener-space rule a closing hash run always terminates; with it, the run must be
+    // set off from the content by whitespace.
     if !require_preceding_space
         || without_hashes.is_empty()
         || without_hashes.ends_with([' ', '\t'])

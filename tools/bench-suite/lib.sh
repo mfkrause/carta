@@ -1,13 +1,6 @@
-# Benchmark-suite primitives: release-build, timing via hyperfine, peak-RSS measurement, and table
-# formatting. Path anchors and the oracle contract come from tools/shared.sh. Sourced by run.sh,
-# gen-fixtures.sh and every surface.
-#
-# The suite times carta against the pinned pandoc binary on equivalent work — identical -f/-t flags,
-# pandoc normalized so both produce the same output (no syntax highlighting, MathJax for HTML). It
-# never diffs output; correctness is the conformance suite's job. Results are machine-specific and are
-# never committed (raw JSON lands in the gitignored output dir).
+# Times carta against pinned pandoc on identical work (same -f/-t; pandoc normalized: no
+# highlighting, MathJax). Never diffs output; results are machine-specific and never committed.
 
-# Guard against double-sourcing.
 [ -n "${BENCH_LIB_SOURCED:-}" ] && return 0
 BENCH_LIB_SOURCED=1
 
@@ -20,7 +13,6 @@ ORACLE_VERSION_FILE="$ROOT/.oracle/PANDOC_VERSION"
 OX="${CARTA_BIN:-$ROOT/target/release/carta}"
 SEED="$CORPUS/bench/seed.md"
 
-# Tunables (env-overridable).
 BENCH_SIZES="${BENCH_SIZES:-10k,100k,1m}"
 BENCH_WARMUP="${BENCH_WARMUP:-3}"
 BENCH_RUNS="${BENCH_RUNS:-}" # empty => hyperfine adaptive (with a min-runs floor)
@@ -28,9 +20,8 @@ BENCH_OUT="${BENCH_OUT:-$ROOT/target/bench}"
 FIXTURES="$BENCH_OUT/fixtures"
 mkdir -p "$BENCH_OUT" "$FIXTURES"
 
-# Curated AST subset for the writer surface (see docs/plans/benchmark-suite.md §6.4). A representative
-# mix from the universally-renderable set, tables placed early so even the smallest size exercises
-# table layout. Order is load-bearing: cycling truncates at a block boundary from the front.
+# Writer-surface AST subset; order is load-bearing: cycling truncates from the front, so tables
+# sit early to reach the smallest size.
 WRITER_AST_FILES="
 common/paragraph
 common/headers
@@ -47,7 +38,6 @@ common/raw-html-block
 common/definition-list-loose
 "
 
-# Fail loudly with provisioning hints when a prerequisite is missing.
 require_tools() {
   local missing=0
   if ! command -v hyperfine >/dev/null 2>&1; then
@@ -65,8 +55,6 @@ require_tools() {
   [ "$missing" -eq 0 ] || exit 1
 }
 
-# Build the optimized binary the suite measures. A no-op when already fresh; guarantees we never
-# publish numbers from a stale or debug build.
 ensure_release_binary() {
   echo "building carta --release ..." >&2
   if ! (cd "$ROOT" && cargo build --release -p carta >&2); then
@@ -77,8 +65,7 @@ ensure_release_binary() {
 
 oracle_version() { [ -f "$ORACLE_VERSION_FILE" ] && cat "$ORACLE_VERSION_FILE" || echo "unknown"; }
 
-# Parse one size token (e.g. 10k, 100k, 1m, 2048) into bytes on stdout.
-size_to_bytes() {
+size_to_bytes() { # 10k / 100k / 1m / 2048 -> bytes
   local s="$1" n unit
   n="${s%[kKmM]}"
   unit="${s#"$n"}"
@@ -89,7 +76,6 @@ size_to_bytes() {
   esac
 }
 
-# Human-readable byte count (e.g. 1.5 MB) on stdout.
 human_bytes() {
   awk -v b="$1" 'BEGIN {
     if (b >= 1048576) printf "%.1f MB", b/1048576;
@@ -98,8 +84,7 @@ human_bytes() {
   }'
 }
 
-# Detect the /usr/bin/time flavor once: BSD/macOS (`-l`, RSS in bytes) vs GNU (`-v`, RSS in kbytes).
-# Sets TIME_FLAG and TIME_RSS_SCALE, or TIME_FLAG="" when neither works (RSS then unavailable).
+# /usr/bin/time flavor: BSD -l (bytes) vs GNU -v (kbytes); sets TIME_FLAG/TIME_RSS_SCALE, TIME_FLAG="" when neither works
 detect_time_flavor() {
   [ -n "${TIME_FLAG+x}" ] && return 0
   if /usr/bin/time -l true >/dev/null 2>&1; then
@@ -129,8 +114,7 @@ measure_rss() {
   echo $((value * TIME_RSS_SCALE))
 }
 
-# Time carta vs pandoc on one (input, flag-pair) and append a result row to the current table.
-# Reads input via hyperfine's --input so both commands see identical stdin with --shell=none.
+# Time carta vs pandoc on one input and append a table row; --input gives both identical stdin under --shell=none.
 # Usage: bench_pair <label> <input_file> <input_bytes> <oracle_args> <carta_args>
 bench_pair() {
   local label="$1" input="$2" bytes="$3" oargs="$4" xargs="$5"
@@ -159,7 +143,6 @@ bench_pair() {
   emit_row "$label" "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss"
 }
 
-# Render one table row from raw seconds/bytes. Derives speedup, throughput, and human units.
 emit_row() {
   local label="$1" bytes="$2" xm="$3" xsd="$4" pm="$5" psd="$6" xr="$7" pr="$8"
   awk -v label="$label" -v bytes="$bytes" -v xm="$xm" -v xsd="$xsd" -v pm="$pm" -v psd="$psd" \
@@ -187,10 +170,8 @@ table_header() {
 SUITE_RC=0
 note_err() { SUITE_RC=1; echo "ERR  $1: $2" >&2; }
 
-# Comma list -> space list (for iterating BENCH_SIZES).
 sizes_list() { printf '%s\n' "$BENCH_SIZES" | tr ',' ' '; }
 
-# Path of the generated input file for a reader format at a given size.
 fixture_for() { # <fmt> <size>
   case "$1" in
     commonmark | markdown) echo "$FIXTURES/commonmark.$2.md" ;;
@@ -200,5 +181,4 @@ fixture_for() { # <fmt> <size>
   esac
 }
 
-# Byte length of a file (whitespace-trimmed).
 file_bytes() { wc -c <"$1" | tr -d ' '; }

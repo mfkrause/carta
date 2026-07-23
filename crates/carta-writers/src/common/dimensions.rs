@@ -3,7 +3,6 @@
 
 use carta_ast::Attr;
 
-/// Look up a key/value attribute by key, returning its value.
 #[cfg_attr(
     not(any(
         feature = "asciidoc",
@@ -161,7 +160,7 @@ fn unit_inches(unit: &str) -> f64 {
 
 /// Resolve a dimension to a whole pixel count at [`IMAGE_PIXEL_DPI`], flooring the result: a pixel or
 /// unitless value passes through, a physical or font-relative length scales through its size in
-/// inches, and a percentage — having no absolute pixel size — yields `None`.
+/// inches, and a percentage (having no absolute pixel size) yields `None`.
 #[cfg_attr(not(feature = "mediawiki"), allow(dead_code))]
 pub(crate) fn dimension_pixels(dimension: &Dimension) -> Option<u64> {
     match dimension {
@@ -177,7 +176,7 @@ pub(crate) fn dimension_pixels(dimension: &Dimension) -> Option<u64> {
 
 /// Resolve a dimension to a length in inches: a pixel or unitless value through
 /// [`IMAGE_PIXEL_DPI`], a physical or font-relative length through its unit's size in inches, and a
-/// percentage — having no absolute size — to `None`.
+/// percentage (having no absolute size) to `None`.
 #[cfg_attr(not(feature = "rtf"), allow(dead_code))]
 pub(crate) fn dimension_inches(dimension: &Dimension) -> Option<f64> {
     match dimension {
@@ -253,8 +252,7 @@ pub(crate) fn normalize_image_attr(attr: &Attr) -> Attr {
         }
     };
 
-    // Width and height are emitted in a fixed order regardless of their source position; gather them
-    // by lookup so a height-before-width source still renders width first.
+    // Gathered by lookup so width always renders before height regardless of source order.
     if let Some(raw) = attribute_value(attr, "width") {
         emit_dimension("width", raw, &mut style_declarations, &mut pixel_attrs);
     }
@@ -344,8 +342,7 @@ mod tests {
     #[cfg(feature = "html")]
     #[test]
     fn parse_dimension_rejects_unrecognized_shapes() {
-        // Unknown units, signs, surrounding space, malformed numbers, and uppercase units all yield
-        // no dimension, so the attribute is dropped.
+        // Every unrecognized shape yields no dimension, so the attribute is dropped.
         assert_eq!(parse_dimension("4ex"), None);
         assert_eq!(parse_dimension("50vw"), None);
         assert_eq!(parse_dimension("3rem"), None);
@@ -426,8 +423,7 @@ mod tests {
     #[cfg(feature = "html")]
     #[test]
     fn normalize_image_attr_orders_style_then_rest_then_pixels() {
-        // Source order: a regular pair, a percentage width, a pixel height, another regular pair.
-        // The combined style leads, the regular pairs keep their order, the pixel attribute trails.
+        // The combined style leads, regular pairs keep their order, the pixel attribute trails.
         let attr = Attr {
             attributes: vec![
                 ("data-a".into(), "1".into()),

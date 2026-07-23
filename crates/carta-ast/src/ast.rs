@@ -1,6 +1,6 @@
 //! The document model: the typed tree that every reader produces and every writer consumes.
 //!
-//! The Block/Inline split is load-bearing — encoding them as separate enums makes invalid nesting
+//! The Block/Inline split is load-bearing: encoding them as separate enums makes invalid nesting
 //! (a block inside link text, say) unrepresentable. The node families and the small enums carry
 //! their JSON tag via `#[serde(tag = "t", content = "c")]`; the array-shaped records (`Attr`,
 //! `Document`, the table parts) have hand-written codecs in [`crate::serde_impls`].
@@ -478,9 +478,9 @@ pub fn to_plain_inlines(inlines: &[Inline]) -> Vec<Inline> {
     out
 }
 
-/// The inline content of a block sequence used where inline text is required — a document title, a
-/// short header field. A lone paragraph or plain block contributes its inlines; any other shape —
-/// an empty sequence, several blocks, or a single block that is not a paragraph — has no inline form
+/// The inline content of a block sequence used where inline text is required (a document title, a
+/// short header field). A lone paragraph or plain block contributes its inlines; any other shape
+/// (an empty sequence, several blocks, or a single block that is not a paragraph) has no inline form
 /// and yields an empty slice.
 #[must_use]
 pub fn single_block_inlines(blocks: &[Block]) -> &[Inline] {
@@ -499,7 +499,7 @@ fn is_combining_mark(ch: char) -> bool {
     )
 }
 
-/// Whether a character is a Unicode letter — general category `Lu`, `Ll`, `Lt`, `Lm`, or `Lo`. This
+/// Whether a character is a Unicode letter: general category `Lu`, `Ll`, `Lt`, `Lm`, or `Lo`. This
 /// is narrower than [`char::is_alphabetic`], which also admits the `Other_Alphabetic` property
 /// (letter-like marks and symbols) that does not count toward a heading identifier.
 fn is_letter(ch: char) -> bool {
@@ -635,9 +635,6 @@ mod tests {
             Inline::Note(vec![Block::Para(vec![Inline::Str("note".into())])]),
         ];
         let plain = to_plain_inlines(&inlines);
-        // The emphasis wrapper is gone, the space collapses to a `Str`, the quotation survives with
-        // its own markup stripped inside, code and math keep their text, and raw passthrough and the
-        // note contribute nothing.
         assert_eq!(
             plain,
             vec![
@@ -666,11 +663,9 @@ mod tests {
             ]
         );
 
-        // A lone plain block is also unwrapped.
         let plain = vec![Block::Plain(vec![Inline::Str("p".into())])];
         assert_eq!(single_block_inlines(&plain), &[Inline::Str("p".into())]);
 
-        // No inline form: empty, several blocks, or a single non-paragraph block.
         assert!(single_block_inlines(&[]).is_empty());
         assert!(
             single_block_inlines(&[

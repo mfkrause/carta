@@ -4,9 +4,9 @@ Times `carta` against pandoc on equivalent work and reports how much faster (and
 
 ## Prerequisites
 
-- **hyperfine** — the timing driver.
-- **jq** — builds fixtures and parses results.
-- **`.oracle/`** — the pinned pandoc binary (`tools/install-pandoc.sh`).
+- `hyperfine`: the timing driver.
+- `jq`: builds fixtures and parses results.
+- `.oracle/`: the pinned pandoc binary (`tools/install-pandoc.sh`).
 - The carta release binary is built automatically (`cargo build --release -p carta`).
 
 ## Usage
@@ -27,8 +27,8 @@ tools/bench-suite/run.sh size                # binary sizes only (no timing)
 |-----------|--------------------------------------------------------------------------|
 | `reader`  | `<fmt> → json` parsing (default: commonmark, html)                        |
 | `writer`  | `json → <target>` rendering (all 8 targets; rich AST incl. tables)        |
-| `e2e`     | full `from → to` conversion — what users actually run                     |
-| `startup` | near-empty conversion — isolates process spin-up (the fairness baseline)  |
+| `e2e`     | full `from → to` conversion (what users actually run)                     |
+| `startup` | near-empty conversion; isolates process spin-up (the fairness baseline)   |
 | `size`    | binary sizes (no timing)                                                  |
 
 ### Tunables (env)
@@ -43,10 +43,7 @@ tools/bench-suite/run.sh size                # binary sizes only (no timing)
 
 ## How it stays fair
 
-- **Identical `-f/-t` flags** on both binaries.
-- **pandoc is normalized** (`--syntax-highlighting=none`, `--mathjax` for HTML) so both produce equivalent output.
-- **Three sizes.** Small inputs are *startup-dominated* (pandoc's runtime spin-up dwarfs the work); large inputs are *throughput-dominated*. The `startup` surface reports the spin-up cost explicitly.
-- **Release build**, always rebuilt before timing so numbers never come from a stale or debug binary.
+Both binaries run with identical `-f`/`-t` flags, and pandoc is normalized (`--syntax-highlighting=none`, `--mathjax` for HTML) so both produce equivalent output. Inputs come in three sizes: small inputs are startup-dominated (pandoc's runtime spin-up dwarfs the work), large inputs are throughput-dominated, and the `startup` surface reports the spin-up cost explicitly. The release binary is always rebuilt before timing so numbers never come from a stale or debug build.
 
 ## Output
 

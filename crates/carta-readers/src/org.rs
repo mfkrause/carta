@@ -41,8 +41,7 @@ impl Reader for OrgReader {
 
         let (body_lines, defs) = collect_footnotes(&lines);
 
-        // Footnote bodies are parsed first so a reference in the body can carry the definition's
-        // blocks. Nested footnote references inside a definition resolve against an empty table.
+        // Bodies parse first so references carry definition blocks; nested references see an empty table.
         let empty_notes: BTreeMap<String, Vec<Block>> = BTreeMap::new();
         let mut notes: BTreeMap<String, Vec<Block>> = BTreeMap::new();
         for (label, text) in &defs {
@@ -197,7 +196,6 @@ fn parse_blocks(
             i += 1;
             continue;
         }
-        // Headline.
         if let Some(level) = headline_level(line) {
             i += 1;
             let mut id_override = None;
@@ -209,7 +207,6 @@ fn parse_blocks(
             pending = Affiliated::default();
             continue;
         }
-        // Greater block: #+begin_… / #+end_….
         if let Some(name) = greater_block_open(line) {
             let (block, consumed) = parse_greater_block(lines, i, &name, ext, notes, ids, meta);
             i += consumed;
@@ -218,25 +215,21 @@ fn parse_blocks(
             }
             continue;
         }
-        // Keyword line: #+key: value.
         if let Some((key, value)) = keyword_line(line) {
             handle_keyword(&key, &value, line, ext, notes, meta, &mut pending, &mut out);
             i += 1;
             continue;
         }
-        // Comment line.
         if line.trim_start() == "#" || line.trim_start().starts_with("# ") {
             i += 1;
             continue;
         }
-        // Horizontal rule.
         if is_horizontal_rule(line) {
             out.push(Block::HorizontalRule);
             i += 1;
             pending = Affiliated::default();
             continue;
         }
-        // Fixed-width (colon) block.
         if is_fixed_width(line) {
             let (text, consumed) = collect_fixed_width(lines, i);
             out.push(Block::CodeBlock(Box::default(), text.into()));
@@ -244,12 +237,10 @@ fn parse_blocks(
             pending = Affiliated::default();
             continue;
         }
-        // Drawer.
         if let Some(name) = drawer_open(line) {
             let (inner, consumed) = collect_drawer(lines, i);
             i += consumed;
-            // A metadata drawer holds bookkeeping, not document content, and is elided; every other
-            // named drawer becomes a div wrapping its parsed contents.
+            // Metadata drawers are bookkeeping and elided; other named drawers become divs.
             if name.eq_ignore_ascii_case("PROPERTIES") || name.eq_ignore_ascii_case("LOGBOOK") {
                 pending = Affiliated::default();
                 continue;
@@ -263,7 +254,6 @@ fn parse_blocks(
             pending = Affiliated::default();
             continue;
         }
-        // Table.
         if is_table_line(line) {
             let (rows, consumed) = collect_table(lines, i);
             let table = build_table(&rows, ext, notes, &mut pending);
@@ -271,7 +261,6 @@ fn parse_blocks(
             i += consumed;
             continue;
         }
-        // List.
         if list_marker(line).is_some() {
             let (block, consumed) = parse_list(lines, i, ext, notes, ids, meta);
             i += consumed;
@@ -281,8 +270,7 @@ fn parse_blocks(
             pending = Affiliated::default();
             continue;
         }
-        // Paragraph: gather until a structural line or blank. The dispatch above already proved this
-        // first line is neither blank nor a block opener, so continuation begins at the next line.
+        // Dispatch proved this line is neither blank nor a block opener; continuation starts next line.
         let start = i;
         i += 1;
         while let Some(&l) = lines.get(i) {
@@ -529,8 +517,7 @@ fn parse_greater_block(
     ids: &mut IdRegistry,
     meta: &mut BTreeMap<Text, MetaValue>,
 ) -> (Option<Block>, usize) {
-    // `name` is the block name parsed from this same open line, so the header arguments are whatever
-    // follows it on that line.
+    // `name` came from this open line, so header arguments are whatever follows it there.
     let open_line = lines.get(start).copied().unwrap_or("");
     let header_args = strip_prefix_ci(open_line.trim_start(), "#+begin_")
         .unwrap_or("")
@@ -861,7 +848,6 @@ fn build_table(
             }
         }
     }
-    // With no separator, every row is a body row.
     if !seen_separator {
         body_rows.splice(0..0, head_rows.drain(..));
     }
@@ -1040,7 +1026,6 @@ fn parse_list(
             let content_col = marker.content_col;
             let mut item_lines = vec![line.get(content_col..).unwrap_or("")];
             i += 1;
-            // Gather continuation lines belonging to this item.
             while let Some(&next) = lines.get(i) {
                 if next.trim().is_empty() {
                     pending_blank = true;
@@ -1061,7 +1046,6 @@ fn parse_list(
                     break;
                 }
             }
-            // Trim a trailing blank kept inside the item.
             while item_lines.last() == Some(&"") {
                 item_lines.pop();
             }
@@ -1075,7 +1059,6 @@ fn parse_list(
         return (None, 1);
     }
 
-    // Definition list when the first item carries a `::` separator.
     if let Some(defs) = try_definition_list(&items, ext, notes, ids, meta, loose) {
         return (Some(defs), i - start);
     }
@@ -1245,11 +1228,8 @@ struct Inlines<'a> {
     notes: &'a BTreeMap<String, Vec<Block>>,
     out: Vec<Inline>,
     word: String,
-    // A dense run of unclosable openers would otherwise make each failed forward scan re-walk the
-    // whole suffix, so the total cost grows quadratically. A step budget proportional to the span
-    // keeps every forward scan linear over the span: it is far above what any genuine construct
-    // needs, so a real close is always found, while a pathological run gives up and leaves the
-    // opener as literal text.
+    // Unclosable openers make failed forward scans quadratic; a span-proportional step budget
+    // keeps them linear, far above any real construct, so only pathological runs give up.
     budget: ScanBudget<usize>,
 }
 
@@ -1291,7 +1271,6 @@ impl Inlines<'_> {
         while let Some(c) = self.at(i) {
             let prev = if i == 0 { None } else { self.at(i - 1) };
 
-            // Bare autolink at a word boundary.
             if is_url_boundary(prev)
                 && let Some((url, end)) = self.scan_bare_url(i)
             {
@@ -1349,8 +1328,7 @@ impl Inlines<'_> {
                     }
                 }
                 '=' | '~' => {
-                    // Verbatim uses the same border rules as markup emphasis but takes its body
-                    // literally.
+                    // Verbatim shares markup border rules but takes its body literally.
                     if let Some(end) = self.scan_emphasis(i, c, prev) {
                         let inner = self.chars.get(i + 1..end).unwrap_or(&[]);
                         self.push_inline(verbatim_code(c, inner));
@@ -1472,8 +1450,7 @@ impl Inlines<'_> {
     /// Parses a subscript (`_`) or superscript (`^`) at `i`. Requires a preceding non-space base and
     /// accepts either a `{…}` group or a bare token ending in an alphanumeric.
     fn scan_subsup(&self, i: usize, prev: Option<char>, sup: bool) -> Option<(Inline, usize)> {
-        // The base must be a non-space character, and never an underscore: a run like `a__b` is a
-        // literal double underscore, not a subscript.
+        // Base must be non-space and not `_`: `a__b` is a literal double underscore, not a subscript.
         if prev.is_none_or(|c| c.is_whitespace() || c == '_') {
             return None;
         }
@@ -1546,7 +1523,6 @@ impl Inlines<'_> {
     fn scan_backslash(&mut self, i: usize) -> usize {
         match self.at(i + 1) {
             Some('\\') => {
-                // Line break: consume both backslashes, trailing spaces, and one newline.
                 self.push_inline(Inline::LineBreak);
                 let mut j = i + 2;
                 while matches!(self.at(j), Some(' ' | '\t')) {
@@ -1688,7 +1664,6 @@ impl Inlines<'_> {
         let body = inner.strip_prefix("fn:")?;
         let end = close + 1;
         if let Some((label, text)) = body.split_once(':') {
-            // Inline definition (named or anonymous).
             let note = vec![Block::Para(parse_inlines(
                 text.trim(),
                 self.ext,
@@ -1697,7 +1672,6 @@ impl Inlines<'_> {
             let _ = label;
             return Some((Inline::Note(note), end));
         }
-        // Bare reference: resolve against the gathered definitions.
         let blocks = self.notes.get(body).cloned().unwrap_or_default();
         Some((Inline::Note(blocks), end))
     }
@@ -1908,7 +1882,6 @@ impl Inlines<'_> {
             }
             return None;
         }
-        // Dash sequences.
         if self.at(i + 1) == Some('-') {
             if self.at(i + 2) == Some('-') {
                 return Some(("\u{2014}", i + 3));
@@ -2363,8 +2336,7 @@ fn entity(name: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    // Test code: indexing into a block/inline vector produced from a known fixture is the idiomatic
-    // assertion, and a wrong index panics the test rather than corrupting shipped output.
+    // Test code: a wrong index panics the test rather than corrupting shipped output.
     #![allow(clippy::indexing_slicing)]
     use super::*;
 
@@ -2397,9 +2369,7 @@ mod tests {
 
     #[test]
     fn emphasis_after_realistic_leading_text_still_parses() {
-        // A genuine emphasis preceded by a long run of ordinary prose (including a stray slash used as
-        // punctuation) must still parse: the forward-scan budget is far above what real content spends,
-        // so it never fires on valid input.
+        // The forward-scan budget never fires on valid input: long prose with a stray slash still parses.
         let lead = "The quick brown fox jumps over the lazy dog and/or cat. ".repeat(40);
         let input = format!("{lead}then *bold* and /italic/ close it out.");
         match &blocks(&input)[0] {

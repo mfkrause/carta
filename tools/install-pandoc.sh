@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# Install a pinned pandoc binary as a BLACK-BOX reference into .oracle/ (gitignored, local-only).
-#
-# pandoc is used only as an external oracle for differential testing.
-# Per the clean-room rule in AGENTS.md we never read its source and never commit it.
-#
-# Usage:
-#   tools/install-pandoc.sh              # install pinned version (or latest stable on first run)
-#   tools/install-pandoc.sh --update     # re-resolve latest stable and re-install
-#   tools/install-pandoc.sh --version=3.10
+# Install a pinned pandoc binary as a black-box oracle into .oracle/ (gitignored): differential
+# testing only, never read its source or commit it (clean-room rule, AGENTS.md).
+# Usage: install-pandoc.sh [--update | --version=3.10]   (no arg: pinned, or latest stable first run)
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -51,7 +45,6 @@ fi
   exit 1
 }
 
-# Already installed at this version?
 if [ "$update" -eq 0 ] && [ -x "$bin_dir/pandoc" ] &&
   [ -f "$version_file" ] && [ "$(cat "$version_file")" = "$version" ]; then
   echo "pandoc $version already installed at $bin_dir/pandoc"
@@ -59,7 +52,6 @@ if [ "$update" -eq 0 ] && [ -x "$bin_dir/pandoc" ] &&
   exit 0
 fi
 
-# Map OS/arch -> release asset
 os="$(uname -s)"
 arch="$(uname -m)"
 case "$os/$arch" in
@@ -98,8 +90,7 @@ mkdir -p "$bin_dir"
 install -m 0755 "$src_bin" "$bin_dir/pandoc"
 printf '%s\n' "$version" >"$version_file"
 
-# Record the JSON AST api-version. Our serialization must match this major.minor or pandoc
-# rejects our JSON.
+# Record the JSON AST api-version; our serialization must match its major.minor.
 api_version="$(printf '' | "$bin_dir/pandoc" -f markdown -t json 2>/dev/null |
   sed -n 's/.*"pandoc-api-version":\(\[[0-9,]*\]\).*/\1/p' | head -1)"
 printf '%s\n' "${api_version:-unknown}" >"$ref_dir/API_VERSION"

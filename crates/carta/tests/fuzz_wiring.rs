@@ -4,7 +4,7 @@
 //! `fuzz/fuzz_targets/`, a `[[bin]]` in `fuzz/Cargo.toml`, and at least one committed seed in
 //! `fuzz/seeds/<target>/` for the deterministic PR replay. (Both CI workflows derive their target
 //! list from `fuzz/Cargo.toml` at runtime, so there is no matrix to keep in sync.) Adding a reader
-//! without all three is a silent coverage gap — the reader simply goes unfuzzed. These tests turn
+//! without all three is a silent coverage gap: the reader goes unfuzzed. These tests turn
 //! that gap into a loud, offline failure that names what is missing.
 
 // Test harness code: panicking on a malformed workspace layout is the idiomatic assertion.
@@ -19,7 +19,6 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-/// The fuzz target names, taken from the target sources in `fuzz/fuzz_targets/`.
 fn fuzz_targets() -> BTreeSet<String> {
     let dir = repo_root().join("fuzz/fuzz_targets");
     fs::read_dir(&dir)
@@ -30,7 +29,6 @@ fn fuzz_targets() -> BTreeSet<String> {
         .collect()
 }
 
-/// The per-target subdirectories of `fuzz/seeds/`.
 fn seed_dirs() -> BTreeSet<String> {
     let dir = repo_root().join("fuzz/seeds");
     fs::read_dir(&dir)
@@ -41,7 +39,6 @@ fn seed_dirs() -> BTreeSet<String> {
         .collect()
 }
 
-/// Whether `fuzz/seeds/<target>/` holds at least one seed file.
 fn seed_corpus_is_nonempty(target: &str) -> bool {
     let dir = repo_root().join("fuzz/seeds").join(target);
     fs::read_dir(&dir)
@@ -53,7 +50,6 @@ fn seed_corpus_is_nonempty(target: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// The `[[bin]]` names declared in `fuzz/Cargo.toml`, excluding the `[package]` name.
 fn cargo_bin_names() -> BTreeSet<String> {
     let manifest = repo_root().join("fuzz/Cargo.toml");
     let text = fs::read_to_string(&manifest)

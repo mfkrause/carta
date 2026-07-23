@@ -28,7 +28,7 @@ struct Scope<'a> {
 }
 
 /// A parsed-partial cache layered over the caller's name→source resolver. A partial referenced more
-/// than once — across the template or from inside a loop body — is read and parsed a single time,
+/// than once (across the template or from inside a loop body) is read and parsed a single time,
 /// and later references reuse the parsed tree. A name that resolves to no source is remembered as
 /// absent.
 struct Partials<'a> {
@@ -51,8 +51,7 @@ impl<'a> Partials<'a> {
             return Ok(cached.clone());
         }
         let parsed = match (self.resolve)(name) {
-            // A partial drops a single trailing newline from its source, so the line a `$name()$`
-            // sits on is not forced open by the partial file's own final newline.
+            // Strip one trailing newline so the line a `$name()$` sits on is not forced open.
             Some(source) => Some(Rc::new(Template::parse(
                 source.strip_suffix('\n').unwrap_or(&source),
             )?)),
@@ -68,7 +67,7 @@ impl<'a> Partials<'a> {
 /// The growing output, plus a one-bit memory of how the last text reached it.
 ///
 /// A block-level value (a rendered body or block metadata) carries a trailing blank line. When such
-/// a value sits on its own line in the template — `$body$` followed by a newline — that line's own
+/// a value sits on its own line in the template (`$body$` followed by a newline), that line's own
 /// break would stack onto the value's trailing blank line and open an extra empty line. So a value
 /// that ends in a newline absorbs every newline that immediately follows it: its own trailing blank
 /// line stands, and the line break (or blank lines) written after it in the template are dropped.
@@ -106,8 +105,7 @@ impl Sink {
             }
             for line in lines {
                 self.buf.push('\n');
-                // A blank line stays blank: indenting it would leave trailing spaces on an otherwise
-                // empty line, so the prefix is applied only to lines that carry content.
+                // Prefix only content lines; indenting a blank one would leave trailing spaces.
                 if !line.is_empty() {
                     self.buf.push_str(&pad);
                     self.buf.push_str(line);
@@ -189,8 +187,7 @@ fn render_node<'a>(
             if let Some(value) = eval(expr, ctx, scopes) {
                 out.push_value(&pipe::stringify(&value));
             } else if !expr.pipes.is_empty() {
-                // An absent path is an empty value; its pipe chain still applies, so `$x/length$`
-                // on a missing `x` yields `0` rather than vanishing.
+                // An absent path is an empty value whose pipes still apply: `$x/length$` gives `0`.
                 let mut value = Value::Str(String::new());
                 for filter in &expr.pipes {
                     value = pipe::apply(&value, filter);
@@ -335,7 +332,7 @@ fn render_to_string<'a>(
     Ok(sink.buf)
 }
 
-/// A scalar or map iterates as a single element; a list iterates its elements — by reference when
+/// A scalar or map iterates as a single element; a list iterates its elements, by reference when
 /// the list itself was borrowed, so its elements are not copied into their loop scopes.
 fn into_items(value: Cow<'_, Value>) -> Vec<Cow<'_, Value>> {
     match value {

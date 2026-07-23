@@ -9,7 +9,7 @@ use super::inline::{Delimiter, Node, collapse, flanking, quote_flanking};
 
 /// A record in the delimiter list used by [`process_emphasis`].
 ///
-/// Entries are held in a `Vec` whose indices are stable for the lifetime of one resolution pass —
+/// Entries are held in a `Vec` whose indices are stable for the lifetime of one resolution pass:
 /// an entry is never moved or removed, only unlinked. `prev`/`next` thread the still-active entries
 /// into a doubly-linked list; consuming a matched pair unlinks the delimiters between and around it
 /// in O(1), so the pass stays linear on delimiter-heavy input.
@@ -35,9 +35,8 @@ struct DelimEntry {
 /// `openers_bottom` lower bounds that prevent re-scanning already-rejected opener ranges.
 ///
 /// All four delimiter kinds share one matching loop. They differ only in how a matched pair's
-/// length maps to a node — see [`match_use_count`] and [`wrap_emphasis`].
-// `opener_di` (delimiter-list index) and `opener_ni` (node index) are intentionally close names
-// for two distinct indices into two distinct arrays.
+/// length maps to a node; see [`match_use_count`] and [`wrap_emphasis`].
+// `opener_di` and `opener_ni` are intentionally similar: two indices into two distinct arrays.
 #[allow(clippy::similar_names, clippy::too_many_lines)]
 pub(super) fn process_emphasis(
     nodes: &mut [Node],
@@ -45,8 +44,7 @@ pub(super) fn process_emphasis(
     ext: Extensions,
     markdown: bool,
 ) {
-    // Build the delimiter list: one entry per Node::Delimiter in [stack_bottom..] that is an
-    // emphasis-class delimiter (not a bracket opener).
+    // One entry per emphasis-class Node::Delimiter in [stack_bottom..] (bracket openers excluded).
     let mut delims: Vec<DelimEntry> = nodes
         .iter()
         .enumerate()
@@ -65,30 +63,19 @@ pub(super) fn process_emphasis(
         })
         .collect();
 
-    // Thread every entry into one doubly-linked list, in build order.
     let count = delims.len();
     for (i, entry) in delims.iter_mut().enumerate() {
         entry.prev = i.checked_sub(1);
         entry.next = (i + 1 < count).then_some(i + 1);
     }
-    // `head` is the first still-active entry; it moves forward only when the entry at the front is
-    // unlinked. Used solely for the final sweep that literalizes leftover delimiters.
+    // First still-active entry; used solely by the final sweep that literalizes leftovers.
     let mut head: Option<usize> = (count > 0).then_some(0);
 
-    // `openers_bottom[bucket]` is the minimum delimiter-list index to search for an opener.
-    //
-    // Bucket key: `(char_index, count_mod3, can_also_open, long_enough_for_two)`.
-    // The first three fields follow the spec directly (§A: "indexed to the length of the
-    // closing delimiter run modulo 3 and to whether the closing delimiter can also be an opener").
-    // The fourth — `closer_count >= 2` — is required for `~` when strikeout is on but subscript
-    // is off: `match_use_count` returns `None` for a length-1 tilde pair, so a length-1 closer
-    // must not share an `openers_bottom` slot with a length-2+ closer. Any future delimiter kind
-    // whose opener acceptance depends on a count threshold must derive its slot key from the same
-    // invariant: two closers may share a slot only if every opener accepts or rejects them
-    // identically.
+    // `openers_bottom[bucket]`: minimum delimiter-list index to search for an opener. Key: the
+    // spec §A triple plus `count >= 2`; closers share a slot only if every opener treats them alike.
     let mut openers_bottom = std::collections::BTreeMap::<(u8, usize, bool, bool), usize>::new();
 
-    let mut current: Option<usize> = head; // active-list cursor, walks forward via `next`
+    let mut current: Option<usize> = head;
 
     while let Some(cur) = current {
         let Some(current_entry) = delims.get(cur) else {
@@ -131,20 +118,15 @@ pub(super) fn process_emphasis(
                 scan = scan_prev;
                 continue;
             }
-            // The markdown dialect treats an emphasis run of four or more `*`/`_` as inert: it
-            // opens no emphasis and stays literal. Only runs of one to three open (one emphasis,
-            // one strong, or a strong wrapping an emphasis).
+            // Markdown dialect: a run of four or more `*`/`_` opens nothing and stays literal.
             if markdown && markdown_opener_inert(closer_ch, entry.count) {
                 scan = scan_prev;
                 continue;
             }
-            // Rule of 3 and match_use_count check — we need a temporary Delimiter value to
-            // reuse `emphasis_match`, which borrows `nodes` by index.
             let Some(use_count) =
                 match_use_count_md(entry.count, closer_count, closer_ch, ext, markdown)
             else {
-                // `match_use_count` rejected this opener; keep scanning — do not advance
-                // `openers_bottom` for this slot just because one opener was rejected.
+                // Rejected opener: keep scanning; one rejection must not advance `openers_bottom`.
                 scan = scan_prev;
                 continue;
             };
@@ -155,9 +137,7 @@ pub(super) fn process_emphasis(
                 _ => false,
             };
             if rule_ok {
-                // The markdown dialect forbids whitespace inside a superscript or subscript: if the
-                // span between this opener and the closer carries any, the pair does not match and
-                // the scan continues looking for a tighter opener.
+                // Markdown forbids whitespace in super/subscript; keep looking for a tighter opener.
                 if markdown
                     && rejects_inner_space(closer_ch, use_count)
                     && nodes.get(ni + 1..closer_ni).is_some_and(nodes_carry_break)
@@ -165,9 +145,7 @@ pub(super) fn process_emphasis(
                     scan = scan_prev;
                     continue;
                 }
-                // In markdown a single `*`/`_` and a doubled one never pair across an emphasis run:
-                // a lone delimiter cannot draw from a two-delimiter run (which is wholly a strong
-                // marker), and vice versa, so the run stays literal.
+                // In markdown a lone `*`/`_` and a doubled run never pair; the run stays literal.
                 if markdown && markdown_emphasis_runs_mismatch(closer_ch, entry.count, closer_count)
                 {
                     scan = scan_prev;
@@ -180,9 +158,7 @@ pub(super) fn process_emphasis(
         }
 
         let Some(opener_di) = found else {
-            // No opener found: advance openers_bottom to exclude this closer's position in future
-            // searches for the same bucket. Node indices are stable, so no adjustment is needed on
-            // later matches.
+            // No opener: exclude this closer's position from future searches for the same bucket.
             openers_bottom.insert(bucket, cur);
             // A delimiter that can't open is now known to be inert as a closer too.
             if !closer_can_open {
@@ -192,19 +168,18 @@ pub(super) fn process_emphasis(
             continue;
         };
 
-        // --- Match found: fold the inner span into a wrapping inline, leaving node indices stable ---
+        // Match found: fold the inner span into a wrapping inline, leaving node indices stable.
 
         let Some(opener_entry) = delims.get(opener_di) else {
             break;
         };
         let (opener_ni, opener_count) = (opener_entry.node_index, opener_entry.count);
 
-        // Retrieve use_count (already validated above).
+        // Already validated above.
         let use_count =
             match_use_count_md(opener_count, closer_count, closer_ch, ext, markdown).unwrap_or(1);
 
-        // Move the nodes strictly between opener and closer into the wrapped inline, leaving
-        // tombstones behind so every surviving delimiter keeps its node_index.
+        // Tombstone the moved inner nodes so surviving delimiters keep their node_index.
         let mut inner: Vec<Node> = Vec::new();
         for slot in nodes
             .get_mut(opener_ni + 1..closer_ni)
@@ -215,13 +190,11 @@ pub(super) fn process_emphasis(
         }
         let content = collapse(inner);
         let wrapped = wrap_emphasis(closer_ch, use_count, content);
-        // The opener and closer are separate runs, so at least one node sits between them: this
-        // slot is never the closer's own node.
+        // Opener and closer are separate runs, so this slot is never the closer's own node.
         if let Some(slot) = nodes.get_mut(opener_ni + 1) {
             *slot = Node::Inline(wrapped);
         }
 
-        // Decrement both runs; mirror the change into the list entries.
         decrement_delimiter(nodes, closer_ni, use_count);
         decrement_delimiter(nodes, opener_ni, use_count);
         let new_closer_count = closer_count.saturating_sub(use_count);
@@ -233,11 +206,10 @@ pub(super) fn process_emphasis(
             e.count = new_opener_count;
         }
 
-        // The list entry following the closer — the resume point when both runs are spent.
+        // The list entry following the closer: the resume point when both runs are spent.
         let after_closer = delims.get(cur).and_then(|e| e.next);
 
-        // Unlink every delimiter strictly between opener and closer at once: they were folded into
-        // the wrap and can never match again.
+        // Delimiters between opener and closer were folded into the wrap and can never match again.
         if let Some(e) = delims.get_mut(opener_di) {
             e.next = Some(cur);
         }
@@ -261,8 +233,7 @@ pub(super) fn process_emphasis(
             }
         }
 
-        // Resume at the surviving opener if it lives (it may match a still-earlier closer), else the
-        // surviving closer (it may match a still-earlier opener), else the entry past the closer.
+        // Resume at the surviving opener if any, else the surviving closer, else past the closer.
         current = if !opener_empty {
             Some(opener_di)
         } else if !closer_empty {
@@ -309,7 +280,7 @@ fn unlink_delim(delims: &mut [DelimEntry], head: &mut Option<usize>, i: usize) {
 ///
 /// A run is delimited by two `=` on each side. Scanning left to right, each `=` closer pairs with
 /// the nearest preceding `=` opener; the pair consumes exactly two `=` from each side and the inner
-/// nodes — with their own emphasis resolved — become the span's content. Any `=` left over on either
+/// nodes (with their own emphasis resolved) become the span's content. Any `=` left over on either
 /// side, or a lone `=`, stays literal text. Resolving here, ahead of the shared emphasis pass, keeps
 /// each run to a single span: leftover `=` do not re-pair into nested marks.
 pub(super) fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: bool) {
@@ -323,7 +294,6 @@ pub(super) fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: boo
             current += 1;
             continue;
         }
-        // Find the nearest preceding `=` opener with at least two delimiters.
         let mut opener = None;
         for i in (0..current).rev() {
             if matches!(
@@ -357,7 +327,6 @@ pub(super) fn resolve_mark(nodes: &mut Vec<Node>, ext: Extensions, markdown: boo
         // The closer has shifted one further along by the insert.
         let closer_ni = opener_ni + 2;
 
-        // Consume two `=` from each delimiter; convert any remainder to literal text, drop empties.
         consume_mark_side(nodes, closer_ni);
         consume_mark_side(nodes, opener_ni);
 
@@ -464,7 +433,7 @@ fn markdown_emphasis_runs_mismatch(ch: u8, opener_count: usize, closer_count: us
 /// How many delimiters a matched pair consumes, accounting for the markdown dialect's emphasis
 /// rule. For `*`/`_` in markdown, a pair whose opener and closer both still have three or more
 /// delimiters consumes a single one first, so the emphasis it forms nests inside the strong that
-/// the remaining pair forms — a triple run resolves to a strong wrapping an emphasis. Every other
+/// the remaining pair forms: a triple run resolves to a strong wrapping an emphasis. Every other
 /// pairing defers to [`match_use_count`].
 fn match_use_count_md(
     opener_count: usize,
@@ -476,8 +445,7 @@ fn match_use_count_md(
     if markdown && matches!(ch, b'*' | b'_') && opener_count >= 3 && closer_count >= 3 {
         return Some(1);
     }
-    // A symmetric run of three or more tildes resolves to a single subscript when its length is
-    // odd: the whole run is consumed and the subscript does not nest a strikeout inside it.
+    // An odd symmetric run of 3+ tildes is one subscript; no strikeout nests inside.
     if markdown
         && ch == b'~'
         && ext.contains(Extension::Subscript)
@@ -504,7 +472,7 @@ fn wrap_emphasis(ch: u8, use_count: usize, content: Vec<Inline>) -> Inline {
     }
 }
 
-/// Whether a matched delimiter pair forms a superscript or a subscript — the spans the markdown
+/// Whether a matched delimiter pair forms a superscript or a subscript, the spans the markdown
 /// dialect forbids from holding whitespace. A double tilde is a strikeout, which may, so only a
 /// single tilde counts.
 fn rejects_inner_space(ch: u8, use_count: usize) -> bool {
@@ -513,7 +481,7 @@ fn rejects_inner_space(ch: u8, use_count: usize) -> bool {
 
 /// Whether any node in the slice carries whitespace that, in the markdown dialect, ends a
 /// superscript or subscript: a space or tab in text, or a soft or hard line break. A non-breaking
-/// space — what an escaped space becomes — does not count, so an escaped space keeps the span open.
+/// space (what an escaped space becomes) does not count, so an escaped space keeps the span open.
 fn nodes_carry_break(nodes: &[Node]) -> bool {
     nodes.iter().any(|node| match node {
         Node::Text(text) => text.chars().any(|c| c == ' ' || c == '\t'),
@@ -549,8 +517,7 @@ fn emphasis_match(opener: &Delimiter, nodes: &[Node], closer: usize) -> bool {
     let Some(Node::Delimiter(closer_delim)) = nodes.get(closer) else {
         return false;
     };
-    // Rule of 3: when either run can both open and close, their combined length must not be a
-    // multiple of 3 unless both lengths are themselves multiples of 3.
+    // Rule of 3: a sum divisible by 3 rejects unless both counts are.
     let either_both =
         (opener.can_open && opener.can_close) || (closer_delim.can_open && closer_delim.can_close);
     if either_both {
@@ -565,7 +532,7 @@ fn emphasis_match(opener: &Delimiter, nodes: &[Node], closer: usize) -> bool {
 }
 
 /// The literal text an unmatched delimiter run reverts to. An unmatched smart quote becomes a curly
-/// quote — a single quote closes (`’`) and a double quote opens (`“`); every other delimiter is its
+/// quote: a single quote closes (`’`) and a double quote opens (`“`); every other delimiter is its
 /// own character repeated.
 pub(super) fn delimiter_literal(ch: u8, count: usize) -> String {
     match ch {

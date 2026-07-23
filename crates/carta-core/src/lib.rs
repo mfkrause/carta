@@ -96,14 +96,14 @@ impl From<template::TemplateError> for Error {
 /// A `Result` whose error is [`Error`].
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Options controlling a [`Reader`]. Extended (not resignatured) as real options land.
+/// Options controlling a [`Reader`].
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct ReaderOptions {
     /// Format extensions to enable. Strict-CommonMark readers ignore this (the empty preset).
     pub extensions: Extensions,
-    /// When set, an open paragraph is greedy: a following line that would otherwise open a block —
-    /// a blockquote, heading, list, thematic break, fenced div, or footnote definition — is folded
+    /// When set, an open paragraph is greedy: a following line that would otherwise open a block (a
+    /// blockquote, heading, list, thematic break, fenced div, or footnote definition) is folded
     /// into the paragraph as a lazy continuation instead. Only a blank line, a fenced code block, or
     /// an HTML block ends the paragraph. Unset, every such line interrupts the paragraph.
     pub greedy_paragraphs: bool,
@@ -233,7 +233,7 @@ pub struct HighlightOptions {
     pub idiomatic: bool,
 }
 
-/// Options controlling a [`Writer`]. Extended (not resignatured) as real options land.
+/// Options controlling a [`Writer`].
 // Each independent output toggle is its own field; grouping them would only obscure the
 // one-option-one-field mapping a caller sets them through.
 #[allow(clippy::struct_excessive_bools)]
@@ -244,7 +244,7 @@ pub struct WriterOptions {
     pub extensions: Extensions,
 
     /// The embedded resources the document references by name but does not carry inline. A writer
-    /// that re-embeds resource bytes — a notebook re-encoding its image outputs — reads them from
+    /// that re-embeds resource bytes (a notebook re-encoding its image outputs) reads them from
     /// here; most writers ignore it. Shared cheaply, so cloning the options does not copy the bytes.
     pub media: Arc<MediaBag>,
 
@@ -301,7 +301,7 @@ pub struct WriterOptions {
     pub template_dir: Option<std::path::PathBuf>,
 
     /// A shared directory of partials (`$name()$`) consulted when a partial is not found beside the
-    /// including template — the data directory's `templates/`. `None` when no data directory applies.
+    /// including template: the data directory's `templates/`. `None` when no data directory applies.
     #[cfg(feature = "template")]
     #[cfg_attr(docsrs, doc(cfg(feature = "template")))]
     pub template_datadir: Option<std::path::PathBuf>,
@@ -350,7 +350,7 @@ pub trait Reader {
     fn read(&self, input: &str, options: &ReaderOptions) -> Result<Document>;
 
     /// Reads `input` into a document together with the embedded resources it references. The default
-    /// carries no resources; a container format — a notebook with image outputs — overrides this to
+    /// carries no resources; a container format (a notebook with image outputs) overrides this to
     /// decode those bytes into the returned [`MediaBag`], and implements [`read`](Reader::read) by
     /// discarding the bag.
     ///
@@ -363,7 +363,7 @@ pub trait Reader {
 
 /// Which plain-text identity variables a writer's standalone template draws on. The document's
 /// title, authors, and date are exposed as markup-free, target-escaped text for places that cannot
-/// carry markup — a web document head or a PDF document's properties. See [`Writer::meta_var_style`].
+/// carry markup (a web document head or a PDF document's properties). See [`Writer::meta_var_style`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MetaVarStyle {
     /// The format exposes none of these variables.
@@ -427,7 +427,7 @@ pub trait Writer {
     }
 
     /// A standalone document this format assembles structurally, embedding the metadata and block
-    /// list in one value rather than wrapping a text body in a template — the data form is the
+    /// list in one value rather than wrapping a text body in a template; the data form is the
     /// canonical example. Returned in place of template rendering. `None` (the default) when the
     /// format wraps its body with a text template instead.
     ///
@@ -442,7 +442,7 @@ pub trait Writer {
         Ok(None)
     }
 
-    /// Which plain-text identity variables this writer's standalone template draws on — the title,
+    /// Which plain-text identity variables this writer's standalone template draws on: the title,
     /// authors, and date as markup-free text. The default is [`MetaVarStyle::None`]; an HTML-family
     /// writer returns [`MetaVarStyle::Web`] and a LaTeX-family writer [`MetaVarStyle::Pdf`].
     fn meta_var_style(&self) -> MetaVarStyle {
@@ -450,15 +450,15 @@ pub trait Writer {
     }
 
     /// Whether block-shaped metadata is flattened to its inline content when built into the template
-    /// context. A writer that places title, author, and date into single-line header fields — a man
-    /// page's `.TH` line cannot carry paragraph structure — sets this so a lone-paragraph value
+    /// context. A writer that places title, author, and date into single-line header fields (a man
+    /// page's `.TH` line cannot carry paragraph structure) sets this so a lone-paragraph value
     /// contributes its inline text and any other block shape contributes nothing. The default `false`
     /// renders block metadata as blocks.
     fn flatten_block_metadata(&self) -> bool {
         false
     }
 
-    /// A title presentation the template language cannot express from individual variables — an
+    /// A title presentation the template language cannot express from individual variables: an
     /// underlined title for reStructuredText, say, whose rule length depends on the rendered title
     /// width. Exposed to the template as the `titleblock` variable. `None` (the default) when the
     /// format builds its title presentation from individual variables instead.
@@ -484,8 +484,8 @@ pub trait Writer {
         TocStyle::List
     }
 
-    /// Whether a list-style table of contents attaches a back-reference anchor — an `id` on each
-    /// entry's link — so the entries can be linked to. The default includes them; a format that
+    /// Whether a list-style table of contents attaches a back-reference anchor (an `id` on each
+    /// entry's link) so the entries can be linked to. The default includes them; a format that
     /// cannot represent an inline identifier (so an attributed link would degrade to raw markup)
     /// overrides to `false`. Honored only when [`toc_style`](Writer::toc_style) is [`TocStyle::List`].
     fn toc_link_anchors(&self) -> bool {
@@ -511,7 +511,7 @@ pub trait Writer {
 }
 
 /// Parses input bytes in some source format into the document model. The byte-shaped counterpart of
-/// [`Reader`], for formats whose wire form is not text — zip containers and the like.
+/// [`Reader`], for formats whose wire form is not text (zip containers and the like).
 pub trait BytesReader {
     /// Parses `input` bytes into a document.
     ///
@@ -530,11 +530,10 @@ pub trait BytesReader {
 }
 
 /// Renders the document model into some target format's bytes. The byte-shaped counterpart of
-/// [`Writer`], for formats whose output is not text — zip containers and the like.
+/// [`Writer`], for formats whose output is not text (zip containers and the like).
 ///
 /// This trait carries no decoration hooks (templates, table of contents, metadata rendering): a
-/// container writer produces a complete document by construction. Hooks are added when a real format
-/// needs them.
+/// container writer produces a complete document by construction.
 pub trait BytesWriter {
     /// Renders `document` into this format's bytes.
     ///

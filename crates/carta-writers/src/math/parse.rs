@@ -263,13 +263,13 @@ pub(super) enum TextMode {
 /// spacing token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TextSpace {
-    /// `\,` — a thin space (U+2006 / Typst `thin`).
+    /// `\,`: a thin space (U+2006 / Typst `thin`).
     Thin,
-    /// `\;` — a thick space (U+2005 / Typst `#h(0em)`).
+    /// `\;`: a thick space (U+2005 / Typst `#h(0em)`).
     Thick,
-    /// `\:` — a medium space (U+00A0 / Typst `med`).
+    /// `\:`: a medium space (U+00A0 / Typst `med`).
     Medium,
-    /// `\!` — a negative thin space (U+200A / Typst `#h(-1em)`).
+    /// `\!`: a negative thin space (U+200A / Typst `#h(-1em)`).
     NegThin,
 }
 
@@ -398,8 +398,6 @@ impl Atom {
                 restart: false,
             });
         }
-        // Sibling scripts split into runs at each repeated kind; each run is reordered sub-then-sup.
-        // Unsealed runs restart on a fresh base, two per base, so the restart flag alternates.
         let mut unsealed_run_index = 0usize;
         let mut i = 0;
         while i < self.siblings.len() {
@@ -450,7 +448,7 @@ impl Atom {
         runs
     }
 
-    /// Whether this atom carries any script or prime mark — used to seal a group whose last atom is
+    /// Whether this atom carries any script or prime mark, used to seal a group whose last atom is
     /// already scripted.
     fn is_scripted(&self) -> bool {
         self.sub.is_some() || self.sup.is_some() || !self.siblings.is_empty()
@@ -546,8 +544,6 @@ fn tokenize(src: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::Space);
             }
-            // A numeric literal: a maximal run of digits with at most one interior decimal point
-            // that is itself flanked by digits. A leading `.` is taken only when a digit follows.
             c if c.is_ascii_digit() || (c == '.' && peek_is_digit(&chars)) => {
                 let number = lex_number(&mut chars);
                 tokens.push(Token::Number(number));
@@ -680,8 +676,7 @@ fn parse_macro_definition(tokens: &[Token], start: usize) -> Option<(String, Mac
         }
         params = count;
         skip_spaces(tokens, &mut pos);
-        // An optional-argument default (`\newcommand{\x}[1][d]{…}`) is a shape this does not model;
-        // leaving it unexpanded keeps the whole expression verbatim rather than substituting wrongly.
+        // An optional-argument default (`[1][d]`) is not modeled; unexpanded keeps the expression verbatim.
         if matches!(tokens.get(pos), Some(Token::Char('['))) {
             return None;
         }
@@ -823,9 +818,7 @@ fn pair_double_bars(atoms: &mut Vec<Atom>) {
         && end < atoms.len()
     {
         let inner: Vec<Atom> = atoms.splice(open + 1..end, std::iter::empty()).collect();
-        // After the splice the closing command sits directly after the opener. Take its trailing
-        // scripts and primes onto the group, then drop it, and replace the opener with the
-        // delimited group carrying the captured content.
+        // After the splice the closing command sits directly after the opener.
         let closer = atoms.get(open + 1).cloned();
         atoms.remove(open + 1);
         if let Some(opener) = atoms.get_mut(open) {
@@ -840,7 +833,6 @@ fn pair_double_bars(atoms: &mut Vec<Atom>) {
                 opener.siblings.extend(closer.siblings);
             }
         }
-        // Continue pairing any further runs in the remainder.
         pair_double_bars(atoms);
     }
 }
@@ -923,8 +915,7 @@ fn attach_script(
     kind: ScriptKind,
     script: Vec<Atom>,
 ) -> Option<()> {
-    // The first script of a chain fills the base's free matching slot directly; a sealed base or an
-    // occupied slot falls through to a sibling.
+    // The chain's first script fills the base's free matching slot; sealed or occupied falls through.
     if chain.last.is_none() && !chain.sealed {
         let free = match kind {
             ScriptKind::Sub => base.sub.is_none(),
@@ -942,14 +933,12 @@ fn attach_script(
             return Some(());
         }
     }
-    // A pathologically long nesting chain (`a^a^a^…`) is rejected rather than built into a tree deep
-    // enough to overflow the stack when it is later rendered.
+    // Reject over-deep chains (`a^a^a^…`) before rendering could overflow the stack.
     if chain.steps.len() >= MAX_DEPTH {
         return None;
     }
-    // Repeating the previous kind nests one level deeper into the active atom: fill the active's
-    // matching slot, then descend so the new content becomes the active. Nothing nests into a prime
-    // mark, so a script landing on a prime active siblings the base instead.
+    // A repeated kind nests one level deeper into the active atom; nothing nests into a prime, so a
+    // script on a prime active siblings the base instead.
     if chain.last == Some(kind) && !active_atom(base, chain).is_some_and(|a| a.is_prime()) {
         let descent = empty_base_descent(&script);
         let active = active_atom(base, chain)?;
@@ -963,10 +952,8 @@ fn attach_script(
         chain.last = chain.steps.last().copied();
         return Some(());
     }
-    // The other kind applies to the active atom's parent — one step up the chain — so a deeper base
-    // collects the matching pair beside its existing script. This reaches up only when the chain has
-    // descended at least one level; at the chain root (or when sealed) a different-kind script
-    // siblings the base in source order.
+    // The other kind reaches one step up so the parent pairs both scripts; only after at least one
+    // descent, never at the root or when sealed (those sibling instead).
     if !chain.sealed && !chain.steps.is_empty() {
         chain.steps.pop();
         let parent = active_atom(base, chain)?;
@@ -1022,7 +1009,7 @@ fn push_prime(atom: &mut Atom) {
 /// a superscript. A prime is a superscript; it nests when the chain offers a free superscript slot,
 /// either on the active atom (a repeated-superscript nest) or on its parent (the matching-pair reach
 /// up one level). When neither offers a slot the superscript would have to start a fresh sibling
-/// group, with nowhere to nest — there TeX detaches the prime, so it surfaces as a bare glyph that
+/// group, with nowhere to nest; there TeX detaches the prime, so it surfaces as a bare glyph that
 /// starts a new base. The shapes this covers include `a_b'` and the mirror `a_b^c'`, as well as the
 /// deeper `a^c'_d'`, where the active atom already carries a primary prime.
 ///
@@ -1039,15 +1026,11 @@ fn prime_detaches(base: &Atom, chain: &ScriptChain) -> bool {
     let Some(active) = active_atom_ref(base, chain) else {
         return false;
     };
-    // A prime written onto an active prime merges into its count (`a''` is one double-prime, and a
-    // prime that landed on the base after a subscript stays the active atom, so `a_b''` keeps both
-    // primes together), so it never detaches.
+    // A prime on an active prime merges into its count (`a''`, `a_b''`), never detaches.
     if active.is_prime() {
         return false;
     }
-    // At the primary level — a single script step from the base — a prime detaches once both of the
-    // base's primary slots are occupied: the flat `a'_b'` and the mirror `a_b^c'`, in either order.
-    // The step's own slot is one of the two, so the test is that the other slot is also filled.
+    // One step from the base: detach once both primary slots are filled (`a'_b'`, `a_b^c'`).
     if chain.steps.len() == 1 && base.sub.is_some() && base.sup.is_some() {
         return true;
     }
@@ -1055,12 +1038,11 @@ fn prime_detaches(base: &Atom, chain: &ScriptChain) -> bool {
     if chain.last == Some(ScriptKind::Sup) && active.sup.is_none() {
         return false;
     }
-    // Otherwise the prime reaches up to the active atom's parent; it nests when that slot is free and
-    // detaches when the parent already carries a superscript (the deeper `a^c'_d'` shape).
+    // Otherwise reach up: nest when the parent's sup slot is free, detach when taken (`a^c'_d'`).
     parent_atom_ref(base, chain).is_none_or(|parent| parent.sup.is_some())
 }
 
-/// The atom one chain step above the active atom — the target of a matching-pair script that reaches
+/// The atom one chain step above the active atom: the target of a matching-pair script that reaches
 /// up a level. `None` when the active atom is the chain root (the base itself), which has no parent.
 fn parent_atom_ref<'a>(base: &'a Atom, chain: &ScriptChain) -> Option<&'a Atom> {
     let parent_steps = chain.steps.split_last()?.1;
@@ -1157,8 +1139,7 @@ fn active_atom<'a>(base: &'a mut Atom, chain: &ScriptChain) -> Option<&'a mut At
 }
 
 /// Parse a run of atoms until end-of-input or (when `in_group`) the matching `}`.
-// One flat dispatch over token kinds, each arm a few lines; splitting it would scatter the
-// shared script-chain state across helpers and obscure the single sequential pass.
+// One flat dispatch over token kinds; splitting would scatter the shared script-chain state.
 #[allow(clippy::too_many_lines)]
 fn parse_atoms(
     tokens: &[Token],
@@ -1170,9 +1151,8 @@ fn parse_atoms(
         return None;
     }
     let mut atoms: Vec<Atom> = Vec::new();
-    // Tracks how a chain of scripts descends into the last atom so consecutive same-kind scripts
-    // nest (`a^b^c` is `a^{b^c}`) while a script across a group boundary or after a different-kind
-    // script siblings (`{x^2}^3`). Reset whenever a fresh nucleus or group is pushed.
+    // Same-kind scripts nest (`a^b^c`); cross-group or mixed-kind scripts sibling (`{x^2}^3`).
+    // Reset whenever a fresh nucleus or group is pushed.
     let mut chain = ScriptChain::default();
     while let Some(tok) = tokens.get(*pos) {
         match tok {
@@ -1181,7 +1161,6 @@ fn parse_atoms(
                     *pos += 1;
                     return Some(atoms);
                 }
-                // An unmatched closing brace is malformed.
                 return None;
             }
             Token::Space => {
@@ -1195,7 +1174,6 @@ fn parse_atoms(
                 };
                 *pos += 1;
                 let script = parse_script(tokens, pos, depth + 1)?;
-                // A script with no preceding atom attaches to a synthesized empty nucleus.
                 if atoms.is_empty() {
                     atoms.push(Atom::new(Body::Empty));
                     chain = ScriptChain::default();
@@ -1204,9 +1182,8 @@ fn parse_atoms(
                 attach_script(base, &mut chain, kind, script)?;
             }
             Token::GroupOpen => {
-                // A standalone brace group is transparent: its atoms splice into the surrounding
-                // run, so a following script binds to the group's last atom. An empty group is a
-                // bare empty nucleus that a following script can attach to.
+                // A brace group is transparent: atoms splice in and a following script binds to the
+                // last one; an empty group becomes a bare empty nucleus.
                 *pos += 1;
                 let inner = parse_atoms(tokens, pos, depth + 1, true)?;
                 if inner.is_empty() {
@@ -1214,17 +1191,15 @@ fn parse_atoms(
                 } else {
                     atoms.extend(inner);
                 }
-                // A spliced atom that already carries a script is sealed: a following script
-                // siblings in source order rather than filling the atom's free primary slot.
+                // An already-scripted spliced atom is sealed: later scripts sibling in source order.
                 let sealed = atoms.last().is_some_and(Atom::is_scripted);
                 chain = ScriptChain {
                     sealed,
                     ..ScriptChain::default()
                 };
             }
-            // A trailing apostrophe is a prime mark on the preceding atom, flowing through the same
-            // script chain as a superscript. With no preceding atom (a leading or lone prime) it is a
-            // bare prime glyph in its own right, and consecutive bare primes merge.
+            // An apostrophe is a prime on the preceding atom, flowing through the chain as a
+            // superscript; with no preceding atom it is a bare glyph, and consecutive bare primes merge.
             Token::Char('\'') => {
                 *pos += 1;
                 match atoms.last_mut() {
@@ -1238,10 +1213,8 @@ fn parse_atoms(
                         atoms.push(Atom::new(Body::Prime(1)));
                         chain = ScriptChain::default();
                     }
-                    // A prime written right after a primary subscript on a base whose superscript slot
-                    // is already filled cannot become a second superscript: TeX detaches it, so it
-                    // surfaces as a bare prime glyph after the subscript and starts a fresh base that
-                    // later scripts attach to. A braced subscript seals its base and nests instead.
+                    // With both primary slots taken TeX detaches the prime: a bare glyph starting a
+                    // fresh base (a braced subscript seals its base and nests instead).
                     Some(base) if prime_detaches(base, &chain) => {
                         atoms.push(Atom::new(Body::Prime(1)));
                         chain = ScriptChain::default();
@@ -1249,18 +1222,14 @@ fn parse_atoms(
                     Some(base) => attach_prime(base, &mut chain)?,
                 }
             }
-            // `\limits`/`\nolimits` set the limit placement of the preceding operator.
             Token::Command(c) if c == "limits" || c == "nolimits" => {
                 let forced = c == "limits";
                 *pos += 1;
                 let last = atoms.last_mut()?;
                 last.limits = Some(forced);
             }
-            // An equation-numbering annotation carries no visible glyph: `\nonumber` and `\tag{…}` are
-            // dropped, while `\label{…}` is captured as a `Label` atom that the Typst backend lifts to a
-            // trailing reference. These annotate the whole expression, so they apply wherever they sit
-            // at the top level — before or after rendered content — and are consumed rather than left as
-            // unknown control sequences that would force a verbatim fallback.
+            // Numbering annotations have no glyph: drop `\nonumber`/`\tag`, capture `\label` as a
+            // `Label` atom; consumed at top level so they never force a verbatim fallback.
             Token::Command(c) if !in_group && c == "nonumber" => {
                 *pos += 1;
             }
@@ -1272,20 +1241,16 @@ fn parse_atoms(
                     atoms.push(Atom::new(Body::Label(name)));
                 }
             }
-            // A style switch (`\displaystyle`, `\textstyle`, …) only changes typesetting size and has
-            // no glyph; it is dropped and the run continues.
             Token::Command(c) if is_style_switch(c) => {
                 *pos += 1;
             }
-            // `\color{<spec>}` recolours the following content; the colour is invisible in linear and
-            // Typst output, so the colour-spec group is consumed and dropped.
+            // Colour is invisible in linear and Typst output; consume and drop the spec group.
             Token::Command(c) if c == "color" => {
                 *pos += 1;
                 parse_required_group(tokens, pos, depth, &mut None)?;
             }
-            // `\DeclareMathOperator{\name}{body}` is a preamble declaration with no typeset glyph of
-            // its own: both groups are consumed and the run continues, so a lone declaration produces
-            // empty output. (The declared operator is not registered for later use.)
+            // A preamble declaration with no glyph: consume both groups (the operator is not
+            // registered for later use).
             Token::Command(c) if c == "DeclareMathOperator" => {
                 *pos += 1;
                 if matches!(tokens.get(*pos), Some(Token::Char('*'))) {
@@ -1294,9 +1259,8 @@ fn parse_atoms(
                 skip_balanced_group(tokens, pos)?;
                 skip_balanced_group(tokens, pos)?;
             }
-            // An infix binomial operator (`a \choose b`, `\brace`, `\brack`) splits its surrounding
-            // group: everything parsed so far is the upper argument, everything to the group's end is
-            // the lower. The whole run collapses to one stacked atom.
+            // An infix binomial (`a \choose b`) splits its group: atoms so far are the upper
+            // argument, the rest the lower; the run collapses to one stacked atom.
             Token::Command(c) if binom_kind(c).is_some() => {
                 let kind = binom_kind(c)?;
                 *pos += 1;
@@ -1304,9 +1268,8 @@ fn parse_atoms(
                 let bottom = parse_atoms(tokens, pos, depth + 1, in_group)?;
                 return Some(vec![Atom::new(Body::Binom(kind, top, bottom))]);
             }
-            // A `\begin{env} … \end{env}` environment. A transparent single-line equation wrapper
-            // splices its content into the surrounding run (so it reads as ordinary math, not a
-            // grouped operand); every other environment is a single atom.
+            // A transparent single-line equation wrapper splices into the surrounding run; every
+            // other environment is a single atom.
             Token::Command(c) if c == "begin" => {
                 *pos += 1;
                 let spliced = parse_environment(tokens, pos, depth)?;
@@ -1317,9 +1280,8 @@ fn parse_atoms(
                     ..ScriptChain::default()
                 };
             }
-            // `\not` over a numeric literal strikes only its first digit; the remaining digits stay a
-            // separate number atom. The whole number is one token, so the split happens here where the
-            // tail can be pushed as its own atom.
+            // `\not` strikes only the number's first digit; the number is one token, so split the
+            // tail into its own atom here.
             Token::Command(c) if c == "not" && not_over_number(tokens, *pos) => {
                 *pos += 1;
                 skip_spaces(tokens, pos);
@@ -1342,16 +1304,11 @@ fn parse_atoms(
             }
         }
     }
-    if in_group {
-        // Reached end of input without the matching `}`.
-        None
-    } else {
-        Some(atoms)
-    }
+    if in_group { None } else { Some(atoms) }
 }
 
-/// Parse the argument of a `_`/`^`: a single atom, a braced group, or — when the argument is itself a
-/// script operator — a synthesized empty nucleus carrying the nested script.
+/// Parse the argument of a `_`/`^`: a single atom, a braced group, or (when the argument is itself a
+/// script operator) a synthesized empty nucleus carrying the nested script.
 ///
 /// A script written directly as another script's argument (`a^^b`, `a___b`) has no base of its own,
 /// so it binds to an empty nucleus that then nests the inner script. An empty *implicit* base
@@ -1366,15 +1323,12 @@ fn parse_script(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Vec<A
         Token::GroupOpen => {
             *pos += 1;
             let inner = parse_atoms(tokens, pos, depth + 1, true)?;
-            // An empty braced argument (`^{}`) is an explicit empty nucleus, not an empty atom run:
-            // it occupies the script slot so a following script can nest onto it.
+            // `^{}` is an explicit empty nucleus: it occupies the slot so a following script can nest.
             if inner.is_empty() {
                 return Some(vec![Atom::new(Body::EmptyGroup)]);
             }
-            // A braced prime run (`^{'''''}`) is a prime *nucleus*, not a trailing prime attached to
-            // the base: a long run stacks its remainder into its own superscript rather than spilling
-            // flat across the baseline. Wrapping the sole prime atom in a transparent group routes it
-            // through the nucleus path, which nests; a direct trailing prime keeps the flat form.
+            // A braced prime run (`^{'''''}`) is a prime nucleus: the transparent group routes it
+            // through the nucleus path so a long run stacks; a direct trailing prime stays flat.
             if let [
                 Atom {
                     body: Body::Prime(_),
@@ -1394,8 +1348,7 @@ fn parse_script(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<Vec<A
             *pos += 1;
             parse_script(tokens, pos, depth)
         }
-        // A script whose argument is itself a script operator (`a^^b`, `a^_b`) takes an empty
-        // implicit nucleus and nests the inner script onto it.
+        // A script argument that is itself a script operator (`a^^b`) nests onto an empty implicit nucleus.
         tok @ (Token::Sub | Token::Sup) => {
             let kind = if matches!(tok, Token::Sup) {
                 ScriptKind::Sup
@@ -1434,18 +1387,14 @@ fn parse_atom(
         return None;
     }
     match tokens.get(*pos)? {
-        // A bare backslash reaches here only as a dangling control sequence (a `\` with no name and
-        // nothing following). It is not a complete expression, so the whole input is left verbatim.
+        // A dangling bare backslash is not a complete expression; the input stays verbatim.
         Token::Char('\\') => None,
-        // A colon immediately followed by an equals (no space between) is the `:=` relation digraph.
         Token::Char(':') if matches!(tokens.get(*pos + 1), Some(Token::Char('='))) => {
             *pos += 2;
             Some(Atom::new(Body::ColonEq))
         }
-        // A bare double quote, backtick, or dollar has no ordinary-symbol meaning in math mode, so an
-        // expression containing one is unparsable and the writer emits it verbatim. The backslash
-        // forms (`\"`, `` \` ``, `\$`) tokenize as commands, and these characters inside a `\text{…}`
-        // group are consumed by the text path, so none reaches here.
+        // Bare `"`, backtick, or `$` has no math-mode meaning: unparsable, emitted verbatim (escaped
+        // forms tokenize as commands; the text path consumes them inside `\text{…}`).
         Token::Char('"' | '`' | '$') => None,
         Token::Char(c) => {
             let c = *c;
@@ -1467,7 +1416,6 @@ fn parse_atom(
             *pos += 1;
             parse_command(&name, tokens, pos, depth, tail)
         }
-        // A bare script or close brace is not a valid nucleus here.
         Token::Sub | Token::Sup | Token::GroupClose | Token::Space => None,
     }
 }
@@ -1518,14 +1466,11 @@ fn big_delim_scale(name: &str) -> Option<u16> {
 /// the caller; this single-token set excludes them.
 fn big_follower(tok: &Token) -> Option<Body> {
     match tok {
-        // Every accepted single character: the stretchy-delimiter characters plus the ordinary,
-        // relation, and punctuation marks rendered as literal characters.
         Token::Char(c) => match c {
             '(' | ')' | '[' | ']' | '|' | '<' | '>' | '/' | '.' | '!' | '*' | '+' | ',' | '-'
             | ':' | ';' | '=' | '?' | '@' | '~' => Some(Body::Char(*c)),
             _ => None,
         },
-        // The delimiter commands: braces, vertical bars, angle brackets, floors and ceilings.
         Token::Command(c) => matches!(
             c.as_str(),
             "{" | "}"
@@ -1599,14 +1544,12 @@ fn parse_command(
         return Some(Atom::new(Body::Accent(name.to_string(), arg)));
     }
     if is_text_command(name) {
-        // `\operatorname*` reads its content like `\operatorname`, but its recorded name keeps the star
-        // so the display backend can center a subscript beneath it (the limits variant).
+        // `\operatorname*` keeps its star so the display backend can center a subscript beneath it.
         let mut wrapper = name;
         if name == "operatorname" && matches!(tokens.get(*pos), Some(Token::Char('*'))) {
             *pos += 1;
             wrapper = "operatorname*";
         }
-        // `\operatorname` is math content set upright; the other wrappers hold literal text.
         let mode = if name == "operatorname" {
             TextMode::Math
         } else {
@@ -1647,8 +1590,7 @@ fn parse_command(
         }
         "sqrt" => {
             let index = parse_optional_bracket(tokens, pos, depth);
-            // A bare `\sqrt` with neither an index nor a radicand is the lone radical sign `√`. An
-            // index without a radicand (`\sqrt[3]`) is malformed and falls back to verbatim.
+            // A bare `\sqrt` is the lone radical sign `√`; an index without a radicand is malformed.
             match parse_required_group(tokens, pos, depth, tail) {
                 Some(radicand) => Some(Atom::new(Body::Sqrt(index, radicand))),
                 None if index.is_none() => Some(Atom::new(Body::Char('\u{221A}'))),
@@ -1660,14 +1602,11 @@ fn parse_command(
             let radicand = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Sqrt(None, radicand)))
         }
-        // A `\begin{env} … \end{env}` reached as a nested atom (a script or accent argument) wraps its
-        // content in a single transparent group; at the top of a run it is intercepted and spliced.
+        // A nested environment wraps its content in one transparent group; at run top it is spliced.
         "begin" => {
             let spliced = parse_environment(tokens, pos, depth)?;
             Some(Atom::new(Body::Group(spliced)))
         }
-        // `\overset{mark}{base}` / `\underset` / `\stackrel{mark}{base}` set a mark over or under a
-        // base. `\stackrel` is the over form.
         "overset" | "stackrel" => {
             let mark = parse_required_group(tokens, pos, depth, tail)?;
             let base = parse_required_group(tokens, pos, depth, tail)?;
@@ -1678,7 +1617,6 @@ fn parse_command(
             let base = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Stack(StackSide::Under, mark, base)))
         }
-        // `\substack{a \\ b}` stacks its `\\`-separated rows.
         "substack" => {
             skip_spaces(tokens, pos);
             if !matches!(tokens.get(*pos), Some(Token::GroupOpen)) {
@@ -1689,8 +1627,7 @@ fn parse_command(
             Some(Atom::new(Body::Grid(GridKind::Substack, Vec::new(), rows)))
         }
         "left" => parse_delimited(tokens, pos, depth),
-        // `\bmod` is an infix operator: it needs a following operand. With nothing after it (the end
-        // of the input or the close of its group) it is invalid and falls back to verbatim.
+        // `\bmod` is infix: with no following operand it is invalid and falls back to verbatim.
         "bmod" => {
             let mut probe = *pos;
             while matches!(tokens.get(probe), Some(Token::Space)) {
@@ -1708,8 +1645,7 @@ fn parse_command(
             let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Mod(ModKind::Pmod, Some(arg))))
         }
-        // `\mod` leads its operand, which stays a separate atom; the operator is invalid with no
-        // operand to follow it.
+        // `\mod` leads its operand (kept a separate atom); invalid with none.
         "mod" => {
             skip_spaces(tokens, pos);
             if tokens.get(*pos).is_none_or(|t| {
@@ -1726,25 +1662,20 @@ fn parse_command(
             let arg = parse_required_group(tokens, pos, depth, tail)?;
             Some(Atom::new(Body::Mod(ModKind::Pod, Some(arg))))
         }
-        // `\not` strikes through the relation that follows it: a command name, or a single relation
-        // character such as `=`/`<`/`>`.
+        // `\not` strikes the following relation: a command name or a single character like `=`.
         "not" => {
             skip_spaces(tokens, pos);
-            // A braced base (`\not{a}`) negates the whole group; a bare command or character negates
-            // that single token.
+            // A braced base negates the whole group; a bare command or character negates one token.
             if matches!(tokens.get(*pos), Some(Token::GroupOpen)) {
                 *pos += 1;
                 let inner = parse_atoms(tokens, pos, depth + 1, true)?;
                 return Some(Atom::new(Body::NegatedGroup(inner)));
             }
-            // A literal character base always strikes through; a command base strikes only when it
-            // composes into a struck form (a precomposed negated relation or an italic letterlike).
-            // Other commands — the bar commands `\|`/`\Vert`, delimiters, operators, upright
-            // letterlikes — have no struck form, so `\not\|` and the like are left verbatim.
+            // A literal character always strikes; a command only when it composes into a struck
+            // form, so `\not\|` and the like are left verbatim.
             let base = match tokens.get(*pos)? {
                 Token::Command(c) if super::symbols::command_negatable(c) => c.clone(),
                 Token::Char(c) => c.to_string(),
-                // A non-negatable command, or any other token, has no struck form.
                 _ => return None,
             };
             *pos += 1;
@@ -1905,11 +1836,8 @@ fn parse_environment(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<
         return None;
     }
     let env = text_pieces_to_string(&parse_verbatim_group(tokens, pos, TextMode::Math)?);
-    // The mathtools starred matrix/cases environments (`matrix*`, `pmatrix*`, … `cases*`,
-    // `smallmatrix*`) render as their unstarred form but accept an optional `[align]` argument
-    // selecting per-column alignment. The alignment is presentational and not reproduced; the bracket
-    // group is consumed as literal leading content of the first cell. The base name without the `*`
-    // drives the delimiter/kind lookup, while the full name still matches the `\end{…*}` closing tag.
+    // mathtools starred environments render as the unstarred form; the optional `[align]` argument
+    // becomes literal leading content of the first cell. Base name drives the lookup, full name matches `\end`.
     let starred_grid = matches!(
         env.as_str(),
         "matrix*"
@@ -1936,8 +1864,8 @@ fn parse_environment(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<
         _ => None,
     };
     let grid_kind = match base {
-        // The multi-line equation environments are transparent alignment grids: rows split on `\\`,
-        // columns on `&`. The single-line `equation`/`equation*` are handled below.
+        // Multi-line environments are alignment grids (rows on `\\`, columns on `&`); single-line
+        // `equation` is handled below.
         "aligned" | "align" | "aligned*" | "align*" | "split" | "alignat" | "alignat*"
         | "alignedat" | "alignedat*" => Some(GridKind::Aligned),
         "gathered" | "gather" | "gather*" | "smallmatrix" | "multline" | "multline*"
@@ -1948,15 +1876,13 @@ fn parse_environment(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<
         "cases" => Some(GridKind::Cases),
         _ => None,
     };
-    // The single-line equation environments wrap one math expression with no alignment: a `&` or a
-    // row break is invalid inside them, so a grid with more than one cell falls back to verbatim.
+    // Single-line equation wraps one expression: more than one grid cell falls back to verbatim.
     let single_line = matches!(env.as_str(), "equation" | "equation*");
     if matrix_delim.is_none() && grid_kind.is_none() && !single_line {
         return None;
     }
-    // `\begin{array}{cols}` carries a column-specification group declaring each column's
-    // justification. The `alignat`/`alignedat` environments likewise carry a mandatory `{N}`
-    // column-count group; with no such group they are malformed and fall back to verbatim.
+    // `array` carries a `{cols}` spec group, `alignat`/`alignedat` a mandatory `{N}` count group;
+    // a missing group is malformed and falls back to verbatim.
     let array_aligns = if env == "array" {
         let spec = text_pieces_to_string(&parse_verbatim_group(tokens, pos, TextMode::Math)?);
         parse_column_aligns(&spec)
@@ -1969,8 +1895,7 @@ fn parse_environment(tokens: &[Token], pos: &mut usize, depth: usize) -> Option<
     ) {
         parse_verbatim_group(tokens, pos, TextMode::Math)?;
     }
-    // A starred grid's optional `[align]` argument becomes the literal leading content of the first
-    // cell: the bracket characters and their contents are kept verbatim as ordinary atoms.
+    // A starred grid's `[align]` argument becomes verbatim leading content of the first cell.
     let leading = if starred_grid {
         optional_bracket_literal(tokens, pos)
     } else {
@@ -2093,8 +2018,6 @@ fn parse_grid_rows_braced(
             }
             Token::Command(c) if c == "\\" => {
                 *pos += 1;
-                // A row break may carry an optional `[<dim>]` extra-space argument; the bracketed
-                // dimension has no glyph and is dropped.
                 skip_optional_break_dim(tokens, pos);
                 rows.push(vec![std::mem::take(&mut atoms)]);
             }
@@ -2125,8 +2048,6 @@ fn parse_matrix_cell(
             }
             Token::Command(c) if c == "\\" => {
                 *pos += 1;
-                // A row break may carry an optional `[<dim>]` extra-space argument; it has no glyph,
-                // so the bracketed dimension is consumed and dropped.
                 skip_optional_break_dim(tokens, pos);
                 return Some((atoms, CellEnd::Row));
             }
@@ -2134,9 +2055,8 @@ fn parse_matrix_cell(
                 *pos += 1;
                 return Some((atoms, CellEnd::Environment));
             }
-            // A `\begin{env}` nested directly inside a cell splices its content into the cell, so an
-            // alignment grid inside an `equation`/`gather` wrapper or another grid reads as part of
-            // the surrounding alignment rather than as a parenthesised operand.
+            // An environment nested directly in a cell splices, so an inner grid reads as part of
+            // the surrounding alignment rather than a parenthesised operand.
             Token::Command(c) if c == "begin" => {
                 *pos += 1;
                 let spliced = parse_environment(tokens, pos, depth)?;
@@ -2172,11 +2092,8 @@ fn parse_matrix_cell(
                 let last = atoms.last_mut()?;
                 push_prime(last);
             }
-            // An equation-numbering annotation carries no visible glyph inside a grid cell.
-            // `\nonumber` stands alone; `\tag` (optionally starred `\tag*`) consumes and discards a
-            // following braced argument; `\label` captures its argument as a `Label` atom that the
-            // Typst backend later lifts out of the body. Each argument is a flat verbatim run, so an
-            // inner `$` round-trips, while a nested group leaves the expression unhandled.
+            // In-cell numbering annotations have no glyph: `\nonumber` drops, `\tag` discards its
+            // argument, `\label` becomes a `Label` atom; a nested group leaves the expression unhandled.
             Token::Command(c) if c == "nonumber" => {
                 *pos += 1;
             }
@@ -2190,8 +2107,7 @@ fn parse_matrix_cell(
                     atoms.push(Atom::new(Body::Label(name)));
                 }
             }
-            // A horizontal rule between matrix or array rows carries no glyph and does not affect the
-            // cells it separates, so it is consumed and dropped.
+            // A rule between rows has no glyph and does not affect the cells; consume and drop.
             Token::Command(c) if c == "hline" || c == "hdashline" => {
                 *pos += 1;
             }
@@ -2317,26 +2233,21 @@ fn is_styled_command(name: &str) -> bool {
             | "mathsf"
             | "mathtt"
             | "pmb"
-            // Composed styled alphabets: bold-italic, sans-italic, bold-sans-italic, and the
-            // bold variants of the script and fraktur alphabets.
+            // Composed styled alphabets (bold-italic, sans-italic, bold script/fraktur).
             | "mathbfit"
             | "mathsfit"
             | "mathbfsfit"
             | "mathbfcal"
             | "mathbfscr"
             | "mathbffrak"
-            // Alternative spellings of the alphabet wrappers. `\mathds` is the double-struck
-            // alphabet; `\symbf` is bold; `\mathup`/`\mathsfup` and `\mathbfup`/`\mathbfsfup` are the
-            // explicitly-upright serif/sans and their bold variants. (Of the `\sym…` family only
-            // `\symbf` carries a glyph change here; the others keep their default alphabet.)
+            // Alternative alphabet-wrapper spellings; of the `\sym…` family only `\symbf` changes glyphs.
             | "mathds"
             | "symbf"
             | "mathup"
             | "mathsfup"
             | "mathbfup"
             | "mathbfsfup"
-            // Math-class wrappers carry no glyph of their own; they re-class their argument. In
-            // linear output the class is invisible, so the argument renders transparently.
+            // Math-class wrappers re-class their argument; the class is invisible in linear output.
             | "mathord"
             | "mathrel"
             | "mathop"
@@ -2344,8 +2255,7 @@ fn is_styled_command(name: &str) -> bool {
             | "mathopen"
             | "mathclose"
             | "mathpunct"
-            // Presentation wrappers that translate only to Typst; in linear output they fall back to
-            // verbatim because the styling has no inline equivalent.
+            // Presentation wrappers translate only to Typst; linear output falls back to verbatim.
             | "phantom"
             | "cancel"
             | "xcancel"
@@ -2493,8 +2403,7 @@ fn is_text_accent_command(name: &str) -> bool {
 /// The text-mode accent command applied to a base character, resolving to the composed Latin letter.
 /// A base with no composed form for the accent returns the bare base character; an accent/base pair
 /// outside the recognized set returns `None`, leaving the wrapper to fall back to verbatim.
-// A flat accent-to-composed-letter lookup; the per-accent arms are one cohesive table with no
-// shared logic to factor out, so splitting them into helpers would only scatter it.
+// One cohesive accent-to-letter lookup table; splitting into helpers would only scatter it.
 #[allow(clippy::too_many_lines)]
 fn text_accent(name: &str, base: char) -> Option<&'static str> {
     if !is_text_accent_command(name) {
@@ -2682,7 +2591,6 @@ fn text_accent(name: &str, base: char) -> Option<&'static str> {
             return Some(composed);
         }
     }
-    // An accent over a base with no composed Latin letter drops the accent and keeps the base.
     BARE_BASE.get(&base).copied()
 }
 
@@ -2792,7 +2700,6 @@ fn parse_verbatim_group(
     let mut pieces: Vec<TextPiece> = Vec::new();
     let mut run = String::new();
     while let Some(tok) = tokens.get(probe) {
-        // Whether a control word or active `~` at this position should swallow a following space.
         let following_space = matches!(tokens.get(probe + 1), Some(Token::Space));
         match tok {
             Token::GroupClose => {
@@ -2802,8 +2709,8 @@ fn parse_verbatim_group(
                 }
                 return Some(pieces);
             }
-            // A `$…$` inside a text wrapper switches back to math mode for its content. An
-            // operator-name group is already math, so a `$` there has no meaning and is unhandled.
+            // `$…$` in a text wrapper re-enters math mode; in an operator-name group (already math)
+            // a `$` has no meaning and is unhandled.
             Token::Char('$') if math => return None,
             Token::Char('$') => {
                 let inner_start = probe + 1;
@@ -2824,17 +2731,15 @@ fn parse_verbatim_group(
                 pieces.push(TextPiece::Math(atoms));
                 probe = inner_end;
             }
-            // `~` is an inter-word non-breaking space in both modes; in math mode it swallows a
-            // following space the way a control word does.
+            // `~` is a non-breaking space; in math mode it also swallows a following space like a control word.
             Token::Char('~') => {
                 run.push('\u{00A0}');
                 if math && following_space {
                     probe += 1;
                 }
             }
-            // A bare double quote or backtick is unparsable in math mode (here, `\operatorname`
-            // content), so the whole expression falls back to verbatim. In a text wrapper both are
-            // ordinary literal characters.
+            // Bare `"` or backtick is unparsable in math mode (verbatim fallback); in a text
+            // wrapper both are ordinary literals.
             Token::Char('"' | '`') if math => return None,
             Token::Char(c) => run.push(*c),
             Token::Number(digits) => run.push_str(digits),
@@ -2847,10 +2752,8 @@ fn parse_verbatim_group(
             // Subscript/superscript markers are literal characters in text mode.
             Token::Sub => run.push('_'),
             Token::Sup => run.push('^'),
-            // `\(…\)` and `\[…\]` inside a text wrapper switch back to math mode for their content,
-            // the same as an inline `$…$`. The content renders as math and splices in among the
-            // literal runs. An operator-name group is already math, so the markers have no special
-            // meaning there.
+            // `\(…\)`/`\[…\]` in a text wrapper re-enter math mode like `$…$`; the markers mean
+            // nothing in an operator-name group (already math).
             Token::Command(name) if !math && (name == "(" || name == "[") => {
                 let close = if name == "(" { ")" } else { "]" };
                 let inner_start = probe + 1;
@@ -2885,8 +2788,8 @@ fn parse_verbatim_group(
                     &mut pieces,
                 )?;
             }
-            // In a text wrapper an inner brace group is transparent: its content joins the surrounding
-            // run, with ligatures kept within each group. In math mode a nested group is unhandled.
+            // In a text wrapper an inner group is transparent (ligatures kept per group); in math
+            // mode a nested group is unhandled.
             Token::GroupOpen if !math => {
                 if !run.is_empty() {
                     pieces.push(TextPiece::Run(finish_text_run(
@@ -2904,7 +2807,6 @@ fn parse_verbatim_group(
                 }
                 probe = nested - 1;
             }
-            // A nested group inside a math-mode wrapper is not handled.
             Token::GroupOpen => return None,
         }
         probe += 1;
@@ -2924,7 +2826,7 @@ struct TextCommand<'a> {
 }
 
 /// Resolve a control word inside a verbatim group, appending its rendering to `run` (or flushing a
-/// space piece to `pieces`), and return the probe position the scan should continue from — the
+/// space piece to `pieces`), and return the probe position the scan should continue from; the
 /// caller's loop advances one further past it. Returns `None` for a command the wrapper does not
 /// resolve, leaving the whole expression to fall back to verbatim.
 fn apply_text_command(
@@ -2948,9 +2850,7 @@ fn apply_text_command(
         run.push(pushed);
         Some(swallow(probe))
     } else if name == "ldots" {
-        // `\ldots` is the one ellipsis command a text-mode wrapper resolves: it folds the ellipsis
-        // glyph into the run. Other ellipsis commands (`\dots`, `\cdots`, `\textellipsis`) are not
-        // recognized here and leave the expression verbatim.
+        // `\ldots` is the only ellipsis command resolved here; others leave the expression verbatim.
         run.push('\u{2026}');
         Some(swallow(probe))
     } else if let Some(space) = text_space(name) {
@@ -2965,14 +2865,12 @@ fn apply_text_command(
             Some(probe)
         }
     } else if !math && is_text_accent_command(name) {
-        // An accent over a dotless-letter control word (`\i`, `\j`) has no composed form: the accent
-        // is dropped and the control word is emitted as its literal source.
+        // An accent over `\i`/`\j` has no composed form: drop the accent, emit the word literally.
         if let Some((literal, next)) = accent_dotless_base(tokens, probe + 1) {
             run.push_str(literal);
             return Some(next - 1);
         }
-        // A text-mode accent composes with its following base into a single Latin letter; an
-        // unparsable base leaves the whole wrapper verbatim.
+        // An accent composes with its base into one letter; an unparsable base leaves the wrapper verbatim.
         let (base, next) = accent_base(tokens, probe + 1)?;
         run.push_str(text_accent(name, base)?);
         Some(next - 1)
@@ -3003,8 +2901,7 @@ fn parse_required_group(
     if depth > MAX_DEPTH {
         return None;
     }
-    // A previous argument of the same command took one digit of an unbraced multi-digit number and
-    // left the rest here; this argument takes the next digit of it. (`\frac12` → `1` over `2`.)
+    // A prior argument took one digit of an unbraced number and left the rest; take the next (`\frac12`).
     if let Some(rest) = tail.take() {
         let mut chars = rest.chars();
         let first = chars.next()?;
@@ -3020,8 +2917,7 @@ fn parse_required_group(
             *pos += 1;
             parse_atoms(tokens, pos, depth + 1, true)
         }
-        // An unbraced number gives up only its first digit; any further digits stay in `tail` for the
-        // next argument or the enclosing run. (`\sqrt12` → `\sqrt1` then a loose `2`.)
+        // An unbraced number yields only its first digit; the rest stays in `tail` (`\sqrt12`).
         Token::Number(digits) => {
             let mut chars = digits.chars();
             let first = chars.next()?;
@@ -3057,8 +2953,7 @@ fn parse_optional_bracket(tokens: &[Token], pos: &mut usize, depth: usize) -> Op
             return Some(inner);
         }
         let mut local = probe;
-        // A bracketed optional argument keeps its numbers whole (`\sqrt[12]{x}`), so any leftover
-        // digits a nested command produces stay with this argument rather than escaping the bracket.
+        // A bracketed argument keeps numbers whole (`\sqrt[12]{x}`); leftover digits stay inside the bracket.
         let mut bracket_tail = None;
         let atom = parse_atom(tokens, &mut local, depth + 1, &mut bracket_tail)?;
         if local == probe {
@@ -3082,13 +2977,11 @@ fn skip_spaces(tokens: &[Token], pos: &mut usize) {
 /// Read a `\label{name}` argument as a flat verbatim run, returning its reconstructed source text and
 /// advancing past the closing brace. The argument must be a single flat group: a nested `{…}` (e.g.
 /// `\label{\sqrt{x}}`) leaves the whole expression unhandled and is reported as `None`. The name keeps
-/// its source spelling — a control word is rebuilt with its backslash (`\alpha`), an escaped character
-/// keeps the escape — so an inner `$`, command, or space round-trips into the label verbatim. A
+/// its source spelling: a control word is rebuilt with its backslash (`\alpha`), an escaped character
+/// keeps the escape, so an inner `$`, command, or space round-trips into the label verbatim. A
 /// missing opening brace yields `Some(None)`: the `\label` is consumed but carries no name.
-//
-// The nested option is load-bearing: the outer layer drives `?`-propagation of the
-// unhandled-expression fallback shared across the parser (a flattened type would forfeit that), while
-// the inner layer reports whether a name was present.
+// Nested option is load-bearing: the outer layer drives `?`-propagation of the shared unhandled
+// fallback; the inner layer reports whether a name was present.
 #[allow(clippy::option_option)]
 fn read_label_arg(tokens: &[Token], pos: &mut usize) -> Option<Option<String>> {
     skip_spaces(tokens, pos);

@@ -119,8 +119,8 @@ fn build_meta(notebook: &Value, nbformat: i64, nbformat_minor: i64) -> BTreeMap<
 }
 
 /// Convert a JSON value to a metadata value. Scalars become strings (a null becomes the empty
-/// string, a boolean a `MetaBool`); arrays and objects recurse. A number that is integer-valued —
-/// whether written as an integer or as a float like `3.0` — reads as a plain integer; a fractional
+/// string, a boolean a `MetaBool`); arrays and objects recurse. A number that is integer-valued
+/// (whether written as an integer or as a float like `3.0`) reads as a plain integer; a fractional
 /// number keeps the general decimal form, falling to scientific notation for very small or very
 /// large magnitudes.
 fn meta_value(value: &Value) -> MetaValue {
@@ -218,7 +218,7 @@ fn json_write(value: &Value, out: &mut String) {
 }
 
 /// Convert one cell into its `Div`, or `None` for an unrecognized cell kind. Any image bytes the
-/// cell carries — a code cell's image outputs, a markdown cell's attachments — are lifted into
+/// cell carries (a code cell's image outputs, a markdown cell's attachments) are lifted into
 /// `media`.
 fn cell_to_block(
     cell: &Value,
@@ -271,8 +271,8 @@ fn cell_attr(cell: &Value, kind: &str) -> Attr {
 
 /// Render a JSON value as an attribute string. A non-string takes its compact JSON form, with numbers
 /// rendered as [`json_number`] does. A string keeps its own text, except that one which would
-/// otherwise read back as a number, a boolean, or the empty attribute — an all-digit run such as
-/// `007`, the literal `true`/`false`, or `""` — is wrapped in double quotes so the distinction
+/// otherwise read back as a number, a boolean, or the empty attribute (an all-digit run such as
+/// `007`, the literal `true`/`false`, or `""`) is wrapped in double quotes so the distinction
 /// between the string and the scalar survives the round trip.
 fn attribute_value(value: &Value) -> String {
     match value {
@@ -302,11 +302,7 @@ fn markdown_cell_blocks(
     let source = multiline_text(cell.get("source"));
     let mut markdown_options = ReaderOptions::default();
     markdown_options.extensions = options.extensions;
-    // A notebook's markdown cells are written in the broad Markdown dialect (greedy paragraphs),
-    // not strict CommonMark: nested emphasis nests strong outside emph, a bare URI or email becomes
-    // a classed autolink, an ordered list's marker style and start are normalized unless the
-    // fancy-list and start-number extensions ask otherwise, and a raw HTML block carries no trailing
-    // newline.
+    // Markdown cells use the broad dialect (greedy paragraphs), not strict CommonMark.
     markdown_options.greedy_paragraphs = true;
     let mut blocks = CommonmarkReader.read(&source, &markdown_options)?.blocks;
     let prefix = cell
@@ -484,8 +480,8 @@ fn error_output(output: &Value) -> Block {
 }
 
 /// Pick the richest renderable representation from an output's `data` bundle. An image (or PDF)
-/// representation wins, taken in MIME-name order; otherwise structured JSON — `application/json` or
-/// any `+json` structured-syntax type — then plain text, HTML, LaTeX, and Markdown are tried in that
+/// representation wins, taken in MIME-name order; otherwise structured JSON (`application/json` or
+/// any `+json` structured-syntax type), then plain text, HTML, LaTeX, and Markdown are tried in that
 /// order. Among several JSON representations the lowest MIME name is taken. An empty or absent bundle
 /// yields no blocks.
 fn data_to_blocks(
@@ -761,8 +757,7 @@ mod tests {
 
     #[test]
     fn markdown_cell_honors_forwarded_extensions() {
-        // A pipe table is recognized only when the table extension is on, confirming the reader's
-        // extensions reach the embedded Markdown.
+        // A pipe table parses only with the table extension on.
         let input = r#"{"cells": [{"cell_type": "markdown", "metadata": {},
             "source": ["| a | b |\n|---|---|\n| 1 | 2 |\n"]}],
             "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#;
@@ -846,14 +841,12 @@ mod tests {
                 ("scrolled".into(), "true".into()),
             ]
         );
-        // Source code block tagged with the language.
         let Some(Block::CodeBlock(source_attr, source)) = blocks.first() else {
             panic!("expected a source code block");
         };
         assert_eq!(source_attr.classes, vec!["python".to_owned()]);
         assert_eq!(source, "import os\nprint(1)");
 
-        // Stream output.
         let Some(Block::Div(stream_attr, stream_body)) = blocks.get(1) else {
             panic!("expected a stream div");
         };
@@ -870,7 +863,6 @@ mod tests {
             Some(Block::CodeBlock(_, text)) if text == "hello\n"
         ));
 
-        // execute_result carries its execution count and renders text/plain as a code block.
         let Some(Block::Div(result_attr, result_body)) = blocks.get(2) else {
             panic!("expected a result div");
         };
@@ -887,7 +879,6 @@ mod tests {
             Some(Block::CodeBlock(_, text)) if text == "42"
         ));
 
-        // error renders its joined traceback with a trailing newline.
         let Some(Block::Div(error_attr, error_body)) = blocks.get(3) else {
             panic!("expected an error div");
         };
@@ -963,7 +954,6 @@ mod tests {
                   "metadata": {}}]}],
                "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
         );
-        // The tree references the image by its content-addressed name...
         let Some(Block::Div(_, body)) = first_output(&document) else {
             panic!("expected an output div");
         };
@@ -975,7 +965,6 @@ mod tests {
         };
         let name = "22f545ac6b50163ce39bac49094c3f64e0858403.png";
         assert_eq!(target.url, name);
-        // ...and the bag holds exactly that name, with the decoded bytes and their MIME type.
         assert_eq!(media.len(), 1);
         let item = media.get(name).expect("image is in the bag");
         assert_eq!(item.mime.as_deref(), Some("image/png"));
@@ -1011,7 +1000,6 @@ mod tests {
                   "metadata": {}}]}],
                "metadata": {}, "nbformat": 4, "nbformat_minor": 5}"#,
         );
-        // Content addressing means equal bytes collapse to a single entry.
         assert_eq!(media.len(), 1);
     }
 
@@ -1151,9 +1139,7 @@ mod tests {
 
     #[test]
     fn terminal_control_sequences_are_removed_from_text_outputs() {
-        // A control byte is invalid inside a JSON string, so the escape is carried in its JSON
-        // numeric form. The escape token is assembled from a backslash char here so this source
-        // holds no literal control byte: a backslash followed by the escape code's hex digits.
+        // The escape is assembled so this source file holds no literal control byte.
         let esc = format!("{}u001b", '\\');
         let input = format!(
             r#"{{"cells": [{{"cell_type": "code", "metadata": {{}}, "execution_count": 1,

@@ -1,8 +1,8 @@
 //! reStructuredText reader.
 //!
 //! Parsing runs in two structural passes. The first pass scans the whole input for the explicit
-//! markup that defines document-global references — hyperlink targets, substitution definitions,
-//! footnotes, and citations — since a reference may resolve against a definition that appears later.
+//! markup that defines document-global references (hyperlink targets, substitution definitions,
+//! footnotes, and citations), since a reference may resolve against a definition that appears later.
 //! The second pass walks the line structure block by block, building the document tree and resolving
 //! each reference against the collected definitions. Inline markup is parsed from the raw text of
 //! each leaf during the second pass.
@@ -282,9 +282,7 @@ fn classify_numeral(numeral: &str) -> Option<(ListNumberStyle, i32)> {
             .ok()
             .map(|n| (ListNumberStyle::Decimal, n));
     }
-    // A lone letter is ambiguous between alphabetic and Roman numbering; it defaults to alphabetic
-    // unless it is `i`/`I`, the only single letter taken as Roman. A multi-letter token that is a
-    // valid Roman numeral (`iv`, `xii`) is Roman.
+    // A lone letter is alphabetic except `i`/`I`; a multi-letter valid Roman numeral (`iv`, `xii`) is Roman.
     let mut chars = numeral.chars();
     let single = chars.next()?;
     if chars.next().is_none() && single.is_ascii_alphabetic() && !matches!(single, 'i' | 'I') {
@@ -315,7 +313,7 @@ fn is_roman_letter(ch: char) -> bool {
     )
 }
 
-/// The leading enumerator numeral of `line` — the token before its delimiter — when `line` opens
+/// The leading enumerator numeral of `line` (the token before its delimiter) when `line` opens
 /// with an enumerator. Used to reinterpret an ambiguous single-letter enumerator in the context of
 /// an already-established list style.
 fn enum_numeral(line: &str) -> Option<String> {
@@ -420,7 +418,7 @@ fn field_marker(line: &str) -> Option<(String, usize)> {
 /// An option-list marker: an option group (a comma-separated run of `-a`, `-fARG`, `-f ARG`,
 /// `--word`, `--word=ARG`, or `/S` options) that fully fills the line up to the first run of two
 /// or more spaces (or the end of line). Returns the option-group text and the column at which the
-/// description body begins. The group must consume its entire candidate span — a trailing token
+/// description body begins. The group must consume its entire candidate span: a trailing token
 /// after a single-space gap (e.g. `-f FILE extra`) is ordinary prose, not an option list.
 fn option_marker(line: &str) -> Option<(String, usize)> {
     let chars: Vec<char> = line.chars().collect();
@@ -793,9 +791,7 @@ fn record_definition(
                 defs.substitutions.insert(normalize_name(&name), subst);
             }
         }
-        // Named hyperlink targets are registered in document order during tree construction so the
-        // last definition of a name wins; directives and comments define no reference. None of these
-        // contribute to the first pass.
+        // Targets register during tree construction (last name wins); none of these feed the first pass.
         Explicit::Target | Explicit::Directive(_) | Explicit::Comment => {}
     }
 }
@@ -831,8 +827,7 @@ fn split_target_name(rest: &str) -> Option<(String, String)> {
         let tail = tail.strip_prefix(':')?;
         return Some((name.to_string(), tail.to_string()));
     }
-    // The name runs up to the first colon that is unescaped and followed by a space or the end of
-    // the line; a backslash-escaped colon is part of the name.
+    // Name runs to the first unescaped colon followed by a space or EOL; an escaped colon stays in the name.
     let (colon, after_colon) = unescaped_terminator(rest)?;
     let name = rest.get(..colon)?.replace("\\:", ":");
     let after = rest.get(after_colon..).unwrap_or("");
@@ -1260,12 +1255,12 @@ struct Parser<'a> {
     include_depth: usize,
     /// The chain of substitution names currently being expanded, by normalized name. A
     /// substitution replacement is itself parsed as inline markup, so a definition that refers
-    /// to itself — directly or through a cycle of other definitions — would recurse without
+    /// to itself, directly or through a cycle of other definitions, would recurse without
     /// bound and overflow the stack. RST forbids circular substitution references; a name already
     /// on this stack is left unexpanded instead of re-entered.
     active_substitutions: Vec<String>,
-    /// Every hyperlink-target name discovered while building the tree — explicit targets, internal
-    /// targets, section titles, and the labels of phrase references with an embedded destination —
+    /// Every hyperlink-target name discovered while building the tree (explicit targets, internal
+    /// targets, section titles, and the labels of phrase references with an embedded destination),
     /// mapped to its destination. Filled in document order so a later definition supersedes an
     /// earlier one, and consulted by the final pass that resolves the references left deferred
     /// during tree construction.
@@ -1288,11 +1283,8 @@ impl Parser<'_> {
                 i += 1;
                 continue;
             }
-            // A hyperlink target registers its destination in document order. A target with no
-            // destination is internal: a reference to it points at the identifier the target carries
-            // onto the block that follows it. A destination naming another target (a trailing
-            // underscore) is indirect and kept verbatim so the chain can be followed; any other
-            // destination is a URL and is percent-encoded.
+            // No destination: internal target pointing at the next block's identifier. A trailing-underscore
+            // destination is indirect, kept verbatim so the chain can be followed; others are percent-encoded URLs.
             if matches!(classify_explicit(line), Some(Explicit::Target)) {
                 let indent = indent_of(line);
                 let end = explicit_extent(lines, i, indent);
@@ -1316,8 +1308,7 @@ impl Parser<'_> {
             let before = out.len();
             let scanned_from = i;
             i = self.block_at(lines, i, &mut out);
-            // Every block parser consumes at least the line it opens on; force progress so a
-            // construct that yields nothing can never stall the scan on a single line.
+            // Force progress so a construct that yields nothing cannot stall the scan.
             i = i.max(scanned_from + 1);
             // A preceding empty `class` directive wraps the block just produced.
             if let Some(classes) = pending_classes.take()
@@ -1363,9 +1354,8 @@ impl Parser<'_> {
         }
 
         if let Some(c) = adornment_char(line) {
-            // Overline section header: the overline and underline must be the same character and
-            // length, and at least as long as the title between them. A shorter or mismatched run is
-            // not a header and falls through (a single-column simple table opens the same way).
+            // Overline and underline must match and be at least title length; a mismatch falls
+            // through (a single-column simple table opens the same way).
             let title = line_at(lines, i + 1);
             let under = line_at(lines, i + 2);
             let overline_len = line.trim().chars().count();
@@ -1425,9 +1415,8 @@ impl Parser<'_> {
             return self.explicit(lines, i, out);
         }
 
-        // A line block opens with `|` followed by a space or the end of the line, examined after any
-        // leading indentation is dropped. The character after the pipe — not the line's second
-        // character — decides this, so an indented or non-space-led pipe is not mistaken for one.
+        // Line block: `|` then space or EOL, checked after dropping indentation so the character
+        // after the pipe decides, not the line's second column.
         if let Some(after_pipe) = line.trim_start().strip_prefix('|')
             && matches!(after_pipe.chars().next(), Some(' ') | None)
         {
@@ -1457,8 +1446,7 @@ impl Parser<'_> {
                 } else {
                     plain.clone()
                 };
-                // A title whose characters all drop out under the count-suffix scheme takes the
-                // fallback identifier `section`, disambiguated like any other repeat.
+                // A title that slugs to nothing takes fallback id `section`, disambiguated like any repeat.
                 if matches!(scheme, IdScheme::Gfm) && carta_ast::slug_gfm(&text).is_empty() {
                     self.ids.assign(scheme, "section")
                 } else {
@@ -1467,9 +1455,7 @@ impl Parser<'_> {
             }
             None => String::new(),
         };
-        // Every section title is an implicit hyperlink target, referenceable by its text and
-        // resolving to the section's identifier. A later section with the same title supersedes an
-        // earlier one.
+        // Section titles are implicit targets resolving to the section id; a later duplicate supersedes.
         if !plain.trim().is_empty() {
             self.deferred
                 .insert(normalize_name(&plain), format!("#{id}"));
@@ -1565,8 +1551,7 @@ impl Parser<'_> {
         let line = lines.get(i)?;
         let base = indent_of(line);
         if base == 0 {
-            // An unindented block whose every line opens with the same quoting character is a
-            // quoted literal block; the quoting characters are kept verbatim.
+            // Quoted literal block: every line opens with the same quoting character, kept verbatim.
             return Self::quoted_literal_block(lines, i);
         }
         let start = i;
@@ -1640,8 +1625,7 @@ impl Parser<'_> {
                     break;
                 }
                 let rest = rest.strip_prefix(' ').unwrap_or(rest);
-                // Indentation beyond the single separating space is preserved as non-breaking
-                // spaces so it survives into the rendered line.
+                // Extra indentation becomes non-breaking spaces so it survives into the rendered line.
                 let leading = rest.chars().take_while(|c| *c == ' ').count();
                 let content = format!(
                     "{}{}",
@@ -1651,8 +1635,7 @@ impl Parser<'_> {
                 entries.push(content);
                 i += 1;
             } else if !entries.is_empty() && indent_of(line) > base {
-                // A further-indented line without its own `|` continues the preceding line,
-                // joined to it by a single space.
+                // A further-indented line without its own `|` continues the previous line, joined by a space.
                 if let Some(last) = entries.last_mut() {
                     last.push(' ');
                     last.push_str(trimmed);
@@ -1707,10 +1690,7 @@ impl Parser<'_> {
             let Some((_, _, _, col)) = enumerator(line) else {
                 break;
             };
-            // An auto-numbered (`#`) item joins whatever list is open and vice versa; otherwise the
-            // delimiter must match and the style must match directly or by an ambiguous single
-            // letter adopting the list's established style. A later item that is itself a run-on
-            // paragraph (its continuation under-indented) ends the list before it.
+            // A later run-on item (continuation under-indented) ends the list before it.
             if !enum_compatible(line, style, delim)
                 || !item_well_formed(lines, i, col, style, delim)
             {
@@ -1905,8 +1885,7 @@ impl Parser<'_> {
                     .map(|eq| Inline::Math(MathType::DisplayMath, eq.into()))
                     .collect();
                 let (id, classes, attributes) = common_options(&options);
-                // Options (a `:label:`, `:nowrap:`, …) attach to the whole equation group through a
-                // wrapping span; without them the equations stand on their own.
+                // Options (`:label:`, `:nowrap:`, …) attach to the equation group via a wrapping span.
                 let inlines = if id.is_empty() && classes.is_empty() && attributes.is_empty() {
                     math
                 } else {
@@ -1969,9 +1948,8 @@ impl Parser<'_> {
             "topic" | "sidebar" => {
                 let mut blocks = Vec::new();
                 if !argument.trim().is_empty() {
-                    // A sidebar's subtitle joins its title, separated by a colon; for a topic the
-                    // title stands alone. Either way the subtitle is also kept as an attribute by
-                    // the surrounding division.
+                    // Sidebar: subtitle joins title after a colon; topic: title alone. The subtitle
+                    // is also kept as a division attribute.
                     let subtitle = options.iter().find(|(k, _)| k == "subtitle");
                     let title = match (name, subtitle) {
                         ("sidebar", Some((_, subtitle))) => {
@@ -2024,8 +2002,7 @@ impl Parser<'_> {
                     selected.to_string()
                 };
             }
-            // An include directive splices the parsed content of an external file in place. A file
-            // that cannot be read contributes nothing.
+            // Splices the parsed content of an external file; an unreadable file contributes nothing.
             "include" => {
                 if self.include_depth < MAX_INCLUDE_DEPTH
                     && let Some(blocks) =
@@ -2111,8 +2088,7 @@ impl Parser<'_> {
             if let Block::Plain(inlines) = &plain {
                 caption_inlines.clone_from(inlines);
             }
-            // The first body block is the caption proper; any further blocks are the legend, which
-            // joins the caption rather than the figure body.
+            // First body block is the caption; further blocks are the legend, joined to the caption.
             caption.long = vec![plain];
             caption.long.extend(iter);
         }
@@ -2347,8 +2323,7 @@ impl Parser<'_> {
 
     // Column widths are small character spans, far inside f64's exact-integer range.
     #[allow(clippy::cast_precision_loss)]
-    // The grid parser walks the character matrix in one pass; splitting it would scatter the shared
-    // cursor state across helpers without making the logic clearer.
+    // One-pass walk over the character matrix; splitting would scatter shared cursor state.
     #[allow(clippy::too_many_lines)]
     fn grid_table(
         &mut self,
@@ -2725,8 +2700,7 @@ impl Parser<'_> {
                 }
                 continue;
             }
-            // An inline internal hyperlink target `_`name`` becomes a span carrying a slug
-            // identifier so the location can be linked to.
+            // Inline internal target `_`name``: a span with a slug identifier so it can be linked to.
             if ch == '_'
                 && chars.get(pos + 1) == Some(&'`')
                 && inline_start_ok(prev)
@@ -2738,8 +2712,7 @@ impl Parser<'_> {
                 pos = next;
                 continue;
             }
-            // A trailing underscore closes a simple hyperlink reference whose name is the run of
-            // name characters that has just accumulated.
+            // A trailing underscore closes a simple reference named by the just-accumulated name chars.
             if ch == '_'
                 && let Some((link, next)) = self.simple_reference(&chars, pos, &mut pending)
             {
@@ -2769,8 +2742,7 @@ impl Parser<'_> {
                 pos = next;
                 continue;
             }
-            // Typographic punctuation under the `smart` extension: paired quotes become quotation
-            // nodes, a lone quote its apt curly glyph, hyphen runs en/em dashes, dot runs ellipses.
+            // smart: paired quotes become quotation nodes, lone quotes curl, hyphen runs dashes, dot runs ellipses.
             if smart {
                 match ch {
                     '"' | '\'' => {
@@ -2836,8 +2808,7 @@ impl Parser<'_> {
         if !can_open_quote(chars, pos, quote, QuoteCtx::default()) {
             return None;
         }
-        // A single quote against a preceding letter or digit is a word-internal apostrophe, never the
-        // opener of a quoted run.
+        // A single quote after a letter or digit is a word-internal apostrophe, not an opener.
         if quote == '\'' {
             let before = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
             if before.is_some_and(char::is_alphanumeric) {
@@ -2981,8 +2952,7 @@ impl Parser<'_> {
         pos: usize,
         prev: Option<char>,
     ) -> Option<(Vec<Inline>, bool, usize)> {
-        // An inline literal is recognized wherever its delimiters appear, even mid-word; the other
-        // backtick constructs require a boundary before their opening delimiter.
+        // Inline literals match even mid-word; other backtick constructs need a preceding boundary.
         if chars.get(pos + 1) == Some(&'`') {
             let (content, end) = find_close_literal(chars, pos + 2, "``")?;
             return Some((
@@ -3049,8 +3019,7 @@ impl Parser<'_> {
             "subscript" | "sub" => Inline::Subscript(self.inlines_no_trim(content)),
             "superscript" | "sup" => Inline::Superscript(self.inlines_no_trim(content)),
             "math" => Inline::Math(MathType::InlineMath, content.into()),
-            // A raw role emits its content verbatim under the format its chain declares (empty when
-            // none is given); the accumulated classes do not apply to raw inlines.
+            // Raw role: content verbatim under the chain's format (may be empty); classes do not apply.
             "raw" => Inline::RawInline(
                 Format(chain.format.unwrap_or_default().into()),
                 content.into(),
@@ -3068,14 +3037,12 @@ impl Parser<'_> {
                 classes.push("title-ref".to_string());
                 Inline::Span(Box::new(class_attr(classes)), self.inlines_no_trim(content))
             }
-            // A chain that bottoms out in no base role (a plain custom role) wraps the content in a
-            // span carrying its accumulated classes.
+            // No base role (plain custom role): a span carrying the accumulated classes.
             "" => Inline::Span(
                 Box::new(class_attr(chain.classes)),
                 self.inlines_no_trim(content),
             ),
-            // An unrecognized role keeps its content verbatim, tagged with the role name so the
-            // information survives a round-trip.
+            // Unrecognized role: content verbatim, tagged with the role name to survive a round-trip.
             other => Inline::Code(
                 Box::new(Attr {
                     id: carta_ast::Text::default(),
@@ -3131,18 +3098,14 @@ impl Parser<'_> {
             return None;
         }
         let (name, mut end) = find_close_literal(chars, pos + 1, "|")?;
-        // A trailing underscore turns the substitution into a hyperlink reference: the expansion
-        // becomes the link text and the like-named target supplies the destination.
+        // Trailing underscore: the expansion becomes link text, the like-named target the destination.
         let referenced = chars.get(end) == Some(&'_');
         if referenced {
             end += 1;
         }
         let key = normalize_name(&name);
-        // A circular substitution reference (`|a|` expanding to text that references `|a|`, or a
-        // longer cycle through other definitions) would recurse without bound: expanding a
-        // replacement parses it as inline markup, which re-enters here. RST forbids such cycles,
-        // so a name already being expanded is left as an unresolved placeholder rather than
-        // re-entered.
+        // Expanding a replacement re-enters inline parsing, so a substitution cycle would recurse without
+        // bound. RST forbids cycles; a name already being expanded stays an unresolved placeholder.
         if self.active_substitutions.iter().any(|n| n == &key) {
             let mut display = Vec::new();
             push_text(&mut display, &format!("|{name}|"));
@@ -3164,7 +3127,7 @@ impl Parser<'_> {
                 self.active_substitutions.push(key.clone());
                 let inlines = self.inlines(&text);
                 self.active_substitutions.pop();
-                // A replacement that expands to several inlines is kept together as one unit.
+                // A multi-inline replacement is kept together as one unit.
                 match inlines.len() {
                     1 => inlines,
                     _ => vec![Inline::Span(Box::default(), inlines)],
@@ -3179,8 +3142,7 @@ impl Parser<'_> {
                 }),
             )],
             None => {
-                // An undefined substitution is preserved as a placeholder link whose visible text is
-                // the reference as written and whose destination flags it as unresolved.
+                // Undefined: a placeholder link, text as written, destination flagged unresolved.
                 let mut display = Vec::new();
                 push_text(&mut display, &format!("|{name}|"));
                 return Some((
@@ -3276,8 +3238,7 @@ impl Parser<'_> {
             label.clone()
         };
         let target = match url {
-            // An embedded destination may itself name another target (`<other_>`); such an indirect
-            // destination is resolved through the reference table, otherwise it is a concrete URL.
+            // An embedded destination naming another target (`<other_>`) resolves through the reference table.
             Some(url) => match indirect_referent(&url) {
                 Some(referent) => defer_reference(&referent),
                 None => url,
@@ -3285,8 +3246,7 @@ impl Parser<'_> {
             None if anonymous => self.next_anonymous(),
             None => defer_reference(&label),
         };
-        // A named phrase reference with an embedded destination also defines the label as a target,
-        // so that bare references to the same name resolve to it.
+        // A named phrase reference with an embedded destination also defines the label as a target.
         if !anonymous && !label.trim().is_empty() && !target.starts_with(REF_SENTINEL) {
             self.deferred.insert(normalize_name(&label), target.clone());
         }
@@ -3315,13 +3275,11 @@ impl Parser<'_> {
             return None;
         }
         let (name, before_name) = trailing_reference_name(pending)?;
-        // The reference name must begin at a word boundary; a name butting up against other text
-        // (the trailing run of `__init__`, or the `b` in `a __b__ c`) is not a reference.
+        // Name must start at a word boundary (not the trailing run of `__init__` or `b` in `a __b__ c`).
         if !inline_start_ok(before_name) {
             return None;
         }
-        // A reference wrapped in matching quotes is suppressed: the quotes and underscore stay
-        // literal text.
+        // Matching quotes suppress the reference: quotes and underscore stay literal.
         if quote_suppresses(before_name, chars.get(after).copied()) {
             return None;
         }
@@ -3621,8 +3579,7 @@ fn parse_csv(text: &str) -> Vec<Vec<String>> {
             }
         }
         record.push(field.trim().to_string());
-        // A field separator and the end of input both just advance the cursor; spelling the comma
-        // out keeps the three field terminators (separator, record break, end) side by side.
+        // Comma spelled out to keep the three field terminators (separator, record break, end) together.
         #[allow(clippy::match_same_arms)]
         match chars.get(i) {
             Some(',') => i += 1,
@@ -3871,8 +3828,8 @@ fn class_div(classes: Vec<String>, blocks: Vec<Block>) -> Block {
     )
 }
 
-/// When a paragraph's only content is an attribute-free span — the shape a multi-inline substitution
-/// expands to — the span dissolves into the paragraph, which carries its inlines directly.
+/// When a paragraph's only content is an attribute-free span (the shape a multi-inline substitution
+/// expands to), the span dissolves into the paragraph, which carries its inlines directly.
 fn splice_lone_span(mut inlines: Vec<Inline>) -> Vec<Inline> {
     let lone_plain_span = matches!(
         inlines.as_slice(),
@@ -3885,9 +3842,6 @@ fn splice_lone_span(mut inlines: Vec<Inline>) -> Vec<Inline> {
     inlines
 }
 
-/// Attach internal-target identifiers to the block they precede. A single target immediately before
-/// a section heading supplies the heading's identifier; otherwise each target wraps the block in a
-/// division carrying its identifier, the last target sitting innermost.
 /// Normalize the text of an inline literal: a line break within it folds to a single space, interior
 /// spacing is otherwise preserved, and leading and trailing whitespace is removed.
 fn normalize_inline_literal(content: &str) -> String {
@@ -3903,10 +3857,12 @@ fn class_attr(classes: Vec<String>) -> Attr {
     }
 }
 
+/// Attach internal-target identifiers to the block they precede. A single target immediately before
+/// a section heading supplies the heading's identifier; otherwise each target wraps the block in a
+/// division carrying its identifier, the last target sitting innermost.
 fn attach_targets(mut blocks: Vec<Block>, mut targets: Vec<String>) -> Vec<Block> {
-    // A run of internal targets in front of a section title all attach to that title: the last takes
-    // the title's identifier, and the rest become empty spans appended to the title in reverse, each
-    // carrying its name so it can still be linked to.
+    // Targets before a section title attach to it: the last takes the title's identifier, the rest
+    // become empty spans appended in reverse, each keeping its name for linking.
     if let [Block::Header(_, attr, inlines)] = blocks.as_mut_slice()
         && let Some(last) = targets.pop()
     {
@@ -4061,8 +4017,7 @@ fn push_text(out: &mut Vec<Inline>, text: &str) {
             if !word.is_empty() {
                 out.push(Inline::Str(std::mem::take(&mut word).into()));
             }
-            // Collapse a run of spaces to one node, but keep a leading space: callers that must not
-            // begin or end with one trim their result, while interpreted-text content keeps it.
+            // Keep a leading space: callers that must not start with one trim; interpreted text keeps it.
             if !matches!(out.last(), Some(Inline::Space | Inline::SoftBreak)) {
                 out.push(Inline::Space);
             }
@@ -4135,8 +4090,7 @@ fn trailing_reference_name(pending: &str) -> Option<(String, Option<char>)> {
             start -= 1;
             continue;
         }
-        // An internal punctuation character extends the name only when an alphanumeric precedes it,
-        // so it stays isolated and never leads the name.
+        // Internal punctuation extends the name only after an alphanumeric, so it never leads the name.
         if prev.is_some_and(|c| matches!(c, '-' | '_' | '.' | ':' | '+'))
             && start
                 .checked_sub(2)
@@ -4421,7 +4375,7 @@ fn count_char(chars: &[char], min: usize, end: usize, target: char) -> usize {
 
 /// Drop trailing punctuation from a URL run, never below `min`. A trailing `;` takes a preceding
 /// `&entity;` with it. A trailing closing bracket is dropped only when it is unbalanced within the
-/// run — there are more of it than its matching opener — so a bracketed path stays whole.
+/// run (there are more of it than its matching opener), so a bracketed path stays whole.
 fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
     while end > min {
         match chars.get(end - 1) {
@@ -4493,7 +4447,6 @@ fn quote_glyph(chars: &[char], pos: usize, quote: char) -> char {
 
 // --- grid table helpers ------------------------------------------------------------------------
 
-/// Parse a grid table's top border into the inclusive-exclusive character ranges of its columns.
 fn is_grid_line(line: &str) -> bool {
     line.starts_with('+') || line.starts_with('|')
 }
@@ -4521,7 +4474,7 @@ fn grid_at(block: &[Vec<char>], row: usize, col: usize) -> Option<char> {
 
 /// Trace every cell of a grid table out of its character matrix. From the top-left corner, each
 /// cell rectangle is found by following its top edge right to a `+`, its right edge down to a `+`,
-/// its bottom edge left to the starting column, and its left edge back up to the top — each edge
+/// its bottom edge left to the starting column, and its left edge back up to the top, each edge
 /// made solely of its border character (`-` across, `|` down), with `+` permitted where another
 /// grid line crosses. The corners opposite each cell seed the search for its right and lower
 /// neighbours. Returns `None` for a matrix that does not open with a corner.
@@ -4741,9 +4694,7 @@ mod tests {
 
     #[test]
     fn leading_punctuation_before_name_does_not_underflow() {
-        // Scanning a trailing reference name backwards must stop at the buffer start: a punctuation
-        // character with nothing before it cannot extend the name, and the scan must not look past
-        // index zero.
+        // Backwards name scan must stop at index zero; leading punctuation cannot extend the name.
         let _ = parse("_C_\n");
         let _ = parse("_C");
         let _ = parse(":a");
@@ -4751,13 +4702,10 @@ mod tests {
 
     #[test]
     fn circular_substitution_does_not_overflow_the_stack() {
-        // A substitution whose replacement references itself — directly, or through a cycle of
-        // other definitions — would expand without bound, because a replacement is itself parsed
-        // as inline markup. RST forbids circular references; the reader must leave such a name
-        // unexpanded rather than recurse into a stack overflow. A nightly fuzz run hit this.
+        // Fuzz-found: circular substitutions must stay unexpanded, not overflow the stack.
         let _ = parse(".. |a| replace:: |a|\n\n|a|\n");
         let _ = parse(".. |a| replace:: |b|\n.. |b| replace:: |a|\n\n|a|\n");
-        // The reduced reproducer libFuzzer minimized from the crashing input.
+        // libFuzzer-minimized reproducer.
         let bytes = [
             84u8, 46, 46, 32, 124, 124, 97, 112, 124, 0, 32, 10, 46, 46, 32, 124, 46, 46, 32, 124,
             117, 110, 105, 99, 111, 100, 101, 58, 58, 32, 124, 124, 124, 124, 95, 58, 58, 32, 124,
@@ -4772,9 +4720,7 @@ mod tests {
 
     #[test]
     fn pipe_not_followed_by_space_does_not_stall_the_scan() {
-        // A `|` not followed by a space or end of line does not open a line block. An indented or
-        // otherwise non-conforming pipe must fall through to ordinary block parsing, and the scan
-        // must advance past its line rather than re-examine it without end.
+        // A `|` without a following space/EOL is not a line block; the scan must advance past its line.
         let _ = parse("\u{0b}\t|\u{0}");
         let _ = parse("   |x");
         let _ = parse("|x\n");
@@ -4961,9 +4907,7 @@ mod tests {
 
     #[test]
     fn date_renders_strftime_fields_for_fixed_timestamps() {
-        // Expected values follow the Gregorian calendar in UTC; each timestamp is seconds past the
-        // epoch. The `date` directive's live form draws on the wall clock, so it is exercised here
-        // against frozen moments to keep the assertions reproducible.
+        // Frozen epoch timestamps (Gregorian, UTC) keep the assertions reproducible.
         let cases: &[(i64, &str, &str)] = &[
             // 2026-06-29 14:50:50 UTC, a Monday.
             (1_782_744_650, "%Y-%m-%d", "2026-06-29"),
@@ -5066,8 +5010,7 @@ mod tests {
 
     #[test]
     fn image_directive_resolves_width_and_scale() {
-        // A pixel width is truncated to an integer at parse time and rounds to even at the boundary
-        // once a scale is applied.
+        // Pixel width truncates to an integer at parse time; scaling rounds to even at the boundary.
         assert_eq!(
             image_width(".. image:: a.png\n   :width: 200px\n   :scale: 50%\n"),
             Some("100px".into())

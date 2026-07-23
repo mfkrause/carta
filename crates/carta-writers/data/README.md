@@ -1,6 +1,6 @@
 # Vendored data
 
-- `entities.json` — the named character reference table from the WHATWG HTML
+- `entities.json`: the named character reference table from the WHATWG HTML
   standard (<https://html.spec.whatwg.org/entities.json>). The writers consult
   the semicolon-terminated names to decide when a literal `&` in running text
   must be escaped so it is not re-read as a character reference.

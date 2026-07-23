@@ -34,8 +34,7 @@ fn png_dpi(bytes: &[u8]) -> Option<(u32, u32)> {
     if bytes.get(..8) != Some(PNG_SIGNATURE) {
         return None;
     }
-    // Chunks follow the eight-byte signature, each as a big-endian length, a four-byte type, that
-    // many data bytes, and a four-byte checksum. The scan stops once the image data begins.
+    // Chunks: be32 length, 4-byte type, data, 4-byte CRC; the scan stops at the image data.
     let mut offset = 8usize;
     loop {
         let length = read_be_u32(bytes, offset)? as usize;
@@ -47,8 +46,7 @@ fn png_dpi(bytes: &[u8]) -> Option<(u32, u32)> {
             let data = offset + 8;
             let per_meter_x = read_be_u32(bytes, data)?;
             let per_meter_y = read_be_u32(bytes, data + 4)?;
-            // A unit of 1 marks the resolution as pixels per meter; any other unit leaves it
-            // dimensionless, carrying no dpi.
+            // Unit 1 is pixels per meter; any other unit is dimensionless, carrying no dpi.
             if *bytes.get(data + 8)? != 1 {
                 return None;
             }
@@ -90,8 +88,7 @@ fn jpeg_dpi(bytes: &[u8]) -> Option<(u32, u32)> {
             continue;
         }
         let length = usize::from(read_be_u16(bytes, offset)?);
-        // The density lives in a header segment; the scan gives up once the entropy-coded scan
-        // begins, so a file without a JFIF segment reports no resolution.
+        // Give up at the entropy-coded scan: no JFIF segment means no resolution.
         if marker == 0xda {
             return None;
         }
@@ -177,8 +174,7 @@ pub(crate) fn jpeg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
             continue;
         }
         let length = usize::from(read_be_u16(bytes, offset)?);
-        // A start-of-frame marker holds the frame dimensions; the four Huffman/arithmetic table
-        // markers in the same range do not.
+        // SOF markers hold the dimensions; the four table markers in the same range do not.
         let is_frame = (0xc0..=0xcf).contains(&marker) && !matches!(marker, 0xc4 | 0xc8 | 0xcc);
         if is_frame {
             let height = read_be_u16(bytes, offset + 3)?;
@@ -342,8 +338,7 @@ mod tests {
 
     #[test]
     fn jpeg_dimensions_skips_to_the_start_of_frame() {
-        // An APP0 segment (with a length payload) precedes the start-of-frame marker, which the scan
-        // steps over before reading the frame's height and width.
+        // The scan steps over the APP0 segment to the start-of-frame marker.
         let bytes = [
             0xff, 0xd8, // start of image
             0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, // APP0 segment, length 4

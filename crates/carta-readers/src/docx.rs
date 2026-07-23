@@ -6,12 +6,9 @@
 //! marker shapes, and `word/footnotes.xml` / `word/endnotes.xml` hold note bodies. Embedded images
 //! live under `word/media/` and are carried into the media bag.
 //!
-//! Reading proceeds in three stages. First the archive is unzipped and each needed part is parsed
-//! into an element tree by a small hand-rolled XML parser (the format ships no DTD the reader must
-//! honor, so a permissive well-formed-XML scan suffices). Then the style, numbering, relationship,
-//! and note tables are indexed. Finally the body is walked once: each `w:p` becomes a block whose
-//! kind is decided by its style name — a `heading N` style is a section heading, `Quote` a block
-//! quote, `Source Code` a code block, `Title`/`Author`/`Date`/`Abstract` document metadata — while a
+//! Each `w:p` becomes a block whose kind is decided by its style name: a `heading N` style is a
+//! section heading, `Quote` a block quote, `Source Code` a code block, and
+//! `Title`/`Author`/`Date`/`Abstract` document metadata, while a
 //! paragraph carrying list numbering (`w:numPr`) joins a reconstructed list and everything else is a
 //! plain paragraph. Runs (`w:r`) contribute inline content, with each run's properties toggling the
 //! emphasis, strong, underline, strike, superscript, subscript, and small-caps wrappers nested in a
@@ -70,8 +67,7 @@ fn convert_on_owned_stack(
 ) -> (BTreeMap<Text, MetaValue>, Vec<Block>) {
     match on_deep_stack(|| Converter::new(parts, options, media).run()) {
         DeepStack::Completed(result) => result,
-        // A worker that panicked poisons its join; only an unspawnable thread is worth a retry, run
-        // on the current stack instead.
+        // A panicked worker is not retried; only spawn failure falls back to the current stack.
         DeepStack::Panicked => (BTreeMap::new(), Vec::new()),
         DeepStack::NotSpawned => Converter::new(parts, options, media).run(),
     }
@@ -80,14 +76,12 @@ fn convert_on_owned_stack(
 /// Upper bound on element nesting the parser materializes; content deeper than this is folded in
 /// without being descended into, so adversarially deep markup cannot exhaust memory. Body conversion
 /// runs on a dedicated stack (see [`convert_on_owned_stack`]), so this ceiling is set well above the
-/// nesting genuine documents reach — a chain of a thousand tables nested one inside another survives
-/// intact — while still bounding the emitted tree to a depth downstream output can carry on a normal
+/// nesting genuine documents reach (a chain of a thousand tables nested one inside another survives
+/// intact) while still bounding the emitted tree to a depth downstream output can carry on a normal
 /// application stack.
 const MAX_XML_DEPTH: usize = 3072;
 
-// ---------------------------------------------------------------------------
-// Style, numbering, relationship, and note tables
-// ---------------------------------------------------------------------------
+// --- Style, numbering, relationship, and note tables ---
 
 /// Run-level character formatting accumulated from direct run properties and any referenced
 /// character style.
@@ -190,9 +184,7 @@ struct Rel {
     external: bool,
 }
 
-// ---------------------------------------------------------------------------
-// Converter
-// ---------------------------------------------------------------------------
+// --- Converter ---
 
 /// Which slug algorithm and disambiguation a heading identifier uses.
 #[derive(Clone, Copy)]
@@ -222,8 +214,7 @@ struct Converter<'a> {
     /// `MetaInlines`; several to `MetaBlocks`, one `Para` per paragraph.
     abstract_paras: Vec<Vec<Inline>>,
     note_depth: usize,
-    // The leading run of the document body holds the title block: metadata-bearing styles are lifted
-    // to the document metadata only while it is open, and the first non-metadata block closes it.
+    // True while the leading title block is open; the first non-metadata block closes it.
     in_title_block: bool,
 }
 
@@ -352,8 +343,6 @@ impl<'a> Converter<'a> {
     }
 
     fn load_styles(&mut self) {
-        // Style definitions are found by the document relationship of type `styles`, or the
-        // conventional part name.
         let Some(root) = self.styles_root() else {
             return;
         };
@@ -489,7 +478,6 @@ impl<'a> Converter<'a> {
         let Some(root) = self.typed_part("numbering", "word/numbering.xml") else {
             return;
         };
-        // Abstract definitions first, then the concrete `num` entries that point at them.
         let mut abstracts: BTreeMap<String, BTreeMap<i32, LevelDef>> = BTreeMap::new();
         for abstract_num in root.elements() {
             if local_name(&abstract_num.name) != "abstractNum" {
@@ -577,15 +565,12 @@ impl<'a> Converter<'a> {
             .map(str::to_owned)
             .unwrap_or_default();
         let canonical = canonical_style(&style_name);
-        // The compact style marks a paragraph that carries no block spacing, so its body reads as a
-        // bare line rather than a spaced paragraph.
+        // The compact style suppresses block spacing, so the body renders as a bare line.
         let compact = canonical == "compact";
 
         let inlines = self.convert_inlines(paragraph);
 
-        // Metadata-bearing styles consume the paragraph, but only inside the leading title block; the
-        // first paragraph that is not one of them closes the block, and any later paragraph carrying
-        // such a style is ordinary body content.
+        // Metadata styles consume paragraphs only inside the leading title block; later ones are body.
         let metadata_style = matches!(
             canonical.as_str(),
             "title" | "subtitle" | "author" | "date" | "abstract"
@@ -604,17 +589,14 @@ impl<'a> Converter<'a> {
         }
         self.in_title_block = false;
 
-        // A style's block role is resolved through its `basedOn` chain, so a custom style built on a
-        // heading, quote, code, or caption style takes that role rather than falling back to a plain
-        // paragraph.
+        // The role resolves through the `basedOn` chain, so a custom style inherits its base's role.
         let role = style_id.map_or(ParaRole::Normal, |id| self.paragraph_role(id));
         let custom = !style_name.is_empty() && !is_builtin_style(&canonical);
-        // Under the `styles` extension a non-builtin custom style keeps its identity as a
-        // `custom-style` container; its role still shapes the block placed inside.
+        // `styles` extension: a non-builtin style becomes a `custom-style` container; its role still
+        // shapes the inner block.
         let wrap_custom = self.styles_ext && custom;
 
-        // A heading is always a section header — never a custom-style container; a custom style that
-        // inherits the heading role contributes its name as a class.
+        // A heading is never a custom-style container; a custom heading style adds its name as a class.
         if let ParaRole::Heading(level) = role {
             let id = self.heading_id(&inlines);
             let classes = if custom {
@@ -634,12 +616,10 @@ impl<'a> Converter<'a> {
             return;
         }
 
-        // The remaining roles sink into the surrounding flow, unless a custom style defers them to a
-        // container below.
+        // Remaining roles sink into the flow unless a custom style defers them to a container below.
         if !wrap_custom {
             match role {
-                // A caption paragraph folds into an adjacent image or table; on its own it stays a
-                // paragraph.
+                // A caption folds into an adjacent image or table; alone it stays a paragraph.
                 ParaRole::Caption if !inlines.is_empty() => {
                     sink.push_caption(vec![Block::Para(inlines)]);
                     return;
@@ -656,8 +636,7 @@ impl<'a> Converter<'a> {
             }
         }
 
-        // List membership is decided by numbering properties: the paragraph's own `numPr` wins, and
-        // in its absence the paragraph style contributes numbering through its `basedOn` chain.
+        // The paragraph's own `numPr` wins; otherwise the style contributes numbering via `basedOn`.
         let direct_num = properties.and_then(|pr| pr.child("numPr"));
         let direct_num_id = direct_num
             .and_then(|np| np.child("numId"))
@@ -681,8 +660,7 @@ impl<'a> Converter<'a> {
             } else {
                 Block::Para(inlines)
             };
-            // A custom-styled list paragraph keeps its style identity: under the `styles` extension
-            // each item is wrapped in its own `custom-style` container.
+            // `styles` extension: each custom-styled item gets its own `custom-style` container.
             let block = if wrap_custom {
                 Block::Div(Box::new(custom_style_attr(&style_name)), vec![item])
             } else {
@@ -706,15 +684,13 @@ impl<'a> Converter<'a> {
             return;
         }
 
-        // A lone-image paragraph is a figure candidate: a caption on either side folds it into a
-        // figure, and on its own it stays an image paragraph.
+        // A lone-image paragraph becomes a figure when a caption adjoins it on either side.
         if single_image(&inlines) {
             sink.emit_image(inlines);
             return;
         }
 
-        // A paragraph indented from the left margin is a block quote; consecutive indented paragraphs
-        // fold into one quote regardless of their individual depths.
+        // Consecutive indented paragraphs fold into one block quote regardless of depth.
         let indented = net_left_indent(properties) > 0;
 
         if wrap_custom {
@@ -828,9 +804,7 @@ impl<'a> Converter<'a> {
                 match custom_name
                     .filter(|name| !name.is_empty() && !is_builtin_style(&canonical_style(name)))
                 {
-                    // A run styled with a non-builtin character style is wrapped in a custom-style
-                    // span; the style's own formatting rides with the span rather than also being
-                    // reapplied here as toggles.
+                    // The custom-style span carries the style's formatting; not reapplied as toggles.
                     Some(name) => fmt.custom.push(name.into()),
                     None => self.style_fmt(style_id, &mut fmt),
                 }
@@ -838,8 +812,7 @@ impl<'a> Converter<'a> {
             read_toggles(properties).apply(&mut fmt);
         }
         if is_code {
-            // A verbatim-styled run is a single inline code span; its text is taken literally, with
-            // internal whitespace preserved rather than collapsed as prose.
+            // A verbatim-styled run is one inline code span; internal whitespace is preserved.
             let mut text = String::new();
             for child in run.elements() {
                 match local_name(&child.name) {
@@ -853,14 +826,11 @@ impl<'a> Converter<'a> {
             builder.push_node(RunFmt::default(), Inline::Code(Box::default(), text.into()));
             return;
         }
-        // A run keyed to a legacy pictorial font (Symbol, Wingdings) does not carry those glyphs'
-        // letters literally; each maps to the Unicode character it renders.
+        // Legacy pictorial fonts (Symbol, Wingdings): each letter maps to the Unicode glyph it renders.
         let sub = properties.and_then(symbol_font);
         for child in run.elements() {
             if local_name(&child.name) == "AlternateContent" {
-                // A markup-compatibility container guards feature-gated content behind a Choice and
-                // supplies a Fallback for readers without that feature. This reader renders the
-                // Fallback's run content and ignores the Choice.
+                // Markup-compatibility container: render the Fallback, ignore the Choice.
                 if let Some(fallback) = child.child("Fallback") {
                     for leaf in fallback.elements() {
                         self.run_child(leaf, &fmt, sub, builder);
@@ -906,9 +876,7 @@ impl<'a> Converter<'a> {
             }
             "drawing" | "pict" => {
                 if let Some(image) = self.convert_drawing(child) {
-                    // An image carries no character formatting: it neither takes emphasis nor holds a
-                    // run's wrappers together, so it is emitted unformatted and splits any span it
-                    // falls inside.
+                    // An image takes no character formatting: emitted unformatted, splitting any span.
                     builder.push_node(RunFmt::default(), image);
                 }
             }
@@ -918,8 +886,7 @@ impl<'a> Converter<'a> {
             }
             "footnoteReference" => {
                 if let Some(note) = self.convert_note(child, false) {
-                    // A footnote mark's run styling (the superscript reference style) is
-                    // presentational; the note stands on its own with no inline wrappers.
+                    // The superscript reference styling is presentational; no inline wrappers.
                     builder.push_node(RunFmt::default(), note);
                 }
             }
@@ -984,8 +951,7 @@ impl<'a> Converter<'a> {
         }?
         .clone();
         self.note_depth += 1;
-        // A note body is its own block flow; title-block metadata is only harvested from the leading
-        // run of the main document, so suspend extraction here and restore the outer state after.
+        // Title-block metadata comes only from the main document, so suspend extraction inside notes.
         let outer_title_block = self.in_title_block;
         self.in_title_block = false;
         let blocks = self.convert_blocks(&note);
@@ -995,8 +961,7 @@ impl<'a> Converter<'a> {
     }
 
     fn convert_drawing(&mut self, drawing: &Element) -> Option<Inline> {
-        // A DrawingML picture carries its relationship on an `a:blip`; a legacy VML shape or an
-        // embedded OLE preview carries it on a `v:imagedata`. Either identifies the packaged image.
+        // DrawingML carries the relationship on `a:blip`; legacy VML and OLE previews on `v:imagedata`.
         let rel_id = drawing
             .descendant("blip")
             .and_then(|blip| {
@@ -1027,8 +992,7 @@ impl<'a> Converter<'a> {
             ));
         }
         let url = normalize_target(&rel.target);
-        // The bytes are only fetched and copied when the image is new to the bag; a repeat reference
-        // skips the allocation entirely.
+        // Bytes are fetched only when the image is new to the bag; a repeat skips the copy.
         if !self.media.contains(&url) {
             let part_name = format!("{DOC_DIR}{url}");
             if let Some(bytes) = self.part(&part_name).map(<[u8]>::to_vec) {
@@ -1057,23 +1021,20 @@ impl<'a> Converter<'a> {
             .map(|element| element.attr("w").and_then(parse_int).map_or(0, i64::from))
             .collect();
         let total: i64 = grid.iter().sum();
-        // A grid column's width is expressed as a fraction of a reference text width: a default page's
-        // printable width, reduced by a fixed allowance for each inter-column boundary, but never
-        // narrower than the grid's own total so an over-wide table stays normalized to itself.
+        // Column width is a fraction of a default page's printable width minus a per-boundary
+        // allowance, floored at the grid's own total so an over-wide table stays normalized to itself.
         let column_count = i64::try_from(grid.len()).unwrap_or(i64::MAX);
         let reference_width =
             (DEFAULT_TEXT_WIDTH_TWIPS - INTER_COLUMN_TWIPS * (column_count - 1).max(0)).max(total);
 
-        // A table look requesting first-row conditional formatting promotes the first row to a header
-        // when no row carries its own header marker.
+        // A firstRow table look promotes the first row to header when no row carries its own marker.
         let look_first_row = table
             .child("tblPr")
             .and_then(|pr| pr.child("tblLook"))
             .is_some_and(table_look_first_row);
 
-        // The column count is fixed by the grid; a table without a grid takes the width of its widest
-        // row. Every cell span is validated against this count, so a malformed `gridSpan` can neither
-        // overflow a column position nor inflate the table's width.
+        // Column count is fixed by the grid (widest row absent one); spans are validated against it,
+        // so a malformed `gridSpan` cannot overflow a column position or inflate the width.
         let columns = if grid.is_empty() {
             table
                 .elements()
@@ -1149,8 +1110,7 @@ impl<'a> Converter<'a> {
             return None;
         }
 
-        // A row is a header when it is flagged so; absent any such flag, a `firstRow` table look marks
-        // the first row.
+        // A row is a header when flagged; otherwise a `firstRow` table look marks the first row.
         let any_header = rows.iter().any(|row| row.header);
         let head_count = if any_header {
             rows.iter().take_while(|row| row.header).count()
@@ -1251,9 +1211,7 @@ impl<'a> Converter<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Block accumulation
-// ---------------------------------------------------------------------------
+// --- Block accumulation ---
 
 /// One list paragraph awaiting reassembly into nested lists.
 struct ListEntry {
@@ -1504,9 +1462,7 @@ fn build_one_list(entries: &mut VecDeque<ListEntry>, depth: usize) -> Block {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Table row assembly
-// ---------------------------------------------------------------------------
+// --- Table row assembly ---
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum VMerge {
@@ -1529,9 +1485,8 @@ struct RowRaw {
 
 /// Resolves vertical merges into row spans and drops the continuation cells they absorb.
 fn build_rows(rows: Vec<RowRaw>) -> Vec<Row> {
-    // A first pass over the light merge markers resolves each retained cell's vertical span, aligned
-    // one-to-one with `row.cells` (`None` marks a continuation cell that is dropped). The second pass
-    // can then move the heavy cell content out of `rows` instead of cloning it.
+    // First pass resolves each cell's span from the light merge markers (`None` marks a dropped
+    // continuation); the second can then move the heavy cell content instead of cloning it.
     let spans: Vec<Vec<Option<i32>>> = rows
         .iter()
         .enumerate()
@@ -1596,9 +1551,7 @@ fn column_alignment(rows: &[RowRaw], head_count: usize, column: usize) -> Alignm
     Alignment::AlignDefault
 }
 
-// ---------------------------------------------------------------------------
-// Inline assembly
-// ---------------------------------------------------------------------------
+// --- Inline assembly ---
 
 /// One enclosing inline wrapper. The declaration order is the nesting order applied to a leaf:
 /// earlier variants wrap later ones regardless of the order the source turned them on.
@@ -1646,8 +1599,7 @@ fn push_code_runs(element: &Element, out: &mut String) {
             "t" => out.push_str(&child.text()),
             "tab" => out.push('\t'),
             "br" => {
-                // A page or column break carries no line of its own; only a text-wrapping break
-                // advances to the next code line.
+                // Only a text-wrapping break advances the code line; page and column breaks do not.
                 if child.attr("type").unwrap_or("textWrapping") == "textWrapping" {
                     out.push('\n');
                 }
@@ -1663,8 +1615,7 @@ fn push_code_runs(element: &Element, out: &mut String) {
                     out.push(ch);
                 }
             }
-            // Run and paragraph properties hold no text; tracked deletions and field instructions
-            // are not part of the rendered code.
+            // Properties, tracked deletions, and field instructions are not part of the code.
             "rPr" | "pPr" | "del" | "delText" | "instrText" => {}
             _ => push_code_runs(child, out),
         }
@@ -1930,8 +1881,7 @@ fn build_grouped(mut items: VecDeque<(Vec<Wrapper>, Inline)>) -> Vec<Inline> {
                     out.push(inline);
                 }
             }
-            // Peel the run this wrapper spans, dropping the wrapper from each member and nesting the
-            // rest inside it.
+            // Peel the run this wrapper spans: drop it from each member, nest the rest inside.
             Some((wrapper, len)) => {
                 let mut group = VecDeque::new();
                 for _ in 0..len {
@@ -1974,9 +1924,7 @@ fn wrap_factored(wrapper: Wrapper, mut inner: Vec<Inline>) -> Vec<Inline> {
     out
 }
 
-// ---------------------------------------------------------------------------
-// Shared helpers
-// ---------------------------------------------------------------------------
+// --- Shared helpers ---
 
 /// Reads the tri-state run toggles from an `rPr` element.
 fn read_toggles(properties: &Element) -> RunToggles {
@@ -2301,8 +2249,8 @@ fn single_image(inlines: &[Inline]) -> bool {
 }
 
 /// Whether a character is prose whitespace that collapses to a single inter-word space. Only the
-/// ASCII space, tab, and the two line-ending characters fold; every other space character — the
-/// non-breaking space and the fixed-width Unicode spaces among them — is literal text and is carried
+/// ASCII space, tab, and the two line-ending characters fold; every other space character (the
+/// non-breaking space and the fixed-width Unicode spaces among them) is literal text and is carried
 /// through verbatim.
 fn is_break_space(ch: char) -> bool {
     matches!(ch, ' ' | '\t' | '\n' | '\r')
@@ -2368,7 +2316,7 @@ fn table_look_first_row(look: &Element) -> bool {
 }
 
 /// Whether a present `w:tblHeader` row marker is in force. The marker declares its row a header; an
-/// explicit `w:val` of `0` switches that off, while any other value — or none — leaves it on.
+/// explicit `w:val` of `0` switches that off, while any other value, or none, leaves it on.
 fn tbl_header_on(marker: &Element) -> bool {
     marker.attr("val") != Some("0")
 }
@@ -2418,9 +2366,7 @@ fn mime_for(path: &str) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Legacy pictorial-font substitution
-// ---------------------------------------------------------------------------
+// --- Legacy pictorial-font substitution ---
 
 /// A legacy font whose printable-ASCII slots hold glyphs unrelated to the letters' code points, so a
 /// run styled with it must have its text remapped to the Unicode characters those glyphs stand for.
@@ -2508,12 +2454,10 @@ static WINGDINGS_TABLE: [&str; 95] = [
     "\u{1f677}",
 ];
 
-// ---------------------------------------------------------------------------
-// OMML → TeX
-// ---------------------------------------------------------------------------
+// --- OMML → TeX ---
 
-/// Renders an Office `MathML` element to a TeX string. The core constructs — fractions, scripts,
-/// radicals, n-ary operators, delimiters, functions, accents, bars, matrices, and limits — are
+/// Renders an Office `MathML` element to a TeX string. The core constructs (fractions, scripts,
+/// radicals, n-ary operators, delimiters, functions, accents, bars, matrices, and limits) are
 /// mapped directly; anything unmodeled falls back to its rendered child content so no math is lost.
 fn omml_to_tex(element: &Element) -> String {
     let mut out = String::new();
@@ -2527,8 +2471,7 @@ fn render_math_children(element: &Element, out: &mut String) {
     }
 }
 
-// The explicit transparent-wrapper arm mirrors the wildcard on purpose: it documents which elements
-// are known pass-throughs versus merely unhandled.
+// The transparent-wrapper arm mirrors the wildcard to document known pass-throughs.
 #[allow(clippy::too_many_lines, clippy::match_same_arms)]
 fn render_math(element: &Element, out: &mut String) {
     match local_name(&element.name) {
@@ -2668,9 +2611,8 @@ fn render_delimiter(element: &Element, out: &mut String) {
         .collect();
     let rendered: Vec<String> = bodies.iter().map(|body| render_element(body)).collect();
 
-    // Parentheses, brackets and single bars stay unsized around short, flat content; anything taller
-    // than a run, multiple compartments, or a fence that must scale (braces, floors, angles, …) is
-    // wrapped in `\left … \right` so it grows with its content.
+    // Parens, brackets, and single bars stay unsized around short flat content; anything taller,
+    // multi-compartment, or a scaling fence (braces, floors, angles) gets `\left … \right`.
     let sized = rendered.len() > 1
         || !plain_delimiter(beg)
         || !plain_delimiter(end)
@@ -2694,8 +2636,7 @@ fn render_delimiter(element: &Element, out: &mut String) {
     out.push(' ');
     for (index, inner) in rendered.iter().enumerate() {
         if index > 0 {
-            // A bar separator scales with `\middle`; any other character is written literally, since
-            // `\middle` only accepts a delimiter.
+            // `\middle` only accepts a delimiter: a bar scales, anything else is written literally.
             match sep {
                 None | Some("|") => out.push_str(" \\middle| "),
                 Some(other) => out.push_str(other),
@@ -2991,11 +2932,8 @@ mod tests {
 
     #[test]
     fn deeply_nested_hyperlinks_do_not_overflow_the_stack() {
-        // Each nested hyperlink descends one inline-walk frame. Well-formed input can stack these far
-        // deeper than any real document, so the walk is depth-bounded; this proves a pathological
-        // chain reads to completion instead of exhausting the call stack. The depth sits above the
-        // walk's own ceiling yet within the XML scanner's nesting limit, so the parsed tree really is
-        // that deep and, before the bound, the recursion overran the stack on an input this size.
+        // Depth sits above the inline walk's ceiling but within the XML nesting limit, proving a
+        // pathological hyperlink chain reads to completion without exhausting the call stack.
         let depth = 2_000;
         let body = format!(
             "<w:p>{}<w:r><w:t>x</w:t></w:r>{}</w:p>",
@@ -3043,11 +2981,8 @@ mod tests {
 
     #[test]
     fn deeply_nested_tables_are_preserved_to_the_scanner_ceiling() {
-        // A thousand tables nested one inside another sit just under the scanner's nesting ceiling,
-        // so every level survives and the innermost paragraph is intact — the block tree is not
-        // silently shortened. Reading converts the body on a generously sized stack of its own;
-        // walking and dropping a structure this deep is what would otherwise overrun the slim
-        // test-runner stack, so the assertions run on a roomy stack too.
+        // 1000 nested tables sit just under the scanner ceiling: every level must survive intact.
+        // Assertions run on a roomy stack: dropping this tree overruns the test-runner stack.
         let outcome = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(|| {
@@ -3186,8 +3121,7 @@ mod tests {
         assert_eq!(head_rows("<w:tblHeader/>"), 1);
         // An explicit `w:val` of `0` switches the marker off, leaving the row in the body.
         assert_eq!(head_rows("<w:tblHeader w:val=\"0\"/>"), 0);
-        // Only the literal `0` disables the marker: any other value keeps the row a header, so this
-        // row property does not share the run toggles' broader set of off spellings.
+        // Only the literal `0` disables the marker; it lacks the run toggles' broader off spellings.
         assert_eq!(head_rows("<w:tblHeader w:val=\"false\"/>"), 1);
         assert_eq!(head_rows("<w:tblHeader w:val=\"1\"/>"), 1);
     }

@@ -12,9 +12,7 @@ readme.workspace = true
 keywords = ["markup", "markdown", "document", "converter", "commonmark"]
 categories = ["command-line-utilities", "text-processing", "parser-implementations"]
 publish.workspace = true
-# The golden-snapshot suite (thousands of `.snap` files under tests/) is developer-only: consumers
-# never compile the integration tests, so keep them out of the published crate rather than shipping
-# ~1 MiB of test data to everyone who installs or depends on `carta`.
+# The golden-snapshot suite (~1 MiB under tests/) is developer-only; keep it out of the published crate.
 exclude = ["/tests"]
 
 # docs.rs builds default features only; enable all so every reader/writer is documented.
@@ -22,8 +20,7 @@ exclude = ["/tests"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-# Points `cargo binstall` at the prebuilt release archives (`carta-<target>.tar.gz`, `.zip` on
-# Windows), each containing the binary at the archive root.
+# Points `cargo binstall` at the prebuilt release archives (binary at the archive root).
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/{ bin }-{ target }{ archive-suffix }"
 bin-dir = "{ bin }{ binary-ext }"
@@ -37,10 +34,8 @@ workspace = true
 
 [features]
 default = ["full", "cli"]
-# The `carta` command-line binary and its argument parser. Enabled by default so `cargo install carta`
-# yields the tool; library-only users set `default-features = false` to drop it (and `clap`). It pulls
-# the standalone and metadata-file machinery the CLI drives — pair with format features (or `full`) to
-# choose what the binary can convert.
+# The `carta` binary. Default so `cargo install carta` yields the tool; library-only users set
+# `default-features = false`. Pair with format features (or `full`) to choose what it converts.
 cli = [
     "dep:clap",
     "dep:clap_complete",
@@ -51,19 +46,14 @@ cli = [
     "carta-ast/serde",
     "carta-core/serde",
 ]
-# Fetch remote resources over HTTP(S) when inlining them for self-contained HTML (`--embed-resources`):
-# carries the HTTP client. Without it, only local and already-inline resources are inlined and a remote
-# reference is left external. Part of `cli` so the installed tool is self-contained-capable by default.
+# HTTP(S) fetching of remote resources for `--embed-resources`; without it a remote reference is left external.
 fetch = ["dep:ureq"]
 full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "read-rtf", "read-docx", "read-epub", "read-odt", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "write-odt", "write-rtf", "highlight", "standalone", "metadata-file"]
-# Syntax highlighting for code blocks, plus the CLI's language/style listings and idiomatic mode. Turns
-# the feature on in any compiled writers and carries the tokenizer catalog for the listing/print flags.
+# Syntax highlighting for code blocks, plus the CLI's language/style listings and idiomatic mode.
 highlight = ["dep:carta-highlight", "carta-core/highlight", "carta-writers?/highlight"]
-# Standalone output: the template engine, context builder, document wrapping, default templates,
-# and the `-s`/`--template`/`-V`/`-M` inputs. Works with any reader/writer; no commonmark required.
+# Standalone output: template engine, context builder, wrapping, and the `-s`/`--template`/`-V`/`-M` inputs.
 standalone = ["carta-core/template", "dep:serde_json"]
-# `--metadata-file`: parses YAML/JSON metadata files through the commonmark machinery, so it must
-# pull in that reader — declaring the dependency makes the broken half-configured build unrepresentable.
+# `--metadata-file` parses metadata through the commonmark machinery, so it must pull in that reader.
 metadata-file = ["standalone", "read-commonmark"]
 read-commonmark = ["dep:carta-readers", "carta-readers/commonmark"]
 read-json = ["dep:carta-readers", "carta-readers/json"]
@@ -113,12 +103,10 @@ write-rtf = ["dep:carta-writers", "carta-writers/rtf"]
 [dependencies]
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
-# The syntax-highlighting catalog: pulled in by the `highlight` feature for the CLI's language/style
-# listings and for building the highlighter and theme the writers colorize code blocks with.
+# The syntax-highlighting catalog behind the `highlight` feature.
 carta-highlight = { workspace = true, optional = true }
-# Referenced by path (not the workspace table) so this crate can own their feature selection:
-# `default-features = false` cannot override an inherited workspace dependency. The `version` makes
-# the published package depend on the registry release; the path is used for in-workspace builds.
+# By path (not the workspace table) so this crate owns their feature selection; `version` makes the
+# published package depend on the registry release.
 carta-readers = { path = "../carta-readers", version = "0.0.7", default-features = false, optional = true }
 carta-writers = { path = "../carta-writers", version = "0.0.7", default-features = false, optional = true }
 # `meta-json`: serializes the rendered metadata into the standalone template context.
@@ -128,22 +116,17 @@ clap = { workspace = true, optional = true }
 # Generators behind the binary's `--completions <shell>` and `--man` flags.
 clap_complete = { version = "4", optional = true }
 clap_mangen = { version = "0.3", optional = true }
-# The HTTP client used to fetch remote resources for self-contained HTML. Gated behind `fetch`; a
-# rustls TLS stack keeps the build free of a system OpenSSL dependency.
+# HTTP client behind `fetch`; rustls keeps the build free of a system OpenSSL dependency.
 ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
-# Grows the current thread's stack on demand while a document is serialized, so a pathologically deep
-# block/inline tree cannot exhaust the caller's stack during the writer's per-level recursion. Kept
-# on this thread rather than a worker so the writer options, which may hold thread-affine state, need
-# not be shareable across threads. A tiny, single-purpose crate; the equivalent hand-rolled stack
-# switch would require `unsafe`, which this workspace forbids.
+# Grows the thread's stack on demand during serialization so a deep tree cannot exhaust it;
+# same-thread (not a worker) because writer options may hold thread-affine state.
 stacker = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 criterion = { workspace = true }
 
-# The command-line binary. Gated on `cli` so a library-only build (`default-features = false`) neither
-# compiles it nor pulls its dependencies.
+# Gated on `cli` so a library-only build neither compiles the binary nor pulls its dependencies.
 [[bin]]
 name = "carta"
 path = "src/main.rs"

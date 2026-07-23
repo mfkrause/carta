@@ -1,6 +1,6 @@
 //! The built-in stylesheet linked from every page when the document supplies none of its own. It
-//! styles the structural classes the chapter and title-page markup carries — headings, the title
-//! block, code, quotations, footnotes, figures and tables — so a book reads acceptably out of the
+//! styles the structural classes the chapter and title-page markup carries (headings, the title
+//! block, code, quotations, footnotes, figures and tables) so a book reads acceptably out of the
 //! box. Supplying any stylesheet replaces this one outright rather than layering over it.
 
 /// The file name the built-in stylesheet is stored under, and referred to by from each page.

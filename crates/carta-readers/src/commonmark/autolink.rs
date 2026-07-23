@@ -43,10 +43,8 @@ pub(crate) fn autolink_inlines(inlines: &mut Vec<Inline>, markdown: bool) {
     let mut out = Vec::with_capacity(taken.len());
     for inline in taken {
         match inline {
-            // Every match requires one of these literal substrings: a scheme URL needs `://` (the
-            // scheme set is exactly `https://`/`http://`/`ftp://`), a `www.` host needs `www.`, and
-            // an email needs `@`. A token containing none of them cannot autolink, so it passes
-            // through unscanned. If a new scheme without `//` is ever added, extend this trigger set.
+            // Every match needs `://`, `www.`, or `@`; a token with none cannot autolink and
+            // passes through unscanned. A new scheme without `//` must extend this trigger set.
             Inline::Str(s) => {
                 if s.contains("://") || s.contains('@') || s.contains("www.") {
                     split_text(&s, markdown, &mut out);
@@ -90,8 +88,7 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
     let mut i = 0;
     let mut emit_from = 0;
     while i < len {
-        // A bare `www.` host (no scheme) autolinks only in the strict dialect; the Markdown dialect
-        // links scheme URLs and emails alone.
+        // A bare `www.` host (no scheme) autolinks only in the strict dialect.
         let found = match_url(text, i)
             .or_else(|| (!markdown).then(|| match_www(text, i)).flatten())
             .or_else(|| match_email(text, i, emit_from, markdown));
@@ -107,8 +104,7 @@ fn split_text(text: &str, markdown: bool, out: &mut Vec<Inline>) {
                 } else {
                     Attr::default()
                 };
-                // The markdown dialect percent-encodes the destination's unsafe characters; the
-                // GitHub dialect keeps the matched text verbatim.
+                // Markdown dialect percent-encodes the destination; GitHub keeps it verbatim.
                 let url = if markdown {
                     super::scan::escape_uri(&m.href)
                 } else {
@@ -172,7 +168,7 @@ fn match_url(text: &str, i: usize) -> Option<Match> {
 /// alphanumerics, `-`, and `_` are read greedily and joined by single dots; the domain is the longest
 /// such prefix whose labels are non-empty and end in neither `-` nor `_`. It is usable when that
 /// prefix holds at least two labels. Whatever follows the domain (port, path, an extra dot) is not
-/// examined here — it stays part of the link.
+/// examined here; it stays part of the link.
 fn valid_host(rest: &str) -> bool {
     let mut labels = 0;
     let mut i = 0;
@@ -544,8 +540,7 @@ mod tests {
                 "http://www.example.com".to_owned()
             )]
         );
-        // The `www.` trigger is present in both dialects, but the markdown dialect does not link
-        // bare `www.` hosts, so the token must survive as a single unchanged `Str`.
+        // Markdown does not link bare `www.` hosts: the token must survive as one unchanged `Str`.
         assert_eq!(
             autolinked("www.example.com", true),
             vec![Inline::Str("www.example.com".to_owned().into())]

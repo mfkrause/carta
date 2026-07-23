@@ -91,18 +91,16 @@ fn lower_styled(atoms: &[Atom], style: Style) -> Option<Vec<Inline>> {
 ///
 /// TeX suppresses the surrounding space of a binary operator that has no left operand: an operator
 /// written first, or right after another operator, a relation, an opening delimiter, punctuation, or
-/// a large operator, becomes ordinary for spacing. The retyping happens once — the now-ordinary atom
+/// a large operator, becomes ordinary for spacing. The retyping happens once: the now-ordinary atom
 /// is a valid operand, so the next binary operator keeps its spacing. A large operator additionally
 /// absorbs the thin space that a punctuation atom immediately after it would carry. A binary operator
-/// with no valid right operand — one immediately followed by a relation, a closing delimiter, or
-/// punctuation — likewise becomes ordinary, so it binds to its left operand instead of being spaced.
+/// with no valid right operand (one immediately followed by a relation, a closing delimiter, or
+/// punctuation) likewise becomes ordinary, so it binds to its left operand instead of being spaced.
 fn effective_classes(rendered: &[Rendered]) -> Vec<Class> {
     let mut effective: Vec<Class> = Vec::with_capacity(rendered.len());
     for (i, item) in rendered.iter().enumerate() {
         let prev = i.checked_sub(1).and_then(|p| effective.get(p)).copied();
-        // A manual space written immediately after an operator or relation supplies that gap itself,
-        // so the operator drops its own automatic spacing (on both sides) and becomes ordinary; this
-        // avoids doubling a manual and an automatic space where they meet.
+        // a manual space right after an operator supplies the gap itself; retype to Ord to avoid doubling
         let next_manual = rendered.get(i + 1).is_some_and(|n| n.is_manual_space);
         let class = match item.class {
             Class::Bin | Class::Rel | Class::Punct if next_manual => Class::Ord,
@@ -112,8 +110,7 @@ fn effective_classes(rendered: &[Rendered]) -> Vec<Class> {
         };
         effective.push(class);
     }
-    // A binary operator followed by a relation, closing delimiter, or punctuation has no right operand
-    // to bind, so it retypes to ordinary. The look-ahead uses the class settled by the forward pass.
+    // Bin with no right operand (Rel/Close/Punct next) retypes to Ord; uses forward-pass classes
     for i in 0..effective.len() {
         let unbinds = effective.get(i) == Some(&Class::Bin)
             && effective
@@ -136,7 +133,7 @@ fn retypes_following_operator(class: Class) -> bool {
 }
 
 /// A rendered atom: its inlines plus the math class that governs neighbouring spacing, and whether
-/// the atom is a manual spacing command (`\,`, `\quad`, the tie `~`, …) — a manual space suppresses
+/// the atom is a manual spacing command (`\,`, `\quad`, the tie `~`, …); a manual space suppresses
 /// the automatic spacing of an operator or relation written immediately before it.
 struct Rendered {
     inlines: Vec<Inline>,
@@ -157,14 +154,10 @@ fn render_atoms(atoms: &[Atom], style: Style) -> Option<Vec<Rendered>> {
 /// here; only the emphasis styles wrap the whole atom.
 fn wrap_styled_atom(inlines: Vec<Inline>, style: Style) -> Vec<Inline> {
     match style {
-        // Bold sets letters upright-bold, so the italic wrapper a variable would carry is removed
-        // before the strong wrapper is added.
+        // bold sets letters upright-bold: strip variable italics before wrapping
         Style::Bold => vec![Inline::Strong(strip_italic(inlines))],
-        // Italic slants every atom, including digits and symbols not italicised by default; an
-        // already-italic letter is unwrapped first so it is not doubly emphasised.
+        // unwrap already-italic letters so they are not doubly emphasised
         Style::Italic => vec![Inline::Emph(strip_italic(inlines))],
-        // Bold-italic strikes the variable italics first, then nests an emphasis inside a strong
-        // wrapper so each atom is both bold and slanted.
         Style::BoldItalic => vec![Inline::Strong(vec![Inline::Emph(strip_italic(inlines))])],
         Style::Plain
         | Style::Upright
@@ -196,8 +189,7 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         && atom.siblings.is_empty()
         && is_manual_space_body(&atom.body);
 
-    // Sequence the scripts into render runs: the primary subscript/superscript first, then every
-    // sibling run, each reordered so the subscript renders before the superscript.
+    // primary scripts first, then sibling runs, subscript before superscript in each run
     let runs = atom.script_runs();
     let has_sub = runs
         .iter()
@@ -209,9 +201,8 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         .any(|s| s.kind == ScriptKind::Sup);
     let has_scripts = runs.iter().any(|r| !r.scripts.is_empty());
 
-    // Stacked limits cannot be linearised. `\limits` forces stacking whenever a script is present;
-    // `\nolimits` forces the scripts beside the operator; with no override a limit-class operator
-    // stacks only when it carries both a sub- and a superscript.
+    // stacked limits cannot linearise: `\limits` stacks with any script, `\nolimits` never,
+    // default stacks only with both a sub- and a superscript
     let stacks = match atom.limits {
         Some(true) => has_scripts,
         Some(false) => false,
@@ -221,10 +212,7 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         return None;
     }
 
-    // The style wraps the base nucleus, then the scripts — already styled by recursing the style into
-    // them — are appended outside that wrapper, so a scripted atom is styled in base and script
-    // independently rather than as one wrapped unit. The substituting and upright styles changed each
-    // glyph at the leaf and add no wrapper here.
+    // wrap the base only; scripts are styled by recursion and appended outside the wrapper
     let mut inlines = wrap_styled_atom(inlines, style);
 
     if has_scripts {
@@ -242,8 +230,7 @@ fn render_atom(atom: &Atom, style: Style) -> Option<Rendered> {
         push_str(&mut inlines, THIN_SPACE);
     }
 
-    // A large operator that carries scripts no longer absorbs the space of a following operator: its
-    // scripts make it an ordinary operand for the spacing pass.
+    // a scripted large operator is an ordinary operand for the spacing pass
     let class = if class == Class::Op && has_scripts {
         Class::Ord
     } else {
@@ -285,9 +272,7 @@ fn render_script(group: &[Atom], style: Style) -> Option<Vec<Inline>> {
         return Some(vec![Inline::Str(prime_glyph(*count).into())]);
     }
     let mut inlines = lower_styled(group, style)?;
-    // A script whose sole content is a bare named function drops that function's trailing thin space:
-    // standing alone as the whole script it has no operand to be set off from. A function alongside
-    // other atoms keeps the space, as does a manually written space (`\,`).
+    // a script that is only a bare named function has no operand to set off: drop its thin space
     if let [single] = group
         && ends_with_intrinsic_thin_space(single)
     {
@@ -330,45 +315,34 @@ fn trim_trailing_thin_space(inlines: &mut Vec<Inline>) {
 #[allow(clippy::match_same_arms)]
 fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
     match body {
-        // An empty nucleus contributes no glyph; only its scripts render. It carries ordinary class
-        // so a neighbouring binary operator still spaces against it. A captured equation `\label`
-        // likewise has no linear glyph — labels surface only in Typst output — so it lowers the same.
+        // no glyph, only scripts render; Ord so a neighbour still spaces (labels surface only in Typst)
         Body::Empty | Body::EmptyGroup | Body::Label(_) => {
             Some((Vec::new(), Class::Ord, false, false))
         }
-        // A prime mark that surfaces as a bare nucleus renders as the prime glyph. A run of five or
-        // more marks sets the first quadruple-prime as the glyph and lifts the remaining marks into a
-        // superscript, so a long bare run stacks rather than spilling across the baseline.
         Body::Prime(count) => Some((prime_nucleus(*count), Class::Ord, false, false)),
-        // A bare (unescaped) TeX-active character — the parameter `#`, the alignment tab `&`, or the
-        // comment `%` — has no ordinary-symbol meaning in inline math, so the whole expression falls
-        // back to verbatim. A `&` that is an alignment separator is consumed by the grid parser and
-        // never reaches here; the escaped forms `\#`/`\&`/`\%` arrive as commands and still convert.
+        // bare #/&/% have no symbol meaning: verbatim fallback (alignment `&` is consumed by the
+        // grid parser; escaped forms arrive as commands)
         Body::Char('#' | '&' | '%') => None,
         Body::Char(c) => render_char(*c, style),
-        // The `:=` digraph prints as the two literal characters and takes relation spacing as a unit.
+        // `:=` prints literally and takes relation spacing as a unit
         Body::ColonEq => Some((vec![Inline::Str(":=".into())], Class::Rel, false, false)),
         Body::Number(digits) => render_number(digits, style),
         Body::Command(name) => render_command(name, style),
         Body::Group(inner) => {
             let inlines = lower_styled(inner, style)?;
-            // A group is transparent for spacing: take the class of its first/only element is hard
-            // to attribute, so groups render as ordinary atoms.
+            // class attribution inside a group is ambiguous, so groups render as Ord
             Some((inlines, Class::Ord, false, false))
         }
         Body::Accent(name, base) => render_accent(name, base),
         Body::Styled(name, arg) => render_styled(name, arg),
         Body::Text(name, content) => render_text(name, content),
-        // A fixed-size wrapper renders its bare glyph; the size is presentational and does not
-        // survive linear output. The sized glyph always takes ordinary class, so it binds tightly to
-        // its neighbours whatever the glyph's usual class would be.
+        // size is presentational; the bare glyph renders as Ord so it binds tightly
         Body::Big(_, delim) => {
             let (inlines, _, _, _) = render_nucleus(&delim.body, Style::Plain)?;
             Some((inlines, Class::Ord, false, false))
         }
         Body::Delimited(open, close, content) => render_delimited(*open, *close, content),
-        // A `\middle<delim>` divider inside a delimited group: its plain glyph, with no space of its
-        // own. An absent delimiter (`.`) contributes nothing.
+        // `\middle` renders its plain glyph with no space; an absent delimiter (`.`) contributes nothing
         Body::Middle(delim, open_side) => {
             let side = if *open_side {
                 DelimSide::Open
@@ -380,8 +354,7 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
         }
         Body::Mod(kind, arg) => render_mod(*kind, arg.as_deref()),
         Body::Negated(base) => render_negated(base),
-        // Two-dimensional constructs never linearise. A `\not` over a braced group has no linear
-        // overlay, so it falls back to verbatim alongside them.
+        // two-dimensional constructs never linearise; `\not` over a group has no linear overlay
         Body::NegatedGroup(_)
         | Body::Frac(_, _, _)
         | Body::Sqrt(_, _)
@@ -399,8 +372,8 @@ fn render_nucleus(body: &Body, style: Style) -> Option<(Vec<Inline>, Class, bool
 /// - over a relation (`=`, `\leq`, `\to`, …) the base carries a precomposed negated glyph or a
 ///   combining long solidus and keeps relation spacing;
 /// - over a letter (Latin or Greek), a digit, or a delimiter glyph (`(`, `)`, `[`, `]`, `|`) the
-///   base renders in its normal math styling — variable italics for a letter or delimiter, upright
-///   for a digit — with a trailing combining long solidus (U+0338), and binds as an ordinary atom;
+///   base renders in its normal math styling (variable italics for a letter or delimiter, upright
+///   for a digit) with a trailing combining long solidus (U+0338), and binds as an ordinary atom;
 /// - over a binary or large operator, an ordinary symbol, or punctuation the strike has nothing
 ///   meaningful to overlay, so the whole expression falls back to verbatim.
 fn render_negated(base: &str) -> Option<(Vec<Inline>, Class, bool, bool)> {
@@ -453,8 +426,7 @@ pub(super) fn negated_base(base: &str) -> Option<NegatedBase> {
         let (text, class, _) = char_glyph(c);
         return match class {
             Class::Rel => Some(NegatedBase::Relation(text)),
-            // The delimiter glyphs `(`, `)`, `[`, `]`, and the bar `|` (an ordinary-class bar) carry
-            // the strike as an italicised ordinary atom.
+            // delimiter glyphs and the bar carry the strike as an italicised Ord atom
             Class::Open | Class::Close => Some(NegatedBase::Italic(text)),
             Class::Ord if c == '|' => Some(NegatedBase::Italic(text)),
             _ => None,
@@ -467,15 +439,13 @@ pub(super) fn negated_base(base: &str) -> Option<NegatedBase> {
     if sym.class == Class::Rel {
         return Some(NegatedBase::Relation(sym.text.to_string()));
     }
-    // A letterlike symbol set in variable italics (`\ell`, `\imath`, `\aleph`, …) takes the strike;
-    // an upright letterlike glyph (`\hbar`, `\Re`, …) or any operator base does not.
+    // italic letterlike symbols (`\ell`, `\aleph`) take the strike; upright glyphs and operators do not
     if sym.italic {
         return Some(NegatedBase::Italic(sym.text.to_string()));
     }
     None
 }
 
-/// The single character of a one-character string, if it is exactly one.
 fn single_char(s: &str) -> Option<char> {
     let mut chars = s.chars();
     let first = chars.next()?;
@@ -528,7 +498,6 @@ enum DelimSide {
     Close,
 }
 
-/// The glyph for a stretchable delimiter on the given side.
 fn delim_glyph(delim: Delim, side: DelimSide) -> &'static str {
     match (delim, side) {
         (Delim::Paren, DelimSide::Open) => "(",
@@ -552,8 +521,7 @@ fn delim_glyph(delim: Delim, side: DelimSide) -> &'static str {
 }
 
 fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class, bool, bool)> {
-    // The wrapper's formatting applies to each literal run independently, so a spacing inside the
-    // wrapper produces a separately-wrapped run on either side; the spacing itself is a bare glyph.
+    // formatting applies per literal run; a spacing splits runs and stays a bare glyph
     let intrinsic_thin = name == "operatorname" || name == "operatorname*";
     let mut inlines = Vec::new();
     for piece in content {
@@ -566,20 +534,17 @@ fn render_text(name: &str, content: &[TextPiece]) -> Option<(Vec<Inline>, Class,
             TextPiece::Math(atoms) => inlines.extend(lower(atoms)?),
         }
     }
-    // An empty wrapper contributes no glyph at all, the way a bare `{}` does: it must not emit an
-    // empty styled inline (an empty `Strong`/`Emph`/code span would print as stray markup). A named
-    // operator keeps its trailing thin space even when empty.
+    // an empty wrapper emits nothing (an empty Strong/Emph/code span would print stray markup);
+    // a named operator keeps its thin space even when empty
     Some((inlines, Class::Ord, false, intrinsic_thin))
 }
 
-/// Wrap one literal run of text in the wrapper's formatting.
 fn wrap_text_run(name: &str, run: &str) -> Option<Vec<Inline>> {
     let text = Inline::Str(run.into());
     let wrapped = match name {
         "text" | "textrm" | "textsf" | "mbox" | "operatorname" | "operatorname*" => vec![text],
         "textbf" => vec![Inline::Strong(vec![text])],
         "textit" => vec![Inline::Emph(vec![text])],
-        // Typewriter text renders as a code span over the run.
         "texttt" => vec![Inline::Code(Box::default(), run.into())],
         _ => return None,
     };
@@ -612,16 +577,13 @@ fn build_glyph_class() -> BTreeMap<char, Class> {
     map
 }
 
-/// The spacing class a bare glyph carries, when the symbol table assigns it one.
 fn glyph_class(c: char) -> Option<Class> {
     GLYPH_CLASS.get(&c).copied()
 }
 
 #[allow(clippy::unnecessary_wraps)]
 fn render_char(c: char, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)> {
-    // A letter or digit under a substituting style maps to its styled glyph — a dedicated codepoint
-    // or, when no styled variant exists, a best-effort fall-through of its plain glyph. A
-    // fall-through letter/digit is an ordinary atom.
+    // substituting styles map letters/digits to styled codepoints, falling through to the plain glyph as Ord
     if (c.is_alphabetic() || c.is_ascii_digit())
         && matches!(style, Style::Substitute(_) | Style::SubstituteBold(_))
         && let Some(styled) = style_glyph(c, style)
@@ -629,9 +591,7 @@ fn render_char(c: char, style: Style) -> Option<(Vec<Inline>, Class, bool, bool)
         return Some((styled, Class::Ord, false, false));
     }
     let (text, class, is_limit) = char_glyph(c);
-    // Monospace renders every glyph as its own code span, preserving its math class so an operator
-    // or punctuation glyph keeps its spacing; the substituting styles already mapped a letter/digit
-    // above and fall through here for a symbol, which keeps its plain glyph and class.
+    // monospace keeps each glyph's math class; substituting styles reach here only for symbols, kept plain
     let inlines = match style {
         Style::Monospace => vec![Inline::Code(Box::default(), text.into())],
         _ if c.is_alphabetic() && !style.is_upright() => vec![italic(text)],
@@ -658,17 +618,11 @@ fn char_glyph(c: char) -> (String, Class, bool) {
         ';' => (";".to_string(), Class::Punct),
         '(' | '[' => (c.to_string(), Class::Open),
         ')' | ']' => (c.to_string(), Class::Close),
-        // A bare vertical bar opens a delimited group, so a sign following it is unary (`|-x|`
-        // sets `-` tight) just as after `(` or `[`. The command form `\vert` stays an ordinary
-        // atom and keeps its surrounding spacing.
+        // bare `|` opens a delimited group so a following sign is unary (`|-x|`); `\vert` stays Ord
         '|' => ("|".to_string(), Class::Open),
-        // An active tie renders as a non-breaking space.
         '~' => ("\u{00A0}".to_string(), Class::Ord),
-        // A bare glyph carrying a stacked-limit class falls back to verbatim when it would carry both
-        // a sub- and a superscript; that decision is made by the caller from the limit flag.
+        // limit-class glyph: the caller decides verbatim fallback from the limit flag
         _ if is_limit_glyph(c) => (c.to_string(), Class::Op),
-        // A bare operator, relation, or punctuation glyph carries its symbol-table spacing class;
-        // anything the table does not classify (primes, stray punctuation) is an ordinary atom.
         _ => (c.to_string(), glyph_class(c).unwrap_or(Class::Ord)),
     };
     (text, class, is_limit_glyph(c))
@@ -702,14 +656,11 @@ fn style_glyph(c: char, style: Style) -> Option<Vec<Inline>> {
         Style::SubstituteBold(alphabet) => Some(vec![Inline::Strong(vec![Inline::Str(
             substitute_char(c, alphabet).into(),
         )])]),
-        // Monospace renders the character as its own code span, whatever the character.
         Style::Monospace => Some(vec![Inline::Code(Box::default(), c.to_compact_string())]),
         _ => None,
     }
 }
 
-/// The styled glyph string for a run of characters in a substituting alphabet, each character mapped
-/// independently and concatenated.
 fn substitute_run(run: &str, alphabet: Alphabet) -> String {
     run.chars().map(|c| substitute_char(c, alphabet)).collect()
 }
@@ -751,7 +702,7 @@ fn render_command(name: &str, style: Style) -> Option<(Vec<Inline>, Class, bool,
         let is_limit = symbols::is_limit_operator(name);
         return Some((inlines, sym.class, is_limit, false));
     }
-    // An unknown control sequence cannot be rendered; fall back to verbatim.
+    // unknown control sequence: verbatim fallback
     None
 }
 
@@ -772,9 +723,6 @@ fn style_single_glyph(text: &str, italic_default: bool, style: Style) -> Vec<Inl
     }
 }
 
-/// Style a multi-character glyph word (a named function) under `style`. Monospace renders the whole
-/// word as a single code span; a substituting style maps each letter independently and concatenates;
-/// every other style keeps the run whole and upright.
 fn style_text_glyph(text: &str, style: Style) -> Vec<Inline> {
     match style {
         Style::Monospace => vec![Inline::Code(Box::default(), text.into())],
@@ -794,10 +742,7 @@ fn italic_run(text: &str) -> Vec<Inline> {
 
 fn render_accent(name: &str, base: &[Atom]) -> Option<(Vec<Inline>, Class, bool, bool)> {
     let mark = symbols::accent(name)?;
-    // A combining mark sits on a single letter-class glyph: a Latin letter, a Greek letter, or a
-    // named single-glyph letter (`\imath`, `\ell`, `\aleph`, …). Over a digit, operator, relation,
-    // delimiter, large operator, or a styled or multi-atom base the mark has nothing it can attach to,
-    // so the whole expression falls back to verbatim.
+    // a combining mark attaches only to a single letter-class glyph; anything else falls back to verbatim
     if !is_letter_class_base(base) {
         return None;
     }
@@ -806,8 +751,8 @@ fn render_accent(name: &str, base: &[Atom]) -> Option<(Vec<Inline>, Class, bool,
     Some((combined, Class::Ord, false, false))
 }
 
-/// Whether an accent's base is a single letter-class atom — a Latin letter, a Greek letter, or a
-/// named single-glyph letter that renders as an italic variable — and so can carry a combining mark.
+/// Whether an accent's base is a single letter-class atom (a Latin letter, a Greek letter, or a
+/// named single-glyph letter that renders as an italic variable) and so can carry a combining mark.
 /// A scripted, styled, multi-atom, digit, or symbol (non-letter) base does not qualify.
 fn is_letter_class_base(base: &[Atom]) -> bool {
     let [atom] = base else { return false };
@@ -815,14 +760,11 @@ fn is_letter_class_base(base: &[Atom]) -> bool {
         return false;
     }
     match &atom.body {
-        // Any single Unicode letter — Latin, Greek, Cyrillic, CJK — can carry a combining mark.
         Body::Char(c) => c.is_alphabetic(),
         Body::Command(name) => {
-            // Greek letters and any symbol the table renders as an italic variable are letter-class;
-            // an upright symbol (`\hbar`, `\partial`, `\Re`, …) is not.
+            // italic-variable symbols are letter-class; upright ones (`\hbar`, `\Re`) are not
             symbols::greek(name).is_some() || symbols::symbol(name).is_some_and(|sym| sym.italic)
         }
-        // A transparent single-atom group inherits its content's class.
         Body::Group(inner) => is_letter_class_base(inner),
         _ => false,
     }
@@ -850,39 +792,27 @@ fn render_styled(name: &str, arg: &[Atom]) -> Option<(Vec<Inline>, Class, bool, 
         "mathbb" | "mathds" => styled(arg, Style::Substitute(Alphabet::DoubleStruck)),
         "mathcal" | "mathscr" => styled(arg, Style::Substitute(Alphabet::Script)),
         "mathfrak" => styled(arg, Style::Substitute(Alphabet::Fraktur)),
-        // The bold script and fraktur alphabets style each letter to its dedicated bold codepoint
-        // and wrap it in `Strong`, one letter at a time.
         "mathbfcal" | "mathbfscr" => styled(arg, Style::SubstituteBold(Alphabet::BoldScript)),
         "mathbffrak" => styled(arg, Style::SubstituteBold(Alphabet::BoldFraktur)),
-        // Bold-italic and bold-sans-italic both wrap each atom in `Strong(Emph(..))`; the sans
-        // component has no inline form of its own. Sans-italic is plain italic.
+        // the sans component has no inline form; sans-italic is plain italic
         "mathbfit" | "mathbfsfit" => styled(arg, Style::BoldItalic),
         "mathsfit" => styled(arg, Style::Italic),
-        // Each atom of the argument is styled individually, preserving the atom-class spacing
-        // between them and recursing the style into any scripts.
-        // `\symbf` and the upright-bold variants set letters bold without an upright wrapper of their
-        // own in inline output, the same shape as `\mathbf`.
+        // `\symbf` and the upright-bold variants share `\mathbf`'s shape in inline output
         "mathbf" | "boldsymbol" | "bm" | "pmb" | "symbf" | "mathbfup" | "mathbfsfup" => {
             styled(arg, Style::Bold)
         }
         "mathit" => styled(arg, Style::Italic),
-        // The math-upright styles keep full math spacing (binary ops and relations are spaced, a
-        // comma keeps its trailing space) while setting letters upright. The explicitly-upright
-        // spellings (`\mathup`, `\mathsfup`) join the serif/sans uprights.
+        // upright styles keep full math spacing while setting letters upright
         "mathrm" | "mathsf" | "mathup" | "mathsfup" => styled(arg, Style::Upright),
-        // Monospace renders each character as its own code span.
         "mathtt" => styled(arg, Style::Monospace),
-        // A math-class wrapper re-classes its single-atom argument and sets it upright, the way a
-        // one-symbol ordinary atom is typeset. A multi-atom argument is left to verbatim fallback.
         "mathord" => math_class_wrapper(arg, Class::Ord),
         "mathrel" => math_class_wrapper(arg, Class::Rel),
         "mathbin" => math_class_wrapper(arg, Class::Bin),
         "mathpunct" => math_class_wrapper(arg, Class::Punct),
         "mathopen" => math_class_wrapper(arg, Class::Open),
         "mathclose" => math_class_wrapper(arg, Class::Close),
-        // A `\mathop` argument is set like a named operator (the operator class re-types a following
-        // binary sign so it is not spaced). A multi-atom run also takes operator spacing of its own;
-        // a single atom does not.
+        // `\mathop` sets its argument like a named operator; only a multi-atom run also takes
+        // operator spacing of its own
         "mathop" if arg.len() == 1 => {
             Some((flatten_emph(upright_inner(arg)?), Class::Op, false, false))
         }
@@ -966,8 +896,7 @@ fn prime_glyph(count: u8) -> String {
         1 => "\u{2032}",
         2 => "\u{2033}",
         3 => "\u{2034}",
-        // A run that is an exact multiple of four (including the empty run) needs no remainder glyph;
-        // a count of zero is a degenerate single prime with no quads.
+        // exact multiples of four need no remainder; count 0 degenerates to a single prime
         _ if count == 0 => "\u{2032}",
         _ => "",
     });

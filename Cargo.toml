@@ -10,12 +10,10 @@ authors = ["Maximilian Krause"]
 license = "AGPL-3.0-only"
 repository = "https://github.com/mfkrause/carta"
 homepage = "https://github.com/mfkrause/carta"
-# Inherited paths resolve relative to the workspace root, so every crate ships the root README.
 readme = "README.md"
 publish = true
 
 [workspace.dependencies]
-# Shared dependency versions. Crates opt in via `dep = { workspace = true }`.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -31,13 +29,8 @@ fancy-regex = "0.18"
 quick-xml = "0.41"
 insta = "1"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
-# Grows the current thread's stack on demand, so deeply nested work cannot overflow it. Shared by the
-# top-level render entry point and the block/inline serializers that recurse once per nesting level.
 stacker = "0.1"
 
-# Internal crates. Each carries a `version` alongside `path` so the published packages
-# depend on the registry release; the path is used for in-workspace builds. Kept in lockstep
-# with the workspace version by the release tooling.
 carta = { path = "crates/carta", version = "0.0.7" }
 carta-ast = { path = "crates/carta-ast", version = "0.0.7" }
 carta-core = { path = "crates/carta-core", version = "0.0.7" }
@@ -54,26 +47,19 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(docsrs)"] }
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-# Pragmatic relaxations of pedantic noise; tighten later if desired.
 module_name_repetitions = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-# Panic discipline (clippy::restriction). A document converter ingests arbitrary input; a panic on
-# malformed input is a correctness bug and a DoS vector. Propagate errors via `Result`/`?` instead.
-# These are allowed in tests via clippy.toml.
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
 indexing_slicing = "warn"
 
-# Optimize dependencies even in debug builds; keeps differential test runs (which shell out a lot)
-# from being dominated by unoptimized dependency code.
+# Optimize dependencies in debug builds so test runs are not dominated by unoptimized deps.
 [profile.dev.package."*"]
 opt-level = 2
 
-# Overflow wraps silently in release by default. Readers do arithmetic on byte offsets, positions,
-# and counts; a silent wrap is a latent correctness bug. The check is cheap insurance for a
-# correctness-critical parser.
+# Kept on in release (off by default there): a silent wrap in offset/count arithmetic is a latent parser bug.
 [profile.release]
 overflow-checks = true
 lto = true

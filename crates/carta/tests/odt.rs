@@ -1,9 +1,8 @@
 //! Layer 1 golden test for the ODT writer's extension toggles. Each `corpus/ast-ext/odt*` case is
 //! rendered to the format spec its directory names, the package's body part is unpacked, and its
-//! markup — pretty-printed one element per line — is frozen by `insta`. This pins the output the
+//! markup (pretty-printed one element per line) is frozen by `insta`. This pins the output the
 //! `empty_paragraphs` toggle produces, which the text-only writer golden pass (a byte-shaped target
-//! has no string form) never reaches. The output is byte-reproducible, so the snapshots are stable
-//! across runs.
+//! has no string form) never reaches.
 //!
 //! Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
 
@@ -64,8 +63,8 @@ fn content_part(bytes: &[u8]) -> String {
     out
 }
 
-/// Writer body golden pass: every `corpus/ast/<feature>/*` case — full-model AST JSON that exercises
-/// node shapes no reader can produce — is rendered to ODT and its `content.xml` (plus any embedded
+/// Writer body golden pass: every `corpus/ast/<feature>/*` case (full-model AST JSON that exercises
+/// node shapes no reader can produce) is rendered to ODT and its `content.xml` (plus any embedded
 /// formula parts) frozen. The text-writer golden pass skips this byte-shaped target, so this is where
 /// the writer's block and inline rendering is pinned. Output is byte-reproducible across runs.
 #[test]
@@ -88,8 +87,8 @@ fn odt_extension_toggle_snapshots() {
 }
 
 /// The document-metadata parts of an ODT archive: `meta.xml` in full, followed by the default
-/// paragraph style extracted from `styles.xml`. Document metadata — title, description, subject,
-/// keywords, and the language recorded on the default style — lands in these parts, never in
+/// paragraph style extracted from `styles.xml`. Document metadata (title, description, subject,
+/// keywords, and the language recorded on the default style) lands in these parts, never in
 /// `content.xml`, so freezing them here is what keeps that output under snapshot review. Both parts
 /// are byte-reproducible, so the snapshots are stable across runs.
 fn metadata_parts(bytes: &[u8]) -> String {

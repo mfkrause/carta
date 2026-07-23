@@ -10,8 +10,8 @@
 //!
 //! Reading it back reverses that shaping: the note bodies are indexed by id so each reference can be
 //! spliced into an [`carta_ast::Inline::Note`] at its cite site, and the container is dropped. The
-//! anchors and container are recognized by their ARIA `role`, and reconstruction is always on — it
-//! mirrors no extension toggle.
+//! anchors and container are recognized by their ARIA `role`, and reconstruction is always on: no
+//! extension toggle controls it.
 
 use std::collections::BTreeMap;
 

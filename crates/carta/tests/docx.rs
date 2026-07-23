@@ -1,9 +1,8 @@
 //! Layer 1 golden test for the DOCX writer's extension toggles. Each `corpus/ast-ext/docx*` case is
 //! rendered to the format spec its directory names, the package's main document part is unpacked, and
-//! its markup — pretty-printed one element per line — is frozen by `insta`. This pins the output the
+//! its markup, pretty-printed one element per line, is frozen by `insta`. This pins the output the
 //! `styles`, `native_numbering`, and `empty_paragraphs` toggles produce, which the text-only writer
-//! golden pass (a byte-shaped target has no string form) never reaches. The output is
-//! byte-reproducible, so the snapshots are stable across runs.
+//! golden pass (a byte-shaped target has no string form) never reaches.
 //!
 //! Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
 

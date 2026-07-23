@@ -494,8 +494,8 @@ fn listings_code_block(attr: &Attr, text: &str) -> String {
     }
 }
 
-/// Assemble the bracket options for a `lstlisting` block. The order is fixed — language, then
-/// `numbers=left`, then `firstnumber`, then any pass-through attributes, then the `label` — so the
+/// Assemble the bracket options for a `lstlisting` block. The order is fixed (language, then
+/// `numbers=left`, then `firstnumber`, then any pass-through attributes, then the `label`) so the
 /// rendering is deterministic and reads left to right the way the listings package documents.
 #[cfg(feature = "highlight")]
 fn listings_options(attr: &Attr) -> String {
@@ -551,9 +551,7 @@ fn listings_value(value: &str) -> String {
 /// `language=` option expects, with the handful that carry special characters already braced so they
 /// survive the option list. Names follow the language table published with the listings package.
 #[cfg(feature = "highlight")]
-// One class per arm keeps this a readable transcription of the package's language table; several
-// distinct classes legitimately share a target name (aliases and dialects), so equal bodies are
-// expected rather than a sign that arms should be merged, and the table is unavoidably long.
+// Aliases and dialects share target names, so equal arms are expected; the table is long by nature.
 #[allow(clippy::match_same_arms, clippy::too_many_lines)]
 fn listings_language(class: &str) -> Option<&'static str> {
     let key = class.to_ascii_lowercase();
@@ -1361,7 +1359,7 @@ enum Token {
 /// Render one row, reflowing it at `width` while preserving the hard breaks inside multi-line
 /// cells. Fields are separated by ` & ` and the row ends with ` \\`. A column covered by a span
 /// from an earlier or wider cell that still precedes a later cell contributes an empty field;
-/// columns trailing the row's last cell — covered by a multi-row cell stacked above — are dropped,
+/// columns trailing the row's last cell (covered by a multi-row cell stacked above) are dropped,
 /// ending the row early.
 fn render_row(row: &Row, placements: &[(usize, usize)], context: &TableContext) -> String {
     let mut tokens: Vec<Token> = Vec::new();
@@ -1400,8 +1398,7 @@ fn render_row(row: &Row, placements: &[(usize, usize)], context: &TableContext) 
     while matches!(tokens.last(), Some(Token::Space)) {
         tokens.pop();
     }
-    // The final cell's own trailing space is visible; a bare column separator left by an empty
-    // final cell is not.
+    // The final cell's trailing space is visible; a bare separator from an empty final cell is not.
     if trailing_cell_space {
         tokens.push(Token::Space);
     }
@@ -1499,8 +1496,7 @@ fn render_field(
     let row_span = cell.row_span.max(1);
     if row_span > 1 {
         let prefix = multirow_prefix(&resolved_align(cell, start, context.plan));
-        // Explicitly sized columns size the stacked cell to the column width (`=`); columns left at
-        // their natural width take the content's own width (`*`).
+        // `=` sizes the stacked cell to an explicit column width; `*` takes the content's own width.
         let sizing = if context.plan.explicit { "=" } else { "*" };
         glue_prefix(
             &mut field,
@@ -1789,8 +1785,8 @@ fn label_definition(attrs: &ListAttributes, counter: &str) -> Option<String> {
 }
 
 /// The `[…]` template line stating an ordered list's label inside a slide `enumerate`, or `None`
-/// for the two spellings of the plain default — `(DefaultStyle, DefaultDelim)` and
-/// `(Decimal, Period)` — where the environment's built-in `1.` label already applies. The template
+/// for the two spellings of the plain default, `(DefaultStyle, DefaultDelim)` and
+/// `(Decimal, Period)`, where the environment's built-in `1.` label already applies. The template
 /// renders the first numeral in the list's style, wrapped in its delimiter.
 fn label_template(attrs: &ListAttributes) -> Option<String> {
     let is_default = matches!(attrs.style, ListNumberStyle::DefaultStyle)
@@ -1843,8 +1839,8 @@ fn needs_texorpdfstring(inlines: &[Inline]) -> bool {
 }
 
 /// The optional running-head argument for a heading. When the heading carries an inline that cannot
-/// survive a section's movable argument — a footnote, an image, or an element with an identifier
-/// anchor — those inlines are dropped and the remainder rendered as a short title. `None` when the
+/// survive a section's movable argument (a footnote, an image, or an element with an identifier
+/// anchor), those inlines are dropped and the remainder rendered as a short title. `None` when the
 /// heading carries no such inline and so needs no short title.
 fn short_title(
     inlines: &[Inline],
@@ -2088,8 +2084,7 @@ fn push_inline(
             out.push(Piece::Hard);
         }
         Inline::Math(kind, text) => {
-            // The `\(…\)` and `\[…\]` math delimiters are fragile inside the character-splitting
-            // `soul` commands for underline and strikeout; the plain dollar delimiters survive there.
+            // `\(…\)`/`\[…\]` are fragile inside character-splitting `soul` commands; dollars survive.
             let rendered = match (kind, in_soul) {
                 (MathType::InlineMath, false) => format!("\\({text}\\)"),
                 (MathType::DisplayMath, false) => format!("\\[{text}\\]"),
@@ -2173,9 +2168,8 @@ fn push_link(
             phantom_label(&attr.id)
         }));
     }
-    // A target into the document itself is a cross-reference, not an external location: the
-    // fragment names a label and the link resolves through `\hyperref` rather than `\href`. A
-    // cross-reference is not boxed inside an underline or strikeout; only external links are.
+    // A `#` fragment is a cross-reference resolved through `\hyperref`, not `\href`, and is not
+    // boxed inside underline/strikeout; only external links are.
     if let Some(reference) = target.url.strip_prefix('#') {
         out.push(Piece::text(format!(
             "\\hyperref[{}]{{",
@@ -2189,9 +2183,7 @@ fn push_link(
         out.push(Piece::text("}"));
         return;
     }
-    // The `soul` commands for underline and strikeout break their argument into individual
-    // characters, which fails on the box a hyperlink builds; wrapping the link in `\mbox` keeps it
-    // as one unbreakable unit that the surrounding command can style.
+    // `soul` splits its argument into characters, breaking a hyperlink's box; `\mbox` keeps the link whole.
     let (box_open, box_close) = if in_soul { ("\\mbox{", "}") } else { ("", "") };
     let url = escape_url(&target.url);
     if let [Inline::Str(text)] = inlines
@@ -2200,8 +2192,7 @@ fn push_link(
         out.push(Piece::text(format!("{box_open}\\url{{{url}}}{box_close}")));
         return;
     }
-    // A mailto link whose visible text is the bare address renders the address verbatim, with no
-    // hyperlink styling applied to the text.
+    // A mailto link whose text is the bare address renders the address verbatim, unstyled.
     if let [Inline::Str(text)] = inlines
         && let Some(address) = target.url.strip_prefix("mailto:")
         && text == address
@@ -2221,8 +2212,7 @@ fn push_link(
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, smart: bool) -> String {
     let svg = is_svg(&target.url);
-    // The SVG include command carries no alternate-text key; for every other image the alt key is
-    // emitted whenever a description is present, even one that renders to empty text.
+    // The SVG include command has no alt key; other images emit it whenever a description is present.
     let alt_option = if svg || inlines.is_empty() {
         String::new()
     } else {
@@ -2423,8 +2413,7 @@ fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String {
             '|' => push_control_word(&mut out, "\\textbar", next, mode),
             '\'' => push_control_word(&mut out, "\\textquotesingle", next, mode),
             '-' if next == Some('-') => out.push_str("-\\/"),
-            // A literal hyphen abutting a smart en/em dash would merge with the dash's leading
-            // hyphens into a longer ligature; the same guard keeps the hyphen distinct.
+            // A literal hyphen abutting a smart dash would merge into a longer ligature.
             '-' if mode == EscapeMode::Text
                 && smart
                 && matches!(next, Some('\u{2013}' | '\u{2014}')) =>
@@ -2647,8 +2636,7 @@ mod tests {
         assert_eq!(escape("\u{a0}", EscapeMode::Text), "~");
         assert_eq!(escape("\u{2026}", EscapeMode::Text), "\\ldots{}");
         assert_eq!(escape("\u{2013}\u{2014}", EscapeMode::Text), "-----");
-        // A literal hyphen before a smart en/em dash is guarded so the run is not read as one
-        // longer ligature; a dash that itself renders to hyphens needs no such guard after it.
+        // A hyphen before a smart dash is guarded against ligature merging; after a dash no guard is needed.
         assert_eq!(escape("-\u{2013}", EscapeMode::Text), "-\\/--");
         assert_eq!(escape("-\u{2014}", EscapeMode::Text), "-\\/---");
         assert_eq!(escape("\u{2013}-", EscapeMode::Text), "---");
@@ -2678,8 +2666,7 @@ mod tests {
 
     #[test]
     fn escape_lookahead_sees_past_a_verbatim_prefix() {
-        // The `--` ligature guard and the control-word separator both peek at the character after
-        // the trigger; a prefix copied verbatim before the trigger must not hide that lookahead.
+        // Both guards peek at the next character; a verbatim-copied prefix must not hide that lookahead.
         assert_eq!(escape("abc--def", EscapeMode::Text), "abc-\\/-def");
         assert_eq!(escape("x~y", EscapeMode::Text), "x\\textasciitilde y");
         assert_eq!(escape("abc-\u{2013}", EscapeMode::Text), "abc-\\/--");
@@ -2726,7 +2713,6 @@ mod tests {
             render(vec![Block::Header(5, Box::default(), str_inlines("T"))]),
             "\\subparagraph{T}"
         );
-        // A level beyond the mapped range degrades to plain text.
         assert_eq!(
             render(vec![Block::Header(7, Box::default(), str_inlines("T"))]),
             "T"
@@ -2912,8 +2898,6 @@ mod tests {
         ])]);
         assert!(sibling.contains("\\ul{u} \\href{http://x.com}{txt}"));
         assert!(!sibling.contains("\\mbox"));
-        // An internal cross-reference inside a soul command resolves through \hyperref and is not
-        // boxed.
         let xref = render(vec![Block::Para(vec![Inline::Underline(vec![
             Inline::Link(
                 Box::default(),
@@ -2939,7 +2923,6 @@ mod tests {
             MathType::DisplayMath,
         )])])]);
         assert!(display.contains("\\st{$$x^2$$}"));
-        // Outside a soul command the fragile bracket delimiters are used.
         assert!(render(vec![Block::Para(vec![math(MathType::InlineMath)])]).contains("\\(x^2\\)"));
     }
 

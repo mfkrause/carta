@@ -17,7 +17,7 @@
 //! or code paragraphs merge. A heading (`text:h`) becomes a section header whose level is its
 //! outline level and whose identifier is the slug of its text, disambiguated against every identifier
 //! already issued. Character spans toggle the emphasis, strong, strikeout, superscript, and subscript
-//! wrappers — nested in a fixed order — from the directly referenced style's own properties, while a
+//! wrappers (nested in a fixed order) from the directly referenced style's own properties, while a
 //! span named `Source Text` becomes inline code. Lists, tables, hyperlinks, note references, and
 //! framed images are handled in place. Paragraph text collapses each run of ASCII whitespace to a
 //! single space, with a run containing a line ending becoming a soft break; every other space-like
@@ -77,8 +77,7 @@ fn convert_on_owned_stack(
 ) -> Result<Vec<Block>> {
     match on_deep_stack(|| Converter::new(parts, media).run()) {
         DeepStack::Completed(blocks) => blocks,
-        // A worker that panicked poisons its join; only an unspawnable thread is worth a retry, run
-        // on the current stack instead.
+        // A panicked worker poisons its join; only an unspawnable thread is retried on this stack.
         DeepStack::Panicked => Err(Error::Container("worker thread failed".into())),
         DeepStack::NotSpawned => Converter::new(parts, media).run(),
     }
@@ -196,8 +195,7 @@ impl<'a> Converter<'a> {
     }
 
     fn run(mut self) -> Result<Vec<Block>> {
-        // Shared styles are indexed first so an automatic style in the content part can override a
-        // like-named shared style.
+        // Shared styles first so a like-named automatic style in the content part overrides.
         if let Some(root) = self
             .parts
             .get("styles.xml")
@@ -219,8 +217,6 @@ impl<'a> Converter<'a> {
             },
         )
     }
-
-    // -- style indexing -----------------------------------------------------
 
     fn index_styles(&mut self, root: &Element) {
         for group in root.elements() {
@@ -335,8 +331,6 @@ impl<'a> Converter<'a> {
         }
     }
 
-    // -- block conversion ---------------------------------------------------
-
     fn convert_body_blocks(&mut self, container: &Element) -> Vec<Block> {
         self.convert_blocks(container, 1, None, false)
     }
@@ -357,21 +351,18 @@ impl<'a> Converter<'a> {
         in_list_item: bool,
     ) -> Vec<Block> {
         let mut out = Vec::new();
-        // Consecutive quote paragraphs gather into one block quote and consecutive preformatted
-        // paragraphs into one code block; a paragraph of a different kind flushes the run in progress.
+        // Consecutive quote/preformatted paragraphs gather into one block; a different kind flushes.
         let mut quote: Vec<Block> = Vec::new();
         let mut code: Vec<String> = Vec::new();
         for element in container.elements() {
-            // A drawing-namespace shape (a frame, text box, or other draw object) anchored at block
-            // level is floating layout, not body flow; it is dropped whole rather than having its
-            // prose lifted into the text by the transparent-container fallback below.
+            // Block-anchored drawing shapes are floating layout, not body flow; dropped whole so
+            // the transparent-container fallback below cannot lift their prose.
             if is_drawing_shape(&element.name) {
                 continue;
             }
             match local_name(&element.name) {
                 "p" => {
-                    // A paragraph whose whole content is a framed, captioned image is lifted to a
-                    // block-level figure rather than a paragraph carrying an inline image.
+                    // A paragraph that is entirely a framed, captioned image lifts to a figure.
                     if let Some(figure) =
                         figure_paragraph(element).and_then(|textbox| self.convert_figure(textbox))
                     {
@@ -381,8 +372,7 @@ impl<'a> Converter<'a> {
                         continue;
                     }
                     let role = match self.para_role(element.attr("style-name")) {
-                        // A margined paragraph directly in a list item carries the list's indentation,
-                        // not a quote; only preformatted styling still lifts it out of the item.
+                        // In a list item a margin is list indentation, not a quote signal.
                         ParaRole::Quote if in_list_item => ParaRole::Normal,
                         role => role,
                     };
@@ -418,18 +408,13 @@ impl<'a> Converter<'a> {
                     flush_quote(&mut out, &mut quote);
                     out.push(self.convert_table(element));
                 }
-                // Dropped outright, leaving no rendered content: a stray note (a footnote/endnote
-                // definition with no reference point) alongside page breaks, sequence declarations,
-                // forms, and tracked-change records; and a generated index (contents, bibliography,
-                // or any of the alphabetical, table, illustration, object, and user indexes), whose
-                // cached title and entries the application regenerates on open — lifting its stale
-                // cache as body paragraphs would surface orphaned content.
+                // No rendered content: stray notes, breaks, declarations, forms, change records;
+                // and generated indexes, whose stale cached entries would surface as orphans.
                 "soft-page-break" | "sequence-decls" | "forms" | "tracked-changes" | "note"
                 | "table-of-content" | "table-of-contents" | "bibliography"
                 | "alphabetical-index" | "illustration-index" | "table-index" | "object-index"
                 | "user-index" => {}
-                // A transparent container (a section, an index body, or anything unrecognized) has
-                // its block children lifted in place, so no content is silently dropped.
+                // Transparent containers lift their block children in place, dropping nothing.
                 _ => {
                     flush_code(&mut out, &mut code);
                     flush_quote(&mut out, &mut quote);
@@ -507,13 +492,10 @@ impl<'a> Converter<'a> {
         depth: i32,
         style_name: Option<&str>,
     ) -> Vec<Block> {
-        // A list item's content is classified as body content is, save that a paragraph's left margin
-        // is the list's indentation rather than a quote signal here; a preformatted paragraph still
-        // reads as a code block, and a nested list starts one level deeper inheriting this list's style.
+        // Like body content, but a left margin is list indentation, not a quote; a nested list
+        // starts one level deeper inheriting this list's style.
         compact(self.convert_blocks(item, depth + 1, style_name, true))
     }
-
-    // -- tables -------------------------------------------------------------
 
     #[allow(clippy::too_many_lines)]
     fn convert_table(&mut self, table: &Element) -> Block {
@@ -539,17 +521,13 @@ impl<'a> Converter<'a> {
                 _ => {}
             }
         }
-        // The grid width is the widest actual row, not the count implied by the column
-        // declarations: a column's repeat count can be arbitrarily large and inflating the grid to
-        // match it would allocate an unbounded column vector. Clamping to a generous ceiling keeps a
-        // pathological declaration from exhausting memory while leaving every real table untouched.
+        // Width comes from the widest real row, not the declared columns: a repeat count can be
+        // arbitrarily large, and the ceiling keeps it from exhausting memory.
         let columns = row_width(&header_rows)
             .max(row_width(&body_rows))
             .min(MAX_TABLE_COLUMNS);
-        // A row shorter than the grid is squared off with empty trailing cells, so a table with
-        // uneven rows carries a rectangular cell grid rather than ragged rows of differing length. A
-        // column already occupied by a row-spanning cell overhanging from above is not filled, so a
-        // vertically merged cell does not leave a spurious placeholder in the rows it spans.
+        // Short rows are squared off with empty trailing cells; columns covered by an overhanging
+        // row span are not filled, so a merged cell leaves no spurious placeholder.
         square_rows(&mut header_rows, columns);
         square_rows(&mut body_rows, columns);
         let col_specs = (0..columns)
@@ -614,8 +592,6 @@ impl<'a> Converter<'a> {
         }
     }
 
-    // -- inline conversion --------------------------------------------------
-
     fn convert_inlines(&mut self, children: &[Node]) -> Vec<Inline> {
         let mut out = Vec::new();
         for node in children {
@@ -648,15 +624,12 @@ impl<'a> Converter<'a> {
             "bookmark" | "bookmark-start" => self.push_bookmark(element, out),
             "reference-mark-start" => self.push_reference_mark(element, out),
             "bookmark-ref" | "reference-ref" => self.convert_cross_reference(element, out),
-            // Metadata markers with no body prose: a review comment and its ranged start/end, the
-            // closing half of a bookmark or reference mark, and a soft page break. None of them
-            // carries rendered content.
+            // Metadata markers with no rendered content.
             "annotation" | "annotation-start" | "annotation-end" | "bookmark-end"
             | "reference-mark" | "reference-mark-end" | "soft-page-break" => {}
             "note" => out.push(self.convert_note(element)),
             "frame" => self.convert_frame(element, out),
-            // An unrecognized inline wrapper (a cross-reference field, a change marker) contributes
-            // its display text, so the words it wraps survive.
+            // Unrecognized inline wrappers contribute their display text, so wrapped words survive.
             _ => {
                 let inner = self.convert_inlines(&element.children);
                 out.extend(inner);
@@ -763,17 +736,14 @@ impl<'a> Converter<'a> {
     }
 
     fn convert_frame(&mut self, element: &Element, out: &mut Vec<Inline>) {
-        // A frame wrapping a formula object is an equation; its MathML renders to inline math. The
-        // formula is the primary content, so it is preferred over any replacement preview bitmap the
-        // frame carries alongside the object for applications that cannot render the equation.
+        // A formula object is an equation, preferred over the frame's replacement preview bitmap.
         if let Some(object) = element.child("object")
             && let Some(tex) = self.resolve_formula(object)
         {
             out.push(Inline::Math(MathType::DisplayMath, tex.into()));
             return;
         }
-        // A frame directly wrapping an image is a plain inline image; its title comes from an
-        // accompanying `svg:title`, and it carries no alternate text.
+        // A directly wrapped image: title from `svg:title`, no alternate text.
         if element.child("image").is_some() {
             let title = element
                 .child("title")
@@ -784,16 +754,14 @@ impl<'a> Converter<'a> {
             }
             return;
         }
-        // A frame wrapping a text box that holds an image is a captioned image; inline (with sibling
-        // content in its paragraph) it becomes an image whose alternate text is the caption.
+        // A text box holding an image: inline it becomes an image whose alt text is the caption.
         if let Some(textbox) = element.child("text-box")
             && let Some((frame, caption)) = self.figure_image(textbox)
             && let Some(image) = self.image_from_frame(frame, caption, "fig:")
         {
             out.push(image);
         }
-        // Any other embedded object has no inline equivalent and degrades to nothing rather than
-        // injecting stray content.
+        // Other embedded objects have no inline equivalent and degrade to nothing.
     }
 
     /// The inline image an image frame denotes: the referenced media is carried into the media bag,
@@ -896,13 +864,9 @@ impl<'a> Converter<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Anchor interning
-// ---------------------------------------------------------------------------
-
 /// The identifier an anchor name resolves to, assigned once on first sighting and reused for every
 /// later use of the same name so the anchor and any reference to it share one target. `seed` is the
-/// base the fresh identifier is disambiguated from — a fixed label for a name that is dropped, or the
+/// base the fresh identifier is disambiguated from: a fixed label for a name that is dropped, or the
 /// name itself where it is kept.
 fn intern_anchor(
     map: &mut BTreeMap<String, String>,
@@ -917,10 +881,6 @@ fn intern_anchor(
     map.insert(name.to_owned(), assigned.clone());
     assigned
 }
-
-// ---------------------------------------------------------------------------
-// Block-run flushing
-// ---------------------------------------------------------------------------
 
 fn flush_quote(out: &mut Vec<Block>, quote: &mut Vec<Block>) {
     if !quote.is_empty() {
@@ -949,10 +909,6 @@ fn compact(mut blocks: Vec<Block>) -> Vec<Block> {
     blocks
 }
 
-// ---------------------------------------------------------------------------
-// Inline helpers
-// ---------------------------------------------------------------------------
-
 /// Splits a run of character data into `Str` words separated by whitespace inlines: a whitespace run
 /// containing a line ending becomes a soft break, any other whitespace run a single space. Whitespace
 /// at the edges is kept, since a run may abut formatting on either side.
@@ -960,9 +916,7 @@ fn push_text(out: &mut Vec<Inline>, text: &str) {
     let mut word = String::new();
     let mut chars = text.chars().peekable();
     while let Some(&ch) = chars.peek() {
-        // Only ASCII whitespace collapses into a break; every other space-like character
-        // (a non-breaking space, an em space, an ideographic space, a line or paragraph
-        // separator) is content and survives verbatim inside the surrounding word.
+        // Only ASCII whitespace collapses; NBSP, em space, separators, etc. are content.
         if ch.is_ascii_whitespace() {
             if !word.is_empty() {
                 out.push(Inline::Str(std::mem::take(&mut word).into()));
@@ -1042,7 +996,6 @@ fn inlines_to_plain(inlines: &[Inline]) -> String {
     out
 }
 
-/// A contentless anchor span carrying only an identifier.
 fn empty_span(id: String) -> Inline {
     Inline::Span(
         Box::new(Attr {
@@ -1076,10 +1029,6 @@ fn collect_plain(inlines: &[Inline], out: &mut String) {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Style-property parsing
-// ---------------------------------------------------------------------------
 
 fn read_text_props(decoded_name: &str, style: &Element) -> TextProps {
     let mut props = TextProps {
@@ -1270,14 +1219,12 @@ fn cells_width(row: &Row) -> i32 {
 /// the width is left untouched.
 fn square_rows(rows: &mut [Row], columns: i32) {
     let width = usize::try_from(columns).unwrap_or(0);
-    // `covered[c]` counts how many further rows column `c` stays covered by a row-spanning cell
-    // placed above the current row.
+    // `covered[c]`: how many further rows column `c` stays covered by a row span from above.
     let mut covered = vec![0i32; width];
     for row in rows {
         let overhang =
             i32::try_from(covered.iter().filter(|count| **count > 0).count()).unwrap_or(i32::MAX);
-        // Walk this row's real cells across the grid, skipping columns covered from above, to learn
-        // which columns its own row-spanning cells will cover for the rows below.
+        // Walk real cells across the grid, skipping covered columns, to find this row's new spans.
         let mut new_cover = vec![0i32; width];
         let mut column = 0usize;
         for cell in &row.cells {
@@ -1305,7 +1252,6 @@ fn square_rows(rows: &mut [Row], columns: i32) {
     }
 }
 
-/// An empty grid cell: no content, default alignment, spanning a single row and column.
 fn empty_cell() -> Cell {
     Cell {
         attr: Attr::default(),

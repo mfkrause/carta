@@ -85,8 +85,7 @@ fn standalone_latex_context_and_precedence() {
         &options(),
     )
     .unwrap();
-    // `pagetitle` is an HTML-family page-`<title>` fallback, so it is absent for LaTeX: `$pagetitle$`
-    // renders empty here even though `title` is set.
+    // `pagetitle` is an HTML-family fallback, absent for LaTeX: `$pagetitle$` renders empty.
     assert_eq!(
         output,
         "T=Hello \\emph{World}|PT=|F=yes|G=red,blue|\
@@ -120,8 +119,7 @@ fn meta_json_keeps_a_single_trailing_newline_for_line_oriented_writers() {
         &options,
     )
     .unwrap();
-    // The context variable ends in a blank line (block separation); the JSON form keeps the
-    // value's plain single trailing newline.
+    // The context variable ends in a blank line; the JSON form keeps one trailing newline.
     assert_eq!(
         output,
         "J=[{\"abstract\":\"First para.\\n\\nSecond para.\\n\"}]|A=[First para.\n\nSecond para.\n\n]"
@@ -164,8 +162,8 @@ fn web_identity_variables_expose_pagetitle_date_and_author_list() {
         &identity_options(),
     )
     .unwrap();
-    // A web head exposes `pagetitle`, `date-meta`, and `author-meta` as a list (one entry per
-    // author, so a flat interpolation concatenates them); `title-meta` is PDF-only and stays empty.
+    // Web head: `pagetitle`, `date-meta`, per-author `author-meta` list; `title-meta` is PDF-only
+    // and stays empty.
     assert_eq!(
         output,
         "TM=[]|AM=[Ada LovelaceAlan Turing]|DM=[2026-06-20]|PT=[A Grand Report]|\
@@ -184,8 +182,8 @@ fn pdf_identity_variables_expose_title_meta_and_joined_authors() {
         &identity_options(),
     )
     .unwrap();
-    // A PDF document exposes `title-meta` and `author-meta` joined into one `; `-separated string (a
-    // loop sees a single value); `pagetitle` and `date-meta` are web-only and stay empty.
+    // PDF: `title-meta` and `author-meta` join into one `; `-separated string; `pagetitle` and
+    // `date-meta` are web-only and stay empty.
     assert_eq!(
         output,
         "TM=[A Grand Report]|AM=[Ada Lovelace; Alan Turing]|DM=[]|PT=[]|\
@@ -206,8 +204,7 @@ fn plain_title_block_shows_author_and_date_without_a_title() {
         &options,
     )
     .unwrap();
-    // The author and date head the document even though no title is set; a blank line separates the
-    // block from the body.
+    // Author and date head the document with no title; a blank line separates them from the body.
     assert_eq!(output, "Ada Lovelace\n2026-06-20\n\nBody text.\n");
 }
 
@@ -234,8 +231,7 @@ fn web_pagetitle_strips_markup_but_keeps_quote_glyphs() {
         &options,
     )
     .unwrap();
-    // `emphatic` loses its emphasis; the quotation around `Report` renders as the format's curly
-    // quotes rather than being dropped.
+    // `emphatic` loses emphasis; the quotes around `Report` become the format's curly quotes.
     assert_eq!(output, "[An emphatic \u{201c}Report\u{201d}]");
 }
 
@@ -275,8 +271,7 @@ TML=[$for(title-meta)$<$title-meta$>$endfor$]"
         &options,
     )
     .unwrap();
-    // `title-meta` and `author-meta` are always defined, so a loop iterates once over the empty
-    // string even when the document carries no title or author.
+    // `title-meta`/`author-meta` are always defined, so a loop iterates once over the empty string.
     assert_eq!(output, "AML=[<>]|TML=[<>]");
 }
 
@@ -372,7 +367,7 @@ fn man_flattens_block_metadata_into_a_header_field() {
         &options,
     )
     .unwrap();
-    // The lone paragraph flattens to inline roff — no paragraph macro leaks into the header field.
+    // The lone paragraph flattens to inline roff: no paragraph macro leaks into the header field.
     assert_eq!(single, "[Multi\\-line Title Block]");
 
     let multi = convert_text(
@@ -420,8 +415,8 @@ fn typst_default_template_renders_a_structured_author_name() {
         &options,
     )
     .unwrap();
-    // A structured author exposes its `name`; it must reach both the document metadata and the title
-    // block as text, never collapsing to a boolean from a non-empty map being interpolated directly.
+    // A structured author's `name` must reach metadata and title block as text, never collapsing
+    // to a boolean from direct map interpolation.
     assert!(
         output.contains("author: ([Grace Hopper])"),
         "structured author name should reach #set document: {output}"

@@ -162,8 +162,8 @@ impl Element {
             out.push_str(" />");
             return;
         }
-        // An element whose content is purely text stays on one line; child elements and raw
-        // fragments (which may themselves hold elements) force the indented, multi-line layout.
+        // text-only content stays on one line; elements and raw fragments (which may hold elements)
+        // force the multi-line layout
         if !self
             .children
             .iter()
@@ -288,8 +288,7 @@ mod tests {
 
     #[test]
     fn forbidden_control_chars_are_dropped_from_text_and_attributes() {
-        // NUL, start-of-heading, vertical tab, form feed and the U+FFFE noncharacter cannot appear
-        // in XML at all; tab, newline and carriage return are the only permitted C0 controls.
+        // tab, newline and carriage return are the only permitted C0 controls
         let element = Element::new("p")
             .attr("data-x", "a\u{0}b\u{1}c\t")
             .text("x\u{0}y\u{b}z\u{c}w\u{fffe}");
@@ -335,8 +334,7 @@ mod tests {
 
     #[test]
     fn raw_fragments_emit_verbatim_and_unescaped() {
-        // A raw fragment passes through both compact render paths byte-for-byte: no escaping of its
-        // markup, interleaved with escaped sibling text.
+        // raw passes through unescaped, interleaved with escaped sibling text
         let element = Element::new("w:p")
             .text("a < b")
             .raw("<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>");
@@ -348,8 +346,7 @@ mod tests {
 
     #[test]
     fn pretty_layout_treats_raw_only_content_as_multi_line() {
-        // A raw fragment may itself hold elements, so an element whose only content is raw takes the
-        // indented multi-line layout rather than the single-line text form.
+        // raw may hold elements, so raw-only content takes the multi-line layout
         let doc = Element::new("root")
             .raw("<child/>")
             .render_document_pretty();

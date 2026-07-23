@@ -1,6 +1,6 @@
 //! `DokuWiki` writer: renders the document model to `DokuWiki` markup.
 //!
-//! Inline content is emitted on a single line — a soft break becomes a space, or a newline under the
+//! Inline content is emitted on a single line: a soft break becomes a space, or a newline under the
 //! preserve wrap mode, which keeps the source's own line breaks. Block structure is conveyed through
 //! `DokuWiki`'s line-oriented markup. Top-level blocks are separated by a blank line. Output carries
 //! no trailing newline; the caller appends one. This format has no public specification, so its
@@ -22,7 +22,7 @@ use crate::common::{
 /// Columns each level of list nesting adds, and the base indent of a top-level list line.
 const LIST_INDENT: usize = 2;
 
-/// A line break that belongs to a paragraph's own content — a source break kept under preserve wrap —
+/// A line break that belongs to a paragraph's own content (a source break kept under preserve wrap)
 /// rather than a boundary between blocks. It is held as this marker, distinct from the structural
 /// newlines that join blocks and list items, so a block quote prefixes only the structural lines and a
 /// table cell can fold a content break into its inline-break marker. Resolved to a newline once the
@@ -71,7 +71,7 @@ fn block(block: &Block, wrap: WrapMode) -> String {
 }
 
 /// A heading: a run of `=` whose length decreases as the level deepens (level 1 is the widest), with
-/// the heading text — markup stripped to plain text — set off by single spaces.
+/// the heading text (markup stripped to plain text) set off by single spaces.
 fn header(level: i32, inlines: &[Inline]) -> String {
     let depth = level.clamp(1, 6);
     let equals = "=".repeat((7 - depth).unsigned_abs() as usize);
@@ -117,7 +117,7 @@ fn block_quote(blocks: &[Block], wrap: WrapMode) -> String {
 }
 
 /// A division renders its inner blocks transparently. It is set off from what follows by a blank
-/// line only when its content ends in a block that itself stands on its own paragraph — an inline
+/// line only when its content ends in a block that itself stands on its own paragraph; an inline
 /// block (`Plain`) or a heading carries no such trailing blank. An empty division renders to
 /// nothing.
 fn div(blocks: &[Block], wrap: WrapMode) -> String {
@@ -293,8 +293,6 @@ fn raw_passthrough(format: &Format, text: &str) -> String {
     common::raw_passthrough(format, text, "dokuwiki", RawTrim::DropAll)
 }
 
-// --- inline rendering ---------------------------------------------------------------------------
-
 /// Render an inline sequence to markup, collapsing each space or soft break to a single space.
 fn inlines_to_markup(inlines: &[Inline], wrap: WrapMode) -> String {
     inlines.iter().map(|i| inline(i, wrap)).collect()
@@ -366,8 +364,8 @@ fn bare_inline(inline: &Inline) -> String {
     }
 }
 
-/// A link. When the label is the destination's visible form — its exact text or its percent-decoded
-/// text — and the destination carries no space, the URL stands alone; a `mailto:` link with an
+/// A link. When the label is the destination's visible form (its exact text or its percent-decoded
+/// text) and the destination carries no space, the URL stands alone; a `mailto:` link with an
 /// all-text label renders in angle brackets; otherwise the `[[destination|label]]` form is used,
 /// with one leading `/` trimmed from the destination.
 fn link(inlines: &[Inline], target: &Target, wrap: WrapMode) -> String {
@@ -476,8 +474,6 @@ fn escape(text: &str) -> String {
     }
     out
 }
-
-// --- tables -------------------------------------------------------------------------------------
 
 /// Render a table: an optional caption paragraph, then header rows marked with `^` and body rows
 /// marked with `|`, every cell padded to its column width per the column's alignment. A cell occupies
@@ -635,7 +631,7 @@ fn cell_block(block: &Block, wrap: WrapMode) -> String {
     }
 }
 
-/// The width of each column: the longest content cell — measured in characters — that starts in
+/// The width of each column: the longest content cell (measured in characters) that starts in
 /// that column.
 fn column_widths(rows: &[RenderedRow], columns: usize) -> Vec<usize> {
     let mut widths = vec![0usize; columns];

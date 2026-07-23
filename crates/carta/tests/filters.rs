@@ -74,7 +74,6 @@ fn work_dir(name: &str) -> PathBuf {
     dir
 }
 
-/// Write `contents` to `path` and mark it executable.
 fn write_exec(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write script");
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod script");
@@ -107,7 +106,7 @@ fn an_identity_filter_leaves_the_output_unchanged() {
 fn a_filter_receives_the_output_format_name() {
     let dir = work_dir("filter-format-arg");
     let filter = dir.join("echo-format");
-    // The format name arrives as the first argument; report it on stderr and pass the document on.
+    // Report the first-argument format name on stderr and pass the document on.
     write_exec(&filter, "#!/bin/sh\necho \"format=$1\" >&2\ncat\n");
 
     let result = run(
@@ -205,8 +204,7 @@ fn a_working_directory_filter_takes_precedence_over_the_data_directory() {
     let data = dir.join("data");
     let filters = data.join("filters");
     fs::create_dir_all(&filters).unwrap();
-    // The same bare name lives in both the data directory and the working directory, each tagging the
-    // document differently so the winner is unambiguous. The working-directory copy takes precedence.
+    // Same bare name in data dir and cwd, each tagging differently; the cwd copy must win.
     write_exec(&filters.join("dup"), "#!/bin/sh\nsed 's/TOKEN/DATADIR/g'\n");
     let cwd = dir.join("cwd");
     fs::create_dir_all(&cwd).unwrap();
@@ -294,8 +292,7 @@ fn a_filter_sees_merged_command_line_metadata() {
     let dir = work_dir("filter-meta-seen");
     let template = dir.join("marker.html");
     fs::write(&template, "[$marker$]\n").unwrap();
-    // The metadata is folded into the document before the filter runs, so the filter observes the
-    // `-M` value and can rewrite it.
+    // Metadata is folded in before the filter runs, so it observes and can rewrite the `-M` value.
     let filter = dir.join("rewrite");
     write_exec(&filter, "#!/bin/sh\nsed 's/PRESENT/SEEN/g'\n");
 
@@ -326,8 +323,7 @@ fn a_filters_metadata_edit_survives_rendering() {
     let filter = dir.join("rewrite");
     write_exec(&filter, "#!/bin/sh\nsed 's/BEFORE/AFTER/g'\n");
 
-    // The `-M` layer is cleared once merged, so rendering does not re-apply the original value on top
-    // of the filter's edit: the output reflects the filter, not the command line.
+    // The `-M` layer is cleared once merged: the output reflects the filter, not the command line.
     let result = run(
         &[
             "-f",

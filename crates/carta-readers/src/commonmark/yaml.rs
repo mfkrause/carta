@@ -3,7 +3,7 @@
 //! It covers the subset that frontmatter uses: block mappings and sequences, flow collections
 //! (`[a, b]`, `{k: v}`), plain/single-quoted/double-quoted scalars, and literal (`|`) and folded
 //! (`>`) block scalars, plus `#` comments. Scalar *flavor* is retained ([`Scalar`]) because type
-//! resolution — booleans, null, and number canonicalization — applies only to unquoted plain
+//! resolution (booleans, null, and number canonicalization) applies only to unquoted plain
 //! scalars; the conversion to metadata happens in [`super::frontmatter`].
 //!
 //! The grammar handled here is the one document front matter needs, not all of YAML; anchors,
@@ -43,7 +43,7 @@ pub(crate) enum TopLevel {
 /// than recursing without bound; real document metadata never approaches it.
 const MAX_NESTING_DEPTH: usize = 512;
 
-/// Parse the text between metadata fences. `Err` marks malformed input — a hard failure the caller
+/// Parse the text between metadata fences. `Err` marks malformed input, a hard failure the caller
 /// surfaces as an error; `Ok` carries the top-level classification.
 pub(crate) fn parse(content: &str) -> Result<TopLevel, ()> {
     let mut reader = Reader::new(content);
@@ -120,8 +120,8 @@ fn is_sequence_entry(body: &str) -> bool {
     body == "-" || body.starts_with("- ")
 }
 
-/// The byte offset of the `:` that separates a mapping key from its value — a colon followed by a
-/// space or the end of the line, not inside quotes or flow brackets — if `body` opens a mapping
+/// The byte offset of the `:` that separates a mapping key from its value (a colon followed by a
+/// space or the end of the line, not inside quotes or flow brackets), if `body` opens a mapping
 /// entry.
 fn key_colon(body: &str) -> Option<usize> {
     let bytes = body.as_bytes();
@@ -377,8 +377,7 @@ fn parse_block_scalar(reader: &mut Reader, header: &str, marker_indent: usize) -
             break;
         }
     }
-    // Trailing blank lines belong to the next block unless chomping keeps them; trim, remembering how
-    // many there were so `Keep` can restore them.
+    // Trailing blank lines belong to the next block; the count lets `Keep` restore them.
     let trailing_blanks = raw.iter().rev().take_while(|l| is_blank(l)).count();
     let content_indent = explicit_indent.unwrap_or_else(|| {
         raw.iter()
@@ -670,7 +669,7 @@ fn parse_radix_int(text: &str) -> Option<String> {
     })
 }
 
-/// Canonicalize a float scalar (sign, integer digits, optional fraction, optional exponent — with at
+/// Canonicalize a float scalar (sign, integer digits, optional fraction, optional exponent, with at
 /// least one leading digit and either a `.` or an exponent), or `None` if `text` is not such a form.
 fn canonicalize_float(text: &str) -> Option<String> {
     let bytes = text.as_bytes();
@@ -755,11 +754,9 @@ fn canonicalize_float(text: &str) -> Option<String> {
 /// ones in `d.d…e±n` scientific form.
 fn render_decimal(neg: bool, int_digits: &str, frac_digits: &str, exp: i64) -> String {
     let mut digits: Vec<u8> = int_digits.bytes().chain(frac_digits.bytes()).collect();
-    // The decimal point starts after the integer digits, then shifts by the exponent. Saturating
-    // arithmetic keeps an absurd exponent (e.g. `1e9999999999999999999`) from overflowing.
+    // Saturating arithmetic keeps an absurd exponent (e.g. `1e9999999999999999999`) from overflowing.
     let mut point = len_i64(int_digits.len()).saturating_add(exp);
 
-    // Strip leading zeros, each shifting the point left; then strip trailing zeros.
     let leading = digits.iter().take_while(|&&b| b == b'0').count();
     digits.drain(..leading);
     point = point.saturating_sub(len_i64(leading));
@@ -772,9 +769,8 @@ fn render_decimal(neg: bool, int_digits: &str, frac_digits: &str, exp: i64) -> S
 
     let sign = if neg { "-" } else { "" };
     let digit_count = len_i64(digits.len());
-    // With no fractional digits the value is a whole number: rendered plainly when it lands in the
-    // signed 64-bit range, otherwise in scientific form. A fractional value is plain only at modest
-    // magnitudes (leading digit between 10^-1 and 10^6); beyond that it too goes scientific.
+    // Plain rendering: whole numbers inside the i64 range, fractions with the leading digit
+    // between 10^-1 and 10^6; everything else goes scientific.
     let body = if point >= digit_count {
         if fits_i64_integer(&digits, point, neg) {
             fixed(&digits, point, digit_count)

@@ -70,7 +70,7 @@ pub(crate) fn cell_inlines(cell: &Cell) -> &[Inline] {
     }
 }
 
-/// A simple cell's inline content with a single leading and/or trailing `Inline::Space` removed —
+/// A simple cell's inline content with a single leading and/or trailing `Inline::Space` removed,
 /// the boundary spaces a table cell does not render. Interior spacing is untouched. Non-simple
 /// cells yield an empty slice, as with [`cell_inlines`]. Width and layout math must keep using
 /// [`cell_inlines`]; this variant is for render sites only.
@@ -86,7 +86,7 @@ pub(crate) fn trimmed_cell_inlines(cell: &Cell) -> &[Inline] {
     inlines
 }
 
-/// How many boundary spaces [`trimmed_cell_inlines`] removes from a cell — the width its column
+/// How many boundary spaces [`trimmed_cell_inlines`] removes from a cell: the width its column
 /// still reserves for them even though they are not rendered.
 #[cfg_attr(not(any(feature = "gfm", feature = "markdown")), allow(dead_code))]
 pub(crate) fn boundary_space_count(cell: &Cell) -> usize {

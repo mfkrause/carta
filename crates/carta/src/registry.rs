@@ -1,5 +1,5 @@
 //! Format-name dispatch. Every format is declared once inside a [`format_dispatch!`] block; the
-//! macro expands that single declaration into the views that must agree — the resolver (name/alias →
+//! macro expands that single declaration into the views that must agree: the resolver (name/alias →
 //! boxed trait object), the `supported_*` enumerator (canonical names), the `*_format_names`
 //! enumerator (canonical names plus aliases, for introspection), and a `*_recognizes` predicate over
 //! the full name set that separates "disabled" from "unknown". Because the views share one source,
@@ -49,7 +49,7 @@ macro_rules! format_dispatch {
             }
         }
 
-        #[doc = concat!("Whether `name` is a recognized ", stringify!($trait), " format — true regardless of whether its feature is compiled in.")]
+        #[doc = concat!("Whether `name` is a recognized ", stringify!($trait), " format; true regardless of whether its feature is compiled in.")]
         #[must_use]
         pub(crate) fn $recognizes(name: &str) -> bool {
             const KNOWN: &[&str] = &[ $( $canonical $(, $alias)* ),+ ];
@@ -65,7 +65,7 @@ macro_rules! format_dispatch {
                 .collect()
         }
 
-        #[doc = concat!("Every accepted ", stringify!($trait), " format name in this build — canonical names and their aliases — sorted.")]
+        #[doc = concat!("Every accepted ", stringify!($trait), " format name in this build (canonical names and their aliases), sorted.")]
         #[must_use]
         pub fn $names() -> Vec<&'static str> {
             let mut names: Vec<&'static str> = Vec::new();

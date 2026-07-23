@@ -1,7 +1,7 @@
 //! Layer 1 end-to-end golden tests: snapshot carta's full-pipeline output for each `corpus/text/<fmt>/*`
 //! case rendered across a bounded set of targets, composing a real reader with a real writer offline.
 //!
-//! The reader and writer golden suites split the pipeline at JSON — `golden_reader.rs` freezes
+//! The reader and writer golden suites split the pipeline at JSON: `golden_reader.rs` freezes
 //! `text -> json` and `golden_writer.rs` freezes `json -> target`. Neither exercises a reader composed
 //! with a non-JSON writer, so a defect that only surfaces when a specific reader's AST shape meets a
 //! specific writer stays invisible. This suite closes that gap: it freezes `text -> target` for every

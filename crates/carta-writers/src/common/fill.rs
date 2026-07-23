@@ -100,8 +100,7 @@ pub(crate) fn fill_offset(
     initial: usize,
     wrap: WrapMode,
 ) -> String {
-    // Auto reflows to the fill column; the other modes never wrap on width, so a sentinel column
-    // wide enough that no real line reaches it stands in. Soft breaks are the only line splits then.
+    // Only Auto wraps on width; the other modes get a sentinel column no real line reaches.
     let width = match wrap {
         WrapMode::Auto => width.max(1),
         WrapMode::None | WrapMode::Preserve => usize::MAX,
@@ -168,8 +167,8 @@ pub(crate) fn fill_hang(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
 }
 
 /// Lay out a table cell's inline content to a fixed-width column field. Unlike [`fill`], the field
-/// reflows to `width` under both [`WrapMode::Auto`] and [`WrapMode::Preserve`] — a bordered cell is
-/// always bounded by its column — while [`WrapMode::None`] still renders the content on one line so
+/// reflows to `width` under both [`WrapMode::Auto`] and [`WrapMode::Preserve`] (a bordered cell is
+/// always bounded by its column) while [`WrapMode::None`] still renders the content on one line so
 /// the column can instead grow to hold it. Under [`WrapMode::Preserve`] each source soft break stays
 /// a forced line break, with the text between breaks reflowed to the field width.
 #[cfg_attr(not(feature = "rst"), allow(dead_code))]
@@ -270,8 +269,7 @@ impl Sink for LineVecSink {
 /// out under a marker keeps the gap the source put between the marker position and its first word.
 /// `groups` names disjoint, ascending half-open index ranges that are placed atomically (see
 /// [`fill_groups`]).
-// A cohesive line-layout state machine: the per-piece arms and group handling share one running
-// cursor, so keeping them in one body is clearer than threading the cursor through callees.
+// One body: the per-piece arms and group handling share one running cursor.
 #[allow(clippy::too_many_lines)]
 fn fill_pieces<S: Sink>(
     sink: &mut S,
@@ -285,8 +283,7 @@ fn fill_pieces<S: Sink>(
     let mut column = initial;
     let mut at_line_start = initial == 0 && !keep_leading;
     let mut pending_space = false;
-    // Consecutive text pieces (no intervening space or break) form one unbreakable word, gathered
-    // here as borrowed runs and placed only once its full width is known.
+    // Consecutive text pieces form one unbreakable word, placed once its full width is known.
     let mut word: Vec<&str> = Vec::new();
     let mut word_width = 0;
     let mut next_group = 0;
@@ -294,7 +291,6 @@ fn fill_pieces<S: Sink>(
     while index < pieces.len() {
         if let Some(&(start, end)) = groups.get(next_group) {
             if index >= end {
-                // A stale range that the cursor has already passed; advance past it.
                 next_group += 1;
                 continue;
             }
@@ -333,8 +329,7 @@ fn fill_pieces<S: Sink>(
                 word.push(text);
                 word_width += display_width(text);
             }
-            // A soft break forces a line break only when preserving the source's own breaks;
-            // otherwise it is just inter-word space (and may become a reflow point under Auto).
+            // A soft break splits lines only under Preserve; otherwise it is inter-word space.
             Some(Piece::Soft) if preserve_softs => {
                 place_word(
                     sink,
@@ -404,7 +399,7 @@ fn fill_pieces<S: Sink>(
 
 /// A line-oriented output target: appends filled content into a caller's buffer, applying a hanging
 /// indent as it goes. The first line takes the `first` prefix, each non-empty continuation line the
-/// `rest` prefix, and blank continuation lines stay unprefixed — the same rule [`indent_block`]
+/// `rest` prefix, and blank continuation lines stay unprefixed: the same rule [`indent_block`]
 /// applies to an already-rendered body, but streamed so no whole-block string is built and re-split.
 /// Trailing line breaks are dropped (they are only emitted once real content follows them), matching
 /// the trim the string-returning entry points perform.
@@ -517,7 +512,7 @@ fn fill_core(
 }
 
 /// Place an atomic group's interior into `out`, deciding first whether it begins on a fresh line.
-/// The decision weighs the group's first line — the run before its own first fold: when `lead_space`
+/// The decision weighs the group's first line (the run before its own first fold): when `lead_space`
 /// (a breakable space precedes it) and that first line would overflow the current line, the group
 /// starts a new line. Either way its interior is then filled from the resulting column, folding
 /// across lines only when the group alone is wider than the column.
@@ -575,8 +570,8 @@ fn line_end_column(rendered: &str, start_col: usize) -> usize {
 /// Place a gathered word onto the current line, inserting a line break in place of the preceding
 /// space when keeping the word would overflow `width`. A no-op for an empty word.
 ///
-/// A word usually has no embedded line break, but a multi-line literal — a footnote body set over
-/// several paragraphs — does. Such a word's first line is what must fit after the preceding space,
+/// A word usually has no embedded line break, but a multi-line literal (a footnote body set over
+/// several paragraphs) does. Such a word's first line is what must fit after the preceding space,
 /// and its last line sets the column the following text continues from; only its first line shares
 /// the line it lands on, so the rest cannot push later words off the column.
 fn place_word<S: Sink>(
@@ -829,8 +824,7 @@ mod tests {
 
     #[test]
     fn fill_into_reproduces_grouped_layout() {
-        // With empty prefixes, streaming the grouped layout must equal the string-returning
-        // `fill_groups`, so the group-folding decisions survive the sink.
+        // With empty prefixes the streamed layout must equal `fill_groups`.
         let pieces = vec![
             Piece::Text("see".into()),
             Piece::Space,

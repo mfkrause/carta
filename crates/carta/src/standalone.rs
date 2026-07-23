@@ -1,7 +1,7 @@
 //! Standalone output: wrap a rendered body in the target format's template.
 //!
-//! This builds the variable context a template renders against — document metadata rendered through
-//! the target writer, the body, a derived plain-text `pagetitle`, and the raw `-V` overlay — and
+//! This builds the variable context a template renders against (document metadata rendered through
+//! the target writer, the body, a derived plain-text `pagetitle`, and the raw `-V` overlay) and
 //! merges the extra metadata layers (`-M` above the document, metadata-file defaults below it) into
 //! the document before the body is produced.
 
@@ -28,7 +28,7 @@ pub(crate) enum TocSource {
 
 /// Layer the extra metadata sources into `document.meta`: metadata-file defaults sit lowest, the
 /// document's own values override them, and `-M` values override the document. Merging is whole-key
-/// replacement — a higher layer's value for a key replaces the lower layer's entirely (nested maps
+/// replacement: a higher layer's value for a key replaces the lower layer's entirely (nested maps
 /// are not deep-merged).
 pub(crate) fn merge_metadata(document: &mut Document, options: &WriterOptions) {
     if options.metadata_defaults.is_empty() && options.metadata.is_empty() {
@@ -59,8 +59,7 @@ pub(crate) fn render(
     to_base: &str,
     toc_source: TocSource,
 ) -> Result<String> {
-    // A format whose standalone form is structural (the data form embeds metadata and blocks in one
-    // value) builds it directly, bypassing the template engine.
+    // Structural standalone forms embed metadata and blocks in one value, bypassing templates.
     if let Some(structural) = writer.standalone_document(document, options)? {
         return Ok(structural);
     }
@@ -76,17 +75,14 @@ pub(crate) fn render(
 
     let dir = options.template_dir.clone();
     let datadir = options.template_datadir.clone();
-    // A partial inherits the including template's extension; a built-in default has no file, so the
-    // format name stands in (its own templates avoid partials, so this only guides user overrides).
+    // Partials inherit the including template's extension; a built-in default has no file, so the format name stands in.
     let ext = options
         .template_ext
         .clone()
         .unwrap_or_else(|| to_base.to_owned());
     let resolve = move |name: &str| resolve_partial(dir.as_deref(), datadir.as_deref(), &ext, name);
     let mut output = template.render(&context, &resolve)?;
-    // A block-level body or metadata value ends in a blank line, so a run of newlines can pile up at
-    // the very end of the document; it collapses to a single trailing newline. Output that ends at a
-    // glyph is left without one.
+    // Block values can pile up trailing newlines; collapse to one, but never add one to glyph-ending output.
     let kept = output.trim_end_matches('\n').len();
     if kept < output.len() {
         output.truncate(kept);
@@ -105,19 +101,15 @@ fn build_context(
     toc_source: TocSource,
 ) -> Result<Value> {
     let line_oriented = writer.body_ends_with_newline();
-    // A block-level value rendered by a line-oriented writer ends in a blank line, so a metadata
-    // variable carries two trailing newlines; `meta-json` keeps the value's plain single-newline
-    // form. A writer that ends its output at a glyph adds neither.
+    // Line-oriented writers: block metadata carries two trailing newlines, `meta-json` keeps one; glyph-ending writers add neither.
     let context_trailing = if line_oriented { "\n\n" } else { "" };
     let json_trailing = if line_oriented { "\n" } else { "" };
 
     let mut context: BTreeMap<String, Value> = BTreeMap::new();
     let mut meta_json = serde_json::Map::new();
     for (key, value) in &document.meta {
-        // A writer that flattens block metadata builds the two forms from different content
-        // (inline flattening against full blocks), so each is rendered on its own; every other
-        // writer renders each leaf once, the forms differing only in the trailing appended to
-        // block-shaped content.
+        // Flattening writers build the two forms from different content, so each renders on its
+        // own; other writers render each leaf once, the forms differing only in the trailing.
         let (context_value, json) = if writer.flatten_block_metadata() {
             let context_value = meta_to_value(value, writer, options, BlockMode::Inline)?;
             let json_value = meta_to_value(
@@ -139,8 +131,7 @@ fn build_context(
         "meta-json".to_owned(),
         Value::Str(serde_json::Value::Object(meta_json).to_string()),
     );
-    // Writers that lay the document out as newline-terminated lines carry a trailing blank line into
-    // the body variable; an empty body stays empty.
+    // Line-oriented writers carry a trailing blank line into the body; an empty body stays empty.
     if line_oriented && !body.is_empty() {
         body.push_str("\n\n");
     }
@@ -151,9 +142,7 @@ fn build_context(
         context.insert("titleblock".to_owned(), Value::Str(block));
     }
     overlay_variables(&mut context, &options.variables);
-    // A requested link, file, citation, URL, or table-of-contents color implies colored links — a
-    // property of the assembled context, not of any one writer — so it is applied uniformly. A
-    // template that exposes neither colors nor `colorlinks` is simply unaffected.
+    // Applied here, uniformly: a property of the assembled context, not of any one writer.
     enable_colorlinks(&mut context);
     Ok(Value::Map(context))
 }
@@ -322,7 +311,7 @@ fn value_to_json(value: &Value) -> serde_json::Value {
     }
 }
 
-/// Insert the plain-text identity variables the writer's standalone template draws on — the title,
+/// Insert the plain-text identity variables the writer's standalone template draws on: the title,
 /// authors, and date stripped of markup but with quotation preserved, then rendered through the
 /// target writer (a document `<title>` or a PDF property carries no styling, but its quote glyphs
 /// still belong to the format). A web document exposes `pagetitle` (the title, falling back to the
@@ -335,8 +324,7 @@ fn insert_identity_vars(
     writer: &dyn Writer,
     options: &WriterOptions,
 ) -> Result<()> {
-    // The plain-text forms decide presence (whether a key contributes any text at all); the inline
-    // forms carry the quotation that survives into the rendered variable.
+    // Plain-text forms decide presence; inline forms carry the quotation into the rendered variable.
     let title_text = plain_meta(document, "title");
     let title = plain_meta_inlines(document, "title");
     let authors = author_plain_inlines(document);
@@ -346,9 +334,7 @@ fn insert_identity_vars(
     match writer.meta_var_style() {
         MetaVarStyle::None => {}
         MetaVarStyle::Web => {
-            // `pagetitle` is the title, falling back to the source name; present whenever either
-            // exists. `date-meta` is present only when the document carries a date. `author-meta` is
-            // a list with one entry per author, always defined (empty when there are none).
+            // `pagetitle` falls back to the source name; `date-meta` requires a date; `author-meta` is always defined (possibly empty).
             let page = if title_text.is_empty() {
                 options
                     .source_name
@@ -377,8 +363,7 @@ fn insert_identity_vars(
             context.insert("author-meta".to_owned(), Value::List(list));
         }
         MetaVarStyle::Pdf => {
-            // `title-meta` and `author-meta` are always defined (empty when the metadata is absent),
-            // so a template may reference them unconditionally.
+            // Always defined (empty when absent) so templates may reference them unconditionally.
             context.insert(
                 "title-meta".to_owned(),
                 Value::Str(writer.render_meta_inlines(&title, options)?),
@@ -394,7 +379,7 @@ fn insert_identity_vars(
 }
 
 /// Insert the variables that drive a standalone document's table of contents, section numbering, and
-/// math typesetting. A contents request exposes `toc-depth` and `toc` — a list rendered through the
+/// math typesetting. A contents request exposes `toc-depth` and `toc`: a list rendered through the
 /// target writer, or a boolean flag for a format that assembles its own contents from a template
 /// directive. Native section numbering exposes `numbersections`. A math renderer exposes its loader's
 /// flag and URL. A document that requests none of these leaves the context untouched.

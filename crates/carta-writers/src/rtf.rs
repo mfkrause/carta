@@ -10,7 +10,7 @@
 //! level and close with the trailing paragraph spacing RTF omits between items. Tables lay their
 //! cells out in `\trowd` rows sized in twips. Output carries no trailing newline.
 //!
-//! Only one extension bears on this format — `east_asian_line_breaks` — and it governs line-fill
+//! Only one extension bears on this format, `east_asian_line_breaks`, and it governs line-fill
 //! behavior that RTF does not expose (every paragraph is a single physical line), so it makes no
 //! difference to the output and is left unobserved.
 
@@ -221,8 +221,7 @@ impl State {
         let outer = self.indent;
         self.indent = outer.saturating_add(360);
         let mut out = String::new();
-        // When this item's first block is itself a nested list, that inner item consumes the lead
-        // before any text does; carry this marker ahead of the inner one so both glyphs open the line.
+        // A nested-list first block consumes the lead first; carry this marker so both glyphs open the line.
         let carried = self
             .pending
             .take()
@@ -325,12 +324,10 @@ impl State {
     ) -> String {
         let mut grid = RowSpanGrid::new(columns);
         let mut out = String::new();
-        // The bottom border under the head sits below its first row only, marking where the head
-        // begins; further head rows draw no border of their own.
+        // The head's bottom border sits below its first row only.
         let mut border = header;
         for row in rows {
-            // A header row with nothing in any cell is layout scaffolding, not content, and is left
-            // out entirely rather than drawn as a run of empty bordered cells.
+            // An all-blank header row is layout scaffolding, not content; drop it.
             if header && row.cells.iter().all(cell_is_blank) {
                 continue;
             }
@@ -360,8 +357,7 @@ impl State {
                 widths.get(index).copied().unwrap_or(0)
             );
         }
-        // Every row emits exactly one cell per column: a placed cell or a filler for a covered
-        // column, plus fillers for any trailing columns the row's cells and their spans never reach.
+        // Exactly one cell per column: placed, covered filler, or trailing filler.
         let mut cells = String::new();
         let mut emitted = 0usize;
         for slot in slots.iter().take(columns) {
@@ -495,8 +491,8 @@ impl State {
     }
 
     /// An image whose bytes resolve to an embeddable raster becomes a `\pict` group carrying its
-    /// pixel size and physical goal; anything the format cannot embed — an unresolved reference or a
-    /// raster kind RTF has no blip for — falls back to a bracketed placeholder naming the source.
+    /// pixel size and physical goal; anything the format cannot embed (an unresolved reference or a
+    /// raster kind RTF has no blip for) falls back to a bracketed placeholder naming the source.
     fn image(&self, attr: &Attr, target: &Target) -> String {
         if let Some(bytes) = self.resolve_image(&target.url)
             && let Some(picture) = pict_group(&bytes, attr)
@@ -542,8 +538,6 @@ fn pict_group(bytes: &[u8], attr: &Attr) -> Option<String> {
     Some(out)
 }
 
-/// Appends `bytes` as a continuous run of lowercase hex, two characters per byte, reserving the
-/// output space up front.
 fn push_hex(out: &mut String, bytes: &[u8]) {
     out.reserve(bytes.len().saturating_mul(2));
     for &byte in bytes {
@@ -552,7 +546,6 @@ fn push_hex(out: &mut String, bytes: &[u8]) {
     }
 }
 
-/// The lowercase hex digit for a nibble in `0..16`.
 const fn nibble_hex(nibble: u8) -> u8 {
     match nibble {
         0..=9 => b'0' + nibble,
@@ -560,7 +553,6 @@ const fn nibble_hex(nibble: u8) -> u8 {
     }
 }
 
-/// One inch is 1440 twips.
 const TWIPS_PER_INCH: f64 = 1440.0;
 
 /// The picture's display goal, in twips, along both axes. An explicit `width` and `height` each set
@@ -597,12 +589,10 @@ fn length_inches(attr: &Attr, key: &str) -> Option<f64> {
     dimension_inches(&parse_dimension(attribute_value(attr, key)?)?)
 }
 
-/// The twip goal for a length already measured in inches, floored to a whole twip.
 fn twips(inches: f64) -> u64 {
     floor_twips(inches * TWIPS_PER_INCH)
 }
 
-/// Floors a twip measurement to a non-negative whole number.
 fn floor_twips(value: f64) -> u64 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     {
@@ -638,8 +628,7 @@ fn align_word(align: &Alignment) -> &'static str {
 /// explicit fractional width uses it. A column without one takes no width, so explicit fractions keep
 /// their intended proportions; only when no column declares a width do they divide the full width
 /// evenly.
-// Layout arithmetic over bounded fractions summing toward 1.0: rounding to the nearest twip is
-// intended, and the product stays well within range.
+// Nearest-twip rounding is intended; the product stays well within range.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn column_widths(specs: &[ColSpec]) -> Vec<i64> {
     let count = specs.len();
@@ -1045,8 +1034,7 @@ mod tests {
 
     #[test]
     fn jpeg_image_goal_uses_the_jfif_density() {
-        // 10 px at the header's 300 dpi: 10*1440/300 = 48 twips on each axis, not the 200 a bare
-        // 72 dpi would give.
+        // 10 px at the header's 300 dpi: 10*1440/300 = 48 twips per axis, not 72 dpi's 200.
         let block = para(vec![Inline::Image(
             Box::default(),
             vec![s("alt")],
@@ -1138,8 +1126,7 @@ mod tests {
         let def = || ColWidth::ColWidthDefault;
         // With no declared widths, the full width divides evenly.
         assert_eq!(column_widths(&[spec(def()), spec(def())]), vec![4320, 8640]);
-        // A column without a declared width takes none, so an explicit fraction keeps its
-        // proportion instead of the edges running past the full 8640-twip width.
+        // An undeclared column takes no width, so an explicit fraction keeps its proportion.
         assert_eq!(
             column_widths(&[spec(cw(0.8)), spec(def())]),
             vec![6912, 6912]
@@ -1157,8 +1144,7 @@ mod tests {
 
     #[test]
     fn multi_row_head_borders_only_first_row() {
-        // A head with two rows draws its bottom border under the first row only; the second head
-        // row and every body row carry plain cell definitions.
+        // The head's bottom border falls under its first row only.
         let cell = |text: &str| Cell {
             attr: Attr::default(),
             align: Alignment::AlignDefault,

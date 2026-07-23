@@ -3,7 +3,7 @@
 //! a column.
 //!
 //! The everyday `golden_writer` suite renders every case under the default `auto` wrap; this file
-//! pins the other two modes for the cases where they diverge — a long reflowed paragraph, a source
+//! pins the other two modes for the cases where they diverge: a long reflowed paragraph, a source
 //! soft break, and a long table cell (whose layout differs between bordered-grid and free-flowing
 //! cell writers). Reviewed with `cargo insta review`; never hand-edit the `.snap` files.
 

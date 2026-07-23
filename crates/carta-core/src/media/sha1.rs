@@ -23,10 +23,8 @@ pub fn hex(data: &[u8]) -> String {
         compress(&mut h, block);
     }
 
-    // The message's tail — the final partial block, the `0x80` terminator, zero fill, and the
-    // 64-bit big-endian bit length — is assembled on the stack rather than by copying the whole
-    // input. A remainder of 56..=63 bytes leaves no room for the length in one block, so the tail
-    // spans two.
+    // Tail built on the stack; a 56..=63-byte remainder leaves no room for the length, so it spans
+    // two blocks.
     let remainder = blocks.remainder();
     let bit_len = (data.len() as u64).wrapping_mul(8);
     let tail_len = if remainder.len() <= 55 { 64 } else { 128 };
@@ -102,12 +100,12 @@ mod tests {
             hex(b"The quick brown fox jumps over the lazy dog"),
             "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"
         );
-        // 448 bits — a 56-byte message, which spills the length into a second block.
+        // 56 bytes: spills the length into a second block.
         assert_eq!(
             hex(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
             "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
         );
-        // 896 bits — a 112-byte message spanning several blocks.
+        // 112 bytes: spans several blocks.
         assert_eq!(
             hex(b"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmn\
                   hijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"),
@@ -117,8 +115,7 @@ mod tests {
 
     #[test]
     fn padding_boundaries_agree_with_the_reference() {
-        // Lengths straddling every mod-64 boundary — in particular 55 (fits one block) and 56
-        // (forces a second) — must agree with the copy-based reference the stack tail replaced.
+        // Lengths straddle every mod-64 boundary, in particular 55 (one block) and 56 (two).
         for len in 0..=200usize {
             let data: Vec<u8> = (0..len)
                 .map(|index| u8::try_from(index % 256).unwrap_or(0))
@@ -127,8 +124,8 @@ mod tests {
         }
     }
 
-    /// The pre-refactor SHA-1: copies the input, pads in place, then digests. Kept in the test to
-    /// pin the copy-free implementation to it across every padding boundary.
+    /// A copy-and-pad SHA-1: copies the input, pads in place, then digests. Cross-checks `hex`
+    /// across every padding boundary.
     #[allow(
         clippy::indexing_slicing,
         clippy::cast_possible_truncation,

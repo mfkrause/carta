@@ -1,9 +1,7 @@
 //! JSON interchange entry points for [`Document`].
 //!
 //! Output is compact and carries no trailing newline; callers that need a terminating newline append
-//! one themselves. Both directions are hand-written: [`ser`] appends the tree into one buffer, and
-//! [`de`] parses interchange bytes straight into the model. Errors surface as [`serde_json::Error`]
-//! so the entry-point signatures stay stable.
+//! one themselves. Errors surface as [`serde_json::Error`].
 
 mod de;
 mod ser;

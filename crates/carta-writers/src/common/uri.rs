@@ -376,9 +376,9 @@ fn is_uri_char(ch: char, allow_non_ascii: bool) -> bool {
 }
 
 /// Percent-encode the characters a link destination cannot carry literally: ASCII whitespace and the
-/// delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes through unchanged —
-/// including a literal `%`, so an existing `%XX` sequence is preserved rather than doubled — as does
-/// all non-ASCII text. The transform is idempotent: applying it twice yields the same result.
+/// delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes through unchanged
+/// (including a literal `%`, so an existing `%XX` sequence is preserved rather than doubled), as
+/// does all non-ASCII text. The transform is idempotent: applying it twice yields the same result.
 #[cfg_attr(not(feature = "rtf"), allow(dead_code))]
 pub(crate) fn escape_uri(url: &str) -> String {
     fn hex(nibble: u8) -> char {

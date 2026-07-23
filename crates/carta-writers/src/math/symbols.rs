@@ -605,9 +605,8 @@ pub(super) fn symbol(name: &str) -> Option<Symbol> {
         "wr" => ord("\u{2240}"),
         "yen" => ord("\u{A5}"),
         "yinyang" => ord("\u{262F}"),
-        // Escaped literal characters. A backslash before a brace, vertical bar, or
-        // ASCII special yields the literal glyph as an ordinary atom; `\,` and `\;`
-        // are spacing commands handled separately, so they map to nothing here.
+        // Escaped literals yield the glyph as an ordinary atom; `\,`/`\;` are spacing commands
+        // handled separately, so they map to nothing here.
         "{" => open("{"),
         "}" => close("}"),
         "|" => ord("\u{2225}"),
@@ -647,8 +646,7 @@ pub(super) fn greek(name: &str) -> Option<(&'static str, bool)> {
         "pi" => ("\u{03C0}", true),
         "varpi" => ("\u{03D6}", true),
         "rho" => ("\u{03C1}", true),
-        // The variant rho/sigma have no plain Greek codepoint of their own; they render with their
-        // dedicated mathematical-italic letters.
+        // Variant rho/sigma have no plain Greek codepoint; they use mathematical-italic letters.
         "varrho" => ("\u{1D71A}", true),
         "sigma" => ("\u{03C3}", true),
         "varsigma" => ("\u{1D70D}", true),
@@ -777,7 +775,7 @@ pub(super) fn is_limit_operator(name: &str) -> bool {
 
 /// Whether a raw large-operator glyph written directly in the source carries stacked limits, the way
 /// its `\command` spelling does. A direct glyph with *both* a sub- and a superscript then cannot be
-/// linearised, matching its command form. The glyphs are the n-ary sum, product, and coproduct and
+/// linearised. The glyphs are the n-ary sum, product, and coproduct and
 /// the big intersection, union, square-cup/cap, and logical or/and. The side-script big operators
 /// (`∫ ∮ ⊕ ⨁`) are excluded.
 pub(super) fn is_limit_glyph(c: char) -> bool {
@@ -831,8 +829,8 @@ pub(super) fn negated_relation(base: &str) -> Option<&'static str> {
 }
 
 /// Whether a `\not`-negated base has no struck-through form at all, so the whole `\not<base>`
-/// expression is left verbatim rather than composed. These bases — set operators, the existential
-/// quantifier, the divides bar, and the triangle relations — carry neither a precomposed negated
+/// expression is left verbatim rather than composed. These bases (set operators, the existential
+/// quantifier, the divides bar, and the triangle relations) carry neither a precomposed negated
 /// glyph nor a meaningful combining-solidus overlay, so striking them is suppressed.
 pub(super) fn is_unnegatable(base: &str) -> bool {
     matches!(
@@ -842,8 +840,8 @@ pub(super) fn is_unnegatable(base: &str) -> bool {
 }
 
 /// Whether a `\not` written over a command base (`\not\in`, `\not\sim`, `\not\alpha`, `\not\|`, …)
-/// composes into a struck-through form. A command base negates only when it is a relation — struck
-/// with its precomposed glyph (`\in` → ∉) or, lacking one, a combining solidus (`\vdash` → ⊬) — or an
+/// composes into a struck-through form. A command base negates only when it is a relation, struck
+/// with its precomposed glyph (`\in` → ∉) or, lacking one, a combining solidus (`\vdash` → ⊬), or an
 /// italic letterlike whose glyph takes the solidus (a Greek letter, or a slanted letterlike such as
 /// `\ell`/`\imath`/`\aleph`). Every other command has no struck form and is left verbatim: an upright
 /// letterlike (`\hbar`, `\Re`, `\nabla`), a delimiter (`\lvert`, `\langle`), the ordinary bar
@@ -975,8 +973,7 @@ pub(super) fn styled_letter(alphabet: Alphabet, ch: char) -> Option<String> {
 }
 
 fn styled_digit(alphabet: Alphabet, ch: char) -> Option<String> {
-    // Only the double-struck block has dedicated digit glyphs; script and fraktur digits have no
-    // styled forms in Unicode and stay as the plain ASCII digit.
+    // Only double-struck has dedicated digit glyphs; script/fraktur digits stay plain ASCII.
     let base = match alphabet {
         Alphabet::DoubleStruck => 0x1D7D8,
         Alphabet::Script | Alphabet::Fraktur | Alphabet::BoldScript | Alphabet::BoldFraktur => {

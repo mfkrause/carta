@@ -30,8 +30,7 @@ enum Content {
 }
 
 pub(super) fn from_json_bytes(bytes: &[u8]) -> Parsed<Document> {
-    // One validation pass up front lets every later string slice come out of `text` without
-    // re-checking UTF-8; slice boundaries always fall on ASCII delimiter bytes.
+    // validate UTF-8 once; later slices come from `text` unchecked (boundaries fall on ASCII delimiters)
     let text = std::str::from_utf8(bytes)
         .map_err(|error| serde_json::Error::custom(format_args!("invalid UTF-8: {error}")))?;
     let mut reader = Reader {
@@ -981,8 +980,7 @@ impl Reader<'_> {
     fn parse_text(&mut self) -> Parsed<Text> {
         self.expect(b'"', "'\"'")?;
         let start = self.pos;
-        // Most payload strings are a handful of clean bytes, so a scalar scan beats a vectorized
-        // search's per-call setup here.
+        // payload strings are typically a few clean bytes: scalar scan beats vectorized setup
         loop {
             let byte = *self
                 .input

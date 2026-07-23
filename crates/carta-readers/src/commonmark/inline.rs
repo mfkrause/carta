@@ -1,6 +1,6 @@
 //! Inline phase: parse the raw text of leaf blocks into inline nodes.
 //!
-//! Implements the spec's inline algorithm — a left-to-right scan that resolves code spans,
+//! Implements the spec's inline algorithm: a left-to-right scan that resolves code spans,
 //! autolinks, raw HTML, entities and escapes immediately, records `*`/`_`/`[`/`![` runs on a
 //! delimiter stack, resolves links/images at each `]`, and finally collapses emphasis. The raw
 //! char-slice scanners it drives (autolinks, HTML tags, entities, link targets) live in `scan`.
@@ -53,7 +53,7 @@ pub(super) struct Delimiter {
     /// delimiters leave this `false` (the field is unused for them).
     ///
     /// A `[` opener is deactivated when a link is successfully built whose text span contains
-    /// it — a link may not contain another link. On `]`, an inactive opener is popped and
+    /// it: a link may not contain another link. On `]`, an inactive opener is popped and
     /// literalized without attempting any link-target parse (spec §6.3, rule 6).
     pub(super) active: bool,
     /// The citation count at the moment this bracket opened. If the bracket later resolves to a
@@ -73,10 +73,9 @@ enum Explicit {
     None,
 }
 
-// `notes` (the footnote context) and `nodes` (the in-progress inline list) are distinct concepts
-// that unavoidably read alike.
+// `notes` (footnote context) and `nodes` (inline list) unavoidably read alike.
 /// Run the gated highlight-mark pass and emphasis resolution over a node list, then collapse it into
-/// inlines — the shared finishing sequence for a parsed inline run, a span body, and a link label.
+/// inlines, the shared finishing sequence for a parsed inline run, a span body, and a link label.
 fn resolve_inline_nodes(mut nodes: Vec<Node>, ext: Extensions, markdown: bool) -> Vec<Inline> {
     if ext.contains(Extension::Mark) {
         resolve_mark(&mut nodes, ext, markdown);
@@ -123,7 +122,7 @@ pub(super) fn parse_inlines(
     inlines
 }
 
-/// Parse standalone text — a document metadata value — into inlines with no reference context, so
+/// Parse standalone text (a document metadata value) into inlines with no reference context, so
 /// footnote and example references in the text resolve to nothing. `markdown` selects the markdown
 /// dialect's inline rules, matching the dialect the document body is parsed under.
 pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) -> Vec<Inline> {
@@ -145,8 +144,8 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) ->
 
 /// A link label may hold at most 999 characters between its brackets (`CommonMark`, "Links"). A
 /// UTF-8 character is at most four bytes, so a span longer than this in bytes exceeds that
-/// character bound. Reference lookups treat such a span as no label at all — skipping extraction,
-/// normalization, and the map lookup — regardless of what definitions exist, which also keeps a
+/// character bound. Reference lookups treat such a span as no label at all (skipping extraction,
+/// normalization, and the map lookup) regardless of what definitions exist, which also keeps a
 /// close's label work bounded on adversarially nested brackets.
 const MAX_LABEL_BYTES: usize = 999 * 4;
 
@@ -172,7 +171,7 @@ struct InlineParser<'a> {
     backtick_runs: Option<BTreeMap<usize, Vec<usize>>>,
     /// Remaining work budget shared by all raw-TeX look-ahead scans in this buffer. Seeded from the
     /// buffer length and charged the traversal length of each scan; when it reaches zero a raw-TeX
-    /// attempt reverts (the backslash stays literal — the same outcome an unmatched group already
+    /// attempt reverts (the backslash stays literal, the same outcome an unmatched group already
     /// produces). It caps the total look-ahead at O(n) so a run of never-closing openers cannot cost
     /// O(n²); a genuine document, where each group is scanned once, never approaches the ceiling.
     raw_tex_budget: usize,
@@ -188,7 +187,7 @@ struct InlineParser<'a> {
 }
 
 /// The ASCII characters that can begin an inline construct under `ext`; every other character is
-/// ordinary text. Must stay in lockstep with the dispatch arms in [`InlineParser::run`] — any new
+/// ordinary text. Must stay in lockstep with the dispatch arms in [`InlineParser::run`]: any new
 /// arm's trigger character has to be marked here, or the construct becomes unreachable mid-text.
 fn interesting_chars(ext: Extensions) -> [bool; 128] {
     let smart = ext.contains(Extension::Smart);
@@ -231,7 +230,7 @@ impl<'a> InlineParser<'a> {
 
     /// Whether the byte at `pos` begins an interesting construct. Every interesting trigger is an
     /// ASCII character, so a byte `>= 128` (any part of a multi-byte character) is never a boundary
-    /// this scan stops on — the run scan can advance one byte at a time and still break only on a
+    /// this scan stops on: the run scan can advance one byte at a time and still break only on a
     /// character boundary.
     fn interesting_byte(&self, byte: u8) -> bool {
         byte < 128
@@ -342,8 +341,7 @@ impl<'a> InlineParser<'a> {
     /// item is replaced with that number and the cursor advances past it, returning `true`. An
     /// undefined or empty label leaves the cursor in place and returns `false`.
     fn try_example_ref(&mut self) -> bool {
-        // The `@` and every label character (`[0-9A-Za-z_-]`) are ASCII, so byte and character
-        // offsets coincide across the label.
+        // `@` and label chars are ASCII, so byte and char offsets coincide.
         let name_start = self.pos + 1;
         let mut end = name_start;
         while matches!(
@@ -444,7 +442,7 @@ impl<'a> InlineParser<'a> {
     /// followed by a run of alphanumerics, taken as the sub/superscript content without a closing
     /// delimiter. Within a caret's whitespace-bounded span the delimiters pair up left to right into
     /// the delimited `^x^`/`~x~` form, which the delimiter stack resolves; the short form applies
-    /// only to an unpaired opener — an even number of matching delimiters precede it in the span and
+    /// only to an unpaired opener: an even number of matching delimiters precede it in the span and
     /// none follow. An empty alphanumeric run (a delimiter met by a non-alphanumeric or the line's
     /// end) is not a script.
     fn try_short_script(&mut self, delimiter: char) -> bool {
@@ -463,8 +461,8 @@ impl<'a> InlineParser<'a> {
         if preceding % 2 == 1 {
             return false;
         }
-        // An opener pairs into the delimited form when another matching delimiter follows in-span.
-        // The delimiter (`~`/`^`) is ASCII, so the span begins one byte past the cursor.
+        // A matching delimiter ahead in-span pairs into the delimited form instead; `~`/`^` are
+        // ASCII, so the span begins one byte past the cursor.
         let mut ahead = self.pos + 1;
         while let Some(ch) = char_at(self.text, ahead) {
             if ch.is_whitespace() {
@@ -500,22 +498,18 @@ impl<'a> InlineParser<'a> {
     }
 
     fn backslash(&mut self) {
-        // Backslash-delimited TeX math and raw TeX commands take precedence over a plain escape,
-        // each gated behind its own extension. `\\(`/`\\[` (double backslash) is tried before
-        // `\(`/`\[` (single backslash) so the longer opener wins.
+        // TeX math and raw TeX outrank a plain escape; `\\(`/`\\[` tried before `\(`/`\[` so the
+        // longer opener wins.
         if self.try_backslash_math() || self.try_raw_tex() {
             return;
         }
         self.pos += 1;
-        // With `all_symbols_escapable` — and always in the bare CommonMark engine — a backslash
-        // escapes any ASCII punctuation character (and, in the markdown dialect, turns a following
-        // space into a non-breaking space). Without it a markdown dialect escapes only the classic
-        // set and leaves every other backslash literal.
+        // Broad escaping (`all_symbols_escapable`, always on in bare CommonMark) covers all ASCII
+        // punctuation; without it the markdown dialect escapes only the classic set.
         let broad = !self.notes.markdown || self.ext.contains(Extension::AllSymbolsEscapable);
         match self.peek() {
-            // In the broad Markdown dialect a backslash before a line ending is a hard break only
-            // when `escaped_line_breaks` is on; with it off the backslash is literal and the line
-            // ending is an ordinary soft break. The bare CommonMark engine always hard-breaks here.
+            // Without `escaped_line_breaks` the markdown dialect keeps the backslash literal and
+            // soft-breaks; bare CommonMark always hard-breaks here.
             Some('\n')
                 if self.notes.markdown && !self.ext.contains(Extension::EscapedLineBreaks) =>
             {
@@ -528,8 +522,7 @@ impl<'a> InlineParser<'a> {
                 }
                 self.nodes.push(Node::LineBreak);
             }
-            // In the markdown dialect a backslash before a space is a non-breaking space, which binds
-            // into the surrounding text rather than splitting it on whitespace.
+            // Backslash-space is a non-breaking space, binding into the surrounding text.
             Some(' ') if self.notes.markdown && broad => {
                 self.pos += 1;
                 self.push_text('\u{a0}');
@@ -585,7 +578,7 @@ impl<'a> InlineParser<'a> {
     /// Try a raw inline TeX command at the cursor (on the leading `\`), gated behind `raw_tex`. A
     /// command is a backslash, an ASCII letter, and any following ASCII alphanumerics, optionally
     /// followed by balanced `{…}` and `[…]` argument groups. A `{`-group that opens but cannot be
-    /// balance-closed reverts the whole command to literal text; an unclosable `[`-group simply ends
+    /// balance-closed reverts the whole command to literal text; an unclosable `[`-group ends
     /// the group run, leaving the command captured so far. A command with no argument groups and an
     /// all-letter name absorbs any run of trailing spaces and tabs (but not a newline). On a match the
     /// verbatim source becomes a `RawInline (Format "tex")` and the cursor advances past it.
@@ -603,8 +596,7 @@ impl<'a> InlineParser<'a> {
         if char_at(self.text, self.pos) != Some('\\') {
             return false;
         }
-        // The leading `\` and the command name (ASCII letters and digits) are single-byte, so
-        // byte and character offsets coincide up to `i`.
+        // `\` and the name (ASCII) are single-byte, so byte and char offsets coincide up to `i`.
         let mut i = self.pos + 1;
         if !char_at(self.text, i).is_some_and(|c| c.is_ascii_alphabetic()) {
             return false;
@@ -621,8 +613,7 @@ impl<'a> InlineParser<'a> {
                 break;
             }
         }
-        // `\begin`/`\end` are raw TeX only as a complete, matched environment, never as bare
-        // commands: capture the whole `\begin{ENV}`…`\end{ENV}`, or leave the text literal.
+        // `\begin`/`\end` are raw TeX only as a complete matched environment, never bare.
         let name = self.text.get(self.pos + 1..i);
         if name == Some("begin") {
             return self.try_raw_tex_environment(i);
@@ -652,8 +643,7 @@ impl<'a> InlineParser<'a> {
             }
         }
 
-        // A bare command whose name is all letters (no argument groups, no digits) absorbs a
-        // trailing run of spaces and tabs.
+        // A bare all-letter command absorbs trailing spaces and tabs.
         if !had_group && name_all_letters {
             while matches!(char_at(self.text, i), Some(' ' | '\t')) {
                 i += 1;
@@ -684,8 +674,7 @@ impl<'a> InlineParser<'a> {
         let Some(group_end) = self.scan_balanced_group(name_end, '{', '}') else {
             return false;
         };
-        // `group_end` sits just past the closing `}` (ASCII), so `group_end - 1` is its byte offset
-        // and `name_end + 1` the byte past the opening `{`.
+        // `group_end - 1` is the closing `}` (ASCII); `name_end + 1` is past the opening `{`.
         let Some(env) = self.text.get(name_end + 1..group_end - 1) else {
             return false;
         };
@@ -710,9 +699,8 @@ impl<'a> InlineParser<'a> {
         if self.raw_tex_budget == 0 {
             return None;
         }
-        // A close cannot lie past the last `\end{ENV}` marker in the buffer; a scan starting beyond it
-        // fails without walking. Exact — the depth counter only delays accepting an existing close, it
-        // never conjures one, so the last marker's position bounds every possible close.
+        // A close cannot lie past the buffer's last `\end{ENV}` marker: the depth counter only
+        // delays accepting a close, never conjures one, so the bound is exact and this is O(1).
         if self
             .last_environment_close(env)
             .is_none_or(|last| from > last)
@@ -793,9 +781,8 @@ impl<'a> InlineParser<'a> {
         if self.raw_tex_budget == 0 {
             return None;
         }
-        // A group opened past the last close delimiter in the buffer can never balance; fail in O(1)
-        // without charging the budget. Exact: closing the group requires a `close` at some later
-        // offset, and none exists beyond this one. Only `}` and `]` arise as raw-TeX group closers.
+        // A group opened past the buffer's last `close` can never balance: fail in O(1) without
+        // charging the budget. Only `}` and `]` arise as raw-TeX group closers.
         let last_close = match close {
             '}' => *self.last_brace.get_or_init(|| self.text.rfind('}')),
             ']' => *self.last_bracket.get_or_init(|| self.text.rfind(']')),
@@ -853,7 +840,6 @@ impl<'a> InlineParser<'a> {
             )));
             return;
         }
-        // No closing run: emit the opening backticks literally.
         let literal = self
             .text
             .get(start..self.pos)
@@ -873,8 +859,7 @@ impl<'a> InlineParser<'a> {
             let bytes = text.as_bytes();
             let mut scan = 0;
             while scan < bytes.len() {
-                // The backtick is ASCII, so advancing one byte over any non-backtick byte (including
-                // every byte of a multi-byte character) never lands mid-run or records a false start.
+                // Backtick is ASCII: one-byte steps over non-backtick bytes never land mid-run.
                 if bytes.get(scan) == Some(&b'`') {
                     let run = backtick_run_len(text, scan);
                     index.entry(run).or_default().push(scan);
@@ -926,10 +911,8 @@ impl<'a> InlineParser<'a> {
     fn left_angle(&mut self) {
         if let Some((inline, next)) = scan_autolink(self.text, self.pos) {
             self.pos = next;
-            // The markdown dialect tags an explicit angle autolink with a `uri` or `email` class
-            // and percent-encodes its destination; the strict dialect leaves it unclassed and
-            // verbatim. The destination is encoded after classification, which compares the shown
-            // text against the still-raw destination to tell a `uri` from an `email`.
+            // Markdown dialect classes (`uri`/`email`) and percent-encodes angle autolinks;
+            // classify first, it compares shown text against the still-raw destination.
             let inline = if self.notes.markdown {
                 escape_link_destination(classify_angle_autolink(inline))
             } else {
@@ -940,9 +923,8 @@ impl<'a> InlineParser<'a> {
         }
         if let Some((html, next)) = scan_html_tag(self.text, self.pos) {
             self.pos = next;
-            // In the Markdown dialect with `raw_html` off the tag is still recognized as a unit but
-            // kept as literal text rather than a passthrough span. The bare CommonMark engine always
-            // emits raw HTML, since HTML is part of its core grammar.
+            // With `raw_html` off the markdown dialect keeps the recognized tag as literal text;
+            // bare CommonMark always emits raw HTML.
             if self.notes.markdown && !self.ext.contains(Extension::RawHtml) {
                 self.push_str(&html);
             } else {
@@ -968,7 +950,6 @@ impl<'a> InlineParser<'a> {
     }
 
     fn line_ending(&mut self) {
-        // Trailing spaces before the newline determine hard vs soft break.
         let hard = matches!(self.nodes.last(), Some(Node::Text(t)) if t.ends_with("  "));
         let backslash_hard = matches!(self.nodes.last(), Some(Node::LineBreak));
         if let Some(Node::Text(text)) = self.nodes.last_mut() {
@@ -979,7 +960,6 @@ impl<'a> InlineParser<'a> {
             }
         }
         self.pos += 1;
-        // Skip leading spaces/tabs of the next line.
         while matches!(self.peek(), Some(' ' | '\t')) {
             self.pos += 1;
         }
@@ -999,9 +979,8 @@ impl<'a> InlineParser<'a> {
         let count = self.pos - start;
         let before = char_before(self.text, start);
         let after = self.peek();
-        // With `intraword_underscores` off in the Markdown dialect, a `_` run pairs like `*`,
-        // emphasizing even between word characters; otherwise the CommonMark `_` rule keeps an
-        // intraword run inert.
+        // With `intraword_underscores` off in the markdown dialect, `_` pairs like `*` even
+        // between word characters.
         let relax_underscore =
             self.notes.markdown && !self.ext.contains(Extension::IntrawordUnderscores);
         let (can_open, can_close) = run_flanking(ch, before, after, relax_underscore);
@@ -1072,8 +1051,7 @@ impl<'a> InlineParser<'a> {
             _ => (false, false),
         };
 
-        // A defined footnote reference `[^label]` wins over every other use of the brackets: it
-        // consumes nothing past the `]` and ignores any following inline target or reference.
+        // A defined `[^label]` wins over every other bracket use and consumes nothing past `]`.
         if is_active
             && self.ext.contains(Extension::Footnotes)
             && self.try_footnote(opener_index, is_image)
@@ -1081,17 +1059,14 @@ impl<'a> InlineParser<'a> {
             return;
         }
 
-        // An active opener may form a link or image from an explicit inline `(...)` target or an
-        // explicit `[label]`/`[]` reference. (An inactive `[` cannot — a link may not contain
-        // another link, spec §6.3 rule 6 — but it may still open a bracketed span.)
+        // An inactive `[` cannot form a link (spec 6.3 rule 6) but may still open a span.
         if is_active {
             match self.resolve_explicit(opener_index) {
                 Explicit::Target(target, next) => {
                     self.finish_link(opener_index, is_image, target, next);
                     return;
                 }
-                // An explicit reference whose label is undefined is not a link; the brackets stay
-                // literal and no span or shortcut fallback is tried.
+                // Undefined explicit reference: brackets stay literal, no span/shortcut fallback.
                 Explicit::Failed => {
                     self.bracket_stack.pop();
                     self.literalize_bracket(opener_index);
@@ -1102,8 +1077,7 @@ impl<'a> InlineParser<'a> {
             }
         }
 
-        // With no explicit target, a non-image bracket directly followed by a non-empty attribute
-        // block is a span — this wins over a shortcut reference of the same label.
+        // A non-empty attribute block makes a span, winning over a same-label shortcut reference.
         if !is_image
             && self.ext.contains(Extension::BracketedSpans)
             && let Some((attr, next)) = self.scan_attr_block()
@@ -1114,8 +1088,7 @@ impl<'a> InlineParser<'a> {
             return;
         }
 
-        // A shortcut reference: the bracket's own text names the definition. Skip the whole lookup
-        // when no definitions exist or the span is too long to be a label.
+        // Shortcut reference: skip the lookup with no definitions or a span past the label limit.
         if is_active && !self.refs.is_empty() {
             let raw = self.raw_label(opener_index);
             if raw.len() <= MAX_LABEL_BYTES
@@ -1126,8 +1099,7 @@ impl<'a> InlineParser<'a> {
             }
         }
 
-        // A bracket whose content is a well-formed citation list becomes a `Cite`. An image's `!`
-        // survives as literal text before it.
+        // A well-formed citation list becomes a `Cite`; an image's `!` survives as literal text.
         if self.ext.contains(Extension::Citations)
             && self.try_bracket_citation(opener_index, is_image)
         {
@@ -1150,24 +1122,19 @@ impl<'a> InlineParser<'a> {
     /// the brackets for literal handling) when the content is not a citation list.
     fn try_bracket_citation(&mut self, opener_index: usize, is_image: bool) -> bool {
         let raw = self.raw_label(opener_index);
-        // A citation list must carry at least one `@key`; without an `@` the span cannot be one, so
-        // skip the segment scan entirely.
+        // No `@` means no citation list; skip the segment scan.
         if !raw.as_bytes().contains(&b'@') {
             return false;
         }
         let Some(segments) = split_citation_segments(raw) else {
             return false;
         };
-        // Scanning the interior may have counted bare citations that are about to be discarded with
-        // their nodes; rewind to the count this bracket opened with before numbering the group. (For
-        // the rare `![@key]`, the discarded interior count is not added back, so such a group's
-        // number is one lower than a longer document with the same citation order would otherwise
-        // give it.)
+        // Interior bare citations are discarded with their nodes: rewind to the count at bracket
+        // open before numbering (for `![@key]` the discarded count stays off, numbering one low).
         if let Some(Node::Delimiter(d)) = self.nodes.get(opener_index) {
             self.notes.cite_count.set(d.cite_count_at_open);
         }
-        // Reserve this group's number before parsing affixes, so nested citations are counted after
-        // it and the group ends up stamped with the highest number it contains.
+        // Reserve the group's number before parsing affixes so nested citations count after it.
         self.bump_cite_count();
         let mut citations = Vec::with_capacity(segments.len());
         for segment in &segments {
@@ -1205,12 +1172,8 @@ impl<'a> InlineParser<'a> {
         } else {
             CitationMode::NormalCitation
         };
-        // The prefix is trimmed of surrounding whitespace; the suffix keeps any leading space (so
-        // `@a x` separates the key from `x`) but drops trailing space.
-        //
-        // A suffix opening with a locator label such as `p.` or `vol.` carries a non-breaking space
-        // before its number (`p.\u{a0}5`). That join, gated on a fixed set of abbreviations, is not
-        // applied here: the suffix is tokenized as ordinary inlines, so `p. 5` stays three tokens.
+        // Prefix is whitespace-trimmed; suffix keeps its leading space, drops trailing. Locator
+        // joins (`p.\u{a0}5`) are not applied: the suffix stays ordinary inlines.
         Some(Citation {
             id: key.id.into(),
             prefix: parse_inlines(prefix_src.trim(), self.refs, self.notes, self.ext),
@@ -1322,7 +1285,7 @@ impl<'a> InlineParser<'a> {
     /// Build a span from a non-image bracket opener and its inner content.
     fn build_span(&mut self, opener_index: usize, attr: Attr) {
         let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
-        self.nodes.pop(); // remove the opener delimiter
+        self.nodes.pop();
         self.bracket_stack.retain(|&ni| ni < opener_index);
         let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         self.nodes
@@ -1361,8 +1324,7 @@ impl<'a> InlineParser<'a> {
     /// so a bracketed span can take precedence over them.
     fn resolve_explicit(&self, opener_index: usize) -> Explicit {
         if self.at(0) == Some('(') {
-            // The markdown dialect lets an unbracketed destination hold spaces and balanced
-            // parentheses; the strict dialect ends a destination at the first space.
+            // Markdown dialect allows spaces and balanced parens in an unbracketed destination.
             let scanned = if self.notes.markdown {
                 scan_markdown_inline_target(self.text, self.pos)
             } else {
@@ -1372,10 +1334,8 @@ impl<'a> InlineParser<'a> {
                 return Explicit::Target(target, next);
             }
         }
-        // Explicit reference. Labels match on their raw source text (the closing `]` sits at `pos - 1`).
-        // With `spaced_reference_links`, whitespace may separate the text bracket from the reference
-        // label bracket — `[text] [ref]` and `[text]\n[ref]` — though not from the inline `(...)`
-        // target handled above.
+        // Explicit reference: labels match raw source text; `spaced_reference_links` lets
+        // whitespace separate the two brackets (not the `(...)` target handled above).
         let mut label_start = self.pos;
         if self.ext.contains(Extension::SpacedReferenceLinks) {
             while matches!(char_at(self.text, label_start), Some(' ' | '\t' | '\n')) {
@@ -1383,14 +1343,12 @@ impl<'a> InlineParser<'a> {
             }
         }
         if let Some((label, next)) = scan_following_label(self.text, label_start) {
-            // An explicit reference with no definitions in scope can never resolve, so the brackets
-            // stay literal without extracting or normalizing the label.
+            // With no definitions in scope an explicit reference can never resolve.
             if self.refs.is_empty() {
                 return Explicit::Failed;
             }
             let key = if label.is_empty() {
-                // A collapsed reference is keyed on the bracket's own span, which is unbounded
-                // source text; past the label limit it is no label at all.
+                // A collapsed reference keys on the bracket's own span; past the limit, no label.
                 let raw = self.raw_label(opener_index);
                 if raw.len() > MAX_LABEL_BYTES {
                     return Explicit::Failed;
@@ -1459,8 +1417,7 @@ impl<'a> InlineParser<'a> {
     /// becomes a single-paragraph `Note`. Returns `false` without advancing when the bracket has no
     /// balanced closer, leaving the `^` for literal/superscript handling.
     fn try_inline_note(&mut self) -> bool {
-        // self.pos is the caret; the `[` sits at self.pos + 1 (the `^` is ASCII). Walk forward
-        // tracking bracket depth.
+        // The `[` sits at self.pos + 1 (`^` is ASCII); walk forward tracking bracket depth.
         let mut depth = 0usize;
         let mut index = self.pos + 1;
         let mut end = None;
@@ -1485,8 +1442,7 @@ impl<'a> InlineParser<'a> {
         let Some(end) = end else {
             return false;
         };
-        // The bracket content lies between `[` (at self.pos + 1) and the closing `]` (ASCII, at
-        // end - 1).
+        // Content lies between `[` (self.pos + 1) and the closing `]` (ASCII, at end - 1).
         let inner = self
             .text
             .get(self.pos + 2..end.saturating_sub(1))
@@ -1500,15 +1456,13 @@ impl<'a> InlineParser<'a> {
     }
 
     fn build_link(&mut self, opener_index: usize, is_image: bool, mut target: Target, attr: Attr) {
-        // The markdown dialect percent-encodes a destination's unsafe characters; the strict
-        // CommonMark and GitHub dialects keep it verbatim.
+        // Markdown dialect percent-encodes the destination; strict dialects keep it verbatim.
         if self.notes.markdown {
             target.url = escape_uri(&target.url).into();
         }
         let inner: Vec<Node> = self.nodes.split_off(opener_index + 1);
-        self.nodes.pop(); // remove the opener delimiter
-        // Any bracket stack entries that pointed into the split-off range are now part of the
-        // inner node list passed to emphasis resolution; they no longer belong to the outer parse.
+        self.nodes.pop();
+        // Stack entries pointing into the split-off range now belong to the inner node list.
         self.bracket_stack.retain(|&ni| ni < opener_index);
         let content = resolve_inline_nodes(inner, self.ext, self.notes.markdown);
         let inline = if is_image {
@@ -1589,7 +1543,7 @@ fn scan_citation_id(text: &str, start: usize) -> Option<(String, usize)> {
         if is_citation_key_start(ch) {
             end += ch.len_utf8();
         } else if matches!(ch, '-' | '.' | ':' | '/')
-            // The internal punctuation is ASCII, so the following key character begins one byte on.
+            // Punctuation is ASCII: the next key char begins one byte on.
             && matches!(char_at(text, end + 1), Some(next) if is_citation_key_start(next))
         {
             end += 1 + char_at(text, end + 1).map_or(0, char::len_utf8);
@@ -1602,7 +1556,7 @@ fn scan_citation_id(text: &str, start: usize) -> Option<(String, usize)> {
 }
 
 /// Advance past one escape, backtick code span, or bracket at `index`, updating bracket `depth` and
-/// returning the next index. Returns `None` when the character is none of those — the caller then
+/// returning the next index. Returns `None` when the character is none of those; the caller then
 /// inspects it for a top-level delimiter (`;` or `@`) and advances itself.
 fn step_citation_scan(text: &str, index: usize, depth: &mut usize) -> Option<usize> {
     match char_at(text, index) {
@@ -1715,8 +1669,7 @@ fn find_citation_key(text: &str, range: std::ops::Range<usize>) -> Option<Citati
             && char_at(text, index) == Some('@')
             && let Some((id, id_end)) = scan_citation_id(text, index + 1)
         {
-            // A `-` is ASCII, so when it precedes the `@` it sits at byte `index - 1`, and the
-            // character before it ends at `index - 1`.
+            // `-` is ASCII: when it precedes the `@` it sits at byte `index - 1`.
             let dash_before = index > range.start && char_before(text, index) == Some('-');
             let dash_anchored = dash_before
                 && (index - 1 == range.start
@@ -1751,8 +1704,7 @@ fn scan_markdown_inline_target(text: &str, pos: usize) -> Option<(Target, usize)
     let mut index = pos + 1;
     skip_target_whitespace(text, &mut index);
     if char_at(text, index) == Some('<') {
-        // The angle-bracketed form has no special space handling; defer to the shared scanner,
-        // which already reads `<...>` destinations and an optional title.
+        // Angle-bracketed form has no special space handling; defer to the shared scanner.
         return scan_inline_target(text, pos);
     }
     let mut url = String::new();
@@ -1775,8 +1727,7 @@ fn scan_markdown_inline_target(text: &str, pos: usize) -> Option<(Target, usize)
                 url.push('(');
                 index += 1;
             }
-            // An escaped space is always part of the destination — never a title separator — and
-            // encodes as `%20` like any other destination space.
+            // An escaped space is destination content (never a title separator), encoded `%20`.
             Some('\\') if matches!(char_at(text, index + 1), Some(' ' | '\t')) => {
                 url.push_str("%20");
                 index += 2;
@@ -1796,8 +1747,7 @@ fn scan_markdown_inline_target(text: &str, pos: usize) -> Option<(Target, usize)
                     Some(')') if depth == 0 => {
                         index = after;
                     }
-                    // A quoted title separated by whitespace ends the destination. It must be the
-                    // last element before the closing parenthesis, else the whole tail fails.
+                    // A quoted title must be the last element before `)`, else the tail fails.
                     Some('"' | '\'') if depth == 0 => {
                         let (parsed, mut close) = scan_target_title(text, after)?;
                         title = parsed;
@@ -1899,16 +1849,16 @@ fn escape_link_destination(inline: Inline) -> Inline {
 /// `</span>` that landed inside that same `Emph`. The content between a matched pair is itself
 /// re-paired, so nested spans nest. Unmatched tags keep their raw-inline form.
 ///
-/// Known limitation: when an emphasis run straddles exactly one of the two tags — the run opens
-/// before a `<span>` and its closing marker sits just before the matching `</span>` — the two tags
+/// Known limitation: when an emphasis run straddles exactly one of the two tags (the run opens
+/// before a `<span>` and its closing marker sits just before the matching `</span>`), the two tags
 /// can land at different levels and stay raw even though a span could have formed.
 fn pair_native_spans(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut input = inlines.into_iter().peekable();
     pair_spans_level(&mut input, false)
 }
 
-/// Pair spans within one nesting level. Pulls from `input` until it is drained, or — when
-/// `stop_at_close` is set — until an unmatched closing `</span>` tag is reached, which is left
+/// Pair spans within one nesting level. Pulls from `input` until it is drained, or (when
+/// `stop_at_close` is set) until an unmatched closing `</span>` tag is reached, which is left
 /// unconsumed for the caller to handle. Container inlines have their own children re-paired.
 fn pair_spans_level(
     input: &mut std::iter::Peekable<std::vec::IntoIter<Inline>>,
@@ -1929,8 +1879,7 @@ fn pair_spans_level(
                         let _ = input.next();
                         out.push(Inline::Span(Box::new(attr), inner));
                     } else {
-                        // No matching close at this level: the opener reverts to raw, and its
-                        // gathered inner content rejoins the stream.
+                        // No close at this level: opener reverts to raw, inner content rejoins.
                         out.push(Inline::RawInline(
                             carta_ast::Format("html".into()),
                             open_tag_raw(&attr).into(),
@@ -2136,7 +2085,6 @@ fn read_attr_value(text: &str, start: usize) -> Option<(String, usize)> {
             }
         }
     }
-    // Unquoted value: a run with no whitespace, quotes, `=`, `<`, `>`, or backtick.
     let mut i = start;
     let mut out = String::new();
     while let Some(c) = char_at(text, i) {
@@ -2200,8 +2148,7 @@ pub(super) fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
         match node {
             Node::Text(t) => text.push_str(&t),
             Node::Delimiter(d) => {
-                // An unmatched image opener carries its `!` in the `image` flag rather than a
-                // separate node, so restore it when the bracket reverts to literal text.
+                // The `!` lives in the `image` flag, not a node; restore it here.
                 if d.image {
                     text.push('!');
                 }
@@ -2229,9 +2176,8 @@ pub(super) fn collapse(nodes: Vec<Node>) -> Vec<Inline> {
 /// Split a text run into `Str` tokens separated by `Space` inlines, collapsing each run of
 /// spaces to a single `Space`.
 fn push_text_inlines(out: &mut Vec<Inline>, text: &str) {
-    // Word boundaries are single spaces, so scanning bytes is exact: multi-byte UTF-8 units are
-    // all >= 0x80 and every slice below starts and ends at a character boundary. Each word is
-    // copied out in one step, which keeps short words on the stack and long ones to one memcpy.
+    // Boundaries are single ASCII spaces, so byte scanning is exact and each word copies in one
+    // step (one memcpy per word).
     let bytes = text.as_bytes();
     let mut i = 0;
     while let Some(&byte) = bytes.get(i) {
@@ -2267,9 +2213,7 @@ pub(super) fn flanking(ch: u8, before: Option<char>, after: Option<char>) -> (bo
             let can_close = right_flanking && (!left_flanking || after_punct);
             (can_open, can_close)
         }
-        // Subscript/superscript/strikeout delimiters anchor only on whitespace: a run opens unless
-        // a space follows it and closes unless a space precedes it. The rule-of-three guard
-        // (`emphasis_match`) still applies on top of this.
+        // `~`/`^` anchor only on whitespace; the rule-of-three guard still applies on top.
         b'~' | b'^' => (!after_ws, !before_ws),
         _ => (left_flanking, right_flanking),
     }
@@ -2354,8 +2298,8 @@ fn normalize_code(content: &str, markdown: bool) -> String {
         .chars()
         .map(|c| if c == '\n' { ' ' } else { c })
         .collect();
-    // The markdown dialect strips all surrounding whitespace; the strict dialect removes only a
-    // single leading and trailing space, and only when the content is not all spaces.
+    // Markdown dialect strips all surrounding whitespace; strict removes one space from each end
+    // and only when the content is not all spaces.
     if markdown {
         return collapsed.trim().to_owned();
     }

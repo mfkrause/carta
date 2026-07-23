@@ -13,10 +13,7 @@ use super::symbols::{self, Alphabet};
 /// Codepoint-to-Typst-name map for raw Unicode math glyphs written directly in the source. It is
 /// the inverse of the forward symbol/Greek tables: each command's Unicode rendering (from
 /// [`symbols::symbol`]/[`symbols::greek`]) maps to that command's Typst name (from [`SYMBOL_TYPST`]/
-/// [`GREEK_TYPST`]). A glyph whose Typst name is itself the same raw glyph carries no real token, so
-/// it is skipped — the backend then emits it verbatim, which is correct. The double-struck capitals
-/// (`ℝ` → `RR`, …) map through their styled-alphabet form. Built once from an ordered iteration into
-/// a `BTreeMap`, so the result is deterministic.
+/// [`GREEK_TYPST`]).
 static GLYPH_TYPST: LazyLock<BTreeMap<char, &'static str>> = LazyLock::new(build_glyph_typst);
 
 /// Name-keyed view of [`SYMBOL_TYPST`] for by-name lookups. On a duplicate name the first table
@@ -41,8 +38,7 @@ static GREEK_TYPST_MAP: LazyLock<BTreeMap<&'static str, &'static str>> = LazyLoc
 fn build_glyph_typst() -> BTreeMap<char, &'static str> {
     let mut map = BTreeMap::new();
     let mut insert = |glyph: &str, typst: &'static str| {
-        // Only single-codepoint glyphs that map to a distinct Typst token are reversible; a Typst
-        // name equal to the glyph itself (a passthrough) would be a no-op and is dropped.
+        // only single-codepoint glyphs with a distinct Typst name are reversible; passthroughs dropped
         let mut chars = glyph.chars();
         if let (Some(c), None) = (chars.next(), chars.next())
             && glyph != typst
@@ -60,8 +56,7 @@ fn build_glyph_typst() -> BTreeMap<char, &'static str> {
             insert(glyph, typst);
         }
     }
-    // The double-struck capitals reverse to their doubled-letter Typst form (`ℝ` → `RR`). Only the
-    // uppercase block is named this way; the lowercase and digit double-struck glyphs stay verbatim.
+    // double-struck capitals reverse to doubled letters (`ℝ` → `RR`); lowercase and digits stay verbatim
     for (letter, name) in (b'A'..=b'Z').zip(DOUBLE_STRUCK_NAMES) {
         let upper = letter as char;
         if let Some(glyph) = symbols::styled_letter(Alphabet::DoubleStruck, upper)
@@ -142,8 +137,7 @@ fn lower_loose(display: bool, atoms: &[Atom]) -> Option<String> {
 fn lower_with(display: bool, atoms: &[Atom], spacing: Spacing) -> Option<String> {
     let mut pieces = Vec::new();
     for atom in atoms {
-        // A captured equation `\label` carries no body glyph and must not occupy a spacing slot — it
-        // is lifted to a trailing reference label by the entry point — so it is skipped entirely here.
+        // a `\label` has no glyph and is lifted out by the entry point; skip so it takes no spacing slot
         if matches!(atom.body, Body::Label(_)) {
             continue;
         }
@@ -171,8 +165,7 @@ fn join(pieces: &[String], spacing: Spacing) -> String {
 
 /// Whether a space is needed between two adjacent rendered pieces.
 fn needs_space(left: &str, right: &str, spacing: Spacing) -> bool {
-    // An empty piece is a bare spacing slot (a standalone `{}`): it keeps a space on the side that
-    // faces real content so the slot stays visible.
+    // an empty piece is a bare spacing slot (`{}`): keep a space so the slot stays visible
     let (Some(_), Some(r)) = (left.chars().next_back(), right.chars().next()) else {
         return true;
     };
@@ -180,8 +173,7 @@ fn needs_space(left: &str, right: &str, spacing: Spacing) -> bool {
     if r == '\'' {
         return false;
     }
-    // Escaped delimiters and punctuation (`\(`, `\)`, `\,`, …) attach to their neighbours at the top
-    // level; inside a delimited group they are set off with spaces instead.
+    // escaped punctuation (`\(`, `\,`, …) binds tight at top level, spaced inside delimited groups
     if spacing == Spacing::Tight && (ends_tight(left) || starts_tight(right)) {
         return false;
     }
@@ -220,14 +212,12 @@ fn is_scripted_tight(piece: &str) -> bool {
     )
 }
 
-/// Whether a piece ends with a bare escaped tight symbol (no trailing space wanted). A scripted
-/// escaped delimiter is one tight atom and so binds tightly on its trailing side as well.
+/// Whether a piece ends with a bare escaped tight symbol (no trailing space wanted).
 fn ends_tight(piece: &str) -> bool {
     is_bare_tight(piece) || is_scripted_tight(piece)
 }
 
-/// Whether a piece starts with a bare escaped tight symbol (no leading space wanted). A scripted
-/// escaped delimiter binds tightly on its leading side: the escaped glyph is the script's base.
+/// Whether a piece starts with a bare escaped tight symbol (no leading space wanted).
 fn starts_tight(piece: &str) -> bool {
     is_bare_tight(piece) || is_scripted_tight(piece)
 }
@@ -238,8 +228,7 @@ fn is_number_char(c: char) -> bool {
 
 #[allow(clippy::similar_names)]
 fn atom_str(display: bool, atom: &Atom) -> Option<String> {
-    // A horizontal brace consumes its matching script (a superscript for an over-brace, a subscript
-    // for an under-brace) as the brace's label argument rather than as a Typst script.
+    // a horizontal brace consumes its matching script as the label argument, not as a Typst script
     if let Body::Brace(kind, inner) = &atom.body {
         return brace_str(display, *kind, inner, atom);
     }
@@ -247,24 +236,17 @@ fn atom_str(display: bool, atom: &Atom) -> Option<String> {
     let mut out = match &atom.body {
         // A synthesized empty nucleus (a leading `_`/`^`) renders as Typst's empty content.
         Body::Empty => "\"\"".to_string(),
-        // A bare prime nucleus renders as literal prime marks.
         Body::Prime(count) => "'".repeat(*count as usize),
-        // An explicit empty group renders as a zero-width space when it carries scripts, and as
-        // nothing (a bare spacing slot) when it stands alone.
+        // explicit empty group: zero-width space under scripts, bare spacing slot alone
         Body::EmptyGroup if has_scripts => "zws".to_string(),
         Body::EmptyGroup => String::new(),
         body => nucleus_str(display, body)?,
     };
-    // On a limit operator in display context a prime sets as a stacked superscript above the operator
-    // (`\sum'` → `sum^(')`) rather than as a literal `'` beside it. The prime then renders through the
-    // ordinary superscript path below — kept in its natural slot after any subscript — instead of
-    // being pulled ahead as a literal mark.
+    // display-mode limit operator: a prime stacks as a superscript (`\sum'` → `sum^(')`) via the
+    // ordinary script path below, not pulled ahead as a literal mark
     let stack_prime = display && is_limit_op_body(&atom.body);
-    // Typst attaches at most one subscript and one superscript per base. The scripts are sequenced
-    // into render runs (each reordered subscript-before-superscript); within a run a slot reuse, and
-    // at the start of a flagged restart run, emits a fresh empty base (`""`). A superscript that is a
-    // prime attaches as a literal `'` on the current base rather than as a `^` script, and a prime in
-    // the primary superscript slot sets ahead of the subscript, the way TeX sets primes first.
+    // Typst allows one sub and one sup per base: slot reuse or a restart run emits a fresh `""` base;
+    // a prime superscript attaches as a literal `'` set before the subscript, as TeX sets primes first
     let primary_sup_is_prime = !stack_prime && atom.sup.as_deref().and_then(prime_script).is_some();
     if primary_sup_is_prime && let Some(count) = atom.sup.as_deref().and_then(prime_script) {
         for _ in 0..count {
@@ -278,8 +260,7 @@ fn atom_str(display: bool, atom: &Atom) -> Option<String> {
         let mut sub_used = false;
         let mut sup_used = false;
         for script in &run.scripts {
-            // The primary prime superscript was already emitted ahead of the subscript above; skip it
-            // here so it is not rendered twice.
+            // primary prime superscript was already emitted above; skip to avoid a double render
             if primary_sup_is_prime
                 && script.kind == ScriptKind::Sup
                 && !run.restart
@@ -358,9 +339,8 @@ fn push_typst_script(
     sup_used: &mut bool,
     stack_prime: bool,
 ) -> Option<()> {
-    // A superscript that is exactly a prime mark attaches as a literal `'` on the current base
-    // rather than as a `^` script, and does not consume the superscript slot — except on a limit
-    // operator in display context, where it sets as a stacked `^(')` script through the path below.
+    // a prime superscript attaches as a literal `'` without consuming the slot, except on a
+    // display-mode limit operator where it stacks as `^(')` through the path below
     if !stack_prime
         && kind == ScriptKind::Sup
         && let Some(count) = prime_script(group)
@@ -416,7 +396,6 @@ fn is_lone_ascii_symbol(s: &str) -> bool {
     let symbol = |c: char| c.is_ascii_punctuation() && c != '.';
     let mut chars = s.chars();
     match (chars.next(), chars.next(), chars.next()) {
-        // A single bare symbol, or a backslash-escaped one (the symbol is the second character).
         (Some(c), None, None) => symbol(c),
         (Some('\\'), Some(c), None) => symbol(c),
         _ => false,
@@ -454,22 +433,18 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
         // The empty nuclei are rendered by `atom_str`, which sees the surrounding scripts.
         Body::Empty | Body::EmptyGroup => None,
         Body::Prime(count) => Some("'".repeat(*count as usize)),
-        // A bare (unescaped) TeX-active character — `#`, `&`, or `%` — has no ordinary-symbol meaning
-        // in math, so the expression falls back to verbatim. An alignment-separator `&` is consumed by
-        // the grid parser and never reaches here; the escaped forms still convert.
+        // bare TeX-active `#`/`&`/`%` has no math meaning: verbatim fallback (alignment `&` never
+        // reaches here; the escaped forms still convert)
         Body::Char('#' | '&' | '%') => None,
         Body::Char(c) => Some(char_str(*c)),
-        // The `:=` digraph prints as the two literal characters joined as one piece, so they stay
-        // tight to each other while the piece spaces normally against its neighbours.
+        // `:=` prints as one piece so the two characters stay tight
         Body::ColonEq => Some(":=".to_string()),
         Body::Number(digits) => Some(digits.clone()),
         Body::Command(name) => command_str(name),
         Body::Group(inner) => {
             let s = lower(display, inner)?;
-            // A `\begin{…}` environment parses as a transparent single-atom group around its grid; the
-            // grid is already a self-contained `mat`/`vec`/bare block, so the group adds no brackets.
-            // An ordinary group with multiple tokens stays grouped with parentheses; a single token
-            // does not need them.
+            // an environment group splices its grid with no brackets; other multi-token groups
+            // are parenthesised
             if is_environment_group(inner) || is_single_token(&s) {
                 Some(s)
             } else {
@@ -478,15 +453,12 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
         }
         Body::Accent(name, base) => {
             let inner = lower(display, base)?;
-            // `\overline`/`\underline` always use their named function. Other accents use their
-            // named function over a single atom, but the generic `accent(content, mark)` form when
-            // the base spans several atoms.
+            // overline/underline always use their function; other accents fall back to the generic
+            // `accent(content, mark)` form on multi-atom bases
             if matches!(name.as_str(), "overline" | "underline") {
                 let func = accent_func(name)?;
                 return Some(format!("{func}({inner})"));
             }
-            // An accent with a named Typst function uses it over a single atom; without one, or over
-            // a multi-atom base, the generic `accent(content, mark)` form applies.
             if is_single_token(&inner)
                 && let Some(func) = accent_func(name)
             {
@@ -507,9 +479,8 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
                 BinomKind::Brack => Some(format!("[{t} / {b}]")),
             }
         }
-        // A fixed-size delimiter scales its bare glyph by the wrapper's percentage. A run of five or
-        // more sized primes scales only the first quadruple-prime; the remaining marks set after the
-        // box as literal primes, the way the inline nucleus lifts them into a superscript.
+        // scale the bare glyph by percentage; a run of 5+ sized primes scales only the first
+        // quadruple-prime, the rest set after the box as literal primes
         Body::Big(scale, delim) => {
             if let Body::Prime(count) = delim.body
                 && count > 4
@@ -530,14 +501,12 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
         Body::Middle(delim, open_side) => Some(middle_str(*delim, *open_side)),
         Body::Mod(kind, arg) => mod_str(display, *kind, arg.as_deref()),
         Body::Negated(base) => negated_str(base),
-        // A `\not` over a braced group overlays the combining long solidus on the lowered content
-        // through Typst's generic accent form.
+        // overlay the combining long solidus via the generic accent form
         Body::NegatedGroup(inner) => {
             let content = lower(display, inner)?;
             Some(format!("accent({content}, \u{0338})"))
         }
-        // A label-less brace reached without a surrounding atom (e.g. inside a script). The labelled
-        // form is produced by `atom_str`, which can see the brace's matching script.
+        // label-less brace (e.g. inside a script); the labelled form comes from `atom_str`
         Body::Brace(kind, inner) => {
             let content = lower(display, inner)?;
             Some(format!("{}({content})", brace_func(*kind)))
@@ -553,24 +522,20 @@ fn nucleus_str(display: bool, body: &Body) -> Option<String> {
                 None => Some(format!("sqrt({inner})")),
             }
         }
-        // A captured equation `\label` has no glyph in the body: it is lifted to a trailing reference
-        // label after the closing `$` by the caller, so here it contributes the empty string.
+        // a `\label` has no glyph; the caller lifts it after the closing `$`
         Body::Label(_) => Some(String::new()),
     }
 }
 
 fn char_str(c: char) -> String {
-    // Delimiters and punctuation are backslash-escaped so Typst treats them as literal symbols and
-    // attaches them to their neighbours without spacing.
+    // escaped so Typst treats them as literal symbols that attach without spacing
     match c {
-        // A literal slash is escaped so Typst reads it as a division glyph rather than as its
-        // fraction operator.
+        // the slash is escaped so it reads as division, not the fraction operator
         '(' | ')' | '[' | ']' | '|' | ',' | ';' | '/' => format!("\\{c}"),
         '\'' => "'".to_string(),
         // An active tie renders as a medium space.
         '~' => "med".to_string(),
-        // A raw Unicode math glyph (`α`, `∑`, `≤`, `ℝ`, …) written directly in the source maps to
-        // its named Typst token; a glyph with no token renders verbatim.
+        // a raw Unicode math glyph maps to its named Typst token, or renders verbatim if none
         c => glyph_typst(c).map_or_else(|| c.to_string(), ToString::to_string),
     }
 }
@@ -580,10 +545,8 @@ fn char_str(c: char) -> String {
 fn stack_str(display: bool, side: StackSide, mark: &[Atom], base: &[Atom]) -> Option<String> {
     let base_str = lower(display, base)?;
     let mark_lowered = lower(display, mark)?;
-    // A single-token mark stands alone; anything else (an empty, escaped, function-call, or
-    // multi-token mark) is parenthesised so it attaches as one unit. A mark that lowers to a single
-    // dotted Typst token (`\sim` → `tilde.op`, `\to` → `arrow.r`) is one atom and needs no
-    // parentheses, so the predicate tolerates the dot the way regular scripts do.
+    // single-token marks (dotted ones like `tilde.op` included) stand alone; anything else is
+    // parenthesised so it attaches as one unit
     let bare =
         mark.len() == 1 && is_atomic_script(&mark_lowered) && !is_lone_ascii_symbol(&mark_lowered);
     let mark_str = if bare {
@@ -620,10 +583,8 @@ fn ext_arrow_str(
 fn grid_str(display: bool, kind: GridKind, rows: &[Vec<Vec<Atom>>]) -> Option<String> {
     match kind {
         GridKind::Cases => {
-            // A `cases` block whose every row is a single cell (no `&` alignment) renders as a bare
-            // brace: an opening `{` followed by the rows joined the way an alignment grid joins them,
-            // with a trailing `\` and a line break. A block with any multi-cell row keeps the
-            // `cases(..)` function so each cell becomes a comma-separated argument.
+            // all-single-cell rows render as a bare `{` plus alignment-style rows; any multi-cell
+            // row keeps `cases(..)` so each cell becomes an argument
             if rows.iter().all(|row| row.len() == 1) {
                 let mut row_strs = Vec::new();
                 for row in rows {
@@ -662,9 +623,7 @@ fn grid_str(display: bool, kind: GridKind, rows: &[Vec<Vec<Atom>>]) -> Option<St
 }
 
 fn matrix_str(display: bool, delim: MatrixDelim, rows: &[Vec<Vec<Atom>>]) -> Option<String> {
-    // An undelimited matrix has no bracketing, so it renders as a bare alignment: cells separated by
-    // ` & `, rows by a trailing `\` and a line break. A delimited environment wraps the grid in
-    // Typst's `mat`.
+    // an undelimited matrix renders as a bare alignment; a delimited one wraps in `mat`
     let delim = match delim {
         MatrixDelim::Paren => "(",
         MatrixDelim::Bracket => "[",
@@ -692,8 +651,6 @@ fn delimited_matrix_str(display: bool, delim: &str, rows: &[Vec<Vec<Atom>>]) -> 
     for row in rows {
         let mut cells = Vec::new();
         for (i, cell) in row.iter().enumerate() {
-            // The first cell of each row takes `#none` when empty; later cells stay bare so the
-            // alignment keeps its column count.
             cells.push(matrix_cell_str(display, cell, i == 0)?);
         }
         row_strs.push(cells.join(", "));
@@ -720,8 +677,8 @@ fn brace_func(kind: super::parse::BraceKind) -> &'static str {
     }
 }
 
-/// Render a horizontal brace. The brace's matching script — a superscript over an over-brace, a
-/// subscript under an under-brace — becomes the label argument, but only when the opposite script is
+/// Render a horizontal brace. The brace's matching script (a superscript over an over-brace, a
+/// subscript under an under-brace) becomes the label argument, but only when the opposite script is
 /// absent; when both scripts are present neither is a label and both render as ordinary Typst
 /// scripts after the brace.
 fn brace_str(
@@ -733,8 +690,6 @@ fn brace_str(
     use super::parse::BraceKind;
     let content = lower(display, inner)?;
     let func = brace_func(kind);
-    // The matching script is the label only when the opposite script is absent. Otherwise both
-    // scripts stay as ordinary Typst scripts on the brace.
     let superscript_labels = matches!(kind, BraceKind::Over) && atom.sub.is_none();
     let subscript_labels = matches!(kind, BraceKind::Under) && atom.sup.is_none();
     if superscript_labels && let Some(label) = atom.sup.as_deref() {
@@ -743,7 +698,6 @@ fn brace_str(
     if subscript_labels && let Some(label) = atom.sub.as_deref() {
         return Some(format!("{func}({content}, {})", lower(display, label)?));
     }
-    // No label applies: both scripts (when present) render as ordinary Typst scripts on the brace.
     let mut out = format!("{func}({content})");
     if let Some(script) = atom.sub.as_deref() {
         out.push('_');
@@ -770,17 +724,9 @@ fn bare_matrix_str(display: bool, rows: &[Vec<Vec<Atom>>]) -> Option<String> {
     Some(row_strs.join("\\\n"))
 }
 
-/// Render a `\left … \right` group. When both delimiters are present single bars, the group is
-/// wrapped in `lr(..)` so Typst stretches them; otherwise each present delimiter prints its glyph
-/// directly around the content and an absent (`.`) delimiter contributes nothing.
-///
-/// A bare paren/bracket/brace pair stretches under Typst's own matching, so it needs no wrapper —
-/// unless an interior `\middle` divider reuses that same bracket kind. The duplicate auto-pairing
-/// glyph would then mismatch, so the whole group is wrapped in an explicit `lr(..)` to pin the
-/// stretch to the written delimiters.
 /// Fuse a matched `\left … \right` pair around a single bare grid into one `mat`/`vec`, or `None`
 /// when no fusion applies. The pair must open and close with the same bracket from the fusing set
-/// (paren, square bracket, curly brace, single bar, double bar — angle, floor, ceil, and the null
+/// (paren, square bracket, curly brace, single bar, double bar; angle, floor, ceil, and the null
 /// `.` delimiter do not fuse), and its only content must be one unscripted grid that carries no
 /// delimiter of its own: a bare `matrix` or an `aligned`/`array`-family grid. A `cases` block keeps
 /// its own braces, and an already-bracketed matrix (`pmatrix` …) keeps its own delimiter, so neither
@@ -797,8 +743,7 @@ fn fused_grid_str(
     }
     let delim = fusing_delim_str(open)?;
     let atom = sole_unscripted_atom(content)?;
-    // A `\begin{…}` reached inside `\left … \right` parses as a transparent single-atom group around
-    // the grid, so the group is peeled before the grid is matched.
+    // peel the transparent group a `\begin{…}` splice adds around the grid
     let atom = match &atom.body {
         Body::Group(inner) => sole_unscripted_atom(inner)?,
         _ => atom,
@@ -819,7 +764,7 @@ fn fused_grid_str(
     delimited_matrix_str(display, delim, rows)
 }
 
-/// Whether a group holds exactly one unscripted grid or matrix atom — the shape a `\begin{…}`
+/// Whether a group holds exactly one unscripted grid or matrix atom, the shape a `\begin{…}`
 /// environment splice takes. Such a group is transparent: its grid renders as a self-contained block
 /// with no added brackets.
 fn is_environment_group(inner: &[Atom]) -> bool {
@@ -877,18 +822,14 @@ fn delimited_str(
     close: Option<Delim>,
     content: &[Atom],
 ) -> Option<String> {
-    // A grid that is the sole content of a matched `\left … \right` pair fuses into the grid's own
-    // `mat`/`vec` form, the pair's delimiter supplying the bracket — `\left( \begin{matrix} … \right)`
-    // becomes one `mat(delim: "(", …)`, with no separate brackets around it.
+    // a grid sole inside a matched `\left … \right` pair fuses into one `mat`/`vec`, the pair's
+    // delimiter supplying the bracket
     if let Some(fused) = fused_grid_str(display, open, close, content) {
         return Some(fused);
     }
     let inner = lower_loose(display, content)?;
-    // A paren or bracket auto-pairs only with a matching same-kind partner. When the two sides differ
-    // — one written as `.`, or as an unrelated delimiter — each paren/bracket stands alone as a literal
-    // glyph and is escaped so Typst prints it verbatim rather than auto-pairing it with the wrong
-    // neighbour. (Distinct paired delimiters are pinned in `lr(..)` just below; this escaping governs
-    // the direct-glyph path for the remaining mismatches.)
+    // mismatched sides cannot auto-pair: escape lone parens/brackets so Typst prints them verbatim
+    // (distinct paired delimiters are pinned in `lr(..)` below; this covers the remaining mismatches)
     let unpaired = open != close;
     let o = open.map_or("", |d| one_sided_paren(d, DelimSide::Open, unpaired));
     let c = close.map_or("", |d| one_sided_paren(d, DelimSide::Close, unpaired));
@@ -900,10 +841,8 @@ fn delimited_str(
         // A balanced double bar stretches to its content as the named double-line glyph.
         return Some(format!("lr(bar.v.double {inner} bar.v.double)"));
     }
-    // A pair of distinct paired delimiters (a paren, bracket, brace, or single bar opposite a
-    // different one of those) cannot auto-pair, so the group is pinned with `lr(..)` and each
-    // delimiter prints as its raw glyph. Mismatches that involve an angle, floor, ceil, double bar,
-    // or a null `.` side fall through to the direct-glyph path below.
+    // two distinct paired delimiters are pinned with `lr(..)`, raw glyphs; mismatches involving
+    // angle/floor/ceil/double-bar/`.` fall through to the direct-glyph path below
     if open != close
         && let (Some(o), Some(c)) = (open, close)
         && let (Some(og), Some(cg)) = (
@@ -1011,8 +950,6 @@ fn negated_str(base: &str) -> Option<String> {
         return Some(token.to_string());
     }
     match negated_base_typst(base)? {
-        // A relation glyph and a bare digit both carry the combining solidus written directly; only a
-        // letter/Greek/delimiter base is wrapped in an upright string literal.
         NegatedToken::Relation(glyph) | NegatedToken::Bare(glyph) => {
             Some(format!("{glyph}\u{0338}"))
         }
@@ -1088,8 +1025,7 @@ fn typst_delim(delim: Delim, side: DelimSide) -> &'static str {
         (Delim::Brace, DelimSide::Close) => "}",
         (Delim::Bar, _) => "\\|",
         (Delim::BarVert | Delim::DoubleBar, _) => "\u{2225}",
-        // A balanced `\Vert`/`\|` pair renders in `delimited_str` via `lr(bar.v.double …)`; the
-        // glyph above is only reached for an unbalanced or single-sided double bar.
+        // balanced double bars render via `lr(bar.v.double …)`; this glyph covers unbalanced sides
         (Delim::Angle, DelimSide::Open) => "\u{27E8}",
         (Delim::Angle, DelimSide::Close) => "\u{27E9}",
         (Delim::Floor, DelimSide::Open) => "\u{230A}",
@@ -1104,10 +1040,8 @@ fn typst_delim(delim: Delim, side: DelimSide) -> &'static str {
 fn frac_str(display: bool, num: &[Atom], den: &[Atom]) -> Option<String> {
     let n = lower(display, num)?;
     let d = lower(display, den)?;
-    // A fraction renders with an inline slash only when each operand is a single atom (one nucleus,
-    // possibly scripted, possibly itself a slash-fraction). A multi-atom operand — a sum, a digit
-    // run with an operator, or a delimited group — keeps the explicit `frac(.., ..)` so grouping
-    // stays unambiguous.
+    // inline slash only when both operands are single atoms; multi-atom operands keep `frac(.., ..)`
+    // so grouping stays unambiguous
     if is_inline_frac_operand(num) && is_inline_frac_operand(den) {
         Some(format!("{n} / {d}"))
     } else {
@@ -1134,7 +1068,6 @@ fn styled_str(display: bool, name: &str, arg: &[Atom]) -> Option<String> {
         "mathsf" | "mathsfup" => format!("sans({inner})"),
         "mathbfsfup" => format!("bold(sans({inner}))"),
         "mathtt" => format!("mono({inner})"),
-        // Composed styled alphabets nest the Typst style functions.
         "mathbfit" => format!("bold(italic({inner}))"),
         "mathsfit" => format!("italic(sans({inner}))"),
         "mathbfsfit" => format!("bold(italic(sans({inner})))"),
@@ -1144,8 +1077,8 @@ fn styled_str(display: bool, name: &str, arg: &[Atom]) -> Option<String> {
         "pmb" => format!("bold({inner})"),
         // Math-class wrappers re-class their argument but add no glyph: the content renders directly.
         "mathord" | "mathrel" | "mathbin" | "mathopen" | "mathclose" | "mathpunct" => inner,
-        // `\mathop` sets its argument as an operator: a multi-letter run becomes a known operator's
-        // bare identifier or, failing that, a quoted operator name; anything else renders directly.
+        // `\mathop`: a multi-letter run becomes a known operator identifier or a quoted name;
+        // anything else renders directly
         "mathop" => match operator_name(arg) {
             Some(name) if super::symbols::named_function(&name).is_some() => name,
             Some(name) => format!("\"{name}\""),
@@ -1156,7 +1089,6 @@ fn styled_str(display: bool, name: &str, arg: &[Atom]) -> Option<String> {
         "xcancel" => format!("cancel({inner}, cross: #true)"),
         "bcancel" => format!("cancel({inner}, inverted: #true)"),
         "boxed" => format!("#box(stroke: black, inset: 3pt, [$ {inner} $])"),
-        // A horizontal paren is set as a script over or under its content.
         "overparen" => format!("{inner}^paren.t"),
         "underparen" => format!("{inner}_paren.b"),
         _ => return None,
@@ -1184,10 +1116,8 @@ fn operator_name(atoms: &[Atom]) -> Option<String> {
 }
 
 fn text_str(display: bool, name: &str, content: &[TextPiece]) -> Option<String> {
-    // `\operatorname` folds any spacing into its single run, so it renders as one identifier or quoted
-    // string over the whole content. The starred `\operatorname*` differs only in how a display-mode
-    // subscript is placed, which the flat text form does not carry, so it renders the same here. Every
-    // other wrapper applies its formatting to each run, with spacing emitted as a token between them.
+    // `\operatorname`(*) folds spacing into one identifier or quoted string; other wrappers format
+    // each run, spacing emitted as tokens between
     if name == "operatorname" || name == "operatorname*" {
         let text = text_run_text(content);
         let s = if super::symbols::named_function(&text).is_some() {
@@ -1209,8 +1139,7 @@ fn text_str(display: bool, name: &str, content: &[TextPiece]) -> Option<String> 
     for piece in content {
         match piece {
             TextPiece::Run(run) if run.is_empty() => {
-                // An empty segment (an empty inner brace group) carries no formatted text but still
-                // occupies a join position, so it contributes an empty token rather than a wrapper.
+                // an empty segment still occupies a join position: contribute an empty token
                 parts.push(String::new());
             }
             TextPiece::Run(run) => {
@@ -1888,8 +1817,7 @@ pub(super) const SYMBOL_TYPST: &[(&str, &str)] = &[
     ("wr", "wreath"),
     ("yen", "yuan"),
     ("yinyang", "\u{262F}"),
-    // Escaped literal characters. Typst escapes the dollar, hash, and underscore so they
-    // are not read as code/script syntax; the brace, bar, ampersand, and percent are literal.
+    // dollar, hash, and underscore are escaped so they are not read as code/script syntax
     ("{", "{"),
     ("}", "}"),
     ("|", "parallel"),

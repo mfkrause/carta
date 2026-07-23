@@ -90,7 +90,7 @@ pub(super) struct Converter {
     /// extensions (`smart`, the TeX math forms) drive the inline finishing pass.
     ext: Extensions,
     /// Footnote bodies indexed by id, recovered from the endnotes container before the main pass so a
-    /// reference anchor anywhere — even one preceding its definition — resolves to a [`Inline::Note`].
+    /// reference anchor anywhere (even one preceding its definition) resolves to a [`Inline::Note`].
     note_bodies: BTreeMap<String, Vec<Block>>,
 }
 
@@ -157,12 +157,8 @@ impl Converter {
                         continue;
                     }
                     if e.name == "style" && pending.is_empty() {
-                        // A `<style>` with no preceding sibling at all is metadata (a document head,
-                        // or the leading node of a block run). Once any sibling node precedes it —
-                        // even whitespace — it is body content: it joins the inline run as a raw
-                        // fragment via the inline path below, and the next block boundary flushes
-                        // that run into its own paragraph. As metadata it is otherwise dropped, but
-                        // when raw HTML is preserved its verbatim form becomes its own raw block.
+                        // A `<style>` with no preceding sibling is metadata (dropped, or a raw
+                        // block when raw HTML is preserved); any sibling makes it body content.
                         if self.raw_html() {
                             out.push(Block::RawBlock(
                                 Format("html".into()),
@@ -172,8 +168,7 @@ impl Converter {
                         continue;
                     }
                     if has_role(e, ENDNOTES_ROLE) {
-                        // The endnotes container's bodies have already been lifted into their
-                        // references, so the container itself carries no remaining content.
+                        // Endnote bodies were already lifted into their references.
                         flush(pending, out);
                         continue;
                     }
@@ -190,9 +185,8 @@ impl Converter {
                     } else if is_inline_element(&e.name) || (self.raw_html() && e.name != "main") {
                         self.append_inline(pending, node);
                     } else {
-                        // No structural, raw-block, or inline mapping applies (a grouping wrapper
-                        // such as `<main>`, or any unknown tag when raw HTML is not preserved): the
-                        // wrapper carries no structure, so its children splice into the block flow.
+                        // No mapping applies (`<main>`, or an unknown tag without raw HTML): the
+                        // wrapper's children splice into the block flow.
                         self.process(e.children.iter(), out, pending);
                     }
                 }
@@ -260,8 +254,7 @@ impl Converter {
                         self.child_blocks(&e.children, Flow::Framed),
                     ));
                 } else {
-                    // `native_divs` off: the wrapper carries no document structure, so its content
-                    // is spliced into the surrounding block flow, which decides run promotion.
+                    // `native_divs` off: the wrapper's content splices into the block flow.
                     out.extend(self.child_blocks(&e.children, Flow::Framed));
                 }
             }
@@ -427,8 +420,7 @@ impl Converter {
                 _ => {}
             }
         }
-        // A table that declares no head still gets one when its first row is all header cells: that
-        // leading row is the implicit head, and the remaining rows are the body.
+        // A first row of all header cells is the implicit head; the remaining rows are the body.
         if head_rows.is_empty()
             && body_row_elements
                 .first()
@@ -723,8 +715,7 @@ impl Converter {
             InlineKind::Span => {
                 let inner = self.build_inlines(&e.children);
                 if !self.ext.contains(Extension::NativeSpans) {
-                    // `native_spans` off: a bare `<span>` carries no inline structure, so it
-                    // unwraps to its content (the small-caps style is likewise dropped).
+                    // `native_spans` off: a bare `<span>` unwraps to its content.
                     out.extend(inner);
                 } else if is_small_caps(e) {
                     out.push(Inline::SmallCaps(inner));
@@ -971,18 +962,16 @@ enum Item {
     Math(MathType, String),
 }
 
-/// The curly quote glyphs the smart pass produces.
 const LEFT_DOUBLE: char = '\u{201C}';
 const RIGHT_DOUBLE: char = '\u{201D}';
 const LEFT_SINGLE: char = '\u{2018}';
 const APOSTROPHE: char = '\u{2019}';
 
-/// Whether a quote at `i` may open: it must follow an opening context — the node start, a math span,
-/// whitespace, or one of `.`, `-`, `\`, `"`, `'`, or a curly quote — and be followed by a
+/// Whether a quote at `i` may open: it must follow an opening context (the node start, a math span,
+/// whitespace, or one of `.`, `-`, `\`, `"`, `'`, or a curly quote) and be followed by a
 /// non-whitespace character. A quote glued to a letter, digit, or most punctuation cannot open.
 fn can_open(items: &[Item], i: usize) -> bool {
     let opens_after = match i.checked_sub(1).and_then(|prev| items.get(prev)) {
-        // The node start and a preceding math span are both opening contexts.
         None | Some(Item::Math(..)) => true,
         Some(Item::Lit(c)) => {
             c.is_whitespace()
@@ -1046,8 +1035,7 @@ fn resolve_smart(items: &[Item], lo: usize, hi: usize) -> Vec<Inline> {
                     ));
                     i = j + 1;
                 } else {
-                    // An opener with no closer is a left quote; a quote that cannot open is a right
-                    // quote.
+                    // An opener with no closer is a left quote; one that cannot open is a right quote.
                     buf.push(if can_open(items, i) {
                         LEFT_DOUBLE
                     } else {
@@ -1115,8 +1103,8 @@ fn flush_run(buf: &mut String, out: &mut Vec<Inline>) {
 
 /// Emit the text of an inline `<code>` element under `smart` and/or a math form. Top-level math spans
 /// lift out as bare [`Inline::Math`]; the verbatim text between them becomes [`Inline::Str`] runs
-/// (which [`codify`] then wraps as code), with whitespace collapsed to single spaces and — under
-/// `smart` — dashes, ellipses, and paired quotes rendered as their typographic glyphs.
+/// (which [`codify`] then wraps as code), with whitespace collapsed to single spaces and, under
+/// `smart`, dashes, ellipses, and paired quotes rendered as their typographic glyphs.
 fn emit_code(items: &[Item], smart: bool, out: &mut Vec<Inline>) {
     let hi = items.len();
     let mut result = String::new();
@@ -1305,9 +1293,9 @@ fn absorb(out: &mut Vec<Inline>, inline: Inline) {
 }
 
 /// Push a formatting inline, fusing it with an identical formatting element directly before it.
-/// Adjacent runs of the same emphasis, strength, strike, underline, super-, or subscript — with no
-/// intervening text or break — carry one meaning, so their children are concatenated into a single
-/// element. Quotation and small-caps stay separate; any other inline is simply appended.
+/// Adjacent runs of the same emphasis, strength, strike, underline, super-, or subscript (with no
+/// intervening text or break) carry one meaning, so their children are concatenated into a single
+/// element. Quotation and small-caps stay separate; any other inline is appended as is.
 fn merge_adjacent_formatting(out: &mut Vec<Inline>, inline: Inline) {
     let mergeable = matches!(
         (out.last(), &inline),
@@ -1322,8 +1310,7 @@ fn merge_adjacent_formatting(out: &mut Vec<Inline>, inline: Inline) {
         out.push(inline);
         return;
     }
-    // Both sides are confirmed the same formatting variant, so the children pulled from this element
-    // concatenate onto the previous one.
+    // Both sides are the same formatting variant, so the children concatenate onto the previous.
     let next = match inline {
         Inline::Emph(children)
         | Inline::Strong(children)
@@ -1351,8 +1338,8 @@ fn merge_adjacent_formatting(out: &mut Vec<Inline>, inline: Inline) {
 
 /// Percent-escape a URL reference so characters that are unsafe or structural in a URL survive as a
 /// valid reference. Whitespace and the delimiters `<>|"{}[]^` and a backtick are encoded per UTF-8
-/// byte as uppercase `%XX`; every other character — including an existing `%`, a backslash, a tilde,
-/// and any non-ASCII character — is kept verbatim.
+/// byte as uppercase `%XX`; every other character, including an existing `%`, a backslash, a tilde,
+/// and any non-ASCII character, is kept verbatim.
 pub(crate) fn escape_uri(uri: &str) -> String {
     use std::fmt::Write as _;
     let mut out = String::with_capacity(uri.len());
@@ -1544,9 +1531,8 @@ fn inlines_from_text(text: &str) -> Vec<Inline> {
 /// Append `text` to an inline run, collapsing each whitespace span to a single break: a span that
 /// spans a line is a soft break, otherwise a space. Non-whitespace merges into the trailing string.
 fn push_text(out: &mut Vec<Inline>, text: &str) {
-    // Span boundaries are ASCII whitespace, so scanning bytes is exact: multi-byte UTF-8 units
-    // are all >= 0x80 and every slice below starts and ends at a character boundary. Each
-    // non-whitespace span is appended in one step instead of character by character.
+    // Boundaries are ASCII whitespace, so byte scanning is exact and each non-whitespace span
+    // appends in one step.
     let bytes = text.as_bytes();
     let mut i = 0;
     while let Some(&byte) = bytes.get(i) {
@@ -1646,11 +1632,11 @@ fn flush(pending: &mut Vec<Inline>, out: &mut Vec<Block>) {
 /// A run of inline content between block-level siblings is captured as a `Block::Plain`. Whether that
 /// `Plain` stays plain or is promoted to a full `Block::Para` depends on the container:
 ///
-/// - `Prose` — a paragraph-carrying flow such as the document body or a blockquote. A `Plain` is
+/// - `Prose`: a paragraph-carrying flow such as the document body or a blockquote. A `Plain` is
 ///   promoted whenever any sibling is paragraph-like, and a nested list counts as such a sibling.
-/// - `Item` — a list item or definition, where a bare run reads as tight text. Promotion still
+/// - `Item`: a list item or definition, where a bare run reads as tight text. Promotion still
 ///   happens next to a paragraph-like sibling, but a nested list alone does not force it.
-/// - `Framed` — a structural wrapper (a `div`, figure, caption, or table cell) that preserves its
+/// - `Framed`: a structural wrapper (a `div`, figure, caption, or table cell) that preserves its
 ///   runs verbatim: a `Plain` is never promoted, keeping tight text tight regardless of its siblings.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Flow {

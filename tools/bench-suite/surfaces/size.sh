@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Size surface: report binary sizes (no timing). pandoc carries a Haskell runtime and a large feature
-# set; carta is a single statically-focused binary. A cheap, stable headline.
-# Usage: surfaces/size.sh
+# Size surface: report binary sizes (no timing).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 

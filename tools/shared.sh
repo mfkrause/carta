@@ -1,7 +1,3 @@
-# Common harness primitives for the tools/ suites: repo path anchors, the pinned pandoc oracle
-# location, and the normalization flags that put carta and pandoc on equivalent work. Sourced by each
-# suite's lib.sh so the oracle contract is defined once. Idempotent.
-
 [ -n "${TOOLS_SHARED_SOURCED:-}" ] && return 0
 TOOLS_SHARED_SOURCED=1
 
@@ -11,7 +7,7 @@ ORACLE="$ROOT/.oracle/bin/pandoc"
 CORPUS="$ROOT/corpus"
 
 # pandoc flags that neutralize target nondeterminism carta does not reproduce, so both tools do the
-# same work: HTML renders math via MathJax. Syntax highlighting is left on — carta highlights code
+# same work: HTML renders math via MathJax. Syntax highlighting is left on; carta highlights code
 # blocks to parity, so both sides colorize. Applied to the pandoc side only.
 oracle_norm() {
   case "$1" in

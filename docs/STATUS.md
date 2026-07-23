@@ -8,7 +8,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ---
 
-## Formats At A Glance
+## Formats at a glance
 
 ### Markdown family
 
@@ -136,55 +136,55 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ## Readers
 
-### `commonmark` — ✅
-### `commonmark_x` — ✅
-### `gfm` — ✅
+### `commonmark` ✅
+### `commonmark_x` ✅
+### `gfm` ✅
 
-### `markdown` — ✅
+### `markdown` ✅
 - `latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.
-- Narrow per-extension divergences — see [known parity gaps](#known-parity-gaps).
+- Narrow per-extension divergences: see [known parity gaps](#known-parity-gaps).
 
 The four dialect readers below share the `markdown` reader engine, gating each construct on the
 dialect's own default extension set, so the `markdown` notes above apply to them as well.
 
-### `markdown_strict` — ✅
+### `markdown_strict` ✅
 - The sparsest dialect: raw HTML plus the shortcut and spaced reference-link forms, and nothing else.
 
-### `markdown_github` — ✅
+### `markdown_github` ✅
 - A task-list item followed by an ordinary bullet item splits into two lists rather than staying in
   one.
 
-### `markdown_phpextra` — ✅
+### `markdown_phpextra` ✅
 - An inline attribute block that trails a bracketed group which is not a link (`[text]{.class}`) is
   kept as literal text; the dialect consumes and discards it.
 
-### `markdown_mmd` — ✅
+### `markdown_mmd` ✅
 - An empty sub/superscript delimiter pair (`x^^y`, `a~~b`) is not read as an empty span.
 - A reference definition's trailing attribute tail (after the URL and optional title) is not parsed.
 - An implicit header reference does not resolve against a header whose identifier was set by the
   trailing `[id]` syntax.
 
-### `html` — ✅
-### `opml` — ✅
-### `json` — ✅
-### `native` — ✅
-### `csv` — ✅
-### `tsv` — ✅
+### `html` ✅
+### `opml` ✅
+### `json` ✅
+### `native` ✅
+### `csv` ✅
+### `tsv` ✅
 
-### `rst` — ✅
+### `rst` ✅
 - The `contents` (table-of-contents) directive emits nothing.
 - The `table` directive's `:widths:` is not applied to the built table.
 - A definition-list classifier (`term : classifier`) stays part of the term.
 - Doctest blocks (`>>>`) read as ordinary paragraphs.
 
-### `ipynb` — ✅
+### `ipynb` ✅
 - nbformat v3 (worksheets) is reported as an unsupported format rather than read.
 - Lenient where the format is strict: a stream output with no `name`, a null `execution_count`, or a
   missing top-level `nbformat` are accepted rather than rejected.
 - Unknown cell and output kinds are silently dropped.
 - Extreme-magnitude numbers may render rounded or in scientific form.
 
-### `mediawiki` — ✅
+### `mediawiki` ✅
 - Block `<math display=block>` is emitted as inline math.
 - The `Media:` namespace, leading-colon `[[:File:…]]` links, and interwiki prefixes read as ordinary
   wikilinks rather than links to the media file or remote wiki.
@@ -194,22 +194,22 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   reads it as literal text. The unterminated-tag corpus case therefore pins only the open-tag
   failure shapes, and the `<ref>` path is pinned by unit tests instead.
 
-### `dokuwiki` — ✅
+### `dokuwiki` ✅
 - A footnote closes at the first `))`, so nested parentheses are unbalanced.
 - Bare-URL autolinking requires an explicit `scheme://`.
 
-### `jira` — ✅
+### `jira` ✅
 - When a `{quote}` macro's content shares the line with its fences, the leading whitespace of its
   first paragraph is kept rather than trimmed.
 
-### `man` — ✅
+### `man` ✅
 - A single ambiguous list-marker letter (`i.`/`c.`/`v.`/…) classifies as a roman numeral rather than
   lower-alpha.
 - `.MR`/`.SM`/`.SB` are dropped.
 - Verbatim regions flatten embedded font macros (literal tabs are preserved).
 - A `tbl` table using row or column spans degrades to a placeholder paragraph.
 
-### `latex` — ✅
+### `latex` ✅
 - Only the `\begin{document}`…`\end{document}` body is rendered; the preamble contributes metadata
   (`\title`, `\author`, `\date`, `\subtitle`, `abstract`) and macro definitions but is otherwise
   dropped. A file with no `document` environment is read whole. `\institute` is dropped entirely.
@@ -234,7 +234,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - `\raisebox` in its optional depth/height form drops the box content; purely visual commands
   (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner content.
 
-### `org` — ✅
+### `org` ✅
 - Drawers: a headline's property drawer is consumed and supplies its `CUSTOM_ID` as the heading
   identifier; the bookkeeping drawers `:PROPERTIES:` and `:LOGBOOK:` are dropped wherever they appear;
   every other named drawer becomes a `Div` classed with the drawer name.
@@ -242,7 +242,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   present, and a file-level property drawer's keys are not promoted to document metadata.
 - An internal `[[target]]` radio link resolves to a bare destination rather than an anchor.
 
-### `rtf` — ✅
+### `rtf` ✅
 - A `\mac`, `\pc`, or `\pca` document's `\'xx` bytes decode as Windows-1252 rather than the declared
   character set.
 - A control byte delivered through a `\'xx` or `\uN` escape (tab, line feed) is kept as a literal
@@ -251,7 +251,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as
   document metadata.
 
-### `docx` — ✅
+### `docx` ✅
 - Page and column breaks are dropped rather than converted to line breaks, and a VML textbox's text
   (including an `mc:AlternateContent` fallback) is not extracted.
 - Office Math sets binary and relational operators tight, with no surrounding thin space
@@ -259,9 +259,9 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - A few math symbols take a less idiomatic TeX spelling (`→` becomes `\to` rather than `\rightarrow`;
   `·` is kept literal rather than `\cdot`).
 
-### `epub` — ✅
+### `epub` ✅
 
-### `odt` — ✅
+### `odt` ✅
 - A field element with cached display text (`text:date`, `text:page-number`, `text:page-count`,
   `text:author-name`, `text:title`, `text:chapter`, `text:file-name`, `text:sequence-ref`,
   `text:note-ref`) keeps its cached text as `Str` runs rather than being dropped.
@@ -353,53 +353,53 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 
 ## Writers
 
-### `html` (+ `html5`, `html4`) — ✅
-### `latex` — ✅
-### `beamer` — ✅
+### `html` (+ `html5`, `html4`) ✅
+### `latex` ✅
+### `beamer` ✅
 
-### `revealjs` — ✅
+### `revealjs` ✅
 - No slide-relative table of contents.
 - Headings are not section-numbered.
 
-### `gfm` — ✅
-### `commonmark` — ✅
+### `gfm` ✅
+### `commonmark` ✅
 
-### `markdown` — ✅
+### `markdown` ✅
 - The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
 
-### `rst` — ✅
-### `typst` — ✅
-### `mediawiki` — ✅
-### `dokuwiki` — ✅
+### `rst` ✅
+### `typst` ✅
+### `mediawiki` ✅
+### `dokuwiki` ✅
 
-### `asciidoc` — ✅
+### `asciidoc` ✅
 - Emits the `asciidoc` flavor only (`asciidoc_legacy` / `asciidoctor` not implemented).
 
-### `jira` — ✅
-### `man` — ✅
-### `plain` — ✅
+### `jira` ✅
+### `man` ✅
+### `plain` ✅
 
-### `opml` — ✅
+### `opml` ✅
 - Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
-### `org` — ✅
+### `org` ✅
 - A `Div` marked as a drawer is written back as a `:NAME:` … `:END:` drawer.
 
-### `json` — ✅
-### `native` — ✅
+### `json` ✅
+### `native` ✅
 
-### `ipynb` — ✅
+### `ipynb` ✅
 - Nested metadata keys (e.g. `kernelspec`) emit in sorted order rather than the format's hash order.
 - Standalone (`-s`), TOC, and section numbering are no-ops.
 
-### `epub` (+ `epub2`, `epub3`) — ✅
+### `epub` (+ `epub2`, `epub3`) ✅
 - EPUB 2 wraps content in XHTML 1.1, so a few constructs (a list `start` attribute, a `mark` or `u`
   element, block content in a table caption, an empty table, a task-list checkbox) are represented
   only under EPUB 3's XHTML5 content model.
-- A resource that cannot be fetched offline — a remote image, an absent local image, or a link to a
-  nonexistent target — yields a dangling reference.
+- A resource that cannot be fetched offline (a remote image, an absent local image, or a link to a
+  nonexistent target) yields a dangling reference.
 
-### `docx` — ✅
+### `docx` ✅
 - A metadata keywords list is joined with `; ` in the core properties rather than the `, ` that
   part's convention uses.
 - A `lang` value carried by a span or div is dropped rather than set as a run language property.
@@ -407,12 +407,12 @@ dialect's own default extension set, so the `markdown` notes above apply to them
   with a paragraph bidi property added when it sits on a div.
 - An image wrapped in a link takes the hyperlink character style on its picture run, which a bare
   picture run does not carry.
-- The same image file referenced several times is embedded once per reference — a separate media
-  part and relationship each — rather than deduplicated to a single shared part.
+- The same image file referenced several times is embedded once per reference (a separate media
+  part and relationship each) rather than deduplicated to a single shared part.
 - An empty fenced code block emits a stray empty verbatim run inside its paragraph rather than
   leaving the paragraph with no run.
-- A paragraph that ends in an inline equation — whether the equation renders to Office Math or, when
-  it cannot be parsed, falls back to its raw dollar-delimited text — omits the trailing
+- A paragraph that ends in an inline equation (whether the equation renders to Office Math or, when
+  it cannot be parsed, falls back to its raw dollar-delimited text) omits the trailing
   zero-width-space run that anchors such a paragraph.
 - Under `native_numbering`, a figure or table whose caption is present but empty (a `Plain` or `Para`
   holding no inline content, which non-Markdown readers can produce) emits no caption at all rather
@@ -426,7 +426,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - `\mathrel` wraps its argument in a plain run rather than an operator-emulation box, so the
   surrounding spacing differs.
 
-### `odt` — ✅
+### `odt` ✅
 - Table cell alignment styles are keyed only by (header, alignment), so columns sharing an alignment
   collapse to one style rather than one per column per section.
 - A table or figure caption whose top-level block is a list, `CodeBlock`, or `Header` is dropped;
@@ -539,7 +539,7 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 - Writer options with no ODT analogue (wrap and column width, highlight theme, ascii-only) are
   silently no-ops.
 
-### `rtf` — ✅
+### `rtf` ✅
 - A table nested inside another table's cell carries a single `\intbl` on its cell paragraphs
   regardless of nesting depth, so the inner table is not set off from its container.
 - A nested ordered list with default style is numbered with decimal markers at every level rather
@@ -559,8 +559,8 @@ dialect's own default extension set, so the `markdown` notes above apply to them
 Reader-side toggles on the CommonMark engine. The enum defines 77 names; the reader branches on the
 **Supported** set below and treats every other name within a format's accepted set as a recorded
 no-op toggle, so a format spec naming one parses and records it rather than aborting. Each format
-declares the set of extensions it accepts — exactly the names `--list-extensions=<format>` prints,
-with the sign each carries when the format is read (or written, where it only writes) — and a `+`/`-`
+declares the set of extensions it accepts: exactly the names `--list-extensions=<format>` prints,
+with the sign each carries when the format is read (or written, where it only writes). A `+`/`-`
 toggle naming anything outside that set is rejected.
 
 **Supported:** `smart`, `strikeout`, `superscript`, `subscript`, `pipe_tables`, `footnotes`,
@@ -583,13 +583,13 @@ Constructs the supported extensions read, each with one narrow case that still d
 
 | Extension(s) | Gap |
 | --- | --- |
-| `raw_tex` | A raw-TeX environment (`\begin{…}…\end{…}`) that interrupts an open paragraph with no blank line leaves that paragraph as `Para` rather than tightening it to `Plain`. The free-standing form — a blank line before the environment — is exact. |
+| `raw_tex` | A raw-TeX environment (`\begin{…}…\end{…}`) that interrupts an open paragraph with no blank line leaves that paragraph as `Para` rather than tightening it to `Plain`. The free-standing form (a blank line before the environment) is exact. |
 | `markdown_in_html_blocks` | A block-level HTML element (`<div>`, `<section>`, `<table>`, …) that interrupts an open paragraph tightens it to `Plain`. Two narrower forms still diverge: a raw-text element (`<pre>`, `<script>`) interrupting a paragraph leaves it as `Para` rather than `Plain`, and an inline-level construct (`<style>`, a comment, a doctype, or a processing instruction) interrupting a paragraph is folded into it as raw inline by the dialect, whereas carta opens a separate raw block. |
-| `markdown_in_html_blocks` | An HTML block left open at end of input — a `<!-- …` comment or a `<table>`/`<div>` with no close tag — is reparsed as ordinary paragraphs by the dialect; carta keeps the whole run as one raw block. |
+| `markdown_in_html_blocks` | An HTML block left open at end of input (a `<!-- …` comment or a `<table>`/`<div>` with no close tag) is reparsed as ordinary paragraphs by the dialect; carta keeps the whole run as one raw block. |
 | `native_spans` | An emphasis run that opens before a `<span>` and whose closing marker sits just inside the matching `</span>` can leave both tags raw instead of forming a span. |
 | `raw_tex` | Inline `\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\begin{env}…\end{env}` is recognized only as a whole paragraph (block level); inline, each `\begin`/`\end` is an ordinary command. |
 | `citations` | An abbreviation-led citation suffix such as `p. 5` is a single string in the dialect (a non-breaking space follows the period); carta splits it into separate tokens. |
-| `attributes` | An attribute spec `{…}` containing a backslash escape is void in the dialect — it stays literal text — whereas carta accepts the backslash into the id, class, or value. |
+| `attributes` | An attribute spec `{…}` containing a backslash escape is void in the dialect (it stays literal text) whereas carta accepts the backslash into the id, class, or value. |
 | `alerts` | An alert marker indented two or more columns inside its blockquote (e.g. `>  [!NOTE]`) is still read as an alert; the dialect treats only a marker at column 0 or 1 as one. |
 
 ### Recognized, behavior not yet modeled

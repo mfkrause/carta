@@ -5,4 +5,4 @@ contact_links:
     about: Ask a question or discuss an idea before filing an issue.
   - name: Report a security vulnerability
     url: https://github.com/mfkrause/carta/security/policy
-    about: Please report security issues privately — do not open a public issue.
+    about: Please report security issues privately; do not open a public issue.

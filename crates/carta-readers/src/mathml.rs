@@ -54,8 +54,7 @@ fn render_row<T: MathTree>(elements: &[&T]) -> String {
     let mut pieces: Vec<String> = Vec::new();
     let mut index = 0;
     while index < elements.len() {
-        // A matrix wrapped in a fence — an open operator, an `<mtable>`, then a close operator —
-        // reads as one delimited matrix rather than three loose tokens.
+        // a fence pair around an <mtable> reads as one delimited matrix, not three loose tokens
         if let (Some(open), Some(table), Some(close)) = (
             elements.get(index),
             elements.get(index + 1),
@@ -76,9 +75,7 @@ fn render_row<T: MathTree>(elements: &[&T]) -> String {
     }
     let row = join_tokens(&pieces);
     let trimmed = row.trim();
-    // Trimming an edge operator's spacing can strip the space that a four-mu control space `\ ` needs,
-    // leaving a dangling backslash; a trailing lone backslash can only be that command, so give it
-    // back its space.
+    // a trailing lone backslash can only be the control space `\ ` whose space trimming stripped
     if ends_with_lone_backslash(trimmed) {
         format!("{trimmed} ")
     } else {
@@ -199,8 +196,8 @@ fn render_over<T: MathTree>(e: &T) -> String {
 }
 
 /// Whether a rendered base is a large operator or limit-like function that carries its scripts as
-/// stacked limits (`\sum\limits_{...}`). Anything else — an ordinary symbol, a Greek letter, a
-/// compound expression — takes an `\underset`/`\overset` instead, since `\limits` is only valid after
+/// stacked limits (`\sum\limits_{...}`). Anything else, an ordinary symbol, a Greek letter, or a
+/// compound expression, takes an `\underset`/`\overset` instead, since `\limits` is only valid after
 /// an operator.
 fn takes_limits(base: &str) -> bool {
     matches!(
@@ -371,8 +368,8 @@ fn matrix_cell(content: &str) -> String {
 /// `<mmultiscripts>`: a base carrying post-scripts and, after an `<mprescripts/>` marker, pre-scripts.
 /// The subscripts on a side gather into one subscript group and the superscripts into one superscript
 /// group, so the base takes at most a single `_` and `^` per side rather than an invalid chain of
-/// them. A side present at all — the post-scripts whenever any follow the base, the pre-scripts once an
-/// `<mprescripts/>` marker appears — emits both its groups even when a `<none/>` slot leaves one empty,
+/// them. A side present at all (the post-scripts whenever any follow the base, the pre-scripts once an
+/// `<mprescripts/>` marker appears) emits both its groups even when a `<none/>` slot leaves one empty,
 /// behind a leading empty nucleus that gives the pre-scripts something to attach to.
 #[allow(clippy::similar_names)]
 fn render_mmultiscripts<T: MathTree>(e: &T) -> String {
@@ -442,8 +439,8 @@ fn script_token<T: MathTree>(e: &T) -> String {
     }
 }
 
-/// `<menclose>`: content wrapped in the TeX command its `notation` denotes — a boxed frame or a
-/// cancel line — or left bare for a notation with no TeX equivalent.
+/// `<menclose>`: content wrapped in the TeX command its `notation` denotes (a boxed frame or a
+/// cancel line), or left bare for a notation with no TeX equivalent.
 fn render_menclose<T: MathTree>(e: &T) -> String {
     let inner = render_row(&e.element_children());
     match enclose_command(&e.attribute("notation").unwrap_or_default()) {
@@ -999,8 +996,7 @@ mod tests {
 
     #[test]
     fn multiscripts_collect_one_group_per_side() {
-        // Prescripts attach to an empty nucleus, as in isotope notation; the empty post-script pair
-        // is still a present side and emits its (empty) groups.
+        // prescripts attach to an empty nucleus; an empty post-script side still emits its groups
         assert_eq!(
             tex(
                 "<math><mmultiscripts><mi>C</mi><none/><none/><mprescripts/><mn>6</mn><mn>14</mn></mmultiscripts></math>"

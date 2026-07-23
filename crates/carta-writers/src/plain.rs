@@ -252,8 +252,7 @@ impl State {
                     let loose = is_loose_definition(definition);
                     let body = self.blocks_at(definition, width.saturating_sub(2), loose, true);
                     let indented = indent_block(&body, "  ", "  ");
-                    // An empty term contributes no line, so the first body opens the group with no
-                    // leading separator; otherwise each body is set off from what precedes it.
+                    // an empty term contributes no line, so the first body opens the group with no leading separator
                     if !group.is_empty() {
                         group.push_str(if loose { "\n\n" } else { "\n" });
                     }
@@ -374,10 +373,8 @@ impl State {
             .map(
                 |index| match table.col_specs.get(index).map(|spec| &spec.width) {
                     Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
-                        // `floor`/`max(0.0)` make the fraction-to-width conversion exact and
-                        // non-negative; the final `min(width)` clamps a spec whose fraction exceeds
-                        // the whole line — a meaningless width that would otherwise allocate a rule
-                        // of that many characters.
+                        // floor/max(0.0) make the conversion exact and non-negative; min(width)
+                        // clamps a fraction past the whole line that would allocate a huge rule
                         #[allow(
                             clippy::cast_precision_loss,
                             clippy::cast_possible_truncation,
@@ -433,10 +430,8 @@ impl State {
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
         if self.table_depth > grid::MAX_MEASURED_TABLE_NESTING {
-            // Sizing a column renders every cell a second time, so with nested tables the
-            // measurement passes compound into one full render per ancestor. Past the nesting cap,
-            // columns take an even share of the fill width instead of being measured, keeping the
-            // total work linear in the document.
+            // column sizing re-renders every cell, compounding per table ancestor; past the cap,
+            // columns split the fill width evenly, keeping total work linear
             let share = (width / columns.max(1)).max(1);
             natural.fill(share);
             minword.fill(1);
@@ -651,8 +646,7 @@ impl State {
             | Inline::Underline(inlines)
             | Inline::Cite(_, inlines)
             | Inline::Span(_, inlines) => self.extend_pieces(inlines, out),
-            // A bare URL — its single-`Str` text being the visible form of the target — is the
-            // address itself, encoded; any other link contributes only its visible text.
+            // a bare URL contributes its encoded address; any other link only its visible text
             Inline::Link(_, inlines, target) => {
                 if let [Inline::Str(text)] = inlines.as_slice()
                     && is_uri(&target.url)
@@ -708,7 +702,7 @@ impl State {
             }
             Inline::Image(_, inlines, target) => {
                 out.push(Piece::text("["));
-                // Alternate text that merely repeats the source URL conveys nothing, so it is dropped.
+                // alt text that merely repeats the source URL is dropped
                 if carta_ast::to_plain_text(inlines) != target.url {
                     self.extend_pieces(inlines, out);
                 }
@@ -885,7 +879,7 @@ fn to_superscript(text: &str) -> String {
 
 /// Render subscript text. The content is mapped to subscript glyphs when every character has one;
 /// when it does not (because a character is structurally non-textual, signalled by
-/// `force_superscript`, or simply lacks a subscript glyph) the whole run is mapped to *superscript*
+/// `force_superscript`, or lacks a subscript glyph) the whole run is mapped to *superscript*
 /// glyphs instead, if that succeeds. Only a run that maps under neither script falls back to the
 /// parenthesized form (`_(…)`).
 fn to_subscript(text: &str, force_superscript: bool) -> String {
@@ -908,9 +902,9 @@ fn forces_superscript(inlines: &[Inline]) -> bool {
         .any(|inline| !matches!(inline, Inline::Str(_) | Inline::Space))
 }
 
-/// Whether a character passes through the script mappers unchanged. Every space — the ASCII
+/// Whether a character passes through the script mappers unchanged. Every space, meaning the ASCII
 /// whitespace controls (`\t \n \v \f \r`), `' '`, and any Unicode space separator (category `Zs`,
-/// such as the fixed-width math spaces) — keeps a run convertible and renders as itself, while a
+/// such as the fixed-width math spaces), keeps a run convertible and renders as itself, while a
 /// line/paragraph separator, a zero-width mark, or any other format character does not.
 fn is_script_space(ch: char) -> bool {
     matches!(ch, ' ' | '\t' | '\n' | '\u{000b}' | '\u{000c}' | '\r')
@@ -993,8 +987,7 @@ mod tests {
 
     #[test]
     fn deeply_nested_tables_render_without_compounding_measurement() {
-        // Sizing a grid column renders each cell beyond the final emit, so without the nesting cap
-        // every level would multiply the renders of all levels below it — exponential in depth.
+        // without the nesting cap, column sizing multiplies renders per level: exponential in depth
         use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table, TableBody};
 
         fn nested_table(content: Vec<Block>) -> Block {
@@ -1026,8 +1019,7 @@ mod tests {
             }))
         }
 
-        // Deep enough that compounding measurement would take minutes, while capped measurement
-        // stays well under a second.
+        // deep enough that compounding measurement would take minutes; capped stays under a second
         let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
         for _ in 0..9 {
             block = nested_table(vec![block]);
@@ -1082,8 +1074,7 @@ mod tests {
 
     #[test]
     fn polynomial_lays_out_with_operator_and_relation_spacing() {
-        // Binary operators take a four-per-em space (U+2005), the relation a three-per-em space
-        // (U+2004), and digit exponents map to unicode superscripts.
+        // binary operators take U+2005, the relation U+2004; digit exponents map to superscripts
         assert_eq!(
             inline("a^2 + b^2 = c^2"),
             "a\u{b2}\u{2005}+\u{2005}b\u{b2}\u{2004}=\u{2004}c\u{b2}"
@@ -1116,8 +1107,7 @@ mod tests {
 
     #[test]
     fn integral_uses_unicode_scripts_and_thin_space() {
-        // The integral sign carries its limits as unicode sub/superscripts and the thin space
-        // (`\,`) renders as U+2006.
+        // the integral carries its limits as unicode sub/superscripts; `\,` renders as U+2006
         assert_eq!(
             display("\\int_0^1 x \\, dx"),
             "\u{222b}\u{2080}\u{b9}x\u{2006}dx"
@@ -1126,8 +1116,7 @@ mod tests {
 
     #[test]
     fn inline_fallback_emits_verbatim_single_dollars() {
-        // A construct with no single-line form is wrapped verbatim in inline math delimiters,
-        // with no escaping of the dollar signs.
+        // no single-line form: wrapped verbatim in `$…$`, dollars unescaped
         assert_eq!(inline("\\frac{1}{2}"), "$\\frac{1}{2}$");
     }
 
@@ -1138,8 +1127,7 @@ mod tests {
 
     #[test]
     fn inline_fallback_trims_edge_whitespace() {
-        // The verbatim inline fallback strips leading and trailing whitespace before wrapping in
-        // `$…$`; interior whitespace is preserved.
+        // inline fallback trims edge whitespace before wrapping; interior whitespace preserved
         assert_eq!(inline("\\sqrt{x} "), "$\\sqrt{x}$");
         assert_eq!(inline(" \\sqrt{x}"), "$\\sqrt{x}$");
         assert_eq!(inline("  \\sqrt{x}  "), "$\\sqrt{x}$");
@@ -1155,8 +1143,7 @@ mod tests {
 
     #[test]
     fn inline_fallback_of_lone_backslash() {
-        // A fallback body of a lone backslash wraps to `$\$` with no escaping. A `\ ` whose
-        // conversion bails to verbatim trims to this same body, so the trim composes with that bail.
+        // a lone backslash wraps to `$\$` unescaped; a bailing `\ ` trims to the same body
         assert_eq!(inline("\\"), "$\\$");
     }
 
@@ -1194,8 +1181,7 @@ mod tests {
 
     #[test]
     fn math_minus_has_no_subscript_glyph_so_the_run_flips_to_superscript() {
-        // U+2212 is absent from the subscript script but present in the superscript script, so a
-        // subscript run containing it maps wholly to superscript glyphs.
+        // U+2212 exists only in the superscript script, so the run maps wholly to superscripts
         assert_eq!(sub("\u{2212}1"), "\u{207b}\u{00b9}");
         assert_eq!(sub("\u{2212}2"), "\u{207b}\u{00b2}");
         assert_eq!(sub("\u{2212}"), "\u{207b}");
@@ -1213,8 +1199,7 @@ mod tests {
 
     #[test]
     fn math_spaces_pass_through_the_script_mappers_unchanged() {
-        // The fixed-width math spaces keep a run convertible and render as themselves, with the
-        // mappable characters around them subscripted.
+        // fixed-width math spaces keep a run convertible and render as themselves
         assert_eq!(
             sub("\u{2004}=\u{2004}1"),
             "\u{2004}\u{208c}\u{2004}\u{2081}"
@@ -1253,8 +1238,7 @@ mod tests {
 
     #[test]
     fn formatted_subscript_content_flips_the_whole_run_to_superscript() {
-        // Content that is not plain text or a space has no subscript form, so a convertible run is
-        // rendered with superscript glyphs.
+        // non-text, non-space content has no subscript form, so the run renders with superscripts
         let flipped = render(vec![Block::Para(vec![Inline::Subscript(vec![
             Inline::Emph(vec![Inline::Str("2".to_owned().into())]),
         ])])]);
@@ -1295,8 +1279,7 @@ mod tests {
             }],
             foot: TableFoot::default(),
         };
-        // A fractional spec far past the whole line must not inflate the rule into a huge
-        // allocation; the output stays within a handful of line widths.
+        // a fractional spec far past the line must not inflate the rule into a huge allocation
         let output = render(vec![Block::Table(Box::new(table))]);
         assert!(
             output.len() < 1_000,

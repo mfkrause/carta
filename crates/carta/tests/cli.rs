@@ -32,8 +32,7 @@ fn run_bytes(args: &[&str], stdin: &[u8]) -> Output {
         .spawn()
         .expect("spawn carta");
     let write_result = child.stdin.take().expect("child stdin").write_all(stdin);
-    // A rejected invocation (e.g. an unsupported format) can exit before reading stdin, closing the
-    // pipe; a broken-pipe write is then expected and must not fail the test.
+    // a rejected invocation can exit before reading stdin; a broken-pipe write is expected then
     if let Err(error) = write_result {
         assert_eq!(
             error.kind(),
@@ -108,8 +107,7 @@ fn reads_input_file_and_writes_output_file() {
 fn unsupported_input_format_fails() {
     let result = run(&["-f", "notaformat", "-t", "html"], "x");
     assert!(!result.success);
-    // An unknown format is a generic failure, distinct from the dedicated
-    // unsupported-extension code asserted in `unsupported_extension_exits_23`.
+    // generic failure, distinct from the dedicated unsupported-extension code 23
     assert_eq!(result.code, Some(1));
     assert!(
         result.stderr.contains("unsupported format: notaformat"),
@@ -195,7 +193,6 @@ fn list_input_formats_needs_no_conversion_flags() {
     let result = run(&["--list-input-formats"], "");
     assert!(result.success, "stderr: {}", result.stderr);
     let formats = lines(&result.stdout);
-    // Canonical names and their aliases are both listed, sorted.
     for expected in [
         "commonmark",
         "commonmark_x",
@@ -264,8 +261,7 @@ fn list_extensions_rejects_an_unknown_format() {
 
 #[test]
 fn list_extensions_rejects_a_toggle_outside_the_format_set() {
-    // reStructuredText admits no pipe-table toggle, so requesting one fails naming both the
-    // extension and the format.
+    // rst admits no pipe-table toggle; the failure names both extension and format
     let result = run(&["--list-extensions=rst+pipe_tables"], "");
     assert!(!result.success);
     assert!(
@@ -312,8 +308,7 @@ fn list_extensions_reports_github_reader_defaults() {
 fn extract_media_writes_files_and_rewrites_references() {
     const NOTEBOOK: &str = r#"{"cells":[{"cell_type":"code","execution_count":1,"metadata":{},"outputs":[{"output_type":"display_data","data":{"image/png":"iVBORw0KGgoAAAANSUhEUg=="},"metadata":{}}],"source":["draw()"]}],"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"}},"nbformat":4,"nbformat_minor":5}"#;
 
-    // The extraction directory must be absolute: the subprocess resolves it against its own working
-    // directory, not this test's temp area.
+    // absolute path: the subprocess resolves it against its own working directory
     let media_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("extract-media");
     let _ = fs::remove_dir_all(&media_dir);
 
@@ -327,9 +322,8 @@ fn extract_media_writes_files_and_rewrites_references() {
     );
     assert!(result.success, "stderr: {}", result.stderr);
 
-    // The document's image reference is rewritten to the extracted file's path. The reference joins
-    // the directory to the name with a forward slash on every platform (a document link is URL-style,
-    // not an OS path), so it is built with the same join the writer uses rather than `Path::join`.
+    // the rewritten reference is URL-style (forward slash on every platform), so build it with the
+    // writer's join, not `Path::join`
     let extracted = media_dir.join(&name);
     let extracted_ref = carta::media::extracted_path(&media_dir.to_string_lossy(), &name);
     assert!(
@@ -337,7 +331,6 @@ fn extract_media_writes_files_and_rewrites_references() {
         "stdout missing extracted path {extracted_ref}:\n{}",
         result.stdout
     );
-    // The bytes are written to that path verbatim, under the content-addressed name.
     let written = fs::read(&extracted).expect("extracted media file");
     assert_eq!(written, bytes);
 }
@@ -345,8 +338,7 @@ fn extract_media_writes_files_and_rewrites_references() {
 #[cfg(feature = "write-html")]
 #[test]
 fn embed_resources_inlines_local_images_as_data_uris() {
-    // A resource resolved through the search path is inlined; `--resource-path` is honored just as
-    // it is for the container writers.
+    // `--resource-path` is honored just as for the container writers
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("embed-resources");
     let assets = dir.join("assets");
     let _ = fs::remove_dir_all(&dir);
@@ -377,8 +369,7 @@ fn embed_resources_inlines_local_images_as_data_uris() {
 #[cfg(feature = "write-html")]
 #[test]
 fn sandbox_leaves_remote_references_external() {
-    // With `--sandbox`, a document-controlled `http(s)://` reference is never fetched: the URL is
-    // left external rather than inlined, eliminating the SSRF surface. No network is contacted.
+    // `--sandbox` never fetches document-controlled URLs (no SSRF surface); the reference stays external
     let result = run(
         &[
             "-f",
@@ -409,7 +400,6 @@ fn sandbox_leaves_remote_references_external() {
 #[cfg(feature = "write-markdown")]
 #[test]
 fn embed_resources_is_ignored_for_non_html_output() {
-    // The flag only affects the HTML family; a Markdown target leaves the reference as written.
     let result = run(
         &["-f", "commonmark", "-t", "markdown", "--embed-resources"],
         "![logo](logo.png)\n",
@@ -424,8 +414,7 @@ fn embed_resources_fetches_a_remote_image_over_http() {
     use std::io::Read;
     use std::net::TcpListener;
 
-    // A loopback server stands in for a remote host: a reference with an `http://` scheme is fetched
-    // and inlined just like a local one, exercising the network path without leaving the machine.
+    // loopback server stands in for a remote host; exercises the fetch path without leaving the machine
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
     let addr = listener.local_addr().expect("local addr");
     let handle = std::thread::spawn(move || {
@@ -481,13 +470,11 @@ fn self_contained_implies_standalone_and_warns() {
         "# Title\n",
     );
     assert!(result.success, "stderr: {}", result.stderr);
-    // The deprecated spelling still works but points at the current one.
     assert!(
         result.stderr.contains("--self-contained is deprecated"),
         "stderr: {}",
         result.stderr
     );
-    // It implies standalone output: the body is wrapped in the full document template.
     assert!(
         result.stdout.contains("<!DOCTYPE html>"),
         "stdout: {}",
@@ -536,7 +523,6 @@ fn toc_is_included_with_flag() {
         "{}",
         with.stdout
     );
-    // Both heading levels are listed at the default depth.
     let nav = toc_nav(&with.stdout);
     assert!(nav.contains("One") && nav.contains("Two"), "{nav}");
 }

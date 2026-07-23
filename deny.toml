@@ -1,6 +1,3 @@
-# cargo-deny configuration. Run with `cargo deny check` (CI installs the tool).
-# Guards dependency licenses, security advisories, and source provenance.
-
 [advisories]
 version = 2
 yanked = "deny"
@@ -9,7 +6,6 @@ yanked = "deny"
 version = 2
 confidence-threshold = 0.9
 private = { ignore = true }
-# Permissive licenses acceptable for dependencies of an independent project.
 allow = [
   "MIT",
   "Apache-2.0",
@@ -22,11 +18,10 @@ allow = [
   "Unicode-DFS-2016",
   "CC0-1.0",
   "MPL-2.0",
-  # Covers the bundled Mozilla root-certificate data the HTTP client's TLS stack ships.
+  # Bundled Mozilla root-certificate data in the TLS stack.
   "CDLA-Permissive-2.0",
 ]
-# The workspace's own crates carry the project license, AGPL-3.0-only. Allow it for these
-# first-party crates only — copyleft dependencies stay disallowed.
+# First-party crates carry AGPL-3.0-only; copyleft dependencies stay disallowed.
 exceptions = [
   { allow = ["AGPL-3.0-only"], name = "carta" },
   { allow = ["AGPL-3.0-only"], name = "carta-ast" },
@@ -39,8 +34,7 @@ exceptions = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-# Workspace-internal crates are referenced by path with no version, which Cargo treats as `*`.
-# Deny wildcards on registry dependencies but permit them for these path dependencies.
+# Path deps have no version (Cargo treats as `*`); deny wildcards only for registry deps.
 allow-wildcard-paths = true
 
 [sources]

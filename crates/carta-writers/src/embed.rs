@@ -4,7 +4,7 @@
 //! references in place so the document carries every resource within itself: an image becomes a
 //! `data:` URI, a linked stylesheet or external script becomes an inline `<style>`/`<script>` element,
 //! and a `url(...)` inside CSS becomes a `data:` URI too. The bytes for each reference come from a
-//! caller-supplied resolver — reading a file, fetching a URL, consulting a bag — so this module holds
+//! caller-supplied resolver (reading a file, fetching a URL, consulting a bag), so this module holds
 //! no I/O: it only finds the references and splices the resolved bytes back in.
 //!
 //! The pass runs over the final markup, after line wrapping, so a reference that spans a wrapped line
@@ -45,8 +45,8 @@ pub fn inline_resources(html: &str, mut resolve: impl FnMut(&str) -> Option<Reso
 }
 
 /// Handle the markup beginning at the `<` at `lt`, appending the (possibly rewritten) result to `out`
-/// and returning the index just past what was consumed. A construct this pass does not touch —
-/// a comment, a declaration, a plain tag — is copied through verbatim.
+/// and returning the index just past what was consumed. A construct this pass does not touch
+/// (a comment, a declaration, a plain tag) is copied through verbatim.
 fn handle_tag(
     html: &str,
     lt: usize,
@@ -64,9 +64,7 @@ fn handle_tag(
         return lt + 1;
     };
     match tag.name.as_str() {
-        // Style and script hold raw text (their body is not parsed as markup), so both consume through
-        // their closing tag. A stylesheet link and a sourced script are replaced whole; other cases
-        // rewrite in place.
+        // Style and script hold raw text, so both consume through their closing tag.
         "style" => inline_style_element(html, &tag, out, resolve),
         "script" => inline_script_element(html, &tag, out, resolve),
         "link" if is_stylesheet_link(&tag) => inline_link_element(html, &tag, out, resolve),
@@ -90,8 +88,8 @@ fn resource_attrs(element: &str) -> &'static [&'static str] {
 }
 
 /// Rewrite the resource-bearing attributes of a media element in place, splicing each resolved
-/// reference back as a `data:` URI while leaving the rest of the tag — its spacing, attribute order,
-/// and every other attribute — byte-for-byte as it was. A media element additionally gains the
+/// reference back as a `data:` URI while leaving the rest of the tag (its spacing, attribute order,
+/// and every other attribute) byte-for-byte as it was. A media element additionally gains the
 /// assistive-technology annotation of [`aria_prefix`], since an inlined graphic carries no external
 /// source to describe it.
 fn rewrite_media_tag(
@@ -106,15 +104,13 @@ fn rewrite_media_tag(
         .iter()
         .any(|attr| wanted.contains(&attr.name.as_str()));
     if !bears_resource {
-        // Not a media element, or one carrying none of its resource attributes (an `<img>` with only a
-        // `srcset`, say): copy it through verbatim, annotation and all.
+        // No resource attribute to handle (e.g. `<img>` with only a `srcset`): copy through verbatim.
         out.push_str(sub(html, tag.lt, tag.end));
         return;
     }
     // Collect the value replacements, in source order, then splice them across the original tag text.
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
-    // The assistive-technology annotation is inserted right after the element name, before the first
-    // attribute, so it precedes everything the tag already carries.
+    // The assistive-technology annotation goes right after the element name, before the first attribute.
     let name_end = tag.lt + 1 + tag.name.len();
     let prefix = aria_prefix(tag);
     if !prefix.is_empty() {
@@ -174,8 +170,8 @@ fn inline_url(
     Some(data_uri(resource.mime.as_deref(), &resource.bytes))
 }
 
-/// A `data:` URI carrying `bytes` inline: the MIME type — or `application/octet-stream` when none is
-/// known — then the bytes as unbroken base64.
+/// A `data:` URI carrying `bytes` inline: the MIME type (or `application/octet-stream` when none is
+/// known), then the bytes as unbroken base64.
 fn data_uri(mime: Option<&str>, bytes: &[u8]) -> String {
     let mime = mime.unwrap_or("application/octet-stream");
     format!("data:{mime};base64,{}", base64_encode(bytes))
@@ -260,7 +256,7 @@ fn inline_text_resource(
 }
 
 /// Rewrite every `url(...)` in a CSS body to a `data:` URI, resolving each relative reference against
-/// `base` — the location of the stylesheet the CSS came from, or empty for a `<style>` block that sits
+/// `base`: the location of the stylesheet the CSS came from, or empty for a `<style>` block that sits
 /// in the document itself.
 fn inline_css(base: &str, css: &str, resolve: &mut impl FnMut(&str) -> Option<Resource>) -> String {
     let mut out = String::with_capacity(css.len());
@@ -323,7 +319,7 @@ struct TagAttr {
     value_span: Option<(usize, usize)>,
 }
 
-/// Whether a `<link>` requests a stylesheet — its `rel` names `stylesheet` among space-separated tokens.
+/// Whether a `<link>` requests a stylesheet: its `rel` names `stylesheet` among space-separated tokens.
 fn is_stylesheet_link(tag: &StartTag) -> bool {
     tag.attr("rel").is_some_and(|rel| {
         rel.split_whitespace()
@@ -395,8 +391,7 @@ fn parse_start_tag(html: &str, lt: usize) -> Option<StartTag> {
                     p += 1;
                 }
                 if p == attr_start {
-                    // No progress on a character that starts no name (a stray `=` or quote): step over
-                    // it so the scan cannot stall.
+                    // Step over a character that starts no name (stray `=` or quote) so the scan cannot stall.
                     p += 1;
                     continue;
                 }
@@ -464,8 +459,8 @@ fn raw_text_body<'a>(html: &'a str, start: usize, element: &str) -> (&'a str, us
     }
 }
 
-/// Copy `html[lt..end]` to `out`, applying each `(start, end, replacement)` edit — non-overlapping and
-/// in ascending order — to the value spans within it.
+/// Copy `html[lt..end]` to `out`, applying each `(start, end, replacement)` edit (non-overlapping and
+/// in ascending order) to the value spans within it.
 fn splice(html: &str, lt: usize, end: usize, edits: &[(usize, usize, String)], out: &mut String) {
     let mut cursor = lt;
     for (start, stop, replacement) in edits {
@@ -601,8 +596,7 @@ mod tests {
 
     #[test]
     fn unresolved_and_data_src_keep_their_value_but_gain_role() {
-        // The src value is left as written (unresolved, or already a data: URI), but an inlined graphic
-        // is still annotated. A non-media `<a>` is untouched, fragment href and all.
+        // src stays as written, but an inlined graphic is still annotated; a non-media `<a>` is untouched.
         let html =
             r##"<img src="gone.png"><img src="data:image/png;base64,AAAA"><a href="#top">x</a>"##;
         let out = inline_resources(html, resolver(&[]));
@@ -614,8 +608,7 @@ mod tests {
 
     #[test]
     fn other_attributes_and_spacing_are_preserved_byte_for_byte() {
-        // The annotation is inserted after the name; the src value changes; id, the odd spacing, and
-        // the alt attribute stay put.
+        // Annotation after the name, src changes; id, the odd spacing, and alt stay put.
         let html = "<img   id=\"a\"  src='pic.png'   alt=\"y\">";
         let out = inline_resources(html, resolver(&[("pic.png", b"hi", Some("image/gif"))]));
         assert_eq!(
@@ -626,8 +619,7 @@ mod tests {
 
     #[test]
     fn image_with_only_a_srcset_is_left_untouched() {
-        // A responsive candidate list is not a lone reference: it is left alone, and an image that
-        // carries no resource attribute the pass handles gains no annotation.
+        // A srcset candidate list is not a lone reference; unhandled images gain no annotation.
         let html = r#"<img srcset="a.png 1x, b.png 2x">"#;
         let out = inline_resources(
             html,

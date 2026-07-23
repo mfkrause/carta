@@ -1,7 +1,7 @@
 //! Markdown writer engine: renders the document model to a markdown family text format.
 //!
 //! Every markdown-family dialect shares this engine, parameterized by the `MarkdownConfig` it runs
-//! with — chiefly the active [`Extensions`] set. Each construct consults the set to choose its
+//! with, chiefly the active [`Extensions`] set. Each construct consults the set to choose its
 //! surface: an attribute block on a header, link, image, or span versus a bare or HTML rendering;
 //! native subscript/superscript/strikeout versus an HTML tag; fenced versus indented code; fenced
 //! divs versus `<div>`; space-aligned, bordered, pipe, or HTML tables; citation syntax versus the
@@ -40,7 +40,7 @@ use crate::markdown_common::{
 /// set decides which constructs have native syntax versus a fallback. `cmark` marks the `CommonMark`
 /// writer family (`gfm`, `commonmark_x`) as opposed to the `markdown`-dialect family (`markdown` and
 /// the sparse dialects): the two families share nearly identical extension sets but differ in a handful
-/// of constructs no extension can distinguish — a div with no fenced-div syntax wraps in raw `<div>`
+/// of constructs no extension can distinguish: a div with no fenced-div syntax wraps in raw `<div>`
 /// for the former and renders its contents transparently for the latter; an ordered list with no
 /// `fancy_lists`/`startnum` keeps its delimiter and start number for the former and collapses to
 /// `1.` for the latter; a hard line break writes `\` for the former and two trailing spaces for the
@@ -62,7 +62,6 @@ impl MarkdownConfig {
         }
     }
 
-    /// Whether the active extension set contains `ext`.
     fn has(self, ext: Extension) -> bool {
         self.extensions.contains(ext)
     }
@@ -85,8 +84,8 @@ impl MarkdownConfig {
 }
 
 /// Render a document with a markdown-family writer. The active extension set is the one the caller
-/// selected through the format spec; when the caller supplied none — a direct writer invocation
-/// rather than a `convert` that seeds the target's own extensions — the writer's `default` dialect
+/// selected through the format spec; when the caller supplied none (a direct writer invocation
+/// rather than a `convert` that seeds the target's own extensions) the writer's `default` dialect
 /// set is used. `cmark` selects the `CommonMark` writer family's behaviors (see [`MarkdownConfig`]).
 fn render_dialect(
     document: &Document,
@@ -151,8 +150,7 @@ impl Writer for GfmWriter {
         true
     }
 
-    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
-    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -189,8 +187,8 @@ impl Writer for CommonmarkXWriter {
 }
 
 /// Renders a document to the legacy GitHub Markdown dialect (`markdown_github`): backtick-fenced
-/// code, pipe tables, strikeout, and task lists, with everything outside that set — spans,
-/// sub/superscript, definition lists, fenced divs, math — falling back to HTML or indented forms.
+/// code, pipe tables, strikeout, and task lists, with everything outside that set (spans,
+/// sub/superscript, definition lists, fenced divs, math) falling back to HTML or indented forms.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MarkdownGithubWriter;
 
@@ -212,8 +210,7 @@ impl Writer for MarkdownGithubWriter {
         true
     }
 
-    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
-    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -221,7 +218,7 @@ impl Writer for MarkdownGithubWriter {
 
 /// Renders a document to the PHP Markdown Extra dialect (`markdown_phpextra`): tilde-fenced code,
 /// pipe tables, definition lists, footnotes, and header/link attributes, with everything outside
-/// that set — strikeout, spans, sub/superscript, math, fenced divs — falling back to HTML or
+/// that set (strikeout, spans, sub/superscript, math, fenced divs) falling back to HTML or
 /// indented forms. Its code fences use tildes since the dialect lacks backtick code blocks.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MarkdownPhpextraWriter;
@@ -247,7 +244,7 @@ impl Writer for MarkdownPhpextraWriter {
 
 /// Renders a document to the `MultiMarkdown` dialect (`markdown_mmd`): backtick-fenced code, pipe
 /// tables, definition lists, footnotes, sub/superscript, and dollar math, with everything outside
-/// that set — strikeout, spans, header attributes, fenced divs — falling back to HTML or indented
+/// that set (strikeout, spans, header attributes, fenced divs) falling back to HTML or indented
 /// forms.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MarkdownMmdWriter;
@@ -270,8 +267,7 @@ impl Writer for MarkdownMmdWriter {
         true
     }
 
-    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
-    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -302,8 +298,7 @@ impl Writer for MarkdownStrictWriter {
         true
     }
 
-    // This dialect has no syntax for a link's identifier, so a contents entry carrying one would
-    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    // No syntax for a link's identifier; contents entries link without a back-reference anchor.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -520,7 +515,7 @@ pub(crate) fn render_blocks(
 }
 
 /// A simple-form table cell rendered to one line: the text with boundary spaces trimmed away, and
-/// the width the cell's column must reserve — the rendered width plus the trimmed spaces.
+/// the width the cell's column must reserve: the rendered width plus the trimmed spaces.
 #[derive(Debug, Default)]
 struct SimpleCell {
     text: String,
@@ -607,8 +602,7 @@ impl State {
             || self.config.has(Extension::GfmAutoIdentifiers);
         let implicit = header_attr_implicit(attr, inlines, auto_identifiers);
         let suffix = if self.config.has(Extension::MmdHeaderIdentifiers) {
-            // MultiMarkdown writes only the identifier, in a trailing `[id]`; classes and key/value
-            // pairs are dropped. An attribute that an auto-identifier would regenerate is omitted.
+            // MultiMarkdown writes only a trailing `[id]`; classes/key-values drop, auto-regenerable ids are omitted.
             if implicit {
                 String::new()
             } else {
@@ -654,9 +648,8 @@ impl State {
     }
 
     fn raw_block(&mut self, format: &Format, text: &str) -> String {
-        // A raw block round-trips verbatim only when its format is one the dialect can embed
-        // natively: HTML under `raw_html`, or TeX under `raw_tex`. Otherwise it needs the
-        // `raw_attribute` fenced form (```` ```{=fmt} ````); without that extension it is dropped.
+        // Verbatim only for a natively embeddable format (HTML under `raw_html`, TeX under `raw_tex`);
+        // otherwise the ```` ```{=fmt} ```` fence needs `raw_attribute`, else the block is dropped.
         let native = if is_html_format(format) {
             self.config.has(Extension::RawHtml)
         } else if is_tex_format(format) {
@@ -682,11 +675,8 @@ impl State {
     fn div(&mut self, attr: &Attr, blocks: &[Block], width: usize) -> String {
         let body = self.blocks_to_string(blocks, width);
         if !self.config.has(Extension::FencedDivs) {
-            // The `CommonMark` family, and any `markdown` dialect that parses raw HTML divs,
-            // wrap the contents in a literal `<div>`; the sparse `markdown` dialects have no
-            // div syntax at all and render the contents transparently. The `markdown_attribute`
-            // dialects also wrap, tagging the `<div>` with `data-markdown="1"` so its contents are
-            // still parsed as Markdown.
+            // CommonMark family and HTML-parsing `markdown` dialects wrap in a literal `<div>` (with
+            // `data-markdown="1"` under `markdown_attribute`); sparse dialects render contents transparently.
             let marker = self.config.has(Extension::MarkdownAttribute);
             if self.config.cmark
                 || self.config.has(Extension::NativeDivs)
@@ -948,8 +938,7 @@ impl State {
                 .attributes
                 .insert(0, ("alt".into(), alt_text.into()));
         }
-        // If the image itself would fall back to an HTML `<img>`, the shorthand cannot carry it; the
-        // caller renders the whole figure as an HTML `<figure>` instead.
+        // An image falling back to `<img>` cannot ride the shorthand; the caller emits an HTML `<figure>`.
         if self.image_renders_as_html(&image_attr) {
             return None;
         }
@@ -988,7 +977,7 @@ impl State {
 
     /// Render a table as a raw HTML block, for a dialect whose extension set gives it no native
     /// table syntax. A raw HTML block in markdown is terminated by a blank line, so any blank line
-    /// the table's HTML spans — an empty body, the gap between two row groups — is collapsed by
+    /// the table's HTML spans (an empty body, the gap between two row groups) is collapsed by
     /// [`encode_html_block_blank_lines`] so the whole table stays a single block.
     fn html_table(&self, table: &Table) -> String {
         let html =
@@ -1198,10 +1187,8 @@ impl State {
             .map(
                 |index| match table.col_specs.get(index).map(|spec| &spec.width) {
                     Some(ColWidth::ColWidth(fraction)) if *fraction > 0.0 => {
-                        // `floor`/`max(0.0)` make the fraction-to-width conversion exact and
-                        // non-negative; the final `min(width)` clamps a spec whose fraction exceeds
-                        // the whole line — a meaningless width that would otherwise allocate a rule
-                        // of that many characters.
+                        // `floor`/`max(0.0)` keep the conversion exact and non-negative; `min(width)`
+                        // clamps a fraction past the whole line, which would allocate a rule that long.
                         #[allow(
                             clippy::cast_precision_loss,
                             clippy::cast_possible_truncation,
@@ -1268,10 +1255,8 @@ impl State {
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
         if self.table_depth > grid::MAX_MEASURED_TABLE_NESTING {
-            // Sizing a column renders every cell a second time, so with nested tables the
-            // measurement passes compound into one full render per ancestor. Past the nesting cap,
-            // columns take an even share of the fill width instead of being measured, keeping the
-            // total work linear in the document.
+            // Column measurement re-renders every cell, compounding per nesting level; past the cap,
+            // columns take an even share of the fill width, keeping total work linear.
             let share = (width / columns.max(1)).max(1);
             natural.fill(share);
             minword.fill(1);
@@ -1918,8 +1903,7 @@ impl NotesHost for State {
     }
 
     fn record_note(&mut self, blocks: &[Block]) -> String {
-        // Without the `footnotes` extension the dialect has no `[^n]` syntax, so a note degrades to
-        // the generic numbered `[n]` reference and definition.
+        // Without `footnotes` there is no `[^n]` syntax; notes degrade to the numbered `[n]` form.
         if !self.config.has(Extension::Footnotes) {
             return self.numbered_note(blocks);
         }
@@ -1963,8 +1947,8 @@ impl NotesHost for State {
 }
 
 /// Encode the blank lines of a raw HTML fragment so it survives as one raw HTML block in markdown.
-/// A blank line ends a raw HTML block, so the newline that opens one — any newline directly
-/// following another — is rewritten as the `&#10;` character reference, leaving single line breaks
+/// A blank line ends a raw HTML block, so the newline that opens one (any newline directly
+/// following another) is rewritten as the `&#10;` character reference, leaving single line breaks
 /// untouched. This keeps an HTML table embedded in a markdown dialect with no native table syntax
 /// intact as a single raw block.
 fn encode_html_block_blank_lines(html: &str) -> String {
@@ -1994,7 +1978,7 @@ fn pieces_to_string(pieces: &[Piece]) -> String {
 }
 
 /// Whether a raw-format name denotes TeX, which Markdown dialects with `raw_tex` embed verbatim.
-/// `ConTeXt` and other TeX-adjacent formats are excluded — only `tex`/`latex` take the verbatim
+/// `ConTeXt` and other TeX-adjacent formats are excluded: only `tex`/`latex` take the verbatim
 /// path; everything else is rendered via the `raw_attribute` fenced form.
 fn is_tex_format(format: &Format) -> bool {
     matches!(format.0.as_str(), "tex" | "latex")
@@ -2387,8 +2371,7 @@ mod escaping_tests {
     fn backslash_run_parity_resets_across_verbatim_runs() {
         let state = state(Extensions::empty(), true);
         assert_eq!(state.escape_str("a\\b"), "a\\b");
-        // The trailing backslash starts a fresh run of one after the intervening clean text, so it
-        // pads to an even pair; the two-backslash run is already even and stays as-is.
+        // A trailing lone backslash pads to an even pair; an already-even run stays as-is.
         assert_eq!(state.escape_str("\\x\\"), "\\x\\\\");
         assert_eq!(state.escape_str("x\\\\"), "x\\\\");
     }
@@ -2400,8 +2383,7 @@ mod tests {
 
     #[test]
     fn deeply_nested_tables_render_without_compounding_measurement() {
-        // Sizing a grid column renders each cell beyond the final emit, so without the nesting cap
-        // every level would multiply the renders of all levels below it — exponential in depth.
+        // Without the nesting cap, column measurement compounds exponentially in table depth.
         use super::MarkdownWriter;
         use carta_ast::{
             Alignment, Attr, Block, Cell, ColSpec, ColWidth, Document, Inline, Row, Table,
@@ -2438,8 +2420,7 @@ mod tests {
             }))
         }
 
-        // Deep enough that compounding measurement would take minutes, while capped measurement
-        // stays well under a second.
+        // Deep enough that compounding measurement would take minutes; capped stays under a second.
         let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
         for _ in 0..9 {
             block = nested_table(vec![block]);
@@ -2455,8 +2436,7 @@ mod tests {
 
     #[test]
     fn yaml_quotes_only_scalars_that_would_reparse_wrongly() {
-        // A colon, a ` #` comment opener, a leading indicator, surrounding space, emptiness, and a
-        // bool/null keyword each force quoting.
+        // Colon, ` #`, leading indicator, surrounding space, emptiness, and bool/null keywords force quoting.
         for forced in [
             "Chapter 1: The Beginning",
             "a:b",
@@ -2483,8 +2463,7 @@ mod tests {
             );
         }
 
-        // Plain text, interior punctuation that stays valid bare, numbers, and non-keyword words are
-        // left unquoted.
+        // Plain text, bare-valid interior punctuation, numbers, and non-keyword words stay unquoted.
         for bare in [
             "plain words",
             "interior-dash here",
@@ -2552,8 +2531,7 @@ mod tests {
                 bodies: Vec::new(),
                 foot: TableFoot::default(),
             };
-            // A fractional spec far past the whole line must not inflate the rule into a huge
-            // allocation, even with no rows present.
+            // A fractional spec far past the whole line must not inflate the rule allocation.
             let output = render(vec![Block::Table(Box::new(table))], None);
             assert!(
                 output.len() < 1_000,
@@ -2586,8 +2564,7 @@ mod tests {
 
         use crate::markdown::MarkdownWriter;
 
-        // A raw-attribute block opens with a backtick fence longer than any run inside its body, so a
-        // body that itself contains a ``` line cannot close the fence early.
+        // The fence outgrows any backtick run in the body, so a ``` line inside cannot close it early.
         #[test]
         fn raw_attribute_fence_outgrows_a_backtick_run_in_the_body() {
             let document = Document {
@@ -2708,8 +2685,7 @@ mod tests {
 
         #[test]
         fn a_trailing_backslash_run_pads_to_an_even_length() {
-            // With raw-TeX passthrough off, a backslash run ending the text doubles its last member
-            // only when the run is odd, so the run never ends on a stray escape.
+            // An odd trailing backslash run doubles its last member, never ending on a stray escape.
             let exts = without(Extension::RawTex);
             assert_eq!(
                 render_with(vec![Block::Para(vec![s("a\\")])], exts),

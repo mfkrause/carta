@@ -57,8 +57,7 @@ pub(crate) fn extract(normalized: &str, options: &ReaderOptions) -> Result<Front
 /// through); `Ok(Some(..))` carries the metadata and body; `Err` marks malformed YAML.
 fn yaml_block(normalized: &str, options: &ReaderOptions) -> Result<Option<FrontMatter>> {
     let lines: Vec<&str> = normalized.split('\n').collect();
-    // A fence line is `---` (open or close) or `...` (close) with optional trailing whitespace;
-    // leading whitespace disqualifies it, so the comparison trims only the end.
+    // a fence is `---` (open/close) or `...` (close); leading whitespace disqualifies, so trim only the end
     if lines.first().is_none_or(|line| line.trim_end() != "---") {
         return Ok(None);
     }
@@ -299,7 +298,7 @@ fn title_block(
 /// a key line carrying a value; the block then runs to the first blank line (or the end of input).
 /// Each key line starts a field; an indented line without a key continues the current field's value.
 /// Any other non-blank line before the terminator abandons the block, so ordinary prose is left in
-/// the body. Values are taken verbatim — words become `Str`, line breaks become soft breaks — with no
+/// the body. Values are taken verbatim (words become `Str`, line breaks become soft breaks) with no
 /// inline markup, and keys are lowercased with all whitespace removed.
 fn mmd_title_block(normalized: &str) -> Option<(BTreeMap<String, MetaValue>, String)> {
     let lines: Vec<&str> = normalized.split('\n').collect();
@@ -441,8 +440,7 @@ mod tests {
 
     #[test]
     fn fence_lines_tolerate_trailing_whitespace() {
-        // Trailing spaces or tabs on either fence still delimit the block, and the body that
-        // follows is not part of the metadata.
+        // trailing spaces/tabs on a fence still delimit; the following body is not metadata
         let document = read("---   \ntitle: T\n---\t\n\nBody\n");
         assert_eq!(
             document.meta.get("title"),

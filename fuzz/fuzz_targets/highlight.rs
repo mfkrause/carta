@@ -3,13 +3,11 @@
 use carta_highlight::Highlighter;
 use libfuzzer_sys::fuzz_target;
 
-// The tokenizer is a regex-driven state machine walking untrusted code; it must terminate and never
-// panic, whatever the input. A handful of grammars with distinct context and rule shapes exercise
-// separate interpreter paths (indentation, nested contexts, line continuations, embedded regexes).
+// The tokenizer must terminate and never panic on untrusted code; these grammars exercise distinct
+// interpreter paths (indentation, nested contexts, line continuations, embedded regexes).
 static GRAMMARS: [&str; 6] = ["python", "haskell", "cpp", "bash", "xml", "latex"];
 
-// The highlighter caches grammars with single-threaded reference counting, so it is not `Sync` and
-// cannot be a plain `static`; one instance per fuzzing thread keeps setup out of the hot loop.
+// The single-threaded refcounted grammar cache is not `Sync`, so one instance per fuzzing thread.
 thread_local! {
     static HIGHLIGHTER: Highlighter = Highlighter::new();
 }

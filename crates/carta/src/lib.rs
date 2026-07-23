@@ -1,6 +1,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
-//! carta — a document converter library.
+//! carta: a document converter library.
 //!
 //! The public entry points: [`convert`] handles any format pair, taking raw bytes and returning an
 //! [`Output`] that is text or bytes depending on the target format's wire shape; [`convert_text`] is
@@ -56,7 +56,7 @@ pub use carta_writers::{Resource, inline_resources};
 ///
 /// # Errors
 /// [`Error::BinaryFormat`] if `to` names a byte-shaped format (its output cannot be represented as a
-/// `String` — use [`convert`]). Otherwise propagates format-resolution errors
+/// `String`; use [`convert`]). Otherwise propagates format-resolution errors
 /// ([`Error::UnsupportedFormat`], [`Error::FormatNotEnabled`], [`Error::UnknownExtension`]) and any
 /// reader/writer error encountered during conversion.
 pub fn convert_text(
@@ -114,8 +114,8 @@ pub fn convert(
 /// Parses `input` in format `from` into the document model together with the embedded resources it
 /// references (a notebook's image outputs; empty for a format that carries none).
 ///
-/// The reading half of [`convert`], exposed so a caller can inspect or transform the [`Document`] —
-/// and extract or rewrite its media — before rendering it with [`render_document`]. `from` may carry
+/// The reading half of [`convert`], exposed so a caller can inspect or transform the [`Document`]
+/// (and extract or rewrite its media) before rendering it with [`render_document`]. `from` may carry
 /// `+ext`/`-ext` toggles, merged with the extensions already in `reader_options`.
 ///
 /// # Errors
@@ -132,9 +132,7 @@ pub fn read_document(
 
     let mut reader_options = reader_options.clone();
     reader_options.extensions = from_ext.union(reader_options.extensions);
-    // The markdown dialect and its variants treat paragraphs as greedy: most block openers need a
-    // preceding blank line, so a bare following line continues the paragraph rather than starting a
-    // new block.
+    // Markdown dialects treat paragraphs as greedy: most block openers need a preceding blank line.
     reader_options.greedy_paragraphs |= from_base.starts_with("markdown");
 
     reader.read_media(input, &reader_options)
@@ -156,10 +154,8 @@ pub fn render_document(
     media: MediaBag,
     writer_options: &WriterOptions,
 ) -> Result<Output> {
-    // Writers recurse once per level of block and inline nesting, so a pathologically deep document
-    // could exhaust the caller's stack while it is serialized. Ensure a large stack is available for
-    // that recursion, allocating one on demand when the caller's own is smaller. The work stays on
-    // this thread so the writer options need not cross a thread boundary.
+    // Writers recurse per nesting level, so a pathologically deep document could exhaust the
+    // caller's stack; grow one on demand. Same thread, so options need not cross threads.
     stacker::maybe_grow(RENDER_STACK, RENDER_STACK, || {
         render_body(to, document, media, writer_options)
     })
@@ -192,8 +188,7 @@ fn render_body(
         document
     };
 
-    // A byte-shaped writer owns its complete output: no template, standalone wrapping, or section
-    // splicing decorates it.
+    // A byte-shaped writer owns its complete output: no template, wrapping, or splicing.
     let writer = match writer {
         AnyWriter::Text(writer) => writer,
         AnyWriter::Bytes(writer) => {
@@ -208,10 +203,8 @@ fn render_body(
 
     let mut document = document;
     let body = if writer_options.number_sections && writer.numbers_sections_in_body() {
-        // Numbering splices section numbers into the heading inlines the contents builder reads,
-        // so a standalone wrapper's table of contents is built from the unnumbered tree first;
-        // the body is then numbered in place. A format with a typesetting counter leaves the body
-        // untouched and is driven by a template flag instead.
+        // Numbering splices into the heading inlines the contents builder reads, so the TOC is
+        // built from the unnumbered tree first; typesetting-counter formats use a template flag.
         #[cfg(feature = "standalone")]
         if wraps_standalone && writer_options.toc && matches!(writer.toc_style(), TocStyle::List) {
             toc_source = standalone::TocSource::Prebuilt(carta_core::sections::build_toc(
@@ -250,7 +243,7 @@ fn render_body(
 ///
 /// [`render_document`] does this itself just before writing, so a direct conversion needs no separate
 /// call. It is exposed for a caller that transforms the document between [`read_document`] and
-/// [`render_document`] — running it through a filter — and wants the transform to observe the same
+/// [`render_document`] (running it through a filter) and wants the transform to observe the same
 /// merged metadata the writer will. Such a caller merges here, then clears
 /// [`WriterOptions::metadata`] and [`WriterOptions::metadata_defaults`] so rendering does not layer
 /// them a second time.

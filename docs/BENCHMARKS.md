@@ -1,21 +1,19 @@
-# Benchmarks — carta vs pandoc
+# Benchmarks: carta vs pandoc
 
-- **Reference machine:** Apple M1 Pro (10 cores), 16 GB RAM, macOS 26.5 (arm64)
-- **carta:** 0.0.7
-- **pandoc:** 3.10
-- **Driver:** hyperfine 1.20.0, warmup 3, 12 runs
+Measured on an Apple M1 Pro (10 cores), 16 GB RAM, macOS 26.5 (arm64): carta 0.0.7 against
+pandoc 3.10, driven by hyperfine 1.20.0 (warmup 3, 12 runs).
 
 ## Headline
 
-- **~8–22× faster** end-to-end across formats and sizes; up to **~46×** on individual reader/writer surfaces.
-- **~20× smaller** binary (9.1 MB vs 179.8 MB).
-- **~4–25× less peak memory**.
+carta is ~8–22× faster end-to-end across formats and sizes, and up to ~46× on individual
+reader/writer surfaces. Its binary is ~20× smaller (9.1 MB vs 179.8 MB), and it uses
+~4–25× less peak memory.
 
 ## How to read this
 
 Both tools run with identical `-f/-t` flags; pandoc is configured so both tools produce equivalent output and do equivalent work. Times are wall-clock end-to-end (process start included). `speedup` = pandoc mean ÷ carta mean. `MB/s` is carta throughput over the actual input size. RSS is peak resident memory from a single `/usr/bin/time` run. The HTML and LaTeX targets include syntax highlighting of code blocks in both tools.
 
-## reader — commonmark → json
+## reader: commonmark → json
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -23,7 +21,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 101 KB |     5.45 ms ± 0.70  |    93.33 ms ± 1.61  |   17.1x |       18.1 |    8.1 MB |   121.8 MB |
 | 1 MB   |    24.48 ms ± 0.38  |   539.33 ms ± 11.21 |   22.0x |       40.9 |   49.0 MB |   225.8 MB |
 
-## reader — html → json
+## reader: html → json
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -31,7 +29,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 112 KB |     5.71 ms ± 0.51  |   176.91 ms ± 6.48  |   31.0x |       19.1 |    8.1 MB |   133.8 MB |
 | 1 MB   |    27.03 ms ± 3.18  |  1240.55 ms ± 53.35 |   45.9x |       40.8 |   51.3 MB |   428.8 MB |
 
-## writer — json → html
+## writer: json → html
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -39,7 +37,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     6.10 ms ± 0.05  |    42.13 ms ± 3.75  |    6.9x |       18.0 |    7.5 MB |    62.2 MB |
 | 1 MB   |     9.88 ms ± 2.37  |   113.38 ms ± 5.11  |   11.5x |      112.9 |    9.9 MB |   123.3 MB |
 
-## writer — json → latex
+## writer: json → latex
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -47,7 +45,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     6.25 ms ± 0.20  |    30.67 ms ± 0.24  |    4.9x |       17.6 |    7.7 MB |    56.6 MB |
 | 1 MB   |     9.73 ms ± 0.09  |   107.23 ms ± 4.29  |   11.0x |      114.6 |   10.2 MB |   122.8 MB |
 
-## writer — json → rst
+## writer: json → rst
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -55,7 +53,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     3.54 ms ± 0.25  |    30.89 ms ± 1.24  |    8.7x |       31.1 |    4.0 MB |    41.2 MB |
 | 1 MB   |     7.24 ms ± 0.81  |    94.98 ms ± 1.37  |   13.1x |      154.0 |    6.5 MB |   122.3 MB |
 
-## writer — json → plain
+## writer: json → plain
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -63,7 +61,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     3.71 ms ± 0.28  |    31.51 ms ± 0.91  |    8.5x |       29.6 |    4.0 MB |    62.5 MB |
 | 1 MB   |     5.75 ms ± 0.08  |    98.10 ms ± 5.78  |   17.1x |      194.2 |    6.5 MB |   122.7 MB |
 
-## writer — json → commonmark
+## writer: json → commonmark
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -71,7 +69,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     3.77 ms ± 0.28  |    46.24 ms ± 4.55  |   12.3x |       29.2 |    4.1 MB |    63.3 MB |
 | 1 MB   |     6.70 ms ± 0.58  |   205.88 ms ± 20.06 |   30.7x |      166.6 |    6.8 MB |   123.6 MB |
 
-## writer — json → mediawiki
+## writer: json → mediawiki
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -79,7 +77,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     3.40 ms ± 0.14  |    31.09 ms ± 0.91  |    9.1x |       32.3 |    4.0 MB |    43.0 MB |
 | 1 MB   |     5.57 ms ± 0.07  |    95.05 ms ± 4.07  |   17.1x |      200.2 |    6.5 MB |   122.2 MB |
 
-## writer — json → native
+## writer: json → native
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -87,7 +85,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     3.58 ms ± 0.20  |    43.67 ms ± 1.07  |   12.2x |       30.8 |    4.1 MB |    42.8 MB |
 | 1 MB   |     7.83 ms ± 0.67  |   182.55 ms ± 6.65  |   23.3x |      142.4 |    9.0 MB |   143.1 MB |
 
-## writer — json → json
+## writer: json → json
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -95,7 +93,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 113 KB |     3.61 ms ± 0.19  |    31.16 ms ± 0.97  |    8.6x |       30.5 |    3.6 MB |    40.0 MB |
 | 1 MB   |     4.86 ms ± 0.10  |    83.62 ms ± 3.96  |   17.2x |      229.7 |    6.1 MB |   121.9 MB |
 
-## e2e — commonmark → html
+## e2e: commonmark → html
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -103,7 +101,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 101 KB |    11.20 ms ± 0.30  |   159.03 ms ± 4.27  |   14.2x |        8.8 |   11.2 MB |   122.2 MB |
 | 1 MB   |    55.17 ms ± 1.47  |  1187.32 ms ± 25.84 |   21.5x |       18.1 |   45.8 MB |   246.2 MB |
 
-## e2e — commonmark → latex
+## e2e: commonmark → latex
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -111,7 +109,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 101 KB |    11.74 ms ± 0.38  |   137.08 ms ± 4.92  |   11.7x |        8.4 |   11.3 MB |   123.6 MB |
 | 1 MB   |    62.75 ms ± 1.74  |  1102.77 ms ± 34.75 |   17.6x |       15.9 |   47.2 MB |   254.7 MB |
 
-## e2e — commonmark → rst
+## e2e: commonmark → rst
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -119,7 +117,7 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 101 KB |     6.77 ms ± 0.13  |   118.74 ms ± 4.60  |   17.5x |       14.6 |    8.3 MB |   122.0 MB |
 | 1 MB   |    43.18 ms ± 0.93  |   819.69 ms ± 27.61 |   19.0x |       23.2 |   43.1 MB |   237.0 MB |
 
-## e2e — commonmark → json
+## e2e: commonmark → json
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
@@ -127,13 +125,13 @@ Both tools run with identical `-f/-t` flags; pandoc is configured so both tools 
 | 101 KB |     5.13 ms ± 0.09  |    92.91 ms ± 2.23  |   18.1x |       19.3 |    8.1 MB |   121.8 MB |
 | 1 MB   |    26.09 ms ± 0.94  |   529.71 ms ± 5.12  |   20.3x |       38.4 |   48.9 MB |   225.8 MB |
 
-## startup — commonmark → html (near-empty input)
+## startup: commonmark → html (near-empty input)
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|
 | 27 B   |     2.63 ms ± 0.16  |    30.70 ms ± 0.62  |   11.7x |        0.0 |    3.3 MB |    41.0 MB |
 
-## startup — commonmark → json (near-empty input)
+## startup: commonmark → json (near-empty input)
 
 | size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |
 |--------|---------------------|---------------------|---------|------------|-----------|------------|

@@ -3,7 +3,7 @@
 //! The notebook is a list of cells followed by the format version and notebook metadata. Cells are
 //! derived from the top-level block sequence: a [`Block::Div`] carrying the `cell` class is one cell,
 //! and any run of blocks between such divs is grouped into a markdown cell of its own. A cell's
-//! second class selects its kind — `code` and `raw` are recognized, anything else is markdown.
+//! second class selects its kind: `code` and `raw` are recognized, anything else is markdown.
 //!
 //! A markdown cell renders its blocks through the markdown engine and stores the result as `source`.
 //! A code cell takes the text of its first [`Block::CodeBlock`] as `source`, reads its execution
@@ -112,7 +112,7 @@ fn typed_cell(
 }
 
 /// A markdown cell: its blocks rendered as markdown, with the div's attributes as cell metadata. An
-/// image whose file name the media bag holds is restored to the cell's inline-attachment form — an
+/// image whose file name the media bag holds is restored to the cell's inline-attachment form: an
 /// `attachment:` reference and an entry in the cell's `attachments` object.
 fn markdown_cell(
     blocks: &[Block],
@@ -141,8 +141,8 @@ fn markdown_cell(
 
 /// Rewrites every image in a cell whose file name the bag holds into an `attachment:` reference and
 /// returns the cell's reconstructed `attachments` object, or `None` when the cell draws on no bag
-/// resources. Each attachment is keyed by the image's file name — the reference the rewritten link now
-/// points at — and carries the same MIME→payload bundle an output image would. The keys are emitted in
+/// resources. Each attachment is keyed by the image's file name (the reference the rewritten link now
+/// points at) and carries the same MIME-to-payload bundle an output image would. The keys are emitted in
 /// sorted order, independent of where each reference first appears in the cell.
 fn reattach_media(blocks: &mut [Block], media: &MediaBag) -> Result<Option<Json>> {
     let mut names: Vec<String> = Vec::new();
@@ -167,8 +167,6 @@ fn reattach_media(blocks: &mut [Block], media: &MediaBag) -> Result<Option<Json>
     Ok(Some(Json::Object(entries)))
 }
 
-/// A code cell: the first code block's text as source, the execution count lifted out of the
-/// attributes, and each sibling `output` div reconstructed as an output object.
 /// The `execution_count` field for a cell or result: the attribute parsed as an integer, or null
 /// when it is absent or not an integer.
 fn execution_count_json(attr: &Attr) -> Json {
@@ -181,6 +179,8 @@ fn execution_count_json(attr: &Attr) -> Json {
     }
 }
 
+/// A code cell: the first code block's text as source, the execution count lifted out of the
+/// attributes, and each sibling `output` div reconstructed as an output object.
 fn code_cell(
     attr: &Attr,
     content: &[Block],
@@ -330,7 +330,7 @@ fn data_bundle(content: &[Block], media: &MediaBag) -> Result<Json> {
 /// The `data` entry for an image output: its MIME type mapped to the payload drawn from the media bag
 /// under the image's file name. A textual image (SVG) is written as a source-line array; every other
 /// type is written as a single base64 string wrapped to notebook line width. An image the bag does
-/// not hold — or one carrying no MIME type — cannot be reconstructed and is unrepresentable.
+/// not hold, or one carrying no MIME type, cannot be reconstructed and is unrepresentable.
 fn image_entry(url: &str, media: &MediaBag) -> Result<(String, Json)> {
     let item = media.get(url).ok_or_else(|| {
         Error::Unrepresentable(format!(
@@ -360,7 +360,6 @@ fn first_verbatim(content: &[Block]) -> String {
     String::new()
 }
 
-/// The first image inline among the inlines: its attributes and destination.
 fn first_image(inlines: &[Inline]) -> Option<(&Attr, &str)> {
     inlines.iter().find_map(|inline| match inline {
         Inline::Image(attr, _, target) => Some((attr.as_ref(), target.url.as_str())),
@@ -368,7 +367,6 @@ fn first_image(inlines: &[Inline]) -> Option<(&Attr, &str)> {
     })
 }
 
-/// The destination of the first image among the inlines, if any.
 fn image_url(inlines: &[Inline]) -> Option<&str> {
     first_image(inlines).map(|(_, url)| url)
 }
@@ -414,7 +412,6 @@ fn notebook_metadata(meta: &BTreeMap<Text, MetaValue>) -> Json {
     Json::Object(pairs)
 }
 
-/// Converts a metadata value to its JSON form.
 fn meta_to_json(value: &MetaValue) -> Json {
     match value {
         MetaValue::MetaMap(map) => Json::Object(
@@ -472,12 +469,10 @@ fn source_lines(text: &str) -> Json {
     )
 }
 
-/// Whether an attribute carries the given class.
 fn has_class(attr: &Attr, class: &str) -> bool {
     attr.classes.iter().any(|candidate| candidate == class)
 }
 
-/// The value of a div's key/value attribute, if present.
 fn attribute_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
     attr.attributes
         .iter()
@@ -512,8 +507,7 @@ fn next_id(div_id: &str, seed: &str, counter: &mut usize) -> String {
 
 /// A deterministic identifier in the canonical 8-4-4-4-12 hexadecimal layout, hashed from the cell's
 /// ordinal and content so repeated runs over the same document reproduce it byte for byte.
-// The single-letter bindings are the sixteen identifier bytes in positional order; longer names
-// would only obscure the byte layout the format string lays out.
+// The single-letter bindings mirror the byte layout the format string lays out.
 #[allow(clippy::many_single_char_names)]
 fn generated_id(ordinal: usize, seed: &str) -> String {
     let mut material = ordinal.to_string();
@@ -531,7 +525,6 @@ fn generated_id(ordinal: usize, seed: &str) -> String {
     )
 }
 
-/// A 64-bit FNV-1a hash of the bytes, starting from the given basis.
 fn fnv1a(basis: u64, bytes: &[u8]) -> u64 {
     let mut hash = basis;
     for &byte in bytes {
@@ -608,7 +601,6 @@ impl Json {
     }
 }
 
-/// Appends `count` indentation spaces.
 fn push_spaces(out: &mut String, count: usize) {
     for _ in 0..count {
         out.push(' ');
@@ -641,7 +633,6 @@ fn escape_string(text: &str, out: &mut String) {
     out.push('"');
 }
 
-/// The lowercase hexadecimal digit for a value below 16; `0` for anything larger.
 fn hex_digit(value: u32) -> char {
     char::from_digit(value, 16).unwrap_or('0')
 }
@@ -1076,8 +1067,7 @@ mod tests {
 
     #[test]
     fn image_output_metadata_is_restored_sorted_and_typed() {
-        // An image output's display metadata rides on the image's attributes; the writer restores it
-        // as the output's own metadata object, keys sorted, numbers and strings typed as given.
+        // Display metadata rides on the image's attributes; restored sorted and typed.
         let bytes = vec![1u8, 2, 3, 4];
         let mut bag = MediaBag::new();
         bag.insert("plot.png", Some("image/png".to_owned()), bytes);

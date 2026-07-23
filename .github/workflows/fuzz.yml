@@ -1,15 +1,11 @@
 name: fuzz (nightly discovery)
 
-# Random-seeded, mutation-based fuzzing — the actual bug hunt. It is deliberately NOT a PR gate:
-# a discovery run is non-deterministic (random seed, evolving corpus, wall-clock budget), so
-# gating merges on it would let an unrelated PR be blocked by a latent bug it did not introduce,
-# and a re-run could flip red/green. Findings surface here instead — uploaded as crash
-# reproducers — and become a committed seed under fuzz/seeds/<target>/ once fixed, which the
-# per-PR regression replay in ci.yml then guards forever.
+# Deliberately not a PR gate: discovery runs are non-deterministic (random seed, evolving corpus),
+# so a latent bug could block an unrelated PR. Findings become seeds under fuzz/seeds/<target>/, replayed per-PR in ci.yml.
 
 on:
   schedule:
-    - cron: "17 4 * * *" # daily at 04:17 UTC (off the hour to dodge the scheduler's peak)
+    - cron: "17 4 * * *" # off the hour to dodge the scheduler's peak
   workflow_dispatch:
     inputs:
       seconds:
@@ -33,11 +29,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Chunk fuzz targets into shards
         id: chunk
-        # Derive the target set from fuzz/Cargo.toml so it never drifts from the [[bin]] table,
-        # then split it into evenly sized shards of at most 20 targets. Each shard fuzzes its
-        # targets serially in one job (one compile per shard), so per-shard wall clock stays at
-        # ~20 × budget regardless of how many targets the crate grows — the shard count scales
-        # instead, and a single serial job can never crawl into the 6 h job ceiling.
+        # Targets come from fuzz/Cargo.toml's [[bin]] table so the set never drifts; shards of at
+        # most 20 fuzz serially (one compile each), so shard count scales instead of wall clock.
         run: |
           names=$(grep '^name = ' fuzz/Cargo.toml | grep -v 'carta-fuzz' | cut -d'"' -f2)
           set -- $names
@@ -68,9 +61,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJSON(needs.shard-matrix.outputs.shards) }}
-    # At most 20 targets × 300 s = 100 min of fuzzing plus one compile per shard. The timeout
-    # leaves headroom for a manually dispatched budget up to ~900 s/target; beyond that, lower
-    # max_per_shard in the shard-matrix job instead of raising this timeout.
+    # Headroom for dispatched budgets up to ~900 s/target; beyond that, lower max_per_shard instead.
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v7
@@ -86,34 +77,19 @@ jobs:
         uses: actions/cache@v6
         with:
           path: fuzz/corpus
-          # A fresh key every run so each night writes back the grown corpus; restore-keys pulls
-          # the most recent prior corpus, so coverage compounds across nights instead of starting
-          # cold each time. Keys are per-shard so parallel shards do not race one namespace; each
-          # shard restores its own latest tree first and falls back to any other shard's (or the
-          # pre-shard `-all-`) cache, so a target migrating between shards as the [[bin]] table
-          # grows carries its corpus along instead of restarting cold.
+          # Fresh per-shard key each run writes back the grown corpus; restore-keys pull the newest
+          # prior tree, falling back to other shards' so a migrating target keeps its corpus.
           key: fuzz-corpus-shard-${{ matrix.shard.index }}-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-shard-${{ matrix.shard.index }}-
             fuzz-corpus-shard-
             fuzz-corpus-all-
       - name: Fuzz shard targets
-        # Loop this shard's targets serially, sharing the single compile. The first corpus dir
-        # is writable — new interesting inputs land there and are cached for the next night; the
-        # committed seeds are added read-only. -timeout / -rss_limit_mb turn a hang or runaway
-        # allocation into a reported crash instead of a silently stuck runner. fail-fast: false
-        # semantics are preserved — every target fuzzes, failures are collected and reported
-        # together so crash reproducers for all targets get uploaded.
-        # Pin the gnu target: musl links libc statically and the sanitizer cannot instrument it.
+        # Serial loop shares one compile; writable first corpus dir, read-only seeds; -timeout/-rss_limit_mb
+        # turn hangs into crashes; failures collect so all targets fuzz. gnu target: musl defeats the sanitizer.
         #
-        # malloc_context_size=0 stops ASan from recording a call stack for every allocation. Those
-        # stacks are interned forever in ASan's stack depot, so on an allocation-heavy recursive
-        # parser the depot alone ratchets process RSS past -rss_limit_mb over a long run and
-        # libFuzzer reports a phantom OOM against whatever innocent unit it happens to be running
-        # (this is exactly how the dokuwiki job went red nightly). The stacks only decorate ASan's
-        # "allocated by" notes on memory-bug reports — panics, the finding class that matters for
-        # pure-Rust readers, are unaffected — and any reproducer can be replayed locally with
-        # default options when those notes are wanted.
+        # malloc_context_size=0: ASan interns per-allocation stacks forever, ratcheting RSS past
+        # -rss_limit_mb on allocation-heavy runs and yielding phantom OOMs; panics are unaffected.
         env:
           ASAN_OPTIONS: malloc_context_size=0
         run: |

@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
 # Benchmark-suite dispatcher: time carta against the pinned pandoc binary on equivalent work.
-#
-# Usage:
-#   run.sh <surface> [filter]   run one surface (reader|writer|e2e|startup|size),
-#                               optional filter narrows it (a format, target, or from:to pair)
-#   run.sh pair <from> <to>     benchmark one arbitrary conversion end-to-end across all sizes
-#   run.sh all                  run every surface
-#
-# Prerequisites (hard): hyperfine, jq, and the gitignored .oracle/ pandoc binary. The carta release
-# binary is built automatically. Results are machine-specific and printed as markdown tables; raw
-# hyperfine JSON lands in $BENCH_OUT (gitignored). Tunables via env: BENCH_SIZES, BENCH_WARMUP,
-# BENCH_RUNS, BENCH_OUT. See README.md.
+# Usage: run.sh <surface [filter]|pair <from> <to>|all>; needs hyperfine, jq, .oracle/; see README.md.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

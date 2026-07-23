@@ -1,5 +1,5 @@
 //! Block-resolution phase: walk the block-phase IR tree, parse each leaf's raw text through the
-//! inline phase, and assemble the final AST blocks — headings with attributes and identifiers,
+//! inline phase, and assemble the final AST blocks: headings with attributes and identifiers,
 //! tables with captions, task-list markers, and figure promotion.
 
 use std::cell::Cell;
@@ -74,16 +74,12 @@ pub(crate) fn resolve_document(
 ) -> Vec<Block> {
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
     let empty = BTreeMap::new();
-    // Heading reference-gathering and footnote-body resolution each run a separate count so that
-    // pre-parsing them does not advance the body's citation numbering. The body carries its own
-    // count, raised in reading order across the whole document body.
+    // Separate counts keep pre-parsing from advancing the body's citation numbering.
     let scratch_count = Cell::new(0);
     let body_count = Cell::new(0);
-    // Headings whose content is context-independent (see `heading_content_is_context_independent`)
-    // are parsed once here and reused by the body pass instead of being parsed twice.
+    // Context-independent headings are parsed once here and reused by the body pass.
     let mut header_parse_cache: HeaderParseCache = BTreeMap::new();
-    // Headings register their references up front so a reference resolves to a heading anywhere in
-    // the document, including one that appears later or inside a footnote definition.
+    // Registered up front so a reference resolves to a heading anywhere in the document.
     if ext.contains(Extension::ImplicitHeaderReferences) {
         let probe = RefContext {
             defined: &defined,
@@ -129,7 +125,7 @@ pub(crate) fn resolve_document(
 /// source text, normalized like any reference label, paired with a `#id` target. Headings are
 /// numbered with the same algorithm that later assigns their `attr` ids, so the two agree. An
 /// already-defined label is left untouched, so an explicit definition outranks a heading and, among
-/// headings, the first with a given label wins — while every heading still advances the numbering.
+/// headings, the first with a given label wins, while every heading still advances the numbering.
 fn register_header_references(
     ir: &[IrBlock],
     refs: &mut RefMap,
@@ -216,9 +212,7 @@ pub(super) fn resolve_block(
         IrBlock::Plain(text) => out.push(plain(parse_inlines(text, refs, notes, ext))),
         IrBlock::Heading(level, text) => {
             let (content, attr) = split_header_attr(text, ext);
-            // A heading's content that is safe to cache (see
-            // `heading_content_is_context_independent`) was already parsed once by the reference
-            // pre-pass; reuse that parse instead of running the inline scan again.
+            // Reuse the reference pre-pass parse for cache-safe heading content.
             let inlines = if heading_content_is_context_independent(content) {
                 cache
                     .get_mut(content)
@@ -236,9 +230,7 @@ pub(super) fn resolve_block(
             ));
         }
         IrBlock::RawHtml(text) => {
-            // In the Markdown dialect with `raw_html` off an HTML block degrades to an ordinary
-            // paragraph of its literal text; the inline pass keeps the tags as text. The bare
-            // CommonMark engine always emits a raw HTML block.
+            // Markdown dialect without `raw_html`: the block degrades to a paragraph of its text.
             if notes.markdown && !ext.contains(Extension::RawHtml) {
                 out.push(Block::Para(parse_inlines(text, refs, notes, ext)));
             } else {
@@ -317,8 +309,8 @@ pub(super) fn resolve_block(
 /// The trigger is exact: the paragraph's sole inline is an `Image` whose alt-text list is
 /// non-empty. The image's identifier is hoisted onto the figure; its classes and key/value
 /// attributes stay on the image. The caption is a clone of the alt inlines wrapped in a `Plain`,
-/// and the image (with its id cleared) is preserved verbatim in the figure body. Anything else —
-/// extra inlines, an empty alt, a link- or emphasis-wrapped image — stays an ordinary paragraph.
+/// and the image (with its id cleared) is preserved verbatim in the figure body. Anything else
+/// (extra inlines, an empty alt, a link- or emphasis-wrapped image) stays an ordinary paragraph.
 fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
     if !ext.contains(Extension::ImplicitFigures) {
         return para(inlines);
@@ -351,8 +343,7 @@ fn para_or_figure(inlines: Vec<Inline>, ext: Extensions) -> Block {
 /// and the body rows in one `TableBody`. Every cell's trimmed text parses into inlines wrapped in a
 /// single `Plain`; an empty cell carries no blocks. A caption, when present, is inline markdown
 /// wrapped in a `Plain`; footers, widths, spans, and row-head columns are the empty defaults.
-// A pipe table carries its shape as loose fields rather than a struct (unlike grid/text tables), so
-// the builder threads them alongside the shared inline-resolution context.
+// Pipe tables carry their shape as loose fields, unlike grid/text tables.
 #[allow(clippy::too_many_arguments)]
 fn resolve_table(
     alignments: &[Alignment],
@@ -644,8 +635,7 @@ pub(super) fn split_header_attr(text: &str, ext: Extensions) -> (&str, Attr) {
                 if ch != '{' {
                     continue;
                 }
-                // The block must be set off from the heading text by whitespace, else it belongs to
-                // the preceding word rather than the heading.
+                // The block must be set off by whitespace, else it belongs to the preceding word.
                 let preceded_by_space =
                     start == 0 || char_before(trimmed, start).is_some_and(is_unicode_whitespace);
                 if preceded_by_space
@@ -702,8 +692,7 @@ fn split_mmd_header_id(text: &str) -> Option<(&str, String)> {
         }
     }
     let open = open?;
-    // A bracket group directly before the label (only whitespace between) makes the pair a
-    // reference-link construct, not an identifier.
+    // A bracket group directly before makes the pair a reference link, not an identifier.
     let mut before = open;
     while let Some(c) = char_before(trimmed, before) {
         if c.is_whitespace() {

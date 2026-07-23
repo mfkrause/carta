@@ -1,9 +1,9 @@
 //! Behavioral coverage of the tokenizer against small, purpose-built syntax definitions.
 //!
 //! Each test registers a minimal definition that exercises one rule type or one piece of the context
-//! machinery, then asserts the classified spans a line tokenizes to. Building definitions by hand —
-//! rather than leaning on the bundled catalog — keeps every rule's behavior pinned independently of
-//! any one language's quirks, and reaches the matchers the bundled grammars happen not to use.
+//! machinery, then asserts the classified spans a line tokenizes to. Building definitions by hand,
+//! rather than using the bundled catalog, keeps every rule's behavior pinned independently of any
+//! one language's quirks, and reaches the matchers the bundled grammars happen not to use.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -74,8 +74,6 @@ fn tok(kind: TokenKind, text: &str) -> (TokenKind, String) {
     (kind, text.to_string())
 }
 
-// --- number and C-literal matchers ------------------------------------------
-
 #[test]
 fn number_matchers_classify_each_base() {
     let def = definition(
@@ -118,8 +116,7 @@ fn float_shapes_and_int_signs() {
            </context>"##,
     );
     let hl = with(&[&def]);
-    // The exponent-only and leading-dot float shapes, plus a signed integer whose sign is reached
-    // only when a word boundary precedes it (so an identifier sits in front).
+    // signed ints need a preceding word boundary, so an identifier sits in front
     assert_eq!(
         line0(&hl, "inum", "a-0x10"),
         vec![
@@ -182,8 +179,6 @@ fn c_string_and_char_escapes() {
     );
 }
 
-// --- character and literal matchers -----------------------------------------
-
 #[test]
 fn range_any_and_char_detectors() {
     let def = definition(
@@ -241,8 +236,6 @@ fn word_and_string_detect_with_boundaries() {
     );
 }
 
-// --- keyword lists ----------------------------------------------------------
-
 #[test]
 fn keywords_are_case_insensitive_and_pull_in_included_lists() {
     let def = definition(
@@ -294,8 +287,6 @@ fn keyword_list_pulls_words_from_another_definition() {
         vec![tok(TokenKind::Keyword, "shared_kw")]
     );
 }
-
-// --- regular expressions ----------------------------------------------------
 
 #[test]
 fn regex_word_boundary_and_case_folding() {
@@ -417,8 +408,7 @@ fn dynamic_regex_escapes_the_captured_text() {
            </context>"##,
     );
     let hl = with(&[&def]);
-    // The captured `.` is a regex metacharacter; it is escaped before substitution, so `%1+` matches
-    // a run of literal dots, not any run of characters.
+    // the captured `.` is escaped before substitution, so `%1+` matches literal dots only
     assert_eq!(
         line0(&hl, "dynrx", "x.a..."),
         vec![
@@ -428,8 +418,6 @@ fn dynamic_regex_escapes_the_captured_text() {
         ]
     );
 }
-
-// --- line continuation ------------------------------------------------------
 
 #[test]
 fn line_continuation_carries_state_across_the_break() {
@@ -454,8 +442,6 @@ fn line_continuation_carries_state_across_the_break() {
         ]
     );
 }
-
-// --- rule inclusion ---------------------------------------------------------
 
 #[test]
 fn include_rules_splices_a_local_context() {
@@ -492,8 +478,7 @@ fn include_rules_repaints_with_include_attrib() {
            </context>"##,
     );
     let hl = with(&[&def]);
-    // The included rule produces a Normal span; `includeAttrib` repaints it with the including
-    // context's own attribute, here Keyword.
+    // `includeAttrib` repaints the included rule's Normal span with the including context's attribute
     assert_eq!(
         line0(&hl, "incattr", "z"),
         vec![tok(TokenKind::Keyword, "z")]
@@ -544,8 +529,6 @@ fn mutually_including_contexts_terminate() {
     // The include-depth guard breaks the A↔B cycle; tokenization still reaches the literal rule.
     assert_eq!(line0(&hl, "cyc", "c"), vec![tok(TokenKind::Keyword, "c")]);
 }
-
-// --- context transitions ----------------------------------------------------
 
 #[test]
 fn multi_pop_unwinds_several_contexts_at_once() {

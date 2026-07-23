@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
-# Command-test surface: reuse pandoc's declarative command tests as differential cases.
-#
-# Each test is a fenced block: a `% pandoc <args>` line, the stdin input, a `^D` separator, then the
-# expected stdout. We parse (args, input) with awk and run the conversion through carta and the
-# oracle, comparing the two live outputs — NOT the baked expected. The baked expected was produced
-# without carta's deterministic normalization (suppressed syntax highlighting, MathJax math), so it
-# would register intentional deltas as failures; a freshly normalized oracle run is the correct
-# reference and keeps this surface consistent with every other one.
-#
-# Only tests whose command is a bare `pandoc` invocation using exclusively input/output format flags
-# (-f/-r/--from/--read, -t/-w/--to/--write) with a fully implemented (from, to) pair are run.
-# Everything else — unported formats, extension flags, file arguments, pipelines — is skipped and
-# counted. The skip count is large by design and reported, never hidden.
-#
-# Usage: surfaces/commands.sh
+# Reuse pandoc's command tests as differential cases, diffing carta against a live normalized oracle
+# run, NOT the baked expected. Only bare format-flag commands on implemented pairs run; rest skipped.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -29,8 +16,7 @@ in_set() {
   return 1
 }
 
-# Populate FROM/TO from a command string, or set OK=0 when the command uses anything beyond the
-# allowlisted input/output format flags.
+# Populate FROM/TO from a command string; OK=0 when any non-format flag appears.
 parse_cmd() {
   FROM="" TO="" OK=1
   local -a toks

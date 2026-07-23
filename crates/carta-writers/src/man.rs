@@ -125,7 +125,7 @@ enum Fragment {
 impl State {
     /// Render a block sequence at the top level or inside an indent group. A paragraph is preceded by
     /// `.PP` unless it immediately follows a heading; every other block carries its own leading
-    /// request, so blocks are simply newline-joined.
+    /// request, so blocks are newline-joined.
     fn blocks(&mut self, items: &[Block]) -> String {
         let mut out = String::new();
         let mut previous_is_header = false;
@@ -325,8 +325,7 @@ impl State {
                     blocks.push(if body.is_empty() {
                         "T{\nT}".to_owned()
                     } else if cell_opens_with_space(&cell.content) {
-                        // A leading space inline is cell content, but the roff renderer eats plain
-                        // leading whitespace; escape it so it survives.
+                        // roff eats plain leading whitespace; escape it so it survives
                         format!("T{{\n\\ {body}\nT}}")
                     } else {
                         format!("T{{\n{body}\nT}}")
@@ -393,7 +392,6 @@ impl State {
         escape_line_start(out.trim_end_matches('\n'))
     }
 
-    /// Build the fragment stream for an inline sequence under the given active font.
     fn fragments(&mut self, items: &[Inline], font: Font) -> Vec<Fragment> {
         let mut out = Vec::new();
         for item in items {
@@ -596,8 +594,6 @@ fn push_text(out: &mut Vec<Fragment>, rendered: &str) {
     });
 }
 
-/// Wrap a display equation's rendered content in a relative-indent group. Empty content collapses to
-/// a bare `.RS`/`.RE` pair with no inner line.
 fn display_group(content: &str) -> String {
     if content.is_empty() {
         ".RS\n.RE".to_owned()
@@ -936,7 +932,6 @@ fn code_block(text: &str) -> String {
     out
 }
 
-/// Emit a raw-passthrough block verbatim when its format is `man`; drop it otherwise.
 fn raw_passthrough(format: &Format, text: &str) -> String {
     if format.0 == "man" {
         text.trim_end_matches('\n').to_owned()
@@ -1384,8 +1379,7 @@ mod tests {
 
     #[test]
     fn nonconvertible_inline_math_falls_back_to_escaped_source() {
-        // `\frac` has no single-line form, so the source is emitted between `$` delimiters with roff
-        // escaping applied (backslash, braces and `$` kept literal except the escaped backslash).
+        // `\frac` has no single-line form: source emitted between `$` delimiters, roff-escaped
         assert_eq!(
             render(vec![para(vec![inline_math("\\frac{1}{2}")])]),
             ".PP\n$\\(rsfrac{1}{2}$"

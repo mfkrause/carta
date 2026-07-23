@@ -15,8 +15,7 @@ carta-readers = { path = "../crates/carta-readers" }
 carta-writers = { path = "../crates/carta-writers" }
 carta-highlight = { path = "../crates/carta-highlight" }
 
-# One target per reader: each ingests untrusted bytes and must never panic. The `highlight` target is
-# the analog for the tokenizer, which walks untrusted code through a regex-driven state machine.
+# One target per reader (plus `highlight` for the tokenizer): untrusted bytes must never panic.
 [[bin]]
 name = "read_commonmark"
 path = "fuzz_targets/read_commonmark.rs"
@@ -157,10 +156,8 @@ test = false
 doc = false
 bench = false
 
-# One `write_*` target per writer module: each synthesizes an `Arbitrary` document (the JSON and
-# native readers accept untrusted ASTs, so writers sit on the untrusted-input path too) and asserts
-# the writer neither panics nor produces irreproducible output. Modules with several writer variants
-# sharing one code path (markdown, html, epub) drive all variants from one target.
+# One `write_*` target per writer module: `Arbitrary` documents (writers sit on the untrusted-input
+# path via the JSON/native readers) must neither panic nor render irreproducibly.
 
 [[bin]]
 name = "write_asciidoc"
@@ -326,6 +323,5 @@ bench = false
 [profile.release]
 debug = 1
 
-# Detached from the root workspace: cargo-fuzz needs a nightly toolchain and a sanitizer, so this
-# crate is built on its own (see fuzz/README.md), never by the stable-pinned workspace.
+# Detached from the root workspace: cargo-fuzz needs nightly and a sanitizer (see fuzz/README.md).
 [workspace]

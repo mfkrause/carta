@@ -1,8 +1,8 @@
 //! The `word/numbering.xml` part and the plan that drives it.
 //!
 //! Every document carries two scaffold definitions: a no-glyph bulleted definition (`990`) whose
-//! concrete instance `1000` numbers the continuation paragraphs of multi-paragraph list items, and —
-//! when a bulleted list appears — the visible bullet definition (`991`). Each ordered list
+//! concrete instance `1000` numbers the continuation paragraphs of multi-paragraph list items, and,
+//! when a bulleted list appears, the visible bullet definition (`991`). Each ordered list
 //! contributes a definition keyed by its marker style, delimiter and start number, so lists that
 //! share those settings share one definition. Every list *instance* in the body binds to a definition
 //! through its own concrete number, allocated in document order from `1001` upward.
@@ -139,8 +139,8 @@ fn delim_code(delim: ListNumberDelim) -> u32 {
 }
 
 /// The Word numbering format name for a marker style at a given nesting depth. A default-styled list
-/// has no fixed format of its own, so it cycles by depth — decimal, lowercase letter, lowercase roman,
-/// repeating — to keep nested levels visually distinct. Every other style keeps one format at every
+/// has no fixed format of its own, so it cycles by depth (decimal, lowercase letter, lowercase roman,
+/// repeating) to keep nested levels visually distinct. Every other style keeps one format at every
 /// level.
 fn num_fmt(style: ListNumberStyle, depth: u32) -> &'static str {
     match style {
@@ -218,7 +218,7 @@ fn bullet_level(depth: u32) -> Element {
 }
 
 /// One level of a task-list checkbox definition: a static ballot-box glyph, empty or ticked, used at
-/// every depth. Unlike an ordinary bullet it carries no font override — the glyph stands on its own.
+/// every depth. Unlike an ordinary bullet it carries no font override; the glyph stands on its own.
 fn checkbox_level(checked: bool, depth: u32) -> Element {
     let glyph = if checked { "\u{2612}" } else { "\u{2610}" };
     Element::new("w:lvl")

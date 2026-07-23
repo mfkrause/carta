@@ -2,11 +2,11 @@
 //!
 //! Zipped-XML packages ship no DTD a reader must honor, so a permissive well-formed-XML scan
 //! suffices. The parser is iterative and never recurses, so adversarially deep markup cannot
-//! overflow the stack; a caller-supplied depth ceiling bounds the materialized tree instead —
+//! overflow the stack; a caller-supplied depth ceiling bounds the materialized tree instead:
 //! content nested past the ceiling is kept but not descended into. Two entry points serve the two
 //! shapes callers need: [`parse`] returns the single root element or `None` when the input holds no
-//! element, while [`parse_tolerant`] never fails, folding every top-level node — and anything left
-//! open by truncated input — into a synthetic root whose children are the document's top-level
+//! element, while [`parse_tolerant`] never fails, folding every top-level node (and anything left
+//! open by truncated input) into a synthetic root whose children are the document's top-level
 //! nodes.
 
 use crate::xml_entities::decode_entities;
@@ -221,8 +221,6 @@ fn parse_start_tag(
         }
     }
     if self_closing || stack.len() >= max_depth {
-        // At the depth ceiling the element is kept but its subtree is not descended into, so nesting
-        // cannot grow without bound.
         attach(stack, Node::Element(element));
     } else {
         stack.push(element);

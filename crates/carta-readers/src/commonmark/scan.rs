@@ -1,8 +1,8 @@
 //! Shared raw-text scanners over string slices, used by both parsing phases.
 //!
 //! These are pure functions: given a `&str` and a start byte offset, each recognizes one construct
-//! — an autolink, a raw inline HTML tag, a character reference, a link destination / title / label,
-//! or a full link reference definition — and returns the parsed value together with the byte offset
+//! (an autolink, a raw inline HTML tag, a character reference, a link destination / title / label,
+//! or a full link reference definition) and returns the parsed value together with the byte offset
 //! just past it. They hold no parser state. The inline phase drives most of them; the block phase
 //! reuses the link-reference-definition and unescaping scanners while collecting definitions.
 
@@ -12,8 +12,8 @@ use super::LinkDef;
 
 /// Percent-encode the characters a link destination may not safely carry literally: ASCII
 /// whitespace and the delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes
-/// through unchanged — including a literal `%`, so an existing `%XX` sequence is preserved rather
-/// than doubled — as does all non-ASCII text. Applying it twice yields the same result.
+/// through unchanged (including a literal `%`, so an existing `%XX` sequence is preserved rather
+/// than doubled), as does all non-ASCII text. Applying it twice yields the same result.
 pub(crate) fn escape_uri(url: &str) -> String {
     fn hex(nibble: u8) -> char {
         char::from_digit(u32::from(nibble), 16)
@@ -514,8 +514,7 @@ fn skip_inline_whitespace(text: &str, index: &mut usize) {
 /// Normalize a link label per the spec: trim, collapse internal whitespace to single spaces, and
 /// apply Unicode case folding (so e.g. `ẞ` and `SS` match).
 pub(crate) fn normalize_label(label: &str) -> String {
-    // Whitespace collapse is only needed when the label carries whitespace; otherwise case-fold the
-    // input directly and skip the intermediate split/join allocation.
+    // Case-fold directly when there is no whitespace, skipping the split/join allocation.
     if label.chars().any(char::is_whitespace) {
         let collapsed = label.split_whitespace().collect::<Vec<_>>().join(" ");
         caseless::default_case_fold_str(&collapsed)
@@ -616,7 +615,6 @@ pub(crate) fn parse_link_reference_definition(
         (url, title)
     };
 
-    // Consume the trailing newline.
     if char_at(text, index) == Some('\n') {
         index += 1;
     }
@@ -636,8 +634,8 @@ pub(crate) fn parse_link_reference_definition(
 /// Parse a leading abbreviation definition (`abbreviations`) from `text`: a single line of the form
 /// `*[label]:` optionally followed by the definition. The `*` must be glued to the opening bracket;
 /// the label runs to its matching close bracket (nesting allowed) on the same line, may be empty, and
-/// must be followed immediately by a colon. The definition itself is discarded — only later use of
-/// the term is affected — so this returns just the unconsumed remainder of `text`, or `None` when the
+/// must be followed immediately by a colon. The definition itself is discarded (only later use of
+/// the term is affected), so this returns just the unconsumed remainder of `text`, or `None` when the
 /// line does not open a definition.
 pub(crate) fn parse_abbreviation_definition(text: &str) -> Option<&str> {
     let mut index = 0;
@@ -719,7 +717,7 @@ fn scan_following_title(text: &str, after_dest: usize) -> Option<(String, usize)
 enum TitleScan {
     /// A title that occupies the rest of the line. Carries the raw title and the index at line end.
     Title(String, usize),
-    /// A parenthesized title that parses but is not the line's last element — invalid here.
+    /// A parenthesized title that parses but is not the line's last element, which is invalid here.
     Reject,
     /// A title delimiter that does not form a line-ending title; its characters are literal text.
     Literal,
@@ -913,8 +911,7 @@ mod tests {
 
     #[test]
     fn a_malformed_line_opens_no_definition() {
-        // Leading space, a double star, a gap before the colon, an unclosed label, and a missing
-        // colon each disqualify the line.
+        // Leading space, double star, gap before the colon, unclosed label, or missing colon disqualify.
         assert_eq!(parse_abbreviation_definition(" *[HTML]: x"), None);
         assert_eq!(parse_abbreviation_definition("**[HTML]: x"), None);
         assert_eq!(parse_abbreviation_definition("*[HTML] : x"), None);

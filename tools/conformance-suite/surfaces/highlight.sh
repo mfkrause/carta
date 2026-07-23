@@ -1,27 +1,14 @@
 #!/usr/bin/env bash
-# Highlight surface: differential parity of the syntax-highlighting command surface and rendered output.
-#
-# Four groups, each a live carta-vs-oracle diff (nothing committed):
-#
-#   - catalog:  `--list-highlight-languages` and `--list-highlight-styles` must byte-match.
-#   - styles:   `--print-highlight-style <name>` must byte-match for every built-in style.
-#   - render:   a multi-language document, colorized with each built-in style, must byte-match in HTML
-#               and LaTeX. HTML uses `--wrap=none` so the comparison isolates the colorized code from
-#               the writer's unrelated line-filling of surrounding markup.
-#   - modes:    the `none` and `idiomatic` presentation modes, and explicit line numbering, must match.
-#
-# Emits one `RESULT highlight <group>` line per group; non-zero exit on any fail/err.
-#
-# Usage: surfaces/highlight.sh
+# Highlight surface: live carta-vs-oracle byte diffs of the highlighting catalog, printed styles,
+# rendered HTML/LaTeX per style (--wrap=none isolates colorized code), and the none/idiomatic modes.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
 
-# The built-in styles, taken from the oracle so the sweep tracks whatever it ships.
+# built-in styles taken from the oracle so the sweep tracks what it ships
 STYLES=$("$ORACLE" --list-highlight-styles 2>/dev/null)
 
-# A document exercising several languages and token kinds: keywords, comments, strings, numbers in a
-# few different grammars, plus a line-numbered block.
+# multi-grammar document: keywords, comments, strings, numbers, plus a line-numbered block
 DOC="$WORK/.hl.md"
 cat >"$DOC" <<'EOF'
 ```python
@@ -46,7 +33,6 @@ b = 2
 ```
 EOF
 
-# --- catalog: the language and style listings ---
 conf_reset "highlight-catalog"
 "$ORACLE" --list-highlight-languages >"$WORK/.hl.olang" 2>/dev/null
 "$OX" --list-highlight-languages >"$WORK/.hl.xlang" 2>"$WORK/.hl.err"
@@ -65,7 +51,6 @@ fi
 report highlight catalog
 tally_group
 
-# --- styles: the printed JSON theme for each built-in style ---
 conf_reset "highlight-styles"
 empty="$WORK/.hl.empty"
 : >"$empty"
@@ -76,7 +61,6 @@ done
 report highlight styles
 tally_group
 
-# --- render: colorized HTML and LaTeX for each built-in style ---
 conf_reset "highlight-render"
 for style in $STYLES; do
   run_diff text "highlight/html/$style" "$DOC" \
@@ -89,7 +73,6 @@ done
 report highlight render
 tally_group
 
-# --- modes: none, idiomatic, and standalone preambles ---
 conf_reset "highlight-modes"
 run_diff text "highlight/none/html" "$DOC" \
   "-f markdown -t html --wrap=none --no-highlight" \

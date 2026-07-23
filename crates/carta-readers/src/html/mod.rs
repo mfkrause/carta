@@ -1,9 +1,6 @@
 //! HTML reader.
 //!
-//! Parsing runs in three stages: a tokenizer (`tokenize`) turns the source into a flat stream of
-//! start tags, end tags and text; a tree builder (`tree::build_tree`) assembles that stream into a
-//! node tree, applying void-element and implied-end-tag rules; and a `convert::Converter` walks the
-//! tree into a [`Document`]. Document metadata is read from a `<head>` element when present.
+//! Document metadata is read from a `<head>` element when present.
 
 mod classify;
 mod convert;
@@ -352,8 +349,7 @@ mod tests {
 
     #[test]
     fn definition_list_sees_through_grouping_divs() {
-        // Wrapping each `<dt>`/`<dd>` pair in a `<div>` is valid HTML5; the grouping is transparent
-        // so the term/definition stream is unaffected.
+        // wrapping each dt/dd pair in a div is valid HTML5; the grouping is transparent
         let Block::DefinitionList(items) = first_block(
             "<dl><div><dt>t1</dt><dd>d1</dd></div><div><dt>t2</dt><dd>d2</dd></div></dl>",
         ) else {
@@ -367,8 +363,7 @@ mod tests {
 
     #[test]
     fn block_level_anchor_splits_into_link_and_blocks() {
-        // An `<a>` may wrap block content; the leading inline run becomes a link and the block
-        // children lay out as block flow after it rather than collapsing to a single inline.
+        // an <a> may wrap block content: the leading inline run becomes a link, block children follow
         let result = blocks("<a href=\"u\">before<p>inside</p>after</a>");
         let Some(Block::Para(lead)) = result.first() else {
             panic!("expected a leading paragraph");
@@ -446,10 +441,8 @@ mod tests {
 
     #[test]
     fn oversized_cell_spans_are_clamped() {
-        // A cell span materialises one grid slot per spanned column (and a carry per spanned row),
-        // so an unbounded `colspan="90000000"` once forced a multi-gigabyte allocation that a
-        // nightly fuzz run hit as an out-of-memory crash. Spans are now clamped to the HTML spec's
-        // limits, keeping the input parseable in bounded memory.
+        // spans are clamped to the HTML spec limits: each spanned slot materialises, so an
+        // unclamped colspan="90000000" would force a multi-gigabyte allocation
         let input = r#"<table><tr><td colspan="90000000" rowspan="2">x</td></tr><tr><td>y</td></tr></table>"#;
         let Block::Table(table) = first_block(input) else {
             panic!("expected table");
@@ -644,8 +637,7 @@ mod tests {
 
     #[test]
     fn cdata_reads_as_text_and_processing_instruction_is_dropped() {
-        // A CDATA section contributes its content as ordinary character data; a processing
-        // instruction contributes nothing.
+        // CDATA contributes character data; a processing instruction contributes nothing
         let inlines = para_inlines("<p>a<![CDATA[ junk ]]><?pi here?>b</p>");
         assert_eq!(
             inlines.as_slice(),
@@ -875,8 +867,7 @@ mod tests {
 
     #[test]
     fn native_spans_off_keeps_class_carrying_inlines() {
-        // `<mark>`/`<kbd>` and friends are their own constructs, not `<span>` elements, so the
-        // toggle leaves them as spans.
+        // mark/kbd are their own constructs, not <span> elements, so the toggle leaves them
         let result = read_with("<p><mark>m</mark></p>", Extensions::empty());
         let Some(Block::Para(inlines)) = result.first() else {
             panic!("expected paragraph");
@@ -1074,8 +1065,7 @@ mod tests {
 
     #[test]
     fn gfm_auto_identifiers_drops_dots_keeps_digits_and_does_not_collapse() {
-        // The `gfm_auto_identifiers` slug differs from the default: dots are dropped, leading digits
-        // survive, and removed punctuation leaves its surrounding separators (no run collapsing).
+        // gfm slug: dots dropped, leading digits kept, no separator-run collapsing
         let ids = header_ids(
             "<h2>1.2 Section A.B</h2><h2>Tools &amp; Tips</h2>",
             &[Extension::GfmAutoIdentifiers],

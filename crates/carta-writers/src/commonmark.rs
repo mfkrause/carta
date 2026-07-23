@@ -44,8 +44,7 @@ impl Writer for CommonmarkWriter {
         true
     }
 
-    // `CommonMark` has no syntax for a link's identifier, so a contents entry carrying one would
-    // degrade to raw HTML; entries link without a back-reference anchor instead.
+    // No syntax for a link identifier; an entry carrying one would degrade to raw HTML.
     fn toc_link_anchors(&self) -> bool {
         false
     }
@@ -61,7 +60,7 @@ struct State {
     /// Whether rendering is currently inside a raw-HTML anchor. An anchor cannot contain another
     /// anchor, so a link nested inside one degrades to a `<span>` carrying its attributes.
     in_anchor: bool,
-    /// Half-open index ranges into the piece run being built that must wrap as a single atom — a
+    /// Half-open index ranges into the piece run being built that must wrap as a single atom: a
     /// raw-HTML link fallback, whose opening tag, body, and closing tag fold together rather than
     /// letting the surrounding text wrap between them.
     groups: Vec<(usize, usize)>,
@@ -191,9 +190,7 @@ impl State {
         width: usize,
     ) -> String {
         let loose = is_loose(items);
-        // CommonMark numbers ordered lists only in decimal, delimited by a period or a single
-        // closing parenthesis; every other numeral style collapses to decimal and a two-parenthesis
-        // delimiter collapses to the single closing form.
+        // Only decimal numbering with `.` or `)` exists; other styles and delimiters collapse.
         let delim = match attrs.delim {
             ListNumberDelim::OneParen | ListNumberDelim::TwoParens => ListNumberDelim::OneParen,
             ListNumberDelim::Period | ListNumberDelim::DefaultDelim => ListNumberDelim::Period,
@@ -338,11 +335,8 @@ impl State {
                 out.push(Piece::Hard);
             }
             Inline::Math(MathType::DisplayMath, tex) => {
-                // Display math is set off on its own line: a line break before and after sets it
-                // apart from the surrounding text. A break at the paragraph's start is dropped (the
-                // line is already fresh) and one at its end is trimmed, so the breaks are emitted
-                // unconditionally and the boundary cases self-correct. An adjacent space is absorbed
-                // by the break.
+                // Breaks are emitted unconditionally; paragraph-edge breaks are dropped or
+                // trimmed later, so the boundary cases self-correct.
                 out.push(Piece::Hard);
                 self.math_content(&MathType::DisplayMath, tex, out);
                 out.push(Piece::Hard);
@@ -483,8 +477,8 @@ impl State {
             ),
             true,
         );
-        // A raw `<img>` tag lays out as one atom, so a line break falls between whole tags rather
-        // than inside one; an image nested in a link already belongs to that link's atom.
+        // A raw `<img>` tag is one atom so breaks fall between tags; a linked image already
+        // belongs to the link's atom.
         if !self.in_anchor {
             self.groups.push((start, out.len()));
         }
@@ -690,8 +684,8 @@ fn leading_escape(text: &str) -> Option<usize> {
     }
 }
 
-/// The byte offset of the `)` that closes a leading ordered-list marker in parenthesized form — `(`
-/// then a run of decimal digits then `)` — when that `)` falls within the first ten columns and is
+/// The byte offset of the `)` that closes a leading ordered-list marker in parenthesized form (`(`
+/// then a run of decimal digits then `)`) when that `)` falls within the first ten columns and is
 /// followed by whitespace or the end of the text. Both parentheses are escaped so the run is not
 /// re-read as a list item. `None` when the text does not open with such a marker. The offset always
 /// falls inside an ASCII prefix, so it doubles as a character index.
@@ -981,8 +975,7 @@ mod tests {
 
     #[test]
     fn attr_image_wraps_before_the_whole_tag() {
-        // A raw `<img>` tag that will not fit after the preceding text moves whole to the next line
-        // rather than starting on the text line and folding after `<img`.
+        // An `<img>` tag that does not fit moves whole to the next line, never folding mid-tag.
         let url = format!("{}.png", "a".repeat(40));
         let image = Inline::Image(
             Box::new(Attr {
@@ -1135,8 +1128,7 @@ mod tests {
 
     #[test]
     fn convertible_math_uses_inline_markup() {
-        // Binary operators and relations carry their math spacing (`U+2005` around `+`,
-        // `U+2004` around `=`).
+        // Math spacing: `U+2005` around `+`, `U+2004` around `=`.
         assert_eq!(
             render(vec![para(vec![inline_math("a^2 + b^2 = c^2")])]),
             "*a*<sup>2</sup>\u{2005}+\u{2005}*b*<sup>2</sup>\u{2004}=\u{2004}*c*<sup>2</sup>"
@@ -1154,8 +1146,7 @@ mod tests {
 
     #[test]
     fn unconvertible_inline_math_falls_back_to_single_dollars() {
-        // The fallback routes the literal through the running-text path, so a word-boundary `_`
-        // is escaped while the `$` delimiters stay literal.
+        // The running-text path escapes a word-boundary `_`; the `$` delimiters stay literal.
         assert_eq!(
             render(vec![para(vec![inline_math("\\sum_{i=1}^n a_i")])]),
             "$\\sum\\_{i=1}^n a_i$"
@@ -1172,8 +1163,7 @@ mod tests {
 
     #[test]
     fn inline_math_fallback_trims_edge_whitespace() {
-        // The verbatim inline fallback strips leading and trailing whitespace before wrapping in
-        // `$…$`; interior whitespace is preserved.
+        // Edge whitespace is stripped before wrapping in `$…$`; interior whitespace stays.
         assert_eq!(
             render(vec![para(vec![inline_math("\\sqrt{x} ")])]),
             "$\\sqrt{x}$"
@@ -1207,9 +1197,7 @@ mod tests {
 
     #[test]
     fn inline_math_fallback_of_lone_backslash_escapes() {
-        // A fallback body of a lone backslash wraps to `$\$`, whose backslash the running-text path
-        // escapes to `$\\`. A `\ ` whose conversion bails to verbatim trims to this same lone-
-        // backslash body, so the trim composes with that bail to reach this end state.
+        // `\` wraps to `$\$`, escaped to `$\\`; a bailed `\ ` trims to the same body.
         assert_eq!(render(vec![para(vec![inline_math("\\")])]), "$\\\\");
     }
 
@@ -1355,7 +1343,7 @@ mod tests {
         );
     }
 
-    // The relation `=` carries math spacing (`U+2004`) on each side in the converted inline tree.
+    // `=` carries `U+2004` math spacing on each side in the converted tree.
     const X_EQ_Y: &str = "*x*\u{2004}=\u{2004}*y*";
 
     #[test]
@@ -1372,8 +1360,7 @@ mod tests {
 
     #[test]
     fn display_math_breaks_at_paragraph_edges_collapse() {
-        // At the paragraph's start the leading break is dropped; at its end the trailing break is
-        // trimmed.
+        // The leading break drops at the paragraph's start; the trailing one trims at its end.
         let at_start = render(vec![para(vec![
             display_math("x=y"),
             Inline::Space,

@@ -64,7 +64,7 @@ pub(crate) enum Continuation {
 /// Only a table whose header and delimiter rows are both already present takes over: a following
 /// pipe row is a body row and anything else ends the table. While only the header is present the
 /// candidate delimiter is left to the ordinary block rules, so a delimiter that begins with a list
-/// marker (`- |`) opens a list rather than a table — a table must not interrupt those.
+/// marker (`- |`) opens a list rather than a table: a table must not interrupt those.
 ///
 /// Once the header and delimiter have validated the caller passes `established`, and only the new
 /// line is inspected: the header and delimiter rows never change, so re-verifying them for every
@@ -302,8 +302,7 @@ mod tests {
 
     #[test]
     fn a_code_span_pipe_splits_the_row_only_without_code_span_awareness() {
-        // A closed backtick span keeps a pipe whole when code spans are honored; otherwise every
-        // unescaped pipe splits, so the span is torn across two cells.
+        // Code spans honored keep the pipe whole; otherwise the span is torn across two cells.
         assert_eq!(cells("`a|b` | c", true), ["`a|b`", "c"]);
         assert_eq!(cells("`a|b` | c", false), ["`a", "b`", "c"]);
         // A doubled backtick run is a span too; an unclosed run is not, so its pipe still splits.
@@ -315,17 +314,14 @@ mod tests {
 
     #[test]
     fn multibyte_cell_content_survives_byte_offset_scanning() {
-        // CJK, emoji, and combining marks sit directly against the separators; the byte scan must
-        // slice on the ASCII pipe boundaries without splitting a multibyte character.
+        // The byte scan must slice on ASCII pipe boundaries without splitting a multibyte character.
         assert_eq!(cells("| 表格 | 数据 |", false), ["表格", "数据"]);
         assert_eq!(cells("a😀 | b🎉", false), ["a😀", "b🎉"]);
         assert_eq!(
             cells("| e\u{0301} | o\u{0308} |", false),
             ["e\u{0301}", "o\u{0308}"]
         );
-        // An escaped pipe beside multibyte content still drops only the backslash.
         assert_eq!(cells("表\\|格 | 数", false), ["表|格", "数"]);
-        // A code span holding a multibyte, pipe-bearing payload stays one cell.
         assert_eq!(cells("`表|格` | 数", true), ["`表|格`", "数"]);
     }
 
@@ -369,8 +365,7 @@ mod tests {
 
     #[test]
     fn a_code_span_cell_keeps_its_pipe_and_one_column() {
-        // With code spans honored the body cell is a single column holding the whole span; without,
-        // the extra pipe splits it and the surplus cell is truncated away.
+        // Code spans honored keep one column; without, the pipe splits and the surplus is truncated.
         let (_, _, rows) = try_parse("| h |\n| - |\n| `a|b` |\n", true).unwrap();
         assert_eq!(rows, vec![vec!["`a|b`"]]);
         // A line whose only pipe sits inside a span is not a pipe row, so it opens no table.
@@ -405,8 +400,7 @@ mod tests {
 
     #[test]
     fn header_only_does_not_absorb_a_list_marker_delimiter() {
-        // With just a header present the candidate delimiter is left to the ordinary block rules,
-        // so a `- |` delimiter opens a list rather than being claimed as a table.
+        // With only a header, a `- |` delimiter opens a list rather than being claimed as a table.
         assert!(matches!(
             classify_continuation("| a | b |\n", "- | -", false, false),
             Continuation::NotTable
@@ -424,8 +418,7 @@ mod tests {
             classify_continuation(paragraph, "plain text", false, false),
             Continuation::Terminate
         ));
-        // Once established the header/delimiter are not re-inspected: an unparsable prefix in the
-        // paragraph slot is ignored and only the new line decides.
+        // Once established the header/delimiter are not re-inspected; only the new line decides.
         assert!(matches!(
             classify_continuation("", "| 1 | 2 |", false, true),
             Continuation::Absorb

@@ -1,4 +1,4 @@
-//! The DOCX container writer: it renders a document as an Office Open XML word-processing package —
+//! The DOCX container writer: it renders a document as an Office Open XML word-processing package,
 //! a ZIP archive of XML parts holding the main document body, its relationships, list numbering,
 //! footnotes, comments, the styling design, and the package metadata.
 //!

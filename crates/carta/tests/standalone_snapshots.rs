@@ -1,7 +1,7 @@
 //! Layer 1 standalone-output golden tests: snapshot each wrapping format's default template applied
 //! to one metadata-rich document. Freezes carta's own scaffold (title block, preamble, body slot)
-//! for every format that ships a default template. Differential parity is the conformance suite's
-//! job; these run fully offline. Reviewed with `cargo insta review`; never hand-edit the `.snap`s.
+//! for every format that ships a default template. These run fully offline. Reviewed with
+//! `cargo insta review`; never hand-edit the `.snap`s.
 
 #![cfg(all(feature = "standalone", feature = "read-commonmark"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

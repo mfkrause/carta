@@ -4,7 +4,7 @@
 
 # carta
 
-**A universal document converter written in Rust.** Read a markup format, render it back out in another. A performant and lightweight reimplementation of [pandoc](https://github.com/jgm/pandoc).
+**A universal document converter written in Rust.** Read a markup format, render it back out in another. A fast, lightweight reimplementation of [pandoc](https://github.com/jgm/pandoc).
 
 [![crates.io](https://img.shields.io/crates/v/carta.svg)](https://crates.io/crates/carta)
 [![docs.rs](https://img.shields.io/docsrs/carta)](https://docs.rs/carta)
@@ -19,13 +19,13 @@
 
 ## Goals
 
-- **Performance** and a **lightweight binary**.
-- A **developer-friendly library**, with the CLI as a thin shell over it.
-- **Feature parity** with pandoc across all formats and extensions.
+- Performance and a lightweight binary.
+- A developer-friendly library, with the CLI as a thin shell over it.
+- Feature parity with pandoc across all formats and extensions.
 
 ## Status
 
-carta already supports the most-used pandoc formats, with support for the remaining formats being in active development. You can see a per-format breakdown including extension coverage as well as the full feature backlog in [`STATUS.md`](docs/STATUS.md).
+carta already supports the most-used pandoc formats; the rest are in active development. [`STATUS.md`](docs/STATUS.md) has a per-format breakdown, extension coverage, and the full feature backlog.
 
 ## Installation
 
@@ -97,7 +97,7 @@ let html = convert_text(
 
 `convert_text` is the shortcut for text-to-text conversion. The general entry point is `convert`, which takes raw bytes and returns an `Output` that is text or bytes depending on the target format.
 
-You can select formats at compile time via per-direction features to make binaries even more lightweight for your individual needs.
+You can select formats at compile time via per-direction features to shrink the binary further.
 
 ```sh
 cargo build -p carta --no-default-features --features read-commonmark,write-html

@@ -1,7 +1,7 @@
 //! Running recursion-heavy work on a large, dedicated stack.
 //!
-//! Some conversions recurse as deeply as their input nests — walking a document tree, decoding a
-//! deeply nested markup fragment — so a legitimately deep input can exhaust a small caller stack.
+//! Some conversions recurse as deeply as their input nests (walking a document tree, decoding a
+//! deeply nested markup fragment), so a legitimately deep input can exhaust a small caller stack.
 //! [`on_deep_stack`] runs such work on a worker thread that reserves a generous stack for it.
 
 /// Virtual stack reserved for work whose recursion depth tracks input nesting. Large enough that

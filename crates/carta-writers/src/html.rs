@@ -1,12 +1,6 @@
 //! HTML writer: renders the document model to an html5 fragment.
 //!
-//! A code block with a recognized language (or explicit line numbering) is colorized: its text is
-//! tokenized and each run wrapped in a class-tagged span, inside the `div.sourceCode` / `pre` /
-//! `code` scaffolding a stylesheet targets, with per-line anchors. Without a highlighter, or for an
-//! unrecognized language, a code block stays a plain `<pre><code>`. TeX math renders as a
-//! `span.math` passthrough whose contents an in-browser typesetting loader reads — wrapped in
-//! `\(…\)` / `\[…\]` delimiters for the delimiter-scanning loaders, or as bare TeX for the one that
-//! reads the span directly. Output is a fragment with no trailing newline; the caller appends one.
+//! Output is a fragment with no trailing newline; the caller appends one.
 
 use std::fmt::Write as _;
 
@@ -208,8 +202,7 @@ impl SlideRenderer {
     pub(crate) fn footnote_section(&self) -> Option<String> {
         let mut out = String::new();
         self.state.push_footnote_section(&mut out);
-        // `push_footnote_section` opens with a leading newline that joins the section to preceding
-        // content; the deck supplies its own separator, so drop it.
+        // the deck supplies its own separator, so drop the section's leading newline
         let trimmed = out.trim_start_matches('\n');
         if trimmed.is_empty() {
             None
@@ -281,10 +274,8 @@ pub(crate) fn render_epub_inlines(inlines: &[Inline], epub3: bool) -> String {
     };
     let mut out = String::new();
     state.inlines(&mut out, inlines);
-    // Resolve the assembly sentinels the same way a chapter body does: under `None` reflow collapses
-    // each run of breakable spaces to a single ordinary one (never a line break), and restore decodes
-    // any content character that was protected from that pass — so a protected control character
-    // becomes its literal self and is then dropped as XML-invalid, rather than leaking its escape tag.
+    // reflow(None) collapses breakable-space runs to one space; restore first, so a protected control
+    // character becomes literal and is dropped as XML-invalid instead of leaking its escape tag
     strip_xml_invalid(restore(reflow(&out, WrapMode::None, FILL_COLUMN)))
 }
 
@@ -294,7 +285,7 @@ pub(crate) fn render_epub_inlines(inlines: &[Inline], epub3: bool) -> String {
 use carta_core::container::xml::is_xml_char;
 
 /// Drop characters XML forbids from an EPUB page's text. An EPUB chapter is XML, so a stray control
-/// character in the source — which no escaping can represent — is removed rather than emitted into a
+/// character in the source (which no escaping can represent) is removed rather than emitted into a
 /// document no reading system can parse. Most text is already clean, so the input is returned intact
 /// unless it actually carries a forbidden character.
 #[cfg(feature = "epub")]
@@ -420,7 +411,7 @@ const SOFT_TAG: char = '2';
 
 /// Zero-width sentinel ending the breakable chunk that a preceding break point measures. It is never
 /// rendered and never becomes a space or newline: [`reflow`] drops it. It guards a preformatted
-/// region — a `<pre><code>` body — so the verbatim text after it cannot lengthen the chunk weighed
+/// region (a `<pre><code>` body) so the verbatim text after it cannot lengthen the chunk weighed
 /// when deciding whether the enclosing start tag wraps. A start tag therefore wraps on its own width,
 /// independent of however long the preformatted body that follows runs. As with the other sentinels,
 /// a literal `U+0003` from document content is protected by [`protect_char`] and decoded by
@@ -541,9 +532,7 @@ impl State {
             Block::OrderedList(attrs, items) => self.ordered_list(out, attrs, items),
             Block::DefinitionList(items) => self.definition_list(out, items),
             Block::Div(attr, blocks) => {
-                // An EPUB 3 chapter promotes a section wrapper (a div marked with the `section`
-                // class) to a `<section>` element, consuming that marker class; the heading's
-                // identifier already sits on the wrapper. Every other div renders as a `<div>`.
+                // EPUB 3 promotes a section-class div to `<section>`, consuming the marker class
                 let section = self.flavor == Flavor::Epub3
                     && attr.classes.iter().any(|class| class == "section");
                 if section {
@@ -577,8 +566,8 @@ impl State {
         }
     }
 
-    /// Render a code block. A block whose class names a known syntax definition — or that requests
-    /// line numbering — is colorized inside the `div.sourceCode` scaffolding; anything else stays a
+    /// Render a code block. A block whose class names a known syntax definition (or that requests
+    /// line numbering) is colorized inside the `div.sourceCode` scaffolding; anything else stays a
     /// plain `<pre><code>`. Every code block advances the sequence counter so a colorized block
     /// without its own identifier gets a stable `cbN` one, whatever plain blocks precede it.
     fn code_block(&mut self, out: &mut String, attr: &Attr, text: &str) {
@@ -596,8 +585,8 @@ impl State {
     }
 
     /// Emit the colorized form of a code block, returning whether it applied. It does not when
-    /// highlighting is off, or when the block neither names a known language nor numbers its lines —
-    /// leaving the caller to render the plain form.
+    /// highlighting is off, or when the block neither names a known language nor numbers its lines;
+    /// the caller then renders the plain form.
     #[cfg(feature = "highlight")]
     fn code_block_highlighted(&self, out: &mut String, attr: &Attr, text: &str) -> bool {
         let Some(highlighter) = self.highlighter.clone() else {
@@ -687,8 +676,7 @@ impl State {
         let block_id_attr = escape_attr(&block_id);
         let start = if numbered { start_line(attr) } else { 1 };
 
-        // The wrapping `<div>` carries only the `sourceCode` marker class, the block identifier, and
-        // the block's key/value pairs; the id and pairs wrap on the fill column like any element's.
+        // the wrapping div carries only the sourceCode class, block id, and key/value pairs
         out.push_str("<div");
         out.push(BREAK);
         out.push_str("class=\"sourceCode\"");
@@ -697,8 +685,7 @@ impl State {
         render_keyvals_into(out, &attr.attributes, self.flavor);
         out.push('>');
 
-        // The one break point before the `<pre>` class lets the tag wrap onto its own line the way a
-        // preformatted start tag does; everything after it is one unbroken run.
+        // one break point lets the `<pre>` tag wrap; everything after is one unbroken run
         out.push_str("<pre");
         out.push(BREAK);
         out.push_str("class=\"sourceCode");
@@ -913,8 +900,7 @@ impl State {
             self.table_body(out, body, &aligns);
         }
         if !table.foot.rows.is_empty() {
-            // The foot opens directly after `</tbody>`; only a footless body section or a
-            // bodiless foot gets its own line.
+            // the foot opens directly after `</tbody>`; only a bodiless foot gets its own line
             if table.bodies.is_empty() {
                 out.push('\n');
             }
@@ -925,8 +911,7 @@ impl State {
             self.rows(out, &table.foot.rows, &aligns, false);
             out.push_str("\n</tfoot>");
         }
-        // A table that ends without body rows (no bodies, or a trailing foot) closes after a
-        // blank line.
+        // a table ending without body rows closes after a blank line
         if table.bodies.is_empty() || !table.foot.rows.is_empty() {
             out.push('\n');
         }
@@ -1118,9 +1103,7 @@ impl State {
     /// nest inside it as bare elements. Classes preceding the first semantic one are dropped. With no
     /// semantic class the span renders as a generic `<span>`.
     fn span(&mut self, out: &mut String, attr: &Attr, inlines: &[Inline]) {
-        // The `underline` class wraps the content in a bare `<u>` carrying no attributes; any
-        // remaining attributes fall to the enclosing element. Strip it and render the `<u>` as the
-        // innermost wrapper below.
+        // the underline class becomes a bare innermost `<u>`; remaining attributes fall to the enclosing element
         let underline = attr.classes.iter().any(|class| class == "underline");
         let stripped;
         let attr = if underline {
@@ -1144,9 +1127,7 @@ impl State {
             .iter()
             .position(|class| SEMANTIC_SPAN_TAGS.contains(&class.as_str()));
         let Some(first) = first else {
-            // No dedicated element. A generic `<span>` wraps the content unless the only attribute
-            // was the consumed `underline`, leaving nothing to carry — then the bare `<u>` stands
-            // alone.
+            // generic `<span>`, unless the consumed underline left nothing to carry: then the bare `<u>` stands alone
             let bare_underline = underline
                 && attr.id.is_empty()
                 && attr.classes.is_empty()
@@ -1231,8 +1212,7 @@ impl State {
         let prefix = fragment_prefix(self.flavor);
         match self.flavor {
             Flavor::Epub3 => {
-                // The note becomes an `<aside>` gathered into the trailing footnote section; the
-                // reference is a plain link (no superscript) tagged as a note reference.
+                // note: an `<aside>` in the trailing section; reference: a plain noteref link, no superscript
                 let mut body = String::new();
                 self.blocks(&mut body, blocks);
                 self.footnotes.push(format!(
@@ -1244,8 +1224,7 @@ impl State {
                 );
             }
             Flavor::Epub2 => {
-                // The note becomes a `<div>` whose first paragraph opens with a numbered
-                // back-reference link; the reference is a plain link (no superscript).
+                // note: a `<div>` opening with a numbered back-reference; reference: a plain link, no superscript
                 let backlink = format!(
                     "<a{BREAK}href=\"{prefix}fnref{number}\"{BREAK}class=\"footnote-back\">{number}</a>. "
                 );
@@ -1392,7 +1371,7 @@ impl State {
 
 /// The attributes on a line's anchor. A numbered line's anchor carries none (its number is drawn by
 /// the stylesheet); an unnumbered line's anchor is hidden from assistive technology and taken out of
-/// the tab order — dropping the `aria-hidden` half in the presentational dialect that lacks it.
+/// the tab order, dropping the `aria-hidden` half in the presentational dialect that lacks it.
 #[cfg(feature = "highlight")]
 fn source_anchor_attrs(flavor: Flavor, numbered: bool) -> &'static str {
     if numbered {
@@ -1420,8 +1399,7 @@ fn emit_token(out: &mut String, token: &Token) {
 
 fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> String {
     let alt = to_plain_text(inlines);
-    // An EPUB page always carries an `alt` attribute — empty when the image has no description — as
-    // its XHTML profile expects; the other html flavors omit it when there is nothing to say.
+    // EPUB XHTML always carries `alt` (possibly empty); other flavors omit an empty one
     let alt_attr = if inlines.is_empty() && !matches!(flavor, Flavor::Epub3 | Flavor::Epub2) {
         String::new()
     } else {
@@ -1444,9 +1422,7 @@ fn image(attr: &Attr, inlines: &[Inline], target: &Target, flavor: Flavor) -> St
         flavor,
     );
     out.push_str(&alt_attr);
-    // A literal space, not a break point: the space before the self-closing `/>` never wraps, so
-    // `/>` stays glued to whatever attribute precedes it even when that pushes the line past the
-    // fill column.
+    // literal space, not a break point: `/>` stays glued to the last attribute even past the fill column
     out.push(' ');
     out.push_str("/>");
     out
@@ -1656,8 +1632,8 @@ fn is_html4_universal_attribute(key: &str) -> bool {
     matches!(key, "style" | "title" | "lang" | "dir" | "align") || key.starts_with("on")
 }
 
-/// The presentational dimension attributes HTML4 admits on the elements that carry them — an image,
-/// a table cell or column: a pixel `width` or `height`. Percentage and length dimensions fold into a
+/// The presentational dimension attributes HTML4 admits on the elements that carry them (an image,
+/// a table cell or column): a pixel `width` or `height`. Percentage and length dimensions fold into a
 /// `style` declaration upstream, so only bare pixel counts reach the attribute renderer, where the
 /// strict XHTML 1.1 dialect would otherwise drop them as unknown.
 fn is_html4_dimension_attribute(key: &str) -> bool {
@@ -1789,7 +1765,7 @@ fn render_keyvals_into(out: &mut String, attributes: &[(Text, Text)], flavor: Fl
 /// Under [`WrapMode::Auto`] inline content fills to `width` columns with a greedy fill: a break point
 /// ([`BREAK`] or [`SOFT`]) becomes a newline when keeping the following chunk on the current line
 /// would exceed the fill column, where the chunk is the run of literal text up to the next break
-/// point or hard newline. Under [`WrapMode::None`] no break point ever becomes a newline — every one
+/// point or hard newline. Under [`WrapMode::None`] no break point ever becomes a newline: every one
 /// is a space. Under [`WrapMode::Preserve`] a [`SOFT`] (a soft break from the source) becomes a
 /// newline while a [`BREAK`] (a breakable space) stays a space, and lines are not reflowed. Hard
 /// newlines (block structure) always reset the column; consecutive break points collapse to one.
@@ -1805,9 +1781,7 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
             }
             FLUSH => {}
             BREAK | SOFT => match wrap {
-                // A run of break points is a single reflow decision: the line breaks only when the
-                // next chunk (the literal text up to the following break point or hard newline)
-                // would overflow the fill column.
+                // a run of break points is one decision: break only when the next chunk would overflow
                 WrapMode::Auto => {
                     while let Some(BREAK | SOFT) = chars.clone().next() {
                         chars.next();
@@ -1831,9 +1805,7 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
                         column += 1;
                     }
                 }
-                // Without wrapping a run of break points still collapses to a single space: two
-                // spaces left around a vanished inline — a dropped foreign raw inline, say — read as
-                // one, the way inter-word spacing always does.
+                // a run still collapses to one space: spaces around a vanished inline read as one
                 WrapMode::None => {
                     while let Some(BREAK | SOFT) = chars.clone().next() {
                         chars.next();
@@ -1841,9 +1813,7 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
                     out.push(' ');
                     column += 1;
                 }
-                // Under Preserve each break point stands on its own — a source soft break starts a
-                // fresh line, and every other break point is a literal space — so adjacent ones are
-                // not merged.
+                // Preserve keeps each break point: SOFT starts a line, others are literal spaces, none merged
                 WrapMode::Preserve if current == SOFT => {
                     out.push('\n');
                     column = 0;
@@ -1869,9 +1839,7 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
 /// [`crate::common`] that the plain and LaTeX writers share.
 fn char_width(ch: char) -> usize {
     let code = ch as u32;
-    // Below the combining-mark range (U+0300) the only zero-width scalars are the C0/C1 control
-    // blocks and the soft hyphen; every other scalar there is one column, so the whole band is
-    // decided by range tests and never reaches the general-category lookup.
+    // below U+0300 only C0/C1 controls and the soft hyphen are zero-width, so range tests suffice
     if code < 0x0300 {
         let zero_width = code < 0x20 || (0x7F..=0x9F).contains(&code) || code == 0x00AD;
         return usize::from(!zero_width);
@@ -2163,10 +2131,6 @@ mod image_tests {
         HtmlWriter.write(&document, &options).expect("render html")
     }
 
-    // The writer emits a plain `<img>` carrying the reference as written; assistive-technology
-    // annotation and reference inlining both belong to the separate self-contained pass over the
-    // finished markup, so the writer's output does not vary on it.
-
     #[test]
     fn image_carries_its_alt_text() {
         assert_eq!(
@@ -2187,8 +2151,7 @@ mod tests {
 
     #[test]
     fn strips_forbidden_c0_controls_and_keeps_whitespace() {
-        // NUL, start-of-heading, bell and unit-separator are forbidden in XML and are dropped; tab,
-        // newline and carriage return are the permitted controls and survive.
+        // tab, newline and carriage return are the only permitted controls
         let input = String::from("a\u{0}b\u{1}\u{7}c\u{1f}\td\r\ne");
         assert_eq!(strip_xml_invalid(input), "abc\td\r\ne");
     }
@@ -2217,8 +2180,7 @@ mod tests {
         use carta_ast::{Block, Inline};
         use std::thread;
 
-        // Dismantle the single-child chain iteratively; its own recursive `Drop` is unrelated to what
-        // is under test, and letting it run on the small stack below would overflow independently.
+        // recursive `Drop` of the chain would overflow the small stack independently of what is under test
         fn dismantle(mut block: Block) {
             while let Block::BlockQuote(mut children) = block {
                 match children.pop() {
@@ -2228,9 +2190,7 @@ mod tests {
             }
         }
 
-        // Render on a deliberately modest stack: a depth this large overflows it many times over
-        // without the serializer's on-demand stack growth, so a regression that drops the growth
-        // would fault here.
+        // modest stack: without the serializer's on-demand stack growth this depth faults
         let rendered = thread::Builder::new()
             .stack_size(1024 * 1024)
             .spawn(|| {

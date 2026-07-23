@@ -2,10 +2,8 @@
 //! the facade. Two directions establish mutual consistency:
 //!
 //! - `read(write(doc)) == doc` over a corpus of documents covering every block, inline, and table
-//!   node the pair handles (metadata aside — the writer renders the block list alone).
+//!   node the pair handles (metadata aside: the writer renders the block list alone).
 //! - `write(read(text)) == text` over a corpus of canonical native texts.
-//!
-//! This is the core justification for co-implementing the pair, and it runs fully offline.
 
 // This whole file is test code, where panicking on a known case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

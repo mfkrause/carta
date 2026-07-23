@@ -1,31 +1,13 @@
 #!/usr/bin/env bash
-# ODT surface: exercise carta's ODT writer structurally against the oracle.
-#
-# Group `odt/odt` converts each corpus/ast case with both tools, unpacks the two OpenDocument
-# packages, and diffs every part that carries document body content after canonicalizing the XML — the
-# one comparison that survives the format's cosmetic freedom. Canonicalization (a small standard-library
-# parser, no external tool) parses each part, sorts every element's attributes, drops insignificant
-# inter-element whitespace while keeping leaf text under xml:space="preserve", assigns each namespace a
-# fixed prefix, and re-serializes in document order. On top of that it folds the reproducible timestamp,
-# normalizes the freely-chosen automatic list-style names to a positional token, and removes two design
-# artifacts that are not body content — the scripting container and the frame graphic styles a document
-# inherits from its styling — so the structural comparison sees only genuine divergences.
-#
-# The styling and packaging design each tool ships is its own and is not compared: the master styles,
-# document metadata, the RDF manifest, the package manifest, and the mimetype marker are skipped. The
-# document body (content.xml) is compared; embedded binary resources (images) are compared
-# byte-for-byte, and the part file list is compared exactly. Cases excluded via corpus/exclusions.tsv
-# are skipped and counted.
-#
-# Usage: surfaces/odt.sh
+# ODT surface: unpack both tools' packages and diff the body-content parts after XML
+# canonicalization; each tool's own styling/packaging parts are skipped. Usage: surfaces/odt.sh
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
-# Both tools stamp the package's metadata dates from SOURCE_DATE_EPOCH; pin it so the timestamps are
-# reproducible and identical on both sides (carta uses 1 when it is unset).
+# pin SOURCE_DATE_EPOCH so both sides stamp identical metadata dates
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
 
-# Styling- and packaging-design parts: each tool's own look and container bookkeeping, not body content.
+# each tool's own look and container bookkeeping, not body content
 odt_skip_part() {
   case "$1" in
     styles.xml | meta.xml | manifest.rdf | META-INF/manifest.xml | mimetype) return 0 ;;
@@ -33,17 +15,14 @@ odt_skip_part() {
   return 1
 }
 
-# Canonicalize one XML part to a stable, comparable form on stdout. A whole-file parse (standard
-# library only) sorts attributes, folds insignificant whitespace, pins namespace prefixes, drops the
-# scripting container and frame graphic styles, folds automatic list-style names to a positional token,
-# and normalizes the reproducible timestamp.
+# Canonicalize one XML part to a comparable form on stdout: sort attributes, fold whitespace, pin
+# namespace prefixes, drop scripting/graphic-style elements, fold list-style names and the timestamp.
 odt_canon() {
   python3 - "$1" <<'PY'
 import sys, re
 import xml.etree.ElementTree as ET
 
-# Every namespace an ODT body part uses, each pinned to a fixed prefix so both sides serialize
-# identically regardless of how the emitter declared them.
+# each namespace pinned to a fixed prefix so both sides serialize identically
 NS = {
     'urn:oasis:names:tc:opendocument:xmlns:office:1.0': 'office',
     'urn:oasis:names:tc:opendocument:xmlns:style:1.0': 'style',
@@ -67,7 +46,7 @@ FAMILY = STYLE + 'family'
 PRESERVE = '{http://www.w3.org/XML/1998/namespace}space'
 
 
-# Not body content: the scripting container and the frame graphic styles chosen freely per document.
+# not body content: scripting container and freely-chosen frame graphic styles
 def drop(el):
     if not isinstance(el.tag, str):
         return True
@@ -131,10 +110,9 @@ except Exception as e:  # a malformed part must surface as a divergence, not a c
 out = []
 serialize(root, out)
 s = ''.join(out)
-# A metadata date is reproducible but free; fold it so only its presence and placement are compared.
+# fold the free metadata date so only its presence and placement are compared
 s = re.sub(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', 'TIMESTAMP', s)
-# The automatic style generated for each list is named freely; fold its two spellings to one token so
-# only the list structure and the reference wiring, not the chosen name, are compared.
+# fold both spellings of the free automatic list-style name so only structure and wiring compare
 s = re.sub(r'Pandoc_5f_Numbering_5f_(\d+)', r'AUTOLIST_\1', s)
 s = re.sub(r'"L(\d+)"', r'"AUTOLIST_\1"', s)
 # One element per line keeps a divergence diff readable.
@@ -166,7 +144,7 @@ $d"
   printf '%s' "$bad"
 }
 
-# Convert one case with both tools under the given target spec, unpack the two packages, and diff them.
+# The oracle takes normalization flags; carta takes the bare spec.
 odt_case() {
   local label="$1" target="$2" input="$3" onorm="$4" work detail repro
   work="$WORK/odt/${label//\//-}"

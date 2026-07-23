@@ -1,7 +1,7 @@
 //! Layer 1 golden tests for the EPUB container writer. Each fixture is read from Markdown, rendered
-//! to both EPUB dialects, and the archive is unpacked into a readable transcript — an entry listing
-//! followed by every text file's contents — that `insta` freezes. Binary resources are summarized by
-//! size and a short content fingerprint, since their bytes are not reviewable — the fingerprint still
+//! to both EPUB dialects, and the archive is unpacked into a readable transcript (an entry listing
+//! followed by every text file's contents) that `insta` freezes. Binary resources are summarized by
+//! size and a short content fingerprint, since their bytes are not reviewable; the fingerprint still
 //! pins the exact payload, so swapping two same-sized binaries is caught. The output is
 //! byte-reproducible: the archive uses a fixed timestamp and a content-derived identifier, so these
 //! snapshots are stable across runs.
@@ -156,7 +156,7 @@ fn epub_numbered_sections_snapshot() {
     insta::assert_snapshot!("book_numbered__epub3", describe_archive(&bytes));
 }
 
-/// Headings whose source carries no identifier — as bare `CommonMark` leaves them — must still yield
+/// Headings whose source carries no identifier (as bare `CommonMark` leaves them) must still yield
 /// live navigation targets. The writer derives each section's identifier from its heading text and
 /// disambiguates a repeated one with a numeric suffix; reading through `CommonMark` (which assigns no
 /// identifiers) freezes that derivation and the fallback on the second identical heading.

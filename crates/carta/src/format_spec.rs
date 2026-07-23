@@ -19,13 +19,10 @@ fn default_extensions(base: &str) -> Extensions {
         "markdown_mmd" => presets::MARKDOWN_MMD,
         "markdown_strict" => presets::MARKDOWN_STRICT,
         "gfm" => presets::GFM,
-        // Both default to `smart`: quotes, dashes, and ellipses are folded into their typographic
-        // glyphs unless `-smart` asks for the literal Unicode punctuation instead. Typst additionally
-        // recognizes `[@key]` citations by default.
+        // Both default to `smart`; Typst also recognizes `[@key]` citations by default.
         "typst" => Extensions::from_list(&[Extension::Smart, Extension::Citations]),
         "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
-        // The LaTeX family additionally assigns header identifiers from title text and expands
-        // user-defined macros by default; both can be turned off with a `-` toggle.
+        // LaTeX family also assigns header ids and expands user macros by default; both `-` togglable.
         "latex" | "beamer" => Extensions::from_list(&[
             Extension::Smart,
             Extension::AutoIdentifiers,
@@ -37,32 +34,25 @@ fn default_extensions(base: &str) -> Extensions {
             Extension::NativeDivs,
             Extension::NativeSpans,
         ]),
-        // An EPUB's content documents are XHTML, so reading one preserves the same structural HTML
-        // constructs: native divs and spans, and raw HTML passthrough.
+        // EPUB content documents are XHTML, so reading keeps native divs/spans and raw HTML passthrough.
         "epub" | "epub2" | "epub3" => Extensions::from_list(&[
             Extension::NativeDivs,
             Extension::NativeSpans,
             Extension::RawHtml,
         ]),
         "rst" | "mediawiki" | "man" => Extensions::from_list(&[Extension::AutoIdentifiers]),
-        // Writing DOCX assigns header identifiers by default; the remaining extensions in its set —
-        // custom styles, native figure/table numbering, and empty-paragraph preservation among them —
-        // are opt-in `+` toggles.
+        // The rest of the DOCX set (styles, native numbering, empty paragraphs, …) is opt-in `+` toggles.
         "docx" => Extensions::from_list(&[Extension::AutoIdentifiers]),
-        // Writing ODT assigns header identifiers by default; empty-paragraph preservation and custom
-        // styles are opt-in `+` toggles.
+        // ODT: empty-paragraph preservation and custom styles are opt-in `+` toggles.
         "odt" => Extensions::from_list(&[Extension::AutoIdentifiers]),
-        // Org assigns header identifiers, recognizes `[cite:@key]` citations, and reads task-list
-        // checkboxes by default; `smart`, `fancy_lists`, and the alternate identifier shapes are
-        // opt-in toggles.
+        // Org: header ids, `[cite:@key]` citations, and task lists on by default; the rest is opt-in.
         "org" => Extensions::from_list(&[
             Extension::AutoIdentifiers,
             Extension::Citations,
             Extension::TaskLists,
         ]),
-        // A notebook's markdown cells are parsed and rendered in a GitHub-flavored dialect with dollar
-        // math and auto identifiers on by default; a hash run needs a following space to open a
-        // heading (so a bare `#.` is a list marker, not a heading).
+        // Notebook markdown cells use a GitHub-flavored dialect with dollar math and auto ids;
+        // a hash run needs a following space to open a heading (bare `#.` is a list marker).
         "ipynb" => Extensions::from_list(&[
             Extension::AllSymbolsEscapable,
             Extension::AutoIdentifiers,
@@ -82,9 +72,7 @@ fn default_extensions(base: &str) -> Extensions {
         ]),
         // Writing AsciiDoc assigns header identifiers from title text by default.
         "asciidoc" => Extensions::from_list(&[Extension::AutoIdentifiers]),
-        // Plain text is the Markdown writer stripped of inline and block markup, but it keeps the
-        // structural extensions that shape how blocks are laid out: the list, table, definition, and
-        // figure forms, blank-line spacing rules, intra-word underscores, and macro expansion.
+        // Plain strips markup but keeps the structural extensions that shape block layout.
         "plain" => Extensions::from_list(&[
             Extension::BlankBeforeBlockquote,
             Extension::BlankBeforeHeader,
@@ -112,8 +100,7 @@ fn default_extensions(base: &str) -> Extensions {
 /// writes with the same defaults.
 fn reader_default_extensions(base: &str) -> Extensions {
     match base {
-        // An OPML outline embeds Markdown in its node text, so reading one parses that text with the
-        // extended Markdown dialect's defaults.
+        // OPML embeds Markdown in node text, parsed with the extended dialect's defaults.
         "markdown" | "opml" => presets::MARKDOWN_READ,
         "gfm" => presets::GFM_READ,
         "commonmark_x" => presets::COMMONMARK_X_READ,
@@ -473,9 +460,8 @@ fn parse_format_spec_with(
         let (name, remainder) = after_sign.split_at(token_end);
         rest = remainder;
 
-        // A format that declares a fixed extension set admits only its members; anything else —
-        // including a name no extension answers to — is unsupported for that format. A format
-        // without a declared set accepts any modeled extension and rejects only unknown names.
+        // A declared set admits only its members (anything else is unsupported for the format);
+        // no declared set means any modeled extension, rejecting only unknown names.
         let extension = match &supported {
             Some(set) => Extension::from_name(name)
                 .filter(|ext| set.contains(*ext))
@@ -616,10 +602,7 @@ mod tests {
 
     #[test]
     fn recognized_dialect_toggle_names_parse_without_error() {
-        // These extension names are part of the markdown-family vocabulary a format spec may toggle.
-        // Each must be recognized so that toggling it on a base format succeeds rather than aborting,
-        // and each toggle must apply in both directions: `+name` enables it and a trailing `-name`
-        // disables it, regardless of whether the base enables it by default.
+        // Each markdown-family toggle name must be recognized and apply in both directions.
         let names = [
             "abbreviations",
             "all_symbols_escapable",
@@ -710,8 +693,7 @@ mod tests {
     #[test]
     fn every_registry_format_declares_its_accepted_set_status() {
         use super::supported_extensions;
-        // Formats that declare an accepted extension set. A new format must be added to exactly
-        // one of these two arrays, deliberately.
+        // A new format must be added to exactly one of these two arrays, deliberately.
         const WITH_SET: &[&str] = &[
             "asciidoc",
             "beamer",

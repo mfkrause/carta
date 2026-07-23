@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
-# Writer surface: render the AST-JSON corpus to each target and diff against pandoc.
-#
-# For each `corpus/ast/<feature>/*.json` not excluded for the target, compare
-# `carta -f json -t <target>` against `pandoc -f json -t <target>` (with oracle normalization).
-# The AST-interchange target compares structurally, notebooks after canonicalizing each cell's
-# random id, every other target as text. Excluded
-# (target, feature) pairs from exclusions.tsv are skipped and counted. On a full run (no target
-# argument) the extension-toggle group below also runs.
-#
-# Usage: surfaces/writer.sh [target] [case]   (no arg = every writer target; case = one corpus stem)
+# Writer surface: render corpus/ast through carta and pandoc for each target and diff (json
+# structurally, notebooks after canonicalizing cell ids); exclusions.tsv pairs are skipped and counted.
+# Usage: surfaces/writer.sh [target] [case]   (no arg = every target + extension-toggle group)
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -37,19 +30,15 @@ for target in $TARGETS; do
   tally_group
 done
 
-# Extension-toggle cases: each `corpus/ast-ext/<spec>/*.json` directory is named for the full target
-# format spec (e.g. `markdown-fenced_divs`, `latex-smart`) it is rendered with, for both carta and
-# the oracle. The spec's base (the name before the first `+`/`-`) selects the oracle normalization
-# and the comparison mode. This is the writer-side counterpart to the reader-ext loop; it runs on a
-# full sweep only.
+# Each corpus/ast-ext/<spec>/ dir is named for the full target spec it renders with; the base
+# (before the first +/-) selects normalization and compare mode. Full sweep only.
 if [ "$EXT_RUN" = 1 ] && [ -d "$CORPUS/ast-ext" ]; then
   conf_reset "writer-ext"
   for spec_dir in "$CORPUS"/ast-ext/*; do
     [ -d "$spec_dir" ] || continue
     spec="$(basename "$spec_dir")"
     base="${spec%%[+-]*}"
-    # Binary, package-shaped targets (docx, epub, odt) have no text form to diff and carry their own
-    # surface; skip their extension-toggle directories here rather than render them as text.
+    # Binary package targets have no text form to diff and carry their own surfaces.
     case "$base" in docx | epub | epub2 | epub3 | odt) continue ;; esac
     norm="$(oracle_norm "$base")"
     mode="$(compare_mode "$base")"

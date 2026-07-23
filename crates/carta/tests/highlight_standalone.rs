@@ -2,7 +2,7 @@
 //! web templates carry the theme stylesheet, the print templates carry the per-token macros, the
 //! idiomatic print mode carries the listing package, and an EPUB chapter inlines the stylesheet only
 //! when the chapter holds colorized code. These wire the theme through the real reader-to-template
-//! path, offline. Differential parity is the conformance suite's concern.
+//! path, offline.
 
 #![cfg(all(feature = "highlight", feature = "read-commonmark"))]
 #![allow(

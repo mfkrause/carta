@@ -8,10 +8,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
-  # Pinned pandoc version for the differential oracle. The local pin lives in gitignored
-  # .oracle/PANDOC_VERSION; CI pins it explicitly so the corpus round-trip tests are reproducible
-  # and don't drift with upstream pandoc releases.
-  PANDOC_PIN: "3.10"
+  # Pinned so the corpus round-trip tests are reproducible and don't drift.
+  CONFORMANCE_PIN: "3.10"
 
 jobs:
   lint:
@@ -28,9 +26,8 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features
       - name: Docs
-        # Fail on any rustdoc warning (broken intra-doc links, stale references). Libraries
-        # only: that is what docs.rs publishes, and --lib also sidesteps the collision
-        # between the `carta` library and the `carta` binary.
+        # Fail on any rustdoc warning. --lib matches what docs.rs publishes and sidesteps
+        # the `carta` library/binary name collision.
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --no-deps --workspace --lib --all-features
@@ -56,8 +53,7 @@ jobs:
         uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
         with:
           tool: cargo-insta
-      # The snapshot orphan check (`--unreferenced=reject`) only needs to run once; the rest
-      # of the matrix exercises the same suite for platform parity.
+      # The snapshot orphan check (`--unreferenced=reject`) only needs to run once.
       - name: Test (rejecting stale snapshots)
         if: matrix.os == 'ubuntu-latest'
         run: cargo insta test --workspace --all-features --test-runner nextest --unreferenced=reject
@@ -76,14 +72,14 @@ jobs:
       - name: Install toolchain
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - name: Cache pandoc oracle
+      - name: Cache conformance dependencies
         uses: actions/cache@v6
         with:
           path: .oracle
-          key: oracle-pandoc-${{ env.PANDOC_PIN }}
-      - name: Provision pandoc oracle
+          key: conformance-${{ env.CONFORMANCE_PIN }}
+      - name: Provision conformance dependencies
         run: |
-          tools/install-pandoc.sh --version="$PANDOC_PIN"
+          tools/install-pandoc.sh --version="$CONFORMANCE_PIN"
           tools/fetch-pandoc-tests.sh
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -171,23 +167,8 @@ jobs:
         # Derive the target set from fuzz/Cargo.toml so it never drifts from the [[bin]] table.
         run: echo "list=$(grep '^name = ' fuzz/Cargo.toml | grep -v 'carta-fuzz' | cut -d'"' -f2 | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       - name: Build and replay all seed corpora
-        # A deterministic PR gate, not a bug hunt: compile each target and replay its committed
-        # seed corpus once with no mutation (-runs=0), so a change that reintroduces a fixed
-        # crash fails here reproducibly. Random-seeded discovery fuzzing runs on a schedule in
-        # fuzz.yml, never as a PR gate — so an unrelated PR is never blocked by a newly-surfaced
-        # latent bug in some other reader. The list is derived from fuzz/Cargo.toml above, so a new
-        # [[bin]] is picked up automatically; a target without committed seeds fails loudly here.
-        # The loop keeps fail-fast: false semantics — every target runs, failures are collected and
-        # reported together at the end.
-        #
-        #   -runs=0        execute each committed seed once, then exit; no mutation.
-        #   -timeout=10    abort (and report) any single input running >10s; -max_total_time is
-        #                  only checked between units, so a single hanging unit slips past it.
-        #   -rss_limit_mb  bound memory so a pathological allocation is a reported crash, not an
-        #                  OOM-killed runner.
-        #
-        # Pin the gnu target: the prebuilt cargo-fuzz is a musl binary that defaults to its own
-        # musl triple, but musl links libc statically and the sanitizer cannot instrument it.
+        # PR gate: replay committed seeds only (-runs=0; -timeout since -max_total_time misses a hanging
+        # unit); discovery is scheduled in fuzz.yml. Gnu target: the sanitizer cannot instrument musl.
         run: |
           test -d fuzz/seeds || { echo "no seeds dir" >&2; exit 1; }
           failed=""

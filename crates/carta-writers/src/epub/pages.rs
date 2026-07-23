@@ -165,8 +165,7 @@ pub(crate) fn title_page(
         }
         format!("<section epub:type=\"titlepage\" class=\"titlepage\">\n{inner}</section>")
     } else if fields.is_empty() {
-        // XHTML 1.1 requires the body to hold at least one block element, so an untitled work whose
-        // title block is empty falls back to an empty container rather than a bare, invalid body.
+        // XHTML 1.1 requires at least one block element in the body; fall back to an empty container.
         String::from("<div class=\"titlepage\"></div>")
     } else {
         fields.join("\n")
@@ -209,9 +208,8 @@ pub(crate) fn cover_page(
     height: u32,
     stylesheets: &[String],
 ) -> String {
-    // A known pixel size pins the SVG viewport to the image so it scales exactly; when the size is
-    // unknown — a vector or otherwise unmeasured format — the cover fills the viewport directly and
-    // the reading system scales the image to fit, rather than collapsing to a zero-sized box.
+    // A known pixel size pins the SVG viewport so the image scales exactly; an unknown size fills
+    // the viewport and lets the reading system scale, avoiding a zero-sized box.
     let body = if width == 0 || height == 0 {
         format!(
             "<div id=\"cover-image\">\n\

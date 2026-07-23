@@ -139,8 +139,7 @@ impl State {
     }
 
     fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
-        // The cap sits one past the deepest section AsciiDoc defines, so every meaningful level
-        // keeps a distinct marker while an absurd level cannot force an unbounded allocation.
+        // One past AsciiDoc's deepest section: distinct markers, no unbounded allocation.
         const MAX_SECTION_LEVEL: i32 = 6;
         let depth = usize::try_from(level.clamp(0, MAX_SECTION_LEVEL))
             .unwrap_or(0)
@@ -805,8 +804,7 @@ fn table_options_line(table: &Table, has_header: bool, has_footer: bool) -> Stri
             }
         })
         .collect();
-    // The truncated per-column percentages fall short of 100; the first sized column takes up the
-    // shortfall so the widths sum to a whole.
+    // Truncated percentages fall short of 100; the first sized column absorbs the shortfall.
     let assigned: f64 = percents.iter().flatten().sum();
     if assigned > 0.0
         && let Some(first) = percents.iter_mut().flatten().next()

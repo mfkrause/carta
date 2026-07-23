@@ -123,8 +123,7 @@ fn header(
     let heading = if attr.classes.iter().any(|class| class == "unnumbered") {
         format!("#heading(level: {level}, numbering: none)[{text}]")
     } else {
-        // Heading markers nest without a syntactic ceiling, so the run is capped at a depth far
-        // beyond any real outline; an absurd level cannot force an unbounded allocation.
+        // The cap keeps an absurd level from forcing an unbounded marker allocation.
         const MAX_HEADING_LEVEL: i32 = 32;
         let depth = usize::try_from(level.clamp(1, MAX_HEADING_LEVEL)).unwrap_or(1);
         format!("{} {text}", "=".repeat(depth))
@@ -285,8 +284,8 @@ fn definition_list(
     lines.join("\n")
 }
 
-/// In a definition term, a colon would close the term, so escape every colon in the rendered markup
-/// — but not those inside a string-literal argument such as a link URL.
+/// In a definition term, a colon would close the term, so escape every colon in the rendered
+/// markup, except those inside a string-literal argument such as a link URL.
 fn escape_term_colons(term: &str) -> String {
     let mut out = String::with_capacity(term.len());
     let mut in_string = false;
@@ -619,8 +618,7 @@ fn cell_content(
                 wrap,
                 glue,
             );
-            // A trailing space inline is cell content even though the fill ends its lines at the
-            // last word; restore it before the closing bracket.
+            // A trailing space inline is cell content the fill drops; restore it before `]`.
             let closing = if matches!(inlines.last(), Some(Inline::Space)) {
                 " ]"
             } else {
@@ -821,8 +819,7 @@ fn span_wrapper(attr: &Attr) -> (&'static str, &'static str) {
 /// Greedily fill fragments to the fill column at a physical line start (paragraph context), laid out
 /// per the document's wrap mode.
 fn fill(fragments: &[Fragment], width: usize, wrap: WrapMode) -> String {
-    // Outside a cell only Auto reflows to a width; the other modes lay everything on one line and
-    // split solely on source soft breaks.
+    // Only Auto reflows to a width; the other modes split solely on source soft breaks.
     let width = if matches!(wrap, WrapMode::Auto) {
         width.max(1)
     } else {
@@ -1003,8 +1000,7 @@ fn link(items: &[Inline], target: &Target, width: usize, wrap: WrapMode, smart: 
     if plain == target.url {
         format!("#link(\"{url}\")")
     } else {
-        // The label is laid out at unbounded width so it is never reflowed (the link is one unit for
-        // wrapping), yet a source line break inside it is still kept under `Preserve`.
+        // Unbounded width: the link is one unit for wrapping, yet `Preserve` keeps inner breaks.
         let label = fill(&fragments(items, width, wrap, smart), usize::MAX, wrap);
         format!("#link(\"{url}\")[{label}]")
     }
@@ -1265,8 +1261,7 @@ mod tests {
 
     #[test]
     fn escape_text_position_rules_survive_a_verbatim_prefix() {
-        // `.` and `;` escape only as the very first character with more text following; `first`
-        // must go false once a clean run has been copied ahead of the trigger.
+        // `.`/`;` escape only first-with-more-text; `first` must go false after a copied run.
         assert_eq!(escape_text(".x", true, false, false), "\\.x");
         assert_eq!(escape_text("ab.x", true, false, false), "ab.x");
         assert_eq!(escape_text(".", true, false, false), ".");
@@ -1284,8 +1279,7 @@ mod tests {
     }
 
     fn smart_options() -> WriterOptions {
-        // `-t typst` defaults to `smart` on (see `default_extensions` in `format_spec`); the writer
-        // unit tests mirror that default so they exercise the smart-on rendering path.
+        // Mirrors the format's smart-on default (`default_extensions` in `format_spec`).
         let mut options = WriterOptions::default();
         options.extensions = Extensions::from_list(&[Extension::Smart]);
         options
@@ -1598,8 +1592,7 @@ mod tests {
 
     #[test]
     fn untranslatable_inline_math_falls_back_to_escaped_verbatim() {
-        // A command with no native form is kept as its source, the TeX delimiters reconstructed and
-        // the whole run escaped as ordinary markup text.
+        // No native form: source kept, TeX delimiters reconstructed, whole run escaped as text.
         assert_eq!(inline_math("\\unknowncmd"), "\\$\\\\unknowncmd\\$");
         assert_eq!(
             inline_math("\\foo #h _u *s"),

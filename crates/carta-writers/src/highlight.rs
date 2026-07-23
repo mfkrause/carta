@@ -1,6 +1,6 @@
 //! Helpers shared by the writers that colorize code blocks (the HTML family and LaTeX): recognizing
 //! the line-numbering class, reading the starting line number, splitting an unclassified block into
-//! lines, and projecting a color theme onto the preamble each standalone target needs — the CSS the
+//! lines, and projecting a color theme onto the preamble each standalone target needs: the CSS the
 //! HTML family embeds and the token macros LaTeX defines. Token escaping and per-token markup are
 //! format-specific and stay with each writer.
 
@@ -182,8 +182,7 @@ pub fn theme_css(theme: &Theme) -> String {
         None => out.push_str("    pre.numberSource { margin-left: 3em;  padding-left: 4px; }\n"),
     }
     out.push_str("    div.sourceCode\n");
-    // Each of the two frame declarations is present as `prop: value; ` or collapses to a lone space,
-    // so a frame with neither color reads `{   }` and one with only a background reads `{  bg; }`.
+    // Each declaration is `prop: value; ` or a lone space: no colors reads `{   }`, background-only `{  bg; }`.
     let text = theme
         .text_color
         .as_deref()
@@ -198,8 +197,7 @@ pub fn theme_css(theme: &Theme) -> String {
         "    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }\n",
     );
     out.push_str("    }\n");
-    // A kind gets a rule when the theme carries an entry for it — even an entry that sets nothing,
-    // which renders as empty braces — but a kind the theme omits entirely gets none.
+    // A kind gets a rule when the theme has an entry for it (even one setting nothing); omitted kinds get none.
     for kind in CSS_ORDER {
         let Some(style) = theme.style_for(kind) else {
             continue;
@@ -263,7 +261,7 @@ pub fn theme_latex_macros(theme: &Theme) -> String {
 }
 
 /// The body of one token's LaTeX macro: `#1` wrapped, innermost to outermost, by its background box,
-/// underline, italic, bold, and foreground color — only the attributes the style sets. Unlike the CSS
+/// underline, italic, bold, and foreground color (only the attributes the style sets). Unlike the CSS
 /// rules, which let a token inherit the block's foreground, every macro carries an explicit color, so a
 /// kind that sets none falls back to the theme's default foreground.
 fn latex_token_body(style: Option<&TokenStyle>, default_color: Option<&str>) -> String {

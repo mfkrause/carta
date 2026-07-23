@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to file a bug! A minimal reproducer — the smallest input
-        and exact command that shows the problem — is the single most useful thing you can
+        Thanks for taking the time to file a bug! A minimal reproducer (the smallest input
+        and exact command that shows the problem) is the single most useful thing you can
         provide.
   - type: textarea
     id: context

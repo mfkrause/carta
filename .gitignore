@@ -1,7 +1,7 @@
 # Rust build output
 /target
 
-# Local-only differential oracle
+# Local-only conformance tooling
 /.oracle/
 
 # Generated differential fixtures / golden output cache (never committed)

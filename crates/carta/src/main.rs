@@ -1,7 +1,7 @@
-//! `carta` — command-line interface.
+//! `carta`: command-line interface.
 //!
-//! Parses `--from`/`--to` and pipes the input through the `carta` library's [`convert`], or — when
-//! a `--list-*`/`-D` flag is given — reports what this build supports. Format selection, aliases, the
+//! Parses `--from`/`--to` and pipes the input through the `carta` library's [`convert`], or, when
+//! a `--list-*`/`-D` flag is given, reports what this build supports. Format selection, aliases, the
 //! recognized-but-unsupported error, and the introspection data all live in the library; this binary
 //! only handles argument parsing, metadata/variable inputs, and stdin/file I/O.
 
@@ -53,8 +53,7 @@ const LIST_FLAGS: [&str; 9] = [
     about = "Document converter",
     disable_version_flag = true
 )]
-// A command line surfaces each flag as its own field; grouping the boolean toggles into a sub-struct
-// would only obscure the one-flag-one-field mapping clap relies on.
+// One flag per field; a sub-struct would obscure the mapping clap relies on.
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Input format (e.g. `commonmark`, `json`).
@@ -139,7 +138,7 @@ struct Cli {
     /// transformed JSON on stdout. Repeatable; filters run in the order given.
     #[arg(short = 'F', long = "filter", value_name = "PROGRAM")]
     filter: Vec<String>,
-    /// Search this directory for user data — filters in `filters/`, templates in `templates/` —
+    /// Search this directory for user data (filters in `filters/`, templates in `templates/`)
     /// before the built-in locations. Defaults to `$XDG_DATA_HOME/carta` (or `~/.local/share/carta`).
     #[arg(long = "data-dir", value_name = "DIR")]
     data_dir: Option<PathBuf>,
@@ -204,7 +203,7 @@ struct Cli {
     #[cfg(feature = "highlight")]
     #[arg(long = "list-highlight-styles")]
     list_highlight_styles: bool,
-    /// Print a highlight style as a JSON theme — a built-in name or a theme file — and exit.
+    /// Print a highlight style (a built-in name or a theme file) as a JSON theme and exit.
     #[cfg(feature = "highlight")]
     #[arg(long = "print-highlight-style", value_name = "STYLE|FILE")]
     print_highlight_style: Option<String>,
@@ -215,8 +214,7 @@ struct Cli {
     #[arg(long = "list-output-formats")]
     list_output_formats: bool,
     /// List extensions and their default state for FORMAT (the Markdown dialect if omitted) and exit.
-    // The outer `Option` distinguishes a missing flag from a present one; the inner distinguishes a
-    // bare `--list-extensions` from `--list-extensions=FORMAT`. This is clap's optional-value shape.
+    // clap's optional-value shape: outer `Option` = flag present, inner = bare vs `=FORMAT`.
     #[allow(clippy::option_option)]
     #[arg(long = "list-extensions", value_name = "FORMAT", num_args = 0..=1, require_equals = true)]
     list_extensions: Option<Option<String>>,
@@ -305,16 +303,14 @@ fn run(cli: &Cli) -> Result<()> {
 
     match (cli.from.as_deref(), cli.to.as_deref()) {
         (Some(from), Some(to)) => convert_document(from, to, cli),
-        // `required_unless_present_any` makes clap reject a conversion missing `--from`/`--to`
-        // before `run` is reached.
+        // `required_unless_present_any` rejects a conversion missing `--from`/`--to` before `run`.
         _ => Ok(()),
     }
 }
 
 fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let input = read_input(cli.input.as_deref())?;
-    // The base output format, without its `+ext`/`-ext` toggles: the name passed to each filter and
-    // the format whose default template a data-directory override replaces.
+    // Base format without `+ext`/`-ext` toggles: passed to filters, keys the default template.
     let to_base = carta::parse_format_spec(to)?.0;
     let data_dir = datadir::resolve(cli.data_dir.as_deref());
 
@@ -322,9 +318,8 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     if cli.self_contained {
         eprintln!("carta: --self-contained is deprecated; use --embed-resources --standalone");
     }
-    // Media embedding inlines resources as `data:` URIs, and only the HTML family (`html`, `html4`,
-    // `html5`) renders them, so the request is dropped for any other target (as a container packs its
-    // media a different way).
+    // Only the HTML family renders `data:`-URI embedding; other targets drop the request
+    // (containers pack their media differently).
     #[cfg(feature = "write-html")]
     let embed_resources = (cli.embed_resources || cli.self_contained) && to.starts_with("html");
 
@@ -361,16 +356,14 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
 
     let (mut document, resources) = read_document(from, &input, &ReaderOptions::default())?;
 
-    // Fold the metadata layers into the document before any filter runs, so a filter observes the
-    // same metadata the writer will, and can delete or rewrite it. The layers are then cleared so
-    // rendering does not apply them a second time (which would resurrect a filter-deleted `-M` key).
+    // Fold metadata layers before filters so they see what the writer will and can rewrite it;
+    // clearing the layers keeps rendering from resurrecting a filter-deleted `-M` key.
     carta::merge_metadata(&mut document, &writer_options);
     writer_options.metadata.clear();
     writer_options.metadata_defaults.clear();
 
     let mut resources = match &cli.extract_media {
-        // Extraction turns the embedded resources into external files the document points at, so the
-        // writer no longer re-embeds them: it renders against an empty bag.
+        // Extraction rewrites resources to external files; the writer renders against an empty bag.
         Some(dir) => {
             extract_media(dir, &resources, &mut document.blocks)?;
             MediaBag::new()
@@ -378,13 +371,12 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         None => resources,
     };
 
-    // Filters run after extraction (so they see the rewritten resource references) and before a
-    // container packs its media (so resources a filter introduces are still gathered).
+    // Filters run after extraction (they see rewritten references) and before a container packs
+    // its media (resources a filter introduces are still gathered).
     filters::run(&mut document, &cli.filter, &to_base, data_dir.as_deref())?;
 
-    // A container format embeds the resources it references, so pull the local ones off disk here for
-    // the writer to carry. HTML self-contained mode instead inlines resources after rendering (the
-    // post-render pass below), which lets it reach raw-HTML and stylesheet references the tree omits.
+    // Containers embed referenced resources, so pull local ones off disk here. Self-contained HTML
+    // instead inlines after rendering, reaching raw-HTML and stylesheet references the tree omits.
     if cli.extract_media.is_none() && embeds_resources(to) {
         let search_path = resource_search_path(cli);
         media::embed_referenced_media(&mut document.blocks, &mut resources, |reference| {
@@ -392,8 +384,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
         });
     }
 
-    // Self-contained HTML inlines resources after rendering, resolving each reference the finished
-    // page carries; the bag travels alongside so a reader-carried resource resolves without disk I/O.
+    // Inlines against the finished page; the bag lets reader-carried resources resolve without disk I/O.
     #[cfg(feature = "write-html")]
     let embed_bag = if embed_resources && cli.extract_media.is_none() {
         resources.clone()
@@ -430,7 +421,7 @@ fn try_read(path: &Path) -> Result<Option<String>> {
 
 /// Resolve the standalone template the writer options should carry.
 ///
-/// A `--template` argument is a file path, or — failing that — a name looked up under the data
+/// A `--template` argument is a file path, or, failing that, a name looked up under the data
 /// directory's `templates/`. With no `--template` but standalone output requested, a
 /// `templates/default.<ext>` in the data directory overrides the format's built-in template, where
 /// `<ext>` is the format's template extension. Returns the template source together with the
@@ -456,7 +447,7 @@ fn resolve_template(
     Ok(None)
 }
 
-/// Resolve a `--template NAME`: read `NAME` as a file path, or — when that names nothing — a file of
+/// Resolve a `--template NAME`: read `NAME` as a file path, or, when that names nothing, a file of
 /// that name under the data directory's `templates/`. The partial directory is the template's own
 /// parent (or the data `templates/`), and partials inherit the template's file extension.
 fn resolve_named_template(
@@ -596,8 +587,8 @@ fn resolve_resource(reference: &str, search_path: &[PathBuf]) -> Option<Vec<u8>>
 }
 
 /// Resolve a reference the self-contained HTML pass encounters into its bytes and MIME type, in order:
-/// a resource the reader carried in the bag, then a local file found along `search_path`, then — with
-/// the `fetch` feature — a resource retrieved over HTTP(S). A reference that resolves nowhere is left
+/// a resource the reader carried in the bag, then a local file found along `search_path`, then, with
+/// the `fetch` feature, a resource retrieved over HTTP(S). A reference that resolves nowhere is left
 /// external (the pass keeps it as written).
 #[cfg(feature = "write-html")]
 fn resolve_embed(
@@ -633,7 +624,7 @@ fn is_remote_url(reference: &str) -> bool {
 }
 
 /// The MIME type a reference's file extension implies, for the `data:` URI that inlines it. Covers the
-/// resource kinds a self-contained page embeds — images, fonts, media, and stylesheets; an
+/// resource kinds a self-contained page embeds: images, fonts, media, and stylesheets; an
 /// unrecognized extension yields `None`, leaving the generic binary type to stand in.
 #[cfg(feature = "write-html")]
 fn mime_for_path(reference: &str) -> Option<String> {
@@ -671,8 +662,7 @@ fn mime_for_path(reference: &str) -> Option<String> {
 /// the reference is left external.
 #[cfg(all(feature = "write-html", feature = "fetch"))]
 fn fetch_remote(url: &str) -> Option<Resource> {
-    // A self-contained page may legitimately embed large media, so lift the read ceiling well above
-    // the client's conservative default rather than truncate a big resource mid-download.
+    // Self-contained pages may embed large media; lift the read ceiling above the client default.
     const LIMIT: u64 = 128 * 1024 * 1024;
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(std::time::Duration::from_secs(30)))
@@ -749,9 +739,8 @@ const DEFAULT_HIGHLIGHT_STYLE: &str = "pygments";
 /// Build the syntax-highlighting configuration from the highlight flags. `--no-highlight` and
 /// `--syntax-highlighting=none` leave code plain; `idiomatic` selects the format's own listing
 /// construct; otherwise a highlighter runs with the chosen (or default) style. `--highlight-style`
-/// overrides the style, and each `--syntax-definition` adds — or replaces by name — a language.
-// The highlighter caches tokenization with single-threaded reference counting; conversion never
-// shares it across threads, so wrapping it for the writer options is sound despite the lint.
+/// overrides the style, and each `--syntax-definition` adds (or replaces by name) a language.
+// Single-threaded refcounted cache, never shared across threads: the wrap is sound despite the lint.
 #[allow(clippy::arc_with_non_send_sync)]
 #[cfg(feature = "highlight")]
 fn highlight_options(cli: &Cli) -> Result<carta::HighlightOptions> {
@@ -766,8 +755,7 @@ fn highlight_options(cli: &Cli) -> Result<carta::HighlightOptions> {
         });
     }
 
-    // An explicit `--highlight-style` wins; otherwise a style or theme path named by
-    // `--syntax-highlighting` (anything but the bare `default`); otherwise the built-in default.
+    // `--highlight-style` wins; else a non-`default` `--syntax-highlighting` path; else built-in.
     let style = cli.highlight_style.as_deref().or(match mode {
         Some("default") | None => None,
         named => named,
@@ -977,18 +965,16 @@ fn write_output(path: Option<&Path>, output: &Output, verbatim: bool) -> Result<
     match output {
         Output::Text(text) => {
             writer.write_all(text.as_bytes())?;
-            // A fragment gets exactly one trailing newline; a template's output is emitted byte-for-byte.
             if !verbatim {
                 writer.write_all(b"\n")?;
             }
         }
-        // Binary output is emitted exactly, with no trailing newline.
         Output::Bytes(bytes) => writer.write_all(bytes)?,
     }
     Ok(())
 }
 
-/// Whether writing would send binary output straight to a terminal — no `-o FILE` and stdout is a
+/// Whether writing would send binary output straight to a terminal: no `-o FILE` and stdout is a
 /// tty. Such output corrupts the terminal, so it is refused.
 fn binary_to_terminal(path: Option<&Path>) -> bool {
     path.is_none() && io::stdout().is_terminal()
@@ -996,8 +982,7 @@ fn binary_to_terminal(path: Option<&Path>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    // Indexing a metadata map by a key the case has just inserted is the idiomatic assertion here; a
-    // missing key should fail the test loudly.
+    // Indexing by a just-inserted key: a missing key should fail the test loudly.
     #![allow(clippy::indexing_slicing)]
 
     use super::{Cli, parse_metadata, parse_toc_depth, parse_variables, parse_wrap, template_dir};

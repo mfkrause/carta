@@ -19,10 +19,6 @@ fn var(s: &str) -> Inline {
     emph(vec![str_inline(s)])
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — atoms and variables
-// ----------------------------------------------------------------------------
-
 #[test]
 fn single_variable_is_italic() {
     assert_eq!(to_inlines("x"), Some(vec![var("x")]));
@@ -66,13 +62,8 @@ fn both_scripts_emit_sub_then_sup() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — symbols, Greek letters, functions
-// ----------------------------------------------------------------------------
-
 #[test]
 fn lowercase_greek_is_an_italic_codepoint() {
-    // A Greek small letter is a variable: the codepoint wrapped in italic.
     assert_eq!(to_inlines("\\alpha"), Some(vec![var("\u{3b1}")]));
 }
 
@@ -88,14 +79,9 @@ fn large_operator_is_a_bare_symbol() {
 
 #[test]
 fn named_function_gets_a_trailing_thin_space() {
-    // A function name renders upright and is followed by a thin space (U+2006); the two
-    // adjacent strings collapse into one.
+    // upright name plus trailing thin space (U+2006); adjacent strings collapse into one
     assert_eq!(to_inlines("\\sin"), Some(vec![str_inline("sin\u{2006}")]));
 }
-
-// ----------------------------------------------------------------------------
-// Inline tree — atom-class spacing
-// ----------------------------------------------------------------------------
 
 #[test]
 fn binary_operator_is_surrounded_by_four_per_em_spaces() {
@@ -113,10 +99,6 @@ fn relation_is_surrounded_by_three_per_em_spaces() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — styled alphabets and text
-// ----------------------------------------------------------------------------
-
 #[test]
 fn blackboard_bold_maps_to_letterlike_codepoint() {
     // R double-struck is the named codepoint U+211D, not the algorithmic slot.
@@ -128,7 +110,6 @@ fn blackboard_bold_maps_to_letterlike_codepoint() {
 
 #[test]
 fn math_italic_letter_is_a_single_emph() {
-    // \mathit{x} is just an italic x — no double wrapping.
     assert_eq!(to_inlines("\\mathit{x}"), Some(vec![var("x")]));
 }
 
@@ -153,10 +134,6 @@ fn monospace_text_becomes_per_character_code() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — accents
-// ----------------------------------------------------------------------------
-
 #[test]
 fn hat_appends_a_combining_mark() {
     // \hat{x} is x followed by the combining circumflex (U+0302), inside the italic.
@@ -167,10 +144,6 @@ fn hat_appends_a_combining_mark() {
 fn wide_hat_matches_plain_hat_for_one_letter() {
     assert_eq!(to_inlines("\\widehat{x}"), to_inlines("\\hat{x}"));
 }
-
-// ----------------------------------------------------------------------------
-// Inline tree — primes
-// ----------------------------------------------------------------------------
 
 #[test]
 fn prime_becomes_a_superscript_prime_glyph() {
@@ -209,36 +182,31 @@ fn prime_then_explicit_superscript_keeps_both() {
 
 #[test]
 fn prime_after_a_subscript_fills_the_free_superscript_slot() {
-    // `a_b'` has a free superscript slot on the base, so the prime nests there rather than
-    // detaching: the prime sits on `a`, beside the subscript.
+    // the base's superscript slot is free, so the prime nests there beside the subscript
     assert_eq!(to_typst("a_b'"), Some("a'_b".to_string()));
 }
 
 #[test]
 fn prime_after_a_filled_subscript_and_superscript_detaches() {
-    // With both primary slots filled (`a_b^c`), a following prime has nowhere to nest, so it
-    // detaches and surfaces as a bare glyph after the script.
+    // both slots filled: the prime detaches as a bare glyph after the script
     assert_eq!(to_typst("a_b^c'"), Some("a_b^c'".to_string()));
 }
 
 #[test]
 fn prime_detaches_after_a_nested_prime_superscript() {
-    // `a^c'_d'` carries a prime inside the superscript and a filled subscript on that nest; the
-    // outer prime reaches a parent that already has a superscript, so it detaches.
+    // the outer prime reaches a parent whose superscript is already filled, so it detaches
     assert_eq!(to_typst("a^c'_d'"), Some("a^(c'_d)'".to_string()));
 }
 
 #[test]
 fn prime_detaches_symmetrically_for_the_subscript_first_shape() {
-    // The mirror `a_c'^d'`: a prime on the subscript nest, then a primed superscript. The closing
-    // prime detaches onto its own empty base, separated from the superscript.
+    // mirror shape: the closing prime detaches onto its own empty base
     assert_eq!(to_typst("a_c'^d'"), Some("a'_c \"\"^(d')".to_string()));
 }
 
 #[test]
 fn consecutive_primes_after_a_subscript_merge_into_one_double_prime() {
-    // The first prime fills the base superscript slot and stays the active atom; the second merges
-    // into it, so `a_b''` is one double-prime on the base, not two detached primes.
+    // the first prime stays the active atom; the second merges into one double prime
     assert_eq!(to_typst("a_b''"), Some("a''_b".to_string()));
     assert_eq!(
         to_inlines("a_b''"),
@@ -250,15 +218,9 @@ fn consecutive_primes_after_a_subscript_merge_into_one_double_prime() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// A named function as the sole content of a script drops its trailing thin space
-// ----------------------------------------------------------------------------
-
 #[test]
 fn function_alone_in_a_script_drops_its_trailing_thin_space() {
-    // A bare function name carries a trailing thin space (U+2006) that sets it off from a following
-    // operand. Standing as the entire script content there is no operand to separate, so the space is
-    // dropped: `x^{\sin}` superscripts a bare `sin` and `x_{\log}` subscripts a bare `log`.
+    // sole script content has no following operand, so the trailing thin space (U+2006) drops
     assert_eq!(
         to_inlines("x^{\\sin}"),
         Some(vec![var("x"), Inline::Superscript(vec![str_inline("sin")])])
@@ -271,9 +233,7 @@ fn function_alone_in_a_script_drops_its_trailing_thin_space() {
 
 #[test]
 fn function_among_other_atoms_in_a_script_keeps_its_thin_space() {
-    // With more than one atom in the script the function is not standing alone, so its thin space is
-    // kept — whether two functions sit together (`x^{\sin\cos}`) or the function ends a longer run
-    // (`x^{1+\sin}`).
+    // more than one atom in the script keeps the function's thin space
     assert_eq!(
         to_inlines("x^{\\sin\\cos}"),
         Some(vec![
@@ -289,10 +249,6 @@ fn function_among_other_atoms_in_a_script_keeps_its_thin_space() {
         ])
     );
 }
-
-// ----------------------------------------------------------------------------
-// Inline tree — leading scripts on a synthesized empty nucleus
-// ----------------------------------------------------------------------------
 
 #[test]
 fn leading_subscript_attaches_to_an_empty_nucleus() {
@@ -323,13 +279,8 @@ fn negative_exponent_keeps_the_minus_sign() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — per-character styled alphabets and script letters
-// ----------------------------------------------------------------------------
-
 #[test]
 fn bold_styles_each_character_separately() {
-    // \mathbf{ab} bolds a and b as two independent upright-bold atoms.
     assert_eq!(
         to_inlines("\\mathbf{ab}"),
         Some(vec![
@@ -348,15 +299,9 @@ fn script_capital_maps_to_its_named_letterlike_codepoint() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — set-minus keeps its space before a backslash glyph
-// ----------------------------------------------------------------------------
-
 #[test]
 fn set_minus_is_a_spaced_backslash() {
-    // \setminus is a binary operator rendering as a backslash with four-per-em spaces. The trailing
-    // space is kept in its own string rather than merged onto the backslash, so a writer that
-    // escapes the backslash does not also consume the following space.
+    // trailing space stays its own string so a writer escaping the backslash does not consume it
     assert_eq!(
         to_inlines("a \\setminus b"),
         Some(vec![
@@ -367,10 +312,6 @@ fn set_minus_is_a_spaced_backslash() {
         ])
     );
 }
-
-// ----------------------------------------------------------------------------
-// Inline tree — auto-paired and explicit delimiters
-// ----------------------------------------------------------------------------
 
 #[test]
 fn bare_double_bar_pair_renders_as_the_double_line_glyph() {
@@ -403,10 +344,6 @@ fn angle_brackets_pair_as_their_glyphs() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — modulo operators
-// ----------------------------------------------------------------------------
-
 #[test]
 fn binary_mod_renders_the_operator_word_with_spacing() {
     assert_eq!(
@@ -426,10 +363,6 @@ fn lone_binary_mod_has_no_inline_form() {
     assert_eq!(to_typst("\\bmod"), None);
 }
 
-// ----------------------------------------------------------------------------
-// Inline tree — constructs that lower to no inline form but do translate to Typst
-// ----------------------------------------------------------------------------
-
 #[test]
 fn overleftarrow_has_no_inline_form_but_translates() {
     assert_eq!(to_inlines("\\overleftarrow{AB}"), None);
@@ -445,10 +378,6 @@ fn surd_prefix_radical_has_no_inline_form_but_translates() {
     assert_eq!(to_inlines("\\surd x"), None);
     assert_eq!(to_typst("\\surd x").as_deref(), Some("sqrt(x)"));
 }
-
-// ----------------------------------------------------------------------------
-// Inline tree — fallback boundary (return None)
-// ----------------------------------------------------------------------------
 
 #[test]
 fn fraction_has_no_inline_form() {
@@ -489,8 +418,7 @@ fn unknown_command_has_no_inline_form() {
 
 #[test]
 fn empty_input_lowers_to_an_empty_result() {
-    // Empty and whitespace-only math is a successful conversion to nothing, not a fallback to
-    // verbatim source: the inline form is the empty list and the Typst form is the empty string.
+    // empty and whitespace-only math converts successfully to nothing, not a verbatim fallback
     assert_eq!(to_inlines(""), Some(Vec::new()));
     assert_eq!(to_inlines("   "), Some(Vec::new()));
     assert_eq!(to_inlines("{}"), Some(Vec::new()));
@@ -498,10 +426,6 @@ fn empty_input_lowers_to_an_empty_result() {
     assert_eq!(to_typst("   ").as_deref(), Some(""));
     assert_eq!(to_typst("{}").as_deref(), Some(""));
 }
-
-// ----------------------------------------------------------------------------
-// Typst backend — atoms, scripts, spacing
-// ----------------------------------------------------------------------------
 
 #[test]
 fn typst_variable_is_bare() {
@@ -549,10 +473,6 @@ fn typst_function_is_named() {
     assert_eq!(to_typst("\\sin").as_deref(), Some("sin"));
 }
 
-// ----------------------------------------------------------------------------
-// Symbol coverage — horizontal-dots alias, named parentheses, double colon
-// ----------------------------------------------------------------------------
-
 #[test]
 fn horizontal_dots_alias_is_the_ellipsis_glyph() {
     // `\hdots` is an alias for the horizontal ellipsis, an ordinary glyph.
@@ -562,8 +482,7 @@ fn horizontal_dots_alias_is_the_ellipsis_glyph() {
 
 #[test]
 fn named_parentheses_are_open_and_close_delimiters() {
-    // `\lparen`/`\rparen` are the round parentheses, carrying open/close spacing: no space hugs the
-    // operand between them.
+    // open/close spacing: no space hugs the operand between them
     assert_eq!(to_inlines("\\lparen"), Some(vec![str_inline("(")]));
     assert_eq!(to_inlines("\\rparen"), Some(vec![str_inline(")")]));
     assert_eq!(
@@ -591,15 +510,12 @@ fn double_colon_is_a_relation_glyph() {
 
 #[test]
 fn upright_differential_letters_are_ordinary_double_struck_glyphs() {
-    // `\dd \ee \ii \jj \DD` are the double-struck differential and operator letters (U+2146–U+2149
-    // and U+2145): ordinary class, so no spacing hugs them, and upright rather than italicised. Typst
-    // has no named symbol for them, so it sets the raw glyph.
+    // U+2145-U+2149: ordinary class, upright, no spacing; Typst has no named symbol so raw glyph
     assert_eq!(to_inlines("\\dd"), Some(vec![str_inline("\u{2146}")]));
     assert_eq!(to_inlines("\\ee"), Some(vec![str_inline("\u{2147}")]));
     assert_eq!(to_inlines("\\ii"), Some(vec![str_inline("\u{2148}")]));
     assert_eq!(to_inlines("\\jj"), Some(vec![str_inline("\u{2149}")]));
     assert_eq!(to_inlines("\\DD"), Some(vec![str_inline("\u{2145}")]));
-    // Ordinary class: an upright glyph sits directly between two italic operands with no spacing.
     assert_eq!(
         to_inlines("a\\dd b"),
         Some(vec![var("a"), str_inline("\u{2146}"), var("b")])
@@ -610,8 +526,7 @@ fn upright_differential_letters_are_ordinary_double_struck_glyphs() {
 
 #[test]
 fn extended_relations_carry_relation_spacing() {
-    // The added comparison and ordering relations surround their operands with relation spacing
-    // (U+2004).
+    // relation spacing (U+2004) flanks the operands
     assert_eq!(to_inlines("\\nsime"), Some(vec![str_inline("\u{2244}")]));
     assert_eq!(to_inlines("\\eqgtr"), Some(vec![str_inline("\u{22DD}")]));
     assert_eq!(to_inlines("\\eqless"), Some(vec![str_inline("\u{22DC}")]));
@@ -655,10 +570,6 @@ fn extended_circled_binary_operators_carry_binary_spacing() {
     assert_eq!(to_typst("\\circledparallel").as_deref(), Some("parallel.o"));
 }
 
-// ----------------------------------------------------------------------------
-// Typst backend — styled, text, accents
-// ----------------------------------------------------------------------------
-
 #[test]
 fn typst_blackboard_bold() {
     assert_eq!(to_typst("\\mathbb{R}").as_deref(), Some("bb(R)"));
@@ -688,10 +599,6 @@ fn typst_double_dot_accent() {
     assert_eq!(to_typst("\\ddot{x}").as_deref(), Some("dot.double(x)"));
 }
 
-// ----------------------------------------------------------------------------
-// Typst backend — the constructs that have no inline form but do translate
-// ----------------------------------------------------------------------------
-
 #[test]
 fn typst_fraction_uses_slash_for_simple_operands() {
     assert_eq!(to_typst("\\frac{1}{2}").as_deref(), Some("1 / 2"));
@@ -712,9 +619,7 @@ fn typst_stacked_limits() {
 
 #[test]
 fn typst_prime_on_a_limit_operator_stacks_in_display() {
-    // In display context a prime over a limit operator sets as a stacked superscript above the
-    // operator (`sum^(')`), where Typst's automatic limit placement raises it; a literal `'` would
-    // instead set beside the operator. Repeated primes stack together.
+    // display: the prime stacks as a superscript so Typst's limit placement raises it
     assert_eq!(to_typst_display("\\sum'").as_deref(), Some("sum^(')"));
     assert_eq!(to_typst_display("\\sum''").as_deref(), Some("sum^('')"));
     assert_eq!(to_typst_display("\\prod'").as_deref(), Some("product^(')"));
@@ -726,8 +631,7 @@ fn typst_prime_on_a_limit_operator_stacks_in_display() {
 
 #[test]
 fn typst_prime_on_a_limit_function_stacks_in_display() {
-    // The named limit functions (`\lim`, `\max`, …) stack their prime the same way the big
-    // operators do.
+    // named limit functions stack their prime like the big operators
     assert_eq!(to_typst_display("\\lim'").as_deref(), Some("lim^(')"));
     assert_eq!(to_typst_display("\\max'").as_deref(), Some("max^(')"));
     assert_eq!(to_typst_display("\\Pr'").as_deref(), Some("Pr^(')"));
@@ -735,25 +639,21 @@ fn typst_prime_on_a_limit_function_stacks_in_display() {
 
 #[test]
 fn typst_prime_on_a_limit_operator_stays_literal_inline() {
-    // Inline math sets the prime as a literal mark beside the operator, since Typst sets the
-    // operator's scripts to the side inline regardless.
+    // inline, Typst sets operator scripts to the side anyway, so the prime stays literal
     assert_eq!(to_typst("\\sum'").as_deref(), Some("sum'"));
     assert_eq!(to_typst("\\lim'").as_deref(), Some("lim'"));
 }
 
 #[test]
 fn typst_display_stacked_prime_follows_a_subscript() {
-    // A subscript and a prime both present set the subscript first, then the prime as the stacked
-    // superscript — `\sum_a'` and `\sum'_a` both give `sum_a^(')`.
+    // subscript first, then the prime as the stacked superscript, in either source order
     assert_eq!(to_typst_display("\\sum_a'").as_deref(), Some("sum_a^(')"));
     assert_eq!(to_typst_display("\\sum'_a").as_deref(), Some("sum_a^(')"));
 }
 
 #[test]
 fn typst_display_prime_with_a_real_superscript_is_not_restacked() {
-    // When the superscript slot already holds real content, the prime sets inside it the ordinary
-    // way (`sum_a^b'`), and a prime followed by a separate superscript restarts the base after the
-    // stacked prime (`sum^(') ""^b`).
+    // a filled superscript keeps the prime inside it; prime then superscript restarts the base
     assert_eq!(to_typst_display("\\sum_a^b'").as_deref(), Some("sum_a^b'"));
     assert_eq!(
         to_typst_display("\\sum'^b").as_deref(),
@@ -763,8 +663,7 @@ fn typst_display_prime_with_a_real_superscript_is_not_restacked() {
 
 #[test]
 fn typst_display_prime_on_a_side_script_operator_stays_literal() {
-    // The side-script large operators (`\int`, `\oint`, the circled/boxed big operators) set their
-    // scripts beside themselves even in display, so their prime stays a literal mark.
+    // side-script operators keep their scripts beside themselves even in display
     assert_eq!(to_typst_display("\\int'").as_deref(), Some("integral'"));
     assert_eq!(to_typst_display("\\bigoplus'").as_deref(), Some("xor.big'"));
     assert_eq!(to_typst_display("\\sin'").as_deref(), Some("sin'"));
@@ -772,8 +671,7 @@ fn typst_display_prime_on_a_side_script_operator_stays_literal() {
 
 #[test]
 fn typst_display_stacked_prime_propagates_into_nested_content() {
-    // The display context reaches a limit operator nested inside a fraction, radical, or
-    // superscript, so its prime stacks there too.
+    // the display context reaches into nested content, so the prime stacks there too
     assert_eq!(
         to_typst_display("\\frac{\\sum'}{2}").as_deref(),
         Some("sum^(') / 2")
@@ -812,10 +710,6 @@ fn typst_unknown_command_is_none() {
     assert_eq!(to_typst("\\nosuchcommand"), None);
 }
 
-// ----------------------------------------------------------------------------
-// Typst backend — delimiters
-// ----------------------------------------------------------------------------
-
 #[test]
 fn typst_paren_group_drops_the_left_right() {
     assert_eq!(to_typst("\\left( x \\right)").as_deref(), Some("(x)"));
@@ -835,8 +729,7 @@ fn typst_half_open_bar_group_escapes_the_lone_bar() {
 
 #[test]
 fn typst_double_bar_pair_stretches_as_named_glyph() {
-    // Both an auto-paired `\lVert .. \rVert` and an explicit `\left\Vert .. \right\Vert` are the
-    // stretchy named double line.
+    // auto-paired and explicit forms are both the stretchy named double line
     assert_eq!(
         to_typst("\\lVert x \\rVert").as_deref(),
         Some("lr(bar.v.double x bar.v.double)")
@@ -849,8 +742,7 @@ fn typst_double_bar_pair_stretches_as_named_glyph() {
 
 #[test]
 fn typst_left_parallel_is_the_literal_parallel_glyph() {
-    // `\left\|` and `\left\lVert` are the parallel sign printed directly, not the stretchy double
-    // line and not wrapped in `lr(..)`.
+    // the parallel sign prints directly: not the stretchy double line, no lr(..) wrapper
     assert_eq!(
         to_typst("\\left\\| x \\right\\|").as_deref(),
         Some("\u{2225}x\u{2225}")
@@ -875,8 +767,7 @@ fn typst_angle_and_floor_and_ceil_are_named() {
 
 #[test]
 fn corner_delimiters_stretch_as_left_right_brackets() {
-    // `\ulcorner`/`\urcorner` act as `\left`/`\right` quine-corner brackets, printing the raw corner
-    // glyphs around their content.
+    // corners act as \left/\right brackets printing the raw glyphs around their content
     assert_eq!(
         to_typst("\\left\\ulcorner a \\right\\urcorner").as_deref(),
         Some("\u{231C}a\u{231D}")
@@ -909,10 +800,6 @@ fn corner_delimiters_render_as_glyphs_in_inlines() {
         ])
     );
 }
-
-// ----------------------------------------------------------------------------
-// Typst backend — primes, scripts, modulo
-// ----------------------------------------------------------------------------
 
 #[test]
 fn typst_prime_is_an_apostrophe() {
@@ -951,10 +838,6 @@ fn typst_parenthesised_mod_wraps_the_argument() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Typst backend — per-character styles and radical prefix
-// ----------------------------------------------------------------------------
-
 #[test]
 fn typst_monospace_command_is_mono() {
     assert_eq!(to_typst("\\texttt{ab}").as_deref(), Some("mono(\"ab\")"));
@@ -969,10 +852,6 @@ fn typst_set_minus_is_an_escaped_backslash() {
 fn typst_surd_is_a_radical_over_the_next_group() {
     assert_eq!(to_typst("\\surd x").as_deref(), Some("sqrt(x)"));
 }
-
-// ----------------------------------------------------------------------------
-// Robustness — malformed and adversarial input must never panic
-// ----------------------------------------------------------------------------
 
 #[test]
 fn malformed_input_returns_without_panic() {
@@ -1018,20 +897,12 @@ fn deep_nesting_is_bounded_not_overflowing() {
     let _ = to_typst(&deep_fracs);
 }
 
-// ----------------------------------------------------------------------------
-// Both backends share one parse: a group flattens so a script binds the last atom
-// ----------------------------------------------------------------------------
-
 #[test]
 fn group_flattens_and_script_binds_last_atom() {
     // {a+b}^2 == a + b^2: the brace group does not become an atom of its own.
     assert_eq!(to_inlines("{a+b}^2"), to_inlines("a+b^2"));
     assert_eq!(to_typst("{a+b}^2"), to_typst("a+b^2"));
 }
-
-// ----------------------------------------------------------------------------
-// Numeric literals: adjacent digits group into one number atom
-// ----------------------------------------------------------------------------
 
 #[test]
 fn adjacent_digits_form_one_number() {
@@ -1058,8 +929,7 @@ fn trailing_decimal_point_is_not_part_of_the_number() {
 
 #[test]
 fn second_decimal_point_starts_a_fresh_number() {
-    // `1.5.5` greedily takes one interior point, then the next `.5` is a separate number atom; in a
-    // styled group the two numbers stay apart (`1.5` then `.5`).
+    // one interior point per number, then `.5` starts a separate number atom
     assert_eq!(
         to_typst("\\mathbf{1.5.5}").as_deref(),
         Some("upright(bold(1.5 .5))")
@@ -1086,7 +956,6 @@ fn bold_keeps_a_digit_run_as_one_styled_atom() {
 
 #[test]
 fn monospace_keeps_a_digit_run_as_one_code_span() {
-    // \mathtt{1a23} is one span over `1`, one over `a`, one over `23`.
     assert_eq!(
         to_inlines("\\mathtt{1a23}"),
         Some(vec![
@@ -1108,21 +977,15 @@ fn blackboard_digits_use_double_struck_glyphs() {
 
 #[test]
 fn script_alphabet_passes_digits_through_unchanged() {
-    // Script and fraktur have no styled digits, so digits stay as plain ASCII beside the styled
-    // letter (here the named script F, U+2131).
+    // script/fraktur have no styled digits: digits stay plain ASCII beside the styled letter
     assert_eq!(
         to_inlines("\\mathscr{F12}"),
         Some(vec![str_inline("\u{2131}12")])
     );
 }
 
-// ----------------------------------------------------------------------------
-// \mathit slants every atom individually
-// ----------------------------------------------------------------------------
-
 #[test]
 fn math_italic_styles_each_atom_including_digits() {
-    // \mathit{a12} emphasises the letter and the number as separate italic runs.
     assert_eq!(
         to_inlines("\\mathit{a12}"),
         Some(vec![
@@ -1131,10 +994,6 @@ fn math_italic_styles_each_atom_including_digits() {
         ])
     );
 }
-
-// ----------------------------------------------------------------------------
-// \not-negated relations
-// ----------------------------------------------------------------------------
 
 #[test]
 fn not_equals_uses_the_precomposed_glyph() {
@@ -1150,8 +1009,7 @@ fn not_with_a_relation_command_uses_its_precomposed_glyph() {
 
 #[test]
 fn not_without_a_precomposed_glyph_overlays_a_solidus() {
-    // \not\vdash has no precomposed form, so the base glyph (U+22A2) carries a combining long
-    // solidus (U+0338).
+    // no precomposed form: base glyph carries a combining long solidus (U+0338)
     assert_eq!(
         to_inlines("\\not\\vdash"),
         Some(vec![str_inline("\u{22A2}\u{0338}")])
@@ -1165,8 +1023,7 @@ fn not_with_a_precomposed_typst_token() {
 
 #[test]
 fn not_typst_overlay_uses_the_literal_base_glyph() {
-    // With no dedicated negated token, Typst strikes the literal base glyph (U+22A2) rather than
-    // its token name.
+    // no dedicated negated token: strike the literal base glyph, not its token name
     assert_eq!(
         to_typst("\\not\\vdash").as_deref(),
         Some("\u{22A2}\u{0338}")
@@ -1175,8 +1032,7 @@ fn not_typst_overlay_uses_the_literal_base_glyph() {
 
 #[test]
 fn not_over_a_relation_command_without_a_precomposed_glyph_overlays_a_solidus() {
-    // \not\sim, \not\vDash and \not\models are relation commands with no precomposed negated
-    // codepoint, so the base glyph carries a combining long solidus (U+0338).
+    // no precomposed negated codepoint: base glyph carries a combining long solidus (U+0338)
     assert_eq!(
         to_inlines("\\not\\sim"),
         Some(vec![str_inline("\u{223C}\u{0338}")])
@@ -1193,9 +1049,7 @@ fn not_over_a_relation_command_without_a_precomposed_glyph_overlays_a_solidus() 
 
 #[test]
 fn not_over_an_ordinary_or_binary_bar_command_falls_back_to_verbatim() {
-    // The bar commands \| and \Vert are ordinary-class double bars and \mid is a binary divides
-    // bar; none has a struck form, so \not over them leaves the whole expression verbatim. This is
-    // distinct from the literal pipe character \not| below, which does strike.
+    // no struck form for the bar commands: verbatim; the literal pipe \not| below does strike
     assert_eq!(to_inlines("\\not\\|"), None);
     assert_eq!(to_inlines("\\not\\Vert"), None);
     assert_eq!(to_inlines("\\not\\mid"), None);
@@ -1205,15 +1059,13 @@ fn not_over_an_ordinary_or_binary_bar_command_falls_back_to_verbatim() {
 
 #[test]
 fn not_over_the_literal_pipe_character_strikes_an_italic_bar() {
-    // \not| (a literal pipe, not the \| command) strikes through as an ordinary italicised bar with
-    // a combining long solidus.
+    // a literal pipe (not the \| command) strikes as an italicised bar with a combining solidus
     assert_eq!(to_inlines("\\not|"), Some(vec![var("|\u{0338}")]));
 }
 
 #[test]
 fn not_over_a_delimiter_or_operator_command_falls_back_to_verbatim() {
-    // Delimiter commands (\lvert, \langle), set/space operators (\setminus, \cup) and upright
-    // letterlikes (\hbar, \nabla) carry no struck form, so \not over them is left verbatim.
+    // delimiters, set/space operators, and upright letterlikes carry no struck form
     assert_eq!(to_inlines("\\not\\lvert"), None);
     assert_eq!(to_inlines("\\not\\langle"), None);
     assert_eq!(to_inlines("\\not\\setminus"), None);
@@ -1234,14 +1086,9 @@ fn not_over_an_italic_letterlike_command_strikes_the_glyph() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// \limits / \nolimits override stacked-limit placement (inline backend only)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn nolimits_keeps_a_single_script_beside_a_limit_operator() {
-    // A limit operator stacks only with both scripts; with one script it already lays out inline, so
-    // \nolimits is a no-op here and the sum keeps its subscript beside it.
+    // one script already lays out inline, so \nolimits is a no-op here
     assert!(to_inlines("\\sum\\nolimits_{i}").is_some());
 }
 
@@ -1257,24 +1104,15 @@ fn nolimits_forces_a_doubly_scripted_operator_to_lay_out_inline() {
     assert!(to_inlines("\\sum\\nolimits_i^n").is_some());
 }
 
-// ----------------------------------------------------------------------------
-// Typst: a \left … \right group sets escaped punctuation off with spaces
-// ----------------------------------------------------------------------------
-
 #[test]
 fn delimited_group_spaces_an_escaped_comma() {
-    // Inside \left( … \right) the escaped comma is set off with spaces (`x \, y`); at the top level
-    // it binds tightly (`x\,y`).
+    // inside \left(..\right) the escaped comma is spaced; at top level it binds tightly
     assert_eq!(to_typst("x, y").as_deref(), Some("x\\,y"));
     assert_eq!(
         to_typst("\\left( x, y \\right)").as_deref(),
         Some("(x \\, y)")
     );
 }
-
-// ----------------------------------------------------------------------------
-// \overbrace / \underbrace
-// ----------------------------------------------------------------------------
 
 #[test]
 fn brace_does_not_linearise_to_inlines() {
@@ -1308,21 +1146,16 @@ fn underbrace_takes_its_subscript_as_a_label() {
 
 #[test]
 fn brace_with_both_scripts_takes_neither_as_a_label() {
-    // When both scripts are present neither annotates the brace; both render as ordinary scripts.
+    // with both scripts present neither annotates the brace; both render as ordinary scripts
     assert_eq!(
         to_typst("\\overbrace{x}^a_b").as_deref(),
         Some("overbrace(x)_b^a")
     );
 }
 
-// ----------------------------------------------------------------------------
-// Typst: undelimited matrix renders as a bare alignment block
-// ----------------------------------------------------------------------------
-
 #[test]
 fn undelimited_matrix_is_a_bare_alignment() {
-    // \begin{matrix} … is an undelimited grid: cells joined by ` & `, rows by a trailing `\` and a
-    // line break.
+    // undelimited grid: cells joined by ` & `, rows by a trailing backslash and line break
     assert_eq!(
         to_typst("\\begin{matrix} a & b \\\\ c & d \\end{matrix}").as_deref(),
         Some("a & b\\\nc & d")
@@ -1336,10 +1169,6 @@ fn undelimited_matrix_does_not_linearise_to_inlines() {
         None
     );
 }
-
-// ----------------------------------------------------------------------------
-// A lone, trailing, or dangling backslash is not a complete expression
-// ----------------------------------------------------------------------------
 
 #[test]
 fn lone_backslash_has_no_conversion() {
@@ -1360,10 +1189,6 @@ fn control_space_mid_expression_converts() {
     assert!(to_inlines("a \\ b").is_some());
 }
 
-// ----------------------------------------------------------------------------
-// Typst: the literal slash is escaped; a fraction keeps its bare divider
-// ----------------------------------------------------------------------------
-
 #[test]
 fn literal_slash_is_escaped_in_typst() {
     assert_eq!(to_typst("a/b").as_deref(), Some("a\\/b"));
@@ -1373,10 +1198,6 @@ fn literal_slash_is_escaped_in_typst() {
 fn fraction_divider_stays_bare_in_typst() {
     assert_eq!(to_typst("\\frac{a}{b}").as_deref(), Some("a / b"));
 }
-
-// ----------------------------------------------------------------------------
-// Capital Greek lookalikes spell their name in Typst and map to the codepoint inline
-// ----------------------------------------------------------------------------
 
 #[test]
 fn capital_greek_lookalike_spells_its_name_in_typst() {
@@ -1391,18 +1212,10 @@ fn capital_greek_lookalike_is_a_codepoint_inline() {
     assert_eq!(to_inlines("\\Alpha"), Some(vec![var("\u{0391}")]));
 }
 
-// ----------------------------------------------------------------------------
-// A `\prime` superscript collapses to a literal apostrophe in Typst
-// ----------------------------------------------------------------------------
-
 #[test]
 fn prime_superscript_collapses_to_apostrophe() {
     assert_eq!(to_typst("f^{\\prime}").as_deref(), Some("f'"));
 }
-
-// ----------------------------------------------------------------------------
-// Named spacing macros
-// ----------------------------------------------------------------------------
 
 #[test]
 fn medspace_and_enspace_render_fixed_inline_spaces() {
@@ -1415,10 +1228,6 @@ fn medspace_and_enspace_in_typst() {
     assert_eq!(to_typst("\\medspace").as_deref(), Some("space.med"));
     assert_eq!(to_typst("\\enspace").as_deref(), Some("#h(0em)"));
 }
-
-// ----------------------------------------------------------------------------
-// `\mod` and `\pod` modulo forms
-// ----------------------------------------------------------------------------
 
 #[test]
 fn mod_leads_its_operand() {
@@ -1445,10 +1254,6 @@ fn pmod_and_pod_in_typst() {
     assert_eq!(to_typst("\\pmod{n}").as_deref(), Some("med\\(mod med n\\)"));
     assert_eq!(to_typst("\\pod{x}").as_deref(), Some("med\\(x\\)"));
 }
-
-// ----------------------------------------------------------------------------
-// Math-class wrappers
-// ----------------------------------------------------------------------------
 
 #[test]
 fn single_atom_class_wrapper_is_upright() {
@@ -1477,10 +1282,6 @@ fn mathop_known_operator_is_bare_in_typst() {
     assert_eq!(to_typst("\\mathop{lim}").as_deref(), Some("lim"));
 }
 
-// ----------------------------------------------------------------------------
-// Colour and style switches are invisible
-// ----------------------------------------------------------------------------
-
 #[test]
 fn color_is_stripped() {
     assert_eq!(to_typst("\\color{red}{x}").as_deref(), Some("x"));
@@ -1491,10 +1292,6 @@ fn color_is_stripped() {
 fn style_switch_is_dropped() {
     assert_eq!(to_typst("\\displaystyle x").as_deref(), Some("x"));
 }
-
-// ----------------------------------------------------------------------------
-// Wrappers and operator-name handling in Typst
-// ----------------------------------------------------------------------------
 
 #[test]
 fn phantom_and_cancel_and_boxed_in_typst() {
@@ -1524,10 +1321,6 @@ fn overparen_sets_content_as_an_over_script() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Accents that fall back to the generic Typst accent
-// ----------------------------------------------------------------------------
-
 #[test]
 fn triple_dot_accent_in_typst() {
     assert_eq!(
@@ -1535,10 +1328,6 @@ fn triple_dot_accent_in_typst() {
         Some("accent(x, \u{20DB})")
     );
 }
-
-// ----------------------------------------------------------------------------
-// Two-dimensional stacking
-// ----------------------------------------------------------------------------
 
 #[test]
 fn overset_bare_letter_mark_stands_alone() {
@@ -1568,10 +1357,6 @@ fn stack_has_no_inline_form() {
     assert_eq!(to_inlines("\\overset{a}{b}"), None);
 }
 
-// ----------------------------------------------------------------------------
-// Grid environments
-// ----------------------------------------------------------------------------
-
 #[test]
 fn cases_joins_columns_then_rows() {
     assert_eq!(
@@ -1592,10 +1377,6 @@ fn aligned_joins_cells_and_rows() {
 fn substack_stacks_single_cells() {
     assert_eq!(to_typst("\\substack{a \\\\ b}").as_deref(), Some("a\\\nb"));
 }
-
-// ----------------------------------------------------------------------------
-// Binomial-style stacks: infix operators and genfrac
-// ----------------------------------------------------------------------------
 
 #[test]
 fn infix_choose_is_a_binom() {
@@ -1634,10 +1415,6 @@ fn binom_has_no_inline_form() {
     assert_eq!(to_inlines("{n \\choose k}"), None);
 }
 
-// ----------------------------------------------------------------------------
-// Extensible arrows
-// ----------------------------------------------------------------------------
-
 #[test]
 fn extensible_arrows_carry_labels_as_scripts() {
     assert_eq!(to_typst("\\xrightarrow{f}").as_deref(), Some("arrow.r^f"));
@@ -1657,10 +1434,6 @@ fn extensible_arrow_has_no_inline_form() {
     assert_eq!(to_inlines("\\xrightarrow{f}"), None);
 }
 
-// ----------------------------------------------------------------------------
-// `smallsmile` / `smallfrown` relations
-// ----------------------------------------------------------------------------
-
 #[test]
 fn small_smile_and_frown_are_relations() {
     assert_eq!(
@@ -1670,10 +1443,6 @@ fn small_smile_and_frown_are_relations() {
     assert_eq!(to_typst("\\smallsmile").as_deref(), Some("smile"));
     assert_eq!(to_typst("\\smallfrown").as_deref(), Some("frown"));
 }
-
-// ----------------------------------------------------------------------------
-// Integrals, big operators, and miscellaneous glyphs
-// ----------------------------------------------------------------------------
 
 #[test]
 fn volume_and_square_integrals_are_bare_glyphs() {
@@ -1780,10 +1549,6 @@ fn variant_suits_moons_and_sun_are_ordinary_glyphs() {
     assert_eq!(to_inlines("\\sun"), Some(vec![str_inline("\u{263C}")]));
 }
 
-// ----------------------------------------------------------------------------
-// Colon-equality family and doubled relations
-// ----------------------------------------------------------------------------
-
 #[test]
 fn colon_equality_relations_carry_their_named_typst_forms() {
     assert_eq!(to_inlines("\\coloneqq"), Some(vec![str_inline("\u{2254}")]));
@@ -1825,14 +1590,9 @@ fn a_colon_equality_relation_takes_relation_spacing() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Large operators: scripts sit beside the symbol, not stacked
-// ----------------------------------------------------------------------------
-
 #[test]
 fn big_circled_operators_place_scripts_to_the_side() {
-    // The circled-sum operator does not stack its limits; the scripts follow it
-    // as ordinary sub/superscripts.
+    // circled operators do not stack limits: scripts follow as ordinary sub/superscripts
     assert_eq!(
         to_inlines("\\bigoplus_{x}^{y}"),
         Some(vec![
@@ -1866,10 +1626,6 @@ fn summation_stacks_its_limits_in_typst() {
     // A genuine limit operator stacks: its script becomes a `limits` subscript.
     assert_eq!(to_typst("\\sum_{i}").as_deref(), Some("sum_i"));
 }
-
-// ----------------------------------------------------------------------------
-// Empty-base consecutive scripts
-// ----------------------------------------------------------------------------
 
 #[test]
 fn doubled_superscript_nests_through_an_empty_base() {
@@ -1909,16 +1665,11 @@ fn explicit_empty_braces_keep_their_zero_width_scripts() {
 
 #[test]
 fn a_pathologically_deep_script_chain_falls_back_to_verbatim() {
-    // The depth guard keeps a runaway chain from recursing without bound; once it
-    // trips, the whole expression has no structured form.
+    // depth guard: once tripped the whole expression has no structured form
     let deep = "a".to_string() + &"^".repeat(70) + "b";
     assert_eq!(to_typst(&deep), None);
     assert_eq!(to_inlines(&deep), None);
 }
-
-// ----------------------------------------------------------------------------
-// TeX-active characters: bare `#`, `&`, `%` are not convertible
-// ----------------------------------------------------------------------------
 
 #[test]
 fn a_bare_active_character_has_no_structured_form() {
@@ -1948,10 +1699,6 @@ fn an_alignment_tab_still_separates_cells() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Empty styled-alphabet and text wrappers emit nothing inline
-// ----------------------------------------------------------------------------
-
 #[test]
 fn an_empty_blackboard_wrapper_contributes_no_inline() {
     assert_eq!(to_inlines("\\mathbb{}"), Some(Vec::new()));
@@ -1964,11 +1711,6 @@ fn empty_text_wrappers_contribute_no_inline() {
     assert_eq!(to_inlines("\\textbf{}"), Some(Vec::new()));
     assert_eq!(to_inlines("\\mathbf{}"), Some(Vec::new()));
 }
-
-// ----------------------------------------------------------------------------
-// Negated relations, the colon-equals aliases, the dots family, and the
-// double-stroke angle/brace delimiters
-// ----------------------------------------------------------------------------
 
 /// A relation between two variables: the glyph framed by three-per-em spaces. Returns `Option` so it
 /// compares directly against `to_inlines`.
@@ -2108,10 +1850,6 @@ fn double_stroke_delimiters_have_named_typst_tokens() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Accents convert only over a single letter-class base
-// ----------------------------------------------------------------------------
-
 #[test]
 fn accent_over_a_letter_applies_a_combining_mark() {
     assert_eq!(to_inlines("\\hat{R}"), Some(vec![var("R\u{302}")]));
@@ -2134,8 +1872,7 @@ fn accent_over_a_letter_applies_a_combining_mark() {
 
 #[test]
 fn accent_over_a_non_letter_base_has_no_inline_form() {
-    // A digit, operator, relation, delimiter, large operator, or symbol base keeps
-    // the whole expression verbatim rather than stacking a combining mark on it.
+    // a non-letter base keeps the whole expression verbatim
     assert_eq!(to_inlines("\\hat{1}"), None);
     assert_eq!(to_inlines("\\hat{+}"), None);
     assert_eq!(to_inlines("\\hat{(}"), None);
@@ -2147,10 +1884,6 @@ fn accent_over_a_non_letter_base_has_no_inline_form() {
     assert_eq!(to_inlines("\\hat{\\oiint}"), None);
     assert_eq!(to_inlines("\\hat{\\mathbb{R}}"), None);
 }
-
-// ----------------------------------------------------------------------------
-// The relation-sizing m-suffix delimiter variants are kept verbatim
-// ----------------------------------------------------------------------------
 
 #[test]
 fn relation_sizing_delimiter_variants_have_no_inline_form() {
@@ -2177,14 +1910,9 @@ fn non_m_delimiter_sizes_still_translate() {
     assert!(to_typst("a \\Bigg| b").is_some());
 }
 
-// ----------------------------------------------------------------------------
-// Restart-base multi-script runs render subscript-before-superscript
-// ----------------------------------------------------------------------------
-
 #[test]
 fn a_restart_run_renders_sub_before_sup_in_typst() {
-    // After a base already carries a sub and a sup, the next pair starts a fresh
-    // empty base; that restart run is reordered sub-then-sup, like the first run.
+    // after sub and sup, the next pair restarts on a fresh empty base, reordered sub-then-sup
     assert_eq!(to_typst("a^a_b^c_d").as_deref(), Some("a_b^a \"\"_d^c"));
     assert_eq!(to_typst("a^1_2^3_4^5").as_deref(), Some("a_2^1 \"\"_4^3^5"));
     assert_eq!(
@@ -2195,7 +1923,6 @@ fn a_restart_run_renders_sub_before_sup_in_typst() {
 
 #[test]
 fn a_restart_run_renders_sub_before_sup_in_the_inline_tree() {
-    // a^1_2^3_4: the first run is sub 2 then sup 1; the restart run is sub 4 then sup 3.
     assert_eq!(
         to_inlines("a^1_2^3_4"),
         Some(vec![
@@ -2214,15 +1941,9 @@ fn single_run_and_sub_first_script_orders_do_not_regress() {
     assert_eq!(to_typst("a^b_c").as_deref(), Some("a_c^b"));
 }
 
-// ----------------------------------------------------------------------------
-// Fixed-size delimiters (`\big`, `\Big`, `\bigg`, `\Bigg`, with `l`/`r` variants):
-// argument-form completeness
-// ----------------------------------------------------------------------------
-
 #[test]
 fn fixed_size_wrapper_sizes_the_null_delimiter_as_a_literal_period() {
-    // `\big.` is a sized null delimiter, which prints as a literal `.` bound tightly to
-    // its neighbours (ordinary class), across every scale and the l/r variants.
+    // a sized null delimiter prints as a tight literal period, at every scale and l/r variant
     assert_eq!(to_inlines("\\big."), Some(vec![str_inline(".")]));
     assert_eq!(to_inlines("\\Bigl."), Some(vec![str_inline(".")]));
     assert_eq!(to_inlines("\\bigg."), Some(vec![str_inline(".")]));
@@ -2239,8 +1960,7 @@ fn fixed_size_wrapper_sizes_the_null_delimiter_as_a_literal_period() {
 
 #[test]
 fn fixed_size_wrapper_treats_angle_brackets_as_tight_delimiters() {
-    // `<` and `>` after a sizing wrapper are open/close delimiters, not relations, so
-    // they take tight (ordinary) spacing rather than the spacing of a relation.
+    // after a sizing wrapper, < and > are tight open/close delimiters, not relations
     assert_eq!(
         to_inlines("a \\big< b"),
         Some(vec![var("a"), str_inline("<"), var("b")])
@@ -2261,9 +1981,7 @@ fn fixed_size_wrapper_treats_angle_brackets_as_tight_delimiters() {
 
 #[test]
 fn fixed_size_wrapper_sizes_an_ordinary_or_relation_character_tightly() {
-    // The wrapper accepts ordinary, relation, and punctuation marks too, sizing each as a
-    // literal glyph with tight (ordinary) spacing — `\big +` is a tight `+`, not a binary
-    // operator with its usual surrounding space.
+    // ordinary/relation/punctuation marks size as tight literal glyphs: \big + is a tight +
     assert_eq!(to_inlines("\\big +"), Some(vec![str_inline("+")]));
     assert_eq!(to_inlines("\\big-"), Some(vec![str_inline("\u{2212}")]));
     assert_eq!(to_inlines("\\bigl +"), Some(vec![str_inline("+")]));
@@ -2280,8 +1998,7 @@ fn fixed_size_wrapper_sizes_an_ordinary_or_relation_character_tightly() {
 
 #[test]
 fn fixed_size_wrapper_sizes_a_prime_run_as_one_multi_prime_delimiter() {
-    // A run of primes after the wrapper is one sized multi-prime glyph, not a prime
-    // carrying a prime as a script.
+    // a prime run sizes as one multi-prime glyph, not nested prime scripts
     assert_eq!(to_inlines("\\big '"), Some(vec![str_inline("\u{2032}")]));
     assert_eq!(to_inlines("\\big ''"), Some(vec![str_inline("\u{2033}")]));
     assert_eq!(to_inlines("\\big '''"), Some(vec![str_inline("\u{2034}")]));
@@ -2294,8 +2011,7 @@ fn fixed_size_wrapper_sizes_a_prime_run_as_one_multi_prime_delimiter() {
 
 #[test]
 fn fixed_size_wrapper_sizes_the_colon_equals_digraph_as_one_relation() {
-    // `:=` after the wrapper is one sized relation digraph, not a sized `:` followed by a
-    // loose `=`.
+    // := sizes as one relation digraph, not a sized : plus a loose =
     assert_eq!(to_inlines("\\big :="), Some(vec![str_inline(":=")]));
     assert_eq!(
         to_inlines("a \\big := b"),
@@ -2313,8 +2029,7 @@ fn fixed_size_wrapper_sizes_the_colon_equals_digraph_as_one_relation() {
 
 #[test]
 fn fixed_size_wrapper_rejects_a_letter_digit_or_arrow_follower() {
-    // A letter, a digit, and a stretchy arrow are not delimiters the wrapper sizes, so the
-    // whole expression keeps its source form (no inline or typst rendering).
+    // letters, digits, and stretchy arrows are not sizable delimiters: verbatim fallback
     assert_eq!(to_inlines("\\big a"), None);
     assert_eq!(to_inlines("\\big 1"), None);
     assert_eq!(to_inlines("\\big\\uparrow"), None);
@@ -2352,15 +2067,9 @@ fn fixed_size_scale_matrix_covers_every_width_and_variant() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Typst spacing — the `:=` relation digraph and scripted escaped close-delimiters
-// ----------------------------------------------------------------------------
-
 #[test]
 fn typst_colon_equals_digraph_is_tight() {
-    // A colon immediately followed by an equals is the `:=` relation digraph and renders
-    // with no space between the two characters; a colon with a space, or other colon
-    // sequences, keep their loose spacing.
+    // a colon directly before = is the tight := digraph; other colon sequences stay loose
     assert_eq!(to_typst(":=").as_deref(), Some(":="));
     assert_eq!(to_typst(": =").as_deref(), Some(": ="));
     assert_eq!(to_typst("=:").as_deref(), Some("= :"));
@@ -2372,7 +2081,6 @@ fn typst_colon_equals_digraph_is_tight() {
 
 #[test]
 fn typst_colon_equals_digraph_is_tight_in_the_inline_tree() {
-    // The same digraph prints as the two literal characters as one relation-class unit.
     assert_eq!(to_inlines(":="), Some(vec![str_inline(":=")]));
     assert_eq!(
         to_inlines("a := b"),
@@ -2382,8 +2090,7 @@ fn typst_colon_equals_digraph_is_tight_in_the_inline_tree() {
 
 #[test]
 fn typst_scripted_escaped_close_delimiter_has_no_leading_space() {
-    // A literal `)`/`]`/`}` rendered as an escaped typst delimiter is tight when it is the
-    // base of a script, so no stray space appears before the script.
+    // an escaped close delimiter is tight as a script base: no stray space before the script
     assert_eq!(to_typst("(a)").as_deref(), Some("\\(a\\)"));
     assert_eq!(to_typst("[a]").as_deref(), Some("\\[a\\]"));
     assert_eq!(to_typst("(a)^2").as_deref(), Some("\\(a\\)^2"));
@@ -2392,13 +2099,8 @@ fn typst_scripted_escaped_close_delimiter_has_no_leading_space() {
     assert_eq!(to_typst("\\left(a\\right)^2").as_deref(), Some("(a)^2"));
 }
 
-// ----------------------------------------------------------------------------
-// Text-mode escapes inside a wrapper (A1)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn text_escape_unescapes_to_the_literal_character() {
-    // Each backslash-escape inside a text wrapper becomes its literal character.
     assert_eq!(to_inlines("\\text{a\\%b}"), Some(vec![str_inline("a%b")]));
     assert_eq!(to_inlines("\\text{a\\&b}"), Some(vec![str_inline("a&b")]));
     assert_eq!(to_inlines("\\text{a\\_b}"), Some(vec![str_inline("a_b")]));
@@ -2412,7 +2114,6 @@ fn text_escape_unescapes_to_the_literal_character() {
 
 #[test]
 fn text_escape_preserves_the_wrapper_formatting() {
-    // The wrapper's own emphasis still applies around the unescaped run.
     assert_eq!(
         to_inlines("\\textbf{a\\%b}"),
         Some(vec![Inline::Strong(vec![str_inline("a%b")])])
@@ -2453,10 +2154,6 @@ fn text_escape_in_typst_stays_inside_the_quoted_run() {
         Some("upright(\"a\\\"b\")")
     );
 }
-
-// ----------------------------------------------------------------------------
-// Text-mode spacing inside a wrapper (A1)
-// ----------------------------------------------------------------------------
 
 #[test]
 fn text_spacing_emits_its_width_codepoint() {
@@ -2509,14 +2206,9 @@ fn text_spacing_splits_the_typst_run() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// `\operatorname` is math content set upright (A1)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn operatorname_drops_literal_spaces_and_folds_spacing() {
-    // An operator name is math mode: inter-token spaces drop, an explicit spacing folds in. As a
-    // function-like operator it also carries its own trailing thin space (U+2006).
+    // math mode: literal spaces drop, explicit spacing folds in, plus trailing thin space (U+2006)
     assert_eq!(
         to_inlines("\\operatorname{a b}"),
         Some(vec![str_inline("ab\u{2006}")])
@@ -2531,10 +2223,6 @@ fn operatorname_drops_literal_spaces_and_folds_spacing() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// `~` inside a text wrapper is a non-breaking space (A2)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn tilde_inside_text_is_a_non_breaking_space() {
     assert_eq!(
@@ -2546,10 +2234,6 @@ fn tilde_inside_text_is_a_non_breaking_space() {
         Some("upright(\"a\u{00A0}b\")")
     );
 }
-
-// ----------------------------------------------------------------------------
-// Re-entrant math inside a text wrapper (A3)
-// ----------------------------------------------------------------------------
 
 #[test]
 fn math_inside_text_renders_as_math() {
@@ -2581,8 +2265,7 @@ fn unbalanced_dollar_in_text_falls_back() {
 
 #[test]
 fn paren_delimiters_in_text_switch_back_to_math() {
-    // `\(…\)` inside a text wrapper re-enters math, exactly like `$…$`: the inner `x` is an italic
-    // variable, and the literal run around it stays upright.
+    // \(..\) inside a text wrapper re-enters math exactly like $..$
     assert_eq!(to_inlines("\\text{$x$}"), to_inlines("\\text{\\(x\\)}"));
     assert_eq!(
         to_typst("\\text{ if \\(x>0\\)}").as_deref(),
@@ -2605,10 +2288,6 @@ fn unbalanced_math_delimiter_in_text_falls_back() {
     assert_eq!(to_inlines("\\text{\\(x}"), None);
     assert_eq!(to_typst("\\text{a\\[b}"), None);
 }
-
-// ----------------------------------------------------------------------------
-// Styled-alphabet aliases (A4)
-// ----------------------------------------------------------------------------
 
 #[test]
 fn bold_italic_alias_wraps_strong_emph() {
@@ -2656,20 +2335,12 @@ fn sans_italic_alias_is_emphasised() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Bare `\sqrt` (A5)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn bare_sqrt_with_no_argument_is_the_radical_sign() {
     // A `\sqrt` with no radicand is the bare radical glyph (U+221A).
     assert_eq!(to_inlines("\\sqrt"), Some(vec![str_inline("\u{221A}")]));
     assert_eq!(to_typst("\\sqrt").as_deref(), Some("\u{221A}"));
 }
-
-// ----------------------------------------------------------------------------
-// Raw Unicode glyph → Typst name (B1)
-// ----------------------------------------------------------------------------
 
 #[test]
 fn raw_unicode_glyph_maps_to_its_typst_name() {
@@ -2695,10 +2366,6 @@ fn raw_unicode_glyph_inside_text_stays_verbatim() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Function-call script must be parenthesized (B2)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn function_call_script_is_parenthesized() {
     assert_eq!(
@@ -2715,10 +2382,6 @@ fn bare_token_script_stays_unwrapped() {
     assert_eq!(to_typst("a^2").as_deref(), Some("a^2"));
 }
 
-// ----------------------------------------------------------------------------
-// `\middle` delimiters (B3)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn middle_delimiter_renders_as_mid() {
     assert_eq!(
@@ -2727,24 +2390,15 @@ fn middle_delimiter_renders_as_mid() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// `\not` over-translation in Typst (B4)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn not_does_not_precompose_unnegatable_relations_in_typst() {
-    // The backend does not precompose these into a single glyph; the node falls back to verbatim
-    // source rather than emitting a wrong precomposed character.
+    // verbatim fallback rather than a wrong precomposed character
     assert_eq!(to_typst("\\not\\mid"), None);
     assert_eq!(to_typst("\\not\\exists"), None);
     assert_eq!(to_typst("\\not\\cup"), None);
     // A relation the backend does compose still renders.
     assert_eq!(to_typst("\\not\\subset").as_deref(), Some("subset.not"));
 }
-
-// ----------------------------------------------------------------------------
-// `\DeclareMathOperator` (B5)
-// ----------------------------------------------------------------------------
 
 #[test]
 fn lone_declare_math_operator_is_empty() {
@@ -2763,14 +2417,9 @@ fn lone_declare_math_operator_is_empty() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Styled-alphabet fall-through: best-effort per missing character (W9-1)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn double_struck_maps_the_letterlike_specials() {
-    // Five Greek/operator glyphs have dedicated double-struck codepoints; everything else in a
-    // blackboard-bold group either maps to its styled codepoint or passes through unchanged.
+    // five Greek/operator glyphs have dedicated double-struck codepoints
     assert_eq!(
         to_inlines("\\mathbb{\\gamma}"),
         Some(vec![str_inline("\u{213D}")])
@@ -2795,8 +2444,7 @@ fn double_struck_maps_the_letterlike_specials() {
 
 #[test]
 fn styled_mixed_run_combines_into_one_wrapper() {
-    // A blackboard-bold run with a letter, an uppercase letter, and a digit maps each glyph and
-    // joins them into a single string: x→𝕩, Q→ℚ (letterlike special), 7→𝟟.
+    // each glyph maps and the results join into one string: x→𝕩, Q→ℚ (letterlike), 7→𝟟
     assert_eq!(
         to_inlines("\\mathbb{xQ7}"),
         Some(vec![str_inline("\u{1D569}\u{211A}\u{1D7DF}")])
@@ -2805,8 +2453,7 @@ fn styled_mixed_run_combines_into_one_wrapper() {
 
 #[test]
 fn monospace_wraps_each_glyph_but_keeps_a_number_whole() {
-    // `\mathtt` code-wraps every glyph, preserving each character's class; consecutive letters are
-    // separate code spans, but a digit run is one number atom and so one code span.
+    // per-glyph code spans, but a digit run is one number atom and so one code span
     assert_eq!(
         to_inlines("\\mathtt{abc}"),
         Some(vec![
@@ -2826,14 +2473,9 @@ fn monospace_wraps_each_glyph_but_keeps_a_number_whole() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// A style distributes independently into a scripted base (W9-2)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn style_wraps_the_base_alone_not_its_scripts() {
-    // `\mathbf{a}^2`: the base is bold, the superscript keeps its own (digit) styling — the wrapper
-    // is around the base only, not around base-plus-scripts.
+    // the wrapper is around the base only, not base-plus-scripts
     assert_eq!(
         to_inlines("\\mathbf{a}^2"),
         Some(vec![
@@ -2841,8 +2483,6 @@ fn style_wraps_the_base_alone_not_its_scripts() {
             Inline::Superscript(vec![str_inline("2")]),
         ])
     );
-    // `\mathbf{a}_i^2`: a plain-italic subscript and a digit superscript both stay independent of
-    // the bold base.
     assert_eq!(
         to_inlines("\\mathbf{a}_i^2"),
         Some(vec![
@@ -2851,48 +2491,32 @@ fn style_wraps_the_base_alone_not_its_scripts() {
             Inline::Superscript(vec![str_inline("2")]),
         ])
     );
-    // `\mathit{x}_n`: an italic base with an italic subscript, each emphasised on its own.
     assert_eq!(
         to_inlines("\\mathit{x}_n"),
         Some(vec![var("x"), Inline::Subscript(vec![var("n")]),])
     );
 }
 
-// ----------------------------------------------------------------------------
-// Raw-glyph limit operators carrying both scripts stay verbatim (W9-3)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn raw_glyph_limit_operator_with_both_scripts_is_verbatim() {
-    // A bare large-operator glyph that takes both an under- and over-script stacks its limits, which
-    // cannot be laid out on one line, so the whole expression is left to the verbatim fallback.
+    // stacked limits cannot lay out on one line: verbatim fallback
     assert_eq!(to_inlines("\u{2211}_a^b"), None);
     assert_eq!(to_inlines("\u{220F}_i^n"), None);
     assert_eq!(to_inlines("\u{22C3}_a^b"), None);
     assert_eq!(to_inlines("\u{2A06}_a^b"), None);
 }
 
-// ----------------------------------------------------------------------------
-// An accent sits over a single non-ASCII glyph base (W9-4)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn accent_over_non_ascii_single_glyph() {
-    // A combining accent attaches to a single Greek letter the same way it attaches to a Latin one.
     assert_eq!(
         to_inlines("\\hat{\\alpha}"),
         Some(vec![emph(vec![str_inline("\u{3B1}\u{302}")])])
     );
 }
 
-// ----------------------------------------------------------------------------
-// Upright wrappers keep full math spacing (W9-5)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn upright_wrapper_keeps_math_spacing_and_minus() {
-    // `\mathrm` sets its content upright while still resolving a function name and its trailing thin
-    // space, and rendering a hyphen as the minus sign (U+2212).
+    // \mathrm still resolves function names and thin spaces, and renders hyphen as minus (U+2212)
     assert_eq!(
         to_inlines("\\mathrm{\\sin}"),
         Some(vec![str_inline("sin\u{2006}")])
@@ -2910,13 +2534,8 @@ fn upright_wrapper_keeps_math_spacing_and_minus() {
     assert_eq!(to_typst("\\mathrm{-}").as_deref(), Some("upright(-)"));
 }
 
-// ----------------------------------------------------------------------------
-// Adjacent manual spaces coalesce; a trailing manual space retypes its operator (W9-6)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn adjacent_manual_spaces_coalesce_into_one_run() {
-    // Two thin spaces in a row collapse into a single string between the two variables.
     assert_eq!(
         to_inlines("a\\,\\,b"),
         Some(vec![var("a"), str_inline("\u{2006}\u{2006}"), var("b"),])
@@ -2925,22 +2544,16 @@ fn adjacent_manual_spaces_coalesce_into_one_run() {
 
 #[test]
 fn manual_space_after_operator_suppresses_automatic_spacing() {
-    // A manual thin space immediately after a binary operator retypes it to ordinary, so the
-    // automatic binary spacing on either side is dropped and only the thin space remains.
+    // a manual space after a binary operator retypes it ordinary: automatic spacing drops
     assert_eq!(
         to_inlines("a +\\, b"),
         Some(vec![var("a"), str_inline("+\u{2006}"), var("b"),])
     );
 }
 
-// ----------------------------------------------------------------------------
-// Typst single-symbol script parenthesisation (W9-7)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn typst_parenthesises_a_lone_symbol_script() {
-    // A script that reduces to a single literal ASCII symbol is parenthesised so Typst binds the
-    // whole symbol to the script rather than re-reading it.
+    // a lone ASCII symbol script is parenthesised so Typst binds it whole to the script
     assert_eq!(to_typst("a^{+}").as_deref(), Some("a^(+)"));
     assert_eq!(to_typst("a^{\\%}").as_deref(), Some("a^(%)"));
     // An identifier, a digit, or a period stays bare.
@@ -2949,14 +2562,9 @@ fn typst_parenthesises_a_lone_symbol_script() {
     assert_eq!(to_typst("a^{.}").as_deref(), Some("a^."));
 }
 
-// ----------------------------------------------------------------------------
-// Typst amsmath environment unwrapping (W9-8)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn typst_unwraps_single_line_equation_environment() {
-    // `equation`/`equation*` carry a single line of math with no alignment, so the content is
-    // spliced in transparently — no surrounding parentheses.
+    // a single unaligned line splices in transparently, with no surrounding parentheses
     assert_eq!(
         to_typst("\\begin{equation}a+b\\end{equation}").as_deref(),
         Some("a + b")
@@ -2969,7 +2577,6 @@ fn typst_unwraps_single_line_equation_environment() {
 
 #[test]
 fn typst_unwraps_multiline_amsmath_environments_as_grids() {
-    // The multi-line amsmath families lower as line-broken alignment grids like `align`/`gather`.
     assert_eq!(
         to_typst("\\begin{multline}a\\\\b\\end{multline}").as_deref(),
         Some("a\\\nb")
@@ -2984,14 +2591,9 @@ fn typst_unwraps_multiline_amsmath_environments_as_grids() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// A bare quote or backtick in math mode is unparsable (W9-9)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn bare_quote_or_backtick_in_math_falls_back_to_verbatim() {
-    // Neither character has an ordinary-symbol meaning in math, so an expression containing one
-    // cannot be linearised or translated and is emitted verbatim by every writer.
+    // neither character has an ordinary-symbol meaning in math: verbatim in every writer
     assert_eq!(to_inlines("a\"b"), None);
     assert_eq!(to_inlines("a`b"), None);
     assert_eq!(to_typst("a\"b"), None);
@@ -3003,14 +2605,11 @@ fn bare_quote_or_backtick_in_math_falls_back_to_verbatim() {
 
 #[test]
 fn bare_dollar_in_math_falls_back_to_verbatim() {
-    // A bare `$` is not an ordinary math symbol — it is a mode delimiter — so an expression that
-    // carries one (here reached directly, not through a markdown `$…$` span) cannot be translated
-    // and is emitted verbatim. The escaped `\$` form is the dollar glyph and is handled separately.
+    // a bare $ is a mode delimiter, untranslatable; the escaped \$ is the dollar glyph
     assert_eq!(to_inlines("a$b"), None);
     assert_eq!(to_inlines("$"), None);
     assert_eq!(to_typst("a$b"), None);
     assert_eq!(to_typst("x+$"), None);
-    // The escaped form still renders as the dollar-sign glyph.
     assert_eq!(
         to_inlines("a\\$b"),
         Some(vec![var("a"), str_inline("$"), var("b")])
@@ -3020,21 +2619,15 @@ fn bare_dollar_in_math_falls_back_to_verbatim() {
 
 #[test]
 fn quote_or_backtick_inside_a_text_wrapper_stays_literal() {
-    // Inside a text wrapper a double quote is ordinary literal text and is escaped for the Typst
-    // string rather than rejected.
+    // inside a text wrapper a quote is literal text, escaped for the Typst string
     assert_eq!(to_inlines("\\text{a\"b}"), Some(vec![str_inline("a\"b")]));
     assert_eq!(
         to_typst("\\text{a\"b}").as_deref(),
         Some("upright(\"a\\\"b\")")
     );
-    // The rejection is scoped to a bare math-mode quote: the same character inside a text wrapper is
-    // kept and translated, so the two paths are distinguished.
+    // the rejection is scoped to a bare math-mode quote only
     assert!(to_inlines("a\"b").is_none() && to_inlines("\\text{a\"b}").is_some());
 }
-
-// ----------------------------------------------------------------------------
-// Text-mode input ligatures
-// ----------------------------------------------------------------------------
 
 #[test]
 fn text_apostrophe_becomes_a_right_single_quote() {
@@ -3118,30 +2711,23 @@ fn ligatures_apply_in_every_text_wrapper() {
 
 #[test]
 fn ligatures_do_not_corrupt_a_run_with_no_trigger() {
-    // A text run with no ligature trigger passes through unchanged.
     assert_eq!(to_inlines("\\text{a_b}"), Some(vec![str_inline("a_b")]));
     assert_eq!(to_inlines("\\text{ab cd}"), Some(vec![str_inline("ab cd")]));
 }
 
 #[test]
 fn straight_double_quote_is_not_a_ligature_trigger_in_text() {
-    // Only the backtick and apostrophe curl; a straight double quote stays literal.
     assert_eq!(to_inlines("\\text{a\"b}"), Some(vec![str_inline("a\"b")]));
 }
 
 #[test]
 fn operatorname_argument_is_not_dash_ligatured() {
-    // The `\operatorname` argument is upright math, not literal text: a double dash there stays two
-    // hyphens rather than collapsing into an en dash.
+    // the argument is upright math, not text: a double dash stays two hyphens
     assert_eq!(
         to_typst("\\operatorname{a--b}").as_deref(),
         Some("\"a--b\"")
     );
 }
-
-// ----------------------------------------------------------------------------
-// `\not` over a non-relation base
-// ----------------------------------------------------------------------------
 
 #[test]
 fn not_over_a_letter_strikes_the_italic_glyph() {
@@ -3194,8 +2780,7 @@ fn not_over_a_non_relation_strikes_the_glyph_in_typst() {
 
 #[test]
 fn not_over_a_braced_group_overlays_an_accent_in_typst() {
-    // A braced base lowers its content, then carries the combining long solidus through Typst's
-    // generic accent form.
+    // a braced base carries the combining solidus through Typst's generic accent form
     assert_eq!(to_typst("\\not{a}").as_deref(), Some("accent(a, \u{0338})"));
     assert_eq!(
         to_typst("\\not{ab}").as_deref(),
@@ -3212,16 +2797,11 @@ fn not_over_a_braced_group_overlays_an_accent_in_typst() {
 
 #[test]
 fn not_over_a_braced_group_falls_back_in_the_linear_backend() {
-    // The linear inline backend has no overlay for a struck group, so a braced `\not` falls back to
-    // verbatim there.
+    // the linear inline backend has no overlay for a struck group
     assert_eq!(to_inlines("\\not{a}"), None);
     assert_eq!(to_inlines("\\not{\\alpha}"), None);
     assert_eq!(to_inlines("\\not{}"), None);
 }
-
-// ----------------------------------------------------------------------------
-// Typst environment lowering
-// ----------------------------------------------------------------------------
 
 #[test]
 fn alignat_lowers_to_an_alignment_grid() {
@@ -3293,14 +2873,9 @@ fn a_space_before_a_bracket_keeps_it_as_content() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Bare vertical-bar retyping
-// ----------------------------------------------------------------------------
-
 #[test]
 fn bare_bar_makes_a_following_sign_unary() {
-    // A bare `|` opens a group, so the `-` after it is unary: the bar and the unary minus carry no
-    // space between them and coalesce into one piece.
+    // a bare | opens a group, so the following - is unary: no space, coalesced
     assert_eq!(
         to_inlines("|-x|"),
         Some(vec![str_inline("|\u{2212}"), var("x"), str_inline("|")])
@@ -3314,10 +2889,6 @@ fn bare_bar_does_not_regress_a_plain_absolute_value() {
         Some(vec![str_inline("|"), var("x"), str_inline("|")])
     );
 }
-
-// ----------------------------------------------------------------------------
-// Trailing `\bmod` guard
-// ----------------------------------------------------------------------------
 
 #[test]
 fn trailing_binary_mod_falls_back() {
@@ -3333,10 +2904,6 @@ fn trailing_binary_mod_falls_back() {
 fn binary_mod_with_an_operand_still_renders() {
     assert!(to_inlines("a \\bmod b").is_some());
 }
-
-// ----------------------------------------------------------------------------
-// Added symbol commands
-// ----------------------------------------------------------------------------
 
 #[test]
 fn dotminus_and_eqsim_render() {
@@ -3368,15 +2935,9 @@ fn swept_symbols_render() {
     assert_eq!(to_typst("\\ogreaterthan").as_deref(), Some("gt.o"));
 }
 
-// ----------------------------------------------------------------------------
-// Single-token negated-relation gaps: the curly precedes/succeeds, plus the
-// `\not`-prefixed slanted and curly forms
-// ----------------------------------------------------------------------------
-
 #[test]
 fn n_prefixed_curly_precedes_succeeds_render() {
-    // `\npreccurlyeq`/`\nsucccurlyeq` share the negated-precedes/succeeds glyphs (U+22E0/U+22E1)
-    // with their non-curly siblings.
+    // shares the negated-precedes/succeeds glyphs (U+22E0/U+22E1) with the non-curly siblings
     assert_eq!(
         to_inlines("\\npreccurlyeq"),
         Some(vec![str_inline("\u{22E0}")])
@@ -3397,8 +2958,7 @@ fn n_prefixed_curly_precedes_succeeds_render() {
 
 #[test]
 fn not_over_slanted_and_curly_relations_negate() {
-    // `\not` over a slanted or curly comparison strikes it to the precomposed negated glyph: the
-    // slanted forms reuse the plain negated-≤/≥ glyphs, the curly forms the negated precede/succeed.
+    // slanted forms reuse the plain negated glyphs; curly forms the negated precede/succeed
     assert_eq!(
         to_inlines("\\not\\leqslant"),
         Some(vec![str_inline("\u{2270}")])
@@ -3419,8 +2979,7 @@ fn not_over_slanted_and_curly_relations_negate() {
 
 #[test]
 fn not_over_similarity_relations_strikes_with_a_solidus() {
-    // `\not\lesssim`/`\not\gtrsim` have no precomposed form, so the base glyph carries the combining
-    // long solidus (U+0338).
+    // no precomposed form: base glyph carries the combining long solidus (U+0338)
     assert_eq!(
         to_inlines("\\not\\lesssim"),
         Some(vec![str_inline("\u{2274}")])
@@ -3432,11 +2991,6 @@ fn not_over_similarity_relations_strikes_with_a_solidus() {
     assert_eq!(to_typst("\\not\\lesssim").as_deref(), Some("lt.tilde.not"));
     assert_eq!(to_typst("\\not\\gtrsim").as_deref(), Some("gt.tilde.not"));
 }
-
-// ----------------------------------------------------------------------------
-// Text-mode wrappers: accents, foreign letters, text symbols, `\quad`, and
-// transparent nested grouping
-// ----------------------------------------------------------------------------
 
 #[test]
 fn text_accent_composes_a_precomposed_letter() {
@@ -3463,8 +3017,7 @@ fn text_accent_without_a_precomposed_letter_keeps_the_bare_base() {
 
 #[test]
 fn text_accent_over_a_dotless_letter_keeps_the_control_word_source() {
-    // An accent over a dotless-letter control word (`\i`, `\j`) has no composed form: the accent is
-    // dropped and the control word is kept as its literal source.
+    // \i and \j have no composed form: accent drops, control word kept as literal source
     assert_eq!(to_inlines("\\text{\\\"\\i}"), Some(vec![str_inline("\\i")]));
     assert_eq!(to_inlines("\\text{\\^\\j}"), Some(vec![str_inline("\\j")]));
     assert_eq!(
@@ -3534,8 +3087,7 @@ fn text_accent_resolves_under_other_text_wrappers() {
 
 #[test]
 fn text_nested_group_is_transparent() {
-    // A nested brace group inside a text wrapper joins the surrounding run for the inline form; the
-    // Typst form keeps each group as its own `upright` segment.
+    // a nested group joins the run inline; Typst keeps per-group upright segments
     assert_eq!(to_inlines("\\text{a{b}c}"), Some(vec![str_inline("abc")]));
     assert_eq!(
         to_typst("\\text{a{b}c}").as_deref(),
@@ -3545,19 +3097,13 @@ fn text_nested_group_is_transparent() {
 
 #[test]
 fn operatorname_does_not_resolve_text_commands() {
-    // `\operatorname` is math mode: a text accent there is not resolved and the whole expression
-    // falls back to verbatim.
+    // math mode: a text accent is not resolved, verbatim fallback
     assert_eq!(to_inlines("\\operatorname{\\'a}"), None);
 }
 
-// ----------------------------------------------------------------------------
-// Trailing control-space guard
-// ----------------------------------------------------------------------------
-
 #[test]
 fn trailing_control_space_falls_back_for_inlines() {
-    // A control space with no following operand has nothing to set its space against, so the inline
-    // lowering falls back to verbatim; the Typst form still resolves it to a medium space.
+    // no following operand: inline falls back; Typst still resolves a medium space
     assert_eq!(to_inlines("a \\ "), None);
     assert!(to_typst("a \\ ").is_some());
 }
@@ -3567,10 +3113,6 @@ fn control_space_before_an_operand_is_kept() {
     // A control space that precedes further content keeps its space and lowers normally.
     assert!(to_inlines("a\\ b").is_some());
 }
-
-// ----------------------------------------------------------------------------
-// Added dingbat and symbol commands
-// ----------------------------------------------------------------------------
 
 #[test]
 fn doteq_and_dingbats_render() {
@@ -3586,10 +3128,6 @@ fn doteq_and_dingbats_render() {
     assert_eq!(to_typst("\\female").as_deref(), Some("venus"));
     assert_eq!(to_typst("\\eighthnote").as_deref(), Some("note.eighth.alt"));
 }
-
-// ----------------------------------------------------------------------------
-// Starred matrix/cases environments: unstarred behaviour with a literal `[align]`
-// ----------------------------------------------------------------------------
 
 #[test]
 fn starred_matrix_renders_as_its_unstarred_form() {
@@ -3609,8 +3147,7 @@ fn starred_matrix_renders_as_its_unstarred_form() {
 
 #[test]
 fn starred_matrix_keeps_the_align_argument_as_literal_leading_content() {
-    // The optional `[align]` argument is presentational; its brackets and contents become literal
-    // leading content of the first cell.
+    // the presentational [align] argument becomes literal leading content of the first cell
     assert_eq!(
         to_typst("\\begin{pmatrix*}[r] a \\\\ b \\end{pmatrix*}").as_deref(),
         Some("vec(\\[r\\]a, b)")
@@ -3628,10 +3165,6 @@ fn starred_cases_renders_as_cases() {
         Some("cases(delim: \"{\", a & x, b & y)")
     );
 }
-
-// ----------------------------------------------------------------------------
-// A bare grid inside a matched `\left … \right` fuses into one mat/vec
-// ----------------------------------------------------------------------------
 
 #[test]
 fn left_right_around_a_bare_matrix_fuses_into_mat() {
@@ -3707,11 +3240,6 @@ fn angle_delimited_grid_does_not_fuse() {
     );
 }
 
-// ----------------------------------------------------------------------------
-// Mismatched balanced delimiters wrap in lr() with raw glyphs; unpaired
-// paren/bracket glyphs are escaped
-// ----------------------------------------------------------------------------
-
 #[test]
 fn mismatched_paired_delimiters_wrap_in_lr() {
     assert_eq!(to_typst("\\left( a \\right]").as_deref(), Some("lr((a])"));
@@ -3722,8 +3250,7 @@ fn mismatched_paired_delimiters_wrap_in_lr() {
 
 #[test]
 fn mismatch_with_an_angle_side_escapes_the_paren_directly() {
-    // A paren opposite an angle bracket cannot auto-pair, so the paren is escaped and the angle
-    // prints its glyph, with no `lr(..)` wrapper.
+    // a paren opposite an angle cannot auto-pair: escaped paren, angle glyph, no lr(..)
     assert_eq!(
         to_typst("\\left( a \\right>").as_deref(),
         Some("\\(a\u{27E9}")
@@ -3740,10 +3267,6 @@ fn matched_paren_pair_keeps_bare_auto_pairing_glyphs() {
     assert_eq!(to_typst("\\left( a \\right)").as_deref(), Some("(a)"));
     assert_eq!(to_typst("\\left[ a \\right]").as_deref(), Some("[a]"));
 }
-
-// ----------------------------------------------------------------------------
-// In-grid equation-numbering annotations are stripped
-// ----------------------------------------------------------------------------
 
 #[test]
 fn in_grid_nonumber_is_stripped() {
@@ -3772,10 +3295,6 @@ fn in_grid_tag_and_label_consume_their_argument() {
         Some("a & = b\\\nc & = d")
     );
 }
-
-// ----------------------------------------------------------------------------
-// Equation labels: the first \label is lifted to a trailing Typst reference
-// ----------------------------------------------------------------------------
 
 #[test]
 fn lone_label_lifts_to_a_trailing_reference() {
@@ -3823,9 +3342,8 @@ fn an_empty_label_carries_no_reference() {
 
 #[test]
 fn a_trailing_annotation_is_stripped_like_a_leading_one() {
-    // An equation-numbering annotation labels the whole expression, so it is consumed wherever it
-    // sits — after the content just as before it — rather than left as an unknown control sequence.
-    // A trailing `\label` still lifts to a reference; `\nonumber` and `\tag` drop without a trace.
+    // annotations label the whole expression and are consumed wherever they sit; a trailing
+    // \label still lifts to a reference, \nonumber and \tag drop without a trace
     assert_eq!(
         typst_labeled("x \\label{foo}"),
         Some(("x".into(), Some("<foo>".into())))
@@ -3892,10 +3410,6 @@ fn a_label_renders_as_nothing_in_inline_output() {
     assert_eq!(to_inlines("\\label{foo} x"), Some(vec![var("x")]));
 }
 
-// ----------------------------------------------------------------------------
-// Alternative spellings of the styled-alphabet wrappers
-// ----------------------------------------------------------------------------
-
 #[test]
 fn mathds_is_the_double_struck_alphabet() {
     assert_eq!(to_typst("\\mathds{R}").as_deref(), Some("bb(R)"));
@@ -3944,13 +3458,8 @@ fn the_other_sym_alphabets_have_no_glyph_change() {
     }
 }
 
-// ----------------------------------------------------------------------------
-// A bare function as the final atom of a script drops its trailing thin space
-// ----------------------------------------------------------------------------
-
 #[test]
 fn a_function_as_a_sole_script_atom_has_no_trailing_thin_space() {
-    // `x^{\sin}` lowers the superscript to a bare `sin` with no dangling thin space.
     assert_eq!(
         to_inlines("x^{\\sin}"),
         Some(vec![var("x"), Inline::Superscript(vec![str_inline("sin")])])
@@ -3975,14 +3484,9 @@ fn a_bare_function_keeps_its_thin_space_outside_a_script() {
     assert_eq!(to_inlines("\\sin"), Some(vec![str_inline("sin\u{2006}")]));
 }
 
-// ----------------------------------------------------------------------------
-// A binary operator with no right operand retypes to ordinary (TeXbook rule 6)
-// ----------------------------------------------------------------------------
-
 #[test]
 fn a_binary_operator_before_a_relation_loses_its_spacing() {
-    // `a+=b`: the `+` has no right operand (a relation follows), so it binds to `a`; the `=` keeps
-    // its relation spacing. The retyped `+` and the relation's leading space merge into one run.
+    // + has no right operand (a relation follows), so it binds tight and merges with the =
     assert_eq!(
         to_inlines("a+=b"),
         Some(vec![var("a"), str_inline("+\u{2004}=\u{2004}"), var("b"),])

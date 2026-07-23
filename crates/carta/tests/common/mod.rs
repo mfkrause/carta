@@ -64,7 +64,7 @@ fn corpus_files(kind: &str) -> Vec<(String, String, PathBuf)> {
     files
 }
 
-/// The subdirectory names under `corpus/<kind>/`, sorted — the group set the golden tests partition
+/// The subdirectory names under `corpus/<kind>/`, sorted: the group set the golden tests partition
 /// into one test each. Returns empty when the `kind` tree is absent. The per-format guard tests
 /// compare this against their macro's covered-group list so a new corpus directory without a matching
 /// test fails loudly.
@@ -101,7 +101,7 @@ pub(crate) fn corpus_cases(kind: &str) -> Vec<Case> {
 /// Every file under `corpus/<kind>/<group>/` read as RAW BYTES, ordered by (group, label). A byte-
 /// container reader format (whose fixture is a binary archive, not UTF-8 text) keeps its cases here,
 /// since [`corpus_cases`]'s `read_to_string` would reject them. Returns empty when the `kind` tree is
-/// absent — the binary corpus exists only once a byte-container reader ships.
+/// absent; the binary corpus exists only once a byte-container reader ships.
 pub(crate) fn corpus_binary_cases(kind: &str) -> Vec<BinaryCase> {
     if !corpus_dir().join(kind).is_dir() {
         return Vec::new();

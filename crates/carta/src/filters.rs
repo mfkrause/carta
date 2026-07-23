@@ -52,10 +52,8 @@ fn run_one(
         .spawn()
         .map_err(|error| Error::Filter(format!("could not run filter '{filter}': {error}")))?;
 
-    // Feed the JSON on a separate thread while draining stdout on this one: a filter that emits a
-    // large document fills its output pipe and blocks on the write before it finishes reading its
-    // input, which would deadlock a single thread that writes the whole input before it starts
-    // reading.
+    // Feed stdin on a separate thread while draining stdout here: a filter emitting a large
+    // document fills its output pipe mid-read, deadlocking a write-then-read single thread.
     let mut stdin = child
         .stdin
         .take()
@@ -73,8 +71,7 @@ fn run_one(
             output.status
         )));
     }
-    // A write failure matters only when the filter itself reported success: a filter that closes its
-    // input early, having read all it needs, leaves the feeder with a broken pipe, which is expected.
+    // A filter that closes its input early leaves the feeder a broken pipe; that is expected.
     if let Ok(Err(error)) = fed
         && error.kind() != std::io::ErrorKind::BrokenPipe
     {
@@ -110,15 +107,13 @@ enum Target {
 }
 
 fn resolve(filter: &str, data_dir: Option<&Path>) -> Target {
-    // A name with a path component addresses a file directly. A bare name is looked up in the working
-    // directory first, then the data directory's `filters/`, and finally left for the executable
-    // search path.
+    // A path addresses a file directly; a bare name tries the working directory, then the data
+    // directory's `filters/`, then the executable search path.
     if has_separator(filter) {
         return Target::File(PathBuf::from(filter));
     }
     if Path::new(filter).is_file() {
-        // Give the command an explicit relative path so it runs the working-directory file rather
-        // than searching the executable path for the bare name.
+        // An explicit relative path keeps the bare name off the executable search path.
         return Target::File(Path::new(".").join(filter));
     }
     if let Some(dir) = data_dir {
@@ -173,10 +168,8 @@ fn is_executable(path: &Path) -> bool {
 
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
-    // Without a Unix executable bit, only a native executable image runs directly. A script — a file
-    // whose extension names an interpreter — must not short-circuit here, or the interpreter fallback
-    // in `command_for_file` would never be reached and the OS would be asked to launch the script
-    // itself.
+    // Only a native executable image runs directly; a script must return false here or the
+    // interpreter fallback in `command_for_file` is never reached.
     let extension = path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -232,8 +225,7 @@ mod tests {
 
     #[test]
     fn a_bare_name_falls_through_to_the_search_path() {
-        // With no data directory and no such file in the working directory, a bare name is left for
-        // the executable search path.
+        // No data directory and no working-directory file: left for the executable search path.
         let missing = Path::new("/does/not/exist");
         match resolve("cite-filter", Some(missing)) {
             Target::Search(name) => assert_eq!(name, "cite-filter"),

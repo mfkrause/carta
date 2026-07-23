@@ -3,7 +3,7 @@
 //! Parsing follows the spec's two-phase strategy: the block phase (`block`) consumes the input
 //! line by line into a tree of `IrBlock`s whose leaves still hold raw text, collecting link
 //! reference definitions; the inline phase (`inline`) then parses each leaf's text into inlines.
-//! The result is assembled into a [`Document`] (see `docs/plans/slice-1-commonmark-html.md`).
+//! The result is assembled into a [`Document`].
 
 mod attr;
 mod autolink;
@@ -34,9 +34,8 @@ pub(crate) use frontmatter::{parse_metadata_json, parse_metadata_yaml};
 /// Parses `CommonMark` text into the document model.
 ///
 /// The strict `CommonMark` preset is the empty extension set; `options.extensions` additionally
-/// enables `strikeout`, `subscript`, `superscript`, `hard_line_breaks`, and `task_lists`
-/// (see `plans/006-commonmark-easy-extensions.md`). `raw_html` is always honored, so toggling it has
-/// no effect on the produced document.
+/// enables `strikeout`, `subscript`, `superscript`, `hard_line_breaks`, and `task_lists`.
+/// `raw_html` is always honored, so toggling it has no effect on the produced document.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CommonmarkReader;
 
@@ -161,7 +160,7 @@ pub(crate) fn parse_meta_blocks(
 }
 
 /// Parse the raw text of a table cell into block content, reusing the full block and inline
-/// pipeline. A tight cell — one with no internal blank line — demotes its top-level paragraphs to
+/// pipeline. A tight cell (one with no internal blank line) demotes its top-level paragraphs to
 /// `Plain`; an empty cell carries no blocks.
 pub(crate) fn parse_table_cell(
     text: &str,
@@ -188,7 +187,6 @@ pub(crate) fn parse_table_cell(
     )
 }
 
-/// Width of a tab stop in columns, used when expanding tabs during preprocessing.
 const TAB_STOP: usize = 4;
 
 /// Normalize line endings to `\n`, strip a leading UTF-8 BOM, and expand tabs to spaces.
@@ -232,7 +230,6 @@ fn normalize(input: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// Helper used by the inline phase to wrap parsed inlines back into AST blocks.
 pub(crate) fn para(inlines: Vec<Inline>) -> Block {
     Block::Para(inlines)
 }
@@ -290,8 +287,6 @@ mod tests {
 
     #[test]
     fn footnote_reference_resolves_to_a_note_and_lifts_the_definition() {
-        // The definition leaves the body, so only the referencing paragraph remains, and its
-        // reference becomes a note carrying the definition's blocks.
         let inlines = para_inlines("text[^a]\n\n[^a]: body\n", Extension::Footnotes);
         let note = inlines
             .iter()
@@ -305,15 +300,8 @@ mod tests {
 
     #[test]
     fn deeply_nested_containers_do_not_overflow_the_stack() {
-        // The block tree is built iteratively, but the passes that turn it into the document — header
-        // gathering, reference resolution, IR-to-AST lowering — recurse through it. A single line of
-        // thousands of `>` nested a block quote per marker, deep enough to overflow the stack when
-        // those walks descended; a nightly fuzz run hit exactly this on the commonmark and (embedded)
-        // ipynb targets. Capping container nesting keeps the tree shallow enough to walk safely.
-        //
-        // Run on a normal application stack: the test harness gives each test a much smaller thread
-        // stack (as little as 512 KiB on macOS), so exercise the guarantee the cap provides rather
-        // than the harness's thread limit.
+        // The resolve passes recurse through the block tree, so container nesting is capped.
+        // 8 MiB thread: exercise the cap, not the harness's small (512 KiB) per-test stacks.
         std::thread::Builder::new()
             .stack_size(8 * 1024 * 1024)
             .spawn(|| {
@@ -345,8 +333,7 @@ mod tests {
 
     #[test]
     fn grid_cell_inlines_honor_the_markdown_dialect() {
-        // A grid-table cell parses its content under the document's dialect: in the markdown dialect
-        // a superscript rejects an inner space, so `^a b^` stays literal rather than wrapping.
+        // Markdown-dialect superscript rejects an inner space, so `^a b^` stays literal.
         let input = "+-------+\n| ^a b^ |\n+-------+\n";
         let doc = read_markdown(input, &[Extension::GridTables, Extension::Superscript]);
         let table = match doc.blocks.as_slice() {
@@ -372,8 +359,7 @@ mod tests {
     #[test]
     fn metadata_values_honor_the_markdown_dialect() {
         use carta_ast::MetaValue;
-        // A YAML metadata value parses under the document's dialect too: the superscript with an
-        // inner space stays literal and the code span trims its padding to `x`.
+        // A YAML metadata value parses under the document's dialect too.
         let input = "---\ntitle: ^a b^ `  x  `\n---\n\nbody\n";
         let doc = read_markdown(
             input,
@@ -397,9 +383,7 @@ mod tests {
 
     #[test]
     fn attribute_only_table_caption_carries_no_blocks() {
-        // A caption line that is nothing but a trailing attribute block: the block is split off onto
-        // the table's own attributes, leaving the caption text empty. An empty caption parses to no
-        // blocks at all, never a `Plain` wrapping an empty inline list.
+        // An empty caption parses to no blocks, never a `Plain` wrapping an empty inline list.
         let input = "| a | b |\n|---|---|\n| 1 | 2 |\n\n: {#tid}\n";
         let blocks = blocks_with_many(
             input,
@@ -419,7 +403,6 @@ mod tests {
 
     #[test]
     fn undefined_footnote_reference_stays_literal() {
-        // With no matching definition the brackets are ordinary text and no note is produced.
         let inlines = para_inlines("text[^missing]\n", Extension::Footnotes);
         assert!(inlines.iter().all(|i| !matches!(i, Inline::Note(_))));
         assert!(
@@ -431,8 +414,7 @@ mod tests {
 
     #[test]
     fn footnote_extension_off_produces_no_note() {
-        // Without the toggle `[^a]: body` is an ordinary link reference definition, so `[^a]`
-        // resolves to a link and no note is created.
+        // Without the toggle `[^a]: body` is an ordinary link reference definition.
         let result = blocks("text[^a]\n\n[^a]: body\n");
         let [Block::Para(inlines)] = result.as_slice() else {
             panic!("expected a single paragraph, got {result:?}");
@@ -459,8 +441,7 @@ mod tests {
 
     #[test]
     fn nested_footnote_reference_inside_a_definition_does_not_nest() {
-        // A reference within a definition's own body collapses to an empty string rather than
-        // embedding a further note.
+        // A reference inside a definition's own body collapses to an empty string, not a nested note.
         let inlines = para_inlines(
             "ref[^a]\n\n[^a]: see [^b]\n\n[^b]: inner\n",
             Extension::Footnotes,
@@ -498,9 +479,7 @@ mod tests {
 
     #[test]
     fn empty_list_marker_below_an_unmatched_container_starts_a_list() {
-        // The paragraph that the `- ` could interrupt sits in the unmatched block quote, a level
-        // below where the marker opens, so the marker is not interrupting it: the quote closes and
-        // an empty bullet list begins rather than the `- ` continuing the paragraph lazily.
+        // The paragraph sits in the unmatched quote a level below, so the marker is not interrupting it.
         let result = blocks("> two\n- \n");
         assert!(matches!(
             result.as_slice(),
@@ -510,8 +489,7 @@ mod tests {
 
     #[test]
     fn bare_marker_trailed_by_spaces_leaves_an_empty_item() {
-        // The whitespace after a contentless marker is not a non-blank line, so it leaves the item
-        // empty rather than opening an indented code block inside it.
+        // Trailing whitespace is not a non-blank line, so no indented code block opens in the item.
         assert!(matches!(
             blocks("-     \n").as_slice(),
             [Block::BulletList(items)] if items.as_slice() == [Vec::new()]
@@ -520,15 +498,13 @@ mod tests {
 
     #[test]
     fn empty_list_marker_still_cannot_interrupt_a_same_level_paragraph() {
-        // At the same level the restriction holds: an empty marker is absorbed into the paragraph.
-        // (`*` is used rather than `-` so the line is not read as a setext heading underline.)
+        // `*` avoids the setext-underline reading a `-` line would get.
         assert!(matches!(blocks("para\n* \n").as_slice(), [Block::Para(_)]));
     }
 
     #[test]
     fn long_digit_run_is_not_an_ordered_list() {
-        // Regression (found by fuzzing): a digit run longer than nine is not an ordered-list
-        // marker, and computing its start value must not overflow.
+        // Computing the start value of an over-long digit run must not overflow.
         let input = format!("{}*:*\n", "8".repeat(34));
         assert!(matches!(blocks(&input).as_slice(), [Block::Para(_)]));
     }
@@ -586,8 +562,7 @@ mod tests {
 
     #[test]
     fn a_shorter_colon_run_does_not_close_a_longer_fence() {
-        // The div opens with four colons, so a three-colon line inside it is ordinary text and the
-        // div runs to the matching four-colon close.
+        // A three-colon line cannot close a four-colon fence.
         let result = blocks_with(
             ":::: wide\n:::\nstill inside\n::::\n",
             Extension::FencedDivs,
@@ -601,7 +576,6 @@ mod tests {
 
     #[test]
     fn fenced_div_syntax_without_the_extension_stays_text() {
-        // With the toggle off, the colon fences are ordinary paragraph text and no div is produced.
         let result = blocks("::: warning\nbody\n:::\n");
         assert!(result.iter().all(|b| !matches!(b, Block::Div(..))));
     }
@@ -612,8 +586,7 @@ mod tests {
             "- ::: note\n  inside\n  :::\n\n  after\n",
             Extension::FencedDivs,
         );
-        // The blank between the closed div and `after` is a gap inside the item, so the list is
-        // loose and the trailing paragraph stays `Para` rather than being demoted to `Plain`.
+        // The blank inside the item makes the list loose, so the trailing paragraph stays `Para`.
         let [Block::BulletList(items)] = result.as_slice() else {
             panic!("expected a single bullet list, got {result:?}");
         };
@@ -628,9 +601,7 @@ mod tests {
 
     #[test]
     fn blank_ending_a_nested_block_quote_makes_the_list_loose() {
-        // The blank line after the first item's block quote leaves that quote unmatched, so it
-        // ends there and the blank counts toward the list's looseness. A loose list keeps its item
-        // paragraphs as `Para` (a tight list would demote them to `Plain`).
+        // The blank ends the unmatched quote and counts toward looseness, keeping paragraphs `Para`.
         let result = blocks("- item\n  > q\n\n- item2\n");
         let [Block::BulletList(items)] = result.as_slice() else {
             panic!("expected a single bullet list, got {result:?}");
@@ -652,7 +623,6 @@ mod tests {
         };
         assert_eq!(*attr, Box::new(carta_ast::Attr::default()));
         assert!(caption.short.is_none());
-        // The caption is a clone of the image's alt inlines wrapped in one `Plain`.
         let [Block::Plain(caption_inlines)] = caption.long.as_slice() else {
             panic!("caption should be a single Plain, got {:?}", caption.long);
         };
@@ -660,7 +630,6 @@ mod tests {
             caption_inlines.as_slice(),
             [Inline::Str(a), Inline::Space, Inline::Str(b)] if a == "a" && b == "gull"
         ));
-        // The body is the original image, unchanged, inside a single `Plain`.
         let [Block::Plain(image_inlines)] = body.as_slice() else {
             panic!("body should be a single Plain, got {body:?}");
         };
@@ -732,8 +701,7 @@ mod tests {
             "# Foo & Bar\n\n# 1.2 Section\n\n# Foo & Bar\n",
             Extension::GfmAutoIdentifiers,
         );
-        // Punctuation drops without collapsing the gaps, dots vanish, leading digits stay, and a
-        // repeated slug is suffixed by its occurrence count.
+        // Punctuation drops without collapsing gaps; a repeated slug takes its occurrence count.
         assert_eq!(
             header_ids(&result),
             ["foo--bar", "12-section", "foo--bar-1"]
@@ -746,16 +714,13 @@ mod tests {
             "# 1. Intro\n\n# Intro\n\n# Intro\n",
             Extension::AutoIdentifiers,
         );
-        // The leading non-letter run is stripped, then each repeat increments until the whole
-        // identifier is unused.
+        // The leading non-letter run is stripped; each repeat increments until unused.
         assert_eq!(header_ids(&result), ["intro", "intro-1", "intro-2"]);
     }
 
     #[test]
     fn auto_identifiers_fall_back_to_section_for_empty_slugs() {
         let result = blocks_with("# !!!\n\n# ???\n", Extension::AutoIdentifiers);
-        // Both headings reduce to nothing, so the fallback `section` applies and the second is
-        // disambiguated.
         assert_eq!(header_ids(&result), ["section", "section-1"]);
     }
 
@@ -792,14 +757,12 @@ mod tests {
 
     #[test]
     fn only_link_reference_definitions_leave_no_paragraph() {
-        // A paragraph that is nothing but definitions is consumed whole, leaving no block behind.
         assert!(blocks("[a]: /one\n[b]: /two\n").is_empty());
     }
 
     #[test]
     fn link_reference_definitions_strip_and_keep_the_body() {
-        // Leading definitions are pulled off the front; the trailing line stays as the paragraph and
-        // its shortcut reference resolves against the registered definition.
+        // Leading definitions are stripped; the shortcut reference resolves against them.
         let doc = blocks("[a]: /url\nSee [a] here.\n");
         assert!(
             matches!(doc.as_slice(), [Block::Para(_)]),
@@ -810,8 +773,7 @@ mod tests {
 
     #[test]
     fn an_unterminated_bracket_is_not_a_definition() {
-        // A lone `[` that never forms `[label]:` is ordinary paragraph text, not a consumed
-        // definition, and registers no reference.
+        // A lone `[` that never forms `[label]:` is ordinary text and registers nothing.
         let doc = blocks("[not a definition\n");
         assert!(
             matches!(doc.as_slice(), [Block::Para(_)]),
@@ -822,8 +784,7 @@ mod tests {
 
     #[test]
     fn a_leading_abbreviation_definition_is_consumed() {
-        // With the extension on, an abbreviation definition at the paragraph start is pulled out; a
-        // definition-only paragraph vanishes, and a body after it remains.
+        // A definition-only paragraph vanishes; a body after the definition remains.
         assert!(
             blocks_with(
                 "*[HTML]: Hyper Text Markup Language\n",
@@ -844,8 +805,6 @@ mod tests {
     #[test]
     fn implicit_header_references_resolve_a_shortcut_reference() {
         let result = blocks_with_many("# Some Heading\n\n[Some Heading]\n", HEADER_REFS);
-        // The heading registers a definition keyed by its label, so the bare reference links to
-        // the heading's identifier.
         assert_eq!(reference_targets(&result), ["#some-heading"]);
     }
 
@@ -855,7 +814,6 @@ mod tests {
             "# Some Heading\n\n[text][Some Heading] [Some Heading][] ![Some Heading]\n",
             HEADER_REFS,
         );
-        // Full, collapsed, and image references all resolve to the same anchor.
         assert_eq!(
             reference_targets(&result),
             ["#some-heading", "#some-heading", "#some-heading"]
@@ -870,8 +828,7 @@ mod tests {
 
     #[test]
     fn implicit_header_references_match_on_label_source_not_decoded_text() {
-        // The label is matched against the heading's literal source, so the marked-up form
-        // resolves while the same words without the emphasis markers do not.
+        // Labels match the heading's literal source, so the unmarked form does not resolve.
         let result = blocks_with_many(
             "# Heading with *emphasis*\n\n[Heading with *emphasis*] [Heading with emphasis]\n",
             HEADER_REFS,
@@ -892,15 +849,13 @@ mod tests {
     #[test]
     fn a_repeated_heading_is_reachable_only_through_the_first() {
         let result = blocks_with_many("# Twice\n\n# Twice\n\n[Twice]\n", HEADER_REFS);
-        // The first heading keeps the bare identifier; the reference resolves to it, not the
-        // disambiguated second occurrence.
+        // The first occurrence keeps the bare identifier, so the reference resolves to it.
         assert_eq!(reference_targets(&result), ["#twice"]);
     }
 
     #[test]
     fn implicit_header_references_resolve_before_their_heading() {
         let result = blocks_with_many("[Later Section]\n\n# Later Section\n", HEADER_REFS);
-        // A reference may precede the heading it points at.
         assert_eq!(reference_targets(&result), ["#later-section"]);
     }
 
@@ -931,9 +886,7 @@ mod tests {
         else {
             panic!("expected a heading then a paragraph, got {result:?}");
         };
-        // The heading's content has no reference/citation/note trigger character, so its parse is
-        // reused from the pre-pass rather than reparsed; it still matches an ordinary parse of the
-        // same text.
+        // No trigger character, so the pre-pass parse is reused; it still matches an ordinary parse.
         assert_eq!(header_inlines, para_inlines);
     }
 
@@ -965,9 +918,7 @@ mod tests {
                 Extension::Citations,
             ],
         );
-        // The heading's content contains `@`, so the pre-pass parse (built against a scratch
-        // citation count) is not reused; the body pass reparses it against the body's running
-        // count, so the heading's citation is numbered first and the paragraph's second.
+        // `@` blocks pre-pass reuse: the body pass renumbers against the running citation count.
         assert_eq!(cite_note_nums(&result), [1, 2]);
     }
 
@@ -991,8 +942,7 @@ mod tests {
                 _ => None,
             })
             .expect("a note should be present");
-        // The heading's content contains `^`, so the pre-pass parse (built with no footnote bodies
-        // available) is not reused; the body pass sees the real footnote body.
+        // `^` blocks pre-pass reuse: the body pass sees the real footnote body.
         assert!(matches!(note.as_slice(), [Block::Para(_)]));
     }
 
@@ -1002,9 +952,7 @@ mod tests {
         let [Block::Header(_, _, inlines), _] = result.as_slice() else {
             panic!("expected two headings, got {result:?}");
         };
-        // The heading's content contains `[`, so the pre-pass parse (built before the later
-        // heading had registered its own reference) is not reused; the body pass sees the full
-        // reference map and resolves the link.
+        // `[` blocks pre-pass reuse: the body pass sees the full reference map.
         assert!(matches!(inlines.as_slice(), [.., Inline::Link(..)]));
     }
 
@@ -1110,8 +1058,7 @@ mod tests {
 
     #[test]
     fn a_whitespace_only_line_continues_a_non_empty_entry() {
-        // Unlike a wholly blank line, a line of only spaces folds into the entry above it (adding
-        // nothing), so the block stays open and the next bar line is a second entry.
+        // Unlike a blank line, a space-only line folds into the entry above, so the block stays open.
         let blocks = blocks_with_many("| a\n  \n| b\n", LINE_BLOCKS);
         assert!(matches!(blocks.as_slice(), [Block::LineBlock(_)]));
         assert_eq!(line_block_entries(&blocks), ["a", "b"]);
@@ -1295,8 +1242,7 @@ mod tests {
 
     #[test]
     fn an_empty_definition_absorbs_a_deferred_indented_block() {
-        // A blank line does not close an as-yet-empty definition; the indented line that follows
-        // becomes its body.
+        // A blank line does not close an as-yet-empty definition.
         let items = definition_items(&blocks_with(
             "T\n:\n\n    code\n",
             Extension::DefinitionLists,
@@ -1369,8 +1315,7 @@ mod tests {
 
     #[test]
     fn an_alphabetic_list_absorbs_a_following_i() {
-        // `h. i. j.` is one alphabetic list: `i` continues it as the ninth letter rather than
-        // restarting as a roman one.
+        // `i` continues the alphabetic run as the ninth letter, not a fresh roman list.
         assert_eq!(
             ordered_lists("h. eight\ni. nine\nj. ten\n"),
             [(8, ListNumberStyle::LowerAlpha, ListNumberDelim::Period, 3)]
@@ -1490,7 +1435,7 @@ mod tests {
     }
 
     /// The flattened text of every top-level paragraph in `input` (example lists on), joined by a
-    /// space — enough to observe how `@label` references resolve.
+    /// space, enough to observe how `@label` references resolve.
     fn example_text(input: &str) -> String {
         blocks_with(input, Extension::ExampleLists)
             .iter()
@@ -1547,8 +1492,7 @@ mod tests {
     fn a_repeated_label_reuses_its_number() {
         use ListNumberDelim::{OneParen, Period, TwoParens};
         use ListNumberStyle::Example;
-        // The second `@a` neither takes a fresh number nor advances the counter, so the distinct
-        // label `@b` is two, not three. Three delimiters keep the examples in separate lists.
+        // A repeated label neither takes a fresh number nor advances the counter.
         assert_eq!(
             example_lists("(@a) x\n\n@a. y\n\n@b) z\n"),
             [
@@ -1629,9 +1573,7 @@ mod tests {
 
     #[test]
     fn a_greedy_paragraph_folds_a_following_block_quote_heading_and_break() {
-        // A block-quote, heading, or thematic-break line right under a paragraph continues it. The
-        // block-quote and heading folds are gated on the `blank_before_*` toggles the markdown
-        // dialect carries; the thematic break folds on the plain greedy flag.
+        // Quote and heading folds are gated on the `blank_before_*` toggles; the break folds on greedy alone.
         let toggles = &[
             Extension::BlankBeforeBlockquote,
             Extension::BlankBeforeHeader,
@@ -1647,8 +1589,7 @@ mod tests {
 
     #[test]
     fn a_heading_or_block_quote_interrupts_without_its_blank_before_toggle() {
-        // Without `blank_before_header` / `blank_before_blockquote`, the opener interrupts an open
-        // paragraph as in strict CommonMark, even where paragraphs are otherwise greedy.
+        // Without its toggle the opener interrupts as in strict CommonMark, greediness aside.
         assert!(matches!(
             greedy_blocks("text\n# heading\n", &[]).as_slice(),
             [Block::Para(_), Block::Header(_, _, _)]
@@ -1676,7 +1617,6 @@ mod tests {
     #[test]
     fn lists_without_preceding_blankline_lets_a_fresh_list_interrupt_a_paragraph() {
         let ext = &[Extension::ListsWithoutPrecedingBlankline];
-        // A bullet and a decimal marker both open a list directly under the paragraph.
         assert!(matches!(
             greedy_blocks("text\n- item\n", ext).as_slice(),
             [Block::Para(_), Block::BulletList(_)]
@@ -1689,8 +1629,7 @@ mod tests {
 
     #[test]
     fn a_list_shaped_line_ends_a_paragraph_even_when_no_list_opens() {
-        // With no enabled enumerator style for these shapes, the line still ends the paragraph and
-        // becomes a fresh paragraph of its own rather than folding in.
+        // With no enabled enumerator style, the line still ends the paragraph and starts a fresh one.
         let ext = &[Extension::ListsWithoutPrecedingBlankline];
         for line in ["(5) item", "ii. item", "a) item"] {
             let input = format!("text\n{line}\n");
@@ -1702,8 +1641,7 @@ mod tests {
                 "expected two paragraphs for {input:?}"
             );
         }
-        // With `space_in_atx_header` off, a hash run glued to a marker opens a heading rather than
-        // continuing the paragraph.
+        // With `space_in_atx_header` off, a glued hash run opens a heading.
         assert!(
             matches!(
                 greedy_blocks("text\n#) item\n", ext).as_slice(),
@@ -1715,9 +1653,7 @@ mod tests {
 
     #[test]
     fn definition_and_example_markers_end_a_greedy_paragraph() {
-        // Under `lists_without_preceding_blankline`, a definition marker (`:`/`~`) with definition
-        // lists off, and an example marker (`(@)`, `(@label)`) with example lists off, each end a
-        // greedy paragraph and start a fresh one rather than folding in — even though no list opens.
+        // Each marker ends the greedy paragraph even though its own list extension is off and no list opens.
         let ext = &[Extension::ListsWithoutPrecedingBlankline];
         for line in [": def", "~ def", "(@) item", "(@label) item"] {
             let input = format!("text\n{line}\n");
@@ -1733,8 +1669,7 @@ mod tests {
 
     #[test]
     fn a_definition_marker_opens_a_list_when_definition_lists_are_on() {
-        // With definition lists enabled the same marker instead turns the paragraph into a term and
-        // opens a definition list, so it does not split into two plain paragraphs.
+        // With definition lists on the marker turns the paragraph into a term instead of splitting it.
         let ext = &[
             Extension::ListsWithoutPrecedingBlankline,
             Extension::DefinitionLists,
@@ -1747,8 +1682,7 @@ mod tests {
 
     #[test]
     fn a_decimal_marker_closed_by_one_paren_stays_prose() {
-        // `2)` is too easily ordinary prose, so it neither opens a list nor ends the paragraph; the
-        // two lines fold into a single paragraph.
+        // `2)` is too easily ordinary prose, so it neither opens a list nor ends the paragraph.
         let ext = &[Extension::ListsWithoutPrecedingBlankline];
         assert!(matches!(
             greedy_blocks("text\n2) still prose\n", ext).as_slice(),
@@ -1770,10 +1704,8 @@ mod tests {
 
     #[test]
     fn a_definition_marker_ends_an_open_footnote_definition() {
-        // A footnote-definition marker folds into an ordinary paragraph, but when the paragraph it
-        // would continue is itself a definition's body, the marker ends that definition and opens a
-        // new one — so consecutive definitions, and a marker after a definition's continuation line,
-        // stay separate rather than being swallowed.
+        // A marker continuing a definition's own body ends it and opens the next, so consecutive
+        // definitions stay separate rather than being swallowed.
         let blocks = greedy_blocks(
             "x[^1] y[^2]\n\n[^1]: one\n[^2]: two\n",
             &[Extension::Footnotes],
@@ -1798,8 +1730,7 @@ mod tests {
 
     #[test]
     fn a_closed_fenced_code_block_ends_a_greedy_paragraph() {
-        // A backtick fence ends a greedy paragraph only once its character is enabled and it is
-        // closed; the block then opens as its own sibling.
+        // A fence ends a greedy paragraph only when its character is enabled and it is closed.
         assert!(matches!(
             greedy_blocks("text\n```\ncode\n```\n", &[Extension::BacktickCodeBlocks]).as_slice(),
             [Block::Para(_), Block::CodeBlock(_, _)]
@@ -1808,8 +1739,7 @@ mod tests {
 
     #[test]
     fn a_fence_without_its_character_enabled_folds_into_the_paragraph() {
-        // With no `backtick_code_blocks`, the fence names no code block; the run of lines up to its
-        // close stays paragraph text, where the matching backtick runs read as an inline code span.
+        // The disabled fence stays paragraph text; the backtick runs read as an inline code span.
         assert!(matches!(
             greedy_blocks("text\n```\ncode\n```\n", &[]).as_slice(),
             [Block::Para(_)]
@@ -1818,8 +1748,7 @@ mod tests {
 
     #[test]
     fn an_unclosed_fence_folds_into_the_paragraph() {
-        // A fence with its character enabled but no closing fence opens nothing: it runs to the end
-        // of its container, so the dialect keeps its lines as paragraph text instead.
+        // An unclosed fence would run to the container's end, so its lines stay paragraph text.
         assert!(matches!(
             greedy_blocks("text\n```\ncode\n", &[Extension::BacktickCodeBlocks]).as_slice(),
             [Block::Para(_)]
@@ -1840,8 +1769,7 @@ mod tests {
 
     #[test]
     fn sibling_list_items_are_not_folded_into_each_other() {
-        // Greediness suppresses only a fresh list interrupting a paragraph, never the markers that
-        // continue an open list.
+        // Greediness suppresses only a fresh list interrupting a paragraph, not continuation markers.
         let blocks = greedy_blocks("- a\n- b\n", &[]);
         let [Block::BulletList(items)] = blocks.as_slice() else {
             panic!("expected a bullet list");
@@ -1965,9 +1893,7 @@ mod tests {
 
     #[test]
     fn an_indented_simple_table_header_aligns_against_its_own_column() {
-        // The header sits two columns in from the ruling. Within each column the dashes are flush
-        // with the header text on the right and reach past it on the left, so the columns are right-
-        // or center-aligned — not the left alignment a header read at the ruling's margin would give.
+        // Alignment reads the header against each column's own ruling, not the ruling's left margin.
         let doc = read_markdown(
             "  Right     Left     Center\n-------   ------   ----------\n     12     12        12\n",
             &[Extension::SimpleTables],
@@ -1992,8 +1918,7 @@ mod tests {
 
     #[test]
     fn a_paragraph_interrupted_by_an_html_block_reads_tight() {
-        // No blank line separates the paragraph from the div, so the div interrupts it as a block
-        // and the paragraph reads tight — `Plain` rather than `Para`.
+        // No blank before the div: it interrupts, and the paragraph reads tight (`Plain`).
         let doc = read_markdown(
             "text before\n<div>\ninside\n</div>\n",
             &[Extension::MarkdownInHtmlBlocks, Extension::NativeDivs],
@@ -2038,8 +1963,7 @@ mod tests {
 
     #[test]
     fn a_bare_colon_below_a_pipe_table_is_a_caption_not_a_definition() {
-        // The `:` marker also opens a definition list; below a pipe table it is the table's caption,
-        // so the table must survive rather than collapsing into a definition term.
+        // Below a pipe table `:` is the caption, not a definition marker.
         let doc = document(
             "| a | b |\n|---|---|\n| 1 | 2 |\n\n: A bare-colon caption.\n",
             &[
@@ -2086,8 +2010,6 @@ mod tests {
         }
     }
 
-    // --- Gap 1: triple-emphasis nests strong on the outside, emphasis on the inside ---
-
     #[test]
     fn markdown_nests_strong_outside_emph_for_a_triple_run() {
         let inlines = md_para("***both***\n", &[]);
@@ -2104,7 +2026,6 @@ mod tests {
 
     #[test]
     fn markdown_keeps_a_run_of_four_delimiters_literal() {
-        // Four `*` open no emphasis in the markdown dialect; the run stays text.
         let inlines = md_para("****a****\n", &[]);
         assert!(
             matches!(inlines.as_slice(), [Inline::Str(s)] if s == "****a****"),
@@ -2123,8 +2044,6 @@ mod tests {
             "expected Strong[Emph[..]], got {inlines:?}"
         );
     }
-
-    // --- Gap 2: explicit angle autolinks carry a uri/email class ---
 
     fn single_link(inlines: &[Inline]) -> Option<(&Attr, &Target)> {
         match inlines {
@@ -2160,7 +2079,6 @@ mod tests {
 
     #[test]
     fn commonmark_angle_autolink_carries_no_class() {
-        // In the strict CommonMark dialect the autolink class list is empty.
         let inlines = match blocks("<http://example.com>\n").as_slice() {
             [Block::Para(inlines)] => inlines.clone(),
             other => panic!("expected a paragraph, got {other:?}"),
@@ -2171,8 +2089,6 @@ mod tests {
             "expected empty classes, got {attr:?}"
         );
     }
-
-    // --- Gap 5: balanced parentheses inside an inline link destination ---
 
     #[test]
     fn markdown_link_destination_keeps_balanced_inner_parentheses() {
@@ -2197,8 +2113,6 @@ mod tests {
         let (_, target) = single_link(&inlines).expect("a single link");
         assert_eq!(target.url, "/u(a(b)c)d");
     }
-
-    // --- Gap 6: tilde delimiter runs resolve to subscript or strikeout ---
 
     #[test]
     fn markdown_single_tilde_pair_is_a_subscript() {

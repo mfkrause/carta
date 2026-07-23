@@ -66,8 +66,7 @@ impl Reader for DokuwikiReader {
         if options.extensions.contains(Extension::EastAsianLineBreaks) {
             strip_wide_line_breaks(&mut blocks);
         }
-        // Identifiers are derived only when `auto_identifiers` is on; the gfm variant and the
-        // ASCII fold only select the algorithm, they do not enable derivation on their own.
+        // Only `auto_identifiers` enables derivation; gfm/ASCII-fold just select the algorithm.
         if options.extensions.contains(Extension::AutoIdentifiers)
             && let Some(scheme) = IdScheme::select(options.extensions, false)
         {
@@ -121,10 +120,6 @@ fn leading_columns(line: &str) -> usize {
     }
     col
 }
-
-// ===================================================================================================
-// Block level
-// ===================================================================================================
 
 /// Parse a run of lines into blocks, advancing `index` past the consumed lines.
 fn parse_blocks(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Vec<Block> {
@@ -367,7 +362,7 @@ fn opens_list(line: &str) -> bool {
 }
 
 /// The blockquote nesting depth of a line (its run of leading `>`), or `None` when the line is not a
-/// quote — a `>` run with no content after it is treated as ordinary text.
+/// quote; a `>` run with no content after it is treated as ordinary text.
 fn quote_depth(line: &str) -> Option<usize> {
     if !line.starts_with('>') {
         return None;
@@ -512,15 +507,13 @@ fn parse_list(lines: &[&str], index: &mut usize, ctx: Ctx, depth: usize) -> Bloc
         items.push((list_level(indent), ordered, text));
         *index += 1;
     }
-    // A line whose level jumps more than one above the line before it does not belong to the list;
-    // it (and everything after) is left to be parsed afresh — an over-indented marker becomes
-    // indented code.
+    // A level jump of more than one ends the list (rest parsed afresh); an over-indented marker
+    // becomes indented code.
     let cutoff = list_cutoff(&items);
     let consumed = items.get(..cutoff).unwrap_or(&[]);
     let mut pos = 0;
     let list = build_list(consumed, &mut pos, ctx, depth);
-    // A marker-type switch or a dedent below the opening level also ends this list; rewind so the
-    // remaining lines are parsed fresh on the next pass.
+    // A marker-type switch or dedent below the opening level ends the list; rewind for a fresh parse.
     *index = start + pos;
     list
 }
@@ -643,13 +636,9 @@ fn build_quote(
     blocks
 }
 
-// ===================================================================================================
-// Heading identifiers
-// ===================================================================================================
-
 /// Assign a derived identifier to every heading in document order, descending through block
-/// containers. The slug is formed from the heading's plain text — folded to ASCII first when `ascii`
-/// is set — and made unique within the document by the registry.
+/// containers. The slug is formed from the heading's plain text (folded to ASCII first when `ascii`
+/// is set) and made unique within the document by the registry.
 fn assign_heading_ids(
     blocks: &mut [Block],
     scheme: IdScheme,
@@ -677,10 +666,6 @@ fn assign_heading_ids(
         }
     }
 }
-
-// ===================================================================================================
-// East Asian line breaks
-// ===================================================================================================
 
 /// Drop soft line breaks that fall between two wide East Asian characters, where the break carries no
 /// visual width. The surrounding text runs are left separate rather than merged.
@@ -815,10 +800,6 @@ fn is_east_asian_wide(c: char) -> bool {
         | 0x20000..=0x2FFFD
         | 0x30000..=0x3FFFD)
 }
-
-// ===================================================================================================
-// Inline level
-// ===================================================================================================
 
 /// The number of speculative delimiter openings an inline scan will attempt before it treats the
 /// rest of its input as literal text. Each opener whose closer must be searched for costs one unit,
@@ -1053,7 +1034,7 @@ fn closer_width(closer: Closer) -> usize {
 }
 
 /// Handle a `''` opener: a monospace run when both delimiters flank non-whitespace content,
-/// otherwise — under smart typography — the two quotes fold individually, and otherwise the opener
+/// otherwise, under smart typography, the two quotes fold individually, and otherwise the opener
 /// stays literal.
 #[allow(clippy::too_many_arguments)]
 fn handle_mono_or_quote(
@@ -1160,11 +1141,8 @@ fn handle_construct(
     pending: &mut String,
     out: &mut Vec<Inline>,
 ) {
-    // Parsing a construct recurses (footnotes even re-parse their interior as blocks), and an
-    // enclosing emphasis run that fails to close discards its scan and re-scans the same span — so
-    // the same construct can be parsed many times over. Charge the shared backtracking budget by the
-    // span consumed, so that repeated re-parsing of a region cannot exceed the input-proportional
-    // budget and the total work stays linear.
+    // Failed emphasis closes re-scan the same span, so a construct can be parsed many times over;
+    // charging the shared backtracking budget by consumed span keeps total work linear.
     if *budget > 0
         && let Some((mut nodes, end)) = scan_construct(chars, *pos, c, ctx, depth)
     {
@@ -1196,8 +1174,7 @@ fn handle_delim(
     wrap: fn(Vec<Inline>) -> Inline,
 ) {
     let begin = *pos;
-    // The opener must lean against following non-whitespace content, and searching for its closer
-    // must stay within the backtracking budget.
+    // The opener must lean against following non-whitespace; the closer search stays in budget.
     if !is_ws_opt(chars.get(begin + 2).copied()) && *budget > 0 {
         *budget -= 1;
         let mut scan_pos = begin + 2;
@@ -1216,10 +1193,8 @@ fn handle_delim(
             *pos = scan_pos;
             return;
         }
-        // No closer: the opener is literal text and the speculative scan is thrown away, but the
-        // outer scan resumes just past the opener and, in a delimiter-dense run, would re-scan the
-        // same span from each following opener in turn. Charge the shared budget by the span scanned
-        // so repeated failed opens stay linear in the input rather than quadratic (an OOM vector).
+        // No closer: the opener stays literal, but each following opener would re-scan the same
+        // span; charge the budget by span scanned so failed opens stay linear, not quadratic.
         *budget = budget.saturating_sub(scan_pos - begin);
     }
     pending.push(delim);
@@ -1266,8 +1241,7 @@ fn handle_quote(
             out.push(Inline::Quoted(quote_type(quote), inner));
             return;
         }
-        // As in `handle_delim`: an unpaired opener rewinds to just past itself, so charge the span
-        // the failed scan covered to keep a quote-dense run from being re-scanned quadratically.
+        // As in `handle_delim`: charge the failed scan's span so a quote-dense run stays linear.
         *budget = budget.saturating_sub(pos.saturating_sub(begin));
         *pos = begin + 1;
     } else {
@@ -1452,8 +1426,6 @@ fn run_length(chars: &[char], pos: usize, ch: char) -> usize {
     n
 }
 
-// --- flanking ---
-
 /// The character before `pos`, if any.
 fn before_char(chars: &[char], pos: usize) -> Option<char> {
     pos.checked_sub(1).and_then(|p| chars.get(p)).copied()
@@ -1468,8 +1440,6 @@ fn is_blank(chars: &[char]) -> bool {
 fn boundary_before(chars: &[char], pos: usize) -> bool {
     before_char(chars, pos).is_none_or(|c| !c.is_alphanumeric())
 }
-
-// --- bare URL autolinking ---
 
 /// Match a bare URL beginning at `pos` (`scheme://…`), returning the link and the end index.
 fn try_autolink(chars: &[char], pos: usize) -> Option<(Inline, usize)> {
@@ -1554,8 +1524,6 @@ fn trim_trailing(chars: &[char], min: usize, mut end: usize) -> usize {
     end
 }
 
-// --- post-processing ---
-
 /// Merge adjacent text runs and collapse adjacent whitespace into a single token (preferring a hard
 /// space), so dropped macros and split apostrophes leave no doubled spacing or fragmented words.
 fn coalesce(inlines: Vec<Inline>) -> Vec<Inline> {
@@ -1612,8 +1580,6 @@ fn tokenize_text(text: &str) -> Vec<Inline> {
     }
     out
 }
-
-// --- links and media ---
 
 /// Parse a `[[target|label]]` link, returning the link node and its end index. A bracket pair whose
 /// target side (the text before the first `|`) is entirely empty is not a link; the opener stays
@@ -1848,8 +1814,6 @@ fn interwiki_url(prefix: &str, rest: &str) -> String {
     }
 }
 
-// --- footnotes, nowiki, angle tags, macros ---
-
 /// Parse a `((…))` footnote into a note holding the block content of its body. A body that is empty
 /// or only whitespace is not a footnote, so the opener stays literal.
 fn parse_footnote(chars: &[char], begin: usize, ctx: Ctx, depth: usize) -> Option<(Inline, usize)> {
@@ -2008,10 +1972,6 @@ fn parse_blocks_str(text: &str, ctx: Ctx, depth: usize) -> Vec<Block> {
     let mut index = 0;
     parse_blocks(&lines, &mut index, ctx, depth)
 }
-
-// ===================================================================================================
-// Tables
-// ===================================================================================================
 
 /// Parse a run of table rows. The first row sets the column count and per-column alignment, and is
 /// the header row when it opens with `^`; all remaining rows form the single body.
@@ -2175,12 +2135,8 @@ mod tests {
 
     #[test]
     fn adversarial_footnotes_under_open_emphasis_do_not_stall() {
-        // Each `((…))` footnote re-parses its interior, and an emphasis run that fails to close
-        // discards its scan and re-scans the same span — so overlapping footnotes and unclosed `//`
-        // openers once re-parsed the same regions a super-linear number of times, which a nightly
-        // fuzz run hit as a timeout. Charging the inline backtracking budget for each construct
-        // bounds how often a region can be re-parsed; the pre-fix code blew up exponentially on an
-        // input a fraction of this size.
+        // Overlapping footnotes and unclosed `//` openers would re-parse regions super-linearly;
+        // the inline backtracking budget bounds it.
         let input = format!("(({}))", "//((x)) ".repeat(400));
         assert!(reads_ok(&input));
     }
@@ -2193,11 +2149,8 @@ mod tests {
 
     #[test]
     fn a_delimiter_dense_run_does_not_blow_up() {
-        // An emphasis opener with no closer discards its speculative scan and rewinds to just past
-        // itself, so a run of unclosed `//` openers whose would-be closers are all whitespace-led
-        // (never valid) was re-scanned from every position — quadratic work that allocated a
-        // discarded inline tree each time. A nightly fuzz run hit this as an out-of-memory on a
-        // sub-kilobyte input. Charging the backtracking budget for the scanned span keeps it linear.
+        // Unclosed `//` openers with whitespace-led closers would re-scan from every position
+        // (quadratic); the backtracking budget keeps it linear.
         let input = "//a ".repeat(4_000);
         assert!(reads_ok(&input));
     }

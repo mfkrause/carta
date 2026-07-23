@@ -1,20 +1,6 @@
 #!/usr/bin/env bash
-# Extensions surface: assert every extension the reader honors is exercised by an oracle-parity case.
-#
-# Golden snapshots lock carta's own output; only the reader surface's `corpus/text-ext/<spec>/` cases
-# diff an extension against the oracle. So an extension can be fully wired into the reader yet never
-# compared to the oracle — invisible to CI. This surface closes that hole: it fails when a honored
-# extension has no `text-ext/` directory, turning "implemented but never oracle-verified" into a hard
-# error instead of a silent gap.
-#
-# Pure structural check — no oracle, jq, or built binary required. Three inputs, all in-repo:
-#   honored  = every `Extension::<Variant>` the reader's source branches on (auto-updates: wiring a
-#              new extension necessarily references its variant here)
-#   token    = each variant's identifier, parsed from the `define_extensions!` table (single source)
-#   covered  = every extension token named in a `corpus/text-ext/<spec>/` directory (a `+tok` that
-#              enables it or a `-tok` that exercises its absence both count)
-#
-# Usage: surfaces/extensions.sh   (no arguments)
+# Extensions surface: fail when a reader-honored extension has no corpus/text-ext/<spec>/ case diffing
+# it against the oracle. Pure structural check: no oracle, jq, or built binary needed.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
@@ -22,17 +8,15 @@ EXTENSIONS_RS="$ROOT/crates/carta-core/src/extensions.rs"
 READER_SRC="$ROOT/crates/carta-readers/src"
 TEXT_EXT="$CORPUS/text-ext"
 
-# Variant -> token rows, straight from the `Variant => "token",` rows of the define_extensions!
-# table. Kept as plain lines rather than an associative array so the script runs under the bash 3.2
-# that macOS ships.
+# Variant -> token rows from the define_extensions! table; plain lines, not an associative array,
+# for the bash 3.2 that macOS ships.
 TOKEN_ROWS="$(sed -nE 's/^[[:space:]]+([A-Z][A-Za-z]+)[[:space:]]*=>[[:space:]]*"([a-z_]+)".*/\1 \2/p' "$EXTENSIONS_RS")"
 
 token_for_variant() {
   printf '%s\n' "$TOKEN_ROWS" | awk -v variant="$1" '$1 == variant { print $2; exit }'
 }
 
-# Every extension token an existing text-ext spec dir exercises (split each spec on +/-, drop the
-# leading base-format segment).
+# Tokens exercised by existing text-ext spec dirs (split on +/-, drop the base-format segment).
 covered="$(
   for spec_dir in "$TEXT_EXT"/*/; do
     [ -d "$spec_dir" ] || continue
@@ -41,8 +25,7 @@ covered="$(
 )"
 
 conf_reset "extensions-coverage"
-# A grepped name counts as honored only when it is a real variant (in TOKEN), which filters out the
-# `ALL`/`COUNT` associated constants that share the `Extension::` prefix.
+# Count only real variants, filtering the `ALL`/`COUNT` associated constants sharing the prefix.
 for variant in $(grep -rhoE 'Extension::[A-Z][A-Za-z]+' "$READER_SRC" | sed 's/Extension:://' | sort -u); do
   token="$(token_for_variant "$variant")"
   [ -n "$token" ] || continue

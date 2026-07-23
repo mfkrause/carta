@@ -1,7 +1,7 @@
 //! Offline panic-safety net: parse every worked example from the vendored `CommonMark` spec and
 //! require the reader to return `Ok`. The spec text is embedded at build time, so this runs fully
-//! offline. It does not assert *what* the AST is (that is the conformance suite's differential job)
-//! — only that no spec example makes the reader error or panic.
+//! offline. It does not assert *what* the AST is, only that no spec example makes the reader error
+//! or panic.
 
 // The whole suite drives the CommonMark reader, so it only applies when that reader is built in.
 #![cfg(feature = "read-commonmark")]
@@ -33,7 +33,7 @@ fn spec_examples(spec: &str) -> Vec<String> {
             markdown.push_str(&content.replace(EXAMPLE_TAB, "\t"));
             markdown.push('\n');
         }
-        // Discard the reference HTML up to the closing fence; parity is the suite's job, not this.
+        // Discard the example's expected HTML up to the closing fence; only the input is parsed.
         for content in lines.by_ref() {
             if is_fence(content) {
                 break;

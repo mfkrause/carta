@@ -85,11 +85,9 @@ fn corpus_matches_serde_both_directions() {
         let label = path.display().to_string();
         let bytes = fs::read(path).expect("read corpus file");
 
-        // Decoding parity against the derived reader.
         assert_decode_parity(&bytes, &label);
 
-        // Serialization byte-parity and round-trip, from the derived reader's own value so the
-        // input to both serializers is identical.
+        // Decode with the derived reader so the input to both serializers is identical.
         let document: Document = serde_json::from_slice(&bytes).expect("serde decode corpus");
         assert_serialize_parity(&document, &label);
         assert_roundtrip(&document, &label);
@@ -329,7 +327,6 @@ fn parity_documents() -> Vec<(String, Document, bool)> {
         true,
     ));
 
-    // Every ColWidth float shape, including whole numbers, tiny magnitudes, and imprecise sums.
     let widths = [
         ("frac", 0.142_857_142_857_142_85_f64),
         ("tiny", 1e-7),
@@ -352,7 +349,6 @@ fn parity_documents() -> Vec<(String, Document, bool)> {
         docs.push((format!("colwidth_{label}"), colwidth_document(value), false));
     }
 
-    // Integer extremes in every i32-bearing position.
     docs.push((
         "int_extremes".to_string(),
         Document {
@@ -417,7 +413,6 @@ fn adversarial_documents_serialize_identically() {
         assert_serialize_parity(&document, &label);
         if roundtrips {
             assert_roundtrip(&document, &label);
-            // Decoding the shared bytes must also match the derived reader.
             let json = to_json(&document).unwrap();
             assert_decode_parity(json.as_bytes(), &label);
         }

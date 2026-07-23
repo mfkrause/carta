@@ -1,11 +1,5 @@
-# release-plz drives the crates.io release flow. On every push to `main` it opens (or updates) a
-# "Release" pull request that bumps the version and regenerates the changelog from the Conventional
-# Commit history; merging that PR publishes every crate to crates.io and cuts a single GitHub
-# release. Configuration reference: https://release-plz.dev/docs/config
-
 [changelog]
-# Hand-written preamble kept at the top of CHANGELOG.md; release tooling inserts version sections
-# below it.
+# Hand-written preamble; release tooling inserts version sections below it.
 header = """# Changelog
 
 All notable changes to carta are documented in this file.
@@ -15,8 +9,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). W
 version is below `0.1.0`, anything may change at any time.
 """
 
-# The `<!-- N -->` prefixes fix the group order (groups otherwise sort alphabetically); the body
-# template below strips them before rendering.
+# `<!-- N -->` prefixes fix group order (otherwise alphabetical); the body template strips them.
 commit_parsers = [
   { message = "^ci", skip = true },
   { message = "^docs", skip = true },
@@ -29,8 +22,7 @@ commit_parsers = [
   { message = ".*", group = "<!-- 5 -->other" },
 ]
 
-# release-plz's stock body template, plus the `striptags` filter on the group name so the
-# ordering comments above never reach the rendered changelog.
+# Stock body template plus `striptags` so the ordering prefixes never reach the changelog.
 body = """
 ## [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
 {% for group, commits in commits | group_by(attribute="group") %}
@@ -45,10 +37,8 @@ body = """
 {% endfor -%}
 {% endfor %}"""
 
-# The five crates share one version (`version_group`), so a release bumps and publishes them
-# together. `carta` is the single release representative: it owns the one root CHANGELOG.md
-# (folding in the other crates' commits via `changelog_include`), the one `v<version>` git tag,
-# and the one GitHub release the binary workflow attaches to. `carta` also ships the CLI binary.
+# All crates share one version; `carta` is the sole release representative: it owns the root
+# CHANGELOG.md (folding in the other crates), the `v<version>` tag, and the GitHub release.
 [[package]]
 name = "carta"
 version_group = "carta"
@@ -56,8 +46,7 @@ changelog_path = "CHANGELOG.md"
 changelog_include = ["carta-ast", "carta-core", "carta-highlight", "carta-readers", "carta-writers"]
 git_tag_name = "v{{ version }}"
 
-# The remaining crates still publish to crates.io, but produce no separate changelog, tag, or
-# GitHub release — those are consolidated onto the representative above.
+# Remaining crates publish to crates.io but delegate changelog, tag, and release to `carta`.
 [[package]]
 name = "carta-ast"
 version_group = "carta"

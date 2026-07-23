@@ -43,7 +43,7 @@ pub(crate) trait NotesHost {
         self.numbered_note(blocks)
     }
 
-    /// Record a footnote in the generic numbered form — a `[n]` reference marker and a matching
+    /// Record a footnote in the generic numbered form: a `[n]` reference marker and a matching
     /// `[n] body` definition whose first line is offset by the marker width. This is the layout a
     /// markdown dialect without the `footnotes` extension falls back to, so it stays reachable even
     /// when [`record_note`](Self::record_note) is overridden with a richer footnote syntax.

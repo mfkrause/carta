@@ -94,10 +94,8 @@ pub(crate) fn scan_backslash_math(
             };
             return Some((math_type, content, i + slashes + 1));
         }
-        // The single-backslash form treats a `\` as escaping the next character, so an escaped
-        // delimiter inside the content does not close the span; the closer test above already ran,
-        // so a real `\)`/`\]` closer is never reached here. The double-backslash form has no such
-        // escaping: a longer backslash run simply leaves its leading backslashes in the content.
+        // Single-backslash form only: `\` escapes the next char, so an escaped delimiter cannot
+        // close (a real closer was caught above); the double-backslash form has no escaping.
         if slashes == 1 && chars.get(i) == Some(&'\\') && chars.get(i + 1).is_some() {
             i += 2;
             continue;
@@ -215,12 +213,9 @@ fn is_backslash_math_closer_bytes(text: &str, i: usize, slashes: usize, close: c
         && char_at(text, i + slashes) == Some(close)
 }
 
-/// A forward-scan step budget proportional to `span_len`. A dense run of unclosable
-/// openers would otherwise make each failed construct re-scan the whole suffix, so
-/// the total cost grows quadratically; charging one step per position examined keeps
-/// scanning linear over the span. The value is far above what any genuine construct
-/// needs — a real close is always found — while the cap makes a pathological run give
-/// up and leave the opener as literal text.
+/// A forward-scan step budget proportional to `span_len`, keeping scanning linear where a dense
+/// run of unclosable openers would otherwise re-scan the suffix per failed construct (quadratic).
+/// Far above any genuine construct's need; a capped run leaves the opener as literal text.
 #[cfg(any(feature = "jira", feature = "mediawiki", feature = "org"))]
 pub(crate) fn scan_budget(span_len: usize) -> usize {
     span_len.saturating_mul(8).saturating_add(64).min(200_000)
@@ -257,8 +252,7 @@ mod tests {
 
     #[test]
     fn inline_math_spans_multi_byte_content() {
-        // The content and the returned end position are byte offsets; the closing `$` follows a
-        // multi-byte character.
+        // end position is a byte offset; the closing `$` follows a multi-byte character
         assert_eq!(
             scan_inline_math_bytes("$αβ$", 0),
             Some(("αβ".to_owned(), 6))
@@ -273,8 +267,7 @@ mod tests {
 
     #[test]
     fn inline_math_escape_hops_over_a_multi_byte_character() {
-        // A backslash escapes the following character whole, so an escaped multi-byte character
-        // never leaves the cursor mid-character.
+        // escape hops the whole multi-byte character, never leaving the cursor mid-character
         assert_eq!(
             scan_inline_math_bytes("$\\éx$", 0),
             Some(("\\éx".to_owned(), 6))
@@ -283,8 +276,7 @@ mod tests {
 
     #[test]
     fn inline_math_rejects_ill_flanked_closers() {
-        // Whitespace before the closing `$`, a digit after it, or whitespace after the opener each
-        // void the span.
+        // whitespace before the closer, digit after it, or whitespace after the opener each void the span
         assert_eq!(scan_inline_math_bytes("$x $", 0), None);
         assert_eq!(scan_inline_math_bytes("$x$5", 0), None);
         assert_eq!(scan_inline_math_bytes("$ x$", 0), None);

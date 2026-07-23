@@ -1,17 +1,12 @@
-# Allow the panic-discipline restriction lints in test code, where unwrap/expect/panic on a known
-# fixture is the idiomatic way to assert. The lints stay enforced in shipped reader/writer/library
-# paths (see Cargo.toml [workspace.lints.clippy] and AGENTS.md).
+# unwrap/expect/panic on known fixtures is idiomatic in tests; shipped paths stay lint-enforced.
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 
-# Product names that read as identifiers to the doc-markdown lint but are plain prose here. `..`
-# extends clippy's built-in allowlist (which already covers TeX, LaTeX, and the like).
+# Product names the doc-markdown lint reads as identifiers; `..` extends clippy's built-in list.
 doc-valid-idents = ["MathJax", "KaTeX", "MathML", ".."]
 
-# Determinism gate: output must be byte-reproducible. Hash-based collections iterate
-# in randomized order, which would yield flaky diffs if one ever reached the AST or a writer. Use the
-# ordered BTreeMap/BTreeSet instead; allow per-site only where order is provably irrelevant.
+# Determinism gate: hash collections iterate in random order; allow per-site only where order is irrelevant.
 disallowed-types = [
   { path = "std::collections::HashMap", reason = "non-deterministic iteration; use BTreeMap" },
   { path = "std::collections::HashSet", reason = "non-deterministic iteration; use BTreeSet" },

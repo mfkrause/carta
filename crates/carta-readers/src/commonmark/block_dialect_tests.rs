@@ -59,12 +59,10 @@ fn markdown_setext_underline_needs_a_single_line_paragraph() {
     // A single line above the underline forms a heading in the markdown dialect.
     let one = markdown_with("one line\n===\n", presets::MARKDOWN);
     assert_eq!(heading_level(&one), Some(1));
-    // Two or more lines keep the underline as ordinary paragraph text: no heading forms, and the
-    // `===` line is retained as part of the paragraph.
+    // Two or more lines: no heading; the `===` line stays in the paragraph.
     let many = markdown_with("line one\nline two\n===\n", presets::MARKDOWN);
     assert!(matches!(many.as_slice(), [IrBlock::Para(text)] if text.contains("===")));
-    // A leading reference definition does not count toward the line budget: the single content
-    // line still heads.
+    // A leading reference definition does not count toward the line budget.
     let refd = markdown_with("[x]: /u\ncontent\n===\n", presets::MARKDOWN);
     assert_eq!(heading_level(&refd), Some(1));
     // The CommonMark family heads a multi-line paragraph, per its setext rule.
@@ -120,8 +118,7 @@ fn classic_dialect_reads_a_hash_run_glued_to_text_as_a_heading() {
 
 #[test]
 fn classic_dialect_strips_a_glued_closing_hash_run() {
-    // With space_in_atx_header off, a trailing hash run always terminates the heading,
-    // even glued to the content; an interior hash is kept.
+    // space_in_atx_header off: a trailing hash run terminates even glued; interior hashes stay.
     let cases = [
         ("#foo#\n", "foo"),
         ("#foo ###\n", "foo"),
@@ -184,8 +181,6 @@ fn list_item_count(blocks: &[IrBlock]) -> usize {
     }
 }
 
-// --- Gap 3: multi-letter roman-numeral ordered lists ---
-
 #[test]
 fn markdown_reads_a_multi_letter_roman_list() {
     // `II.`/`III.` are unambiguously roman: the list is UpperRoman starting at two.
@@ -237,8 +232,7 @@ fn markdown_reads_a_thousands_roman_numeral() {
 
 #[test]
 fn markdown_keeps_a_lone_capital_letter_marker_as_a_paragraph() {
-    // A single uppercase letter followed by a period and one space is ambiguous with an initial
-    // (`I. only` could be a name), so it stays a paragraph rather than opening a list.
+    // One uppercase letter, period, one space is ambiguous with an initial: stays a paragraph.
     let blocks = markdown_with("I. only\n", presets::MARKDOWN);
     assert!(
         matches!(blocks.as_slice(), [IrBlock::Para(_)]),
@@ -248,16 +242,13 @@ fn markdown_keeps_a_lone_capital_letter_marker_as_a_paragraph() {
 
 #[test]
 fn markdown_reads_a_lone_capital_letter_marker_with_two_spaces_as_a_list() {
-    // Two spaces after the marker disambiguate it from an initial, so the single `I` opens a
-    // one-letter roman list (value one).
+    // Two spaces after the marker disambiguate from an initial: `I` opens a roman list at one.
     let blocks = markdown_with("I.  only\n", presets::MARKDOWN);
     assert_eq!(
         ordered_attrs(&blocks),
         Some((1, ListNumberStyle::UpperRoman, ListNumberDelim::Period))
     );
 }
-
-// --- Gap 4: `#.` fancy hash-marker ordered lists ---
 
 #[test]
 fn markdown_reads_a_hash_period_list() {

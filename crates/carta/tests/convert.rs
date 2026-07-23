@@ -1,5 +1,5 @@
 //! Facade integration tests: the high-level `convert_text` and `convert` entry points and format-name resolution. These
-//! run fully offline — outputs are the writers' own deterministic text. The error-classification cases
+//! run fully offline: outputs are the writers' own deterministic text. The error-classification cases
 //! are feature-gated so they assert the right branch under both `--all-features` and a minimal
 //! `--no-default-features --features read-commonmark,write-html` build.
 
@@ -110,9 +110,7 @@ fn number_sections_with_standalone_toc_numbers_body_and_toc_exactly_once() {
             && output.contains(r#"<span class="toc-section-number">1.1</span>"#),
         "contents entries not numbered: {output}"
     );
-    // The body headings carry a section number; the contents entries carry their own. Neither the
-    // body nor the contents should show a doubled number, so each span appears exactly as many times
-    // as there are headings.
+    // Each numbering span appears exactly once per heading: no doubling, no body/contents leakage.
     assert_eq!(
         output.matches(r#"class="header-section-number""#).count(),
         2,
@@ -167,8 +165,7 @@ fn supported_input_formats_reflect_build() {
 
 #[test]
 fn every_supported_format_resolves() {
-    // Resolution is kind-agnostic: a supported format resolves whether it is text- or byte-shaped
-    // (`writer_for` deliberately rejects byte-shaped formats, so it cannot stand in here).
+    // Kind-agnostic: `writer_for` rejects byte-shaped formats, so it cannot stand in here.
     for name in carta::supported_input_formats() {
         assert!(
             any_reader_for(name).is_ok(),
@@ -229,7 +226,6 @@ fn format_extensions_default_is_the_markdown_dialect() {
     assert_eq!(enabled("smart"), Some(true));
     assert_eq!(enabled("gfm_auto_identifiers"), Some(false));
 
-    // Sorted by extension name.
     let names: Vec<&str> = entries.iter().map(|(ext, _)| ext.name()).collect();
     let mut sorted = names.clone();
     sorted.sort_unstable();

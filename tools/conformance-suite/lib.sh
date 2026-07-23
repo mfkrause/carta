@@ -1,12 +1,6 @@
-# Conformance-suite primitives: output comparison, spec-example extraction, and result tallying. Path
-# anchors and the oracle contract come from tools/shared.sh. Sourced by run.sh and every surface.
-#
-# The suite diffs carta against the pinned pandoc binary across each conversion surface. pandoc's
-# output is the reference; on any non-`json` target it carries a single trailing newline that is
-# stripped from both sides before comparison, and JSON targets are compared after canonical key
-# sorting so object-key order never registers as a divergence.
+# Diffs carta against the pinned pandoc per surface: text targets compared modulo one trailing
+# newline, JSON targets after canonical key sorting.
 
-# Guard against double-sourcing.
 [ -n "${CONF_LIB_SOURCED:-}" ] && return 0
 CONF_LIB_SOURCED=1
 
@@ -16,15 +10,11 @@ OX="${CARTA_BIN:-$ROOT/target/debug/carta}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
 EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"
-# Scratch lives in a per-run directory so two concurrent suite runs (e.g. two worktrees) never
-# clobber each other's comparison files. run.sh mints one dir and exports CONF_WORK so every surface
-# child shares it (and thus the extracted-spec cache); a direct surface invocation lands here and
-# mints its own. An explicit CONF_WORK always wins. Not auto-deleted — the per-surface .log files
-# must survive the run for failure inspection; OS tmp reaping reclaims them.
+# Per-run scratch dir so concurrent runs never clobber each other; run.sh exports CONF_WORK so
+# surface children share it. Not auto-deleted: .log files must survive for failure inspection.
 WORK="${CONF_WORK:-$(mktemp -d "${TMPDIR:-/tmp}/carta-conformance.XXXXXX")}"
 mkdir -p "$WORK"
 
-# Fail loudly with provisioning instructions when a prerequisite is missing.
 require_tools() {
   local missing=0
   if [ ! -x "$ORACLE" ]; then
@@ -42,31 +32,26 @@ require_tools() {
   [ "$missing" -eq 0 ] || exit 1
 }
 
-# Format lists are derived from the two binaries at runtime: a surface exercises exactly the
-# formats both carta and the oracle claim to support, so a newly landed reader or writer enters
-# conformance without a script edit. Corpus presence still gates per-format groups on the
-# reader/e2e side. One name per line from each binary, intersected, emitted space-separated.
+# Runtime intersection of both binaries' format lists, so a newly landed reader or writer enters
+# conformance without a script edit.
 shared_input_formats() {
   comm -12 \
     <("$OX" --list-input-formats | sort) \
     <("$ORACLE" --list-input-formats | sort) | tr '\n' ' '
 }
 
-# Output targets shared by both binaries, minus the package-shaped binary targets (epub*, docx,
-# odt) — they have no text form to diff and carry their own surfaces — and html5, which both
-# binaries treat as an alias of html, so the html group already covers it.
+# Shared outputs minus binary package targets (epub*/docx/odt have their own surfaces) and html5
+# (an alias of html, covered by the html group).
 shared_output_formats() {
   comm -12 \
     <("$OX" --list-output-formats | sort) \
     <("$ORACLE" --list-output-formats | sort) | grep -vE '^(epub|docx|odt|html5$)' | tr '\n' ' '
 }
 
-# A target whose output is compared structurally as JSON rather than byte-for-byte.
 is_json_target() { [ "$1" = "json" ]; }
 
-# The comparison mode for a target: structural JSON for the AST interchange, id-canonicalized JSON
-# for notebooks (whose per-cell id carta derives deterministically while the oracle assigns it at
-# random), byte-modulo-trailing-newline text for everything else.
+# Structural JSON for the AST, id-canonicalized JSON for notebooks (carta's cell ids are
+# deterministic, the oracle's random), text modulo trailing newline otherwise.
 compare_mode() {
   case "$1" in
     json) echo json ;;
@@ -75,8 +60,7 @@ compare_mode() {
   esac
 }
 
-# 0 when the case is listed as not-yet-implemented in exclusions.tsv. An entry is
-# `target<TAB>feature` (the whole feature directory) or `target<TAB>feature/case` (one case stem).
+# 0 when listed in exclusions.tsv: `target<TAB>feature` or `target<TAB>feature/case`.
 is_excluded() {
   local target="$1" feature="$2" case="${3:-}"
   [ -f "$EXCLUSIONS" ] || return 1
@@ -86,22 +70,18 @@ is_excluded() {
   [ -n "$case" ] && printf '%s\n' "$active" | grep -q "^${target}	${feature}/${case}\$"
 }
 
-# Compare two JSON files after canonical key sorting. Prints a brief diff and returns 1 on mismatch.
 compare_json() {
   local a="$WORK/.cmp.oracle.json" b="$WORK/.cmp.ox.json"
   jq -S . "$1" >"$a" 2>/dev/null || { echo "oracle JSON unparsable"; return 1; }
   jq -S . "$2" >"$b" 2>/dev/null || { echo "carta JSON unparsable"; return 1; }
   cmp -s "$a" "$b" && return 0
-  # Bound the diff so a pathological (megabyte) mismatch stays reviewable; 200 lines is enough to
-  # see a structural divergence whole.
+  # Bound the diff so a pathological (megabyte) mismatch stays reviewable.
   diff "$a" "$b" | head -n 200
   return 1
 }
 
-# Compare two notebook (JSON) outputs structurally after canonicalizing each cell's `id`. The id is
-# the one field a writer is free to mint per cell; carta derives it deterministically from the cell
-# while the oracle draws a fresh random value, so it is folded to a constant on both sides before the
-# structural compare.
+# Structural notebook compare after folding each cell's `id` to a constant (carta derives ids
+# deterministically, the oracle draws random ones).
 compare_ipynb() {
   local a="$WORK/.cmp.oracle.ipynb" b="$WORK/.cmp.ox.ipynb"
   jq -S '(.cells[]?.id) |= "id"' "$1" >"$a" 2>/dev/null || { echo "oracle notebook unparsable"; return 1; }
@@ -111,12 +91,8 @@ compare_ipynb() {
   return 1
 }
 
-# Compare the media-bag-reconstructed fields of two notebook outputs: each rich output's `metadata`
-# object and each cell's `attachments` keys, in document order. Keys are compared as emitted (no
-# canonical sort), so a regression in either the metadata ordering or the attachment ordering shows
-# up. This isolates what the media bag drives on the write side — an image output's display metadata
-# and a cell's attachment table — from the cell source, minted ids, and non-image data bundles, whose
-# fidelity belongs to other surfaces. Brief diff + 1 on mismatch.
+# Compare each rich output's `metadata` and each cell's `attachments` keys in emitted order: just
+# what the media bag drives on the write side, isolated from cell source and minted ids.
 compare_ipynb_media() {
   local proj='[.cells[] | {output_metadata: [.outputs[]? | select(.metadata) | .metadata], attachment_keys: (.attachments // {} | keys_unsorted)}]'
   local a="$WORK/.cmp.oracle.media.json" b="$WORK/.cmp.ox.media.json"
@@ -127,16 +103,15 @@ compare_ipynb_media() {
   return 1
 }
 
-# Compare two files byte-for-byte, with no trailing-newline tolerance. Used where the output is
-# emitted verbatim (a filled template) and every byte — trailing newlines included — must agree.
-# Renders the diff through `cat -A` so whitespace and line ends are visible.
+# Byte-exact compare (trailing newlines included) for verbatim output such as a filled template;
+# diff via `cat -A` so whitespace stays visible.
 compare_bytes() {
   cmp -s "$1" "$2" && return 0
   diff <(cat -A "$1") <(cat -A "$2") | head -n 200
   return 1
 }
 
-# Compare two text files modulo one trailing newline on each side. Brief diff + 1 on mismatch.
+# Compare two text files modulo one trailing newline on each side.
 compare_text() {
   local a b
   a=$(cat "$1"; printf x); a=${a%x}; a=${a%$'\n'}
@@ -146,9 +121,7 @@ compare_text() {
   return 1
 }
 
-# Compare two extracted-media directories byte-for-byte. Either side may be absent — a document that
-# carries no media extracts nothing — and both-absent counts as equal; one-absent is a mismatch.
-# Prints the differing entries (bounded) and returns 1 on any divergence.
+# Either side may be absent (no media extracts nothing): both-absent equal, one-absent mismatch.
 compare_dir() {
   local a="$1" b="$2" a_has=0 b_has=0
   [ -d "$a" ] && [ -n "$(ls -A "$a" 2>/dev/null)" ] && a_has=1
@@ -175,8 +148,7 @@ note_err() { ERR=$((ERR + 1)); { echo "ERR  $1"; printf '%s\n' "$2" | sed 's/^/ 
 
 report() { echo "RESULT $1 $2 pass=$PASS fail=$FAIL err=$ERR skip=$SKIP"; }
 
-# Suite-level return code, raised to 1 by any group that recorded a failure or error. A surface
-# script seeds it to 0, calls tally_group after each report, and exits with it.
+# Suite return code: seeded 0, raised by any group with a fail/err, used as the exit code.
 SUITE_RC=0
 tally_group() {
   if [ "$FAIL" -gt 0 ] || [ "$ERR" -gt 0 ]; then
@@ -185,13 +157,12 @@ tally_group() {
   fi
 }
 
-# One differential case: convert `input` with the oracle and with carta, then compare.
+# One differential case; arg strings are flags we control, word-split intentionally.
 # Usage: run_diff <json|text> <label> <input_file> <oracle_arg_string> <carta_arg_string>
-# Word-splitting of the arg strings is intentional (they are space-separated flags we control).
 run_diff() {
   local mode="$1" label="$2" input="$3" oargs="$4" xargs="$5"
   local ofile="$WORK/.run.oracle" xfile="$WORK/.run.ox" efile="$WORK/.run.err"
-  # The two exact invocations, so a log entry is a self-contained repro.
+  # Exact invocations so a log entry is a self-contained repro.
   local repro="repro: $ORACLE $oargs <$input
        $OX $xargs <$input"
   # shellcheck disable=SC2086
@@ -214,8 +185,8 @@ $detail"
   fi
 }
 
-# Extract every worked example's markdown input from the CommonMark spec into <dir>/NNNN.md,
-# restoring the spec's → placeholder to a real tab. Cached: a populated dir is reused.
+# Extract each spec example's markdown into <dir>/NNNN.md (→ restored to a tab); a populated dir
+# is reused as a cache.
 extract_spec() {
   local out="$1"
   mkdir -p "$out"

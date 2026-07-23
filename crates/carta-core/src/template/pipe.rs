@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 use super::Value;
 use super::node::{Align, Pipe};
 
-/// Apply one pipe to a value.
 pub(crate) fn apply(value: &Value, pipe: &Pipe) -> Value {
     match pipe {
         Pipe::Uppercase => map_str(value, str::to_uppercase),
@@ -161,7 +160,7 @@ fn alpha(value: &Value) -> String {
 }
 
 /// Lowercase Roman numerals over their defined range `1..=3999`; `0` renders empty. A value outside
-/// that range — non-integer, negative, or `4000` and above — is left as its own text, since Roman
+/// that range (non-integer, negative, or `4000` and above) is left as its own text, since Roman
 /// numerals are undefined there and an unbounded input must not drive unbounded work.
 fn roman(value: &Value) -> String {
     let Some(mut n) = as_int(value).filter(|n| (0..=3999).contains(n)) else {

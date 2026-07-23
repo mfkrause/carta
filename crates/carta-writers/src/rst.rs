@@ -189,8 +189,8 @@ fn is_word_token(token: &Token) -> bool {
 }
 
 /// Whether an inline sequence yields any visible output. An empty string and a breaking space
-/// render to nothing, as does a formatting wrapper around blank content; anything else — a
-/// non-empty string, a hard break, code, math, media, or a nested link — is content. A link or
+/// render to nothing, as does a formatting wrapper around blank content; anything else (a
+/// non-empty string, a hard break, code, math, media, or a nested link) is content. A link or
 /// image whose target and title are empty is dropped entirely when its label is blank, since there
 /// is then nothing to anchor a reference to.
 fn renders_visible(inlines: &[Inline]) -> bool {
@@ -421,8 +421,7 @@ impl State {
         items: &[Vec<Block>],
         width: usize,
     ) -> String {
-        // An unstyled list starting at 1 is written with the `#` auto-enumerator, which renumbers
-        // itself; an explicit style or a start past 1 needs literal numbers instead.
+        // Unstyled lists starting at 1 use the `#` auto-enumerator; an explicit style or later start needs literal numbers.
         let auto_enumerated = attrs.start == 1
             && matches!(attrs.style, ListNumberStyle::DefaultStyle)
             && matches!(attrs.delim, ListNumberDelim::DefaultDelim);
@@ -496,7 +495,6 @@ impl State {
             directive.push_str(&attr.id);
         }
         if let Some((image_attr, alt, target)) = image {
-            // The directive's alternate text is the image's, falling back to its title.
             let alt_text = to_plain_text(alt);
             let alt_text = if alt_text.is_empty() {
                 target.title.to_string()
@@ -687,7 +685,7 @@ impl State {
     /// Render a phrase-markup inline (emphasis, strong, strikeout, super/subscript). Inside an
     /// existing phrase the markers are dropped and the content rendered inline. Otherwise the content
     /// is wrapped in the open/close markers; for emphasis and strong a child that cannot sit inside
-    /// those markers — a link, or a strong span inside an emphasis — interrupts the run, closing the
+    /// those markers (a link, or a strong span inside an emphasis) interrupts the run, closing the
     /// markers, rendering on its own, then reopening for the remainder.
     fn phrase(
         &mut self,
@@ -708,8 +706,7 @@ impl State {
             out.push(word(rendered, true));
             return;
         }
-        // Inside an existing phrase the markers are dropped, but a child that breaks out still parts
-        // the run, so the open/close fall away while the splitting logic stays in force.
+        // Inside an existing phrase the markers fall away, but breakout splitting stays in force.
         let (open, close) = if in_emphasis { ("", "") } else { (open, close) };
         let breakouts: Vec<usize> = inlines
             .iter()
@@ -763,9 +760,7 @@ impl State {
             }
             self.token(inline, true, out);
         }
-        // Render the run's core as breakable tokens so a long phrase can reflow and a source line
-        // break inside it survives: the opening marker fuses to the first word and the closing to the
-        // last, with the words between left separately breakable.
+        // Markers fuse to the first and last words; the words between stay separately breakable so long phrases reflow.
         let opening = format!("{open}{}", split.lead_sep);
         let closing = format!("{}{close}", split.trail_sep);
         let body = self.tokens_nested(split.middle, true);
@@ -812,9 +807,7 @@ impl State {
             out.push(word(target.url.to_string(), true));
             return;
         }
-        // The label is rendered once, into a buffer, and only then classified: probing it with a
-        // separate render would re-render every nested link's label per ancestor, compounding
-        // exponentially down a chain of links.
+        // Render the label once, then classify: a separate probing render would compound exponentially down a chain of nested links.
         let breakouts: Vec<usize> = label
             .iter()
             .enumerate()
@@ -837,8 +830,7 @@ impl State {
             let segment = label.get(run_start..).unwrap_or(&[]);
             self.link_run(segment, target, &mut rendered);
         }
-        // A label that renders no words cannot anchor a reference; it collapses to an empty-label
-        // reference carrying just the target.
+        // A wordless label cannot anchor a reference; collapse to an empty-label reference.
         if rendered.iter().any(is_word_token) {
             out.extend(rendered);
         } else {
@@ -1076,8 +1068,7 @@ impl State {
                     .map(|line| display_width(line))
                     .max()
                     .unwrap_or(0);
-                // A space closing the cell is trimmed from the rendered field but still holds a
-                // column of width, so the field's own trailing space fits without crowding the gap.
+                // A trailing cell space is trimmed from the field but still holds a column of width.
                 if cell_ends_with_space(&cell.content) {
                     content += 1;
                 }
@@ -1147,10 +1138,8 @@ impl State {
             placements.push((col, span));
             col += span;
         }
-        // A row opening a section (its first line follows a `=` rule) whose first cell is empty would
-        // start with whitespace, which the simple-table grammar reads as a continuation of the rule
-        // rather than an empty cell; a lone backslash holds the column open. A row that follows
-        // another data row may safely start blank, and a wholly empty row has no content to protect.
+        // A row right after a `=` rule with an empty first cell would start with whitespace, which
+        // the grammar reads as rule continuation; a lone backslash holds the column open.
         let row_has_content = col_lines.iter().any(|lines| !lines.is_empty());
         if after_rule
             && row_has_content
@@ -1182,10 +1171,8 @@ impl State {
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
         if self.table_depth > MAX_MEASURED_TABLE_NESTING {
-            // Sizing a column renders every cell a second time, so with nested tables the
-            // measurement passes compound into one full render per ancestor. Past the nesting cap,
-            // columns take an even share of the fill width instead of being measured, keeping the
-            // total work linear in the document.
+            // Measuring re-renders every cell, compounding per nesting level; past the cap,
+            // columns take an even share of the fill width, keeping total work linear.
             let share = (self.width / columns.max(1)).max(1);
             natural.fill(share);
             minword.fill(1);
@@ -1522,8 +1509,8 @@ fn tight_after_plain(block: &Block) -> bool {
 
 /// Whether a list item whose first block is this one must place its marker on a line of its own,
 /// pushing the content down past a blank line. True for blocks that introduce their content through a
-/// directive or nested marker — rules, raw passthrough, nested lists, containers, and highlighted
-/// literal blocks — none of which can share the marker's line.
+/// directive or nested marker (rules, raw passthrough, nested lists, containers, and highlighted
+/// literal blocks), none of which can share the marker's line.
 fn marker_stands_alone(block: &Block) -> bool {
     match block {
         Block::HorizontalRule
@@ -1759,8 +1746,7 @@ fn escape(text: &str, smart: bool) -> String {
                 }
                 out.push(ch);
             }
-            // With `smart`, Unicode punctuation collapses to its ASCII form; otherwise it passes
-            // through as the literal character.
+            // With `smart`, Unicode punctuation collapses to its ASCII form.
             _ => match smart.then(|| ascii_punctuation(ch)).flatten() {
                 Some(ascii) => out.push_str(ascii),
                 None => out.push(ch),
@@ -2092,9 +2078,7 @@ mod tests {
 
     #[test]
     fn escape_flanking_tests_see_the_neighbor_before_a_trigger() {
-        // The `prev` neighbor comes from the verbatim-copied run before the trigger: a space makes
-        // the star a potential start-string, a word character before whitespace a potential
-        // end-string, and a buried star is neither.
+        // space before makes a potential start-string, word char before whitespace a potential end-string, buried star neither
         assert_eq!(escape("text *star", false), "text \\*star");
         assert_eq!(escape("text* tail", false), "text\\* tail");
         assert_eq!(escape("a*b", false), "a*b");
@@ -2127,8 +2111,7 @@ mod tests {
 
     #[test]
     fn the_gap_below_a_unit_follows_that_unit_not_the_whole_list() {
-        // A single-line unit is followed on the next line even when a later unit is multi-line, and a
-        // multi-line unit forces a blank line before whatever follows it.
+        // a single-line unit joins tightly even when a later unit is multi-line; a multi-line unit forces a blank after it
         let joined = join_loose_items(vec![
             unit(true, "one"),
             unit(false, "two\n\n  - sub"),
@@ -2145,8 +2128,7 @@ mod tests {
 
     #[test]
     fn show_dimension_normalizes_lengths() {
-        // A whole-valued length drops its trailing zero; a fractional one keeps it; a percentage
-        // keeps one decimal; a pixel or unitless value renders in pixels; an unknown unit is dropped.
+        // whole lengths drop the trailing zero, percentages keep one decimal, unitless renders in px, unknown units dropped
         assert_eq!(show_dimension("1.0in"), Some("1in".to_owned()));
         assert_eq!(show_dimension("2in"), Some("2in".to_owned()));
         assert_eq!(show_dimension("0.5in"), Some("0.5in".to_owned()));
@@ -2159,8 +2141,7 @@ mod tests {
     #[test]
     fn substitution_names_stay_unique() {
         let mut state = State::default();
-        // A fresh label is kept as-is; a repeat or an empty label falls back to a generated
-        // counter name, so every reference resolves to its own definition.
+        // repeats and empty labels fall back to a counter name so every reference resolves uniquely
         assert_eq!(state.substitution_name("image".to_owned()), "image");
         assert_eq!(state.substitution_name("image".to_owned()), "image1");
         assert_eq!(state.substitution_name("logo".to_owned()), "logo");
@@ -2170,9 +2151,7 @@ mod tests {
 
     #[test]
     fn image_run_names_dedupe_across_registrations() {
-        // An image whose alt text embeds a link registers each surrounding run as its own
-        // substitution; a later image sharing that run's name must fall back so no two definitions
-        // carry the same label and every reference resolves to one image.
+        // link-embedding alt text registers each run as a substitution; a later image sharing the name must fall back so no two definitions share a label
         let link = Inline::Link(
             Box::default(),
             vec![Inline::Str("L".into())],
@@ -2208,8 +2187,7 @@ mod tests {
 
     #[test]
     fn deeply_nested_tables_render_without_compounding_measurement() {
-        // Sizing a column renders each cell beyond the final emit, so without the nesting cap
-        // every level would multiply the renders of all levels below it — exponential in depth.
+        // without the nesting cap, measurement renders would compound exponentially in depth
         use carta_ast::{Alignment, Cell, ColSpec, TableBody};
 
         fn nested_table(content: Vec<Block>) -> Block {
@@ -2241,8 +2219,7 @@ mod tests {
             }))
         }
 
-        // Deep enough that compounding measurement (3 renders per level) would take minutes,
-        // while capped measurement stays well under a second.
+        // deep enough that compounding measurement would take minutes; capped stays under a second
         let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
         for _ in 0..16 {
             block = nested_table(vec![block]);
@@ -2258,8 +2235,7 @@ mod tests {
 
     #[test]
     fn deeply_nested_links_render_each_label_once() {
-        // Probing a label for word content with its own render would render every nested link's
-        // label once per ancestor — exponential down a chain of links in labels.
+        // a probing render per ancestor would be exponential down a chain of links in labels
         let mut inline = Inline::Str("innermost".into());
         for level in 0..24 {
             inline = Inline::Link(

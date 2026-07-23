@@ -1,6 +1,6 @@
 <!--
 Thanks for contributing! Please read CONTRIBUTING.md before opening a PR.
-Keep the change focused — one logical change per PR is much easier to review and land.
+Keep the change focused: one logical change per PR is much easier to review and land.
 -->
 
 ## Summary

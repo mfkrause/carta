@@ -54,8 +54,7 @@ fn emoji_span(name: &str, text: &str) -> Inline {
 #[test]
 fn emoji_table_is_sorted_for_binary_search() {
     let on = exts(&[Extension::Emoji]);
-    // Every entry resolves to its own value through the lookup path; a misordered table would
-    // make some entry unreachable by binary search.
+    // A misordered table would make some entry unreachable by binary search.
     assert_eq!(emoji::lookup("smile"), Some("\u{1f604}"));
     assert_eq!(emoji::lookup("+1"), Some("\u{1f44d}"));
     assert_eq!(emoji::lookup("-1"), Some("\u{1f44e}"));
@@ -86,7 +85,6 @@ fn emoji_resolves_known_shortcodes() {
 #[test]
 fn emoji_unknown_name_stays_literal() {
     let on = exts(&[Extension::Emoji]);
-    // An unrecognized name leaves the colons and text verbatim.
     assert_eq!(
         parse_meta_inlines(":unknown_xyz:", on, false),
         vec![Inline::Str(":unknown_xyz:".to_owned().into())]
@@ -121,7 +119,6 @@ fn mark_span(content: Vec<Inline>) -> Inline {
 #[test]
 fn mark_resolves_inside_link_label() {
     let on = exts(&[Extension::Mark]);
-    // A `==…==` run in a link's label resolves to a mark span just as it would at top level.
     assert_eq!(
         parse_meta_inlines("[==hi==](u)", on, false),
         vec![Inline::Link(
@@ -138,7 +135,6 @@ fn mark_resolves_inside_link_label() {
 #[test]
 fn mark_resolves_inside_bracketed_span_label() {
     let on = exts(&[Extension::Mark, Extension::BracketedSpans]);
-    // A `==…==` run nested in a bracketed span's body resolves there too.
     let span_attr = Attr {
         id: carta_ast::Text::default(),
         classes: vec!["x".to_owned().into()],
@@ -161,7 +157,6 @@ fn mark_resolves_inside_bracketed_span_label() {
 
 #[test]
 fn mark_in_label_requires_extension() {
-    // Without the mark extension a `==…==` run in a link label stays literal text.
     let off = Extensions::empty();
     assert_eq!(
         parse_meta_inlines("[==hi==](u)", off, false),
@@ -226,8 +221,7 @@ fn mmd_header_identifier_split() {
 
 #[test]
 fn subscript_superscript_flanking_anchors_only_on_whitespace() {
-    // A run opens unless whitespace follows and closes unless whitespace precedes; the
-    // punctuation sub-clauses that `*`/`_` honor do not apply.
+    // Opens unless whitespace follows, closes unless whitespace precedes; no `*`/`_` punctuation sub-clauses.
     for ch in [b'~', b'^'] {
         assert_eq!(flanking(ch, None, Some('a')), (true, false));
         assert_eq!(flanking(ch, Some('a'), None), (false, true));
@@ -289,8 +283,7 @@ fn dash_runs_fold_em_heavy() {
         fold_dash_run_thirds(17),
         format!("{em}{em}{em}{em}{em}{en}")
     );
-    // Each em dash accounts for three hyphens and each en dash for two, so the widths sum back to
-    // the original run length with no hyphens left over.
+    // Em counts three hyphens, en two, so widths sum back to the run length with none left over.
     for len in 2..=40 {
         let folded = fold_dash_run_thirds(len);
         let width: usize = folded.chars().map(|c| if c == em { 3 } else { 2 }).sum();

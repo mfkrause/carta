@@ -1,42 +1,14 @@
 #!/usr/bin/env bash
-# EPUB surface: exercise carta's EPUB writer two ways — structurally against the oracle, and against
-# the EPUB specification with EPUBCheck.
-#
-# Groups `epub/epub3` and `epub/epub2` convert each corpus/ast case with both tools, unpack the two
-# archives, and diff every text entry after normalizing the few values a converter chooses freely
-# (the generator name, the content-hash identifier, the C/en-US language tag) and folding three
-# deliberate, documented spec-validity deviations (see docs/STATUS.md → EPUB):
-#   - a `dc:title` is always emitted (a placeholder for an untitled work); a package without one is
-#     invalid, so the placeholder line is folded away for the comparison.
-#   - an untitled section's navigation anchor carries placeholder text; an empty anchor is invalid,
-#     so the placeholder is folded back to the empty form.
-#   - an untitled EPUB 2 title page carries a placeholder block; an empty XHTML 1.1 body is invalid,
-#     so the placeholder block is folded away.
-# The default stylesheet each tool ships is its own design and is not compared; embedded binary
-# resources (images, fonts) are compared byte-for-byte. Cases excluded via corpus/exclusions.tsv are
-# skipped and counted.
-#
-# Group `epub/epubcheck` validates every archive carta emits with EPUBCheck, expecting zero errors
-# and zero fatals. A fresh JVM is spawned per archive, so the group runs its checks in parallel and
-# is the slowest of the suite. It is skipped entirely when a Java runtime or the EPUBCheck jar is
-# unavailable (set JAVA_BIN and EPUBCHECK_JAR, or install the jar to .oracle/epubcheck/). Two classes
-# of case are skipped, since neither reflects a writer defect (see docs/STATUS.md → EPUB):
-#   - a source that names a resource no offline converter can resolve — a remote image, an absent
-#     local image, or a link to a nonexistent target — since no writer can embed what it cannot fetch;
-#   - under EPUB 2 only, content with no valid XHTML 1.1 form (a start attribute, a mark or u element,
-#     a block-level table caption, an empty table, a task-list checkbox) — a legacy-format limitation
-#     EPUB 3's XHTML5 content model does not have.
-#
-# Usage: surfaces/epub.sh [epub3|epub2|epubcheck]
+# EPUB surface: epub3/epub2 diff unpacked archives against the oracle after normalization
+# (see epub_norm); epubcheck validates each carta archive. Usage: surfaces/epub.sh [epub3|epub2|epubcheck]
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
-# Both tools stamp the EPUB's modification time from SOURCE_DATE_EPOCH; pin it so the timestamp is
-# reproducible and identical on both sides (carta uses 1 when it is unset).
+# Pin SOURCE_DATE_EPOCH so both tools stamp the same reproducible timestamp (carta defaults to 1).
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1}"
 
-# Values a converter picks freely, then the three documented validity folds, so the structural
-# comparison sees only genuine divergences. Applied to both sides.
+# Applied to both sides: values a converter picks freely, plus the three documented spec-validity
+# placeholder folds (untitled dc:title, nav anchor, EPUB 2 title page); see docs/STATUS.md → EPUB.
 epub_norm() {
   sed -e 's/content="pandoc"/content="carta"/' \
       -e 's|urn:uuid:[0-9A-Fa-f-]\{36\}|urn:uuid:NORM|g' \
@@ -113,9 +85,8 @@ $detail"
   tally_group
 }
 
-# Validate one archive carta emits for one dialect with EPUBCheck, writing a single tab-separated
-# result line (STATUS<TAB>label<TAB>detail) to the aggregation directory. Runs in a subshell under
-# xargs, so it communicates only through that file and the exported environment.
+# EPUBCheck one archive; runs in a subshell under xargs, so it reports only through its
+# STATUS<TAB>label<TAB>detail result file and the exported environment.
 epubcheck_one() {
   local dialect="$1" input="$2" feature stem label out res slug
   feature=$(basename "$(dirname "$input")")
@@ -149,14 +120,11 @@ run_epubcheck() {
     echo "  note: EPUBCheck unavailable — set JAVA_BIN and EPUBCHECK_JAR (or install to .oracle/epubcheck/)" >&2
     return
   fi
-  # Cases whose source names a resource no offline writer can resolve — a remote image, an absent
-  # local image, or a link to a nonexistent target; both tools emit a dangling reference EPUBCheck
-  # rejects, in either dialect (see docs/STATUS.md → EPUB).
+  # Sources naming a resource no offline writer can resolve; both tools emit a dangling
+  # reference EPUBCheck rejects in either dialect (see docs/STATUS.md → EPUB).
   unresolved=" common/image-external common/image-inline common/link-in-link figure/figure-captioned figure/figure-no-alt figure/figure-with-dims image-dimensions/image-inline-dims "
-  # Cases whose content has no valid XHTML 1.1 form — a start attribute on a list, a mark or u
-  # element, block content in a table caption, an empty table, a bare tfoot, or a task-list checkbox.
-  # EPUBCheck rejects these under EPUB 2 only; both tools emit them, a legacy-format limitation of
-  # XHTML 1.1 that EPUB 3's XHTML5 content model does not share (see docs/STATUS.md → EPUB).
+  # Content with no valid XHTML 1.1 form, which both tools emit; EPUBCheck rejects it under
+  # EPUB 2 only (see docs/STATUS.md → EPUB).
   legacy_epub2=" common/ordered-start common/span-semantic common/underline-smallcaps table/table-caption-blocks table/table-empty table/table-foot task-list/checkboxes "
   resdir="$WORK/epub/epubcheck-results"
   ecwork="$WORK/epub/epubcheck-work"
@@ -184,8 +152,7 @@ run_epubcheck() {
   done
   export OX EC_JAVA="$java" EC_JAR="$jar" EC_WORK="$ecwork" EC_RESDIR="$resdir"
   export -f epubcheck_one
-  # A fresh JVM per archive dominates the cost, so validate in parallel; each job reports through its
-  # own result file, tallied sequentially below.
+  # JVM startup dominates, so validate in parallel; jobs report via result files tallied below.
   local slots
   slots=$(( $(command -v nproc >/dev/null 2>&1 && nproc || echo 4) ))
   [ "$slots" -gt 6 ] && slots=6

@@ -40,10 +40,10 @@ fn fence_close_candidate_index_honors_the_closing_fence_rules() {
     let lines = [
         "```rust", // 0: an info string follows the run, so not a bare closing fence
         "code",    // 1
-        "```",     // 2: bare backtick run of three — a candidate
-        "~~~~",    // 3: tilde run of four — a candidate
-        "    ```", // 4: indented four columns — not a candidate
-        "``",      // 5: run shorter than three — not a candidate
+        "```",     // 2: bare backtick run of three, a candidate
+        "~~~~",    // 3: tilde run of four, a candidate
+        "    ```", // 4: indented four columns, not a candidate
+        "``",      // 5: run shorter than three, not a candidate
     ];
     let candidates = build_fence_close_candidates(&lines);
 

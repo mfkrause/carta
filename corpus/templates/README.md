@@ -6,15 +6,15 @@ indentation rules, and metadata rendered through the target writer (escaping, ma
 
 Each `<case>/` directory holds:
 
-- `doc.<ext>` — the entry template. Its extension drives partial resolution, so any partials beside
+- `doc.<ext>`: the entry template. Its extension drives partial resolution, so any partials beside
   it (`<name>.<ext>`) share that extension. The conformance `templates` surface picks up the lone
   `doc.*` file as the entry point.
-- `input.md` — the body and any document metadata (a YAML frontmatter block), read on stdin as
+- `input.md`: the body and any document metadata (a YAML frontmatter block), read on stdin as
   Markdown. Optional; a case with no body may omit it.
-- `flags` — optional extra CLI arguments shared by both binaries (`-V`, `-M`, `--metadata-file`).
+- `flags`: optional extra CLI arguments shared by both binaries (`-V`, `-M`, `--metadata-file`).
   The token `@CASE@` is replaced with the absolute case directory, so a metadata file beside the
   template can be referenced as `--metadata-file=@CASE@/extra.yaml`.
-- `skip-targets` — optional list (one target per line) of targets this case cannot yet reach
+- `skip-targets`: optional list (one target per line) of targets this case cannot yet reach
   byte-for-byte; those pairs are skipped and counted rather than silently dropped.
 
 These are authored inputs: one template, body, and flag set drive every supported target, so a

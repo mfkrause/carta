@@ -59,8 +59,7 @@ impl BytesReader for EpubReader {
     }
 
     fn read_media(&self, input: &[u8], options: &ReaderOptions) -> Result<(Document, MediaBag)> {
-        // Deeply nested markup drives recursion in both XHTML decoding and block stitching, so the
-        // work runs on a dedicated large-stack thread where pathological nesting cannot overflow.
+        // Nested markup recurses in decoding and stitching; a large-stack thread prevents overflow.
         match on_deep_stack(|| read_package(input, options)) {
             DeepStack::Completed(result) => result,
             DeepStack::Panicked => Err(Error::Container("worker thread failed".into())),
@@ -198,8 +197,7 @@ fn resolve_spine(
         let Some(item) = manifest.get(idref) else {
             continue;
         };
-        // The manifest href is a URL reference, so its `%XX` escapes must be decoded before it names
-        // an archive entry; the identifier the anchor carries keeps the href's own spelling.
+        // `%XX` escapes decode before the href names an archive entry; the anchor keeps its spelling.
         let path = join_norm(opf_dir, &percent_decode(&item.href));
         if !files.contains_key(&path) {
             continue;
@@ -225,7 +223,7 @@ fn anchor(basename: &str) -> Block {
 
 /// Reads the package metadata into the document metadata map.
 ///
-/// Each Dublin Core element contributes its text under its local name — a creator under `author` —
+/// Each Dublin Core element contributes its text under its local name (a creator under `author`)
 /// with values for a repeated field held newest-first. A field with one value is inline text; a
 /// field with several is a list.
 fn build_meta(package: &Element) -> BTreeMap<Text, MetaValue> {
@@ -405,7 +403,7 @@ fn nav_type_is_toc(tag: &str) -> bool {
 ///
 /// `resolve` gates note-reference resolution. At the document level it is set, so a reference
 /// becomes an [`Inline::Note`] carrying its target's content. That content is transformed with
-/// `resolve` cleared, so a reference nested inside a note body is not expanded a second time —
+/// `resolve` cleared, so a reference nested inside a note body is not expanded a second time:
 /// resolution is single-pass, and a nested reference degrades to a `noteref` raw inline. Clearing
 /// the flag inside a note body also makes a reference cycle terminate instead of recursing forever.
 /// The state threaded through the block and inline transform: the current file's basename for
@@ -719,16 +717,15 @@ fn normalize(attr: &mut Attr, basename: &str) {
 /// Rewrites intra-publication fragment links to the anchors the target files carry.
 ///
 /// A same-file `#name` reference points at the current file's namespaced identifier; a
-/// `file#name` reference at another reading-order file's. References outside the publication —
-/// absolute URLs and links to files not in the reading order — are left untouched.
+/// `file#name` reference at another reading-order file's. References outside the publication
+/// (absolute URLs and links to files not in the reading order) are left untouched.
 fn rewrite_links(blocks: &mut [Block], basename: &str, doc_dir: &str, known: &BTreeSet<String>) {
     for_each_link_target(blocks, &mut |target: &mut Target| {
         let url = target.url.as_str();
         if url.is_empty() || has_scheme(url) {
             return;
         }
-        // A reference may carry a fragment, name a whole file, or be a same-file `#name`. A
-        // whole-file reference resolves to that file's leading anchor; a fragment appends the
+        // Whole-file references resolve to the file's leading anchor; fragments append the
         // namespaced identifier.
         let (path, fragment) = match url.split_once('#') {
             Some((path, fragment)) => (path, Some(fragment)),
@@ -759,8 +756,7 @@ fn rewrite_images(
     files: &BTreeMap<String, Vec<u8>>,
     media: &mut MediaBag,
 ) {
-    // Index the manifest by href so each image resolves its media type in one lookup rather than a
-    // linear scan; the first item declaring a given href wins, as the linear scan did.
+    // Index the manifest by href for one-lookup media types; the first item per href wins.
     let mut media_types: BTreeMap<&str, Option<String>> = BTreeMap::new();
     for item in manifest.values() {
         media_types
@@ -772,12 +768,10 @@ fn rewrite_images(
         if url.is_empty() || has_scheme(url) {
             return;
         }
-        // The reference is a URL, so its `%XX` escapes are decoded before it names an archive entry
-        // and keys the media bag; the rewritten reference is re-escaped so it stays a valid URL.
+        // `%XX` decodes before naming the entry and bag key; the rewrite re-escapes to stay a valid URL.
         let path = join_norm(doc_dir, &percent_decode(url));
         let name = strip_prefix_dir(&path, opf_dir);
-        // Bytes are carried into the bag only the first time an image is seen; a repeat reference
-        // reuses the stored copy instead of decoding and cloning the file again.
+        // Bytes enter the bag only on first sight; repeats reuse the stored copy.
         if !media.contains(&name)
             && let Some(bytes) = files.get(&path)
         {
@@ -1311,10 +1305,8 @@ mod tests {
         );
         let epub = build(&opf, &[("OEBPS/a.xhtml", body.as_bytes())]);
 
-        // Drive the reader from a deliberately shallow stack. Decoding this markup recurses once
-        // per nesting level, so the read can only succeed if it runs on its own deep worker stack
-        // rather than the caller's. The resulting tree is likewise too deep to drop by recursion
-        // here, so it is leaked after an iterative depth check instead.
+        // A shallow caller stack proves the read runs on its own deep worker stack. The tree is
+        // too deep to drop recursively, so it is leaked after an iterative depth check.
         let depth = std::thread::Builder::new()
             .stack_size(512 * 1024)
             .spawn(move || {

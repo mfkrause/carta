@@ -1,7 +1,7 @@
 //! Reading a document's metadata map into the Dublin Core fields an EPUB package records.
 //!
 //! The document model carries free-form metadata; an EPUB package needs a fixed set of publication
-//! fields — title, authors, language, identifier, date and the rest. This module projects the map
+//! fields: title, authors, language, identifier, date and the rest. This module projects the map
 //! onto that set, filling in the deterministic defaults a container needs when a field is absent.
 
 use carta_ast::{Inline, MetaValue, QuoteType, Text};
@@ -200,7 +200,7 @@ fn collect_contributors(meta: &BTreeMap<Text, MetaValue>) -> Vec<Creator> {
 
 /// One agent from a `creator`/`contributor` entry, honoring an explicit `role`/`file-as`/`text` map
 /// when present, otherwise taking the value as the agent's name. `default_role` is the role a plain
-/// entry, or a structured entry that names none, takes — an authorship for creators, none for
+/// entry, or a structured entry that names none, takes: an authorship for creators, none for
 /// contributors. Returns `None` when the entry resolves to no name.
 fn agent_from_value(value: &MetaValue, default_role: Option<&str>) -> Option<Creator> {
     if let MetaValue::MetaMap(map) = value {
@@ -342,7 +342,7 @@ fn meta_text(value: &MetaValue) -> String {
     meta_plain_text(&meta_inlines(value))
 }
 
-/// Render inlines to plain text, spelling smart quotes out as their glyphs — a double-quoted span as
+/// Render inlines to plain text, spelling smart quotes out as their glyphs: a double-quoted span as
 /// `\u{201c}…\u{201d}`, a single-quoted span as `\u{2018}…\u{2019}`. A title, name, or other metadata
 /// value carries its punctuation into the package document, where the quote characters must appear
 /// literally rather than being dropped with the quotation node.
@@ -384,8 +384,8 @@ fn push_meta_plain_text(inlines: &[Inline], out: &mut String) {
 
 impl BookMeta {
     /// Merge a Dublin Core metadata fragment into these fields. A recognized element overrides the
-    /// projected value — a supplied `dc:identifier` replaces the generated one, supplied creators
-    /// replace the document's — so the fragment has the final say. Elements without a dedicated
+    /// projected value (a supplied `dc:identifier` replaces the generated one, supplied creators
+    /// replace the document's), so the fragment has the final say. Elements without a dedicated
     /// field are carried through verbatim in [`Self::extra`].
     pub(crate) fn apply_metadata_xml(&mut self, fragment: &str) {
         let mut creators = Vec::new();
@@ -394,9 +394,8 @@ impl BookMeta {
         let mut identifiers = Vec::new();
         for element in parse_fragment(fragment) {
             match element.name.as_str() {
-                // An element that carries no text is dropped rather than applied: overriding a field
-                // with an empty value would blank a projected default (the language, the modified
-                // date) or emit an empty, schema-invalid Dublin Core element.
+                // empty elements are dropped: applying them would blank a projected default or emit
+                // an empty, schema-invalid Dublin Core element
                 "dc:identifier" => {
                     if !element.text.is_empty() {
                         let scheme = element.attribute("opf:scheme").map(str::to_owned);
@@ -511,10 +510,10 @@ impl XmlElement {
     }
 }
 
-/// Parse a Dublin Core metadata fragment — a flat sequence of `<dc:*>` and `<meta>` elements — into
+/// Parse a Dublin Core metadata fragment (a flat sequence of `<dc:*>` and `<meta>` elements) into
 /// its elements. Comments, processing instructions and declarations are skipped; nested markup
 /// inside an element's text is retained as written. The scan never indexes past the input, so an
-/// unterminated element simply ends the parse.
+/// unterminated element ends the parse.
 fn parse_fragment(input: &str) -> Vec<XmlElement> {
     let chars: Vec<char> = input.chars().collect();
     let mut index = 0;
@@ -640,7 +639,6 @@ fn take_text(chars: &[char], index: &mut usize, name: &str) -> String {
     unescape(text.trim())
 }
 
-/// Whether `needle` appears in `chars` starting at `start`.
 fn matches_at(chars: &[char], start: usize, needle: &[char]) -> bool {
     needle
         .iter()
@@ -899,21 +897,17 @@ mod tests {
     fn meta_inlines_renders_each_value_shape() {
         use super::meta_inlines;
         use carta_ast::Block;
-        // A block-shaped value contributes each paragraph's inlines; other blocks contribute nothing.
         let blocks = MetaValue::MetaBlocks(vec![
             Block::Para(vec![Inline::Str(Text::from("para"))]),
             Block::HorizontalRule,
         ]);
         assert_eq!(meta_plain_text(&meta_inlines(&blocks)), "para");
-        // A boolean renders its literal spelling.
         assert_eq!(
             meta_plain_text(&meta_inlines(&MetaValue::MetaBool(true))),
             "true"
         );
-        // A list flattens each element in order.
         let list = MetaValue::MetaList(vec![meta_string("a"), meta_string("b")]);
         assert_eq!(meta_plain_text(&meta_inlines(&list)), "ab");
-        // A map carries no inline rendering of its own.
         assert!(meta_inlines(&meta_map(&[("k", meta_string("v"))])).is_empty());
     }
 
@@ -1024,8 +1018,7 @@ mod tests {
         use super::BookMeta;
         let source = meta_with("title", meta_string("Original"));
         let mut meta = BookMeta::from_meta(&source, "seed", DEFAULT_LANGUAGE);
-        // An empty recognized element is dropped rather than applied: it neither blanks the projected
-        // title nor pushes an empty subject, creator, or contributor over the projected values.
+        // an empty recognized element is dropped: it neither blanks the projected title nor pushes empty entries
         meta.apply_metadata_xml(concat!(
             "<dc:title></dc:title>\n",
             "<dc:subject></dc:subject>\n",

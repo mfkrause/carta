@@ -108,9 +108,7 @@ pub(crate) fn nav_xhtml(
     let epub3 = version.is_epub3();
     let mut counter = 0usize;
     let list = render_list(entries, epub3, &mut counter);
-    // A table-of-contents `<nav>` must hold exactly one non-empty `<ol>`. When the document has no
-    // sections to list, the list still points at the title page, so the navigation stays valid and
-    // the book keeps one reachable entry.
+    // A toc `<nav>` must hold one non-empty `<ol>`; with no sections it points at the title page.
     let list = if list.is_empty() {
         let mut label = String::new();
         escape_text(meta.display_title(), &mut label);
@@ -134,10 +132,8 @@ pub(crate) fn nav_xhtml(
         format!("<div id=\"toc\">{heading}{list}</div>")
     };
 
-    // The navigation document's own `<title>` reflects the document's title, falling back to the
-    // source name when the document is untitled — unlike the visible heading above, which shows the
-    // publication title (which a metadata fragment may override). Standard input (`-`) has no
-    // meaningful name, so it keeps the placeholder.
+    // The `<title>` falls back to the source name for an untitled document, unlike the visible
+    // heading, which shows the publication title; stdin (`-`) has no name and keeps the placeholder.
     let head_title = match source_name {
         Some(name) if doc_meta.title_text.is_empty() && name != "-" => name,
         _ => doc_meta.display_title(),
@@ -166,8 +162,7 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
         let mut href = String::new();
         escape_attribute(&format!("{}#{}", entry.file, entry.id), &mut href);
         let text = render_epub_inlines(&nav_label_inlines(&entry.title), epub3);
-        // A navigation anchor must carry text; an untitled section falls back to a placeholder rather
-        // than an empty link the reading system cannot label.
+        // An anchor must carry text; an untitled section falls back to a placeholder.
         let label = if text.is_empty() { UNTITLED } else { &text };
         let anchor = format!("<a href=\"text/{href}\">{label}</a>");
         let nested = render_list(&entry.children, epub3, counter);
@@ -179,14 +174,13 @@ fn render_list(entries: &[TocEntry], epub3: bool, counter: &mut usize) -> String
 
 /// Prepare a heading's inlines for a navigation label: drop footnotes and replace each link with its
 /// own content, since a nav anchor cannot nest another; relabel the body's section-number span with
-/// the navigation's own class. Everything else — emphasis, code, images (already pointing at their
-/// stored path) and raw inline markup — is carried through, recursing into styled spans.
+/// the navigation's own class. Everything else (emphasis, code, images already pointing at their
+/// stored path, and raw inline markup) is carried through, recursing into styled spans.
 fn nav_label_inlines(inlines: &[Inline]) -> Vec<Inline> {
     let mut out = Vec::new();
     let mut after_number = false;
     for inline in inlines {
-        // The separator a numbered heading places after its section number becomes a non-breaking
-        // space in the navigation, keeping the number joined to its title across a line wrap.
+        // A non-breaking space keeps the section number joined to its title across a line wrap.
         if after_number && matches!(inline, Inline::Space) {
             out.push(Inline::Str(Text::from("\u{a0}")));
             after_number = false;
@@ -282,8 +276,7 @@ pub(crate) fn toc_ncx(
 
     let mut counter = 0usize;
     let mut nav_map = Element::new("navMap");
-    // The title page's navigation label reflects the document's own title, blank when it has none —
-    // even where the document title (`docTitle`) shows a publication title supplied by a fragment.
+    // The label uses the document's own title (blank when none), even where `docTitle` shows a fragment-supplied one.
     nav_map.push(nav_point(
         &mut counter,
         TITLE_PAGE_HREF,

@@ -373,9 +373,8 @@ impl<'a> Tokenizer<'a> {
         self.pending_captures.clear();
 
         let matched = self.run_matcher(rule, grammar)?;
-        // A regular expression that matches the empty string (e.g. one ending in an empty
-        // alternative) does not count as a match unless the rule only looks ahead; otherwise it would
-        // switch contexts without consuming, pre-empting the fall-through the definition intends.
+        // A zero-width match (unless look-ahead only) would switch contexts without consuming,
+        // pre-empting the intended fall-through.
         if matched.bytes == 0 && !rule.look_ahead && matches!(rule.matcher, Matcher::RegExpr { .. })
         {
             return None;
@@ -641,8 +640,7 @@ impl<'a> Tokenizer<'a> {
                 })
                 .clone()?
         };
-        // Locate the match first; the far costlier capture extraction runs only on a hit, and only
-        // when the pattern has capture groups a dynamic rule could reference.
+        // Find first; the far costlier capture extraction runs only on a hit with capture groups.
         let end = match regex.find(remaining) {
             Ok(Some(m)) if m.start() == 0 => m.end(),
             _ => return None,
@@ -712,8 +710,6 @@ impl<'a> Tokenizer<'a> {
             chars: self.remaining()[..len].chars().count(),
         })
     }
-
-    // --- state helpers -------------------------------------------------------
 
     fn remaining(&self) -> &'a str {
         self.line.get(self.pos..).unwrap_or("")
@@ -795,7 +791,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Resolve a context reference. Local names resolve within `owner`, the grammar that defines the
-    /// referencing rule — which is not necessarily the grammar on top of the stack once foreign rules
+    /// referencing rule, which is not necessarily the grammar on top of the stack once foreign rules
     /// have been spliced in.
     fn resolve_target(
         &self,
@@ -861,8 +857,6 @@ enum NumberKind {
     Oct,
     Float,
 }
-
-// --- free helpers ------------------------------------------------------------
 
 fn context_index(grammar: &Grammar, name: &str) -> Option<usize> {
     grammar.contexts.iter().position(|c| c.name == name)
@@ -966,8 +960,6 @@ fn build_regex(key: &RegexKey) -> Option<Rc<Regex>> {
         .ok()
         .map(Rc::new)
 }
-
-// --- number and C-literal matchers ------------------------------------------
 
 fn digits_len(s: &str, valid: impl Fn(char) -> bool) -> usize {
     s.chars()

@@ -169,7 +169,7 @@ fn syntax_highlighting_none_matches_no_highlight() {
 #[test]
 fn idiomatic_mode_uses_the_targets_own_listing() {
     // The HTML family has no distinct listing construct, so idiomatic code stays a plain, classed
-    // block — no color spans — while LaTeX switches to its listing environment.
+    // block with no color spans, while LaTeX switches to its listing environment.
     let html = run(
         &[
             "-f",

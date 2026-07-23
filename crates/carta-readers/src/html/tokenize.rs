@@ -5,8 +5,8 @@
 //! The tokenizer walks the source by byte offset. Every structural character of HTML syntax (`<`,
 //! `>`, `/`, `=`, quotes, `&`, ASCII whitespace) is a single ASCII byte, and in UTF-8 no byte of a
 //! multi-byte character equals an ASCII byte, so scanning byte-by-byte for these delimiters is
-//! boundary-safe: every position where a delimiter is found — and every slice cut at such a
-//! position — lies on a character boundary.
+//! boundary-safe: every position where a delimiter is found, and every slice cut at such a
+//! position, lies on a character boundary.
 
 use crate::entities::{code_point, lookup_named};
 

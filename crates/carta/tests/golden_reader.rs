@@ -1,19 +1,18 @@
 //! Layer 1 reader golden tests: snapshot carta's own JSON AST for each `corpus/text/<fmt>/*` case.
 //!
 //! These freeze current reader output and run fully offline; this layer is the regression net and
-//! the offline guarantee, while differential parity is the conformance suite's job. Snapshots are
-//! reviewed with `cargo insta review`; never hand-edit the `.snap` files.
+//! the offline guarantee. Snapshots are reviewed with `cargo insta review`; never hand-edit the
+//! `.snap` files.
 //!
 //! Each reader format, extension spec, and byte-container group gets its own `#[test]` so a single
 //! failing case cannot abort the rest and nextest can run and parallelize them independently. A
-//! per-kind guard test asserts the macro's group list still equals the `corpus/` directory set, so a
-//! new corpus directory without a matching test fails loudly. Snapshot names are unchanged: the
-//! `assert_snapshot!` first argument still fixes each `.snap` filename.
+//! per-kind guard test asserts the macro's group list equals the `corpus/` directory set, so a
+//! new corpus directory without a matching test fails loudly. The `assert_snapshot!` first
+//! argument fixes each `.snap` filename.
 
 // Integration-test harness code: panicking on a known corpus case is the idiomatic assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-// The JSON writer is the interchange used to snapshot reader output; without it there is nothing to
-// freeze. Per-case, a corpus group is snapshotted only when its reader is also compiled in.
+// reader output is snapshotted as JSON; without the writer there is nothing to freeze
 #![cfg(feature = "write-json")]
 
 mod common;
@@ -81,8 +80,7 @@ fn reader_binary_snapshots_for(group: &str) {
 fn reader_ext_snapshots_for(spec: &str) {
     let (base, _) = carta::parse_format_spec(spec)
         .unwrap_or_else(|error| panic!("parse format spec {spec}: {error}"));
-    // A base that resolves to a compiled reader is testable, including the dialect aliases
-    // (`markdown`, `gfm`, `commonmark_x`) that share one reader but are not its canonical name.
+    // dialect aliases (markdown, gfm, commonmark_x) share a reader but are not its canonical name
     if carta::reader_for(&base).is_err() {
         return;
     }

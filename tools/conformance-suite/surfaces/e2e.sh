@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# End-to-end surface: convert text straight to a target through the full pipeline and diff vs pandoc.
-#
-# Each `corpus/text/<fmt>/*` case is converted to every writer target and compared. The 652
-# CommonMark spec examples are additionally driven to HTML as a dedicated group (the spec-parity
-# count for the full pipeline).
+# End-to-end surface: each `corpus/text/<fmt>/*` case converts to every curated target and diffs
+# vs pandoc; the 652 CommonMark spec examples additionally drive HTML as a dedicated group.
 #
 # Usage: surfaces/e2e.sh [format]   (no arg = every reader format)
 set -uo pipefail
@@ -11,8 +8,7 @@ set -uo pipefail
 require_tools
 
 FORMATS="${1:-$(shared_input_formats)}"
-# TARGETS is a deliberately curated subset: the full format x target cross-product is expensive,
-# and exhaustive per-target coverage belongs to the writer surface.
+# Curated subset: the full cross-product is expensive; exhaustive coverage belongs to the writer surface.
 TARGETS="html latex rst plain commonmark mediawiki native json"
 
 for fmt in $FORMATS; do
@@ -33,7 +29,7 @@ for fmt in $FORMATS; do
   tally_group
 done
 
-# CommonMark spec examples → HTML — full-pipeline parity, reported on its own line.
+# CommonMark spec examples to HTML: full-pipeline parity, reported on its own line.
 if echo "$FORMATS" | grep -qw commonmark; then
   specdir="$WORK/spec"
   extract_spec "$specdir"

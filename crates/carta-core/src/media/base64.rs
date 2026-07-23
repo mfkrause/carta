@@ -32,7 +32,7 @@ pub fn encode(data: &[u8]) -> String {
     out
 }
 
-/// Encodes bytes as base64 wrapped to 76-character lines, each line — including the last —
+/// Encodes bytes as base64 wrapped to 76-character lines, each line (including the last)
 /// terminated by a newline. This is the line-broken form a notebook stores binary payloads in. Empty
 /// input yields an empty string (no lone newline).
 #[must_use]
@@ -43,8 +43,7 @@ pub fn encode_mime(data: &[u8]) -> String {
     let raw = encode(data);
     let mut out = String::with_capacity(raw.len() + raw.len() / LINE_WIDTH + 1);
     for line in raw.as_bytes().chunks(LINE_WIDTH) {
-        // Every chunk is a run of base64 alphabet symbols, ASCII by construction, so it is valid
-        // UTF-8; the conversion never fails.
+        // Chunks are ASCII base64 symbols, so valid UTF-8; conversion never fails.
         if let Ok(text) = std::str::from_utf8(line) {
             out.push_str(text);
         }
@@ -53,8 +52,8 @@ pub fn encode_mime(data: &[u8]) -> String {
     out
 }
 
-/// Decodes standard base64, ignoring inner whitespace. Returns `None` when the input — once
-/// whitespace is removed — is not well-formed: a length that is not a multiple of four, a symbol
+/// Decodes standard base64, ignoring inner whitespace. Returns `None` when the input, once
+/// whitespace is removed, is not well-formed: a length that is not a multiple of four, a symbol
 /// outside the alphabet, or padding that does not fall at the very end of the final quartet.
 #[must_use]
 pub fn decode(input: &str) -> Option<Vec<u8>> {
@@ -117,8 +116,7 @@ mod tests {
         assert_eq!(decode("aGVsbG8="), Some(b"hello".to_vec()));
         assert_eq!(decode("aGVs\nbG8="), Some(b"hello".to_vec()));
         assert_eq!(decode(""), Some(Vec::new()));
-        // A length that is not a multiple of four, a non-alphabet byte, and misplaced padding each
-        // fail to decode rather than silently dropping or truncating input.
+        // Bad length, non-alphabet byte, misplaced padding: each fails rather than truncates.
         assert_eq!(decode("QQ"), None);
         assert_eq!(decode("aGVsbG8@"), None);
         assert_eq!(decode("a=VsbG8="), None);
@@ -152,21 +150,18 @@ mod tests {
         assert_eq!(lines.len(), 7);
         assert!(lines.iter().take(5).all(|line| line.len() == 76));
         assert_eq!(lines.get(5).map(|line| line.len()), Some(20));
-        // The concatenation of the lines decodes back to the input.
         assert_eq!(decode(&wrapped), Some(data));
     }
 
     #[test]
     fn mime_form_wraps_exact_line_multiple_without_a_trailing_blank_line() {
-        // 57 bytes encode to exactly 76 base64 chars — one full line. The line still ends in a
-        // newline, and no spurious empty line follows the wrap boundary.
+        // 57 bytes -> exactly 76 chars: one full newline-ended line, no spurious blank line after.
         let data: Vec<u8> = (0..57u32)
             .map(|index| u8::try_from(index % 251).unwrap_or(0))
             .collect();
         let wrapped = encode_mime(&data);
         assert_eq!(encode(&data).len(), 76);
         let lines: Vec<&str> = wrapped.split('\n').collect();
-        // The single 76-char line plus the trailing newline's empty final element.
         assert_eq!(lines.len(), 2);
         assert_eq!(lines.first().map(|line| line.len()), Some(76));
         assert_eq!(lines.last(), Some(&""));

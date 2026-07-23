@@ -98,7 +98,6 @@ pub(super) fn content_types(images: &[ImageMedia]) -> String {
     types.render_document()
 }
 
-/// A single relationship entry.
 fn relationship(id: &str, rel_type: &str, target: &str) -> Element {
     Element::new("Relationship")
         .attr("Id", id)

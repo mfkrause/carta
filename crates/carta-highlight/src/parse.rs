@@ -58,7 +58,6 @@ impl Node {
     }
 }
 
-/// Parse a syntax definition into a grammar.
 pub(crate) fn parse_grammar(xml: &str) -> Result<Grammar, ParseError> {
     let entities = collect_entities(xml);
     let expanded = expand_entities(xml, &entities);
@@ -255,8 +254,6 @@ fn build_matcher(node: &Node) -> Option<Matcher> {
     })
 }
 
-// --- entity handling ---------------------------------------------------------
-
 /// Collect `<!ENTITY name "value">` declarations from the DOCTYPE internal subset.
 fn collect_entities(xml: &str) -> BTreeMap<String, String> {
     let mut entities = BTreeMap::new();
@@ -265,7 +262,6 @@ fn collect_entities(xml: &str) -> BTreeMap<String, String> {
     while let Some(rel) = search.find("<!ENTITY") {
         let after = &search[rel + "<!ENTITY".len()..];
         let after = after.trim_start();
-        // The name runs until whitespace.
         let name_end = after
             .find(|c: char| c.is_whitespace())
             .unwrap_or(after.len());
@@ -283,7 +279,6 @@ fn collect_entities(xml: &str) -> BTreeMap<String, String> {
                 }
             }
         }
-        // Advance past this declaration.
         let consumed = bytes.len() - search.len() + rel + "<!ENTITY".len();
         if consumed >= xml.len() {
             break;
@@ -332,8 +327,6 @@ fn expand_once(text: &str, entities: &BTreeMap<String, String>) -> (String, bool
     out.push_str(rest);
     (out, changed)
 }
-
-// --- DOM reader --------------------------------------------------------------
 
 fn read_dom(xml: &str) -> Result<Vec<Node>, ParseError> {
     let mut reader = Reader::from_str(xml);
@@ -444,8 +437,6 @@ fn resolve_reference(name: &str) -> Option<char> {
         }
     }
 }
-
-// --- helpers -----------------------------------------------------------------
 
 fn split_list(raw: &str) -> Vec<String> {
     raw.split(';')

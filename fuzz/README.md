@@ -32,8 +32,8 @@ One `write_<format>` target per writer module: the whole AST derives [`Arbitrary
 
 ## Corpus layout
 
-- **`seeds/<target>/`** — committed. A small representative input per reader, plus every crash/timeout reproducer we have fixed. Writer targets have no hand-written seeds, libFuzzer grows a corpus from scratch.
-- **`artifacts/<target>/`** — gitignored. Where libFuzzer drops a reproducer when it finds a crash, hang, or OOM.
+- `seeds/<target>/`: committed. A small representative input per reader, plus every crash/timeout reproducer we have fixed. Writer targets have no hand-written seeds; libFuzzer grows a corpus from scratch.
+- `artifacts/<target>/`: gitignored. Where libFuzzer drops a reproducer when it finds a crash, hang, or OOM.
 
 [`Arbitrary`]: https://docs.rs/arbitrary
 

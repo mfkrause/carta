@@ -4,8 +4,8 @@
 //!
 //! This AST is the single contract between readers and writers.
 //! [`Document`] is the root; [`Block`] and [`Inline`] are the two load-bearing node families.
-//! The JSON interchange (de)serialization — the serde derives, the manual array codecs in
-//! `serde_impls`, and the convenience entry points [`from_json`] and [`to_json_writer`] — lives
+//! The JSON interchange (de)serialization (the serde derives, the manual array codecs in
+//! `serde_impls`, and the convenience entry points [`from_json`] and [`to_json_writer`]) lives
 //! behind the `serde` feature.
 
 mod ast;

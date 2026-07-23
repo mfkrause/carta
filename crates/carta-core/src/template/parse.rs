@@ -20,7 +20,7 @@
 //! `$endfor$`) that likewise ends its own line has its trailing newline removed. Any indentation
 //! *before* the directive survives and prefixes onto the following content, so an indented control
 //! line shifts its body rightward. When the opening shares its line with other content the construct
-//! is inline: every one of its directives — even a closing one alone on its line — keeps its
+//! is inline: every one of its directives (even a closing one alone on its line) keeps its
 //! surrounding whitespace and newline verbatim, so an inline `$for$` whose `$endfor$` sits on its
 //! own line emits the blank line that follows it.
 
@@ -77,8 +77,7 @@ fn lex(source: &str) -> Result<Vec<Token>, TemplateError> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut text = String::new();
     let mut i = 0;
-    // True at the start of a line before any character or directive on it — used to decide whether a
-    // `$-- …` comment swallows its newline.
+    // True at column zero, so a `$-- ` comment knows whether to swallow its newline.
     let mut col_clean = true;
 
     while let Some(&c) = chars.get(i) {
@@ -104,11 +103,11 @@ fn lex(source: &str) -> Result<Vec<Token>, TemplateError> {
                     j += 1;
                 }
                 if col_clean {
-                    // Column-zero comment: drop the trailing newline too, keeping the line clean.
+                    // Column-zero comment: drop the trailing newline too.
                     if chars.get(j) == Some(&'\n') {
                         j += 1;
                     }
-                } // otherwise the newline (if any) is read as ordinary text next.
+                } // else the newline reads as ordinary text next.
                 i = j;
             }
             _ => {
@@ -330,12 +329,11 @@ fn pipe_args(text: &str) -> Vec<String> {
 /// precede it back to the previous newline and a newline immediately follows it, that single
 /// newline is absorbed (trailing blanks before the newline, or any non-blank, leave it in place).
 ///
-/// All decisions are taken over the original token text in a first pass, then applied — so trimming
+/// All decisions are taken over the original token text in a first pass, then applied, so trimming
 /// one directive's line never perturbs the line analysis of its neighbours.
 fn trim_standalone(tokens: &mut [Token]) {
-    // First pass over the original tokens. `drop_newline` swallows a block construct directive's
-    // whole trailing line; `absorb_partial` swallows just the newline glued to a standalone partial.
-    // Both are computed before any text is trimmed so neighbours never perturb one another.
+    // `drop_newline` swallows a block directive's trailing line, `absorb_partial` the newline glued
+    // to a standalone partial; both computed pre-trim so neighbours never perturb one another.
     let mut blocks: Vec<bool> = Vec::new();
     let drop_newline: Vec<bool> = tokens
         .iter()
@@ -364,8 +362,7 @@ fn trim_standalone(tokens: &mut [Token]) {
                 && matches!(tokens.get(i + 1), Some(Token::Text(t)) if t.starts_with('\n'))
         })
         .collect();
-    // Second pass applies the decisions. The two sets never target the same token: each acts on the
-    // text that follows its own directive, and a token is a control directive or a partial, not both.
+    // The two sets never target the same token: one is a control directive, the other a partial.
     for (i, (&drop_nl, &absorb)) in drop_newline.iter().zip(&absorb_partial).enumerate() {
         if drop_nl {
             if let Some(Token::Text(t)) = tokens.get_mut(i + 1) {
@@ -497,9 +494,8 @@ impl Builder<'_> {
             return Err(TemplateError::new("expected `for`"));
         };
         self.pos += 1;
-        // A single-segment loop expression also binds that name to the current element (so
-        // `$for(xs)$…$xs$` works, as does `$for(m/pairs)$…$m.key$`); a pipe on the segment does not
-        // change the name. `$it$` always refers to the element regardless.
+        // A single-segment loop expression also binds its name to the element (`$for(xs)$…$xs$`);
+        // `$it$` always refers to the element regardless.
         let bind = match expr.path.as_slice() {
             [only] => Some(only.clone()),
             _ => None,

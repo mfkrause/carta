@@ -197,7 +197,6 @@ mod tests {
     fn first_id_wins_under_the_first_policy() {
         let (a, _) = super::parse_attributes_first_id("{#one #two}").expect("well-formed block");
         assert_eq!(a.id, "one");
-        // Classes and pairs still accumulate; only the identifier precedence differs.
         let (b, _) = super::parse_attributes_first_id("{.a #x .b #y}").expect("well-formed block");
         assert_eq!(b.id, "x");
         assert_eq!(b.classes, ["a", "b"]);
@@ -250,7 +249,7 @@ mod tests {
     #[test]
     fn empty_identifier_token_is_invalid() {
         // A `#` with no following token is not a valid identifier, so the whole block fails to
-        // parse — even when a later token would be well-formed.
+        // parse, even when a later token would be well-formed.
         assert!(parse_attributes("{#}").is_none());
         assert!(parse_attributes("{# #b}").is_none());
         assert!(parse_attributes("{#a #}").is_none());

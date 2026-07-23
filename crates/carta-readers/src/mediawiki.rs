@@ -1,13 +1,5 @@
 //! Reader for `MediaWiki`'s wikitext markup.
 //!
-//! The source is first cleared of comments (`<!-- … -->`), then parsed line by line into blocks.
-//! A line opening with `=` runs is a heading, `*`/`#`/`:`/`;` runs start lists, four or more `-`
-//! alone are a horizontal rule, a leading space marks preformatted text, `{{…}}` and `{|…|}` are
-//! template and table markup, and `<pre>`/`<blockquote>`/`<syntaxhighlight>` are recognized block
-//! tags; everything else is a paragraph. Inline markup — apostrophe emphasis, `[[internal]]` and
-//! `[external]` links, bare URLs, entity references, and a fixed set of HTML tags — is scanned
-//! within each block's text.
-//!
 //! Heading identifiers follow the enabled identifier scheme: with `gfm_auto_identifiers` the GitHub
 //! algorithm (hyphen separators), otherwise `auto_identifiers` lowercases the text, keeps
 //! alphanumerics together with `_` and `.`, turns spaces and `-` into single `_`, and drops a
@@ -42,8 +34,7 @@ impl Reader for MediawikiReader {
         let chars: Vec<char> = source.chars().collect();
         let mut parser = Parser::new(options);
         let mut blocks = parser.parse_blocks(&chars);
-        // Category memberships are pulled out of the inline flow as they are encountered and gathered
-        // into a single trailing paragraph, one link per category in document order.
+        // Categories are pulled from the inline flow into one trailing paragraph, in document order.
         if !parser.categories.is_empty() {
             let mut inlines: Vec<Inline> = Vec::new();
             for (index, category) in parser.categories.drain(..).enumerate() {
@@ -180,10 +171,7 @@ impl Parser {
         let mut line_start = true;
         let n = chars.len();
         let bounds = ScanBounds::of(chars);
-        // Heading-region lookahead memo, shared across every line-classification query over this
-        // slice so each line's region is resolved at most once. `chars` is fixed for the whole
-        // call, so positions stay valid throughout; nested slices (cells, blockquotes) get their
-        // own memo via their own `parse_blocks_inner`.
+        // Shared heading-region memo: each line's region resolves at most once; nested slices get their own memo.
         let mut scan = HeaderScan::default();
         while pos < n {
             if line_start {
@@ -283,9 +271,7 @@ impl Parser {
             return None;
         }
         let content_start = pos + m;
-        // The closing run may sit several lines below: the heading text continues like a paragraph
-        // until a blank line or a line that opens its own block, and the trailing `=` run anywhere in
-        // that span closes it.
+        // The closing `=` run may sit lines below: heading text continues like a paragraph until a blank or block-opening line.
         let region_end = header_region_end_scan(chars, pos, scan);
         let closer = header_closer(chars, content_start, region_end, m)?;
         let content = collect_range(chars, content_start, closer);
@@ -320,8 +306,7 @@ impl Parser {
 
     fn build_lists(&mut self, items: &[ListItem], level: usize) -> Vec<Block> {
         if level >= MAX_BLOCK_DEPTH {
-            // Past the nesting cap, each item's text becomes a flat plain block with no deeper list
-            // structure, so adversarially deep marker runs cannot exhaust the stack.
+            // Past the nesting cap, item text becomes flat plain blocks so deep marker runs cannot exhaust the stack.
             let mut out: Vec<Block> = Vec::new();
             for item in items {
                 let inlines = self.parse_inlines(&item.content);
@@ -430,8 +415,7 @@ impl Parser {
                             None => defs.push(nested),
                         }
                     }
-                    // Terms stacked with no definition between them share one entry, separated by a
-                    // line break, until a definition arrives.
+                    // Terms stacked with no definition between them share one entry, separated by line breaks.
                     match pairs.last_mut() {
                         Some((last_term, last_defs)) if last_defs.is_empty() => {
                             last_term.push(Inline::LineBreak);
@@ -646,11 +630,8 @@ impl Parser {
                 cur = next;
                 break;
             }
-            // A `<ref>` whose `</ref>` has not yet been seen keeps the paragraph open across a blank
-            // line so the note's body — including any internal paragraph breaks — is captured whole.
-            // A line that would otherwise begin a block only stays attached when the open note reads
-            // as block content (its body began on a fresh line); a note opened with text on the same
-            // line reads inline and ends at such a line instead.
+            // An unclosed `<ref>` keeps the paragraph open across blank lines so the note's body is
+            // captured whole; a block-opening line stays attached only when the note reads as block content.
             let ref_open = open_ref_depth(chars, pos, next, bounds) > 0;
             let next_end = line_end(chars, next);
             if is_blank(chars, next, next_end) {
@@ -719,9 +700,8 @@ impl Parser {
 
     fn build_table(&mut self, region: &str) -> Block {
         let (mut rows, caption_text) = scan_table_region(region);
-        // The first row may omit its leading `|-` separator, so a `|-` seen before any cell merely
-        // opens the first row rather than closing an empty one: an empty leading segment is dropped.
-        // Every later `|-` closes a row, so empty rows elsewhere are kept.
+        // The first row may omit its leading `|-`, so one seen before any cell opens the first row
+        // rather than closing an empty one; every later `|-` closes a row, keeping empty rows.
         if rows.first().is_some_and(Vec::is_empty) {
             rows.remove(0);
         }
@@ -1170,8 +1150,7 @@ impl Parser {
                         None => Some((vec![raw_html(raw_open)], after_open)),
                     }
                 }
-                // Block-level and unrecognized tags are not inline output: a recognized block tag
-                // becomes a raw block at the paragraph level, an unrecognized tag stays literal.
+                // Recognized block tags become raw blocks at the paragraph level; unrecognized tags stay literal.
                 _ => None,
             },
         }
@@ -1241,8 +1220,7 @@ impl Parser {
         if !is_url(&url) {
             return None;
         }
-        // A bracketed URL with no label that runs straight into a letter or digit is not a link: the
-        // bracket stays literal and the URL continues past the `]` as a bare URL.
+        // A labelless bracketed URL running into a letter or digit is no link: the bracket stays literal, the URL continues past `]`.
         if label.is_empty() && at(chars, close + 1).is_some_and(char::is_alphanumeric) {
             return None;
         }
@@ -1266,14 +1244,12 @@ impl Parser {
     }
 
     fn internal_link(&mut self, chars: &[char], i: usize) -> Option<(Vec<Inline>, usize)> {
-        // The target ends at the first `|` or the first `]]`, whichever comes first; nesting is not
-        // tracked, so a `]]` from an inner link can close an unpiped target.
+        // Target ends at the first `|` or `]]`; nesting is untracked, so an inner `]]` can close an unpiped target.
         let start = i + 2;
         let (target_end, has_pipe) = scan_link_target(chars, start)?;
         let target = collect_range(chars, start, target_end).trim().to_string();
 
-        // With a pipe present, the label runs to the `]]` that closes this link, stepping over any
-        // nested `[[ … ]]` so an inner link does not close the outer one.
+        // With a pipe, the label runs to this link's `]]`, stepping over nested `[[ … ]]`.
         let (label_content, close) = if has_pipe {
             let label_start = target_end + 1;
             let close = find_link_close(chars, label_start)?;
@@ -1304,8 +1280,7 @@ impl Parser {
                 ));
                 return Some((Vec::new(), close + 2));
             }
-            // A file or image embed may decline (a parameter it cannot represent as an image); when it
-            // does, the markup falls through to the ordinary wikilink path below.
+            // A file/image embed may decline (unrepresentable parameter); the markup then falls through to the wikilink path.
             if matches!(ns.as_str(), "file" | "image")
                 && !strip_namespace(&target).is_empty()
                 && let Some(image) = self.image_embed(&target, label_content.as_deref())
@@ -1385,8 +1360,7 @@ impl Parser {
                         attributes.push(("height".to_string(), height));
                     }
                 } else if is_image_keyword(option) || is_recognized_image_attr(option) {
-                    // A placement or framing keyword, or a recognized `key=value` attribute, carries
-                    // no caption text. An unrecognized `key=value` is treated as caption text.
+                    // Placement/framing keywords and recognized `key=value` carry no caption; unrecognized `key=value` is caption text.
                 } else {
                     caption = Some(part.to_string());
                 }
@@ -1426,7 +1400,7 @@ impl Parser {
         }
     }
 
-    /// Builds an identifier with `slug`, then — when `ascii_identifiers` is on — folds the finished
+    /// Builds an identifier with `slug`, then, when `ascii_identifiers` is on, folds the finished
     /// slug to pure ASCII (accents stripped, non-Latin letters dropped) and re-slugs it, so a dropped
     /// letter leaves its separators intact while a now-leading separator is trimmed. An empty result
     /// is mapped to a placeholder during disambiguation.
@@ -1442,7 +1416,7 @@ impl Parser {
 // --- preprocessing ------------------------------------------------------------------------------
 
 /// Expands tab characters to spaces on a four-column grid, with the column resetting at each line
-/// break. Wikitext markup is column-sensitive — a leading space marks preformatted text — so tabs
+/// break. Wikitext markup is column-sensitive (a leading space marks preformatted text), so tabs
 /// are normalized before any block scanning runs.
 ///
 /// A deliberate variant of [`crate::tabs::expand_tabs`]: it runs over the whole input at once
@@ -1508,9 +1482,7 @@ fn strip_comments(input: &str) -> String {
                             comment_end
                         };
                     } else if preceded || followed {
-                        // Adjacent to a line boundary, the comment leaves nothing behind, so the
-                        // line neither gains a leading space (which would make it preformatted) nor
-                        // a trailing one.
+                        // At a line boundary the comment leaves nothing behind: no leading space (would mark preformatted), no trailing one.
                         i = comment_end;
                     } else {
                         // Between text, the comment collapses to a single space.
@@ -1601,9 +1573,8 @@ fn extract_behavior_switches(input: &str) -> (String, Vec<String>) {
                 found.push(key);
             }
             i = after;
-            // A switch that begins a line is removed together with the spaces and tabs that follow
-            // it on that line, so the line does not gain a leading space that would mark it as
-            // preformatted text; the line break itself is left in place.
+            // A line-leading switch is removed with its following spaces/tabs so the line gains no
+            // leading space (would mark it preformatted); the line break itself stays.
             if out.is_empty() || out.ends_with('\n') {
                 while matches!(at(&chars, i), Some(' ' | '\t')) {
                     i += 1;
@@ -1681,7 +1652,6 @@ fn apostrophe_runs(units: &[Unit]) -> Vec<usize> {
     runs
 }
 
-/// The apostrophe width an emphasis kind consumes: three for `Strong`, two for `Emph`.
 fn emphasis_width(strong: bool) -> usize {
     if strong { 3 } else { 2 }
 }
@@ -1768,7 +1738,6 @@ fn parse_runs(
     (nodes, pos, closer.is_none())
 }
 
-/// Removes leading and trailing spaces and soft breaks from a span's content.
 fn strip_outer_whitespace(mut inlines: Vec<Inline>) -> Vec<Inline> {
     let lead = inlines
         .iter()
@@ -1920,9 +1889,8 @@ fn coalesce(inlines: Vec<Inline>) -> Vec<Inline> {
         };
         match (out.last_mut(), &inline) {
             (Some(Inline::Str(prev)), Inline::Str(next)) => prev.push_str(next),
-            // Two whitespace tokens land next to each other only where a zero-width construct (a
-            // category, an empty element) was removed between them; collapse them to one, keeping a
-            // soft break if either side carried one.
+            // Adjacent whitespace only occurs where a zero-width construct was removed; collapse to
+            // one token, keeping a soft break if either side carried one.
             (
                 Some(slot @ (Inline::Space | Inline::SoftBreak)),
                 Inline::Space | Inline::SoftBreak,
@@ -2111,7 +2079,6 @@ fn plain_inlines(text: &str) -> Vec<Inline> {
     out
 }
 
-/// Decodes every entity reference in a string, leaving other characters untouched.
 fn decode_entities(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let n = chars.len();
@@ -2142,7 +2109,7 @@ fn is_scheme(name: &str) -> bool {
     crate::url_schemes::is_scheme(&lower) || lower == "doi" || lower == "javascript"
 }
 
-/// Whether `text` begins with a recognized scheme followed by a colon — the test a bracketed
+/// Whether `text` begins with a recognized scheme followed by a colon: the test a bracketed
 /// `[url label]` target must pass to be a link.
 fn is_url(text: &str) -> bool {
     match text.split_once(':') {
@@ -2338,7 +2305,7 @@ fn strip_namespace(target: &str) -> &str {
     }
 }
 
-/// Parses an image size parameter — `<w>px`, `x<h>px`, or `<w>x<h>px` — into its width and optional
+/// Parses an image size parameter (`<w>px`, `x<h>px`, or `<w>x<h>px`) into its width and optional
 /// height. The width is the digits before an `x` (empty when the form is `x<h>px`); the height is
 /// the digits after it. Returns `None` for any parameter that is not a pixel size.
 fn image_size(param: &str) -> Option<(String, Option<String>)> {
@@ -2496,16 +2463,13 @@ fn mediawiki_slug(text: &str) -> String {
             out.extend(ch.to_lowercase());
             in_ws = false;
         }
-        // Other punctuation is transparent: it emits nothing and leaves a running whitespace
-        // collapse intact, so `Foo : Bar` and `Foo  Bar` both yield a single separating `_`.
+        // Other punctuation is transparent: emits nothing, leaves the whitespace collapse intact, so `Foo : Bar` yields one `_`.
     }
     out.chars().skip_while(|c| !c.is_alphabetic()).collect()
 }
 
 // --- tag scanning -------------------------------------------------------------------------------
 
-/// Reads an opening tag at `chars[i]`, returning its lowercased name, the raw `<…>` text, whether it
-/// is self-closing, and the index just past the `>`. Attribute values in quotes may contain `>`.
 /// The positions that cap how far a tag scan can succeed within a slice: `last_gt` is the index of
 /// the final `>` and `last_close` the index of the final `</`. An open tag cannot complete past the
 /// former and a closing tag cannot begin past the latter, so a scan starting beyond the relevant
@@ -2574,6 +2538,9 @@ fn close_tag_bounded(
     close_tag(chars, start, name)
 }
 
+/// Reads an opening tag at `chars[start]`, returning its lowercased name, the raw `<…>` text,
+/// whether it is self-closing, and the index just past the `>`. Attribute values in quotes may
+/// contain `>`.
 fn open_tag(chars: &[char], start: usize) -> Option<(String, String, bool, usize)> {
     let mut cursor = start + 1;
     let mut name = String::new();
@@ -2707,7 +2674,7 @@ fn open_ref_depth(chars: &[char], start: usize, end: usize, bounds: ScanBounds) 
     depth
 }
 
-/// Whether the innermost `<ref>` still open at `end` has a body that begins on a fresh line — its
+/// Whether the innermost `<ref>` still open at `end` has a body that begins on a fresh line: its
 /// open tag is the last non-blank thing on its line. Such a note is read as block content, so its
 /// body may hold lists and other block constructs; a note opened with text on the same line reads as
 /// inline content and a following block-level line ends it instead of joining it.
@@ -2977,7 +2944,7 @@ fn tag_attribute(raw: &str, key: &str) -> Option<String> {
 /// `chars` slice. A heading's text runs until the next line that opens a block, and deciding
 /// whether a `=`-prefixed line opens its own heading needs that same lookahead, so region end and
 /// header-ness are mutually recursive. Every recursive step advances to a strictly later line, so
-/// the recursion always terminates on its own — but without memoization each line's region would be
+/// the recursion always terminates on its own, but without memoization each line's region would be
 /// recomputed once per enclosing region, which is exponential in the number of consecutive
 /// `=`-prefixed lines. Caching each result by position collapses that to linear work per line.
 #[derive(Default)]
@@ -3028,13 +2995,8 @@ fn header_region_end_scan(chars: &[char], pos: usize, scan: &mut HeaderScan) -> 
         return cached;
     }
     let n = chars.len();
-    // The region end of a line depends only on lines that come after it, so resolve them
-    // back-to-front. First gather the forward run of consecutive non-blank line starts beginning at
-    // `pos` (the run stops at the first blank line or the end of input); then fill the memo from the
-    // last line to the first. Resolving bottom-up keeps the mutual recursion between region-end and
-    // header-ness at constant stack depth no matter how many `=`-prefixed lines are stacked — a
-    // naive recursive walk would instead recurse once per line and overflow the stack on adversarial
-    // input.
+    // A line's region end depends only on later lines: gather the non-blank run, then fill the memo
+    // back-to-front, keeping stack depth constant where a naive per-line recursion would overflow.
     let mut starts = Vec::new();
     let mut cur = pos;
     loop {
@@ -3066,8 +3028,7 @@ fn header_region_end_scan(chars: &[char], pos: usize, scan: &mut HeaderScan) -> 
                 le
             } else {
                 let next_end = line_end(chars, next);
-                // `next` is the following run element (already resolved) or a blank/EOF line, so
-                // `line_starts_block_scan` and the recursive lookup below both hit the memo.
+                // `next` is already resolved (or blank/EOF), so both lookups below hit the memo.
                 if is_blank(chars, next, next_end) || line_starts_block_scan(chars, next, scan) {
                     le
                 } else {
@@ -3159,14 +3120,14 @@ fn skip_construct(chars: &[char], i: usize) -> Option<usize> {
     }
 }
 
-/// The index just past the `}}` that balances the `{{` at `i`, accounting for nesting.
 /// Whether the `{{` at `i` opens a template transclusion. A template name begins with a letter, a
-/// digit, or a `:` (a leading-colon main-namespace reference); a `{{` followed by anything else —
-/// whitespace, a parser-function `#`, a pipe, or `}}` — is literal braces, not a template.
+/// digit, or a `:` (a leading-colon main-namespace reference); a `{{` followed by anything else
+/// (whitespace, a parser-function `#`, a pipe, or `}}`) is literal braces, not a template.
 fn template_opens(chars: &[char], i: usize) -> bool {
     matches!(at(chars, i + 2), Some(c) if c.is_alphanumeric() || c == ':')
 }
 
+/// The index just past the `}}` that balances the `{{` at `i`, accounting for nesting.
 fn balanced_braces(chars: &[char], i: usize) -> Option<usize> {
     let mut depth = 0i32;
     let mut j = i;
@@ -3356,7 +3317,6 @@ fn table_block_end(chars: &[char], pos: usize) -> usize {
     }
 }
 
-/// The number of grid columns a cell spans, never less than one.
 /// Scans the body of a `{|…|}` region into its rows of raw cells and an optional caption.
 /// Each `|-` closes the current row; nested tables are passed through verbatim as cell content.
 fn scan_table_region(region: &str) -> (Vec<Vec<RawCell>>, Option<String>) {
@@ -3434,6 +3394,7 @@ fn column_specs(rows: &[Vec<RawCell>], ncols: usize) -> Vec<ColSpec> {
         .collect()
 }
 
+/// The number of grid columns a cell spans, never less than one.
 fn col_count(col_span: i32) -> usize {
     usize::try_from(col_span.max(1)).unwrap_or(1)
 }
@@ -3449,7 +3410,6 @@ fn empty_cell() -> Cell {
     }
 }
 
-/// Appends a table continuation line to whichever construct is currently open.
 fn append_continuation(
     open: OpenTarget,
     cur: &mut [RawCell],
@@ -3541,8 +3501,8 @@ fn parse_cell_chunk(is_header: bool, chunk: &str) -> RawCell {
     }
 }
 
-/// Finds the byte offset of the first top-level `|` in a cell chunk — the boundary between a leading
-/// attribute list and the cell content — skipping any `|` inside `[…]` or `{…}` groups.
+/// Finds the byte offset of the first top-level `|` in a cell chunk (the boundary between a leading
+/// attribute list and the cell content), skipping any `|` inside `[…]` or `{…}` groups.
 fn find_attr_pipe(s: &str) -> Option<usize> {
     let mut square = 0i32;
     let mut curly = 0i32;
@@ -3570,7 +3530,7 @@ fn find_attr_pipe(s: &str) -> Option<usize> {
 /// Parses a cell's leading attribute list. `align` maps to a column alignment, `colspan`/`rowspan`
 /// to spans, `id`/`class` to the cell's identifier and classes, and everything else to a key/value
 /// attribute. A bare token without a value is not a valid attribute list, so the whole text is
-/// content instead — signalled by [`None`].
+/// content instead (signalled by [`None`]).
 fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
     let chars: Vec<char> = s.chars().collect();
     let n = chars.len();
@@ -3626,9 +3586,7 @@ fn parse_cell_attrs(s: &str) -> Option<CellAttrs> {
                 "center" => align = Alignment::AlignCenter,
                 _ => attributes.push(("align".to_string(), value)),
             },
-            // The table passes materialise one grid slot per spanned column, so an
-            // attacker-supplied span would force a multi-gigabyte allocation if taken at face
-            // value; clamp to the HTML spec's span limits, as the html reader does.
+            // One grid slot per spanned column: clamp to the HTML spec's span limits, or an attacker-supplied span forces a huge allocation.
             "colspan" => match value.trim().parse::<i32>() {
                 Ok(v) if v >= 1 => col_span = v.min(1000),
                 _ => attributes.push(("colspan".to_string(), value)),
@@ -3822,8 +3780,7 @@ mod tests {
 
     #[test]
     fn a_huge_colspan_is_clamped_and_does_not_blow_up_the_grid() {
-        // The first row fixes the grid width, so an oversized colspan must be clamped rather
-        // than trusted — otherwise it would size the column specs.
+        // The first row fixes the grid width, so an oversized colspan is clamped, not trusted.
         let blocks = parse("{|\n| colspan=222222222 | wide\n|-\n| a\n|}");
         let Some(Block::Table(table)) = blocks.first() else {
             panic!("expected a table, got {blocks:?}");
@@ -4321,7 +4278,7 @@ mod tests {
     }
 
     /// Reads with the default option set and reports only whether the read completed without error,
-    /// so a deeply nested input can be checked for graceful (non-panicking) handling.
+    /// so a deeply nested input can be checked to parse without panicking.
     fn reads_ok(input: &str) -> bool {
         MediawikiReader
             .read(input, &ReaderOptions::default())
@@ -4360,11 +4317,7 @@ mod tests {
 
     #[test]
     fn stacked_header_lines_do_not_blow_up() {
-        // A run of consecutive `=`-prefixed lines with no blank separators and no same-line closer
-        // once forced the heading-region lookahead to recompute each line's region for every
-        // enclosing region — exponential in the number of stacked lines, which a nightly fuzz run
-        // hit as a timeout. Memoizing the region scan makes it linear; a run this long would never
-        // finish under the old code.
+        // without the memoized region scan, stacked `=` lines would recompute each region per enclosing region, exponential in depth
         let input = "== ~iT\n= w e\n= J".repeat(4000);
         assert!(reads_ok(&input));
     }

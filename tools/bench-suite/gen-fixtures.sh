@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Generate benchmark inputs into $FIXTURES (gitignored). Idempotent: existing files are reused unless
-# BENCH_REGEN=1. Produces, per size in BENCH_SIZES:
-#   commonmark.<size>.md      seed.md repeated to ~size              (reader/e2e input)
-#   html|native|json.<size>.* the seed input rendered by carta      (reader input, derived)
-#   ast.<size>.json           curated corpus AST cycled to ~size     (writer input)
-# Plus fixed near-empty startup inputs. Derived inputs are carta's own output and never committed.
+# Generate benchmark inputs into $FIXTURES (gitignored); idempotent unless BENCH_REGEN=1. Per size:
+# commonmark.<size>.md (seed repeated), derived html/native/json.<size>.*, ast.<size>.json, plus startup inputs.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -13,7 +9,6 @@ fresh() { [ "$regen" != "1" ] && [ -s "$1" ]; }
 
 seed_bytes=$(wc -c <"$SEED" | tr -d ' ')
 
-# Build the curated AST base once; emit base blocks JSON and record its size/length.
 base_blocks="$FIXTURES/.ast-base.json"
 if ! fresh "$base_blocks"; then
   files=""
@@ -68,7 +63,6 @@ for size in $(sizes_list); do
   gen_ast "$FIXTURES/ast.$size.json" "$bytes"
 done
 
-# Near-empty startup inputs.
 startup_md="$FIXTURES/startup.md"
 if ! fresh "$startup_md"; then printf 'A startup probe paragraph.\n' >"$startup_md"; fi
 derive "$startup_md" json "$FIXTURES/startup.ast.json"
