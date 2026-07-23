@@ -7,11 +7,10 @@
 //! rather than reaching into a submodule.
 //!
 //! This root also holds a few cross-cutting helpers (smart-quote glyphs, ASCII punctuation fallback,
-//! list-offset conversion, raw-passthrough emission). Which of these is live depends on the enabled
-//! writer features, so unused-item warnings are allowed here rather than gated per item; likewise a
-//! single-writer build leaves whole submodule re-exports unreferenced, so unused-import warnings on
-//! the glob re-exports are allowed too.
-#![allow(dead_code, unused_imports)]
+//! list-offset conversion, raw-passthrough emission). A single-writer build leaves whole submodule
+//! re-exports unreferenced, so unused-import warnings on the glob re-exports are allowed; items that
+//! are live only under some writer features carry a per-item `cfg_attr` dead-code gate instead.
+#![allow(unused_imports)]
 
 mod dimensions;
 mod fill;
@@ -38,6 +37,21 @@ pub(crate) use width::*;
 use carta_ast::QuoteType;
 
 /// The open and close smart-quote glyphs for a quote kind.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "dokuwiki",
+        feature = "gfm",
+        feature = "html",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "org",
+        feature = "plain",
+        feature = "rst",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn quote_marks(kind: &QuoteType) -> (char, char) {
     match kind {
         QuoteType::SingleQuote => ('\u{2018}', '\u{2019}'),
@@ -48,6 +62,7 @@ pub(crate) fn quote_marks(kind: &QuoteType) -> (char, char) {
 /// The ASCII rendering of a Unicode smart-punctuation character: the form a `smart`-enabled writer
 /// emits so the text round-trips through a non-Unicode reader. Returns `None` for any other char.
 /// Curly quotes collapse to straight quotes, en/em dashes to `--`/`---`, and the ellipsis to `...`.
+#[cfg_attr(not(any(feature = "plain", feature = "rst")), allow(dead_code))]
 pub(crate) fn ascii_punctuation(ch: char) -> Option<&'static str> {
     Some(match ch {
         '\u{2018}' | '\u{2019}' => "'",
@@ -61,6 +76,18 @@ pub(crate) fn ascii_punctuation(ch: char) -> Option<&'static str> {
 
 /// Convert a zero-based item offset to the signed step added to a list's start number, saturating an
 /// out-of-range offset rather than overflowing.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain",
+        feature = "rst",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn offset_as_i32(offset: usize) -> i32 {
     i32::try_from(offset).unwrap_or(i32::MAX)
 }
@@ -83,15 +110,27 @@ pub(crate) fn clean_prefix_len(text: &str, is_trigger: impl Fn(u8) -> bool) -> u
 #[derive(Clone, Copy)]
 pub(crate) enum RawTrim {
     /// Emit the payload verbatim.
+    #[cfg_attr(not(any(feature = "jira", feature = "rtf")), allow(dead_code))]
     Keep,
     /// Drop a single trailing newline.
+    #[cfg_attr(not(feature = "asciidoc"), allow(dead_code))]
     DropOne,
     /// Drop every trailing newline.
+    #[cfg_attr(not(any(feature = "dokuwiki", feature = "rtf")), allow(dead_code))]
     DropAll,
 }
 
 /// Emit a raw block or inline payload only when its format names this writer's token, otherwise drop
 /// it. Recognition is case-insensitive. The trailing-newline policy is the writer's own.
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "dokuwiki",
+        feature = "jira",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn raw_passthrough(
     format: &carta_ast::Format,
     text: &str,

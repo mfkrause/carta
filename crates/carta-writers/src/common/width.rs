@@ -1,7 +1,5 @@
 //! Column-width measurement: the display width of a character or string, approximated without a
-//! Unicode width table. Consumed by whichever text writers are enabled, so unused-item warnings are
-//! allowed here rather than gated per item.
-#![allow(dead_code)]
+//! Unicode width table.
 
 /// Display width of a string in columns, summed over its characters.
 pub(crate) fn display_width(text: &str) -> usize {

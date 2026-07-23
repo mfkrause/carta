@@ -1,7 +1,5 @@
 //! Footnote plumbing for the text writers: the marker-numbering host trait and the trailing-section
-//! assembler. Consumed by whichever text writers are enabled, so unused-item warnings are allowed
-//! here rather than gated per item.
-#![allow(dead_code)]
+//! assembler.
 
 use super::{FILL_COLUMN, join_loose};
 use carta_ast::{Block, Inline};
@@ -10,6 +8,15 @@ use carta_ast::{Block, Inline};
 /// referenced by a numbered `[n]` marker; its body is rendered offset so the marker shifts only the
 /// first line's wrap point. The format supplies how a block and a marker-offset leading paragraph
 /// render; the marker numbering and slot bookkeeping are shared here.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) trait NotesHost {
     /// The accumulated note bodies, indexed by note number minus one.
     fn notes(&mut self) -> &mut Vec<String>;
@@ -64,6 +71,7 @@ pub(crate) trait NotesHost {
 
     /// Render a footnote's body: the first block's opening line is offset by the marker width, every
     /// later block and continuation line sits at the margin.
+    #[cfg_attr(not(any(feature = "gfm", feature = "markdown")), allow(dead_code))]
     fn note_body(&mut self, blocks: &[Block], initial: usize) -> String {
         self.offset_note_body(blocks, initial)
     }
@@ -103,6 +111,16 @@ pub(crate) trait NotesHost {
 
 /// Append a gathered footnote section to a rendered body, separated by a blank line, and trim the
 /// trailing newlines. With no notes this just trims the body.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn append_notes(body: String, notes: &[String]) -> String {
     let mut out = body;
     if !notes.is_empty() {

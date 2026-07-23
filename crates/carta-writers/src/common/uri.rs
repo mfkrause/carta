@@ -1,11 +1,11 @@
-//! URI-scheme recognition and percent-escaping helpers for autolink-capable writers. Consumed by
-//! whichever writers are enabled, so unused-item warnings are allowed here rather than gated per item.
-#![allow(dead_code)]
-
-use carta_ast::Inline;
+//! URI-scheme recognition and percent-escaping helpers for autolink-capable writers.
 
 /// Whether a string is syntactically a URI scheme: an ASCII letter followed by ASCII letters,
 /// digits, or any of `+`, `-`, `.`.
+#[cfg_attr(
+    not(any(feature = "asciidoc", feature = "mediawiki", feature = "rst")),
+    allow(dead_code)
+)]
 pub(crate) fn is_uri_scheme(scheme: &str) -> bool {
     let mut chars = scheme.chars();
     let Some(first) = chars.next() else {
@@ -17,6 +17,18 @@ pub(crate) fn is_uri_scheme(scheme: &str) -> bool {
 
 /// Whether `scheme` names a registered URI scheme (compared case-insensitively), per the
 /// [`URI_SCHEMES`] registry. Used to decide whether an address may render as a bare autolink.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "man",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn is_known_scheme(scheme: &str) -> bool {
     let lowered = scheme.to_ascii_lowercase();
     URI_SCHEMES.binary_search(&lowered.as_str()).is_ok()
@@ -303,6 +315,16 @@ const URI_SCHEMES: &[&str] = &[
 /// Whether `text` is made up solely of URI-permitted characters with every `%` introducing a
 /// two-digit hex escape. ASCII alphanumerics and the unreserved, sub-delimiter, and generic-delimiter
 /// punctuation are permitted; non-ASCII characters are permitted only when `allow_non_ascii` is set.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn is_percent_escaped_uri(text: &str, allow_non_ascii: bool) -> bool {
     let chars: Vec<char> = text.chars().collect();
     let mut index = 0;
@@ -357,6 +379,7 @@ fn is_uri_char(ch: char, allow_non_ascii: bool) -> bool {
 /// delimiters `< > | " { } [ ] ^` and the backtick. Every other byte passes through unchanged —
 /// including a literal `%`, so an existing `%XX` sequence is preserved rather than doubled — as does
 /// all non-ASCII text. The transform is idempotent: applying it twice yields the same result.
+#[cfg_attr(not(feature = "rtf"), allow(dead_code))]
 pub(crate) fn escape_uri(url: &str) -> String {
     fn hex(nibble: u8) -> char {
         char::from_digit(u32::from(nibble), 16)
@@ -385,20 +408,20 @@ pub(crate) fn escape_uri(url: &str) -> String {
 /// Whether a string is a bare URI eligible to stand alone (as an angle-bracket autolink in
 /// `CommonMark`, a bare run in plain text or MediaWiki): it opens with a recognized scheme and every
 /// character is valid in a percent-escaped URI.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn is_uri(text: &str) -> bool {
     let Some(colon) = text.find(':') else {
         return false;
     };
     text.get(..colon).is_some_and(is_known_scheme) && is_percent_escaped_uri(text, true)
-}
-
-/// Whether a link's visible content is a single string that, once URI-escaped, is exactly the link's
-/// destination — the shape of a link the reader produced by autolinking a bare address, where the
-/// destination is the percent-escaped form of the text shown. The destination-equality test alone
-/// does not gate the bare rendering; each writer additionally requires the address to be a usable URI
-/// (a recognized scheme and valid characters).
-pub(crate) fn is_bare_uri_text(inlines: &[Inline], url: &str) -> bool {
-    matches!(inlines, [Inline::Str(text)] if escape_uri(text) == url)
 }
 
 /// Decode the `%XX` percent-escapes in `url`, returning the decoded string, or `None` when an escape
@@ -434,6 +457,22 @@ fn hex_digit(byte: u8) -> Option<u8> {
 /// itself, or to the URL with its percent-escapes decoded. A link of this shape is a bare URL; the
 /// caller pairs this with the format's own URI test where the autolink form is reserved for genuine
 /// URIs, and renders the encoded `url`, not the decoded label.
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "dokuwiki",
+        feature = "gfm",
+        feature = "latex",
+        feature = "man",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "org",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn label_matches_url(label: &str, url: &str) -> bool {
     label == url || percent_decode(url).as_deref() == Some(label)
 }
@@ -476,31 +515,6 @@ mod tests {
         assert!(!is_uri("notascheme:value")); // scheme not recognized
         assert!(!is_uri("http://e.com/a b")); // unescaped space
         assert!(is_uri("http://e.com/café")); // non-ASCII is permitted
-    }
-
-    #[test]
-    fn is_bare_uri_text_matches_escaped_single_string() {
-        let url = "http://e.com/a%20b";
-        assert!(is_bare_uri_text(
-            &[Inline::Str("http://e.com/a b".into())],
-            url
-        ));
-        assert!(is_bare_uri_text(
-            &[Inline::Str("http://e.com/a%20b".into())],
-            url
-        ));
-        // Two inlines, or text whose escaped form differs from the destination, do not match.
-        assert!(!is_bare_uri_text(
-            &[
-                Inline::Str("http://e.com".into()),
-                Inline::Str("/a b".into())
-            ],
-            url
-        ));
-        assert!(!is_bare_uri_text(
-            &[Inline::Str("http://other".into())],
-            url
-        ));
     }
 
     #[test]

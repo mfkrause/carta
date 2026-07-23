@@ -1,7 +1,4 @@
 //! The greedy line-filling engine and hanging-indent helper shared by the text-oriented writers.
-//! Consumed by whichever text writers are enabled, so unused-item warnings are allowed here rather
-//! than gated per item.
-#![allow(dead_code)]
 
 use super::display_width;
 use carta_core::WrapMode;
@@ -12,6 +9,19 @@ pub(crate) const FILL_COLUMN: usize = 72;
 
 /// A unit of inline content awaiting line filling: an unbreakable text run, a breakable space, a
 /// soft line break from the source, or a forced line break.
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "latex",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 #[derive(Debug, Clone)]
 pub(crate) enum Piece {
     Text(Cow<'static, str>),
@@ -25,6 +35,19 @@ pub(crate) enum Piece {
 impl Piece {
     /// A text piece from a static literal (borrowed, allocation-free) or an owned string (moved in),
     /// without an intervening copy.
+    #[cfg_attr(
+        not(any(
+            feature = "asciidoc",
+            feature = "commonmark",
+            feature = "gfm",
+            feature = "latex",
+            feature = "markdown",
+            feature = "org",
+            feature = "plain",
+            feature = "rst"
+        )),
+        allow(dead_code)
+    )]
     pub(crate) fn text(value: impl Into<Cow<'static, str>>) -> Self {
         Piece::Text(value.into())
     }
@@ -38,6 +61,19 @@ impl Piece {
 /// The `wrap` mode governs line layout: [`WrapMode::Auto`] reflows to `width`; [`WrapMode::None`]
 /// never wraps (the whole paragraph is one line, soft breaks becoming spaces); [`WrapMode::Preserve`]
 /// does not reflow but keeps each soft break from the source as a line break.
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "latex",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn fill(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
     fill_offset(pieces, width, 0, wrap)
 }
@@ -45,6 +81,19 @@ pub(crate) fn fill(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
 /// Like [`fill`], but the first line is laid out as if `initial` columns were already consumed (the
 /// hanging-marker layout, where a leading marker shifts the first line's wrap point but leaves
 /// continuation lines at the margin).
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "latex",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn fill_offset(
     pieces: &[Piece],
     width: usize,
@@ -73,6 +122,7 @@ pub(crate) fn fill_offset(
 /// lines only when the group on its own is wider than the column). The ranges must be disjoint and
 /// listed in ascending order. With `keep_leading` (see [`fill_hang`]) a space that opens the content
 /// is emitted before the first word instead of being dropped.
+#[cfg_attr(not(feature = "commonmark"), allow(dead_code))]
 pub(crate) fn fill_groups(
     pieces: &[Piece],
     groups: &[(usize, usize)],
@@ -98,6 +148,10 @@ pub(crate) fn fill_groups(
 /// Like [`fill`], but the first line keeps a leading space rather than dropping it: the content is
 /// laid out as hanging text that a caller will prefix with a marker, so a space that opens the first
 /// block sits between the marker and the first word instead of being swallowed.
+#[cfg_attr(
+    not(any(feature = "org", feature = "plain", feature = "rst")),
+    allow(dead_code)
+)]
 pub(crate) fn fill_hang(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
     let width = match wrap {
         WrapMode::Auto => width.max(1),
@@ -118,6 +172,7 @@ pub(crate) fn fill_hang(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
 /// always bounded by its column — while [`WrapMode::None`] still renders the content on one line so
 /// the column can instead grow to hold it. Under [`WrapMode::Preserve`] each source soft break stays
 /// a forced line break, with the text between breaks reflowed to the field width.
+#[cfg_attr(not(feature = "rst"), allow(dead_code))]
 pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> String {
     let width = match wrap {
         WrapMode::None => usize::MAX,
@@ -137,6 +192,7 @@ pub(crate) fn fill_cell(pieces: &[Piece], width: usize, wrap: WrapMode) -> Strin
 /// line takes the `first` prefix, each non-empty continuation line the `rest` prefix, and blank
 /// continuation lines stay unprefixed. Equivalent to appending [`indent_block`] of [`fill`]'s result,
 /// without building and re-splitting that intermediate string.
+#[cfg_attr(not(any(feature = "gfm", feature = "markdown")), allow(dead_code))]
 pub(crate) fn fill_into(
     out: &mut String,
     pieces: &[Piece],
@@ -165,6 +221,10 @@ pub(crate) fn fill_into(
 /// hard layout constraint), collecting each wrapped line as its own string. Equivalent to splitting
 /// `fill(pieces, width, WrapMode::Auto)` on line breaks, but the lines are built directly, without
 /// the intermediate whole-cell string. An empty cell still yields a single empty line.
+#[cfg_attr(
+    not(any(feature = "gfm", feature = "markdown", feature = "plain")),
+    allow(dead_code)
+)]
 pub(crate) fn fill_lines(pieces: &[Piece], width: usize) -> Vec<String> {
     let width = width.max(1);
     let mut sink = LineVecSink::default();
@@ -567,6 +627,18 @@ fn word_line_metrics(word: &[&str], word_width: usize) -> (usize, bool, usize) {
 /// Apply `first` to the first line and `rest` to each non-empty later line, leaving blank lines
 /// (block separators) unprefixed. This produces a hanging indent: a list marker plus continuation
 /// indent, or a uniform block-quote / code prefix.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "latex",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn indent_block(body: &str, first: &str, rest: &str) -> String {
     let mut out = String::new();
     for (index, line) in body.split('\n').enumerate() {

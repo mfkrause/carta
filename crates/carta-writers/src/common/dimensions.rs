@@ -1,11 +1,26 @@
 //! Attribute lookup and image-dimension normalization. The attribute accessor serves nearly every
-//! writer while the dimension parsers serve only the HTML-family writers, so which items are live
-//! depends on the enabled features; unused-item warnings are allowed here rather than gated per item.
-#![allow(dead_code)]
+//! writer while the dimension parsers serve only the HTML-family writers.
 
 use carta_ast::Attr;
 
 /// Look up a key/value attribute by key, returning its value.
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "dokuwiki",
+        feature = "gfm",
+        feature = "html",
+        feature = "latex",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "org",
+        feature = "rst",
+        feature = "rtf",
+        feature = "typst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn attribute_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> {
     attr.attributes
         .iter()
@@ -15,6 +30,18 @@ pub(crate) fn attribute_value<'a>(attr: &'a Attr, key: &str) -> Option<&'a str> 
 
 /// A parsed image dimension: a pixel count rendered as a bare HTML attribute, or a length rendered
 /// inside a CSS `style` declaration.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "html",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "rst",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Dimension {
     /// A pixel or unitless value, truncated to a whole number and emitted as a bare `width`/`height`
@@ -44,6 +71,18 @@ const DIMENSION_UNITS: &[(&str, &str)] = &[
 /// the attribute is dropped. The numeric part is a run of digits with an optional single fractional
 /// part, no sign and no surrounding space; a bare number or a `px` suffix is a pixel count, `%` a
 /// percentage, and a unit from [`DIMENSION_UNITS`] a physical length.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "html",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "rst",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn parse_dimension(value: &str) -> Option<Dimension> {
     if let Some(number) = value.strip_suffix('%') {
         let magnitude = parse_dimension_number(number)?;
@@ -87,12 +126,23 @@ fn parse_dimension_number(text: &str) -> Option<f64> {
 
 /// Render the CSS value of a percentage dimension: the magnitude with at least one fractional digit
 /// (`50` renders as `50.0`), kept to its shortest round-tripping form otherwise.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "html",
+        feature = "markdown",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn format_percent_dimension(magnitude: f64) -> String {
     format!("{magnitude:?}%")
 }
 
 /// The resolution, in dots per inch, at which a physical image dimension resolves to a pixel count
 /// for the writers that size pictures in whole pixels.
+#[cfg_attr(not(any(feature = "mediawiki", feature = "rtf")), allow(dead_code))]
 pub(crate) const IMAGE_PIXEL_DPI: u32 = 96;
 
 /// The length of one unit in inches, for the units [`parse_dimension`] records in a
@@ -112,6 +162,7 @@ fn unit_inches(unit: &str) -> f64 {
 /// Resolve a dimension to a whole pixel count at [`IMAGE_PIXEL_DPI`], flooring the result: a pixel or
 /// unitless value passes through, a physical or font-relative length scales through its size in
 /// inches, and a percentage — having no absolute pixel size — yields `None`.
+#[cfg_attr(not(feature = "mediawiki"), allow(dead_code))]
 pub(crate) fn dimension_pixels(dimension: &Dimension) -> Option<u64> {
     match dimension {
         Dimension::Pixels(count) => Some(*count),
@@ -127,6 +178,7 @@ pub(crate) fn dimension_pixels(dimension: &Dimension) -> Option<u64> {
 /// Resolve a dimension to a length in inches: a pixel or unitless value through
 /// [`IMAGE_PIXEL_DPI`], a physical or font-relative length through its unit's size in inches, and a
 /// percentage — having no absolute size — to `None`.
+#[cfg_attr(not(feature = "rtf"), allow(dead_code))]
 pub(crate) fn dimension_inches(dimension: &Dimension) -> Option<f64> {
     match dimension {
         #[allow(clippy::cast_precision_loss)]
@@ -138,6 +190,16 @@ pub(crate) fn dimension_inches(dimension: &Dimension) -> Option<f64> {
 
 /// Render the CSS value of a length dimension: the magnitude rounded to five fractional digits with
 /// trailing zeros (and a bare trailing dot) dropped, followed by the unit.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "html",
+        feature = "markdown",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn format_length_dimension(magnitude: f64, unit: &str) -> String {
     let rounded = (magnitude * 100_000.0).round() / 100_000.0;
     let mut number = format!("{rounded:.5}");
@@ -157,6 +219,15 @@ pub(crate) fn format_length_dimension(magnitude: f64, unit: &str) -> String {
 /// with `width`/`height`/`style` removed, then the pixel `width` and `height` attributes last. The
 /// `id` and `class` carry over unchanged. A writer renders the returned [`Attr`] with its own
 /// attribute renderer, so the dimension rule lives here alone.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "html",
+        feature = "markdown"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn normalize_image_attr(attr: &Attr) -> Attr {
     let mut base_style: Option<String> = None;
     let mut style_declarations: Vec<String> = Vec::new();
@@ -233,6 +304,7 @@ fn combine_dimension_style(base: Option<String>, declarations: &[String]) -> Opt
 
 /// Split a CSS length into its leading numeric run (digits, `.`, sign) and the trailing unit. A
 /// value with no unit yields an empty unit; a value with no numeric prefix yields an empty number.
+#[cfg_attr(not(any(feature = "asciidoc", feature = "dokuwiki")), allow(dead_code))]
 pub(crate) fn split_length_unit(raw: &str) -> (&str, &str) {
     let boundary = raw
         .find(|ch: char| !(ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == '+'))

@@ -98,21 +98,21 @@ enum Flavor {
     /// The dialect of an html5 slide deck: identical to [`Flavor::Html5`] except that footnote
     /// links carry the deck's in-page navigation prefix on their fragment targets.
     // Constructed only by the slide writer; absent when its feature is sliced out of the build.
-    #[allow(dead_code)]
+    #[cfg_attr(not(feature = "revealjs"), allow(dead_code))]
     Slides,
     /// The XHTML of an EPUB 3 chapter. Follows [`Flavor::Html5`] but wraps each section in a
     /// `<section>` element (hoisting the heading's identifier onto it), and renders footnotes as
     /// `<aside epub:type="footnote">` collected in an `epub:type="footnotes"` section, with the
     /// reference links carrying `epub:type="noteref"`.
     // Constructed only by the EPUB writer; absent when its feature is sliced out of the build.
-    #[allow(dead_code)]
+    #[cfg_attr(not(feature = "epub"), allow(dead_code))]
     Epub3,
     /// The XHTML 1.1 of an EPUB 2 chapter. Follows [`Flavor::Html4`] for its presentational
     /// element and attribute choices, but drops any attribute XHTML 1.1 does not admit, wraps each
     /// section in `<div class="section">`, and renders footnotes as `<div>` items carrying a
     /// leading back-reference link.
     // Constructed only by the EPUB writer; absent when its feature is sliced out of the build.
-    #[allow(dead_code)]
+    #[cfg_attr(not(feature = "epub"), allow(dead_code))]
     Epub2,
 }
 
@@ -138,12 +138,12 @@ fn fragment_prefix(flavor: Flavor) -> &'static str {
 /// unreflowed fragment carrying the break sentinels; the caller assembles the slide structure around
 /// the fragments and then calls [`fill_slides`] once over the whole document.
 // Used by the slide writer; unreferenced when its feature is sliced out of the build.
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "revealjs"), allow(dead_code))]
 pub(crate) struct SlideRenderer {
     state: State,
 }
 
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "revealjs"), allow(dead_code))]
 impl SlideRenderer {
     #[must_use]
     pub(crate) fn new(highlighting: Highlighting) -> Self {
@@ -223,7 +223,7 @@ impl SlideRenderer {
 /// column, and trim the trailing newlines. Counterpart to the per-frame rendering on
 /// [`SlideRenderer`].
 // Used by the slide writer; unreferenced when its feature is sliced out of the build.
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "revealjs"), allow(dead_code))]
 #[must_use]
 pub(crate) fn fill_slides(assembled: &str, wrap: WrapMode, width: usize) -> String {
     let mut filled = restore(reflow(assembled, wrap, width));
@@ -325,12 +325,18 @@ pub(crate) fn highlighting(_options: &WriterOptions) -> Highlighting {}
 /// A render that colorizes nothing, for a fragment embedded in another format's output.
 // Called only by the fragment entry point, which a feature slice can compile out.
 #[cfg(feature = "highlight")]
-#[allow(dead_code)]
+#[cfg_attr(
+    not(any(feature = "commonmark", feature = "gfm", feature = "markdown")),
+    allow(dead_code)
+)]
 fn no_highlighting() -> Highlighting {
     None
 }
 #[cfg(not(feature = "highlight"))]
-#[allow(dead_code)]
+#[cfg_attr(
+    not(any(feature = "commonmark", feature = "gfm", feature = "markdown")),
+    allow(dead_code)
+)]
 fn no_highlighting() -> Highlighting {}
 
 fn render_with_flavor(
@@ -377,7 +383,7 @@ fn math_output(options: &WriterOptions) -> MathOutput {
 /// Render an inline sequence to a single line of html, with every breakable space emitted as one
 /// ordinary space (no reflow). Exposed for writers that embed inline html in an attribute value.
 // Used by the outline writer; unreferenced when its feature is sliced out of the build.
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "opml"), allow(dead_code))]
 pub(crate) fn render_inline_line(inlines: &[Inline]) -> String {
     let mut state = State::default();
     let mut out = String::new();

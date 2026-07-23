@@ -1,13 +1,26 @@
 //! The row-span grid model and cell/row accessors shared by the table-rendering writers. The grid
-//! model and the row accessors serve two disjoint sets of writers, so which items are live depends
-//! on the enabled features; unused-item warnings are allowed here rather than gated per item.
-#![allow(dead_code)]
+//! model and the row accessors serve two disjoint sets of writers.
 
 use carta_ast::{Block, Inline};
 
 /// One column slot of a laid-out row: the start of a cell, or a column covered by a column or row
 /// span (or a column the row's cells never reached). A consumer renders a covered slot as its own
 /// filler placeholder.
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "dokuwiki",
+        feature = "gfm",
+        feature = "html",
+        feature = "jira",
+        feature = "man",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) enum GridSlot<'cell> {
     Cell(usize, &'cell carta_ast::Cell),
     Covered,
@@ -16,6 +29,21 @@ pub(crate) enum GridSlot<'cell> {
 /// Resolves each table cell's true starting column within one row group, accounting for cells from
 /// earlier rows that still cover columns through their row span. Create one tracker per group of
 /// rows a span can extend over (a table head, a body's own head rows, a body's rows, a foot).
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "dokuwiki",
+        feature = "gfm",
+        feature = "html",
+        feature = "jira",
+        feature = "man",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 #[derive(Debug)]
 pub(crate) struct RowSpanGrid {
     /// The table's declared column count; a cell's column span cannot cover columns past it.
@@ -24,6 +52,21 @@ pub(crate) struct RowSpanGrid {
     pending: Vec<i32>,
 }
 
+#[cfg_attr(
+    not(any(
+        feature = "asciidoc",
+        feature = "commonmark",
+        feature = "dokuwiki",
+        feature = "gfm",
+        feature = "html",
+        feature = "jira",
+        feature = "man",
+        feature = "markdown",
+        feature = "mediawiki",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 impl RowSpanGrid {
     pub(crate) fn new(columns: usize) -> Self {
         Self {
@@ -35,6 +78,17 @@ impl RowSpanGrid {
     /// Place one row's cells: each cell lands on the first column not covered from above and
     /// occupies its column span, and its row span is recorded for the rows that follow. Returns
     /// each cell paired with its starting column.
+    #[cfg_attr(
+        not(any(
+            feature = "asciidoc",
+            feature = "commonmark",
+            feature = "gfm",
+            feature = "html",
+            feature = "markdown",
+            feature = "mediawiki"
+        )),
+        allow(dead_code)
+    )]
     pub(crate) fn place<'cells>(
         &mut self,
         cells: &'cells [carta_ast::Cell],
@@ -105,6 +159,15 @@ impl RowSpanGrid {
 }
 
 /// The inline content of a block, or an empty slice for a block that carries none directly.
+#[cfg_attr(
+    not(any(
+        feature = "gfm",
+        feature = "markdown",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn block_inlines(block: &Block) -> &[Inline] {
     match block {
         Block::Plain(inlines) | Block::Para(inlines) => inlines,
@@ -113,6 +176,15 @@ pub(crate) fn block_inlines(block: &Block) -> &[Inline] {
 }
 
 /// Every row of every body, intermediate head rows included, in document order.
+#[cfg_attr(
+    not(any(
+        feature = "gfm",
+        feature = "markdown",
+        feature = "plain",
+        feature = "rst"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn body_rows(table: &carta_ast::Table) -> Vec<&carta_ast::Row> {
     table
         .bodies

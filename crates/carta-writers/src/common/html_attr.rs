@@ -1,8 +1,5 @@
 //! Markup escaping and HTML attribute rendering. The XML escaper serves any writer that emits markup
-//! metacharacters while the attribute renderers serve the HTML-family writers, so which items are
-//! live depends on the enabled features; unused-item warnings are allowed here rather than gated per
-//! item.
-#![allow(dead_code)]
+//! metacharacters while the attribute renderers serve the HTML-family writers.
 
 use carta_ast::Attr;
 
@@ -10,6 +7,15 @@ use super::clean_prefix_len;
 
 /// Escape the XML/HTML metacharacters `&`, `<`, and `>` to their entities, and additionally `"` when
 /// `escape_quotes` is set (as in an attribute value).
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "mediawiki"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
     let is_trigger =
         |byte: u8| matches!(byte, b'&' | b'<' | b'>') || (escape_quotes && byte == b'"');
@@ -37,6 +43,15 @@ pub(crate) fn escape_xml(text: &str, escape_quotes: bool) -> String {
 }
 
 /// Escape an HTML attribute value: `&`, `<`, `>`, and `"` to their entities.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "mediawiki"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn escape_attr(text: &str) -> String {
     escape_xml(text, true)
 }
@@ -44,6 +59,10 @@ pub(crate) fn escape_attr(text: &str) -> String {
 /// Escape an HTML attribute value where both quote characters are entity-encoded: `&`, `<`, `>`,
 /// and `"` to their named entities and `'` to `&#39;`. Link and image attribute values take this
 /// form; `<div>` and `<span>` wrapper attributes keep the single quote literal via [`escape_attr`].
+#[cfg_attr(
+    not(any(feature = "commonmark", feature = "gfm", feature = "markdown")),
+    allow(dead_code)
+)]
 pub(crate) fn escape_html_attr(text: &str) -> String {
     let is_trigger = |byte: u8| matches!(byte, b'&' | b'<' | b'>' | b'"' | b'\'');
     let mut out = String::with_capacity(text.len());
@@ -72,12 +91,25 @@ pub(crate) fn escape_html_attr(text: &str) -> String {
 
 /// Render an [`Attr`] to an HTML attribute string (a leading space per attribute, empty when blank):
 /// `id`, then `class`, then key/value pairs, with unrecognized keys `data-` prefixed.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "mediawiki"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn render_html_attr(attr: &Attr) -> String {
     render_attr_tokens(attr, escape_attr)
 }
 
 /// As [`render_html_attr`], but entity-encoding both quote characters in each value — the escaping
 /// a link or image tag's attributes take in HTML fragments embedded in text output.
+#[cfg_attr(
+    not(any(feature = "commonmark", feature = "gfm", feature = "markdown")),
+    allow(dead_code)
+)]
 pub(crate) fn render_html_fragment_attr(attr: &Attr) -> String {
     render_attr_tokens(attr, escape_html_attr)
 }
@@ -116,6 +148,16 @@ fn html_attr_tokens(attr: &Attr, escaper: fn(&str) -> String) -> Vec<String> {
 /// Whether an attribute name is emitted verbatim in HTML output. Recognized names, the `data-`/`aria-`
 /// prefixes, and a few namespaced names pass through; any other key/value attribute is `data-`
 /// prefixed by the caller.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "html",
+        feature = "markdown",
+        feature = "mediawiki"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn is_known_attribute(name: &str) -> bool {
     name.starts_with("data-")
         || name.starts_with("aria-")

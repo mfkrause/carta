@@ -74,6 +74,7 @@ pub(crate) fn cell_inlines(cell: &Cell) -> &[Inline] {
 /// the boundary spaces a table cell does not render. Interior spacing is untouched. Non-simple
 /// cells yield an empty slice, as with [`cell_inlines`]. Width and layout math must keep using
 /// [`cell_inlines`]; this variant is for render sites only.
+#[cfg_attr(not(any(feature = "gfm", feature = "markdown")), allow(dead_code))]
 pub(crate) fn trimmed_cell_inlines(cell: &Cell) -> &[Inline] {
     let mut inlines = cell_inlines(cell);
     if let [Inline::Space, rest @ ..] = inlines {
@@ -87,6 +88,7 @@ pub(crate) fn trimmed_cell_inlines(cell: &Cell) -> &[Inline] {
 
 /// How many boundary spaces [`trimmed_cell_inlines`] removes from a cell — the width its column
 /// still reserves for them even though they are not rendered.
+#[cfg_attr(not(any(feature = "gfm", feature = "markdown")), allow(dead_code))]
 pub(crate) fn boundary_space_count(cell: &Cell) -> usize {
     cell_inlines(cell).len() - trimmed_cell_inlines(cell).len()
 }

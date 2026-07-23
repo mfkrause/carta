@@ -1,10 +1,18 @@
-//! List-tightness, block spacing, and ordered-list numerals and delimiters. Consumed by whichever
-//! text writers are enabled, so unused-item warnings are allowed here rather than gated per item.
-#![allow(dead_code)]
+//! List-tightness, block spacing, and ordered-list numerals and delimiters.
 
 use carta_ast::{Block, ListNumberDelim, ListNumberStyle};
 
 /// Whether a list is tight: every item is empty or opens with a [`Block::Plain`].
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "latex",
+        feature = "markdown",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn list_is_tight(items: &[Vec<Block>]) -> bool {
     items
         .iter()
@@ -14,12 +22,31 @@ pub(crate) fn list_is_tight(items: &[Vec<Block>]) -> bool {
 /// Whether a list is loose — at least one item carries a top-level paragraph. A loose list's items
 /// are separated with a blank line and each item's blocks are laid out with blank lines; a tight
 /// list uses single newlines throughout.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn is_loose(items: &[Vec<Block>]) -> bool {
     !list_is_tight(items)
 }
 
 /// The separator between two list items at the given layout density: a blank line when loose, a
 /// single newline when tight.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "org",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn item_separator(loose: bool) -> &'static str {
     if loose { "\n\n" } else { "\n" }
 }
@@ -27,6 +54,15 @@ pub(crate) fn item_separator(loose: bool) -> &'static str {
 /// Join already-rendered blocks with the document's default blank-line spacing, dropping blocks that
 /// produced no output. A [`Block::Plain`] contributes only a single newline (not a blank line)
 /// before the next visible block when an empty block falls between them.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "markdown",
+        feature = "plain"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn join_loose(rendered: Vec<(bool, String)>) -> String {
     let mut out = String::new();
     let mut previous_was_plain: Option<bool> = None;
@@ -53,6 +89,19 @@ pub(crate) fn join_loose(rendered: Vec<(bool, String)>) -> String {
 }
 
 /// Wrap an ordered-list numeral in its delimiter: `n.`, `n)`, or `(n)`.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "latex",
+        feature = "man",
+        feature = "markdown",
+        feature = "plain",
+        feature = "rst",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn wrap_delim(numeral: &str, delim: ListNumberDelim) -> String {
     match delim {
         ListNumberDelim::DefaultDelim | ListNumberDelim::Period => format!("{numeral}."),
@@ -63,6 +112,18 @@ pub(crate) fn wrap_delim(numeral: &str, delim: ListNumberDelim) -> String {
 
 /// The leading marker for an ordered-list item: its number in the list's numeral style, wrapped in
 /// the list's delimiter.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "man",
+        feature = "markdown",
+        feature = "plain",
+        feature = "rst",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn ordered_marker(
     number: i32,
     style: ListNumberStyle,
@@ -73,6 +134,7 @@ pub(crate) fn ordered_marker(
 
 /// Left-align a marker in a field of the given character width by appending spaces. A marker
 /// already at or past the field width is returned unpadded, so no field width can make this fail.
+#[cfg_attr(not(any(feature = "plain", feature = "rst")), allow(dead_code))]
 pub(crate) fn pad_marker(marker: &str, field: usize) -> String {
     let padding = field.saturating_sub(marker.chars().count());
     let mut out = String::with_capacity(marker.len() + padding);
@@ -82,6 +144,19 @@ pub(crate) fn pad_marker(marker: &str, field: usize) -> String {
 }
 
 /// Render a number in a list's numeral style.
+#[cfg_attr(
+    not(any(
+        feature = "commonmark",
+        feature = "gfm",
+        feature = "latex",
+        feature = "man",
+        feature = "markdown",
+        feature = "plain",
+        feature = "rst",
+        feature = "rtf"
+    )),
+    allow(dead_code)
+)]
 pub(crate) fn numeral(number: i32, style: ListNumberStyle) -> String {
     match style {
         ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
