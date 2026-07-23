@@ -18,7 +18,9 @@ use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
-use crate::smart_fold::fold_ellipsis_run;
+use crate::smart_fold::{
+    QuoteCtx, can_close_quote, can_open_quote, fold_dash_run_greedy, fold_ellipsis_run,
+};
 use crate::transliterate::rst_asciify;
 
 /// Parses reStructuredText into the document model.
@@ -2825,7 +2827,7 @@ impl Parser<'_> {
                     }
                     '-' => {
                         let n = run_length(&chars, pos, '-');
-                        pending.push_str(&fold_dashes(n));
+                        pending.push_str(&fold_dash_run_greedy(n));
                         pos += n;
                         continue;
                     }
@@ -2871,7 +2873,7 @@ impl Parser<'_> {
     /// interior recursively into a quotation node. Returns `None` when the quote cannot open a run or
     /// has no closer, leaving the caller to fold it into a lone glyph.
     fn smart_quote(&mut self, chars: &[char], pos: usize, quote: char) -> Option<(Inline, usize)> {
-        if !can_open_quote(chars, pos) {
+        if !can_open_quote(chars, pos, quote, QuoteCtx::default()) {
             return None;
         }
         // A single quote against a preceding letter or digit is a word-internal apostrophe, never the
@@ -4508,18 +4510,6 @@ fn run_length(chars: &[char], pos: usize, ch: char) -> usize {
     n
 }
 
-/// Fold a run of `n` hyphens into em and en dashes: every three become an em dash, a remaining two a
-/// single en dash, a remaining one a hyphen.
-fn fold_dashes(n: usize) -> String {
-    let mut s = "\u{2014}".repeat(n / 3);
-    match n % 3 {
-        2 => s.push('\u{2013}'),
-        1 => s.push('-'),
-        _ => {}
-    }
-    s
-}
-
 /// The quote-node kind for a straight quote character.
 fn quote_type(quote: char) -> QuoteType {
     if quote == '\'' {
@@ -4534,49 +4524,10 @@ fn quote_type(quote: char) -> QuoteType {
 fn quote_glyph(chars: &[char], pos: usize, quote: char) -> char {
     if quote == '\'' {
         '\u{2019}'
-    } else if can_open_quote(chars, pos) {
+    } else if can_open_quote(chars, pos, quote, QuoteCtx::default()) {
         '\u{201c}'
     } else {
         '\u{201d}'
-    }
-}
-
-/// Whether a character counts as punctuation for flanking: ASCII punctuation, or any other
-/// non-alphanumeric, non-whitespace character.
-fn is_punct(c: char) -> bool {
-    c.is_ascii_punctuation() || (!c.is_alphanumeric() && !c.is_whitespace())
-}
-
-fn is_ws_opt(opt: Option<char>) -> bool {
-    opt.is_none_or(char::is_whitespace)
-}
-
-fn is_punct_opt(opt: Option<char>) -> bool {
-    opt.is_some_and(is_punct)
-}
-
-/// Whether the quote at `pos` leans against following content (may open a quoted run).
-fn can_open_quote(chars: &[char], pos: usize) -> bool {
-    let before = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
-    let after = chars.get(pos + 1).copied();
-    !is_ws_opt(after) && (!is_punct_opt(after) || is_ws_opt(before) || is_punct_opt(before))
-}
-
-/// Whether the quote at `pos` leans against preceding content (may close a quoted run). A single
-/// quote may not close against a following alphanumeric, so a word-internal apostrophe never ends a
-/// quotation.
-fn can_close_quote(chars: &[char], pos: usize, quote: char) -> bool {
-    let before = pos.checked_sub(1).and_then(|p| chars.get(p)).copied();
-    let after = chars.get(pos + 1).copied();
-    let right_flanking =
-        !is_ws_opt(before) && (!is_punct_opt(before) || is_ws_opt(after) || is_punct_opt(after));
-    if !right_flanking {
-        return false;
-    }
-    if quote == '\'' {
-        !after.is_some_and(char::is_alphanumeric)
-    } else {
-        true
     }
 }
 

@@ -21,7 +21,7 @@ use super::table::{
 };
 use super::tree::{Element, Node, attr_value, collect_text, serialize_element, style_property};
 use crate::inline_scan::{scan_backslash_math, scan_display_math, scan_inline_math};
-use crate::smart_fold::fold_ellipsis_run;
+use crate::smart_fold::{fold_dash_run_greedy, fold_ellipsis_run};
 
 /// Build inline content from a node tree, with no surrounding block. Used to parse a string of HTML
 /// inline markup into inlines: leading and trailing whitespace is trimmed, matching how inline
@@ -1261,21 +1261,6 @@ fn finalize_run(run: &mut String, result: &mut String, smart: bool) {
     }
 }
 
-/// Fold a run of `n` hyphens left to right: each group of three becomes an em dash (`—`), a final
-/// pair becomes an en dash (`–`), and a single leftover hyphen stays literal.
-fn fold_dashes(n: usize, out: &mut String) {
-    let mut n = n;
-    while n >= 3 {
-        out.push('\u{2014}');
-        n -= 3;
-    }
-    if n == 2 {
-        out.push('\u{2013}');
-    } else if n == 1 {
-        out.push('-');
-    }
-}
-
 /// Fold a literal run's typography: a run of hyphens becomes em and en dashes, and a run of dots
 /// becomes ellipses with up to two trailing dots.
 fn fold_smart_punct(s: &str) -> String {
@@ -1289,7 +1274,7 @@ fn fold_smart_punct(s: &str) -> String {
                     chars.next();
                     n += 1;
                 }
-                fold_dashes(n, &mut out);
+                out.push_str(&fold_dash_run_greedy(n));
             }
             '.' => {
                 let mut n = 0;

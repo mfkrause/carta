@@ -217,28 +217,6 @@ fn is_backslash_math_closer_bytes(text: &str, i: usize, slashes: usize, close: c
         && char_at(text, i + slashes) == Some(close)
 }
 
-/// Fold a run of `len` hyphens (`len >= 2`) into the fewest em (`—`) and en (`–`) dashes that sum to
-/// its length: a multiple of three is all em dashes, an even length is all en dashes, and an odd
-/// length that is not a multiple of three takes one or two en dashes — whichever leaves a multiple of
-/// three — with the rest em dashes.
-///
-/// The HTML reader folds dash runs greedily instead, so this minimal decomposition is `CommonMark`-only.
-#[cfg(feature = "commonmark")]
-pub(crate) fn fold_dash_run(len: usize) -> String {
-    let (em, en) = if len.is_multiple_of(3) {
-        (len / 3, 0)
-    } else if len.is_multiple_of(2) {
-        (0, len / 2)
-    } else {
-        let en = if len % 3 == 1 { 2 } else { 1 };
-        ((len - 2 * en) / 3, en)
-    };
-    let mut out = String::with_capacity((em + en) * 3);
-    out.extend(std::iter::repeat_n('\u{2014}', em));
-    out.extend(std::iter::repeat_n('\u{2013}', en));
-    out
-}
-
 /// Whether `ch` is whitespace for the inline scanners: the spec's literal whitespace set plus any
 /// Unicode whitespace.
 pub(crate) fn is_unicode_whitespace(ch: char) -> bool {

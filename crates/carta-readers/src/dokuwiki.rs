@@ -22,7 +22,10 @@ use carta_core::{Extension, Reader, ReaderOptions, Result};
 use crate::entities;
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
-use crate::smart_fold::fold_ellipsis_run;
+use crate::smart_fold::{
+    QuoteCtx, can_close_quote, can_open_quote, fold_dash_run_greedy, fold_ellipsis_run, is_ws_opt,
+    left_flanking,
+};
 use crate::transliterate::dokuwiki_asciify;
 
 /// The inline-syntax toggles that the scanner threads through every level of parsing.
@@ -43,14 +46,6 @@ enum Closer {
     Delim(char),
     /// A `''…''` monospace run, closed by `''`.
     Mono,
-}
-
-/// Which quote kinds already enclose the current scan. A quote of a kind already open does not open
-/// again; the straight quote folds to its apostrophe or curly glyph instead.
-#[derive(Debug, Clone, Copy, Default)]
-struct QuoteCtx {
-    in_single: bool,
-    in_double: bool,
 }
 
 /// Parses `DokuWiki` markup into the document model.
@@ -1010,7 +1005,7 @@ fn scan(
             }
             '-' if ctx.smart => {
                 let run = run_length(chars, *pos, '-');
-                pending.push_str(&fold_dashes(run));
+                pending.push_str(&fold_dash_run_greedy(run));
                 *pos += run;
             }
             '.' if ctx.smart => {
@@ -1476,18 +1471,6 @@ fn run_length(chars: &[char], pos: usize, ch: char) -> usize {
     n
 }
 
-/// Fold a run of `n` hyphens into em and en dashes: every three become an em dash, a remaining two a
-/// single en dash, a remaining one a hyphen.
-fn fold_dashes(n: usize) -> String {
-    let mut s = "\u{2014}".repeat(n / 3);
-    match n % 3 {
-        2 => s.push('\u{2013}'),
-        1 => s.push('-'),
-        _ => {}
-    }
-    s
-}
-
 // --- flanking ---
 
 /// The character before `pos`, if any.
@@ -1495,62 +1478,9 @@ fn before_char(chars: &[char], pos: usize) -> Option<char> {
     pos.checked_sub(1).and_then(|p| chars.get(p)).copied()
 }
 
-/// Whether an optional character is whitespace, treating a missing character (a boundary) as
-/// whitespace.
-fn is_ws_opt(opt: Option<char>) -> bool {
-    opt.is_none_or(char::is_whitespace)
-}
-
 /// Whether a character slice is empty or all whitespace.
 fn is_blank(chars: &[char]) -> bool {
     chars.iter().all(|c| c.is_whitespace())
-}
-
-/// Whether an optional character is punctuation, treating a missing character as not punctuation.
-fn is_punct_opt(opt: Option<char>) -> bool {
-    opt.is_some_and(is_punct)
-}
-
-/// Whether a character counts as punctuation for flanking: ASCII punctuation, or any other
-/// non-alphanumeric, non-whitespace character.
-fn is_punct(c: char) -> bool {
-    c.is_ascii_punctuation() || (!c.is_alphanumeric() && !c.is_whitespace())
-}
-
-/// Whether the single character at `pos` is left-flanking (it leans against following content).
-fn left_flanking(chars: &[char], pos: usize) -> bool {
-    let before = before_char(chars, pos);
-    let after = chars.get(pos + 1).copied();
-    !is_ws_opt(after) && (!is_punct_opt(after) || is_ws_opt(before) || is_punct_opt(before))
-}
-
-/// Whether the single character at `pos` is right-flanking (it leans against preceding content).
-fn right_flanking(chars: &[char], pos: usize) -> bool {
-    let before = before_char(chars, pos);
-    let after = chars.get(pos + 1).copied();
-    !is_ws_opt(before) && (!is_punct_opt(before) || is_ws_opt(after) || is_punct_opt(after))
-}
-
-/// Whether a straight quote at `pos` may open a quoted run. A quote whose kind already encloses the
-/// position may not open again, so nested same-kind quotation never forms.
-fn can_open_quote(chars: &[char], pos: usize, quote: char, qctx: QuoteCtx) -> bool {
-    if (quote == '\'' && qctx.in_single) || (quote == '"' && qctx.in_double) {
-        return false;
-    }
-    left_flanking(chars, pos)
-}
-
-/// Whether a straight quote at `pos` may close a quoted run. A single quote may not close against a
-/// following alphanumeric, so a word-internal apostrophe never ends a quotation.
-fn can_close_quote(chars: &[char], pos: usize, quote: char) -> bool {
-    if !right_flanking(chars, pos) {
-        return false;
-    }
-    if quote == '\'' {
-        !chars.get(pos + 1).is_some_and(|c| c.is_alphanumeric())
-    } else {
-        true
-    }
 }
 
 /// Whether `pos` sits at a non-alphanumeric boundary (the start of a word for autolink purposes).

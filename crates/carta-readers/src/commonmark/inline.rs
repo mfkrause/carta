@@ -23,8 +23,8 @@ use super::scan::{
 };
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
 use crate::emoji;
-use crate::inline_scan::{fold_dash_run, is_unicode_whitespace};
-use crate::smart_fold::fold_ellipsis_run;
+use crate::inline_scan::is_unicode_whitespace;
+use crate::smart_fold::{fold_dash_run_thirds, fold_ellipsis_run};
 
 /// The empty checkbox emitted for an unchecked task-list item (`- [ ]`).
 const TASK_UNCHECKED: &str = "\u{2610}";
@@ -1739,7 +1739,7 @@ impl<'a> InlineParser<'a> {
             self.push_text('-');
             return;
         }
-        let out = fold_dash_run(len);
+        let out = fold_dash_run_thirds(len);
         self.push_str(&out);
     }
 
@@ -3664,7 +3664,7 @@ fn normalize_code(content: &str, markdown: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, emoji, flanking, fold_dash_run,
+        TASK_CHECKED, TASK_UNCHECKED, delimiter_literal, emoji, flanking, fold_dash_run_thirds,
         fold_ellipsis_run, interesting_chars, match_use_count, parse_meta_inlines, quote_flanking,
         split_header_attr, task_marker_replacement,
     };
@@ -3938,20 +3938,23 @@ mod tests {
         let em = '\u{2014}';
         let en = '\u{2013}';
         // Multiples of three are all em; even lengths are all en.
-        assert_eq!(fold_dash_run(2), en.to_string());
-        assert_eq!(fold_dash_run(3), em.to_string());
-        assert_eq!(fold_dash_run(4), format!("{en}{en}"));
-        assert_eq!(fold_dash_run(6), format!("{em}{em}"));
+        assert_eq!(fold_dash_run_thirds(2), en.to_string());
+        assert_eq!(fold_dash_run_thirds(3), em.to_string());
+        assert_eq!(fold_dash_run_thirds(4), format!("{en}{en}"));
+        assert_eq!(fold_dash_run_thirds(6), format!("{em}{em}"));
         // Odd lengths that are not multiples of three are em-heavy with a one- or two-en tail.
-        assert_eq!(fold_dash_run(5), format!("{em}{en}"));
-        assert_eq!(fold_dash_run(7), format!("{em}{en}{en}"));
-        assert_eq!(fold_dash_run(11), format!("{em}{em}{em}{en}"));
-        assert_eq!(fold_dash_run(13), format!("{em}{em}{em}{en}{en}"));
-        assert_eq!(fold_dash_run(17), format!("{em}{em}{em}{em}{em}{en}"));
+        assert_eq!(fold_dash_run_thirds(5), format!("{em}{en}"));
+        assert_eq!(fold_dash_run_thirds(7), format!("{em}{en}{en}"));
+        assert_eq!(fold_dash_run_thirds(11), format!("{em}{em}{em}{en}"));
+        assert_eq!(fold_dash_run_thirds(13), format!("{em}{em}{em}{en}{en}"));
+        assert_eq!(
+            fold_dash_run_thirds(17),
+            format!("{em}{em}{em}{em}{em}{en}")
+        );
         // Each em dash accounts for three hyphens and each en dash for two, so the widths sum back to
         // the original run length with no hyphens left over.
         for len in 2..=40 {
-            let folded = fold_dash_run(len);
+            let folded = fold_dash_run_thirds(len);
             let width: usize = folded.chars().map(|c| if c == em { 3 } else { 2 }).sum();
             assert_eq!(width, len, "len={len} folded={folded}");
         }

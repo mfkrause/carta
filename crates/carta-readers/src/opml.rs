@@ -19,7 +19,7 @@ use carta_core::{Reader, ReaderOptions, Result, presets};
 
 use crate::commonmark::CommonmarkReader;
 use crate::html::parse_inline_fragment;
-use crate::smart_fold::fold_ellipsis_run;
+use crate::smart_fold::{fold_dash_run_greedy, fold_ellipsis_run};
 
 /// Parses an outline document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -519,7 +519,7 @@ fn fold_text(text: &str) -> String {
                     chars.next();
                     len += 1;
                 }
-                out.push_str(&fold_dash_run(len));
+                out.push_str(&fold_dash_run_greedy(len));
             }
             '.' => {
                 let mut len = 1;
@@ -566,24 +566,6 @@ fn smart_code(text: &str) -> String {
             }),
         }
     }
-    out
-}
-
-/// Fold a run of `len` hyphens into em (`—`) and en (`–`) dashes, greedily preferring em dashes:
-/// the run is built from as many em dashes as fit, then the remainder closes it. A remainder of
-/// two is one en dash, a remainder of one is a single literal hyphen, and a remainder of zero
-/// leaves the em dashes alone. So `--` is one en dash, `---` one em dash, `----` an em dash plus a
-/// hyphen, and `-----` an em dash plus an en dash.
-fn fold_dash_run(len: usize) -> String {
-    let (em, remainder) = match len % 3 {
-        // A remainder of one borrows nothing: the run is `len / 3` em dashes then a lone hyphen.
-        1 => (len / 3, "-"),
-        2 => (len / 3, "\u{2013}"),
-        _ => (len / 3, ""),
-    };
-    let mut out = String::with_capacity(em * 3 + remainder.len());
-    out.extend(std::iter::repeat_n('\u{2014}', em));
-    out.push_str(remainder);
     out
 }
 
@@ -1238,13 +1220,13 @@ mod tests {
 
     #[test]
     fn dash_runs_fold_greedily_to_em_dashes() {
-        assert_eq!(fold_dash_run(1), "-");
-        assert_eq!(fold_dash_run(2), "\u{2013}");
-        assert_eq!(fold_dash_run(3), "\u{2014}");
-        assert_eq!(fold_dash_run(4), "\u{2014}-");
-        assert_eq!(fold_dash_run(5), "\u{2014}\u{2013}");
-        assert_eq!(fold_dash_run(6), "\u{2014}\u{2014}");
-        assert_eq!(fold_dash_run(7), "\u{2014}\u{2014}-");
+        assert_eq!(fold_dash_run_greedy(1), "-");
+        assert_eq!(fold_dash_run_greedy(2), "\u{2013}");
+        assert_eq!(fold_dash_run_greedy(3), "\u{2014}");
+        assert_eq!(fold_dash_run_greedy(4), "\u{2014}-");
+        assert_eq!(fold_dash_run_greedy(5), "\u{2014}\u{2013}");
+        assert_eq!(fold_dash_run_greedy(6), "\u{2014}\u{2014}");
+        assert_eq!(fold_dash_run_greedy(7), "\u{2014}\u{2014}-");
     }
 
     #[test]
