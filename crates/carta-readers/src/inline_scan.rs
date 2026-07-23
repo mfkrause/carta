@@ -1,12 +1,13 @@
-//! Inline scanners and folds shared by the `CommonMark` and HTML readers.
+//! Inline scanners and scan bounds shared across readers.
 //!
 //! These are stateless scanning utilities: each takes the source as a `&[char]` or `&str` and a
-//! cursor position (or a length), so both readers can drive them from their own inline machinery
-//! without coupling to either parser's state. The `CommonMark` reader works over byte offsets into a
+//! cursor position (or a length), so readers can drive them from their own inline machinery
+//! without coupling to any parser's state. The `CommonMark` reader works over byte offsets into a
 //! `&str` (the `_bytes` variants) while the HTML reader works over a `&[char]`. The TeX-math scanners
-//! recognize the same delimiter shapes the readers gate behind their math extensions; the
-//! dash fold backs the `smart` typography.
+//! recognize the same delimiter shapes the readers gate behind their math extensions; the shared
+//! step budget bounds the forward scans of the emphasis-resolving readers.
 
+#[cfg(any(feature = "commonmark", feature = "html"))]
 use carta_ast::MathType;
 
 /// Scan inline math `$…$` starting at the opening `$` (at `pos`). Returns the content and the index
@@ -227,6 +228,7 @@ pub(crate) fn scan_budget(span_len: usize) -> usize {
 
 /// Whether `ch` is whitespace for the inline scanners: the spec's literal whitespace set plus any
 /// Unicode whitespace.
+#[cfg(any(feature = "commonmark", feature = "html"))]
 pub(crate) fn is_unicode_whitespace(ch: char) -> bool {
     ch == ' '
         || ch == '\t'
