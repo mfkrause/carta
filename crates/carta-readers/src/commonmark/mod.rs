@@ -14,7 +14,7 @@ mod grid;
 mod html_block;
 mod identifiers;
 mod inline;
-mod scan;
+pub(crate) mod scan;
 mod table;
 mod texttable;
 mod yaml;

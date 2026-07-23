@@ -26,6 +26,7 @@ use crate::smart_fold::{
     QuoteCtx, can_close_quote, can_open_quote, fold_dash_run_greedy, fold_ellipsis_run, is_ws_opt,
     left_flanking,
 };
+use crate::tabs::expand_tabs;
 use crate::transliterate::dokuwiki_asciify;
 
 /// The inline-syntax toggles that the scanner threads through every level of parsing.
@@ -106,26 +107,6 @@ fn leading_spaces(line: &str) -> usize {
 
 /// The width of one tab stop, in columns. A tab advances to the next multiple of this width.
 const TAB_STOP: usize = 4;
-
-/// Expand every tab in `line` to spaces, advancing to the next tab stop. Each non-tab character
-/// counts as one column.
-fn expand_tabs(line: &str) -> String {
-    let mut out = String::new();
-    let mut col = 0;
-    for c in line.chars() {
-        if c == '\t' {
-            let next = (col / TAB_STOP + 1) * TAB_STOP;
-            for _ in col..next {
-                out.push(' ');
-            }
-            col = next;
-        } else {
-            out.push(c);
-            col += 1;
-        }
-    }
-    out
-}
 
 /// The column at which a line's first non-whitespace character sits, counting a tab as the width to
 /// the next tab stop.
@@ -509,7 +490,7 @@ fn parse_indented_code(lines: &[&str], index: &mut usize) -> Block {
         if !is_indented_code(line) {
             break;
         }
-        let expanded = expand_tabs(line);
+        let expanded = expand_tabs(line, TAB_STOP);
         let body = expanded.get(2..).unwrap_or("");
         out.push_str(body);
         out.push('\n');

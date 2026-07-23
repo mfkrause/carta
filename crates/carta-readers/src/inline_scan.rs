@@ -112,11 +112,8 @@ fn is_backslash_math_closer(chars: &[char], i: usize, slashes: usize, close: cha
     (0..slashes).all(|k| chars.get(i + k) == Some(&'\\')) && chars.get(i + slashes) == Some(&close)
 }
 
-/// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
 #[cfg(feature = "commonmark")]
-fn char_at(text: &str, at: usize) -> Option<char> {
-    text.get(at..).and_then(|rest| rest.chars().next())
-}
+use crate::commonmark::scan::char_at;
 
 /// The character ending just before byte offset `at`, or `None` at the start of `text`.
 #[cfg(feature = "commonmark")]

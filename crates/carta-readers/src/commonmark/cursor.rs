@@ -9,6 +9,7 @@
 use carta_ast::{ListNumberDelim, ListNumberStyle};
 
 use super::{TAB_STOP, scan};
+use crate::roman::roman_value_strict;
 
 /// A parsed fenced-code opener: its marker byte, the run length, the opener's indentation, and the
 /// trimmed (and unescaped) info string.
@@ -710,7 +711,7 @@ fn parse_enum_body(bytes: &[u8], start: usize) -> Option<(ListNumberStyle, i32, 
         return Some((style, alpha_value(first), 1));
     }
     // A multi-letter enumerator is only valid as a roman numeral.
-    let value = roman_value(bytes.get(start..start + len)?)?;
+    let value = roman_value_strict(bytes.get(start..start + len)?)?;
     let style = if upper {
         ListNumberStyle::UpperRoman
     } else {
@@ -722,71 +723,6 @@ fn parse_enum_body(bytes: &[u8], start: usize) -> Option<(ListNumberStyle, i32, 
 /// Alphabetic enumerator value: `a`/`A` → 1 … `z`/`Z` → 26.
 fn alpha_value(byte: u8) -> i32 {
     i32::from(byte.to_ascii_lowercase() - b'a') + 1
-}
-
-/// Value of a roman numeral in well-formed place order, or `None` if the run is not a valid numeral.
-///
-/// The numeral is read place by place — thousands, hundreds, tens, ones — and the whole run must be
-/// consumed. Thousands repeat without bound; each lower place takes its subtractive pair (`CM`/`CD`,
-/// `XC`/`XL`, `IX`/`IV`), an optional half-digit (`D`/`L`/`V`), and up to four repeats of its unit
-/// digit. Ill-formed runs — a repeated half-digit (`VV`), an out-of-order digit (`IIX`), or an
-/// invalid subtraction (`IL`) — are rejected.
-fn roman_value(run: &[u8]) -> Option<i32> {
-    let lower: Vec<u8> = run.iter().map(u8::to_ascii_lowercase).collect();
-    let mut pos = 0usize;
-    let mut total: i32 = 0;
-
-    // Thousands: any number of `m`.
-    while lower.get(pos) == Some(&b'm') {
-        total = total.checked_add(1000)?;
-        pos += 1;
-    }
-    total += take_roman_place(&lower, &mut pos, b'c', b'd', b'm', 100);
-    total += take_roman_place(&lower, &mut pos, b'x', b'l', b'c', 10);
-    total += take_roman_place(&lower, &mut pos, b'i', b'v', b'x', 1);
-
-    if pos != lower.len() || total == 0 {
-        return None;
-    }
-    Some(total)
-}
-
-/// Read one place of a roman numeral. `unit` is the place's digit (value `unit_value`), `half` is the
-/// digit worth five units, and `next` is the digit worth ten units (used by the subtractive forms).
-/// Consumes the subtractive pair (`unit`+`next` → nine, `unit`+`half` → four), then an optional half
-/// digit, then up to four unit digits, and returns the place's value. A digit that does not belong to
-/// this place is left for the next place; an ill-formed run is rejected by [`roman_value`], which
-/// requires every byte to be consumed.
-fn take_roman_place(
-    digits: &[u8],
-    pos: &mut usize,
-    unit: u8,
-    half: u8,
-    next: u8,
-    unit_value: i32,
-) -> i32 {
-    if digits.get(*pos) == Some(&unit) {
-        if digits.get(*pos + 1) == Some(&next) {
-            *pos += 2;
-            return unit_value * 9;
-        }
-        if digits.get(*pos + 1) == Some(&half) {
-            *pos += 2;
-            return unit_value * 4;
-        }
-    }
-    let mut value = 0;
-    if digits.get(*pos) == Some(&half) {
-        value += unit_value * 5;
-        *pos += 1;
-    }
-    let mut repeats = 0;
-    while digits.get(*pos) == Some(&unit) && repeats < 4 {
-        value += unit_value;
-        *pos += 1;
-        repeats += 1;
-    }
-    value
 }
 
 /// Whether at least two columns of whitespace begin at `idx` — two spaces, or a single tab.
@@ -807,22 +743,4 @@ fn rest_is_blank(bytes: &[u8], start: usize) -> bool {
         .flatten()
         .take_while(|byte| **byte != b'\n')
         .all(|byte| matches!(byte, b' ' | b'\t'))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn roman_value_reads_thousands() {
-        assert_eq!(roman_value(b"mm"), Some(2000));
-    }
-
-    // A roman run long enough to overflow the thousands accumulator is not a valid enumerator: the
-    // checked add yields `None` rather than panicking under overflow checks.
-    #[test]
-    fn roman_value_rejects_oversized_run() {
-        let run = vec![b'm'; 3_000_000];
-        assert_eq!(roman_value(&run), None);
-    }
 }

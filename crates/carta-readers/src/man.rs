@@ -22,6 +22,7 @@ use carta_core::{Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::{trim_inline_ends, words_to_inlines};
+use crate::roman::roman_value_loose_forward;
 use crate::transliterate::fold_to_ascii;
 
 /// A table of named strings: the predefined groff strings plus any defined with `.ds`, looked up by
@@ -1108,7 +1109,7 @@ fn enumerator_body(body: &str, delim: ListNumberDelim) -> Option<ListAttributes>
             delim,
         });
     }
-    if let Some(start) = roman_value(body) {
+    if let Some(start) = roman_value_loose_forward(body) {
         let style = if body.chars().next().is_some_and(char::is_uppercase) {
             ListNumberStyle::UpperRoman
         } else {
@@ -1137,31 +1138,6 @@ fn enumerator_body(body: &str, delim: ListNumberDelim) -> Option<ListAttributes>
         });
     }
     None
-}
-
-/// The value of a roman numeral, or `None` if the string is not a well-formed roman numeral.
-fn roman_value(text: &str) -> Option<i32> {
-    fn digit(c: char) -> Option<i32> {
-        match c.to_ascii_lowercase() {
-            'i' => Some(1),
-            'v' => Some(5),
-            'x' => Some(10),
-            'l' => Some(50),
-            'c' => Some(100),
-            'd' => Some(500),
-            'm' => Some(1000),
-            _ => None,
-        }
-    }
-    let values: Vec<i32> = text.chars().map(digit).collect::<Option<Vec<_>>>()?;
-    let mut total = 0;
-    for (index, &value) in values.iter().enumerate() {
-        match values.get(index + 1) {
-            Some(&next) if value < next => total -= value,
-            _ => total += value,
-        }
-    }
-    (total > 0).then_some(total)
 }
 
 /// The accumulating list of the current kind. Consecutive same-kind items append to it; a

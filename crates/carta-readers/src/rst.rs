@@ -18,9 +18,11 @@ use carta_core::{Extension, Extensions, Reader, ReaderOptions, Result};
 
 use crate::heading_ids::{IdRegistry, IdScheme};
 use crate::inline_text::trim_inline_ends;
+use crate::roman::roman_value_loose_reverse;
 use crate::smart_fold::{
     QuoteCtx, can_close_quote, can_open_quote, fold_dash_run_greedy, fold_ellipsis_run,
 };
+use crate::tabs::expand_tabs;
 use crate::transliterate::rst_asciify;
 
 /// Parses reStructuredText into the document model.
@@ -136,26 +138,8 @@ fn preprocess(input: &str) -> Vec<String> {
         .replace("\r\n", "\n")
         .replace('\r', "\n")
         .split('\n')
-        .map(|line| expand_tabs(line).trim_end().to_string())
+        .map(|line| expand_tabs(line, TAB_STOP).trim_end().to_string())
         .collect()
-}
-
-fn expand_tabs(line: &str) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut col = 0;
-    for ch in line.chars() {
-        if ch == '\t' {
-            let next = (col / TAB_STOP + 1) * TAB_STOP;
-            while col < next {
-                out.push(' ');
-                col += 1;
-            }
-        } else {
-            out.push(ch);
-            col += 1;
-        }
-    }
-    out
 }
 
 fn is_blank(line: &str) -> bool {
@@ -226,30 +210,6 @@ fn bullet_content_col(line: &str) -> Option<usize> {
         Some(' ') => Some(2 + chars.take_while(|c| *c == ' ').count()),
         Some(_) => None,
     }
-}
-
-fn roman_value(text: &str) -> Option<i32> {
-    let mut total = 0;
-    let mut prev = 0;
-    for ch in text.chars().rev() {
-        let value = match ch.to_ascii_lowercase() {
-            'i' => 1,
-            'v' => 5,
-            'x' => 10,
-            'l' => 50,
-            'c' => 100,
-            'd' => 500,
-            'm' => 1000,
-            _ => return None,
-        };
-        if value < prev {
-            total -= value;
-        } else {
-            total += value;
-            prev = value;
-        }
-    }
-    if total > 0 { Some(total) } else { None }
 }
 
 /// The parsed leading marker of an enumerated list item: its start value, numeral style, delimiter,
@@ -336,7 +296,7 @@ fn classify_numeral(numeral: &str) -> Option<(ListNumberStyle, i32)> {
         };
         return Some((style, ordinal));
     }
-    if let Some(value) = roman_value(numeral) {
+    if let Some(value) = roman_value_loose_reverse(numeral) {
         let style = if numeral.chars().all(|c| c.is_ascii_uppercase()) {
             ListNumberStyle::UpperRoman
         } else {

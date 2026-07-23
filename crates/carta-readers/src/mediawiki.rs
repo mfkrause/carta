@@ -1444,6 +1444,9 @@ impl Parser {
 /// Expands tab characters to spaces on a four-column grid, with the column resetting at each line
 /// break. Wikitext markup is column-sensitive — a leading space marks preformatted text — so tabs
 /// are normalized before any block scanning runs.
+///
+/// A deliberate variant of [`crate::tabs::expand_tabs`]: it runs over the whole input at once
+/// (resetting the column at line breaks) rather than line by line.
 fn expand_tabs(input: &str) -> String {
     if !input.contains('\t') {
         return input.to_string();

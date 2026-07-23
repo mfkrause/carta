@@ -36,6 +36,8 @@ mod inline_text;
 mod mathml;
 #[cfg(any(feature = "ipynb", feature = "rtf"))]
 mod numeric;
+#[cfg(any(feature = "commonmark", feature = "man", feature = "rst"))]
+mod roman;
 #[cfg(any(
     feature = "commonmark",
     feature = "html",
@@ -44,6 +46,8 @@ mod numeric;
     feature = "opml"
 ))]
 mod smart_fold;
+#[cfg(any(feature = "dokuwiki", feature = "rst"))]
+mod tabs;
 #[cfg(any(
     feature = "man",
     feature = "org",
@@ -57,6 +61,8 @@ mod transliterate;
 mod url_schemes;
 #[cfg(any(feature = "docx", feature = "epub", feature = "odt"))]
 mod xml;
+#[cfg(any(feature = "docx", feature = "epub", feature = "odt", feature = "opml"))]
+mod xml_entities;
 
 #[cfg(feature = "commonmark")]
 pub mod commonmark;

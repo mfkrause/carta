@@ -18,7 +18,7 @@ use super::attr;
 use super::block::is_format_name_char;
 use super::identifiers::HeaderNumbering;
 use super::scan::{
-    escape_uri, is_ascii_punctuation, normalize_label, scan_autolink, scan_entity,
+    char_at, escape_uri, is_ascii_punctuation, normalize_label, scan_autolink, scan_entity,
     scan_following_label, scan_html_tag, scan_inline_target, unescape_string,
 };
 use super::{ExampleMap, FootnoteDefs, IrBlock, LinkDef, RefMap, para, plain};
@@ -792,11 +792,6 @@ fn resolve_inline_nodes(mut nodes: Vec<Node>, ext: Extensions, markdown: bool) -
     }
     process_emphasis(&mut nodes, 0, ext, markdown);
     collapse(nodes)
-}
-
-/// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
-fn char_at(text: &str, at: usize) -> Option<char> {
-    text.get(at..).and_then(|rest| rest.chars().next())
 }
 
 /// The character ending just before byte offset `at`, or `None` at the start of `text`.

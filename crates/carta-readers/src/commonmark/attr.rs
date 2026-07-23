@@ -7,6 +7,8 @@
 
 use carta_ast::Attr;
 
+use super::scan::char_at;
+
 /// Which identifier survives when an attribute block carries more than one `#id` token.
 #[derive(Clone, Copy)]
 pub(crate) enum IdPolicy {
@@ -14,11 +16,6 @@ pub(crate) enum IdPolicy {
     First,
     /// Keep the last identifier, overriding earlier ones (headers, code, spans, links).
     Last,
-}
-
-/// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
-fn char_at(text: &str, at: usize) -> Option<char> {
-    text.get(at..).and_then(|rest| rest.chars().next())
 }
 
 /// Parse an attribute block at the start of `s`, which must begin with `{`. Returns the parsed

@@ -20,6 +20,7 @@ use carta_core::{Reader, ReaderOptions, Result, presets};
 use crate::commonmark::CommonmarkReader;
 use crate::html::parse_inline_fragment;
 use crate::smart_fold::{fold_dash_run_greedy, fold_ellipsis_run};
+use crate::xml_entities::decode_entities;
 
 /// Parses an outline document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -417,56 +418,6 @@ fn skip_until(chars: &[char], pos: &mut usize, marker: &str) {
             return;
         }
         *pos += 1;
-    }
-}
-
-/// Decode the XML entity references the format uses: the five named entities and numeric character
-/// references in decimal and hexadecimal. An unrecognized or malformed reference is left verbatim.
-fn decode_entities(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let chars: Vec<char> = text.chars().collect();
-    let mut pos = 0;
-    while let Some(&ch) = chars.get(pos) {
-        if ch != '&' {
-            out.push(ch);
-            pos += 1;
-            continue;
-        }
-        let Some(end) = (pos + 1..chars.len()).find(|&index| chars.get(index) == Some(&';')) else {
-            out.push('&');
-            pos += 1;
-            continue;
-        };
-        let body: String = chars.get(pos + 1..end).unwrap_or_default().iter().collect();
-        if let Some(decoded) = decode_reference(&body) {
-            out.push_str(&decoded);
-            pos = end + 1;
-        } else {
-            out.push('&');
-            pos += 1;
-        }
-    }
-    out
-}
-
-fn decode_reference(body: &str) -> Option<String> {
-    match body {
-        "amp" => Some("&".to_owned()),
-        "lt" => Some("<".to_owned()),
-        "gt" => Some(">".to_owned()),
-        "quot" => Some("\"".to_owned()),
-        "apos" => Some("'".to_owned()),
-        _ => {
-            let code =
-                if let Some(hex) = body.strip_prefix("#x").or_else(|| body.strip_prefix("#X")) {
-                    u32::from_str_radix(hex, 16).ok()?
-                } else if let Some(dec) = body.strip_prefix('#') {
-                    dec.parse().ok()?
-                } else {
-                    return None;
-                };
-            char::from_u32(code).map(|ch| ch.to_string())
-        }
     }
 }
 

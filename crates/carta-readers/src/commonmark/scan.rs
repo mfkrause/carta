@@ -77,7 +77,7 @@ pub(crate) fn is_ascii_punctuation(ch: char) -> bool {
 }
 
 /// The character beginning at byte offset `at`, or `None` at or past the end of `text`.
-fn char_at(text: &str, at: usize) -> Option<char> {
+pub(crate) fn char_at(text: &str, at: usize) -> Option<char> {
     text.get(at..).and_then(|rest| rest.chars().next())
 }
 
