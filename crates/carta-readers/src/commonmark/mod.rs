@@ -9,11 +9,15 @@ mod attr;
 mod autolink;
 mod block;
 mod cursor;
+mod emphasis;
 mod frontmatter;
 mod grid;
 mod html_block;
+mod html_element;
 mod identifiers;
 mod inline;
+mod postprocess;
+mod resolve;
 pub(crate) mod scan;
 mod table;
 mod texttable;
@@ -43,7 +47,7 @@ impl Reader for CommonmarkReader {
         let frontmatter::FrontMatter { meta, body } = frontmatter::extract(&normalized, options)?;
         let source = body.as_deref().unwrap_or(&normalized);
         let (ir, refs, footnotes, examples) = block::parse(source, ext, options.greedy_paragraphs);
-        let blocks = inline::resolve_document(
+        let blocks = resolve::resolve_document(
             &ir,
             refs,
             &footnotes,
@@ -146,7 +150,7 @@ pub(crate) fn parse_meta_blocks(
 ) -> Vec<Block> {
     let normalized = normalize(text);
     let (ir, refs, footnotes, examples) = block::parse(&normalized, extensions, greedy_paragraphs);
-    inline::resolve_document(
+    resolve::resolve_document(
         &ir,
         refs,
         &footnotes,
@@ -172,9 +176,9 @@ pub(crate) fn parse_table_cell(
     let (mut ir, refs, footnotes, examples) =
         block::parse(&normalized, extensions, greedy_paragraphs);
     if tight {
-        block::demote_loose_paragraphs(&mut ir);
+        postprocess::demote_loose_paragraphs(&mut ir);
     }
-    inline::resolve_document(
+    resolve::resolve_document(
         &ir,
         refs,
         &footnotes,
