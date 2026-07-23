@@ -7,6 +7,7 @@ extend-exclude = [
   "crates/carta-readers/data/entities.json",
   "crates/carta-writers/data/entities.json",
   "crates/carta-highlight/data/syntax/",
+  "crates/carta-highlight/data/syntax-copyleft/",
   "crates/carta-highlight/data/styles/",
   "vendor/",
   "corpus/ast/",

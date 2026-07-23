@@ -103,16 +103,6 @@ You can select formats at compile time via per-direction features to shrink the 
 cargo build -p carta --no-default-features --features read-commonmark,write-html
 ```
 
-### Syntax-highlighting grammars
-
-carta highlights code blocks using KDE-format syntax definitions. The permissively licensed definitions (Rust, Swift, TypeScript, Markdown, and others) are compiled into the binary. The rest of the catalog (C, Python, JavaScript, Bash, JSON, and more) carries copyleft or unspecified upstream licenses, so it is not compiled in; it ships with the [release archives][latest-release] as a `syntax/` directory that carta discovers automatically next to the executable. You can also place definitions in your data directory (`~/.local/share/carta/syntax`), point `$CARTA_SYNTAX_DIR` at a directory (an empty value disables directory loading), or pass individual files with `--syntax-definition`.
-
-When building from source, either copy `crates/carta-highlight/data/syntax-copyleft/` to one of those locations, or embed the full catalog with the default-off `embed-copyleft-grammars` feature. A binary built this way bundles copyleft-licensed data:
-
-```sh
-cargo build -p carta --release --features embed-copyleft-grammars
-```
-
 ## Development
 
 ```sh

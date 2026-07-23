@@ -22,7 +22,7 @@ fn default_extensions(base: &str) -> Extensions {
         // Both default to `smart`; Typst also recognizes `[@key]` citations by default.
         "typst" => Extensions::from_list(&[Extension::Smart, Extension::Citations]),
         "dokuwiki" => Extensions::from_list(&[Extension::Smart]),
-        // LaTeX family also assigns header ids and expands user macros by default; both `-` togglable.
+        // LaTeX family also assigns header ids and expands user macros by default; both `-` toggleable.
         "latex" | "beamer" => Extensions::from_list(&[
             Extension::Smart,
             Extension::AutoIdentifiers,

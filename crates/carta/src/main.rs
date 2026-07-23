@@ -6,7 +6,6 @@
 //! only handles argument parsing, metadata/variable inputs, and stdin/file I/O.
 
 use std::collections::BTreeMap;
-use std::env;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -802,7 +801,7 @@ fn add_syntax_definition(
 /// executable, the layout the release archives ship the separately licensed grammar pack in.
 #[cfg(feature = "highlight")]
 fn syntax_directories(data_dir: Option<&Path>) -> Vec<PathBuf> {
-    if let Some(configured) = env::var_os("CARTA_SYNTAX_DIR") {
+    if let Some(configured) = std::env::var_os("CARTA_SYNTAX_DIR") {
         if configured.is_empty() {
             return Vec::new();
         }
@@ -814,7 +813,7 @@ fn syntax_directories(data_dir: Option<&Path>) -> Vec<PathBuf> {
     {
         directories.push(in_data_dir);
     }
-    if let Some(beside_executable) = env::current_exe()
+    if let Some(beside_executable) = std::env::current_exe()
         .ok()
         .and_then(|exe| Some(exe.parent()?.join("syntax")))
         && beside_executable.is_dir()
