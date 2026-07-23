@@ -122,4 +122,4 @@ Licensed under either of
 
 at your option.
 
-The syntax-highlighting grammar files under are third-party works that retain their own upstream licenses; see [`vendor/syntax-highlighting/ATTRIBUTION.md`](vendor/syntax-highlighting/ATTRIBUTION.md). Only permissively licensed grammars are compiled into carta. The remaining grammars (copyleft or unspecified licenses) ship through an optional feature.
+The syntax-highlighting grammar files are third-party works that retain their own upstream licenses; see [`vendor/syntax-highlighting/ATTRIBUTION.md`](vendor/syntax-highlighting/ATTRIBUTION.md). Only permissively licensed grammars are compiled into carta. The remaining grammars (copyleft or unspecified licenses) ship through an optional feature.
