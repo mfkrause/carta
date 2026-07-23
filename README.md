@@ -9,7 +9,7 @@
 [![crates.io](https://img.shields.io/crates/v/carta.svg)](https://crates.io/crates/carta)
 [![docs.rs](https://img.shields.io/docsrs/carta)](https://docs.rs/carta)
 [![CI](https://github.com/mfkrause/carta/actions/workflows/ci.yml/badge.svg)](https://github.com/mfkrause/carta/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 ![MSRV](https://img.shields.io/badge/MSRV-1.93-orange.svg)
 
 </div>
@@ -103,6 +103,16 @@ You can select formats at compile time via per-direction features to shrink the 
 cargo build -p carta --no-default-features --features read-commonmark,write-html
 ```
 
+### Syntax-highlighting grammars
+
+carta highlights code blocks using KDE-format syntax definitions. The permissively licensed definitions (Rust, Swift, TypeScript, Markdown, and others) are compiled into the binary. The rest of the catalog (C, Python, JavaScript, Bash, JSON, and more) carries copyleft or unspecified upstream licenses, so it is not compiled in; it ships with the [release archives][latest-release] as a `syntax/` directory that carta discovers automatically next to the executable. You can also place definitions in your data directory (`~/.local/share/carta/syntax`), point `$CARTA_SYNTAX_DIR` at a directory (an empty value disables directory loading), or pass individual files with `--syntax-definition`.
+
+When building from source, either copy `crates/carta-highlight/data/syntax-copyleft/` to one of those locations, or embed the full catalog with the default-off `embed-copyleft-grammars` feature. A binary built this way bundles copyleft-licensed data:
+
+```sh
+cargo build -p carta --release --features embed-copyleft-grammars
+```
+
 ## Development
 
 ```sh
@@ -115,4 +125,15 @@ cargo clippy --all-targets          # lint
 
 Copyright © 2026 Maximilian Krause.
 
-carta is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License, version 3, as published by the Free Software Foundation. See [`LICENSE`](LICENSE) for the full text.
+Licensed under either of
+
+- Apache License, Version 2.0 ([`LICENSE-APACHE`](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([`LICENSE-MIT`](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+The syntax-highlighting grammar files under `crates/carta-highlight/data/` are third-party works that retain their own upstream licenses; see [`vendor/syntax-highlighting/ATTRIBUTION.md`](vendor/syntax-highlighting/ATTRIBUTION.md) for the per-file breakdown. Only the permissively licensed grammars are compiled into carta, so the built artifacts are covered by the license above in full. The remaining grammars (copyleft or unspecified licenses) ship as a separate runtime-loaded pack; see [Syntax-highlighting grammars](#syntax-highlighting-grammars).
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

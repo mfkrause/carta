@@ -44,12 +44,18 @@ jobs:
       - name: Install musl tools
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Stage syntax grammar pack
+        shell: bash
+        run: |
+          mkdir syntax
+          cp crates/carta-highlight/data/syntax-copyleft/*.xml syntax/
+          cp crates/carta-highlight/data/syntax-copyleft/README.md syntax/
       - name: Build and upload carta
         uses: taiki-e/upload-rust-binary-action@f0d45ae91ee7b8ee928de7a9d04d893a08bcbec6 # v1.30.2
         with:
           bin: carta
           target: ${{ matrix.target }}
           archive: $bin-$target
-          include: LICENSE,README.md
+          include: LICENSE-MIT,LICENSE-APACHE,README.md,syntax
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}

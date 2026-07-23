@@ -17,6 +17,9 @@ publish.workspace = true
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[features]
+embed-copyleft-grammars = []
+
 [lints]
 workspace = true
 

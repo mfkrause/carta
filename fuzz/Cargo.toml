@@ -13,7 +13,7 @@ carta-ast = { path = "../crates/carta-ast", features = ["arbitrary"] }
 carta-core = { path = "../crates/carta-core" }
 carta-readers = { path = "../crates/carta-readers" }
 carta-writers = { path = "../crates/carta-writers" }
-carta-highlight = { path = "../crates/carta-highlight" }
+carta-highlight = { path = "../crates/carta-highlight", features = ["embed-copyleft-grammars"] }
 
 # One target per reader (plus `highlight` for the tokenizer): untrusted bytes must never panic.
 [[bin]]

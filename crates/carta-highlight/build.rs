@@ -1,9 +1,14 @@
 //! Compresses the bundled syntax definitions into `OUT_DIR` and generates an index over them.
 //!
-//! Each `data/syntax/*.xml` file is deflate-compressed to keep the binary small; the raw XML is
+//! Each embedded `.xml` file is deflate-compressed to keep the binary small; the raw XML is
 //! decompressed and parsed lazily, the first time a language is used. The generated `bundled.rs`
 //! carries each definition's metadata (name, short name, extensions, …) so language resolution and
 //! listing never have to decompress anything.
+//!
+//! `data/syntax/` (permissively licensed definitions) is always embedded. `data/syntax-copyleft/`
+//! (definitions under copyleft or unspecified licenses; see its README) is embedded only under the
+//! `embed-copyleft-grammars` feature; by default those files load at runtime from a grammar
+//! directory or `--syntax-definition`.
 
 // A failed build script should abort the build loudly; panicking and indexing are intended here.
 #![allow(clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
@@ -16,20 +21,30 @@ use std::path::Path;
 fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR");
-    let syntax_dir = Path::new(&manifest_dir).join("data/syntax");
     let out_syntax = Path::new(&out_dir).join("syntax");
     fs::create_dir_all(&out_syntax).expect("create OUT_DIR/syntax");
 
     println!("cargo:rerun-if-changed=data/syntax");
+    println!("cargo:rerun-if-changed=data/syntax-copyleft");
+
+    let mut source_dirs = vec![Path::new(&manifest_dir).join("data/syntax")];
+    if std::env::var_os("CARGO_FEATURE_EMBED_COPYLEFT_GRAMMARS").is_some() {
+        source_dirs.push(Path::new(&manifest_dir).join("data/syntax-copyleft"));
+    }
 
     let mut entries: Vec<Entry> = Vec::new();
-    let mut files: Vec<_> = fs::read_dir(&syntax_dir)
-        .expect("read data/syntax")
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "xml"))
+    let mut files: Vec<_> = source_dirs
+        .iter()
+        .flat_map(|dir| {
+            fs::read_dir(dir)
+                .unwrap_or_else(|_| panic!("read {}", dir.display()))
+                .filter_map(Result::ok)
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|e| e == "xml"))
+        })
         .collect();
-    files.sort();
+    // Order by file name so the bundled index is identical however many directories feed it.
+    files.sort_by_key(|p| p.file_name().map(std::ffi::OsStr::to_os_string));
 
     for path in &files {
         let stem = path

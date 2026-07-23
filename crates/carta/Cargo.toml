@@ -51,6 +51,8 @@ fetch = ["dep:ureq"]
 full = ["read-commonmark", "read-json", "read-native", "read-html", "read-csv", "read-tsv", "read-opml", "read-rst", "read-ipynb", "read-mediawiki", "read-dokuwiki", "read-jira", "read-man", "read-latex", "read-org", "read-rtf", "read-docx", "read-epub", "read-odt", "write-html", "write-html4", "write-json", "write-plain", "write-native", "write-latex", "write-commonmark", "write-markdown", "write-gfm", "write-rst", "write-mediawiki", "write-typst", "write-dokuwiki", "write-jira", "write-asciidoc", "write-man", "write-opml", "write-org", "write-beamer", "write-revealjs", "write-ipynb", "write-epub", "write-docx", "write-odt", "write-rtf", "highlight", "standalone", "metadata-file"]
 # Syntax highlighting for code blocks, plus the CLI's language/style listings and idiomatic mode.
 highlight = ["dep:carta-highlight", "carta-core/highlight", "carta-writers?/highlight"]
+# Embeds the copyleft-or-unspecified-license grammar set, which is an explicit choice.
+embed-copyleft-grammars = ["highlight", "carta-highlight/embed-copyleft-grammars"]
 # Standalone output: template engine, context builder, wrapping, and the `-s`/`--template`/`-V`/`-M` inputs.
 standalone = ["carta-core/template", "dep:serde_json"]
 # `--metadata-file` parses metadata through the commonmark machinery, so it must pull in that reader.

@@ -25,13 +25,23 @@ const WITH_CODE: &str = "# Heading\n\n```python\nx = 1\n```\n";
 /// A document whose only colorizable code is an inline span, no code block.
 const WITH_INLINE_CODE: &str = "A line with `print(x)`{.python} inline.\n";
 
-/// A highlighter with the named color theme active.
+/// A highlighter with the named color theme active. Python is loaded from the runtime pack, since
+/// the fixtures colorize Python and the default embedded set omits it.
 fn themed(style: &str) -> HighlightOptions {
     let theme = builtin_style(style)
         .unwrap_or_else(|| panic!("style {style}"))
         .unwrap_or_else(|error| panic!("style {style}: {error}"));
+    let mut highlighter = Highlighter::new();
+    let python = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../carta-highlight/data/syntax-copyleft/python.xml");
+    let xml = std::fs::read_to_string(&python)
+        .unwrap_or_else(|error| panic!("read {}: {error}", python.display()));
+    highlighter
+        .registry_mut()
+        .add_definition_with_stem(&xml, "python")
+        .expect("parse python grammar");
     HighlightOptions {
-        highlighter: Some(Arc::new(Highlighter::new())),
+        highlighter: Some(Arc::new(highlighter)),
         theme: Some(theme),
         idiomatic: false,
     }

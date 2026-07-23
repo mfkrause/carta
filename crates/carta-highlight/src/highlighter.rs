@@ -1156,7 +1156,15 @@ fn main() {
 
     #[test]
     fn highlights_c_keyword_and_number() {
-        let hl = Highlighter::new();
+        // The C grammar ships in the runtime pack, so this also covers stem-registered loading.
+        let mut hl = Highlighter::new();
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/syntax-copyleft/c.xml");
+        let xml = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+        hl.registry_mut()
+            .add_definition_with_stem(&xml, "c")
+            .expect("parse c grammar");
         let lines = hl.highlight("c", "int x = 42;").expect("c is known");
         assert_eq!(lines.len(), 1);
         let toks = kinds(&lines[0]);

@@ -14,13 +14,14 @@ use std::sync::Arc;
 
 use carta_ast::{Attr, Block, Document, Inline, Text};
 use carta_core::{HighlightOptions, Writer, WriterOptions};
-use carta_highlight::Highlighter;
 use carta_writers::LatexWriter;
+
+mod common;
 
 fn options() -> WriterOptions {
     let mut options = WriterOptions::default();
     options.highlight = HighlightOptions {
-        highlighter: Some(Arc::new(Highlighter::new())),
+        highlighter: Some(Arc::new(common::highlighter_with_python())),
         theme: None,
         ..HighlightOptions::default()
     };

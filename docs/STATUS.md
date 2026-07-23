@@ -618,7 +618,7 @@ Notes list gaps and limitations only.
 | Citations / citeproc (`--citeproc`) | ❌ | `Cite` carried in the AST, not processed. |
 | Filters (JSON) | ✅ | `-F`/`--filter` pipes the document as JSON through external programs (in order), each receiving the output format name as its argument. A bare name resolves under the data directory's `filters/`, then the working directory, then `PATH`; a file without the executable bit runs through an interpreter chosen from its extension (`.py`, `.js`, `.rb`, `.php`, `.pl`, `.hs`, `.r`). |
 | Filters (Lua) | ❌ | |
-| Data directory (`--data-dir`) | ✅ | Overrides for filters (`filters/`) and templates (`templates/`), defaulting to `$XDG_DATA_HOME/carta` (or `~/.local/share/carta`). A `templates/default.<ext>` overrides a format's built-in template; `--template NAME` falls back to `templates/NAME`; template partials fall back to `templates/`. |
+| Data directory (`--data-dir`) | ✅ | Overrides for filters (`filters/`), templates (`templates/`), and syntax definitions (`syntax/`), defaulting to `$XDG_DATA_HOME/carta` (or `~/.local/share/carta`). A `templates/default.<ext>` overrides a format's built-in template; `--template NAME` falls back to `templates/NAME`; template partials fall back to `templates/`. |
 | Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML) | 🚧 | `--mathjax` / `--katex` select the HTML renderer. With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no MathML, webtex, or default plain-HTML renderer yet. |
 | Writer extension toggles | ✅ | `rst` does not yet backslash-escape literal ASCII `--`/`...` under the non-default `+smart`. |
 | Embed resources / extract media | ✅ | — |

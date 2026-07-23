@@ -1,9 +1,9 @@
 //! The catalog of available syntax definitions and color themes.
 //!
 //! Bundled definitions are embedded compressed and decompressed and parsed on first use, then
-//! cached. User-supplied definitions (from `--syntax-definition`) take precedence over bundled ones
-//! that share a name. Resolution follows the definition format's documented order: full name, then
-//! short name, then file extension.
+//! cached. User-supplied definitions (from `--syntax-definition` or a runtime grammar directory)
+//! take precedence over bundled ones that share a name. Resolution follows the definition format's
+//! documented order: full name, then short name, then file extension.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -44,9 +44,15 @@ const STYLES: &[(&str, &str)] = &[
 #[derive(Default)]
 pub struct Registry {
     parsed: RefCell<BTreeMap<usize, Rc<Grammar>>>,
-    user: Vec<Rc<Grammar>>,
+    user: Vec<UserDefinition>,
     resolved: RefCell<BTreeMap<String, Option<Rc<Grammar>>>>,
     references: RefCell<BTreeMap<String, Option<Rc<Grammar>>>>,
+}
+
+/// A definition added at runtime, with the short name it resolves under.
+struct UserDefinition {
+    grammar: Rc<Grammar>,
+    short: String,
 }
 
 impl std::fmt::Debug for Registry {
@@ -64,11 +70,35 @@ impl Registry {
         Registry::default()
     }
 
-    /// Add a user-supplied definition; it overrides any bundled definition of the same name.
+    /// Add a user-supplied definition; it overrides any bundled definition of the same name. Its
+    /// short lookup name derives from the definition's language name.
     pub fn add_definition(&mut self, xml: &str) -> Result<String, ParseError> {
+        self.add_definition_entry(xml, None)
+    }
+
+    /// Add a user-supplied definition from a file, where `stem` is the file's name without its
+    /// extension. The stem provides the short lookup name, matching how bundled definitions
+    /// resolve (`cpp.xml` answers to `cpp` even though its language name is `C++`).
+    pub fn add_definition_with_stem(
+        &mut self,
+        xml: &str,
+        stem: &str,
+    ) -> Result<String, ParseError> {
+        self.add_definition_entry(xml, Some(stem))
+    }
+
+    fn add_definition_entry(
+        &mut self,
+        xml: &str,
+        stem: Option<&str>,
+    ) -> Result<String, ParseError> {
         let grammar = parse_grammar(xml)?;
         let name = grammar.name.clone();
-        self.user.push(Rc::new(grammar));
+        let short = short_name(stem.unwrap_or(&name));
+        self.user.push(UserDefinition {
+            grammar: Rc::new(grammar),
+            short,
+        });
         self.resolved.borrow_mut().clear();
         self.references.borrow_mut().clear();
         Ok(name)
@@ -127,8 +157,12 @@ impl Registry {
     }
 
     fn by_full_name(&self, lower: &str) -> Option<Rc<Grammar>> {
-        if let Some(g) = self.user.iter().find(|g| g.name.to_lowercase() == lower) {
-            return Some(Rc::clone(g));
+        if let Some(entry) = self
+            .user
+            .iter()
+            .find(|entry| entry.grammar.name.to_lowercase() == lower)
+        {
+            return Some(Rc::clone(&entry.grammar));
         }
         let idx = BUNDLED
             .iter()
@@ -137,12 +171,12 @@ impl Registry {
     }
 
     fn by_short_name(&self, lower: &str) -> Option<Rc<Grammar>> {
-        if let Some(g) = self
+        if let Some(entry) = self
             .user
             .iter()
-            .find(|g| short_name(&g.name) == lower || g.name.to_lowercase() == lower)
+            .find(|entry| entry.short == lower || entry.grammar.name.to_lowercase() == lower)
         {
-            return Some(Rc::clone(g));
+            return Some(Rc::clone(&entry.grammar));
         }
         let idx = BUNDLED.iter().position(|b| b.short == lower)?;
         Some(self.load(idx))
@@ -150,7 +184,22 @@ impl Registry {
 
     fn by_extension(&self, lower: &str) -> Option<Rc<Grammar>> {
         // When several definitions claim an extension, the highest priority wins; hidden helpers are
-        // not selected by extension.
+        // not selected by extension. User definitions take precedence over the bundled catalog.
+        if let Some(entry) = self
+            .user
+            .iter()
+            .filter(|entry| {
+                !entry.grammar.hidden
+                    && entry
+                        .grammar
+                        .extensions
+                        .iter()
+                        .any(|glob| match_glob(glob, lower))
+            })
+            .max_by_key(|entry| entry.grammar.priority)
+        {
+            return Some(Rc::clone(&entry.grammar));
+        }
         let idx = BUNDLED
             .iter()
             .enumerate()
@@ -236,6 +285,19 @@ fn match_glob(glob: &str, name: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Read a definition from the runtime grammar pack and add it under its file stem, the way the
+    /// CLI's grammar-directory loading does.
+    fn add_from_pack(registry: &mut Registry, stem: &str) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data/syntax-copyleft")
+            .join(format!("{stem}.xml"));
+        let xml = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+        registry
+            .add_definition_with_stem(&xml, stem)
+            .unwrap_or_else(|error| panic!("parse {stem}: {error}"));
+    }
+
     #[test]
     fn lists_expected_languages() {
         let reg = Registry::new();
@@ -250,26 +312,69 @@ mod tests {
     #[test]
     fn resolves_by_short_and_full_name() {
         let reg = Registry::new();
-        assert!(reg.resolve("cpp").is_some());
         assert_eq!(
-            reg.resolve("cpp").map(|g| g.name.clone()).as_deref(),
-            Some("C++")
+            reg.resolve("rust").map(|g| g.name.clone()).as_deref(),
+            Some("Rust")
         );
         // Full display name (case-insensitive).
-        assert!(reg.resolve("C++").is_some());
+        assert!(reg.resolve("Rust").is_some());
         // Hyphenated stems only resolve without the hyphen.
         assert!(reg.resolve("fortranfree").is_some());
         assert!(reg.resolve("fortran-free").is_none());
     }
 
     #[test]
+    fn pack_definitions_resolve_like_bundled_ones() {
+        let mut reg = Registry::new();
+        add_from_pack(&mut reg, "cpp");
+        add_from_pack(&mut reg, "python");
+        add_from_pack(&mut reg, "makefile");
+        // Stem-derived short name, even though the language name is `C++`.
+        assert_eq!(
+            reg.resolve("cpp").map(|g| g.name.clone()).as_deref(),
+            Some("C++")
+        );
+        // Full display name (case-insensitive).
+        assert!(reg.resolve("C++").is_some());
+        assert_eq!(
+            reg.resolve("python").map(|g| g.name.clone()).as_deref(),
+            Some("Python")
+        );
+        // The file-extension fallback consults user definitions (`makefile.*` is a Makefile glob).
+        assert_eq!(
+            reg.resolve("makefile.inc")
+                .map(|g| g.name.clone())
+                .as_deref(),
+            Some("Makefile")
+        );
+    }
+
+    #[test]
     fn honors_fixed_aliases() {
-        let reg = Registry::new();
+        let mut reg = Registry::new();
+        add_from_pack(&mut reg, "cs");
         assert_eq!(
             reg.resolve("csharp").map(|g| g.name.clone()),
             reg.resolve("cs").map(|g| g.name.clone())
         );
         assert!(reg.resolve("csharp").is_some());
+    }
+
+    #[cfg(not(feature = "embed-copyleft-grammars"))]
+    #[test]
+    fn copyleft_grammars_are_not_embedded_by_default() {
+        let reg = Registry::new();
+        assert!(reg.resolve("cpp").is_none());
+        assert!(reg.resolve("json").is_none());
+        assert!(reg.resolve("rust").is_some());
+    }
+
+    #[cfg(feature = "embed-copyleft-grammars")]
+    #[test]
+    fn copyleft_grammars_are_embedded_with_the_feature() {
+        let reg = Registry::new();
+        assert!(reg.resolve("cpp").is_some());
+        assert!(reg.resolve("json").is_some());
     }
 
     #[test]

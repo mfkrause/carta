@@ -17,7 +17,22 @@ struct Output {
 }
 
 fn run(args: &[&str], stdin: &str) -> Output {
+    // Directory loading is disabled so results do not depend on the developer's environment.
+    run_with_syntax_dir(args, stdin, "")
+}
+
+/// Run with the repository's runtime grammar pack as the discovered syntax directory.
+fn run_with_pack(args: &[&str], stdin: &str) -> Output {
+    let pack = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../carta-highlight/data/syntax-copyleft"
+    );
+    run_with_syntax_dir(args, stdin, pack)
+}
+
+fn run_with_syntax_dir(args: &[&str], stdin: &str, syntax_dir: &str) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_carta"))
+        .env("CARTA_SYNTAX_DIR", syntax_dir)
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -98,7 +113,7 @@ fn print_highlight_style_round_trips_through_a_file() {
     std::fs::write(&path, &printed.stdout).expect("write theme");
 
     // A theme file supplied to --highlight-style colors code exactly as the built-in name does.
-    let from_file = run(
+    let from_file = run_with_pack(
         &[
             "-f",
             "markdown",
@@ -109,7 +124,7 @@ fn print_highlight_style_round_trips_through_a_file() {
         ],
         PY_BLOCK,
     );
-    let from_name = run(
+    let from_name = run_with_pack(
         &[
             "-f",
             "markdown",
@@ -120,15 +135,86 @@ fn print_highlight_style_round_trips_through_a_file() {
         ],
         PY_BLOCK,
     );
+    assert!(
+        from_file.stdout.contains("<span class=\"dv\">1</span>"),
+        "colorized: {}",
+        from_file.stdout
+    );
     assert!(from_file.success, "stderr: {}", from_file.stderr);
     assert_eq!(from_file.stdout, from_name.stdout);
 }
 
 #[test]
 fn default_mode_colorizes_code() {
-    let result = run(&["-f", "markdown", "-t", "html"], PY_BLOCK);
+    let result = run_with_pack(&["-f", "markdown", "-t", "html"], PY_BLOCK);
     assert!(result.success, "stderr: {}", result.stderr);
     assert!(result.stdout.contains("class=\"sourceCode python\""));
+    assert!(result.stdout.contains("<span class=\"dv\">1</span>"));
+}
+
+// Python's grammar ships in the runtime pack, not the default embedded set.
+#[cfg(not(feature = "embed-copyleft-grammars"))]
+#[test]
+fn pack_language_stays_plain_without_a_syntax_directory() {
+    let result = run(&["-f", "markdown", "-t", "html"], PY_BLOCK);
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(
+        result.stdout.contains("<pre class=\"python\">"),
+        "plain block: {}",
+        result.stdout
+    );
+    assert!(!result.stdout.contains("class=\"sourceCode"));
+}
+
+#[test]
+fn data_directory_syntax_definitions_are_discovered() {
+    let data_dir = std::env::temp_dir().join("carta_cli_highlight_datadir");
+    let syntax_dir = data_dir.join("syntax");
+    std::fs::create_dir_all(&syntax_dir).expect("data dir");
+    let python = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../carta-highlight/data/syntax-copyleft/python.xml"
+    );
+    std::fs::copy(python, syntax_dir.join("python.xml")).expect("copy grammar");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_carta"))
+        .env_remove("CARTA_SYNTAX_DIR")
+        .args([
+            "-f",
+            "markdown",
+            "-t",
+            "html",
+            "--data-dir",
+            data_dir.to_str().unwrap(),
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn carta");
+    child
+        .stdin
+        .take()
+        .expect("child stdin")
+        .write_all(PY_BLOCK.as_bytes())
+        .expect("write stdin");
+    let output = child.wait_with_output().expect("wait for carta");
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).expect("utf-8 stdout");
+    assert!(
+        stdout.contains("class=\"sourceCode python\""),
+        "colorized via data dir: {stdout}"
+    );
+}
+
+#[test]
+fn embedded_language_colorizes_without_a_syntax_directory() {
+    let result = run(
+        &["-f", "markdown", "-t", "html"],
+        "```rust\nlet x = 1;\n```\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(result.stdout.contains("class=\"sourceCode rust\""));
     assert!(result.stdout.contains("<span class=\"dv\">1</span>"));
 }
 

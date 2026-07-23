@@ -17,8 +17,10 @@ use carta_ast::{Attr, Block, Document, Inline, Text};
 use carta_core::BytesWriter;
 use carta_core::container::zip;
 use carta_core::{HighlightOptions, WriterOptions};
-use carta_highlight::{Highlighter, Theme};
+use carta_highlight::Theme;
 use carta_writers::DocxWriter;
+
+mod common;
 
 /// A theme customizing two token kinds, enough to see color and weight reach the style catalogue.
 const THEME_JSON: &str = r##"{
@@ -36,7 +38,7 @@ fn options(with_highlighting: bool) -> WriterOptions {
     let mut options = WriterOptions::default();
     if with_highlighting {
         options.highlight = HighlightOptions {
-            highlighter: Some(Arc::new(Highlighter::new())),
+            highlighter: Some(Arc::new(common::highlighter_with_python())),
             theme: Some(Theme::from_json(THEME_JSON.as_bytes()).expect("parse theme")),
             ..HighlightOptions::default()
         };

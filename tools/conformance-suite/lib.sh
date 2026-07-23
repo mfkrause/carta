@@ -7,6 +7,7 @@ CONF_LIB_SOURCED=1
 CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$CONF_DIR/../shared.sh"
 OX="${CARTA_BIN:-$ROOT/target/debug/carta}"
+export CARTA_SYNTAX_DIR="${CARTA_SYNTAX_DIR-$ROOT/crates/carta-highlight/data/syntax-copyleft}"
 SPEC="$ROOT/vendor/commonmark/spec.txt"
 EXCLUSIONS="$CORPUS/exclusions.tsv"
 FETCHED="$ROOT/.oracle/tests/test"
