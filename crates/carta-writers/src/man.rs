@@ -324,6 +324,10 @@ impl State {
                     let body = self.blocks(&cell.content);
                     blocks.push(if body.is_empty() {
                         "T{\nT}".to_owned()
+                    } else if cell_opens_with_space(&cell.content) {
+                        // A leading space inline is cell content, but the roff renderer eats plain
+                        // leading whitespace; escape it so it survives.
+                        format!("T{{\n\\ {body}\nT}}")
                     } else {
                         format!("T{{\n{body}\nT}}")
                     });
@@ -541,6 +545,16 @@ impl State {
         }
         format!("[{}]", index + 1)
     }
+}
+
+/// Whether a table cell's sole paragraph opens with a space inline, which must render as an escaped
+/// space to stay visible.
+fn cell_opens_with_space(content: &[Block]) -> bool {
+    matches!(
+        content,
+        [Block::Plain(inlines) | Block::Para(inlines)]
+            if matches!(inlines.first(), Some(Inline::Space))
+    )
 }
 
 /// Protect a link target for a roff macro argument: only the escape character itself must be guarded,

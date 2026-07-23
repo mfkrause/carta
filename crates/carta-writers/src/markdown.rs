@@ -22,11 +22,11 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, block_inlines,
-    body_rows, cell_inlines, clean_prefix_len, dash_rule, display_width, escape_html_attr,
-    extend_multiline_body, fill, fill_into, fill_offset, filled_cells, indent_block, indent_lines,
-    is_loose, is_simple_cell, item_separator, lay_row, measure_pieces, offset_as_i32,
-    ordered_marker, pad_align, pieces_nonempty, quote_marks, render_html_attr,
-    render_html_fragment_attr, table_form,
+    body_rows, boundary_space_count, cell_inlines, clean_prefix_len, dash_rule, display_width,
+    escape_html_attr, extend_multiline_body, fill, fill_into, fill_offset, filled_cells,
+    indent_block, indent_lines, is_loose, is_simple_cell, item_separator, lay_row, measure_pieces,
+    offset_as_i32, ordered_marker, pad_align, pieces_nonempty, quote_marks, render_html_attr,
+    render_html_fragment_attr, table_form, trimmed_cell_inlines,
 };
 use crate::grid;
 use crate::markdown_common::{
@@ -517,6 +517,14 @@ pub(crate) fn render_blocks(
     let mut state = State::new(config, width, wrap);
     let body = state.blocks_to_string(blocks, width);
     append_notes(body, &state.footnotes)
+}
+
+/// A simple-form table cell rendered to one line: the text with boundary spaces trimmed away, and
+/// the width the cell's column must reserve — the rendered width plus the trimmed spaces.
+#[derive(Debug, Default)]
+struct SimpleCell {
+    text: String,
+    sizing_width: usize,
 }
 
 #[derive(Debug)]
@@ -1079,12 +1087,11 @@ impl State {
     }
 
     /// Render a cell's content to a single line for a pipe table, escaping the cell delimiter.
+    /// Boundary spaces stay in the text: a pipe cell renders its content verbatim, and the column
+    /// is sized to the full text.
     fn cell_oneline(&mut self, cell: &Cell) -> String {
         let inlines = cell_inlines(cell);
-        self.inlines_oneline(inlines)
-            .replace('|', "\\|")
-            .trim()
-            .to_owned()
+        self.inlines_oneline(inlines).replace('|', "\\|")
     }
 
     /// A simple table: one line per cell, the column width sized to the widest cell plus two. A
@@ -1093,32 +1100,32 @@ impl State {
     fn simple_table(&mut self, table: &Table) -> String {
         let columns = table.col_specs.len();
         let aligns: Vec<&Alignment> = table.col_specs.iter().map(|spec| &spec.align).collect();
-        let header: Vec<Vec<String>> = table
+        let header: Vec<Vec<SimpleCell>> = table
             .head
             .rows
             .iter()
             .map(|row| self.simple_row(row, columns))
             .collect();
-        let body: Vec<Vec<String>> = body_rows(table)
+        let body: Vec<Vec<SimpleCell>> = body_rows(table)
             .iter()
             .map(|row| self.simple_row(row, columns))
             .collect();
         let has_header = header
             .iter()
-            .any(|row| row.iter().any(|text| !text.is_empty()));
+            .any(|row| row.iter().any(|cell| !cell.text.is_empty()));
 
         let mut field = vec![0usize; columns];
         for row in header.iter().chain(body.iter()) {
-            for (index, text) in row.iter().enumerate() {
+            for (index, cell) in row.iter().enumerate() {
                 if let Some(width) = field.get_mut(index) {
-                    *width = (*width).max(display_width(text) + 2);
+                    *width = (*width).max(cell.sizing_width + 2);
                 }
             }
         }
         let rule = dash_rule(&field);
         let mut lines: Vec<String> = Vec::new();
-        let lay = |row: &[String]| {
-            let cells: Vec<Vec<String>> = row.iter().map(|text| vec![text.clone()]).collect();
+        let lay = |row: &[SimpleCell]| {
+            let cells: Vec<Vec<String>> = row.iter().map(|cell| vec![cell.text.clone()]).collect();
             lay_row(&cells, &field, &aligns)
         };
         if has_header {
@@ -1140,11 +1147,15 @@ impl State {
     }
 
     /// Render a row's cells to single lines, one per column, padding a short row with empty cells.
-    fn simple_row(&mut self, row: &Row, columns: usize) -> Vec<String> {
-        let mut out = vec![String::new(); columns];
+    /// A cell's boundary spaces are trimmed from the rendered text but still counted toward its
+    /// sizing width, so the column reserves their room.
+    fn simple_row(&mut self, row: &Row, columns: usize) -> Vec<SimpleCell> {
+        let mut out: Vec<SimpleCell> = (0..columns).map(|_| SimpleCell::default()).collect();
         for (index, cell) in row.cells.iter().enumerate() {
             if let Some(slot) = out.get_mut(index) {
-                *slot = self.inlines_oneline(cell_inlines(cell));
+                let text = self.inlines_oneline(trimmed_cell_inlines(cell));
+                let sizing_width = display_width(&text) + boundary_space_count(cell);
+                *slot = SimpleCell { text, sizing_width };
             }
         }
         out

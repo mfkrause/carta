@@ -291,7 +291,7 @@ impl State {
         for (index, row) in grid.iter().enumerate() {
             let height = row
                 .iter()
-                .filter_map(|slot| slot.as_ref().map(Vec::len))
+                .filter_map(|slot| slot.as_ref().map(|cell| cell.lines.len()))
                 .max()
                 .unwrap_or(1)
                 .max(1);
@@ -300,7 +300,7 @@ impl State {
                     .iter()
                     .map(|slot| {
                         slot.as_ref()
-                            .and_then(|cell_lines| cell_lines.get(line))
+                            .and_then(|cell| cell.lines.get(line))
                             .map_or_else(String::new, String::clone)
                     })
                     .collect();
@@ -323,7 +323,9 @@ impl State {
     /// content sits in its top-left slot and the slots it covers below and to the right are left empty.
     /// Each occupied slot holds the cell's content as already-rendered lines.
     fn lay_grid(&mut self, rows: &[&Row], columns: usize) -> CellGrid {
-        let mut grid: CellGrid = vec![vec![None; columns]; rows.len()];
+        let mut grid: CellGrid = (0..rows.len())
+            .map(|_| (0..columns).map(|_| None).collect())
+            .collect();
         let mut occupied = vec![vec![false; columns]; rows.len()];
 
         for (index, row) in rows.iter().enumerate() {
@@ -349,9 +351,9 @@ impl State {
                 let col_span = usize::try_from(cell.col_span.max(1))
                     .unwrap_or(1)
                     .min(columns - column);
-                let cell_lines = self.cell_lines(cell);
+                let rendered = self.render_cell(cell);
                 if let Some(slot) = grid.get_mut(index).and_then(|line| line.get_mut(column)) {
-                    *slot = Some(cell_lines);
+                    *slot = Some(rendered);
                 }
                 for down in 0..row_span {
                     for across in 0..col_span {
@@ -370,12 +372,24 @@ impl State {
     }
 
     /// Render a cell's blocks to lines. Cells are never reflowed, so a paragraph stays on one line and
-    /// a nested list or several blocks expand the cell across several table lines.
-    fn cell_lines(&mut self, cell: &Cell) -> Vec<String> {
-        self.blocks(&cell.content, CELL_WIDTH, false)
+    /// a nested list or several blocks expand the cell across several table lines. Boundary spaces of
+    /// a sole-paragraph cell drop out of the rendered lines, but the sizing width still counts them so
+    /// the column reserves their room.
+    fn render_cell(&mut self, cell: &Cell) -> RenderedCell {
+        let lines: Vec<String> = self
+            .blocks(&cell.content, CELL_WIDTH, false)
             .split('\n')
             .map(str::to_string)
-            .collect()
+            .collect();
+        let widest = lines
+            .iter()
+            .map(|line| display_width(line))
+            .max()
+            .unwrap_or(0);
+        RenderedCell {
+            sizing_width: widest + cell_boundary_space_count(&cell.content),
+            lines,
+        }
     }
 
     fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block], width: usize) -> String {
@@ -917,26 +931,43 @@ fn special_strings(text: &str) -> String {
     out
 }
 
-/// Render a table body row, padding each cell to its column width and framing it with pipes.
-/// A table laid out as rows of column slots. An occupied slot holds a cell's rendered lines; a slot
-/// left empty by a span or a short row is `None`.
-type CellGrid = Vec<Vec<Option<Vec<String>>>>;
+/// A rendered table cell: its lines, and the width its column must reserve — the widest line plus
+/// any boundary spaces of a sole-paragraph cell that the rendering drops.
+struct RenderedCell {
+    lines: Vec<String>,
+    sizing_width: usize,
+}
 
-/// The display width of each column: the widest rendered line whose cell begins in that column. A
-/// cell that spans several columns contributes only to the leftmost.
+/// A table laid out as rows of column slots. An occupied slot holds a rendered cell; a slot left
+/// empty by a span or a short row is `None`.
+type CellGrid = Vec<Vec<Option<RenderedCell>>>;
+
+/// How many boundary spaces a sole-paragraph cell opens or closes with: one leading and/or one
+/// trailing space inline. Richer cell content counts none.
+fn cell_boundary_space_count(content: &[Block]) -> usize {
+    let [Block::Plain(inlines) | Block::Para(inlines)] = content else {
+        return 0;
+    };
+    let mut interior = inlines.as_slice();
+    if let [Inline::Space, rest @ ..] = interior {
+        interior = rest;
+    }
+    if let [rest @ .., Inline::Space] = interior {
+        interior = rest;
+    }
+    inlines.len() - interior.len()
+}
+
+/// The display width of each column: the widest sizing width among cells that begin in that column.
+/// A cell that spans several columns contributes only to the leftmost.
 fn column_widths(grid: &CellGrid, columns: usize) -> Vec<usize> {
     let mut widths = vec![0usize; columns];
     for row in grid {
         for (column, slot) in row.iter().enumerate() {
-            if let Some(cell_lines) = slot {
-                let width = cell_lines
-                    .iter()
-                    .map(|line| display_width(line))
-                    .max()
-                    .unwrap_or(0);
-                if let Some(current) = widths.get_mut(column) {
-                    *current = (*current).max(width);
-                }
+            if let Some(cell) = slot
+                && let Some(current) = widths.get_mut(column)
+            {
+                *current = (*current).max(cell.sizing_width);
             }
         }
     }

@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l l l.
+T{
+col1
+T}@T{
+col2
+T}@T{
+col3
+T}
+_
+T{
+\ a
+T}@T{
+spaced text
+T}@T{
+trailing
+T}
+.TE

@@ -619,7 +619,14 @@ fn cell_content(
                 wrap,
                 glue,
             );
-            format!("[{}]", indent_continuation(&filled, &pad))
+            // A trailing space inline is cell content even though the fill ends its lines at the
+            // last word; restore it before the closing bracket.
+            let closing = if matches!(inlines.last(), Some(Inline::Space)) {
+                " ]"
+            } else {
+                "]"
+            };
+            format!("[{}{closing}", indent_continuation(&filled, &pad))
         }
         [] => "[]".to_owned(),
         blocks_value => {
