@@ -1069,10 +1069,7 @@ fn push_text(pending: &mut String, toks: &mut Vec<Tok>) {
 /// It is far above what any genuine construct needs, so a real close is always found, while a
 /// pathological run gives up and leaves the opener as literal text.
 fn scan_budget(lo: usize, hi: usize) -> usize {
-    hi.saturating_sub(lo)
-        .saturating_mul(8)
-        .saturating_add(64)
-        .min(200_000)
+    crate::inline_scan::scan_budget(hi.saturating_sub(lo))
 }
 
 /// Finds the first index in `range` whose character satisfies `pred`, charging one budget step per

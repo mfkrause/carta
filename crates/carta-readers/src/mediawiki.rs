@@ -1662,11 +1662,7 @@ fn resolve_emphasis(toks: Vec<Tok>) -> Vec<Inline> {
     }
     let runs = apostrophe_runs(&units);
     // Bound the backtracking work so adversarial apostrophe-dense input cannot blow up.
-    let mut budget = units
-        .len()
-        .saturating_mul(8)
-        .saturating_add(64)
-        .min(200_000);
+    let mut budget = crate::inline_scan::scan_budget(units.len());
     let (nodes, _, _) = parse_runs(&units, &runs, 0, None, &mut budget);
     nodes
 }

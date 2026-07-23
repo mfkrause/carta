@@ -1233,7 +1233,7 @@ fn parse_inlines(text: &str, ext: Extensions, notes: &BTreeMap<String, Vec<Block
         notes,
         out: Vec::new(),
         word: String::new(),
-        budget: ScanBudget::new(chars.len().saturating_mul(8).saturating_add(64)),
+        budget: ScanBudget::new(crate::inline_scan::scan_budget(chars.len())),
     };
     scanner.run();
     scanner.finish()

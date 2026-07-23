@@ -214,6 +214,17 @@ fn is_backslash_math_closer_bytes(text: &str, i: usize, slashes: usize, close: c
         && char_at(text, i + slashes) == Some(close)
 }
 
+/// A forward-scan step budget proportional to `span_len`. A dense run of unclosable
+/// openers would otherwise make each failed construct re-scan the whole suffix, so
+/// the total cost grows quadratically; charging one step per position examined keeps
+/// scanning linear over the span. The value is far above what any genuine construct
+/// needs — a real close is always found — while the cap makes a pathological run give
+/// up and leave the opener as literal text.
+#[cfg(any(feature = "jira", feature = "mediawiki", feature = "org"))]
+pub(crate) fn scan_budget(span_len: usize) -> usize {
+    span_len.saturating_mul(8).saturating_add(64).min(200_000)
+}
+
 /// Whether `ch` is whitespace for the inline scanners: the spec's literal whitespace set plus any
 /// Unicode whitespace.
 pub(crate) fn is_unicode_whitespace(ch: char) -> bool {
@@ -224,6 +235,18 @@ pub(crate) fn is_unicode_whitespace(ch: char) -> bool {
         || ch == '\u{0b}'
         || ch == '\r'
         || ch.is_whitespace()
+}
+
+#[cfg(all(test, any(feature = "jira", feature = "mediawiki", feature = "org")))]
+mod scan_budget_tests {
+    use super::scan_budget;
+
+    #[test]
+    fn scan_budget_scales_then_caps() {
+        assert_eq!(scan_budget(0), 64);
+        assert_eq!(scan_budget(1_000), 8_064);
+        assert_eq!(scan_budget(1_000_000), 200_000);
+    }
 }
 
 #[cfg(all(test, feature = "commonmark"))]
