@@ -31,9 +31,37 @@ type Strings = BTreeMap<String, String>;
 /// The deepest a `\*` interpolation may recurse, bounding self-referential string definitions.
 const MAX_STRING_DEPTH: usize = 8;
 
-/// The most lines a single macro invocation may expand to, bounding self- and mutually-referential
-/// macro definitions so an invocation cannot loop forever.
+/// The most lines all macro expansion may produce across a document. The budget is cumulative
+/// rather than per-invocation because argument substitution can synthesize a fresh call line
+/// (`\$` followed by a non-digit leaves the rest of the line intact, so `\$.X` expands to the call
+/// `.X`), and each such invocation restarts with an empty recursion guard — only a shared budget
+/// makes that cycle terminate.
 const MAX_MACRO_EXPANSION_LINES: usize = 100_000;
+
+/// The most bytes all macro expansion may produce across a document, counting nested-call argument
+/// substitution as well as emitted lines. Bounds calls that double an argument's length on each
+/// synthesized re-invocation, which the line budget alone would let grow geometrically.
+const MAX_MACRO_EXPANSION_BYTES: usize = 1 << 22;
+
+/// The unspent portion of the document-wide macro-expansion budget.
+#[derive(Clone, Copy)]
+struct ExpansionBudget {
+    lines: usize,
+    bytes: usize,
+}
+
+impl ExpansionBudget {
+    fn exhausted(&self) -> bool {
+        self.lines == 0 || self.bytes == 0
+    }
+
+    /// Debits one produced line (or nested-call substitution) of `bytes` length; the caller checks
+    /// `exhausted` before producing.
+    fn debit(&mut self, bytes: usize) {
+        self.lines = self.lines.saturating_sub(1);
+        self.bytes = self.bytes.saturating_sub(bytes.max(1));
+    }
+}
 
 /// The named strings groff defines before any input is read, keyed as the `\*` escape spells them:
 /// `\*R`, `\*(Tm`, `\*(lq`, `\*(rq`.
@@ -245,6 +273,9 @@ struct Parser {
     macros: BTreeMap<String, Vec<String>>,
     /// Set when the most recent `.ie` condition was false, so the following `.el` takes its branch.
     else_branch: bool,
+    /// What remains of the document-wide macro-expansion budget; once spent, macro calls expand to
+    /// nothing.
+    expansion_budget: ExpansionBudget,
 }
 
 impl Parser {
@@ -258,6 +289,10 @@ impl Parser {
             strings: predefined_strings(),
             macros: BTreeMap::new(),
             else_branch: false,
+            expansion_budget: ExpansionBudget {
+                lines: MAX_MACRO_EXPANSION_LINES,
+                bytes: MAX_MACRO_EXPANSION_BYTES,
+            },
         }
     }
 
@@ -328,12 +363,15 @@ impl Parser {
     }
 
     /// Expands a macro invocation into a flat list of lines, substituting the call's arguments for
-    /// `\$N` references and inlining any nested macro calls. Re-entrant calls and a per-invocation
-    /// line budget bound the expansion so a self- or mutually-referential macro cannot loop forever.
-    fn expand_macro_call(&self, name: &str, args: &[String]) -> Vec<String> {
+    /// `\$N` references and inlining any nested macro calls. Re-entrant calls and the document-wide
+    /// expansion budget bound the expansion so a self- or mutually-referential macro cannot loop
+    /// forever.
+    fn expand_macro_call(&mut self, name: &str, args: &[String]) -> Vec<String> {
         let mut out = Vec::new();
         let mut active = BTreeSet::new();
-        self.expand_macro_into(name, args, &mut active, &mut out);
+        let mut budget = self.expansion_budget;
+        self.expand_macro_into(name, args, &mut active, &mut out, &mut budget);
+        self.expansion_budget = budget;
         out
     }
 
@@ -343,8 +381,9 @@ impl Parser {
         args: &[String],
         active: &mut BTreeSet<String>,
         out: &mut Vec<String>,
+        budget: &mut ExpansionBudget,
     ) {
-        if out.len() >= MAX_MACRO_EXPANSION_LINES || active.contains(name) {
+        if budget.exhausted() || active.contains(name) {
             return;
         }
         let Some(body) = self.macros.get(name) else {
@@ -352,22 +391,33 @@ impl Parser {
         };
         active.insert(name.to_owned());
         for raw in body {
-            if out.len() >= MAX_MACRO_EXPANSION_LINES {
+            if budget.exhausted() {
                 break;
             }
             match control_parts(raw) {
                 Some((inner, inner_rest))
                     if !is_comment(raw) && self.macros.contains_key(inner) =>
                 {
-                    // A nested call to a user macro receives the substituted arguments.
-                    let inner_args = split_args(&substitute_macro_args(inner_rest, args));
-                    self.expand_macro_into(inner, &inner_args, active, out);
+                    // A nested call to a user macro receives the substituted arguments. The
+                    // substituted argument text debits the budget even though it is not emitted,
+                    // so argument growth across nested calls stays bounded.
+                    let substituted = substitute_macro_args(inner_rest, args);
+                    budget.debit(substituted.len());
+                    let inner_args = split_args(&substituted);
+                    self.expand_macro_into(inner, &inner_args, active, out, budget);
                 }
                 // A request line is emitted verbatim; argument references in a request's own
                 // arguments are left for ordinary escape processing, which yields nothing.
-                Some(_) => out.push(raw.clone()),
+                Some(_) => {
+                    budget.debit(raw.len());
+                    out.push(raw.clone());
+                }
                 // A text line has its argument references substituted.
-                None => out.push(substitute_macro_args(raw, args)),
+                None => {
+                    let substituted = substitute_macro_args(raw, args);
+                    budget.debit(substituted.len());
+                    out.push(substituted);
+                }
             }
         }
         active.remove(name);
@@ -3009,6 +3059,21 @@ mod tests {
                 Inline::Str("after".into()),
             ]))
         );
+    }
+
+    #[test]
+    fn macro_whose_expansion_synthesizes_its_own_call_terminates() {
+        // `\$` followed by a non-digit is dropped by argument substitution, so the text line
+        // `\$.M` expands to the call line `.M` — a self-call the recursion guard cannot see
+        // because it starts a fresh invocation. Only the document-wide budget stops it.
+        let _ = read(".TH T 1\n.de M\ntext\n\\$.M\n..\n.M\n");
+    }
+
+    #[test]
+    fn macro_argument_doubling_across_synthesized_calls_terminates() {
+        // Each synthesized re-invocation passes its argument twice, doubling its length; the
+        // byte budget must cut the growth off.
+        let _ = read(".TH T 1\n.de M\n\\$.M \"\\$1\\$1\"\n..\n.M xxxxxxxx\n");
     }
 
     #[test]
