@@ -14,6 +14,7 @@ use std::process::{Command, Stdio};
 
 struct Output {
     success: bool,
+    code: Option<i32>,
     stdout: String,
     stderr: String,
 }
@@ -43,6 +44,7 @@ fn run_bytes(args: &[&str], stdin: &[u8]) -> Output {
     let output = child.wait_with_output().expect("wait for carta");
     Output {
         success: output.status.success(),
+        code: output.status.code(),
         stdout: String::from_utf8(output.stdout).expect("utf-8 stdout"),
         stderr: String::from_utf8(output.stderr).expect("utf-8 stderr"),
     }
@@ -106,8 +108,24 @@ fn reads_input_file_and_writes_output_file() {
 fn unsupported_input_format_fails() {
     let result = run(&["-f", "notaformat", "-t", "html"], "x");
     assert!(!result.success);
+    // An unknown format is a generic failure, distinct from the dedicated
+    // unsupported-extension code asserted in `unsupported_extension_exits_23`.
+    assert_eq!(result.code, Some(1));
     assert!(
         result.stderr.contains("unsupported format: notaformat"),
+        "stderr: {}",
+        result.stderr
+    );
+}
+
+#[cfg(feature = "write-dokuwiki")]
+#[test]
+fn unsupported_extension_exits_23() {
+    let result = run(&["-f", "commonmark", "-t", "dokuwiki+bogus"], "# H\n");
+    assert!(!result.success);
+    assert_eq!(result.code, Some(23), "stderr: {}", result.stderr);
+    assert!(
+        result.stderr.contains("bogus") && result.stderr.contains("dokuwiki"),
         "stderr: {}",
         result.stderr
     );
@@ -473,6 +491,231 @@ fn self_contained_implies_standalone_and_warns() {
     assert!(
         result.stdout.contains("<!DOCTYPE html>"),
         "stdout: {}",
+        result.stdout
+    );
+}
+
+const TWO_HEADINGS: &str = "# One\n\n## Two\n";
+
+#[cfg(feature = "write-html")]
+#[test]
+fn standalone_wraps_in_template() {
+    let fragment = run(&["-f", "commonmark", "-t", "html"], TWO_HEADINGS);
+    assert!(fragment.success, "stderr: {}", fragment.stderr);
+    assert!(!fragment.stdout.contains("<html"), "{}", fragment.stdout);
+
+    let standalone = run(&["-f", "commonmark", "-t", "html", "-s"], TWO_HEADINGS);
+    assert!(standalone.success, "stderr: {}", standalone.stderr);
+    assert!(
+        standalone.stdout.contains("<!DOCTYPE html>")
+            && standalone.stdout.contains("<html")
+            && standalone.stdout.contains("<head>"),
+        "{}",
+        standalone.stdout
+    );
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn toc_is_included_with_flag() {
+    let without = run(&["-f", "commonmark", "-t", "html", "-s"], TWO_HEADINGS);
+    assert!(without.success, "stderr: {}", without.stderr);
+    assert!(
+        !without.stdout.contains("<nav id=\"TOC\""),
+        "{}",
+        without.stdout
+    );
+
+    let with = run(
+        &["-f", "commonmark", "-t", "html", "-s", "--toc"],
+        TWO_HEADINGS,
+    );
+    assert!(with.success, "stderr: {}", with.stderr);
+    assert!(
+        with.stdout.contains("<nav id=\"TOC\" role=\"doc-toc\">"),
+        "{}",
+        with.stdout
+    );
+    // Both heading levels are listed at the default depth.
+    let nav = toc_nav(&with.stdout);
+    assert!(nav.contains("One") && nav.contains("Two"), "{nav}");
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn toc_depth_limits_listed_levels() {
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "html",
+            "-s",
+            "--toc",
+            "--toc-depth=1",
+        ],
+        TWO_HEADINGS,
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    let nav = toc_nav(&result.stdout);
+    assert!(nav.contains("One"), "{nav}");
+    assert!(!nav.contains("Two"), "{nav}");
+}
+
+#[cfg(feature = "write-html")]
+fn toc_nav(stdout: &str) -> &str {
+    let start = stdout.find("<nav id=\"TOC\"").expect("TOC nav present");
+    let end = stdout[start..].find("</nav>").expect("TOC nav closed");
+    &stdout[start..start + end]
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn number_sections_prefixes_headings() {
+    let result = run(&["-f", "commonmark", "-t", "html", "-N"], TWO_HEADINGS);
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(
+        result.stdout.contains("data-number=\"1\"")
+            && result.stdout.contains("data-number=\"1.1\"")
+            && result.stdout.contains("class=\"header-section-number\""),
+        "{}",
+        result.stdout
+    );
+
+    let plain = run(&["-f", "commonmark", "-t", "html"], TWO_HEADINGS);
+    assert!(plain.success, "stderr: {}", plain.stderr);
+    assert!(!plain.stdout.contains("data-number"), "{}", plain.stdout);
+}
+
+#[cfg(feature = "write-markdown")]
+#[test]
+fn wrap_none_keeps_single_line() {
+    let input = "one two three four five six seven eight nine ten eleven twelve\n";
+    let result = run(
+        &["-f", "commonmark", "-t", "markdown", "--wrap=none"],
+        input,
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, input);
+}
+
+#[cfg(feature = "write-markdown")]
+#[test]
+fn wrap_auto_reflows_at_columns() {
+    let input = "one two three four five six seven eight nine ten eleven twelve\n";
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "markdown",
+            "--wrap=auto",
+            "--columns=20",
+        ],
+        input,
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    let output_lines = lines(&result.stdout);
+    assert!(output_lines.len() > 1, "{}", result.stdout);
+    assert!(
+        output_lines.iter().all(|line| line.len() <= 20),
+        "{}",
+        result.stdout
+    );
+    // Only line breaks change: the words survive reflow untouched.
+    assert_eq!(
+        result.stdout.replace('\n', " ").trim_end(),
+        input.trim_end()
+    );
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn metadata_flag_sets_title() {
+    let result = run(
+        &["-f", "commonmark", "-t", "html", "-s", "-M", "title:Hello"],
+        "body text\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(
+        result.stdout.contains("<title>Hello</title>"),
+        "{}",
+        result.stdout
+    );
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn variable_flag_is_applied() {
+    let result = run(
+        &["-f", "commonmark", "-t", "html", "-s", "-V", "lang:fr"],
+        "body text\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(result.stdout.contains("lang=\"fr\""), "{}", result.stdout);
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn metadata_file_is_read() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    let metadata_file = dir.join("metadata.yaml");
+    fs::write(&metadata_file, "title: FromFile\n").expect("write metadata file");
+
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "html",
+            "-s",
+            "--metadata-file",
+            metadata_file.to_str().unwrap(),
+        ],
+        "body text\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(
+        result.stdout.contains("<title>FromFile</title>"),
+        "{}",
+        result.stdout
+    );
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn template_flag_overrides_default() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    let template_file = dir.join("marker-template.html");
+    fs::write(&template_file, "MARKER-BEFORE $body$ MARKER-AFTER\n").expect("write template file");
+
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "html",
+            "--template",
+            template_file.to_str().unwrap(),
+        ],
+        "body text\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    // A custom template implies standalone: the body is rendered inside it.
+    assert_eq!(
+        result.stdout,
+        "MARKER-BEFORE <p>body text</p> MARKER-AFTER\n"
+    );
+}
+
+#[cfg(feature = "write-html")]
+#[test]
+fn print_default_template_emits_template() {
+    let result = run(&["-D", "html"], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(
+        result.stdout.contains("$body$") && result.stdout.contains("<!DOCTYPE html>"),
+        "{}",
         result.stdout
     );
 }
