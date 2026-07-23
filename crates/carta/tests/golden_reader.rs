@@ -150,6 +150,18 @@ fn reader_ast_snapshots_all_groups_partitioned() {
     assert_groups_partitioned("text", READER_TEXT_GROUPS);
 }
 
+#[test]
+fn every_reader_has_corpus_fixtures() {
+    let mut have: std::collections::BTreeSet<String> = corpus_groups("text").into_iter().collect();
+    have.extend(corpus_groups("binary"));
+    for name in carta::supported_input_formats() {
+        assert!(
+            have.contains(name),
+            "reader `{name}` has no corpus fixtures under corpus/text or corpus/binary"
+        );
+    }
+}
+
 reader_golden! {
     reader_binary_snapshots_for, READER_BINARY_GROUPS;
     reader_binary_ast_snapshots_docx => "docx",

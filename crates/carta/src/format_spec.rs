@@ -708,20 +708,64 @@ mod tests {
     }
 
     #[test]
-    fn supported_set_is_declared_for_recognized_formats_only() {
+    fn every_registry_format_declares_its_accepted_set_status() {
         use super::supported_extensions;
-        for base in [
-            "dokuwiki",
-            "docx",
-            "odt",
+        // Formats that declare an accepted extension set. A new format must be added to exactly
+        // one of these two arrays, deliberately.
+        const WITH_SET: &[&str] = &[
+            "asciidoc",
+            "beamer",
             "commonmark",
+            "commonmark_x",
+            "csv",
+            "docx",
+            "dokuwiki",
+            "epub",
+            "epub2",
+            "gfm",
             "html",
+            "html4",
+            "ipynb",
+            "jira",
+            "json",
+            "latex",
+            "man",
             "markdown",
+            "markdown_github",
+            "markdown_mmd",
+            "markdown_phpextra",
+            "markdown_strict",
+            "mediawiki",
+            "native",
+            "odt",
+            "opml",
+            "org",
+            "plain",
+            "revealjs",
             "rst",
-        ] {
+            "rtf",
+            "tsv",
+            "typst",
+        ];
+        // Formats that intentionally declare NO set (any modeled toggle is admitted).
+        const WITHOUT_SET: &[&str] = &[];
+
+        let mut names: Vec<&str> = crate::supported_input_formats();
+        names.extend(crate::supported_output_formats());
+        names.sort_unstable();
+        names.dedup();
+
+        for name in names {
+            let categorized = WITH_SET.contains(&name) || WITHOUT_SET.contains(&name);
             assert!(
-                supported_extensions(base).is_some(),
-                "{base} should declare an accepted set"
+                categorized,
+                "format `{name}` is not categorized in WITH_SET/WITHOUT_SET — classify it: \
+                 does format_spec::supported_extensions declare a set for it?"
+            );
+            assert_eq!(
+                supported_extensions(name).is_some(),
+                WITH_SET.contains(&name),
+                "format `{name}`: supported_extensions presence disagrees with its category"
             );
         }
         // An unrecognized base declares no set, so any modeled toggle is admitted for it.

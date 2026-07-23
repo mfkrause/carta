@@ -161,6 +161,24 @@ fn writer_output_snapshots_all_targets_partitioned() {
     );
 }
 
+#[test]
+fn targets_match_registry_text_writers() {
+    // Text-shaped writers: writer_for(name) succeeds; byte writers return Error::BinaryFormat.
+    let mut text: Vec<&str> = carta::supported_output_formats()
+        .into_iter()
+        .filter(|name| carta::writer_for(name).is_ok())
+        .collect();
+    // `html5` is a text alias of `html`; golden coverage uses `html` only.
+    text.retain(|name| *name != "html5");
+    text.sort_unstable();
+    let mut expected = TARGETS.to_vec();
+    expected.sort_unstable();
+    assert_eq!(
+        text, expected,
+        "TARGETS drifted from the registry's text writers (excluding the html5 alias)"
+    );
+}
+
 writer_golden! {
     writer_ext_snapshots_for, WRITER_EXT_GROUPS;
     writer_ext_output_snapshots_beamer_smart => "beamer-smart",
