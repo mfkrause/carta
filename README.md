@@ -122,8 +122,4 @@ Licensed under either of
 
 at your option.
 
-The syntax-highlighting grammar files under `crates/carta-highlight/data/` are third-party works that retain their own upstream licenses; see [`vendor/syntax-highlighting/ATTRIBUTION.md`](vendor/syntax-highlighting/ATTRIBUTION.md) for the per-file breakdown. Only the permissively licensed grammars are compiled into carta, so the built artifacts are covered by the license above in full. The remaining grammars (copyleft or unspecified licenses) ship as a separate runtime-loaded pack; see [Syntax-highlighting grammars](#syntax-highlighting-grammars).
-
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+The syntax-highlighting grammar files under are third-party works that retain their own upstream licenses; see [`vendor/syntax-highlighting/ATTRIBUTION.md`](vendor/syntax-highlighting/ATTRIBUTION.md). Only permissively licensed grammars are compiled into carta. The remaining grammars (copyleft or unspecified licenses) ship through an optional feature.
