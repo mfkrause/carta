@@ -119,8 +119,8 @@ carta-highlight = { workspace = true, optional = true }
 # Referenced by path (not the workspace table) so this crate can own their feature selection:
 # `default-features = false` cannot override an inherited workspace dependency. The `version` makes
 # the published package depend on the registry release; the path is used for in-workspace builds.
-carta-readers = { path = "../carta-readers", version = "0.0.6", default-features = false, optional = true }
-carta-writers = { path = "../carta-writers", version = "0.0.6", default-features = false, optional = true }
+carta-readers = { path = "../carta-readers", version = "0.0.7", default-features = false, optional = true }
+carta-writers = { path = "../carta-writers", version = "0.0.7", default-features = false, optional = true }
 # `meta-json`: serializes the rendered metadata into the standalone template context.
 serde_json = { workspace = true, optional = true }
 # CLI-only; kept out of a library build via the optional `cli` feature.

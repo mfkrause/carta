@@ -9,6 +9,51 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.7](https://github.com/mfkrause/carta/compare/v0.0.6...v0.0.7) - 2026-07-23
+
+### Added
+
+- *(cli)* add cargo-binstall metadata and completion/man-page
+
+### Fixed
+
+- *(writers)* correct table cell boundary-space rendering and sizing
+- *(cli)* exit cleanly when stdout pipe is closed early
+- *(readers)* compile inline_scan under budget-only feature builds
+
+### Performance
+
+- *(ast)* validate interchange input once and slice strings without re-checking
+- *(ast)* hand-rolled JSON interchange codec
+- *(highlight)* cache compiled rules and skip capture extraction on group-less patterns
+- *(readers)* vectorize delimiter scans with memchr
+- *(commonmark)* defer raw-TeX close-delimiter scans until a group scan needs them
+- *(readers)* accumulate text runs as slices instead of characters
+
+### Security
+
+- *(cli)* add --sandbox to disable remote resource fetching
+- *(media)* confine --extract-media writes to the target directory
+- *(readers)* bound man macro expansion by a document-wide budget
+- *(writers)* keep nested tables and link labels from compounding renders
+- *(writers)* bound AST-controlled table sizing against overflow
+- *(writers)* bound heading marker length against absurd header levels
+- *(writers)* clamp table column spans to the table's own width
+- *(writers)* bound ordered-list numeral length and marker padding
+
+### Other
+
+- *(cli)* cover the flag surface with offline subprocess tests
+- *(carta)* add registry-driven format wiring guards
+- *(fuzz)* improve fuzz target names
+- *(fuzz)* fuzz writers ([#92](https://github.com/mfkrause/carta/pull/92))
+- *(commonmark)* split the two largest reader files along module seams
+- *(readers)* share the forward-scan budget helper; cap org's budget
+- *(readers)* co-locate duplicated reader helpers
+- *(writers)* dedupe image, escape, and transliteration helpers
+- *(readers)* consolidate smart-typography folds in smart_fold
+- *(writers)* gate dead-code allows per feature and remove dead helpers
+
 ## [0.0.6](https://github.com/mfkrause/carta/compare/v0.0.5...v0.0.6) - 2026-07-21
 
 ### Fixed
