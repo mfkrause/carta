@@ -12,6 +12,12 @@ pub(crate) fn span_count(value: i32) -> usize {
     usize::try_from(value.max(1)).unwrap_or(1)
 }
 
+/// The deepest table nesting whose columns are still sized by rendering their cells. Each sizing
+/// pass re-renders a cell's content, so nested tables multiply the passes of every ancestor;
+/// beyond this depth columns fall back to an even share of the fill width so a deeply nested
+/// document renders in linear time.
+pub(crate) const MAX_MEASURED_TABLE_NESTING: usize = 6;
+
 /// One table cell: its content already rendered to lines, plus the rectangle of columns and
 /// rows it covers. Spans below 1 are treated as 1.
 pub(crate) struct GridCell {

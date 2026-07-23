@@ -20,6 +20,7 @@ use crate::common::{
     offset_as_i32, ordered_marker, pad_marker, parse_dimension, quote_marks,
 };
 use crate::grid;
+use crate::grid::MAX_MEASURED_TABLE_NESTING;
 
 /// Width of the transition emitted for a horizontal rule.
 const RULE_WIDTH: usize = 14;
@@ -121,6 +122,8 @@ struct State {
     /// Whether `smart` punctuation is rendered: quotes become straight ASCII and Unicode dashes and
     /// the ellipsis collapse to their ASCII forms, rather than passing through as literal Unicode.
     smart: bool,
+    /// How many tables the current render is nested inside, counting the one being rendered.
+    table_depth: usize,
 }
 
 impl Default for State {
@@ -134,6 +137,7 @@ impl Default for State {
             width: FILL_COLUMN,
             in_cell: false,
             smart: false,
+            table_depth: 0,
         }
     }
 }
@@ -808,31 +812,38 @@ impl State {
             out.push(word(target.url.to_string(), true));
             return;
         }
-        if !self.tokens_nested(label, true).iter().any(is_word_token) {
-            out.push(word(format!("` <{}>`__", target.url), true));
-            return;
-        }
+        // The label is rendered once, into a buffer, and only then classified: probing it with a
+        // separate render would re-render every nested link's label per ancestor, compounding
+        // exponentially down a chain of links.
         let breakouts: Vec<usize> = label
             .iter()
             .enumerate()
             .filter(|(_, child)| matches!(child, Inline::Link(..)))
             .map(|(index, _)| index)
             .collect();
+        let mut rendered = Vec::new();
         if breakouts.is_empty() {
-            self.link_run(label, target, out);
-            return;
-        }
-        let mut run_start = 0;
-        for &index in &breakouts {
-            let segment = label.get(run_start..index).unwrap_or(&[]);
-            self.link_run(segment, target, out);
-            if let Some(child) = label.get(index) {
-                self.token(child, true, out);
+            self.link_run(label, target, &mut rendered);
+        } else {
+            let mut run_start = 0;
+            for &index in &breakouts {
+                let segment = label.get(run_start..index).unwrap_or(&[]);
+                self.link_run(segment, target, &mut rendered);
+                if let Some(child) = label.get(index) {
+                    self.token(child, true, &mut rendered);
+                }
+                run_start = index + 1;
             }
-            run_start = index + 1;
+            let segment = label.get(run_start..).unwrap_or(&[]);
+            self.link_run(segment, target, &mut rendered);
         }
-        let segment = label.get(run_start..).unwrap_or(&[]);
-        self.link_run(segment, target, out);
+        // A label that renders no words cannot anchor a reference; it collapses to an empty-label
+        // reference carrying just the target.
+        if rendered.iter().any(is_word_token) {
+            out.extend(rendered);
+        } else {
+            out.push(word(format!("` <{}>`__", target.url), true));
+        }
     }
 
     /// Render one run of link label that holds no nested link, wrapping it as `` `text <url>`__ `` with
@@ -992,14 +1003,18 @@ impl State {
     /// column; otherwise the bordered grid form is used.
     fn table(&mut self, table: &Table, width: usize) -> String {
         let columns = table.col_specs.len();
+        self.table_depth += 1;
         let body = if columns == 0 {
             String::new()
+        } else if self.table_depth > MAX_MEASURED_TABLE_NESTING {
+            self.grid_table(table, columns)
         } else {
             match self.simple_layout(table, columns) {
                 Some(widths) => self.simple_table(table, &widths),
                 None => self.grid_table(table, columns),
             }
         };
+        self.table_depth = self.table_depth.saturating_sub(1);
         match self.table_caption(&table.caption, width) {
             Some(caption) if body.is_empty() => caption,
             Some(caption) => format!("{caption}\n\n{}", indent_block(&body, "   ", "   ")),
@@ -1164,17 +1179,27 @@ impl State {
         let body_layout = grid::place_columns(&body, columns);
         let foot_layout = grid::place_columns(&foot, columns);
 
-        let snapshot = self.snapshot();
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
-        for (rows, layout) in [
-            (&head, &head_layout),
-            (&body, &body_layout),
-            (&foot, &foot_layout),
-        ] {
-            self.measure_grid(rows, layout, &mut natural, &mut minword);
+        if self.table_depth > MAX_MEASURED_TABLE_NESTING {
+            // Sizing a column renders every cell a second time, so with nested tables the
+            // measurement passes compound into one full render per ancestor. Past the nesting cap,
+            // columns take an even share of the fill width instead of being measured, keeping the
+            // total work linear in the document.
+            let share = (self.width / columns.max(1)).max(1);
+            natural.fill(share);
+            minword.fill(1);
+        } else {
+            let snapshot = self.snapshot();
+            for (rows, layout) in [
+                (&head, &head_layout),
+                (&body, &body_layout),
+                (&foot, &foot_layout),
+            ] {
+                self.measure_grid(rows, layout, &mut natural, &mut minword);
+            }
+            self.restore(snapshot);
         }
-        self.restore(snapshot);
 
         let colspans: Vec<(usize, usize)> = [&head_layout, &body_layout, &foot_layout]
             .into_iter()
@@ -2179,5 +2204,79 @@ mod tests {
         let out = RstWriter.write(&doc, &WriterOptions::default()).unwrap();
         assert_eq!(out.matches(".. |dup| image::").count(), 1);
         assert!(out.contains(".. |image1| image:: b.png"));
+    }
+
+    #[test]
+    fn deeply_nested_tables_render_without_compounding_measurement() {
+        // Sizing a column renders each cell beyond the final emit, so without the nesting cap
+        // every level would multiply the renders of all levels below it — exponential in depth.
+        use carta_ast::{Alignment, Cell, ColSpec, TableBody};
+
+        fn nested_table(content: Vec<Block>) -> Block {
+            let cell = Cell {
+                attr: Attr::default(),
+                align: Alignment::AlignDefault,
+                row_span: 1,
+                col_span: 1,
+                content,
+            };
+            let filler = Cell {
+                content: vec![Block::Para(vec![Inline::Str("cell".into())])],
+                ..cell.clone()
+            };
+            let spec = ColSpec {
+                align: Alignment::AlignDefault,
+                width: ColWidth::ColWidthDefault,
+            };
+            Block::Table(Box::new(Table {
+                col_specs: vec![spec.clone(), spec],
+                bodies: vec![TableBody {
+                    body: vec![Row {
+                        attr: Attr::default(),
+                        cells: vec![cell, filler],
+                    }],
+                    ..TableBody::default()
+                }],
+                ..Table::default()
+            }))
+        }
+
+        // Deep enough that compounding measurement (3 renders per level) would take minutes,
+        // while capped measurement stays well under a second.
+        let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
+        for _ in 0..16 {
+            block = nested_table(vec![block]);
+        }
+        let doc = Document {
+            blocks: vec![block],
+            ..Document::default()
+        };
+        RstWriter
+            .write(&doc, &WriterOptions::default())
+            .expect("write");
+    }
+
+    #[test]
+    fn deeply_nested_links_render_each_label_once() {
+        // Probing a label for word content with its own render would render every nested link's
+        // label once per ancestor — exponential down a chain of links in labels.
+        let mut inline = Inline::Str("innermost".into());
+        for level in 0..24 {
+            inline = Inline::Link(
+                Box::default(),
+                vec![Inline::Str("label".into()), Inline::Space, inline],
+                Box::new(Target {
+                    url: format!("https://example.com/{level}").into(),
+                    ..Target::default()
+                }),
+            );
+        }
+        let doc = Document {
+            blocks: vec![Block::Para(vec![inline])],
+            ..Document::default()
+        };
+        RstWriter
+            .write(&doc, &WriterOptions::default())
+            .expect("write");
     }
 }

@@ -528,6 +528,8 @@ struct State {
     /// Whether rendering is inside an HTML `<a>` fallback's label, where a nested link must
     /// downgrade to a `<span>` (HTML forbids an anchor inside an anchor).
     in_anchor: bool,
+    /// How many tables the current render is nested inside, counting the one being rendered.
+    table_depth: usize,
 }
 
 impl State {
@@ -538,6 +540,7 @@ impl State {
             width,
             footnotes: Vec::new(),
             in_anchor: false,
+            table_depth: 0,
         }
     }
 
@@ -961,11 +964,13 @@ impl State {
             return String::new();
         }
         let form = table_form(table);
+        self.table_depth += 1;
         let body = match form {
             TableForm::Simple => self.simple_table(table),
             TableForm::Multiline => self.multiline_table(table, width),
             TableForm::Grid => self.grid_table(table, width),
         };
+        self.table_depth = self.table_depth.saturating_sub(1);
         match self.table_caption(table, form, width) {
             Some(caption) if body.is_empty() => caption,
             Some(caption) => format!("{body}\n\n{caption}"),
@@ -1249,17 +1254,27 @@ impl State {
         let body_layout = grid::place_columns(&body, columns);
         let foot_layout = grid::place_columns(&foot, columns);
 
-        let snapshot = self.footnotes.len();
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
-        for (rows, layout) in [
-            (&head, &head_layout),
-            (&body, &body_layout),
-            (&foot, &foot_layout),
-        ] {
-            self.measure_grid(rows, layout, &mut natural, &mut minword);
+        if self.table_depth > grid::MAX_MEASURED_TABLE_NESTING {
+            // Sizing a column renders every cell a second time, so with nested tables the
+            // measurement passes compound into one full render per ancestor. Past the nesting cap,
+            // columns take an even share of the fill width instead of being measured, keeping the
+            // total work linear in the document.
+            let share = (width / columns.max(1)).max(1);
+            natural.fill(share);
+            minword.fill(1);
+        } else {
+            let snapshot = self.footnotes.len();
+            for (rows, layout) in [
+                (&head, &head_layout),
+                (&body, &body_layout),
+                (&foot, &foot_layout),
+            ] {
+                self.measure_grid(rows, layout, &mut natural, &mut minword);
+            }
+            self.footnotes.truncate(snapshot);
         }
-        self.footnotes.truncate(snapshot);
 
         let colspans: Vec<(usize, usize)> = [&head_layout, &body_layout, &foot_layout]
             .into_iter()
@@ -2419,6 +2434,61 @@ mod escaping_tests {
 #[cfg(test)]
 mod tests {
     use super::{yaml_inline_scalar, yaml_needs_quoting};
+
+    #[test]
+    fn deeply_nested_tables_render_without_compounding_measurement() {
+        // Sizing a grid column renders each cell beyond the final emit, so without the nesting cap
+        // every level would multiply the renders of all levels below it — exponential in depth.
+        use super::MarkdownWriter;
+        use carta_ast::{
+            Alignment, Attr, Block, Cell, ColSpec, ColWidth, Document, Inline, Row, Table,
+            TableBody,
+        };
+        use carta_core::{Writer, WriterOptions};
+
+        fn nested_table(content: Vec<Block>) -> Block {
+            let cell = Cell {
+                attr: Attr::default(),
+                align: Alignment::AlignDefault,
+                row_span: 1,
+                col_span: 1,
+                content,
+            };
+            let filler = Cell {
+                content: vec![Block::Para(vec![Inline::Str("cell".into())])],
+                ..cell.clone()
+            };
+            let spec = ColSpec {
+                align: Alignment::AlignDefault,
+                width: ColWidth::ColWidthDefault,
+            };
+            Block::Table(Box::new(Table {
+                col_specs: vec![spec.clone(), spec],
+                bodies: vec![TableBody {
+                    body: vec![Row {
+                        attr: Attr::default(),
+                        cells: vec![cell, filler],
+                    }],
+                    ..TableBody::default()
+                }],
+                ..Table::default()
+            }))
+        }
+
+        // Deep enough that compounding measurement would take minutes, while capped measurement
+        // stays well under a second.
+        let mut block = Block::Para(vec![Inline::Str("innermost".into())]);
+        for _ in 0..9 {
+            block = nested_table(vec![block]);
+        }
+        let doc = Document {
+            blocks: vec![block],
+            ..Document::default()
+        };
+        MarkdownWriter
+            .write(&doc, &WriterOptions::default())
+            .expect("write");
+    }
 
     #[test]
     fn yaml_quotes_only_scalars_that_would_reparse_wrongly() {
