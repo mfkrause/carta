@@ -7,12 +7,12 @@
 //! renders to some valid MathML, falling back to a text node for input with no structural form — and
 //! is bounded against pathological nesting by an explicit depth limit.
 
-use super::escape::{escape_attribute, escape_text};
 use super::parse::{
     self, Atom, Body, BraceKind, ColumnAlign, Delim, FracStyle, GridKind, MatrixDelim, ModKind,
     ScriptKind, Sibling, StackSide, TextPiece,
 };
 use super::symbols::{self, Class};
+use carta_core::container::xml::{escape_attribute, escape_text};
 
 /// Maximum structural nesting depth before the walk stops descending, rendering the offending
 /// sub-expression as an empty group. The parser already bounds brace nesting well below this.

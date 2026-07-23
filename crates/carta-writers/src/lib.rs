@@ -50,7 +50,7 @@ mod math;
 #[cfg(any(feature = "commonmark", feature = "markdown", feature = "gfm"))]
 mod markdown_common;
 
-#[cfg(any(feature = "epub", feature = "docx", feature = "rtf"))]
+#[cfg(any(feature = "epub", feature = "docx", feature = "odt", feature = "rtf"))]
 mod image_size;
 
 #[cfg(feature = "slides")]

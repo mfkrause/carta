@@ -32,6 +32,7 @@ use carta_core::{
 };
 
 use crate::heading_ids::IdRegistry;
+use crate::transliterate::docx_asciify;
 use crate::xml::{self, Element, local_name};
 
 /// Parses a `WordprocessingML` package into the document model.
@@ -1218,7 +1219,7 @@ impl<'a> Converter<'a> {
     fn heading_id(&mut self, inlines: &[Inline]) -> String {
         let text = carta_ast::to_plain_text(inlines);
         let source = if self.ascii_ids {
-            fold_to_ascii(&text)
+            docx_asciify(&text)
         } else {
             text
         };
@@ -2506,57 +2507,6 @@ static WINGDINGS_TABLE: [&str; 95] = [
     "\u{2b25}", "\u{2327}", "\u{2bb9}", "\u{2318}", "\u{1f3f5}", "\u{1f3f6}", "\u{1f676}",
     "\u{1f677}",
 ];
-
-// ---------------------------------------------------------------------------
-// ASCII folding for the ascii_identifiers extension
-// ---------------------------------------------------------------------------
-
-/// Transliterates text to ASCII: an accented Latin letter folds to its unaccented base, plain ASCII
-/// is kept, and any other character is dropped. Covers the Latin-1 Supplement and Latin Extended-A
-/// ranges that dominate Western text.
-fn fold_to_ascii(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
-        if ch.is_ascii() {
-            out.push(ch);
-        } else if let Some(base) = ascii_base(ch) {
-            out.push(base);
-        }
-    }
-    out
-}
-
-#[allow(clippy::match_same_arms)]
-fn ascii_base(ch: char) -> Option<char> {
-    let base = match ch {
-        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'Ā' | 'ā' | 'Ă'
-        | 'ă' | 'Ą' | 'ą' => 'a',
-        'Ç' | 'ç' | 'Ć' | 'ć' | 'Ĉ' | 'ĉ' | 'Ċ' | 'ċ' | 'Č' | 'č' => 'c',
-        'Ď' | 'ď' | 'Đ' | 'đ' => 'd',
-        'È' | 'É' | 'Ê' | 'Ë' | 'è' | 'é' | 'ê' | 'ë' | 'Ē' | 'ē' | 'Ĕ' | 'ĕ' | 'Ė' | 'ė' | 'Ę'
-        | 'ę' | 'Ě' | 'ě' => 'e',
-        'Ĝ' | 'ĝ' | 'Ğ' | 'ğ' | 'Ġ' | 'ġ' | 'Ģ' | 'ģ' => 'g',
-        'Ĥ' | 'ĥ' | 'Ħ' | 'ħ' => 'h',
-        'Ì' | 'Í' | 'Î' | 'Ï' | 'ì' | 'í' | 'î' | 'ï' | 'Ĩ' | 'ĩ' | 'Ī' | 'ī' | 'Ĭ' | 'ĭ' | 'Į'
-        | 'į' | 'İ' | 'ı' => 'i',
-        'Ĵ' | 'ĵ' => 'j',
-        'Ķ' | 'ķ' => 'k',
-        'Ĺ' | 'ĺ' | 'Ļ' | 'ļ' | 'Ľ' | 'ľ' | 'Ł' | 'ł' => 'l',
-        'Ñ' | 'ñ' | 'Ń' | 'ń' | 'Ņ' | 'ņ' | 'Ň' | 'ň' => 'n',
-        'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'Ō' | 'ō' | 'Ŏ' | 'ŏ' | 'Ő'
-        | 'ő' | 'Ø' | 'ø' => 'o',
-        'Ŕ' | 'ŕ' | 'Ŗ' | 'ŗ' | 'Ř' | 'ř' => 'r',
-        'Ś' | 'ś' | 'Ŝ' | 'ŝ' | 'Ş' | 'ş' | 'Š' | 'š' => 's',
-        'Ţ' | 'ţ' | 'Ť' | 'ť' | 'Ŧ' | 'ŧ' => 't',
-        'Ù' | 'Ú' | 'Û' | 'Ü' | 'ù' | 'ú' | 'û' | 'ü' | 'Ũ' | 'ũ' | 'Ū' | 'ū' | 'Ŭ' | 'ŭ' | 'Ů'
-        | 'ů' | 'Ű' | 'ű' | 'Ų' | 'ų' => 'u',
-        'Ŵ' | 'ŵ' => 'w',
-        'Ý' | 'ý' | 'ÿ' | 'Ŷ' | 'ŷ' | 'Ÿ' => 'y',
-        'Ź' | 'ź' | 'Ż' | 'ż' | 'Ž' | 'ž' => 'z',
-        _ => return None,
-    };
-    Some(base)
-}
 
 // ---------------------------------------------------------------------------
 // OMML → TeX

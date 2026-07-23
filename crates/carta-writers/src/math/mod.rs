@@ -14,9 +14,6 @@
 //!
 //! Both entry points are panic-free and bounded against pathological nesting.
 
-// Markup escaping shared by the two XML math backends; live whenever either backend is reachable.
-#[cfg_attr(not(any(feature = "docx", feature = "odt")), allow(dead_code))]
-mod escape;
 // The inline backend lowers the expression tree into a writer-agnostic inline list; the text writers
 // render it, but a build with only a container writer (which lowers to MathML or OMML instead)
 // compiles it without calling it.
@@ -34,12 +31,14 @@ mod escape;
 )]
 mod inlines;
 // The MathML backend lowers the same expression tree into Presentation MathML for the formula
-// objects the `OpenDocument` writer embeds; builds without that writer compile it but never call it.
-#[cfg_attr(not(feature = "odt"), allow(dead_code))]
+// objects the `OpenDocument` writer embeds. Only that writer's feature compiles it: its markup
+// escaping lives in `carta-core`'s container support, which that feature pulls in.
+#[cfg(feature = "odt")]
 mod mathml;
 // The OMML backend lowers the same expression tree into Office Math markup for the word-processing
-// writer; builds without that writer compile it but never call it.
-#[cfg_attr(not(feature = "docx"), allow(dead_code))]
+// writer. Only that writer's feature compiles it: its markup escaping lives in `carta-core`'s
+// container support, which that feature pulls in.
+#[cfg(feature = "docx")]
 mod omml;
 mod parse;
 mod symbols;
@@ -78,7 +77,7 @@ pub(crate) fn to_inlines(tex: &str) -> Option<Vec<Inline>> {
 /// math, or an `<m:oMathPara>` wrapper with centered justification for display math. Returns `None`
 /// when the source cannot be parsed or holds a construct with no OMML rendering, so the caller emits
 /// the verbatim source instead.
-#[cfg_attr(not(feature = "docx"), allow(dead_code))]
+#[cfg(feature = "docx")]
 pub(crate) fn to_omml(tex: &str, display: bool) -> Option<String> {
     omml::to_omml(tex, display)
 }
@@ -86,7 +85,7 @@ pub(crate) fn to_omml(tex: &str, display: bool) -> Option<String> {
 /// Convert TeX math source to a Presentation MathML `<math>` element for an embedded formula object:
 /// `display="inline"` for inline math, `display="block"` for display math. Returns `None` only when
 /// the source cannot be parsed, so the caller emits the verbatim source instead.
-#[cfg_attr(not(feature = "odt"), allow(dead_code))]
+#[cfg(feature = "odt")]
 pub(crate) fn to_mathml(tex: &str, display: bool) -> Option<String> {
     mathml::to_mathml(tex, display)
 }

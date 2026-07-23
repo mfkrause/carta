@@ -1,7 +1,7 @@
 //! ASCII-transliteration folds shared by the readers that build identifiers under an
 //! `ascii_identifiers` extension.
 //!
-//! The four folds here have **different semantics by design**, so each reader's identifier output
+//! The five folds here have **different semantics by design**, so each reader's identifier output
 //! stays byte-stable — they are co-located, not unified:
 //!
 //! - [`fold_to_ascii`] (the broad Latin `match`): folds an accented Latin letter to its base,
@@ -10,6 +10,9 @@
 //! - [`rst_asciify`] (the narrow Latin `match`): the same mechanism with a smaller table — it omits
 //!   the Latin-Extended-Additional block and several accent rows, so its output differs from
 //!   [`fold_to_ascii`] for the characters it does not list.
+//! - [`docx_asciify`] (the stroked-letter `match`): the same mechanism with its own table — it
+//!   omits the Latin-Extended-Additional block and the combining-accent rows but folds the stroked
+//!   letters (`Đ`, `Ħ`, `Ł`, `Ø`, `Ŧ`) that every other fold drops.
 //! - [`transliterate_ascii`] (the code-point table): binary-searches a per-code-point base and drops
 //!   any character absent from the table.
 //! - [`dokuwiki_asciify`] (the decomposition strip): folds via canonical decomposition and keeps
@@ -188,6 +191,58 @@ fn rst_ascii_base(ch: char) -> Option<char> {
         'ŵ' => 'w',
         'ý' | 'ŷ' | 'ÿ' => 'y',
         'ź' | 'ż' | 'ž' => 'z',
+        _ => return None,
+    };
+    Some(base)
+}
+
+/// Transliterates text to ASCII: an accented Latin letter folds to its unaccented base, plain ASCII
+/// is kept, and any other character is dropped. Covers the Latin-1 Supplement and Latin Extended-A
+/// ranges that dominate Western text.
+#[cfg(feature = "docx")]
+pub(crate) fn docx_asciify(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if ch.is_ascii() {
+            out.push(ch);
+        } else if let Some(base) = docx_ascii_base(ch) {
+            out.push(base);
+        }
+    }
+    out
+}
+
+/// The unaccented ASCII letter underlying a Latin-1 Supplement or Latin Extended-A letter, including
+/// the stroked letters, or `None` for a character with no single-letter base (so the caller drops
+/// it).
+#[cfg(feature = "docx")]
+#[allow(clippy::match_same_arms)]
+fn docx_ascii_base(ch: char) -> Option<char> {
+    let base = match ch {
+        'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'Ā' | 'ā' | 'Ă'
+        | 'ă' | 'Ą' | 'ą' => 'a',
+        'Ç' | 'ç' | 'Ć' | 'ć' | 'Ĉ' | 'ĉ' | 'Ċ' | 'ċ' | 'Č' | 'č' => 'c',
+        'Ď' | 'ď' | 'Đ' | 'đ' => 'd',
+        'È' | 'É' | 'Ê' | 'Ë' | 'è' | 'é' | 'ê' | 'ë' | 'Ē' | 'ē' | 'Ĕ' | 'ĕ' | 'Ė' | 'ė' | 'Ę'
+        | 'ę' | 'Ě' | 'ě' => 'e',
+        'Ĝ' | 'ĝ' | 'Ğ' | 'ğ' | 'Ġ' | 'ġ' | 'Ģ' | 'ģ' => 'g',
+        'Ĥ' | 'ĥ' | 'Ħ' | 'ħ' => 'h',
+        'Ì' | 'Í' | 'Î' | 'Ï' | 'ì' | 'í' | 'î' | 'ï' | 'Ĩ' | 'ĩ' | 'Ī' | 'ī' | 'Ĭ' | 'ĭ' | 'Į'
+        | 'į' | 'İ' | 'ı' => 'i',
+        'Ĵ' | 'ĵ' => 'j',
+        'Ķ' | 'ķ' => 'k',
+        'Ĺ' | 'ĺ' | 'Ļ' | 'ļ' | 'Ľ' | 'ľ' | 'Ł' | 'ł' => 'l',
+        'Ñ' | 'ñ' | 'Ń' | 'ń' | 'Ņ' | 'ņ' | 'Ň' | 'ň' => 'n',
+        'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'Ō' | 'ō' | 'Ŏ' | 'ŏ' | 'Ő'
+        | 'ő' | 'Ø' | 'ø' => 'o',
+        'Ŕ' | 'ŕ' | 'Ŗ' | 'ŗ' | 'Ř' | 'ř' => 'r',
+        'Ś' | 'ś' | 'Ŝ' | 'ŝ' | 'Ş' | 'ş' | 'Š' | 'š' => 's',
+        'Ţ' | 'ţ' | 'Ť' | 'ť' | 'Ŧ' | 'ŧ' => 't',
+        'Ù' | 'Ú' | 'Û' | 'Ü' | 'ù' | 'ú' | 'û' | 'ü' | 'Ũ' | 'ũ' | 'Ū' | 'ū' | 'Ŭ' | 'ŭ' | 'Ů'
+        | 'ů' | 'Ű' | 'ű' | 'Ų' | 'ų' => 'u',
+        'Ŵ' | 'ŵ' => 'w',
+        'Ý' | 'ý' | 'ÿ' | 'Ŷ' | 'ŷ' | 'Ÿ' => 'y',
+        'Ź' | 'ź' | 'Ż' | 'ż' | 'Ž' | 'ž' => 'z',
         _ => return None,
     };
     Some(base)

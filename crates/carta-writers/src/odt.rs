@@ -20,6 +20,10 @@ use carta_core::container::zip::ZipArchive;
 use carta_core::media::{decode_data_uri, extension_for_mime, image_mime_for_extension};
 use carta_core::{BytesWriter, Extension, Result, WriterOptions};
 
+use crate::image_size::{
+    gif_dimensions, jpeg_dimensions, png_dimensions, read_be_u16, webp_dimensions,
+};
+
 /// The package's MIME marker; the first archive entry, stored uncompressed.
 const MIMETYPE: &str = "application/vnd.oasis.opendocument.text";
 
@@ -1366,91 +1370,6 @@ fn image_metrics(bytes: &[u8]) -> ((u32, u32), (f64, f64)) {
     ((100, 100), (72.0, 72.0))
 }
 
-fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
-    const SIGNATURE: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    let signature: [u8; 8] = bytes.get(0..8)?.try_into().ok()?;
-    if signature != SIGNATURE {
-        return None;
-    }
-    Some((be_u32(bytes, 16)?, be_u32(bytes, 20)?))
-}
-
-fn gif_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
-    let header: [u8; 4] = bytes.get(0..4)?.try_into().ok()?;
-    if &header != b"GIF8" {
-        return None;
-    }
-    Some((u32::from(le_u16(bytes, 6)?), u32::from(le_u16(bytes, 8)?)))
-}
-
-fn jpeg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
-    let start: [u8; 2] = bytes.get(0..2)?.try_into().ok()?;
-    if start != [0xFF, 0xD8] {
-        return None;
-    }
-    let mut pos = 2usize;
-    for _ in 0..8192 {
-        if *bytes.get(pos)? != 0xFF {
-            return None;
-        }
-        let mut marker_pos = pos + 1;
-        while *bytes.get(marker_pos)? == 0xFF {
-            marker_pos += 1;
-        }
-        let marker = *bytes.get(marker_pos)?;
-        let segment = marker_pos + 1;
-        match marker {
-            0xC0 | 0xC1 | 0xC2 | 0xC3 | 0xC5 | 0xC6 | 0xC7 | 0xC9 | 0xCA | 0xCB | 0xCD | 0xCE
-            | 0xCF => {
-                // The frame header is length (2) then sample precision (1) before the dimensions.
-                let height = be_u16(bytes, segment + 3)?;
-                let width = be_u16(bytes, segment + 5)?;
-                return Some((u32::from(width), u32::from(height)));
-            }
-            0xD8 | 0xD9 => return None,
-            _ => {
-                let length = be_u16(bytes, segment)? as usize;
-                pos = segment + length;
-            }
-        }
-    }
-    None
-}
-
-/// The pixel dimensions a WebP file encodes, across the simple lossy (`VP8 `), simple lossless
-/// (`VP8L`), and extended (`VP8X`) chunk layouts.
-fn webp_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
-    let riff: [u8; 4] = bytes.get(0..4)?.try_into().ok()?;
-    let form: [u8; 4] = bytes.get(8..12)?.try_into().ok()?;
-    if riff != *b"RIFF" || form != *b"WEBP" {
-        return None;
-    }
-    match bytes.get(12..16)? {
-        b"VP8X" => Some((le_u24(bytes, 24)? + 1, le_u24(bytes, 27)? + 1)),
-        b"VP8L" => {
-            if *bytes.get(20)? != 0x2F {
-                return None;
-            }
-            let [b0, b1, b2, b3]: [u8; 4] = bytes.get(21..25)?.try_into().ok()?;
-            let packed = u32::from(b0)
-                | (u32::from(b1) << 8)
-                | (u32::from(b2) << 16)
-                | (u32::from(b3) << 24);
-            Some(((packed & 0x3FFF) + 1, ((packed >> 14) & 0x3FFF) + 1))
-        }
-        b"VP8 " => {
-            let start: [u8; 3] = bytes.get(23..26)?.try_into().ok()?;
-            if start != [0x9D, 0x01, 0x2A] {
-                return None;
-            }
-            let width = u32::from(le_u16(bytes, 26)?) & 0x3FFF;
-            let height = u32::from(le_u16(bytes, 28)?) & 0x3FFF;
-            Some((width, height))
-        }
-        _ => None,
-    }
-}
-
 /// The pixel dimensions declared by an SVG document's `<svg>` element: its `width` and `height`
 /// attributes when both are present, otherwise the extents given by its `viewBox`.
 fn svg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
@@ -1549,13 +1468,13 @@ fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
         }
         let marker = *bytes.get(marker_pos)?;
         let segment = marker_pos + 1;
-        let length = be_u16(bytes, segment)? as usize;
+        let length = read_be_u16(bytes, segment)? as usize;
         match marker {
             // The JFIF application header records a density in dots per inch or per centimetre.
             0xE0 if bytes.get(segment + 2..segment + 7)? == b"JFIF\0" => {
                 let units = *bytes.get(segment + 9)?;
-                let x = f64::from(be_u16(bytes, segment + 10)?);
-                let y = f64::from(be_u16(bytes, segment + 12)?);
+                let x = f64::from(read_be_u16(bytes, segment + 10)?);
+                let y = f64::from(read_be_u16(bytes, segment + 12)?);
                 if x > 0.0 && y > 0.0 {
                     return match units {
                         1 => Some((x, y)),
@@ -1570,26 +1489,6 @@ fn jpeg_density(bytes: &[u8]) -> Option<(f64, f64)> {
         }
     }
     None
-}
-
-fn be_u32(bytes: &[u8], offset: usize) -> Option<u32> {
-    let slice: [u8; 4] = bytes.get(offset..offset + 4)?.try_into().ok()?;
-    Some(u32::from_be_bytes(slice))
-}
-
-fn be_u16(bytes: &[u8], offset: usize) -> Option<u16> {
-    let slice: [u8; 2] = bytes.get(offset..offset + 2)?.try_into().ok()?;
-    Some(u16::from_be_bytes(slice))
-}
-
-fn le_u16(bytes: &[u8], offset: usize) -> Option<u16> {
-    let slice: [u8; 2] = bytes.get(offset..offset + 2)?.try_into().ok()?;
-    Some(u16::from_le_bytes(slice))
-}
-
-fn le_u24(bytes: &[u8], offset: usize) -> Option<u32> {
-    let [a, b, c]: [u8; 3] = bytes.get(offset..offset + 3)?.try_into().ok()?;
-    Some(u32::from(a) | (u32::from(b) << 8) | (u32::from(c) << 16))
 }
 
 // --- image sizing --------------------------------------------------------------------------------

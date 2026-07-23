@@ -185,6 +185,62 @@ pub(crate) fn push_html(out: &mut Vec<Piece>, html: &str, breakable: bool) {
     }
 }
 
+/// Whether `text` opens with a syntactically valid numeric character reference: `&#` followed by at
+/// least one decimal digit, or `&#x`/`&#X` followed by at least one hex digit, terminated by `;`. The
+/// reference syntax is wholly ASCII, so this scans bytes.
+pub(crate) fn begins_character_reference(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'&') || bytes.get(1) != Some(&b'#') {
+        return false;
+    }
+    let hex = matches!(bytes.get(2), Some(b'x' | b'X'));
+    let start = if hex { 3 } else { 2 };
+    let mut pos = start;
+    while bytes.get(pos).is_some_and(|byte| {
+        if hex {
+            byte.is_ascii_hexdigit()
+        } else {
+            byte.is_ascii_digit()
+        }
+    }) {
+        pos += 1;
+    }
+    pos > start && bytes.get(pos) == Some(&b';')
+}
+
+/// Whether `text` opens with a valid named character reference: an ASCII letter followed by further
+/// ASCII alphanumerics and a `;`, whose name is one the format recognizes. The reference syntax is
+/// wholly ASCII, so this scans bytes.
+pub(crate) fn begins_named_entity(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.first() != Some(&b'&') {
+        return false;
+    }
+    if !bytes.get(1).is_some_and(u8::is_ascii_alphabetic) {
+        return false;
+    }
+    let mut pos = 2;
+    while bytes.get(pos).is_some_and(u8::is_ascii_alphanumeric) {
+        pos += 1;
+    }
+    if bytes.get(pos) != Some(&b';') {
+        return false;
+    }
+    let name = text.get(1..pos).unwrap_or_default();
+    entity_names::ENTITY_NAMES.binary_search(&name).is_ok()
+}
+
+mod entity_names {
+    include!(concat!(env!("OUT_DIR"), "/entity_names.rs"));
+}
+
+/// Whether an `_` with the given neighbors sits at a word boundary: at least one neighbor (treating
+/// the ends of the run as boundaries) is not alphanumeric, so the `_` could flank emphasis.
+pub(crate) fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
+    let alnum = |ch: Option<char>| ch.is_some_and(char::is_alphanumeric);
+    !(alnum(before) && alnum(after))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

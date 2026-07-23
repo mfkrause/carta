@@ -12,13 +12,13 @@
 //! carries an explicit style property — `<m:sty m:val="p"/>` forces upright, and a styled-alphabet
 //! wrapper (`\mathbb`, `\mathbf`, …) spells out its bold/italic and script variant on every run.
 
-use super::escape::{escape_attribute, escape_text};
 use super::inlines::NegatedBase;
 use super::parse::{
     self, Atom, BinomKind, Body, BraceKind, ColumnAlign, Delim, FracStyle, GridKind, MatrixDelim,
     ModKind, RunScript, ScriptKind, ScriptRun, StackSide, TextPiece,
 };
 use super::symbols;
+use carta_core::container::xml::{escape_attribute, escape_text};
 
 /// Maximum structural nesting depth before the walk gives up and reports the input as
 /// unconvertible. The parser already bounds brace nesting well below this, so a valid expression

@@ -19,9 +19,9 @@ use crate::common::{
     render_html_attr, render_html_fragment_attr,
 };
 use crate::markdown_common::{
-    attr_is_empty, atx_heading_marker, autolink, code_span, destination, indent_code,
-    is_autolink_class, is_html_format, longest_backtick_run, needs_separator,
-    offset_horizontal_rule, push_html, quote_block,
+    attr_is_empty, atx_heading_marker, autolink, begins_character_reference, begins_named_entity,
+    code_span, destination, indent_code, is_autolink_class, is_html_format, is_word_boundary,
+    longest_backtick_run, needs_separator, offset_horizontal_rule, push_html, quote_block,
 };
 
 /// Renders a document to `CommonMark` text.
@@ -662,55 +662,6 @@ fn escape_str(text: &str, line_start: bool) -> String {
     out
 }
 
-/// Whether `text` opens with a syntactically valid numeric character reference: `&#` followed by at
-/// least one decimal digit, or `&#x`/`&#X` followed by at least one hex digit, terminated by `;`. The
-/// reference syntax is wholly ASCII, so this scans bytes.
-fn begins_character_reference(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    if bytes.first() != Some(&b'&') || bytes.get(1) != Some(&b'#') {
-        return false;
-    }
-    let hex = matches!(bytes.get(2), Some(b'x' | b'X'));
-    let start = if hex { 3 } else { 2 };
-    let mut pos = start;
-    while bytes.get(pos).is_some_and(|byte| {
-        if hex {
-            byte.is_ascii_hexdigit()
-        } else {
-            byte.is_ascii_digit()
-        }
-    }) {
-        pos += 1;
-    }
-    pos > start && bytes.get(pos) == Some(&b';')
-}
-
-/// Whether `text` opens with a valid named character reference: an ASCII letter followed by further
-/// ASCII alphanumerics and a `;`, whose name is one the format recognizes. The reference syntax is
-/// wholly ASCII, so this scans bytes.
-fn begins_named_entity(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    if bytes.first() != Some(&b'&') {
-        return false;
-    }
-    if !bytes.get(1).is_some_and(u8::is_ascii_alphabetic) {
-        return false;
-    }
-    let mut pos = 2;
-    while bytes.get(pos).is_some_and(u8::is_ascii_alphanumeric) {
-        pos += 1;
-    }
-    if bytes.get(pos) != Some(&b';') {
-        return false;
-    }
-    let name = text.get(1..pos).unwrap_or_default();
-    entity_names::ENTITY_NAMES.binary_search(&name).is_ok()
-}
-
-mod entity_names {
-    include!(concat!(env!("OUT_DIR"), "/entity_names.rs"));
-}
-
 /// The byte offset of a leading character that must be escaped because it would otherwise start a
 /// block construct: a `#` header marker, a `-`/`+` bullet marker followed by a space, or the `.`/`)`
 /// delimiter terminating a leading run of digits that forms an ordered-list marker. The offset always
@@ -760,13 +711,6 @@ fn paren_marker_close(text: &str) -> Option<usize> {
         .next()
         .is_none_or(|(_, ch)| ch.is_whitespace())
         .then_some(delim_offset)
-}
-
-/// Whether an `_` with the given neighbors sits at a word boundary: at least one neighbor (treating
-/// the ends of the run as boundaries) is not alphanumeric, so the `_` could flank emphasis.
-fn is_word_boundary(before: Option<char>, after: Option<char>) -> bool {
-    let alnum = |ch: Option<char>| ch.is_some_and(char::is_alphanumeric);
-    !(alnum(before) && alnum(after))
 }
 
 #[cfg(test)]

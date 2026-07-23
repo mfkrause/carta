@@ -1,6 +1,6 @@
 //! Pixel dimensions read from an image's own header bytes, for the container writers that size
-//! embedded pictures. Only the three raster formats a word-processor or e-book package embeds
-//! directly are recognized; anything else, or a header too short to parse, reports `(0, 0)`.
+//! embedded pictures. The per-format parsers cover PNG, GIF, JPEG, and WebP; a header too short to
+//! parse, or one whose signature does not match, reports `None`.
 
 /// The pixel dimensions of an image, read from its header. Returns `(0, 0)` for a format that is not
 /// recognized or a header that is too short to parse.
@@ -196,7 +196,7 @@ fn read_be_u32(bytes: &[u8], offset: usize) -> Option<u32> {
 }
 
 /// A big-endian `u16` at `offset`, or `None` when the slice is too short.
-fn read_be_u16(bytes: &[u8], offset: usize) -> Option<u16> {
+pub(crate) fn read_be_u16(bytes: &[u8], offset: usize) -> Option<u16> {
     let array: [u8; 2] = bytes.get(offset..offset + 2)?.try_into().ok()?;
     Some(u16::from_be_bytes(array))
 }
@@ -205,6 +205,43 @@ fn read_be_u16(bytes: &[u8], offset: usize) -> Option<u16> {
 fn read_le_u16(bytes: &[u8], offset: usize) -> Option<u16> {
     let array: [u8; 2] = bytes.get(offset..offset + 2)?.try_into().ok()?;
     Some(u16::from_le_bytes(array))
+}
+
+/// A little-endian `u24` at `offset`, widened to `u32`, or `None` when the slice is too short.
+fn read_le_u24(bytes: &[u8], offset: usize) -> Option<u32> {
+    let [low, middle, high]: [u8; 3] = bytes.get(offset..offset + 3)?.try_into().ok()?;
+    Some(u32::from(low) | (u32::from(middle) << 8) | (u32::from(high) << 16))
+}
+
+/// The pixel dimensions a WebP file encodes, across the simple lossy (`VP8 `), simple lossless
+/// (`VP8L`), and extended (`VP8X`) chunk layouts.
+pub(crate) fn webp_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.get(..4) != Some(b"RIFF".as_slice()) || bytes.get(8..12) != Some(b"WEBP".as_slice()) {
+        return None;
+    }
+    match bytes.get(12..16)? {
+        b"VP8X" => Some((read_le_u24(bytes, 24)? + 1, read_le_u24(bytes, 27)? + 1)),
+        b"VP8L" => {
+            if *bytes.get(20)? != 0x2F {
+                return None;
+            }
+            let [b0, b1, b2, b3]: [u8; 4] = bytes.get(21..25)?.try_into().ok()?;
+            let packed = u32::from(b0)
+                | (u32::from(b1) << 8)
+                | (u32::from(b2) << 16)
+                | (u32::from(b3) << 24);
+            Some(((packed & 0x3FFF) + 1, ((packed >> 14) & 0x3FFF) + 1))
+        }
+        b"VP8 " => {
+            if bytes.get(23..26)? != [0x9D, 0x01, 0x2A] {
+                return None;
+            }
+            let width = u32::from(read_le_u16(bytes, 26)?) & 0x3FFF;
+            let height = u32::from(read_le_u16(bytes, 28)?) & 0x3FFF;
+            Some((width, height))
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]

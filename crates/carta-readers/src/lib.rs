@@ -49,7 +49,8 @@ mod smart_fold;
     feature = "org",
     feature = "mediawiki",
     feature = "dokuwiki",
-    feature = "rst"
+    feature = "rst",
+    feature = "docx"
 ))]
 mod transliterate;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
