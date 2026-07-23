@@ -5,10 +5,10 @@ by Maximilian Krause (the "Maintainer").
 
 This document contains two agreements:
 
-- **Part A — Individual Contributor License Agreement.** Signed by every
+- **Part A: Individual Contributor License Agreement.** Signed by every
   contributor, once, by posting a comment on their first pull request (see the
   end of Part A).
-- **Part B — Corporate Contributor License Agreement.** Executed by a company
+- **Part B: Corporate Contributor License Agreement.** Executed by a company
   or other legal entity whose employees or contractors contribute, by email
   (see the end of Part B). Individual contributors sign Part A either way;
   Part B additionally covers the entity's rights in their contributions.
@@ -17,12 +17,12 @@ Posting the signing comment on a pull request executes **Part A only**.
 
 **Plain-language summary (not a substitute for the terms below):** You keep
 ownership of your contribution. You give the Maintainer a broad license to use
-it, including the right to distribute it under other licenses — this is what
+it, including the right to distribute it under other licenses. This is what
 allows the Maintainer to offer carta under commercial terms in addition to the
 AGPL. You confirm the contribution is your own work and you are allowed to
 submit it.
 
-## Part A — Individual Contributor License Agreement
+## Part A: Individual Contributor License Agreement
 
 This agreement documents the rights granted by contributors to the Maintainer.
 It is for your protection as a contributor as well as the protection of the
@@ -146,7 +146,7 @@ To sign this agreement, post the following comment on your pull request:
 Your signature is recorded once and covers all your future contributions to the
 Project.
 
-## Part B — Corporate Contributor License Agreement
+## Part B: Corporate Contributor License Agreement
 
 This agreement is for corporations or other legal entities whose employees or
 contractors contribute to the Project. It allows an entity to authorize

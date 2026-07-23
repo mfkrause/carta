@@ -14,8 +14,8 @@ cargo install cargo-nextest      # test runner (required)
 cargo install cargo-insta        # snapshot review (Layer 1)
 cargo install cargo-llvm-cov     # coverage
 cargo install cargo-deny         # dependency/license/advisory checks
-cargo install typos-cli          # optional — spell check, for CI parity via tools/check.sh
-cargo install hyperfine          # optional — used only by tools/bench-suite
+cargo install typos-cli          # optional spell check, for CI parity via tools/check.sh
+cargo install hyperfine          # optional, used only by tools/bench-suite
 ```
 
 Run the one-time developer setup to enable the git hooks (formatting on commit; clippy
@@ -65,7 +65,7 @@ quickly.
 
 ## Reporting bugs and requesting features
 
-Use the issue templates — they prompt for the input, the exact command, and the expected
+Use the issue templates. They prompt for the input, the exact command, and the expected
 vs. actual output, which is what makes a report actionable. Security issues follow a
 separate, private process described in [`SECURITY.md`](.github/SECURITY.md).
 
