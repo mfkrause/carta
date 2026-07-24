@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
 rust-version = "1.93"
 authors = ["Maximilian Krause"]
@@ -31,12 +31,12 @@ insta = "1"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 stacker = "0.1"
 
-carta = { path = "crates/carta", version = "0.0.7" }
-carta-ast = { path = "crates/carta-ast", version = "0.0.7" }
-carta-core = { path = "crates/carta-core", version = "0.0.7" }
-carta-highlight = { path = "crates/carta-highlight", version = "0.0.7" }
-carta-readers = { path = "crates/carta-readers", version = "0.0.7" }
-carta-writers = { path = "crates/carta-writers", version = "0.0.7" }
+carta = { path = "crates/carta", version = "0.0.8" }
+carta-ast = { path = "crates/carta-ast", version = "0.0.8" }
+carta-core = { path = "crates/carta-core", version = "0.0.8" }
+carta-highlight = { path = "crates/carta-highlight", version = "0.0.8" }
+carta-readers = { path = "crates/carta-readers", version = "0.0.8" }
+carta-writers = { path = "crates/carta-writers", version = "0.0.8" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

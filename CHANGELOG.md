@@ -9,6 +9,12 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.8](https://github.com/mfkrause/carta/compare/v0.0.7...v0.0.8) - 2026-07-24
+
+### Other
+
+- split oversized source files into focused submodules
+
 ## [0.0.7](https://github.com/mfkrause/carta/compare/v0.0.6...v0.0.7) - 2026-07-23
 
 ### Added
