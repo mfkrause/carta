@@ -7,12 +7,16 @@
 //! renders to some valid MathML, falling back to a text node for input with no structural form) and
 //! is bounded against pathological nesting by an explicit depth limit.
 
-use super::parse::{
-    self, Atom, Body, BraceKind, ColumnAlign, Delim, FracStyle, GridKind, MatrixDelim, ModKind,
-    ScriptKind, Sibling, StackSide, TextPiece,
-};
+use super::parse::{self, Atom, Body, FracStyle, ScriptKind, Sibling, TextPiece};
 use super::symbols::{self, Class};
 use carta_core::container::xml::{escape_attribute, escape_text};
+
+mod builders;
+
+use builders::{
+    big_delimiter, binomial, brace_atom, delimited, delimiter_glyph, ext_arrow, grid, matrix,
+    modulo, negated, negated_group, stack_over_under,
+};
 
 /// Maximum structural nesting depth before the walk stops descending, rendering the offending
 /// sub-expression as an empty group. The parser already bounds brace nesting well below this.
@@ -37,19 +41,19 @@ pub(crate) fn to_mathml(tex: &str, display: bool) -> Option<String> {
 }
 
 /// An XML element node: a tag, its ordered attributes, and its ordered children.
-struct Element {
-    name: &'static str,
-    attributes: Vec<(&'static str, String)>,
-    children: Vec<Node>,
+pub(super) struct Element {
+    pub(super) name: &'static str,
+    pub(super) attributes: Vec<(&'static str, String)>,
+    pub(super) children: Vec<Node>,
 }
 
-enum Node {
+pub(super) enum Node {
     Element(Element),
     Text(String),
 }
 
 impl Element {
-    fn new(name: &'static str) -> Self {
+    pub(super) fn new(name: &'static str) -> Self {
         Element {
             name,
             attributes: Vec::new(),
@@ -57,17 +61,17 @@ impl Element {
         }
     }
 
-    fn attr(mut self, name: &'static str, value: impl Into<String>) -> Self {
+    pub(super) fn attr(mut self, name: &'static str, value: impl Into<String>) -> Self {
         self.attributes.push((name, value.into()));
         self
     }
 
-    fn text(mut self, text: impl Into<String>) -> Self {
+    pub(super) fn text(mut self, text: impl Into<String>) -> Self {
         self.children.push(Node::Text(text.into()));
         self
     }
 
-    fn node(mut self, child: Node) -> Self {
+    pub(super) fn node(mut self, child: Node) -> Self {
         self.children.push(child);
         self
     }
@@ -96,12 +100,12 @@ impl Element {
 }
 
 /// A leaf element (`<mi>`, `<mo>`, …) carrying one text glyph.
-fn leaf(tag: &'static str, text: impl Into<String>) -> Node {
+pub(super) fn leaf(tag: &'static str, text: impl Into<String>) -> Node {
     Node::Element(Element::new(tag).text(text))
 }
 
 /// Lower a run of atoms to a run of nodes, flattening each atom's own nodes into one sequence.
-fn lower_seq(atoms: &[Atom], display: bool, depth: usize) -> Vec<Node> {
+pub(super) fn lower_seq(atoms: &[Atom], display: bool, depth: usize) -> Vec<Node> {
     if depth > MAX_DEPTH {
         return Vec::new();
     }
@@ -126,7 +130,7 @@ fn group(mut nodes: Vec<Node>) -> Node {
 }
 
 /// Lower a slot (a script argument, a fraction part, a cell) to a single grouped node.
-fn slot(atoms: &[Atom], display: bool, depth: usize) -> Node {
+pub(super) fn slot(atoms: &[Atom], display: bool, depth: usize) -> Node {
     group(lower_seq(atoms, display, depth + 1))
 }
 
@@ -196,7 +200,7 @@ fn is_under_over(body: &Body) -> bool {
 
 /// Wrap a base node in a subscript, superscript, or both: beside the base (`msub`/`msup`/`msubsup`)
 /// or stacked under and over it (`munder`/`mover`/`munderover`).
-fn apply_scripts(
+pub(super) fn apply_scripts(
     base: Node,
     sub: Option<&[Atom]>,
     sup: Option<&[Atom]>,
@@ -225,7 +229,13 @@ fn apply_scripts(
     }
 }
 
-fn apply_sibling(base: Node, sibling: &Sibling, stack: bool, display: bool, depth: usize) -> Node {
+pub(super) fn apply_sibling(
+    base: Node,
+    sibling: &Sibling,
+    stack: bool,
+    display: bool,
+    depth: usize,
+) -> Node {
     match sibling.kind {
         ScriptKind::Sub => apply_scripts(base, Some(&sibling.atoms), None, stack, display, depth),
         ScriptKind::Sup => apply_scripts(base, None, Some(&sibling.atoms), stack, display, depth),
@@ -233,7 +243,7 @@ fn apply_sibling(base: Node, sibling: &Sibling, stack: bool, display: bool, dept
 }
 
 /// Lower an atom's nucleus (its body without scripts) to zero or more nodes.
-fn nucleus(body: &Body, display: bool, depth: usize) -> Vec<Node> {
+pub(super) fn nucleus(body: &Body, display: bool, depth: usize) -> Vec<Node> {
     match body {
         Body::Char(c) => vec![char_leaf(*c)],
         Body::Number(digits) => vec![leaf("mn", digits.clone())],
@@ -289,7 +299,7 @@ fn char_leaf(c: char) -> Node {
 }
 
 /// A single source character's glyph text and math class. A hyphen-minus prints as the minus sign.
-fn char_glyph(c: char) -> (String, Class) {
+pub(super) fn char_glyph(c: char) -> (String, Class) {
     match c {
         '-' => ("\u{2212}".to_string(), Class::Bin),
         '+' | '*' => (c.to_string(), Class::Bin),
@@ -646,477 +656,6 @@ fn mtext(content: String, variant: bool) -> Node {
         element = element.attr("mathvariant", "normal");
     }
     Node::Element(element)
-}
-
-fn binomial(top: &[Atom], bottom: &[Atom], display: bool, depth: usize) -> Node {
-    let stack = Node::Element(
-        Element::new("mfrac")
-            .attr("linethickness", "0")
-            .node(slot(top, display, depth))
-            .node(slot(bottom, display, depth)),
-    );
-    fenced("(", ")", vec![stack])
-}
-
-fn matrix(delimiter: MatrixDelim, rows: &[Vec<Vec<Atom>>], display: bool, depth: usize) -> Node {
-    let table = table_element(
-        &ColumnScheme::Uniform(ColumnAlign::Center),
-        false,
-        rows,
-        display,
-        depth,
-    );
-    let (open, close) = match delimiter {
-        MatrixDelim::None => return table,
-        MatrixDelim::Paren => ("(", ")"),
-        MatrixDelim::Bracket => ("[", "]"),
-        MatrixDelim::Brace => ("{", "}"),
-        MatrixDelim::Bar => ("|", "|"),
-        MatrixDelim::DoubleBar => ("\u{2016}", "\u{2016}"),
-    };
-    fenced(open, close, vec![table])
-}
-
-fn grid(
-    kind: GridKind,
-    aligns: &[ColumnAlign],
-    rows: &[Vec<Vec<Atom>>],
-    display: bool,
-    depth: usize,
-) -> Node {
-    match kind {
-        GridKind::Array => {
-            table_element(&ColumnScheme::Explicit(aligns), false, rows, display, depth)
-        }
-        GridKind::Aligned => table_element(&ColumnScheme::Aligned, false, rows, display, depth),
-        GridKind::Eqnarray => table_element(&ColumnScheme::Eqnarray, false, rows, display, depth),
-        GridKind::Flalign => table_element(&ColumnScheme::Flalign, false, rows, display, depth),
-        GridKind::Gathered => table_element(
-            &ColumnScheme::Uniform(ColumnAlign::Center),
-            false,
-            rows,
-            display,
-            depth,
-        ),
-        // A `\substack` stacks each row as a grouped sub-expression rather than a flat cell.
-        GridKind::Substack => table_element(
-            &ColumnScheme::Uniform(ColumnAlign::Center),
-            true,
-            rows,
-            display,
-            depth,
-        ),
-        // A `cases` block is fenced by a single left brace with no closing delimiter.
-        GridKind::Cases => {
-            let table = table_element(
-                &ColumnScheme::Uniform(ColumnAlign::Left),
-                false,
-                rows,
-                display,
-                depth,
-            );
-            Node::Element(
-                Element::new("mrow")
-                    .node(fence_operator("{", true))
-                    .node(table),
-            )
-        }
-    }
-}
-
-/// How a tabular environment justifies its columns.
-enum ColumnScheme<'a> {
-    /// Every column takes one fixed alignment, with no inter-column padding.
-    Uniform(ColumnAlign),
-    /// Each column takes the alignment its position declares, with no inter-column padding.
-    Explicit(&'a [ColumnAlign]),
-    /// Columns alternate right, left; a multi-column block drops the gap between the pair so the two
-    /// alignment markers meet.
-    Aligned,
-    /// Columns cycle right, center, left so each alignment marker meets a column boundary.
-    Eqnarray,
-    /// Columns cycle left, right for a flush-both-sides layout.
-    Flalign,
-}
-
-impl ColumnScheme<'_> {
-    /// The justification of the column at `index`.
-    fn align(&self, index: usize) -> ColumnAlign {
-        match self {
-            ColumnScheme::Uniform(align) => *align,
-            ColumnScheme::Explicit(aligns) => {
-                aligns.get(index).copied().unwrap_or(ColumnAlign::Center)
-            }
-            ColumnScheme::Aligned => alternate(index, ColumnAlign::Right, ColumnAlign::Left),
-            ColumnScheme::Eqnarray => match index % 3 {
-                0 => ColumnAlign::Right,
-                1 => ColumnAlign::Center,
-                _ => ColumnAlign::Left,
-            },
-            ColumnScheme::Flalign => alternate(index, ColumnAlign::Left, ColumnAlign::Right),
-        }
-    }
-
-    /// Whether the scheme collapses the gap between adjacent columns (only the alternating aligned
-    /// layout, and only once it actually has more than one column).
-    fn collapses_gap(&self) -> bool {
-        matches!(self, ColumnScheme::Aligned)
-    }
-}
-
-/// The first alignment on even columns, the second on odd columns.
-fn alternate(index: usize, even: ColumnAlign, odd: ColumnAlign) -> ColumnAlign {
-    if index.is_multiple_of(2) { even } else { odd }
-}
-
-/// Build an `<mtable>` from a grid of cells, tagging each cell with its column's justification. Cells
-/// carry a flat run of nodes except in a grouped scheme, where each is collapsed to one node.
-fn table_element(
-    scheme: &ColumnScheme,
-    group_cells: bool,
-    rows: &[Vec<Vec<Atom>>],
-    display: bool,
-    depth: usize,
-) -> Node {
-    let multi_column = rows.iter().map(Vec::len).max().unwrap_or(0) > 1;
-    let mut table = Element::new("mtable");
-    for row in rows {
-        let mut tr = Element::new("mtr");
-        for (column, cell) in row.iter().enumerate() {
-            let align = scheme.align(column);
-            let (columnalign, style) =
-                cell_attributes(align, scheme.collapses_gap() && multi_column);
-            let mut td = Element::new("mtd")
-                .attr("columnalign", columnalign)
-                .attr("style", style);
-            if group_cells {
-                td = td.node(slot(cell, display, depth));
-            } else {
-                for node in lower_seq(cell, display, depth + 1) {
-                    td = td.node(node);
-                }
-            }
-            tr = tr.node(Node::Element(td));
-        }
-        table = table.node(Node::Element(tr));
-    }
-    Node::Element(table)
-}
-
-/// A cell's `columnalign` value and CSS `style`, dropping the trailing gap on the aligned side when the
-/// layout collapses it.
-fn cell_attributes(align: ColumnAlign, collapse: bool) -> (&'static str, String) {
-    let dir = match align {
-        ColumnAlign::Left => "left",
-        ColumnAlign::Center => "center",
-        ColumnAlign::Right => "right",
-    };
-    let style = match (collapse, align) {
-        (true, ColumnAlign::Right) => format!("text-align: {dir}; padding-right: 0"),
-        (true, ColumnAlign::Left) => format!("text-align: {dir}; padding-left: 0"),
-        _ => format!("text-align: {dir}"),
-    };
-    (dir, style)
-}
-
-/// Lower a horizontal brace: the group under (or over) its brace glyph, with a matching-side label
-/// (a superscript over an over-brace, a subscript under an under-brace) stacked as an outer limit.
-fn brace_atom(
-    kind: BraceKind,
-    inner: &[Atom],
-    atom: &Atom,
-    display: bool,
-    depth: usize,
-) -> Vec<Node> {
-    let body = slot(inner, display, depth);
-    let (wrapper, glyph) = match kind {
-        BraceKind::Over => ("mover", "\u{23DE}"),
-        BraceKind::Under => ("munder", "\u{23DF}"),
-    };
-    // The stretch accent rides on the brace glyph itself; the stacking element carries no accent.
-    let brace_mark = Node::Element(Element::new("mo").attr("accent", "true").text(glyph));
-    let core = Node::Element(Element::new(wrapper).node(body).node(brace_mark));
-
-    // The matching-side script becomes the stacked label; any other applies as an ordinary script.
-    let (label, remaining_subscript, remaining_superscript) = match kind {
-        BraceKind::Over => (atom.sup.as_deref(), atom.sub.as_deref(), None),
-        BraceKind::Under => (atom.sub.as_deref(), None, atom.sup.as_deref()),
-    };
-    let mut node = core;
-    if let Some(label) = label {
-        let stacked = match kind {
-            BraceKind::Over => "mover",
-            BraceKind::Under => "munder",
-        };
-        node = Node::Element(
-            Element::new(stacked)
-                .node(node)
-                .node(slot(label, display, depth)),
-        );
-    }
-    if remaining_subscript.is_some() || remaining_superscript.is_some() || !atom.siblings.is_empty()
-    {
-        node = apply_scripts(
-            node,
-            remaining_subscript,
-            remaining_superscript,
-            false,
-            display,
-            depth,
-        );
-        for sibling in &atom.siblings {
-            node = apply_sibling(node, sibling, false, display, depth);
-        }
-    }
-    vec![node]
-}
-
-fn stack_over_under(
-    side: StackSide,
-    mark: &[Atom],
-    base: &[Atom],
-    display: bool,
-    depth: usize,
-) -> Node {
-    let wrapper = match side {
-        StackSide::Over => "mover",
-        StackSide::Under => "munder",
-    };
-    Node::Element(
-        Element::new(wrapper)
-            .node(slot(base, display, depth))
-            .node(slot(mark, display, depth)),
-    )
-}
-
-fn ext_arrow(
-    arrow: &str,
-    below: Option<&[Atom]>,
-    above: &[Atom],
-    display: bool,
-    depth: usize,
-) -> Node {
-    let glyph = match arrow {
-        "arrow.l" => "\u{2190}",
-        _ => "\u{2192}",
-    };
-    let arrow_mark = leaf("mo", glyph);
-    match below {
-        None => Node::Element(
-            Element::new("mover")
-                .node(arrow_mark)
-                .node(slot(above, display, depth)),
-        ),
-        Some(below) => Node::Element(
-            Element::new("munderover")
-                .node(arrow_mark)
-                .node(slot(below, display, depth))
-                .node(slot(above, display, depth)),
-        ),
-    }
-}
-
-/// A stretchable delimiter fence around some content: an opening `<mo>`, the content, and a closing
-/// `<mo>`, all inside an `<mrow>`. An empty delimiter contributes no glyph on its side.
-fn fenced(open: &str, close: &str, content: Vec<Node>) -> Node {
-    let mut row = Element::new("mrow");
-    if !open.is_empty() {
-        row = row.node(fence_operator(open, true));
-    }
-    for node in content {
-        row = row.node(node);
-    }
-    if !close.is_empty() {
-        row = row.node(fence_operator(close, false));
-    }
-    Node::Element(row)
-}
-
-fn fence_operator(glyph: &str, opening: bool) -> Node {
-    Node::Element(
-        Element::new("mo")
-            .attr("stretchy", "true")
-            .attr("form", if opening { "prefix" } else { "postfix" })
-            .text(glyph),
-    )
-}
-
-fn delimited(
-    open: Option<Delim>,
-    close: Option<Delim>,
-    content: &[Atom],
-    display: bool,
-    depth: usize,
-) -> Node {
-    let open_glyph = open.map_or(String::new(), |delimiter| delimiter_glyph(delimiter, true));
-    let close_glyph = close.map_or(String::new(), |delimiter| delimiter_glyph(delimiter, false));
-    fenced(
-        &open_glyph,
-        &close_glyph,
-        lower_seq(content, display, depth + 1),
-    )
-}
-
-fn big_delimiter(scale: u16, inner: &Atom, display: bool, depth: usize) -> Vec<Node> {
-    let size = format!("{scale}%");
-    let form = big_form(&inner.body);
-    let mut nodes = nucleus(&inner.body, display, depth);
-    for node in &mut nodes {
-        if let Node::Element(element) = node
-            && (element.name == "mo" || element.name == "mi")
-        {
-            element.attributes.push(("minsize", size.clone()));
-            element.attributes.push(("maxsize", size.clone()));
-            element.attributes.push(("stretchy", "true".to_string()));
-            if element.name == "mo"
-                && let Some(form) = form
-            {
-                element.attributes.push(("form", form.to_string()));
-            }
-        }
-    }
-    nodes
-}
-
-/// The fence side a sized delimiter takes, from the glyph's math class: an opening delimiter is a
-/// `prefix` operator, a closing one a `postfix` operator, anything else unsided.
-fn big_form(body: &Body) -> Option<&'static str> {
-    let class = match body {
-        Body::Char(c) => char_glyph(*c).1,
-        Body::Command(name) => symbols::symbol(name)?.class,
-        _ => return None,
-    };
-    match class {
-        Class::Open => Some("prefix"),
-        Class::Close => Some("postfix"),
-        _ => None,
-    }
-}
-
-/// The glyph a stretchy delimiter renders on its opening or closing side.
-fn delimiter_glyph(delimiter: Delim, opening: bool) -> String {
-    let glyph = match delimiter {
-        Delim::Paren => {
-            if opening {
-                "("
-            } else {
-                ")"
-            }
-        }
-        Delim::Bracket => {
-            if opening {
-                "["
-            } else {
-                "]"
-            }
-        }
-        Delim::Brace => {
-            if opening {
-                "{"
-            } else {
-                "}"
-            }
-        }
-        Delim::Bar => "|",
-        Delim::BarVert => "\u{2225}",
-        Delim::DoubleBar => "\u{2016}",
-        Delim::Angle => {
-            if opening {
-                "\u{27E8}"
-            } else {
-                "\u{27E9}"
-            }
-        }
-        Delim::Floor => {
-            if opening {
-                "\u{230A}"
-            } else {
-                "\u{230B}"
-            }
-        }
-        Delim::Ceil => {
-            if opening {
-                "\u{2308}"
-            } else {
-                "\u{2309}"
-            }
-        }
-        Delim::CornerUpperLeft => "\u{231C}",
-        Delim::CornerUpperRight => "\u{231D}",
-    };
-    glyph.to_string()
-}
-
-/// Lower a `\not`-negated base: a precomposed negated relation, a combining long solidus over a
-/// letter or relation, or the literal name when the base carries no meaningful strike.
-fn negated(base: &str) -> Node {
-    if let Some(glyph) = symbols::negated_relation(base) {
-        return leaf("mo", glyph.to_string());
-    }
-    match super::inlines::negated_base(base) {
-        Some(super::inlines::NegatedBase::Relation(mut glyph)) => {
-            glyph.push('\u{0338}');
-            leaf("mo", glyph)
-        }
-        Some(super::inlines::NegatedBase::Italic(mut glyph)) => {
-            glyph.push('\u{0338}');
-            leaf("mi", glyph)
-        }
-        Some(super::inlines::NegatedBase::Upright(mut glyph)) => {
-            glyph.push('\u{0338}');
-            leaf("mn", glyph)
-        }
-        None => leaf("mi", base.to_string()),
-    }
-}
-
-fn negated_group(atoms: &[Atom], display: bool, depth: usize) -> Node {
-    Node::Element(
-        Element::new("mover")
-            .attr("accent", "true")
-            .node(slot(atoms, display, depth))
-            .node(Node::Element(
-                Element::new("mo").attr("accent", "true").text("\u{0338}"),
-            )),
-    )
-}
-
-/// Lower a modulo operator to its node sequence: a leading space, an optional opening parenthesis,
-/// the `mod` word with a function-application marker, a following space, the bracketed modulus for the
-/// parenthesised forms, and a closing parenthesis.
-fn modulo(kind: ModKind, argument: Option<&[Atom]>, display: bool, depth: usize) -> Vec<Node> {
-    let lead = match kind {
-        ModKind::Mod => "0.444em",
-        _ => "0.222em",
-    };
-    let parenthesised = matches!(kind, ModKind::Pmod | ModKind::Pod);
-    let mut inner = Vec::new();
-    inner.push(Node::Element(Element::new("mspace").attr("width", lead)));
-    if parenthesised {
-        inner.push(fence_operator("(", true));
-    }
-    if !matches!(kind, ModKind::Pod) {
-        let word = Node::Element(
-            Element::new("mrow")
-                .node(Node::Element(
-                    Element::new("mi").attr("mathvariant", "normal").text("mod"),
-                ))
-                .node(leaf("mo", "\u{2061}")),
-        );
-        inner.push(word);
-        inner.push(Node::Element(
-            Element::new("mspace").attr("width", "0.222em"),
-        ));
-    }
-    if let Some(argument) = argument {
-        inner.append(&mut lower_seq(argument, display, depth + 1));
-    }
-    if parenthesised {
-        inner.push(fence_operator(")", false));
-    }
-    let mut row = Element::new("mrow");
-    row.children = inner;
-    vec![Node::Element(row)]
 }
 
 #[cfg(all(test, feature = "odt"))]
