@@ -108,6 +108,12 @@ fn never_rejects_a_byte_a_pattern_can_start_with() {
         "0x1F", "::name", "!", "#\"", "e'", "ü", "()", "a'b'c", "0b1_",
     ];
 
+    // Non-ASCII characters spanning the two-, three- and four-byte lead ranges, including a cased
+    // letter, a Kelvin sign (which case-folds with ASCII `k`), digits, and a combining mark.
+    const LEADING_CHARS: [char; 10] = [
+        'é', 'Ü', 'ß', 'π', '中', '😀', '٣', '\u{212A}', '\u{0301}', '\u{2028}',
+    ];
+
     fn check(rules: &[Rule], language: &str, context: &str, checked: &mut usize) {
         for rule in rules {
             if let Matcher::RegExpr {
@@ -131,13 +137,24 @@ fn never_rejects_a_byte_a_pattern_can_start_with() {
                 source.push(')');
                 if let Ok(regex) = fancy_regex::Regex::new(&source) {
                     *checked += 1;
-                    for byte in 0u8..=127 {
+                    // Every ASCII lead, plus characters covering each non-ASCII lead-byte length.
+                    let leads = (0u8..=127)
+                        .map(char::from)
+                        .chain(LEADING_CHARS.iter().copied());
+                    for lead in leads {
+                        let mut buffer = [0u8; 4];
+                        let byte = lead
+                            .encode_utf8(&mut buffer)
+                            .as_bytes()
+                            .first()
+                            .copied()
+                            .unwrap_or(0);
                         if set.admits(byte) {
                             continue;
                         }
                         for suffix in SUFFIXES {
                             let mut candidate = String::new();
-                            candidate.push(char::from(byte));
+                            candidate.push(lead);
                             candidate.push_str(suffix);
                             assert!(
                                 !matches!(regex.find(&candidate), Ok(Some(m)) if m.start() == 0),
