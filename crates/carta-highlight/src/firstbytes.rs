@@ -10,6 +10,8 @@
 //! construct is therefore either modeled exactly or widened to "any"; a widened answer is slower,
 //! never wrong.
 
+use crate::grammar::{KeywordSettings, Matcher};
+
 /// A set of admissible leading bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FirstBytes {
@@ -106,6 +108,82 @@ impl FirstBytes {
             Some(set) if parser.at == parser.chars.len() => set,
             _ => FirstBytes::any(),
         }
+    }
+}
+
+impl FirstBytes {
+    /// The leading bytes a `matcher` can start a match with, under `keywords` for the word-delimiter
+    /// rules. A `dynamic` rule substitutes captures into its matcher before matching, so what it
+    /// accepts is not known here and every byte is admitted.
+    pub(crate) fn of_matcher(matcher: &Matcher, keywords: &KeywordSettings, dynamic: bool) -> Self {
+        if dynamic {
+            return FirstBytes::any();
+        }
+        let mut set = FirstBytes::none();
+        match matcher {
+            Matcher::DetectChar(ch) | Matcher::LineContinue(ch) => set.insert_char(*ch, false),
+            // Only the first character can lead; the second is matched after it.
+            Matcher::Detect2Chars(ch, _) | Matcher::RangeDetect { start: ch, .. } => {
+                set.insert_char(*ch, false);
+            }
+            Matcher::AnyChar(members) => {
+                for ch in members.chars() {
+                    set.insert_char(ch, false);
+                }
+            }
+            Matcher::StringDetect { text, insensitive }
+            | Matcher::WordDetect { text, insensitive } => match text.chars().next() {
+                Some(ch) => set.insert_char(ch, *insensitive),
+                // An empty literal never matches.
+                None => {}
+            },
+            Matcher::RegExpr {
+                pattern,
+                insensitive,
+                ..
+            } => return FirstBytes::of_pattern(pattern, *insensitive),
+            // A keyword is a run up to the next delimiter, so it cannot start on one.
+            Matcher::Keyword(_) => {
+                for byte in 0u8..0x80 {
+                    if !keywords.is_delimiter(char::from(byte)) {
+                        set.insert(byte);
+                    }
+                }
+                set.insert_non_ascii();
+            }
+            // The numeric forms allow a leading sign; the octal and hex forms need a leading zero.
+            Matcher::Int => {
+                set.insert(b'-');
+                set.insert_range(b'0', b'9');
+            }
+            Matcher::Float => {
+                set.insert(b'-');
+                set.insert(b'+');
+                set.insert(b'.');
+                set.insert_range(b'0', b'9');
+            }
+            Matcher::HlCOct | Matcher::HlCHex => {
+                set.insert(b'-');
+                set.insert(b'0');
+            }
+            Matcher::HlCStringChar => set.insert(b'\\'),
+            Matcher::HlCChar => set.insert(b'\''),
+            Matcher::DetectSpaces => {
+                for byte in [b' ', b'\t', b'\n', b'\r', 0x0b, 0x0c] {
+                    set.insert(byte);
+                }
+            }
+            Matcher::DetectIdentifier => {
+                set.insert_range(b'a', b'z');
+                set.insert_range(b'A', b'Z');
+                set.insert(b'_');
+            }
+            // A spliced context's rules are tried on their own, so this set is never consulted.
+            Matcher::IncludeRules { .. } => return FirstBytes::any(),
+            // Nothing acts on an unmodeled element.
+            Matcher::Unsupported => {}
+        }
+        set
     }
 }
 

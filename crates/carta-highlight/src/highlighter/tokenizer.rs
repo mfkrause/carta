@@ -207,8 +207,21 @@ impl<'a> Tokenizer<'a> {
             return self.include_rules(target, *include_attribute, ctx_attr, grammar, depth);
         }
 
+        // Reject on the leading byte before entering the matcher: at any given position most of a
+        // context's rules cannot match, and this is one bit test rather than a matcher dispatch.
+        if let Some(byte) = self.remaining().as_bytes().first() {
+            let first = rule.first_bytes.get_or_init(|| {
+                FirstBytes::of_matcher(&rule.matcher, &grammar.keywords, rule.dynamic)
+            });
+            if !first.admits(*byte) {
+                return None;
+            }
+        }
+
         let saved = (self.pos, self.col, self.prev_char);
-        self.pending_captures.clear();
+        if !self.pending_captures.is_empty() {
+            self.pending_captures.clear();
+        }
 
         let matched = self.run_matcher(rule, grammar)?;
         // A zero-width match (unless look-ahead only) would switch contexts without consuming,
@@ -468,16 +481,6 @@ impl<'a> Tokenizer<'a> {
             };
             self.hl.compiled_regex(&key)?
         } else {
-            // Reject on the leading byte first: most rules cannot match here, and this keeps their
-            // pattern from ever being compiled.
-            if let Some(byte) = remaining.as_bytes().first() {
-                let first = rule
-                    .first_bytes
-                    .get_or_init(|| FirstBytes::of_pattern(pattern, insensitive));
-                if !first.admits(*byte) {
-                    return None;
-                }
-            }
             rule.compiled_regex
                 .get_or_init(|| {
                     build_regex(&RegexKey {
