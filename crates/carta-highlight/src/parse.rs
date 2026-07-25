@@ -208,6 +208,7 @@ fn build_rule(node: &Node) -> Option<Rule> {
         dynamic,
         children,
         compiled_regex: std::cell::OnceCell::new(),
+        first_bytes: std::cell::OnceCell::new(),
         keyword_set: std::cell::OnceCell::new(),
     })
 }

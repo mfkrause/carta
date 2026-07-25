@@ -6,6 +6,7 @@
 //! [`SourceLine`] per line, each a sequence of classified [`Token`]s. Color [`Theme`]s and the list
 //! of bundled languages and styles are exposed alongside for the CLI and the writers.
 
+mod firstbytes;
 mod grammar;
 mod highlighter;
 mod parse;

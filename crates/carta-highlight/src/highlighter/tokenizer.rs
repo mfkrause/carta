@@ -11,6 +11,7 @@ use super::helpers::{
     substitute,
 };
 use super::{Frame, Highlighter, RegexKey};
+use crate::firstbytes::FirstBytes;
 
 /// The maximum number of steps taken tokenizing a single line before the remainder is emitted as
 /// ordinary text. Guards against a definition that could otherwise switch contexts without ever
@@ -467,6 +468,16 @@ impl<'a> Tokenizer<'a> {
             };
             self.hl.compiled_regex(&key)?
         } else {
+            // Reject on the leading byte first: most rules cannot match here, and this keeps their
+            // pattern from ever being compiled.
+            if let Some(byte) = remaining.as_bytes().first() {
+                let first = rule
+                    .first_bytes
+                    .get_or_init(|| FirstBytes::of_pattern(pattern, insensitive));
+                if !first.admits(*byte) {
+                    return None;
+                }
+            }
             rule.compiled_regex
                 .get_or_init(|| {
                     build_regex(&RegexKey {

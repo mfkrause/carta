@@ -178,6 +178,9 @@ pub struct Rule {
     /// Compiled form of a static `RegExpr` matcher, built on first use. `None` inside the cell
     /// records a pattern that failed to compile, so it is not retried on every attempt.
     pub(crate) compiled_regex: OnceCell<Option<Rc<fancy_regex::Regex>>>,
+    /// Leading bytes a static `RegExpr` matcher can start a match with, derived on first use. Lets a
+    /// rule that cannot match here be dropped before the pattern is compiled or the engine entered.
+    pub(crate) first_bytes: OnceCell<crate::firstbytes::FirstBytes>,
     /// Resolved keyword set for a `Keyword` matcher, built on first use.
     pub(crate) keyword_set: OnceCell<Rc<crate::highlighter::KeywordSet>>,
 }
