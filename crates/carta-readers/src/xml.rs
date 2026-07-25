@@ -70,6 +70,8 @@ impl Element {
     }
 
     /// The first descendant element with local name `key`, searched depth-first.
+    // Only the container readers reach past a direct child; an EPUB-only build has no caller.
+    #[cfg_attr(not(any(feature = "odt", feature = "docx")), allow(dead_code))]
     pub(crate) fn descendant(&self, key: &str) -> Option<&Element> {
         for element in self.elements() {
             if local_name(&element.name) == key {
