@@ -477,66 +477,99 @@ const STACK_SEGMENT: usize = 32 * 1024 * 1024;
 /// newline while a [`BREAK`] (a breakable space) stays a space, and lines are not reflowed. Hard
 /// newlines (block structure) always reset the column; consecutive break points collapse to one.
 fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
+    let bytes = input.as_bytes();
     let mut out = String::with_capacity(input.len());
     let mut column = 0usize;
-    let mut chars = input.chars();
-    while let Some(current) = chars.next() {
-        match current {
-            '\n' => {
+    let mut at = 0usize;
+    // The chunk starting at `at`, measured once: a break decision weighs the same scan that emits it.
+    let (mut end, mut chunk) = scan_chunk(input, at);
+    loop {
+        if end > at {
+            out.push_str(input.get(at..end).unwrap_or_default());
+            column += chunk;
+            at = end;
+        }
+        let Some(byte) = bytes.get(at).copied() else {
+            break;
+        };
+        if byte == b'\n' {
+            out.push('\n');
+            column = 0;
+            at += 1;
+        } else if byte == FLUSH_BYTE {
+            at += 1;
+        } else if matches!(wrap, WrapMode::Preserve) {
+            // Preserve keeps each break point: SOFT starts a line, others are literal spaces, none merged
+            if byte == SOFT_BYTE {
                 out.push('\n');
                 column = 0;
+            } else {
+                out.push(' ');
+                column += 1;
             }
-            FLUSH => {}
-            BREAK | SOFT => match wrap {
-                // a run of break points is one decision: break only when the next chunk would overflow
-                WrapMode::Auto => {
-                    while let Some(BREAK | SOFT) = chars.clone().next() {
-                        chars.next();
-                    }
-                    let mut chunk = 0usize;
-                    for following in chars.clone() {
-                        if following == BREAK
-                            || following == SOFT
-                            || following == '\n'
-                            || following == FLUSH
-                        {
-                            break;
-                        }
-                        chunk += char_width(following);
-                    }
-                    if column + 1 + chunk > width {
-                        out.push('\n');
-                        column = 0;
-                    } else {
-                        out.push(' ');
-                        column += 1;
-                    }
-                }
-                // a run still collapses to one space: spaces around a vanished inline read as one
-                WrapMode::None => {
-                    while let Some(BREAK | SOFT) = chars.clone().next() {
-                        chars.next();
-                    }
-                    out.push(' ');
-                    column += 1;
-                }
-                // Preserve keeps each break point: SOFT starts a line, others are literal spaces, none merged
-                WrapMode::Preserve if current == SOFT => {
-                    out.push('\n');
-                    column = 0;
-                }
-                WrapMode::Preserve => {
-                    out.push(' ');
-                    column += 1;
-                }
-            },
-            other => {
-                out.push(other);
-                column += char_width(other);
+            at += 1;
+        } else {
+            // A run of break points is one decision, so spaces around a vanished inline read as one.
+            at = skip_break_points(bytes, at);
+            let measured = scan_chunk(input, at);
+            // Auto breaks only when keeping the following chunk would overflow; None never breaks.
+            if matches!(wrap, WrapMode::Auto) && column + 1 + measured.1 > width {
+                out.push('\n');
+                column = 0;
+            } else {
+                out.push(' ');
+                column += 1;
             }
+            (end, chunk) = measured;
+            continue;
         }
+        (end, chunk) = scan_chunk(input, at);
     }
     out
+}
+
+/// [`BREAK`] as the single byte it encodes to, for the byte-wise scans [`reflow`] runs.
+const BREAK_BYTE: u8 = BREAK as u8;
+/// [`SOFT`] as the single byte it encodes to.
+const SOFT_BYTE: u8 = SOFT as u8;
+/// [`FLUSH`] as the single byte it encodes to.
+const FLUSH_BYTE: u8 = FLUSH as u8;
+
+/// Index just past the run of consecutive break points starting at `from`.
+fn skip_break_points(bytes: &[u8], from: usize) -> usize {
+    let rest = bytes.get(from..).unwrap_or_default();
+    let run = rest
+        .iter()
+        .position(|byte| *byte != BREAK_BYTE && *byte != SOFT_BYTE)
+        .unwrap_or(rest.len());
+    from + run
+}
+
+/// End index and display width of the ordinary-text chunk starting at `from`: the run up to the next
+/// break point, [`FLUSH`], or newline. The sentinels are ASCII, so the byte tests can never land
+/// inside a multi-byte sequence.
+fn scan_chunk(input: &str, from: usize) -> (usize, usize) {
+    let bytes = input.as_bytes();
+    let mut at = from;
+    let mut width = 0usize;
+    loop {
+        let Some(byte) = bytes.get(at).copied() else {
+            return (at, width);
+        };
+        if byte < 0x80 {
+            if byte == BREAK_BYTE || byte == SOFT_BYTE || byte == FLUSH_BYTE || byte == b'\n' {
+                return (at, width);
+            }
+            width += usize::from(byte >= 0x20 && byte != 0x7F);
+            at += 1;
+        } else {
+            let Some(ch) = input.get(at..).and_then(|rest| rest.chars().next()) else {
+                return (at, width);
+            };
+            width += char_width(ch);
+            at += ch.len_utf8();
+        }
+    }
 }
 
 /// Display width of a character in columns: zero for combining marks and control characters, two
@@ -544,6 +577,7 @@ fn reflow(input: &str, wrap: WrapMode, width: usize) -> String {
 ///
 /// This uses a Unicode-category zero-width test, distinct from the range-table measure in
 /// [`crate::common`] that the plain and LaTeX writers share.
+#[inline]
 fn char_width(ch: char) -> usize {
     let code = ch as u32;
     // below U+0300 only C0/C1 controls and the soft hyphen are zero-width, so range tests suffice
