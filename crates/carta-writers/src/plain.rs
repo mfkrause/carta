@@ -6,7 +6,7 @@
 
 use carta_ast::{
     Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType,
-    QuoteType, Row, Table,
+    QuoteType, Row, Table, Text,
 };
 use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 
@@ -638,9 +638,9 @@ impl State {
             Inline::Str(text) => out.push(Piece::text(if self.smart {
                 unsmarten(text)
             } else {
-                text.to_string()
+                text.clone()
             })),
-            Inline::Code(_, text) => out.push(Piece::text(text.to_string())),
+            Inline::Code(_, text) => out.push(Piece::text(text.clone())),
             Inline::Emph(inlines)
             | Inline::Strong(inlines)
             | Inline::Underline(inlines)
@@ -779,8 +779,8 @@ fn is_plain_format(format: &Format) -> bool {
 
 /// Collapse Unicode smart punctuation in a text run to its ASCII form for a `smart`-enabled render;
 /// every other character passes through unchanged.
-fn unsmarten(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
+fn unsmarten(text: &str) -> Text {
+    let mut out = Text::with_capacity(text.len());
     for ch in text.chars() {
         match ascii_punctuation(ch) {
             Some(ascii) => out.push_str(ascii),

@@ -1,6 +1,7 @@
 //! LaTeX escaping for literal text, URLs, and cross-reference labels.
 
 use crate::common::clean_prefix_len;
+use carta_ast::Text;
 
 use super::to_label;
 
@@ -18,7 +19,7 @@ pub(super) fn is_latex_format(format: &str) -> bool {
 }
 
 /// Escape a run of literal text for the given context.
-pub(super) fn escape(text: &str, mode: EscapeMode) -> String {
+pub(super) fn escape(text: &str, mode: EscapeMode) -> Text {
     escape_smart(text, mode, true)
 }
 
@@ -26,8 +27,8 @@ pub(super) fn escape(text: &str, mode: EscapeMode) -> String {
 /// ellipsis) renders as its TeX ligature; otherwise it passes through as the literal Unicode
 /// character. The non-breaking space and the `--` ligature guard are structural and are emitted
 /// regardless of `smart`.
-pub(super) fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String {
-    let mut out = String::with_capacity(text.len());
+pub(super) fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> Text {
+    let mut out = Text::with_capacity(text.len());
     let code = mode == EscapeMode::Code;
     let is_trigger = |byte: u8| {
         matches!(
@@ -118,7 +119,7 @@ pub(super) fn escape_smart(text: &str, mode: EscapeMode, smart: bool) -> String 
 /// Insert a thin-space ligature guard after a smart-quote glyph when the next character also opens
 /// with a quote glyph (another smart quote, or a literal backtick). Without it, adjacent quotes such
 /// as the two apostrophes of `’’` would fuse into a single closing double quote.
-fn guard_quote_ligature(out: &mut String, next: Option<char>) {
+fn guard_quote_ligature(out: &mut Text, next: Option<char>) {
     if matches!(
         next,
         Some('\u{2018}' | '\u{2019}' | '\u{201C}' | '\u{201D}' | '`')
@@ -131,7 +132,7 @@ fn guard_quote_ligature(out: &mut String, next: Option<char>) {
 /// character. In code context the command always closes with an empty group; in text context the
 /// separator depends on what follows: a space before a letter, an empty group before whitespace or
 /// the end of the run, and nothing before other glyphs (which already terminate the command).
-fn push_control_word(out: &mut String, command: &str, next: Option<char>, mode: EscapeMode) {
+fn push_control_word(out: &mut Text, command: &str, next: Option<char>, mode: EscapeMode) {
     out.push_str(command);
     match mode {
         EscapeMode::Code => out.push_str("{}"),

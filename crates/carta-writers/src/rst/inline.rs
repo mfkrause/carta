@@ -1,6 +1,6 @@
 //! Inline rendering for the reStructuredText writer: tokens, phrase markup, links, images, and escaping.
 
-use carta_ast::{Attr, Block, Inline, QuoteType, Target, to_plain_text};
+use carta_ast::{Attr, Block, Inline, QuoteType, Target, Text, to_plain_text};
 
 use crate::common::{
     Piece, ascii_punctuation, clean_prefix_len, indent_block, is_known_scheme, is_uri_scheme,
@@ -17,7 +17,7 @@ use super::block::dimension_options;
 #[derive(Debug, Clone)]
 pub(super) enum Token {
     Word {
-        text: String,
+        text: Text,
         lead_complex: bool,
         trail_complex: bool,
         lead: char,
@@ -42,7 +42,8 @@ fn word(text: String, complex: bool) -> Token {
 /// Build a word whose leading and trailing edges may carry markup independently. A boundary word that
 /// only opens markup marks its leading edge complex and its trailing edge plain, and vice versa, so an
 /// interior word abutting it on the plain side is not parted by a spurious `\ ` separator.
-fn edge_word(text: String, lead_complex: bool, trail_complex: bool) -> Token {
+fn edge_word(text: impl Into<Text>, lead_complex: bool, trail_complex: bool) -> Token {
+    let text = text.into();
     let lead = text.chars().next().unwrap_or('\0');
     Token::Word {
         text,
@@ -713,10 +714,10 @@ fn is_safe_preceder(ch: char) -> bool {
 /// doubled. A `*`, backtick, or `|` is escaped where it could open or close inline markup given its
 /// neighbors. A `_` is a reference marker: it is escaped everywhere except where it is buried directly
 /// before an alphanumeric and is not itself opening at a word boundary.
-pub(super) fn escape(text: &str, smart: bool) -> String {
+pub(super) fn escape(text: &str, smart: bool) -> Text {
     let is_trigger =
         |byte: u8| matches!(byte, b'\\' | b'*' | b'`' | b'|' | b'_') || (smart && byte >= 0x80);
-    let mut out = String::new();
+    let mut out = Text::with_capacity(text.len());
     let mut prev: Option<char> = None;
     let mut rest = text;
     loop {

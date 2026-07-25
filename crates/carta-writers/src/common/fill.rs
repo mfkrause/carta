@@ -1,8 +1,8 @@
 //! The greedy line-filling engine and hanging-indent helper shared by the text-oriented writers.
 
 use super::display_width;
+use carta_ast::Text;
 use carta_core::WrapMode;
-use std::borrow::Cow;
 
 /// Column at which inline content is wrapped: the default fill width.
 pub(crate) const FILL_COLUMN: usize = 72;
@@ -24,7 +24,7 @@ pub(crate) const FILL_COLUMN: usize = 72;
 )]
 #[derive(Debug, Clone)]
 pub(crate) enum Piece {
-    Text(Cow<'static, str>),
+    Text(Text),
     Space,
     /// A soft line break in the source. Under [`WrapMode::Preserve`] it stays a line break; under
     /// [`WrapMode::Auto`] and [`WrapMode::None`] it is inter-word space like [`Piece::Space`].
@@ -33,8 +33,8 @@ pub(crate) enum Piece {
 }
 
 impl Piece {
-    /// A text piece from a static literal (borrowed, allocation-free) or an owned string (moved in),
-    /// without an intervening copy.
+    /// A text piece. Short runs (the common case: one word) live inline in the piece, so building the
+    /// piece list for a paragraph allocates nothing per word.
     #[cfg_attr(
         not(any(
             feature = "asciidoc",
@@ -48,7 +48,7 @@ impl Piece {
         )),
         allow(dead_code)
     )]
-    pub(crate) fn text(value: impl Into<Cow<'static, str>>) -> Self {
+    pub(crate) fn text(value: impl Into<Text>) -> Self {
         Piece::Text(value.into())
     }
 }
