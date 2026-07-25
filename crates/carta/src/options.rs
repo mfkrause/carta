@@ -165,32 +165,13 @@ fn syntax_directories(data_dir: Option<&Path>) -> Vec<PathBuf> {
 /// parsed is skipped with a warning: one stale definition should not fail every conversion.
 #[cfg(feature = "highlight")]
 fn load_syntax_directory(highlighter: &mut carta::Highlighter, directory: &Path) {
-    let entries = match fs::read_dir(directory) {
-        Ok(entries) => entries,
-        Err(error) => {
-            eprintln!(
-                "carta: warning: cannot read syntax directory {}: {error}",
-                directory.display()
-            );
-            return;
-        }
-    };
-    let mut paths: Vec<PathBuf> = entries
-        .filter_map(std::result::Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "xml"))
-        .collect();
-    paths.sort();
-    for path in paths {
-        let loaded = fs::read_to_string(&path)
-            .map_err(|error| error.to_string())
-            .and_then(|xml| add_syntax_definition(highlighter, &path, &xml));
-        if let Err(error) = loaded {
-            eprintln!(
-                "carta: warning: skipping syntax definition {}: {error}",
-                path.display()
-            );
-        }
+    // Registered by name only: a definition is read when a code block selects it, so a directory of
+    // hundreds costs nothing until one is used.
+    if let Err(error) = highlighter.registry_mut().add_directory(directory) {
+        eprintln!(
+            "carta: warning: cannot read syntax directory {}: {error}",
+            directory.display()
+        );
     }
 }
 
