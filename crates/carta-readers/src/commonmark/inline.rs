@@ -362,6 +362,10 @@ fn push_text_inlines(out: &mut Vec<Inline>, text: &str) {
     // Boundaries are single ASCII spaces, so byte scanning is exact and each word copies in one
     // step (one memcpy per word).
     let bytes = text.as_bytes();
+    // One `Space` per space plus one `Str` per word bounds the additions, so the vector grows once
+    // rather than doubling repeatedly while words are appended.
+    let spaces = memchr::memchr_iter(b' ', bytes).count();
+    out.reserve(spaces * 2 + 1);
     let mut i = 0;
     while let Some(&byte) = bytes.get(i) {
         if byte == b' ' {

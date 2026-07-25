@@ -3,6 +3,11 @@
 
 /// Display width of a string in columns, summed over its characters.
 pub(crate) fn display_width(text: &str) -> usize {
+    // Printable ASCII, the overwhelming majority of measured text, is one column per byte.
+    let bytes = text.as_bytes();
+    if bytes.iter().all(|byte| byte.wrapping_sub(0x20) < 0x5F) {
+        return bytes.len();
+    }
     text.chars().map(char_width).sum()
 }
 
