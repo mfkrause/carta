@@ -801,7 +801,7 @@ fn is_loose_definition(blocks: &[Block]) -> bool {
 fn uppercase_pieces(pieces: &mut [Piece], start: usize) {
     for piece in pieces.iter_mut().skip(start) {
         if let Piece::Text(text) = piece {
-            *text = text.to_uppercase().into();
+            *text = text.to_uppercase();
         }
     }
 }

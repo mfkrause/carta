@@ -97,7 +97,7 @@ fn dot_admits_everything() {
 
 /// The soundness property, checked against every regular-expression rule in every definition that
 /// ships with the crate: whenever the analysis rejects a leading byte, no string beginning with that
-/// byte may actually match. A rejection that is wrong would silently mis-highlight code.
+/// byte may actually match. A rejection that is wrong would silently highlight code wrongly.
 #[test]
 fn never_rejects_a_byte_a_pattern_can_start_with() {
     use crate::grammar::{Matcher, Rule};

@@ -131,12 +131,13 @@ impl FirstBytes {
                     set.insert_char(ch, false);
                 }
             }
+            // An empty literal never matches, contributing nothing.
             Matcher::StringDetect { text, insensitive }
-            | Matcher::WordDetect { text, insensitive } => match text.chars().next() {
-                Some(ch) => set.insert_char(ch, *insensitive),
-                // An empty literal never matches.
-                None => {}
-            },
+            | Matcher::WordDetect { text, insensitive } => {
+                if let Some(ch) = text.chars().next() {
+                    set.insert_char(ch, *insensitive);
+                }
+            }
             Matcher::RegExpr {
                 pattern,
                 insensitive,
