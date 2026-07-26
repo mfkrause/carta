@@ -9,6 +9,28 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.8](https://github.com/mfkrause/carta/compare/v0.0.7...v0.0.8) - 2026-07-26
+
+### Fixed
+
+- *(readers)* allow the unused xml descendant helper in an epub-only build
+- *(writers)* resolve fractional column widths against the fill column, not the sizing width
+
+### Performance
+
+- *(highlight)* load a grammar directory's definitions on demand, not at startup
+- *(highlight)* gate every matcher kind on its leading byte, not just regexes
+- *(highlight)* reject a regex rule on its leading byte before compiling it
+- reserve inline capacity up front and measure ASCII width by length
+- *(writers)* keep filled text pieces inline instead of allocating per word
+- *(html)* reflow in measured chunks instead of char by char
+
+### Other
+
+- split oversized source files into focused submodules
+- resolve clippy and typos findings in the new highlight and writer code
+- *(highlight)* cover non-ASCII lead bytes in the first-byte soundness sweep
+
 ## [0.0.7](https://github.com/mfkrause/carta/compare/v0.0.6...v0.0.7) - 2026-07-23
 
 ### Added
