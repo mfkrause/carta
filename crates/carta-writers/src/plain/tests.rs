@@ -63,6 +63,47 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
     render(vec![block]);
 }
 
+#[test]
+fn an_oversized_column_fraction_stays_within_the_fill_column() {
+    use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table, TableBody};
+
+    fn table(width: ColWidth, content: Vec<Block>) -> Block {
+        Block::Table(Box::new(Table {
+            col_specs: vec![ColSpec {
+                align: Alignment::AlignDefault,
+                width,
+            }],
+            bodies: vec![TableBody {
+                body: vec![Row {
+                    attr: Attr::default(),
+                    cells: vec![Cell {
+                        attr: Attr::default(),
+                        align: Alignment::AlignDefault,
+                        row_span: 1,
+                        col_span: 1,
+                        content,
+                    }],
+                }],
+                ..TableBody::default()
+            }],
+            ..Table::default()
+        }))
+    }
+
+    // A fraction far past the whole line, on a table nested inside a cell being measured at the
+    // unconstrained sizing width, once scaled its column to that width instead of the fill column.
+    let inner = table(
+        ColWidth::ColWidth(1e300),
+        vec![Block::Para(vec![Inline::Str("inner".into())])],
+    );
+    let outer = table(ColWidth::ColWidthDefault, vec![inner]);
+    let rendered = render_columns(vec![outer], 40);
+    // The framing each nesting level adds puts the total slightly over the fill column; what matters
+    // is that the width tracks the fill column rather than the sizing width.
+    let widest = rendered.lines().map(str::len).max().unwrap_or(0);
+    assert!(widest < 80, "widest line was {widest} columns");
+}
+
 fn long_paragraph() -> Vec<Block> {
     let words: Vec<Inline> = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda"
         .split(' ')

@@ -53,6 +53,56 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
 }
 
 #[test]
+fn an_oversized_column_fraction_stays_within_the_fill_column() {
+    use super::MarkdownWriter;
+    use carta_ast::{
+        Alignment, Attr, Block, Cell, ColSpec, ColWidth, Document, Inline, Row, Table, TableBody,
+    };
+    use carta_core::{Writer, WriterOptions};
+
+    fn table(width: ColWidth, content: Vec<Block>) -> Block {
+        Block::Table(Box::new(Table {
+            col_specs: vec![ColSpec {
+                align: Alignment::AlignDefault,
+                width,
+            }],
+            bodies: vec![TableBody {
+                body: vec![Row {
+                    attr: Attr::default(),
+                    cells: vec![Cell {
+                        attr: Attr::default(),
+                        align: Alignment::AlignDefault,
+                        row_span: 1,
+                        col_span: 1,
+                        content,
+                    }],
+                }],
+                ..TableBody::default()
+            }],
+            ..Table::default()
+        }))
+    }
+
+    // A fraction far past the whole line, on a table nested inside a cell being measured at the
+    // unconstrained sizing width, once scaled its column to that width instead of the fill column.
+    let inner = table(
+        ColWidth::ColWidth(1e300),
+        vec![Block::Para(vec![Inline::Str("inner".into())])],
+    );
+    let doc = Document {
+        blocks: vec![table(ColWidth::ColWidthDefault, vec![inner])],
+        ..Document::default()
+    };
+    let mut options = WriterOptions::default();
+    options.columns = Some(40);
+    let rendered = MarkdownWriter.write(&doc, &options).expect("write");
+    // The framing each nesting level adds puts the total slightly over the fill column; what matters
+    // is that the width tracks the fill column rather than the sizing width.
+    let widest = rendered.lines().map(str::len).max().unwrap_or(0);
+    assert!(widest < 80, "widest line was {widest} columns");
+}
+
+#[test]
 fn yaml_quotes_only_scalars_that_would_reparse_wrongly() {
     // Colon, ` #`, leading indicator, surrounding space, emptiness, and bool/null keywords force quoting.
     for forced in [

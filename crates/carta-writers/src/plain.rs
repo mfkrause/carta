@@ -268,6 +268,9 @@ impl State {
         if table.col_specs.is_empty() {
             return String::new();
         }
+        // A fractional column spec is relative to the line the table occupies, so a table laid out
+        // at the unconstrained measuring width would scale to it; keep it within the fill column.
+        let width = width.min(self.width);
         let form = table_form(table);
         self.table_depth += 1;
         let body = match form {
