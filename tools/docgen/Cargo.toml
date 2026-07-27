@@ -1,0 +1,15 @@
+[package]
+name = "docgen"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Detaches this crate from the root workspace so the repo's coverage, deny, and cargo-hack gates do
+# not sweep it in.
+[workspace]
+
+[dependencies]
+carta = { path = "../../crates/carta", default-features = false, features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"

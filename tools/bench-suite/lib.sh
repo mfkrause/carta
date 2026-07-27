@@ -17,6 +17,9 @@ BENCH_SIZES="${BENCH_SIZES:-10k,100k,1m}"
 BENCH_WARMUP="${BENCH_WARMUP:-3}"
 BENCH_RUNS="${BENCH_RUNS:-}" # empty => hyperfine adaptive (with a min-runs floor)
 BENCH_OUT="${BENCH_OUT:-$ROOT/target/bench}"
+# One JSON object per line, appended by whichever surface subprocess measured it; run.sh assembles
+# the file once every surface has finished. Empty means markdown-only, the default.
+BENCH_ROWS="${BENCH_ROWS:-}"
 FIXTURES="$BENCH_OUT/fixtures"
 mkdir -p "$BENCH_OUT" "$FIXTURES"
 
@@ -64,6 +67,37 @@ ensure_release_binary() {
 }
 
 oracle_version() { [ -f "$ORACLE_VERSION_FILE" ] && cat "$ORACLE_VERSION_FILE" || echo "unknown"; }
+
+carta_version() { "$OX" --version 2>/dev/null | awk 'NR==1 { print $NF }'; }
+
+hyperfine_version() { hyperfine --version 2>/dev/null | awk 'NR==1 { print $NF }'; }
+
+# One line naming the machine the numbers came from; BENCH_RUNNER overrides it for hosts where the
+# probes below read as something unhelpfully generic (CI images, VMs).
+runner_description() {
+  [ -n "${BENCH_RUNNER:-}" ] && { echo "$BENCH_RUNNER"; return; }
+  local cpu cores bytes os
+  case "$(uname -s)" in
+    Darwin)
+      cpu=$(sysctl -n machdep.cpu.brand_string 2>/dev/null)
+      cores=$(sysctl -n hw.ncpu 2>/dev/null)
+      bytes=$(sysctl -n hw.memsize 2>/dev/null)
+      os="macOS $(sw_vers -productVersion 2>/dev/null)"
+      ;;
+    Linux)
+      cpu=$(awk -F': ' '/^model name/ { print $2; exit }' /proc/cpuinfo 2>/dev/null)
+      cores=$(nproc 2>/dev/null)
+      bytes=$(awk '/^MemTotal/ { print $2 * 1024; exit }' /proc/meminfo 2>/dev/null)
+      os=$(awk -F'"' '/^PRETTY_NAME=/ { print $2; exit }' /etc/os-release 2>/dev/null)
+      ;;
+  esac
+  [ -n "$cpu" ] || cpu="unknown CPU"
+  [ -n "$os" ] || os="$(uname -s)"
+  local ram=""
+  [ -n "$bytes" ] && ram=$(awk -v b="$bytes" 'BEGIN { printf "%.0f GB RAM, ", b/1073741824 }')
+  printf '%s%s, %s%s (%s)\n' "$cpu" \
+    "$([ -n "$cores" ] && printf ' (%s cores)' "$cores")" "$ram" "$os" "$(uname -m)"
+}
 
 size_to_bytes() { # 10k / 100k / 1m / 2048 -> bytes
   local s="$1" n unit
@@ -130,17 +164,49 @@ bench_pair() {
     note_err "$label" "$(head -n 3 "$BENCH_OUT/.hf.err")"
     return
   fi
-  local x_mean x_sd p_mean p_sd
+  local x_mean x_sd p_mean p_sd runs
   x_mean=$(jq -r '.results[] | select(.command=="carta")  | .mean'   "$json")
   x_sd=$(jq   -r '.results[] | select(.command=="carta")  | .stddev' "$json")
   p_mean=$(jq -r '.results[] | select(.command=="pandoc") | .mean'   "$json")
   p_sd=$(jq   -r '.results[] | select(.command=="pandoc") | .stddev' "$json")
+  runs=$(jq   -r '[.results[].times | length] | min'                 "$json")
 
   local x_rss p_rss
   x_rss=$(measure_rss "$input" $OX $xargs)
   p_rss=$(measure_rss "$input" $ORACLE $oargs)
 
   emit_row "$label" "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss"
+  record_timing "$bytes" "$x_mean" "$x_sd" "$p_mean" "$p_sd" "$x_rss" "$p_rss" "$runs"
+}
+
+# Appends one timing row, labelled with the table it was printed under.
+# Usage: record_timing <bytes> <carta_mean_s> <carta_sd_s> <pandoc_mean_s> <pandoc_sd_s> <carta_rss> <pandoc_rss> <runs>
+record_timing() {
+  [ -n "$BENCH_ROWS" ] || return 0
+  jq -nc \
+    --arg surface "$BENCH_SURFACE" \
+    --arg group "$BENCH_GROUP" \
+    --argjson bytes "$1" \
+    --argjson carta_s "$2" --argjson carta_sd_s "$3" \
+    --argjson pandoc_s "$4" --argjson pandoc_sd_s "$5" \
+    --arg carta_rss "$6" --arg pandoc_rss "$7" \
+    --argjson runs "$8" \
+    '{
+       kind: "timing", surface: $surface, group: $group, bytes: $bytes, runs: $runs,
+       carta_ms:     ($carta_s     * 1000 * 100 | round / 100),
+       carta_sd_ms:  ($carta_sd_s  * 1000 * 100 | round / 100),
+       pandoc_ms:    ($pandoc_s    * 1000 * 100 | round / 100),
+       pandoc_sd_ms: ($pandoc_sd_s * 1000 * 100 | round / 100),
+       carta_rss:    (if $carta_rss  == "" then null else ($carta_rss  | tonumber) end),
+       pandoc_rss:   (if $pandoc_rss == "" then null else ($pandoc_rss | tonumber) end)
+     }' >>"$BENCH_ROWS"
+}
+
+# Appends the binary-size row the `size` surface reports.
+record_binary() { # <carta_bytes> <pandoc_bytes>
+  [ -n "$BENCH_ROWS" ] || return 0
+  jq -nc --argjson carta "$1" --argjson pandoc "$2" \
+    '{ kind: "binary", carta: $carta, pandoc: $pandoc }' >>"$BENCH_ROWS"
 }
 
 emit_row() {
@@ -158,13 +224,20 @@ emit_row() {
     }'
 }
 
+# Opens a result table and names the rows that follow. Usage: table_header <surface> <group>
 table_header() {
+  BENCH_SURFACE="$1"
+  BENCH_GROUP="$2"
   echo
-  echo "## $1"
+  echo "## $1 — $2"
   echo
   echo "| size   | carta mean ± σ      | pandoc mean ± σ     | speedup | carta MB/s | carta RSS | pandoc RSS |"
   echo "|--------|---------------------|---------------------|---------|------------|-----------|------------|"
 }
+
+# The table currently being filled, so recorded rows carry the heading's own labels.
+BENCH_SURFACE=""
+BENCH_GROUP=""
 
 # Any benchmark error flips the suite return code; each surface exits with it.
 SUITE_RC=0

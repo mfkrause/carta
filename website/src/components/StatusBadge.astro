@@ -1,0 +1,17 @@
+---
+import { SUPPORT_LABEL, SUPPORT_MARKER, type Support } from '../data/formats';
+
+interface Props {
+  status: Support;
+  label?: string;
+}
+
+const { status, label } = Astro.props;
+---
+
+{/* The space between marker and label is load-bearing off-screen: the flex gap gives the visual
+    separation, and a markdown or screen-reader rendering of this badge needs a real one. */}
+<span class="status-badge" data-status={status} title={SUPPORT_LABEL[status]}>
+  <span aria-hidden="true">{SUPPORT_MARKER[status]}</span>{' '}
+  <span>{label ?? SUPPORT_LABEL[status]}</span>
+</span>

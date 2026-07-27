@@ -1,0 +1,108 @@
+/* One palette for both the standalone landing route and the Starlight docs theme. The `--carta-*`
+   tokens stand alone; the `--sl-*` mappings hand the same colors to Starlight. */
+:root {
+  --carta-accent-hue: 24;
+  --carta-radius: 0.75rem;
+  --carta-measure: 68rem;
+
+  --carta-accent: hsl(var(--carta-accent-hue) 88% 42%);
+  --carta-accent-strong: hsl(var(--carta-accent-hue) 60% 25%);
+  --carta-accent-soft: hsl(var(--carta-accent-hue) 90% 95%);
+  --carta-on-accent: hsl(0 0% 100%);
+  --carta-bg: hsl(30 30% 99%);
+  --carta-surface: hsl(30 25% 97%);
+  --carta-fg: hsl(224 20% 14%);
+  --carta-border: hsl(24 15% 87%);
+  --carta-track: hsl(24 10% 80%);
+  --carta-muted: hsl(224 8% 42%);
+  --carta-ok: hsl(148 55% 33%);
+  --carta-warn: hsl(38 85% 34%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --carta-accent: hsl(var(--carta-accent-hue) 82% 55%);
+    --carta-accent-strong: hsl(var(--carta-accent-hue) 85% 78%);
+    --carta-accent-soft: hsl(var(--carta-accent-hue) 45% 16%);
+    --carta-on-accent: hsl(224 30% 10%);
+    --carta-bg: hsl(224 20% 9%);
+    --carta-surface: hsl(224 18% 13%);
+    --carta-fg: hsl(30 20% 94%);
+    --carta-border: hsl(224 12% 24%);
+    --carta-track: hsl(224 10% 33%);
+    --carta-muted: hsl(224 10% 66%);
+    --carta-ok: hsl(148 45% 62%);
+    --carta-warn: hsl(38 80% 62%);
+  }
+}
+
+:root[data-theme='light'] {
+  --carta-accent: hsl(var(--carta-accent-hue) 88% 42%);
+  --carta-accent-strong: hsl(var(--carta-accent-hue) 60% 25%);
+  --carta-accent-soft: hsl(var(--carta-accent-hue) 90% 95%);
+  --carta-on-accent: hsl(0 0% 100%);
+  --carta-bg: hsl(30 30% 99%);
+  --carta-surface: hsl(30 25% 97%);
+  --carta-fg: hsl(224 20% 14%);
+  --carta-border: hsl(24 15% 87%);
+  --carta-track: hsl(24 10% 80%);
+  --carta-muted: hsl(224 8% 42%);
+  --carta-ok: hsl(148 55% 33%);
+  --carta-warn: hsl(38 85% 34%);
+}
+
+:root[data-theme='dark'] {
+  --carta-accent: hsl(var(--carta-accent-hue) 82% 55%);
+  --carta-accent-strong: hsl(var(--carta-accent-hue) 85% 78%);
+  --carta-accent-soft: hsl(var(--carta-accent-hue) 45% 16%);
+  --carta-on-accent: hsl(224 30% 10%);
+  --carta-bg: hsl(224 20% 9%);
+  --carta-surface: hsl(224 18% 13%);
+  --carta-fg: hsl(30 20% 94%);
+  --carta-border: hsl(224 12% 24%);
+  --carta-track: hsl(224 10% 33%);
+  --carta-muted: hsl(224 10% 66%);
+  --carta-ok: hsl(148 45% 62%);
+  --carta-warn: hsl(38 80% 62%);
+}
+
+:root {
+  --sl-color-accent-low: var(--carta-accent-soft);
+  --sl-color-accent: var(--carta-accent);
+  --sl-color-accent-high: var(--carta-accent-strong);
+}
+
+/* Status glyphs carry meaning in the matrices; keep them legible against both themes. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  white-space: nowrap;
+  font-size: 0.875em;
+}
+
+.status-badge[data-status='usable'] {
+  color: var(--carta-ok);
+}
+
+.status-badge[data-status='in-development'] {
+  color: var(--carta-warn);
+}
+
+.status-badge[data-status='not-started'],
+.status-badge[data-status='not-applicable'] {
+  color: var(--carta-muted);
+}
+
+/* Starlight header adjustments. The nav gap is sized for a wordmark; carta's logo is a square
+   glyph, so it reads as a gulf between the mark and the title. */
+.site-title {
+  gap: 0.55rem;
+}
+
+/* Chrome reserves room for its own dropdown arrow on top of Starlight's caret, which strands the
+   caret well right of the label. `appearance: none` reclaims that space. */
+starlight-theme-select select {
+  appearance: none;
+  width: auto;
+}

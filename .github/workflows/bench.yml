@@ -1,0 +1,98 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions: {}
+
+concurrency:
+  group: bench
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  CONFORMANCE_PIN: "3.10"
+  BENCH_WARMUP: "5"
+  BENCH_RUNS: "20"
+
+jobs:
+  measure:
+    name: measure and open a PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: |
+            .
+            tools/docgen
+      - name: Cache conformance dependencies
+        uses: actions/cache@v6
+        with:
+          path: .oracle
+          key: conformance-${{ env.CONFORMANCE_PIN }}
+      - name: Provision conformance dependencies
+        run: |
+          tools/install-pandoc.sh --version="$CONFORMANCE_PIN"
+          tools/fetch-pandoc-tests.sh
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2
+        with:
+          tool: hyperfine
+
+      - name: Run the benchmark suite
+        run: |
+          set -o pipefail
+          tools/bench-suite/run.sh all --json "$RUNNER_TEMP/bench.json" | tee "$RUNNER_TEMP/bench.md"
+
+      - name: Regenerate the committed artifacts
+        run: |
+          tools/bench-suite/to-toml.sh "$RUNNER_TEMP/bench.json" >docs/benchmarks.toml
+          cargo run --manifest-path tools/docgen/Cargo.toml -- --write
+
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE: ${{ github.event.repository.default_branch }}
+          BRANCH: bench/${{ github.run_id }}
+          SUBJECT: "docs(bench): refresh benchmark measurements"
+        run: |
+          paths="docs/benchmarks.toml docs/BENCHMARKS.md website/src/data/generated/benchmarks.json"
+          if git diff --quiet -- $paths; then
+            echo "no change in the generated benchmark artifacts"
+            exit 0
+          fi
+          {
+            echo "Measured by the \`Benchmarks\` workflow on a GitHub-hosted runner. Shared runners"
+            echo "are noisier than a quiet local machine, so read small movements as noise."
+            echo
+            echo "The provenance header in \`docs/benchmarks.toml\` records the machine, the tool"
+            echo "versions, and the run counts behind these numbers."
+          } >"$RUNNER_TEMP/pr-body.md"
+          git switch -c "$BRANCH"
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "$SUBJECT" -- $paths
+          git push origin "$BRANCH"
+          gh pr create --base "$BASE" --head "$BRANCH" \
+            --title "$SUBJECT" --body-file "$RUNNER_TEMP/pr-body.md"
+
+      - name: Upload the raw results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-results
+          path: |
+            ${{ runner.temp }}/bench.json
+            ${{ runner.temp }}/bench.md
+          if-no-files-found: ignore

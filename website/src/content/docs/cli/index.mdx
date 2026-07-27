@@ -1,0 +1,137 @@
+---
+title: Command line
+description: Every carta flag, grouped by the task it belongs to.
+sidebar:
+  label: Overview
+  order: 1
+---
+
+The `carta` binary is a thin shell over the library. It takes one input, converts it, and writes the
+result to a file or to stdout.
+
+```sh
+carta -f <FROM> -t <TO> [INPUT] [-o OUTPUT]
+```
+
+With no `INPUT` carta reads stdin; with no `-o` it writes stdout. Byte-shaped targets (`docx`,
+`odt`, `epub`, `rtf`) refuse to write to a terminal, so give them `-o`.
+
+Below are supported flags grouped by task. The [CLI reference](/cli/reference/) is the same set, formally generated from the binary's own help text.
+
+## Input and output
+
+| Flag | Effect |
+| --- | --- |
+| `-f`, `--from <FROM>` | Input format, optionally with extension toggles. |
+| `-t`, `--to <TO>` | Output format, optionally with extension toggles. |
+| `-o`, `--output <FILE>` | Write to this file instead of stdout. |
+| `INPUT` | Read from this file instead of stdin. |
+
+Both format arguments accept `+ext`/`-ext` toggles, so
+`-f markdown+hard_line_breaks-raw_html` reads Pandoc Markdown with hard line breaks on and raw HTML
+off. `carta --list-extensions=<format>` prints the set a format accepts.
+
+## Standalone output and templates
+
+By default carta emits a document fragment. These wrap it in a complete document.
+
+| Flag | Effect |
+| --- | --- |
+| `-s`, `--standalone` | Wrap the body in the format's template. |
+| `--template <FILE>` | Render with this template instead of the built-in default; implies `-s`. |
+| `-V`, `--variable <KEY[:VAL]>` | Set a template variable. Repeatable. |
+| `-D`, `--print-default-template <FORMAT>` | Print a format's built-in template and exit. |
+
+## Metadata
+
+| Flag | Effect |
+| --- | --- |
+| `-M`, `--metadata <KEY[:VAL]>` | Set a document metadata field. Repeatable. |
+| `--metadata-file <FILE>` | Read metadata from a YAML or JSON file. |
+
+Metadata describes the document (title, author, date); variables are template inputs. Metadata is
+visible to filters and to the writers, so prefer `-M` when the value belongs to the document itself.
+
+## Contents, numbering, and wrapping
+
+| Flag | Effect |
+| --- | --- |
+| `--toc`, `--table-of-contents` | Include a table of contents. |
+| `--toc-depth <N>` | Heading levels to include in the contents. |
+| `-N`, `--number-sections` | Number section headings. |
+| `--wrap <auto\|none\|preserve>` | How paragraphs are laid out. Defaults to `auto`. |
+| `--columns <N>` | Fill column that `--wrap=auto` reflows to. |
+
+`--wrap=none` puts each paragraph on one line, `--wrap=preserve` keeps the source's own line breaks.
+
+## Math
+
+| Flag | Effect |
+| --- | --- |
+| `--mathjax[=URL]` | Render HTML math with MathJax, optionally from this URL. |
+| `--katex[=URL]` | Render HTML math with KaTeX, optionally from this URL. |
+
+## Syntax highlighting
+
+| Flag | Effect |
+| --- | --- |
+| `--syntax-highlighting <none\|default\|idiomatic\|STYLE\|FILE>` | How code blocks are presented. `idiomatic` uses the target format's own listing construct. |
+| `--highlight-style <STYLE\|FILE>` | Colorize with this built-in style or JSON theme file. |
+| `--no-highlight` | Leave code blocks plain. |
+| `--syntax-definition <FILE>` | Load an extra KDE-syntax XML definition. Repeatable. |
+| `--list-highlight-languages` | List the languages this build can highlight, then exit. |
+| `--list-highlight-styles` | List the built-in styles, then exit. |
+| `--print-highlight-style <STYLE\|FILE>` | Print a style as a JSON theme, then exit. |
+
+## Resources and media
+
+| Flag | Effect |
+| --- | --- |
+| `--extract-media <DIR>` | Write embedded media out as files and rewrite references to them. |
+| `--resource-path <SEARCHPATH>` | Directories searched for images and other resources, separated by the platform's path separator. Repeatable. |
+| `--embed-resources` | Inline referenced media into HTML output as `data:` URIs. |
+| `--self-contained` | Deprecated alias for `--embed-resources --standalone`. |
+| `--sandbox` | Disable network access; remote resources are left external. |
+
+Use `--sandbox` when converting untrusted documents, so a document cannot make carta fetch a URL it
+chose.
+
+## EPUB and word-processor targets
+
+| Flag | Effect |
+| --- | --- |
+| `-c`, `--css <FILE>` | Embed this stylesheet in an EPUB and link it from every page. Repeatable. |
+| `--epub-cover-image <FILE>` | Use this image as the cover, with a dedicated cover page. |
+| `--epub-embed-font <FILE>` | Embed a font file. Repeatable. |
+| `--epub-metadata <FILE>` | Merge Dublin Core metadata from this XML file. |
+| `--epub-subdirectory <DIRNAME>` | Container subdirectory holding the content (default `EPUB`). |
+| `--split-level <N>`, `--epub-chapter-level <N>` | Split into separate files at this heading level. |
+| `--reference-doc <FILE>` | Reuse a DOCX's styling parts and document template for the output. |
+
+## Filters
+
+| Flag | Effect |
+| --- | --- |
+| `-F`, `--filter <PROGRAM>` | Pipe the document through an external program as JSON. Repeatable, applied in order. |
+
+Filters are fully compatible with pandoc.
+
+## Data directory
+
+| Flag | Effect |
+| --- | --- |
+| `--data-dir <DIR>` | Search here for filters (`filters/`), templates (`templates/`), and syntax definitions (`syntax/`) before the built-in locations. |
+
+Defaults to `$XDG_DATA_HOME/carta`, or `~/.local/share/carta`.
+
+## Introspection
+
+| Flag | Effect |
+| --- | --- |
+| `--list-input-formats` | List the input formats this build supports, then exit. |
+| `--list-output-formats` | List the output formats this build supports, then exit. |
+| `--list-extensions[=FORMAT]` | List a format's extensions and their default state, then exit. |
+| `--version` | Print version information and exit. |
+
+Because formats are selected at compile time, these listings describe the binary in front of you
+rather than the project as a whole. The [compatibility page](/formats/) covers the full set.

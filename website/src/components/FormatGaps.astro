@@ -1,0 +1,41 @@
+---
+import { renderInline } from '../data/inline';
+import { findFormat } from '../data/formats';
+
+interface Props {
+  /** Canonical format name as it appears in `docs/status.toml`. */
+  format: string;
+  direction: 'read' | 'write';
+}
+
+const { format: name, direction } = Astro.props;
+const format = findFormat(name);
+if (!format) {
+  throw new Error(
+    `FormatGaps: no format named "${name}" in the generated data; check docs/status.toml`,
+  );
+}
+
+const side = format[direction];
+const verb = direction === 'read' ? 'reading' : 'writing';
+---
+
+{
+  !side.ships ? (
+    <p class="muted">carta does not {verb} this format.</p>
+  ) : side.gaps.length === 0 ? (
+    <p class="muted">No tracked gaps.</p>
+  ) : (
+    <ul>
+      {side.gaps.map((gap) => (
+        <li set:html={renderInline(gap)} />
+      ))}
+    </ul>
+  )
+}
+
+<style>
+  .muted {
+    color: var(--carta-muted);
+  }
+</style>

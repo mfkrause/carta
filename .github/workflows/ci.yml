@@ -3,7 +3,19 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'website/**'
+      - '**/*.md'
+      - 'plans/**'
   pull_request:
+    paths-ignore:
+      - 'website/**'
+      - '**/*.md'
+      - 'plans/**'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always

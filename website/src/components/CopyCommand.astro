@@ -1,0 +1,117 @@
+---
+interface Props {
+  command: string;
+}
+
+const { command } = Astro.props;
+---
+
+<div class="copy-command">
+  <code>{command}</code>
+  <button type="button" data-command={command} aria-label={`Copy "${command}" to the clipboard`}>
+    <svg class="copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+      <path d="M5 15V5a2 2 0 0 1 2-2h8"></path>
+    </svg>
+    <svg class="done" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="m5 13 4 4L19 7"></path>
+    </svg>
+  </button>
+  <span class="announce" role="status" aria-live="polite"></span>
+</div>
+
+<style>
+  .copy-command {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--carta-border);
+    border-radius: var(--carta-radius);
+    background: var(--carta-surface);
+    overflow: hidden;
+    max-width: 100%;
+  }
+
+  code {
+    padding: 0.7rem 1rem;
+    font-size: 0.95rem;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  button {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border: 0;
+    border-inline-start: 1px solid var(--carta-border);
+    background: transparent;
+    color: var(--carta-muted);
+    padding-inline: 0.85rem;
+    cursor: pointer;
+  }
+
+  button:hover,
+  button:focus-visible {
+    background: var(--carta-accent-soft);
+    color: var(--carta-accent-strong);
+  }
+
+  svg {
+    grid-area: 1 / 1;
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .done {
+    visibility: hidden;
+  }
+
+  button[data-copied] {
+    color: var(--carta-ok);
+  }
+
+  button[data-copied] .copy {
+    visibility: hidden;
+  }
+
+  button[data-copied] .done {
+    visibility: visible;
+  }
+
+  /* Announced to screen readers; the icon swap carries it visually. */
+  .announce {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.copy-command button').forEach((button) => {
+    let reset: ReturnType<typeof setTimeout>;
+    button.addEventListener('click', async () => {
+      const command = button.dataset.command;
+      if (!command) return;
+      try {
+        await navigator.clipboard.writeText(command);
+      } catch {
+        return;
+      }
+      const announce = button.parentElement?.querySelector('.announce');
+      button.dataset.copied = '';
+      if (announce) announce.textContent = 'Copied';
+      clearTimeout(reset);
+      reset = setTimeout(() => {
+        delete button.dataset.copied;
+        if (announce) announce.textContent = '';
+      }, 1500);
+    });
+  });
+</script>

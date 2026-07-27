@@ -127,6 +127,9 @@ stacker = { workspace = true }
 [dev-dependencies]
 insta = { workspace = true }
 criterion = { workspace = true }
+serde = { workspace = true }
+# Reads docs/status.toml for the registry cross-check.
+toml = "0.9"
 
 # Gated on `cli` so a library-only build neither compiles the binary nor pulls its dependencies.
 [[bin]]

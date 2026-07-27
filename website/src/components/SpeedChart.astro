@@ -1,0 +1,173 @@
+---
+import benchmarks from '../data/generated/benchmarks.json';
+
+const { provenance, results, headline } = benchmarks;
+
+// The four conversions this page leads with. The generated data covers every surface; the choice of
+// what a first-time visitor sees is editorial, so it lives here rather than in the measurements.
+const FEATURED = [
+  { surface: 'reader', group: 'commonmark → json' },
+  { surface: 'reader', group: 'html → json' },
+  { surface: 'writer', group: 'json → html' },
+  { surface: 'writer', group: 'json → latex' },
+];
+
+// The largest input measured for each, which is where the parsing and rendering work dominates
+// process start-up and the numbers say the most.
+const cases = FEATURED.map(({ surface, group }) => {
+  const largest = results
+    .filter((entry) => entry.surface === surface && entry.group === group)
+    .sort((a, b) => b.bytes - a.bytes)[0];
+  if (!largest) {
+    throw new Error(`benchmarks.json has no ${surface} results for "${group}"`);
+  }
+  return largest;
+});
+
+// Bars are scaled within their own row: pandoc fills the track and carta takes its share of it, so
+// a bar's length is the speedup. Across rows the absolute times span ~200x, and one shared scale
+// would flatten every fast case into an unreadable sliver.
+const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs) * 100;
+
+const times = (value: number) => `${value.toFixed(0)}×`;
+const range = (span: { low: number; high: number }) =>
+  span.low.toFixed(0) === span.high.toFixed(0)
+    ? times(span.high)
+    : `${span.low.toFixed(0)}–${times(span.high)}`;
+---
+
+<figure class="speed">
+  <ol>
+    {
+      cases.map((entry) => (
+        <li>
+          <div class="case">
+            <code>{entry.group}</code>
+            <span class="size">{entry.size}</span>
+            <strong>{entry.speedup.toFixed(1)}× faster</strong>
+          </div>
+
+          <div class="row">
+            <span class="who">carta</span>
+            <span class="track" title={`carta ${entry.cartaMs} ms`}>
+              <span class="fill carta" style={`--w: ${share(entry)}%`} />
+            </span>
+            <span class="ms">{entry.cartaMs} ms</span>
+          </div>
+
+          <div class="row">
+            <span class="who">pandoc</span>
+            <span class="track" title={`pandoc ${entry.pandocMs} ms`}>
+              <span class="fill other" style="--w: 100%" />
+            </span>
+            <span class="ms">{entry.pandocMs} ms</span>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption>
+    <p class="binary">
+      Binary size: {headline.binarySize.carta} against {headline.binarySize.pandoc}{' '}
+      ({times(headline.binarySize.ratio)} smaller). Peak memory: {range(headline.memoryRatio)} less.
+    </p>
+    <p class="note">
+      Each row is scaled to itself, so bar length reads as the speedup; rows do not share a scale.
+      Measured {provenance.date} on {provenance.runner}: carta {provenance.carta} against pandoc{' '}
+      {provenance.pandoc}, driven by hyperfine {provenance.hyperfine} (warmup {provenance.warmup},{' '}
+      {provenance.runs} runs). Your numbers will differ.
+    </p>
+  </figcaption>
+</figure>
+
+<style>
+  figure {
+    margin: 0;
+  }
+
+  ol {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .case {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+
+  .case strong {
+    margin-inline-start: auto;
+    color: var(--carta-accent-strong);
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 4rem 1fr 5.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.3rem;
+  }
+
+  /* Labels stay in text ink; the mark beside them carries identity. */
+  .who,
+  .ms,
+  .size,
+  .note {
+    color: var(--carta-muted);
+    font-size: 0.8rem;
+  }
+
+  .ms {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .track {
+    display: block;
+    height: 0.6rem;
+  }
+
+  .fill {
+    display: block;
+    height: 100%;
+    width: var(--w);
+    /* A rendering floor so a 44x row still shows a mark; far below any readable length. */
+    min-width: 2px;
+    border-radius: 4px;
+  }
+
+  .fill.carta {
+    background: var(--carta-accent);
+  }
+
+  .fill.other {
+    background: var(--carta-track);
+  }
+
+  .binary {
+    margin: 0 0 0.5rem;
+  }
+
+  .note {
+    margin: 0;
+  }
+
+  @media (max-width: 30rem) {
+    .row {
+      grid-template-columns: 3.5rem 1fr;
+    }
+
+    .ms {
+      grid-column: 2;
+      text-align: start;
+    }
+  }
+</style>

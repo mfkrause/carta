@@ -1,0 +1,113 @@
+---
+import { allNames, byFamily, shipping, type Format } from '../data/formats';
+import StatusBadge from './StatusBadge.astro';
+
+interface Props {
+  /** Restrict to formats carta already converts; otherwise the roadmap is included too. */
+  shippingOnly?: boolean;
+}
+
+const { shippingOnly = false } = Astro.props;
+const groups = byFamily(shippingOnly ? shipping() : undefined);
+
+const features = (format: Format) =>
+  [format.read.feature, format.write.feature].filter((flag): flag is string => Boolean(flag));
+---
+
+<div class="matrix">
+  {
+    groups.map((group) => (
+      <>
+        <h3 id={group.family.key}>{group.family.title}</h3>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Format</th>
+                <th scope="col">Names</th>
+                <th scope="col">Reader</th>
+                <th scope="col">Writer</th>
+                <th scope="col">Cargo features</th>
+              </tr>
+            </thead>
+            <tbody>
+              {group.formats.map((format) => (
+                <tr>
+                  <th scope="row">{format.title}</th>
+                  <td>
+                    {allNames(format).map((name, index) => (
+                      <>
+                        {index > 0 && ' '}
+                        <code>{name}</code>
+                      </>
+                    ))}
+                  </td>
+                  <td>
+                    <StatusBadge status={format.read.status} />
+                  </td>
+                  <td>
+                    <StatusBadge status={format.write.status} />
+                  </td>
+                  <td>
+                    {features(format).length === 0 ? (
+                      <span class="none">—</span>
+                    ) : (
+                      features(format).map((flag, index) => (
+                        <>
+                          {index > 0 && ' '}
+                          <code>{flag}</code>
+                        </>
+                      ))
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    ))
+  }
+</div>
+
+<style>
+  .scroll {
+    overflow-x: auto;
+    margin-bottom: 2rem;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  th,
+  td {
+    text-align: start;
+    padding: 0.4rem 0.75rem 0.4rem 0;
+    border-bottom: 1px solid var(--carta-border);
+    vertical-align: top;
+  }
+
+  thead th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--carta-muted);
+    white-space: nowrap;
+  }
+
+  tbody th {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  code {
+    white-space: nowrap;
+  }
+
+  .none {
+    color: var(--carta-muted);
+  }
+</style>

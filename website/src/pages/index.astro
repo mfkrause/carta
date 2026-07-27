@@ -1,0 +1,184 @@
+---
+import { Image } from "astro:assets";
+import logo from "../assets/logo.png";
+import CopyCommand from "../components/CopyCommand.astro";
+import FormatGrid from "../components/FormatGrid.astro";
+import SpeedChart from "../components/SpeedChart.astro";
+import { shipping } from "../data/formats";
+import "../styles/theme.css";
+
+const title = "carta: a fast document converter";
+const description =
+  "Convert documents between markup formats from a lightweight, fast CLI. Compatible with pandoc.";
+const shippingCount = shipping().length;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://carta.rs/" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <script defer data-domain="carta.rs" src="https://pa.kuatsu.de/js/script.js"
+    ></script>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <Image src={logo} alt="" width={96} height={96} densities={[1, 2]} />
+        <h1>carta</h1>
+        <p class="tagline">
+          A universal document converter in Rust. Read one markup format, render
+          it back out in another. Fully compatible with pandoc.
+        </p>
+        <CopyCommand command="cargo install carta" />
+        <p class="cta">
+          <a class="button" href="/guide/getting-started/">Get started</a>
+          <a href="/formats/">Browse formats</a>
+        </p>
+      </section>
+
+      <section>
+        <h2>Fast & lightweight</h2>
+        <p>
+          Carta is multiple orders-of-magnitude faster than pandoc, while being
+          a lot smaller.
+        </p>
+        <SpeedChart />
+      </section>
+
+      <section>
+        <h2>{shippingCount} formats supported</h2>
+        <p>
+          This is a list of all formats carta supports today. The{" "}
+          <a href="/formats/">compatibility page</a>{" "}
+          lists the full roadmap.
+        </p>
+        <FormatGrid />
+      </section>
+
+      <section>
+        <h2>Configurable builds</h2>
+        <p>
+          Formats are selected at compile time through Cargo features. If you
+          don't need all {shippingCount} formats, you can make carta even more lightweight.
+        </p>
+        <CopyCommand
+          command="cargo install carta --no-default-features --features cli,read-commonmark,write-html"
+        />
+      </section>
+    </main>
+
+    <footer>
+      <a href="https://github.com/mfkrause/carta">GitHub</a>
+      <a href="https://crates.io/crates/carta">crates.io</a>
+      <a href="https://docs.rs/carta">docs.rs</a>
+      <a href="/guide/getting-started/">Docs</a>
+    </footer>
+
+    <style>
+      :global(html) {
+        color-scheme: light dark;
+      }
+
+      :global(body) {
+        margin: 0;
+        background: var(--carta-bg);
+        color: var(--carta-fg);
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        line-height: 1.6;
+      }
+
+      :global(code) {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      main {
+        max-width: var(--carta-measure);
+        margin: 0 auto;
+        padding: 3rem 1.25rem 4rem;
+      }
+
+      section {
+        margin-bottom: 4rem;
+      }
+
+      .hero {
+        text-align: center;
+        padding-block: 2rem 3rem;
+      }
+
+      .hero h1 {
+        font-size: clamp(2.5rem, 8vw, 4rem);
+        margin: 0.5rem 0 0.75rem;
+        letter-spacing: -0.02em;
+      }
+
+      .tagline {
+        max-width: 44rem;
+        margin: 0 auto 2rem;
+        color: var(--carta-muted);
+        font-size: 1.1rem;
+      }
+
+      .cta {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+        justify-content: center;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+      }
+
+      a {
+        color: var(--carta-accent-strong);
+      }
+
+      .button {
+        background: var(--carta-accent);
+        color: var(--carta-on-accent);
+        padding: 0.6rem 1.4rem;
+        border-radius: var(--carta-radius);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      h2 {
+        font-size: 1.6rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .notice {
+        border: 1px solid var(--carta-border);
+        border-inline-start: 4px solid var(--carta-accent);
+        border-radius: var(--carta-radius);
+        background: var(--carta-surface);
+        padding: 1rem 1.25rem;
+      }
+
+      .notice p {
+        margin: 0;
+      }
+
+      footer {
+        border-top: 1px solid var(--carta-border);
+        display: flex;
+        gap: 1.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 2rem 1.25rem 3rem;
+        font-size: 0.9rem;
+      }
+    </style>
+  </body>
+</html>

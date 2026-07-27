@@ -10,7 +10,7 @@ PAIRS="commonmark:html commonmark:json"
 for pair in $PAIRS; do
   from="${pair%%:*}"
   to="${pair##*:}"
-  table_header "startup — $from → $to (near-empty input)"
+  table_header startup "$from → $to (near-empty input)"
   norm="$(oracle_norm "$to")"
   input="$FIXTURES/startup.md"
   [ "$from" = json ] && input="$FIXTURES/startup.ast.json"

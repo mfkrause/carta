@@ -55,7 +55,28 @@ CI rejects stale or unreferenced snapshots, so keep them tidy.
   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, …); the `commit-msg` hook enforces
   the format.
 - Keep output deterministic and avoid panics in library paths.
-- When you add, extend, or change support for a format or extension, update [`docs/STATUS.md`](docs/STATUS.md).
+- When you add, extend, or change support for a format or extension, edit
+  [`docs/status.toml`](docs/status.toml) and regenerate (see below).
+
+### Generated documentation
+
+[`docs/STATUS.md`](docs/STATUS.md) and the documentation site's format and extension data are
+generated from [`docs/status.toml`](docs/status.toml). Edit the TOML, never the generated files,
+then regenerate:
+
+```sh
+cargo run --manifest-path tools/docgen/Cargo.toml -- --write
+```
+
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) and the site's chart data come from the same generator,
+reading [`docs/benchmarks.toml`](docs/benchmarks.toml). That file holds measurements only, so it is
+refreshed by re-running the suite rather than by editing:
+
+```sh
+tools/bench-suite/run.sh all --json /tmp/bench.json
+tools/bench-suite/to-toml.sh /tmp/bench.json >docs/benchmarks.toml
+cargo run --manifest-path tools/docgen/Cargo.toml -- --write
+```
 
 ## Opening a pull request
 

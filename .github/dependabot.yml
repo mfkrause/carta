@@ -11,3 +11,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: monthly
+    groups:
+      website-minor-patch:
+        update-types: [minor, patch]

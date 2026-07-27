@@ -1,0 +1,101 @@
+---
+import { byFamily, shipping, type Format } from '../data/formats';
+import StatusBadge from './StatusBadge.astro';
+
+interface Props {
+  /** Restrict to formats carta already converts; otherwise the roadmap is included too. */
+  shippingOnly?: boolean;
+}
+
+const { shippingOnly = true } = Astro.props;
+const groups = byFamily(shippingOnly ? shipping() : undefined);
+
+const direction = (format: Format) =>
+  [
+    { label: 'read', status: format.read.status },
+    { label: 'write', status: format.write.status },
+  ] as const;
+---
+
+<div class="format-grid">
+  {
+    groups.map((group) => (
+      <section>
+        <h3>{group.family.title}</h3>
+        <ul>
+          {group.formats.map((format) => (
+            <li>
+              <span class="name">
+                <code>{format.name}</code>{' '}
+                <span class="title">{format.title}</span>
+              </span>{' '}
+              <span class="directions">
+                {direction(format).map((entry, index) => (
+                  <>
+                    {index > 0 && ' '}
+                    <StatusBadge status={entry.status} label={entry.label} />
+                  </>
+                ))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</div>
+
+<style>
+  .format-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: 1.5rem 2rem;
+  }
+
+  h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--carta-muted);
+    margin: 0 0 0.5rem;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--carta-border);
+  }
+
+  .name {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .title {
+    color: var(--carta-muted);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .directions {
+    display: flex;
+    gap: 0.6rem;
+    flex-shrink: 0;
+  }
+</style>
