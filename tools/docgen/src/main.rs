@@ -4,6 +4,7 @@
 //! that has drifted. Both modes run the same rendering code, so a passing `--check` means the
 //! committed artifacts are exactly what `--write` would produce.
 
+mod cli;
 mod model;
 mod render;
 mod site;
@@ -100,6 +101,10 @@ fn build(root: &Path) -> Result<Vec<Artifact>, Box<dyn Error>> {
         Artifact {
             path: root.join("website/src/data/generated/extensions.json"),
             contents: site::extensions_json(&status)?,
+        },
+        Artifact {
+            path: root.join("website/src/content/docs/cli/reference.md"),
+            contents: cli::reference(root)?,
         },
     ])
 }

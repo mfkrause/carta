@@ -32,9 +32,13 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install toolchain
         run: rustup show active-toolchain || rustup toolchain install
+      # Both workspaces: docgen builds the carta binary to generate the CLI reference from its
+      # own man page.
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          workspaces: tools/docgen
+          workspaces: |
+            .
+            tools/docgen
       # docgen names the offending file and prints the regeneration command on failure.
       - name: Check generated artifacts against docs/status.toml
         run: cargo run --manifest-path tools/docgen/Cargo.toml -- --check
