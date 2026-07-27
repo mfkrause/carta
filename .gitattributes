@@ -6,6 +6,11 @@
 corpus/text/csv/crlf.csv               -text
 corpus/text/jira/carriage-return.jira  -text
 
+# Generated artifacts; collapse them in review diffs.
+docs/STATUS.md                    linguist-generated=true
+docs/BENCHMARKS.md                linguist-generated=true
+website/src/data/generated/**     linguist-generated=true
+
 # Fuzz inputs are arbitrary bytes; keep them exact.
 fuzz/seeds/**   -text
 fuzz/corpus/**  -text

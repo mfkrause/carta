@@ -7,6 +7,15 @@
 # Generated differential fixtures / golden output cache (never committed)
 /.fixtures-cache/
 
+# Documentation site build output
+/website/node_modules
+/website/dist
+/website/.astro
+/website/.vercel
+
+# Detached generator crate build output
+/tools/docgen/target
+
 # OS / editor cruft
 .DS_Store
 *.rs.bk

@@ -12,6 +12,9 @@ extend-exclude = [
   "vendor/",
   "corpus/ast/",
   "corpus/text/",
+  "website/node_modules/",
+  "website/dist/",
+  "website/.astro/",
 ]
 
 [default]

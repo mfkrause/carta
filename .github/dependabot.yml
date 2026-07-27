@@ -11,3 +11,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # Monthly and grouped: an npm tree on the cargo cadence would swamp the cargo PRs.
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: monthly
+    groups:
+      website-minor-patch:
+        update-types: [minor, patch]
