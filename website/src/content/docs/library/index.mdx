@@ -7,8 +7,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-carta is a library first; the CLI is a shell over it. Add it without the binary and its
-dependencies:
+carta is a library first, the CLI is a shell over it. Add it without the CLI binary:
 
 ```toml
 [dependencies]
@@ -55,8 +54,7 @@ match output {
 }
 ```
 
-Passing a byte-shaped target to `convert_text` is an error (`Error::BinaryFormat`) rather than a
-silent lossy conversion.
+Passing a byte-shaped target to `convert_text` is an error (`Error::BinaryFormat`).
 
 ## Options
 
@@ -65,8 +63,7 @@ and column width, table of contents, section numbering, math method, and the res
 `Default`.
 
 Format names given to either entry point may carry extension toggles
-(`"commonmark+strikeout-raw_html"`); the selected extensions are merged with whatever the options
-already hold.
+(`"commonmark+strikeout-raw_html"`).
 
 ## Feature flags
 

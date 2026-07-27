@@ -16,8 +16,7 @@ carta -f <FROM> -t <TO> [INPUT] [-o OUTPUT]
 With no `INPUT` carta reads stdin; with no `-o` it writes stdout. Byte-shaped targets (`docx`,
 `odt`, `epub`, `rtf`) refuse to write to a terminal, so give them `-o`.
 
-The flags below are grouped by task. The [CLI reference](/cli/reference/) is the same set in full,
-generated from the binary's own help text.
+Below are supported flags grouped by task. The [CLI reference](/cli/reference/) is the same set, formally generated from the binary's own help text.
 
 ## Input and output
 
@@ -72,9 +71,6 @@ visible to filters and to the writers, so prefer `-M` when the value belongs to 
 | `--mathjax[=URL]` | Render HTML math with MathJax, optionally from this URL. |
 | `--katex[=URL]` | Render HTML math with KaTeX, optionally from this URL. |
 
-With no method given, HTML output keeps the verbatim TeX in a math span. See the
-[compatibility page](/formats/) for what is still missing here.
-
 ## Syntax highlighting
 
 | Flag | Effect |
@@ -118,9 +114,7 @@ chose.
 | --- | --- |
 | `-F`, `--filter <PROGRAM>` | Pipe the document through an external program as JSON. Repeatable, applied in order. |
 
-Each filter receives the output format name as its argument. A bare name resolves under the data
-directory's `filters/`, then the working directory, then `PATH`. A file without the executable bit
-runs through an interpreter chosen from its extension.
+Filters are fully compatible with pandoc.
 
 ## Data directory
 

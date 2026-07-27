@@ -1,14 +1,6 @@
 ---
-import { count, recognizedNotModeled, supported } from '../data/extensions';
+import { count, recognizedNotModeled, supported } from "../data/extensions";
 ---
-
-<p>
-  The library models {count} extension names. The reader branches on the {
-    supported.length
-  } listed below; every other name inside a format's accepted set is recorded as a no-op toggle, so
-  a format spec naming one parses rather than aborting. A toggle naming anything outside a format's
-  accepted set is rejected.
-</p>
 
 <h4>Supported</h4>
 <p class="tokens">
@@ -17,8 +9,8 @@ import { count, recognizedNotModeled, supported } from '../data/extensions';
 
 <h4>Recognized, behavior not yet modeled</h4>
 <p>
-  These names have an enum variant, so a format spec may toggle them and the toggle is recorded, but
-  the reader does not yet branch on the construct:
+  These names are already recognized internally, but the reader does not yet
+  branch on the construct:
 </p>
 <p class="tokens">
   {recognizedNotModeled.map((name) => <code>{name}</code>)}

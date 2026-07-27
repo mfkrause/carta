@@ -56,37 +56,23 @@ const shippingCount = shipping().length;
       <section>
         <h2>{shippingCount} formats supported</h2>
         <p>
-          Every format carta converts today, with the directions it supports.
-          The{" "}
+          This is a list of all formats carta supports today. The{" "}
           <a href="/formats/">compatibility page</a>{" "}
-          lists the roadmap and the known gaps per format.
+          lists the full roadmap.
         </p>
         <FormatGrid />
       </section>
 
       <section>
-        <h2>Pay only for the formats you use</h2>
+        <h2>Configurable builds</h2>
         <p>
-          Formats are selected at compile time through per-direction Cargo
-          features. A build with one reader and one writer carries neither the
-          code nor the dependencies of the rest.
+          Formats are selected at compile time through Cargo features. If you
+          don't need all {shippingCount} formats, you can make carta even more lightweight.
         </p>
         <CopyCommand
           command="cargo install carta --no-default-features --features cli,read-commonmark,write-html"
         />
-        <p>
-          The same switch applies to the library, so an application embedding
-          carta ships only the conversions it performs.
-        </p>
       </section>
-
-      <aside class="notice">
-        <p>
-          carta is pre-1.0: some formats have known gaps and the API is still
-          unstable. Each format's page lists what is missing, and the{" "}
-          <a href="/formats/">compatibility page</a>{" "} tracks the whole surface.
-        </p>
-      </aside>
     </main>
 
     <footer>

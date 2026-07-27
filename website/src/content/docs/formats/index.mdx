@@ -15,26 +15,10 @@ carta names formats the way pandoc does, so a command written for one runs again
 format name may carry extension toggles (`markdown+hard_line_breaks-raw_html`), and
 `carta --list-extensions=<format>` prints the set a given format accepts.
 
-Everything on this page is generated from the same data as the project's `STATUS.md`, and CI
-fails if that data and the format registry disagree.
-
-## What ships today
-
-<FormatGrid />
-
-## Full support matrix
-
-Formats that are not started yet are listed too, so the roadmap is visible alongside what works.
-`➖` means the direction does not apply: there is no such reader or writer to build.
+## Formats
 
 <SupportMatrix />
 
 ## Extensions
 
 <ExtensionSets />
-
-### Known parity gaps
-
-Constructs the supported extensions read, each with one narrow case that still diverges.
-
-<ExtensionGaps />
