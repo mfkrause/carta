@@ -1,7 +1,5 @@
 name: Docs
 
-# The two jobs are coupled: the site reads the JSON docgen generates, so a change to either side
-# needs both checked.
 on:
   push:
     branches: [main]
@@ -59,11 +57,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      # Honors the pnpm version pinned by `packageManager` in website/package.json.
       - name: Enable corepack
         run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # The link validator fails the build, which is what keeps the cross-referenced format pages honest.
       - name: Build
         run: pnpm build

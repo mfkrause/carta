@@ -1,11 +1,5 @@
 name: Benchmarks
 
-# Runs the benchmark suite and opens a PR with the refreshed numbers. It never commits to main,
-# and it never gates anything: benchmarks are reported, not enforced.
-#
-# A release-triggered run starts after the tag is cut, so the tagged commit still carries the
-# previous release's numbers; the refresh lands on main one cycle later.
-
 on:
   workflow_dispatch:
   release:
@@ -21,7 +15,6 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
   CONFORMANCE_PIN: "3.10"
-  # Longer than the local defaults: a shared runner is noisier, so each figure needs more samples.
   BENCH_WARMUP: "5"
   BENCH_RUNS: "20"
 
@@ -58,8 +51,6 @@ jobs:
           tool: hyperfine
 
       - name: Run the benchmark suite
-        # pipefail so a benchmark error fails the job instead of being swallowed by tee: partial
-        # numbers are worse than none.
         run: |
           set -o pipefail
           tools/bench-suite/run.sh all --json "$RUNNER_TEMP/bench.json" | tee "$RUNNER_TEMP/bench.md"

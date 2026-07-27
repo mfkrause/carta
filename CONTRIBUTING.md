@@ -68,10 +68,6 @@ then regenerate:
 cargo run --manifest-path tools/docgen/Cargo.toml -- --write
 ```
 
-CI runs the same generator in `--check` mode and fails if a committed artifact has drifted. A test
-also cross-checks the format registry against `docs/status.toml`, so adding a format without
-documenting it fails the suite.
-
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) and the site's chart data come from the same generator,
 reading [`docs/benchmarks.toml`](docs/benchmarks.toml). That file holds measurements only, so it is
 refreshed by re-running the suite rather than by editing:
@@ -81,9 +77,6 @@ tools/bench-suite/run.sh all --json /tmp/bench.json
 tools/bench-suite/to-toml.sh /tmp/bench.json >docs/benchmarks.toml
 cargo run --manifest-path tools/docgen/Cargo.toml -- --write
 ```
-
-Benchmarks never gate a PR: the `Benchmarks` workflow runs on demand and after a release, and opens
-a PR with the refreshed numbers.
 
 ## Opening a pull request
 
