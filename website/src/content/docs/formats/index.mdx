@@ -1,23 +1,40 @@
 ---
-title: Formats
-description: Every format carta reads and writes, with the gaps that remain.
+title: Formats and compatibility
+description: Every format carta reads and writes, the extensions each accepts, and the gaps that remain.
 sidebar:
+  label: Compatibility
   order: 1
 ---
 
 import FormatGrid from '../../../components/FormatGrid.astro';
+import SupportMatrix from '../../../components/SupportMatrix.astro';
+import ExtensionGaps from '../../../components/ExtensionGaps.astro';
+import ExtensionSets from '../../../components/ExtensionSets.astro';
 
 carta names formats the way pandoc does, so a command written for one runs against the other. A
-format name may carry extension toggles (`markdown+hard_line_breaks-raw_html`); `carta
---list-extensions=<format>` prints the set a given format accepts.
+format name may carry extension toggles (`markdown+hard_line_breaks-raw_html`), and
+`carta --list-extensions=<format>` prints the set a given format accepts.
+
+Everything on this page is generated from the same status data that produces the project's
+`STATUS.md`, so it cannot drift from what the code actually does.
 
 ## What ships today
 
 <FormatGrid />
 
-## The whole surface
+## Full support matrix
 
-The table below includes formats that are not started yet, so the roadmap is visible alongside what
-works. `➖` means the direction does not apply: there is no such reader or writer to build.
+Formats that are not started yet are listed too, so the roadmap is visible alongside what works.
+`➖` means the direction does not apply: there is no such reader or writer to build.
 
-<FormatGrid shippingOnly={false} />
+<SupportMatrix />
+
+## Extensions
+
+<ExtensionSets />
+
+### Known parity gaps
+
+Constructs the supported extensions read, each with one narrow case that still diverges.
+
+<ExtensionGaps />

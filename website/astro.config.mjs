@@ -38,35 +38,32 @@ export default defineConfig({
       ],
       plugins: [
         starlightLinksValidator({ errorOnRelativeLinks: false }),
+        // Each topic autogenerates from its directory, so a new page joins the sidebar by
+        // existing rather than by being listed here.
         starlightSidebarTopics([
           {
             label: "Guide",
             link: "/guide/getting-started/",
             icon: "open-book",
-            items: [
-              {
-                label: "Start here",
-                items: ["guide/getting-started"],
-              },
-            ],
+            items: [{ autogenerate: { directory: "guide" } }],
           },
           {
             label: "Formats",
             link: "/formats/",
             icon: "document",
-            items: [{ label: "Overview", items: ["formats"] }],
+            items: [{ autogenerate: { directory: "formats" } }],
           },
           {
             label: "CLI",
             link: "/cli/",
             icon: "seti:powershell",
-            items: [{ label: "Reference", items: ["cli"] }],
+            items: [{ autogenerate: { directory: "cli" } }],
           },
           {
             label: "Library",
             link: "/library/",
             icon: "seti:rust",
-            items: [{ label: "Reference", items: ["library"] }],
+            items: [{ autogenerate: { directory: "library" } }],
           },
         ]),
       ],
