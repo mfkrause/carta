@@ -55,7 +55,22 @@ CI rejects stale or unreferenced snapshots, so keep them tidy.
   `refactor`, `perf`, `test`, `build`, `ci`, `chore`, …); the `commit-msg` hook enforces
   the format.
 - Keep output deterministic and avoid panics in library paths.
-- When you add, extend, or change support for a format or extension, update [`docs/STATUS.md`](docs/STATUS.md).
+- When you add, extend, or change support for a format or extension, edit
+  [`docs/status.toml`](docs/status.toml) and regenerate (see below).
+
+### Generated documentation
+
+[`docs/STATUS.md`](docs/STATUS.md) and the documentation site's format and extension data are
+generated from [`docs/status.toml`](docs/status.toml). Edit the TOML, never the generated files,
+then regenerate:
+
+```sh
+cargo run --manifest-path tools/docgen/Cargo.toml -- --write
+```
+
+CI runs the same generator in `--check` mode and fails if a committed artifact has drifted. A test
+also cross-checks the format registry against `docs/status.toml`, so adding a format without
+documenting it fails the suite.
 
 ## Opening a pull request
 

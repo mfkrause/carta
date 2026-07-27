@@ -1,0 +1,132 @@
+{
+  "count": 80,
+  "supported": [
+    "smart",
+    "strikeout",
+    "superscript",
+    "subscript",
+    "pipe_tables",
+    "footnotes",
+    "task_lists",
+    "autolink_bare_uris",
+    "tex_math_dollars",
+    "fenced_divs",
+    "bracketed_spans",
+    "hard_line_breaks",
+    "raw_html",
+    "header_attributes",
+    "fenced_code_attributes",
+    "inline_code_attributes",
+    "link_attributes",
+    "attributes",
+    "definition_lists",
+    "grid_tables",
+    "multiline_tables",
+    "simple_tables",
+    "table_captions",
+    "line_blocks",
+    "fancy_lists",
+    "example_lists",
+    "startnum",
+    "yaml_metadata_block",
+    "pandoc_title_block",
+    "auto_identifiers",
+    "gfm_auto_identifiers",
+    "implicit_header_references",
+    "implicit_figures",
+    "raw_attribute",
+    "inline_notes",
+    "native_divs",
+    "native_spans",
+    "markdown_in_html_blocks",
+    "raw_tex",
+    "citations",
+    "table_attributes",
+    "blank_before_blockquote",
+    "blank_before_header",
+    "mark",
+    "emoji",
+    "alerts",
+    "tex_math_single_backslash",
+    "tex_math_double_backslash",
+    "lists_without_preceding_blankline",
+    "intraword_underscores",
+    "backtick_code_blocks",
+    "fenced_code_blocks",
+    "escaped_line_breaks",
+    "space_in_atx_header",
+    "all_symbols_escapable",
+    "spaced_reference_links",
+    "short_subsuperscripts",
+    "mmd_title_block",
+    "mmd_header_identifiers",
+    "abbreviations",
+    "markdown_attribute"
+  ],
+  "recognizedNotModeled": [
+    "latex_macros",
+    "wikilinks_title_after_pipe",
+    "wikilinks_title_before_pipe",
+    "ascii_identifiers",
+    "mmd_link_attributes",
+    "old_dashes",
+    "east_asian_line_breaks",
+    "four_space_rule",
+    "literate_haskell",
+    "rebase_relative_paths",
+    "gutenberg",
+    "angle_brackets_escapable",
+    "ignore_line_breaks",
+    "raw_markdown"
+  ],
+  "gaps": [
+    {
+      "names": [
+        "raw_tex"
+      ],
+      "description": "A raw-TeX environment (`\\begin{…}…\\end{…}`) that interrupts an open paragraph with no blank line leaves that paragraph as `Para` rather than tightening it to `Plain`. The free-standing form (a blank line before the environment) is exact."
+    },
+    {
+      "names": [
+        "markdown_in_html_blocks"
+      ],
+      "description": "A block-level HTML element (`<div>`, `<section>`, `<table>`, …) that interrupts an open paragraph tightens it to `Plain`. Two narrower forms still diverge: a raw-text element (`<pre>`, `<script>`) interrupting a paragraph leaves it as `Para` rather than `Plain`, and an inline-level construct (`<style>`, a comment, a doctype, or a processing instruction) interrupting a paragraph is folded into it as raw inline by the dialect, whereas carta opens a separate raw block."
+    },
+    {
+      "names": [
+        "markdown_in_html_blocks"
+      ],
+      "description": "An HTML block left open at end of input (a `<!-- …` comment or a `<table>`/`<div>` with no close tag) is reparsed as ordinary paragraphs by the dialect; carta keeps the whole run as one raw block."
+    },
+    {
+      "names": [
+        "native_spans"
+      ],
+      "description": "An emphasis run that opens before a `<span>` and whose closing marker sits just inside the matching `</span>` can leave both tags raw instead of forming a span."
+    },
+    {
+      "names": [
+        "raw_tex"
+      ],
+      "description": "Inline `\\command{…}[…]` consumes every group that follows it; commands that take a fixed number of arguments and leave the rest as text are not modeled. A `\\begin{env}…\\end{env}` is recognized only as a whole paragraph (block level); inline, each `\\begin`/`\\end` is an ordinary command."
+    },
+    {
+      "names": [
+        "citations"
+      ],
+      "description": "An abbreviation-led citation suffix such as `p. 5` is a single string in the dialect (a non-breaking space follows the period); carta splits it into separate tokens."
+    },
+    {
+      "names": [
+        "attributes"
+      ],
+      "description": "An attribute spec `{…}` containing a backslash escape is void in the dialect (it stays literal text) whereas carta accepts the backslash into the id, class, or value."
+    },
+    {
+      "names": [
+        "alerts"
+      ],
+      "description": "An alert marker indented two or more columns inside its blockquote (e.g. `>  [!NOTE]`) is still read as an alert; the dialect treats only a marker at column 0 or 1 as one."
+    }
+  ]
+}

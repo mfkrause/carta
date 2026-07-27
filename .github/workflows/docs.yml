@@ -1,0 +1,36 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'crates/**'
+      - 'tools/docgen/**'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'crates/**'
+      - 'tools/docgen/**'
+      - '.github/workflows/docs.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  generated:
+    name: generated docs are current
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: tools/docgen
+      # docgen names the offending file and prints the regeneration command on failure.
+      - name: Check generated artifacts against docs/status.toml
+        run: cargo run --manifest-path tools/docgen/Cargo.toml -- --check
