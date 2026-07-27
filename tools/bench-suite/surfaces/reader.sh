@@ -8,7 +8,7 @@ FORMATS="commonmark html"
 [ $# -gt 0 ] && FORMATS="$1"
 
 for fmt in $FORMATS; do
-  table_header "reader — $fmt → json"
+  table_header reader "$fmt → json"
   for size in $(sizes_list); do
     input="$(fixture_for "$fmt" "$size")"
     [ -s "$input" ] || continue

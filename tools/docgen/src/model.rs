@@ -129,7 +129,7 @@ impl Direction {
         }
     }
 
-    pub fn feature<'a>(self, format: &'a Format) -> Option<&'a str> {
+    pub fn feature(self, format: &Format) -> Option<&str> {
         match self {
             Direction::Read => format.read_feature.as_deref(),
             Direction::Write => format.write_feature.as_deref(),

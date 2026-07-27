@@ -17,3 +17,5 @@ echo "|--------|------------|-------|"
 printf '| %-6s | %10s | %5s |\n' "carta"  "$(human_bytes "$xb")" "1.0x"
 printf '| %-6s | %10s | %5s |\n' "pandoc" "$(human_bytes "$pb")" \
   "$(awk -v p="$pb" -v x="$xb" 'BEGIN { printf "%.0fx", p/x }')"
+
+record_binary "$xb" "$pb"

@@ -4,6 +4,7 @@
 //! that has drifted. Both modes run the same rendering code, so a passing `--check` means the
 //! committed artifacts are exactly what `--write` would produce.
 
+mod bench;
 mod cli;
 mod model;
 mod render;
@@ -89,10 +90,21 @@ fn build(root: &Path) -> Result<Vec<Artifact>, Box<dyn Error>> {
     let status: model::Status = toml::from_str(&source)?;
     validate(&status)?;
 
+    let measurements = fs::read_to_string(root.join("docs/benchmarks.toml"))?;
+    let benchmarks: bench::Benchmarks = toml::from_str(&measurements)?;
+
     Ok(vec![
         Artifact {
             path: root.join("docs/STATUS.md"),
             contents: render::status_markdown(&status),
+        },
+        Artifact {
+            path: root.join("docs/BENCHMARKS.md"),
+            contents: bench::markdown(&benchmarks),
+        },
+        Artifact {
+            path: root.join("website/src/data/generated/benchmarks.json"),
+            contents: bench::json(&benchmarks)?,
         },
         Artifact {
             path: root.join("website/src/data/generated/formats.json"),
@@ -120,8 +132,8 @@ fn validate(status: &model::Status) -> Result<(), Box<dyn Error>> {
             )
             .into());
         }
-        for name in std::iter::once(format.name.as_str())
-            .chain(format.aliases.iter().map(String::as_str))
+        for name in
+            std::iter::once(format.name.as_str()).chain(format.aliases.iter().map(String::as_str))
         {
             if seen.contains(&name) {
                 return Err(format!("format name \"{name}\" is declared twice").into());
@@ -142,7 +154,10 @@ fn diff(path: &str, on_disk: &str, generated: &str) -> String {
     let start = first.saturating_sub(DIFF_CONTEXT);
     let end = (first + DIFF_CONTEXT + 1).min(old.len().max(new.len()));
 
-    let mut hunk = format!("--- {path} (on disk)\n+++ {path} (generated)\n@@ line {} @@\n", first + 1);
+    let mut hunk = format!(
+        "--- {path} (on disk)\n+++ {path} (generated)\n@@ line {} @@\n",
+        first + 1
+    );
     for index in start..end {
         match (old.get(index), new.get(index)) {
             (a, b) if a == b => {

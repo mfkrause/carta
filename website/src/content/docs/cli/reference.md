@@ -156,4 +156,4 @@ Read input from this file instead of stdin
 
 ## Version
 
-v0.0.7
+v0.0.8

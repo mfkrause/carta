@@ -1,15 +1,15 @@
 ---
-import { Image } from 'astro:assets';
-import logo from '../assets/logo.png';
-import CopyCommand from '../components/CopyCommand.astro';
-import FormatGrid from '../components/FormatGrid.astro';
-import SpeedChart from '../components/SpeedChart.astro';
-import { shipping } from '../data/formats';
-import '../styles/theme.css';
+import { Image } from "astro:assets";
+import logo from "../assets/logo.png";
+import CopyCommand from "../components/CopyCommand.astro";
+import FormatGrid from "../components/FormatGrid.astro";
+import SpeedChart from "../components/SpeedChart.astro";
+import { shipping } from "../data/formats";
+import "../styles/theme.css";
 
-const title = 'carta: a fast document converter';
+const title = "carta: a fast document converter";
 const description =
-  'Convert documents between markup formats from one binary. Compatible with pandoc formats, extensions, and the pandoc JSON AST.';
+  "Convert documents between markup formats from a lightweight, fast CLI. Compatible with pandoc.";
 const shippingCount = shipping().length;
 ---
 
@@ -25,7 +25,8 @@ const shippingCount = shipping().length;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <script defer data-domain="carta.rs" src="https://pa.kuatsu.de/js/script.js"></script>
+    <script defer data-domain="carta.rs" src="https://pa.kuatsu.de/js/script.js"
+    ></script>
   </head>
   <body>
     <main>
@@ -33,8 +34,8 @@ const shippingCount = shipping().length;
         <Image src={logo} alt="" width={96} height={96} densities={[1, 2]} />
         <h1>carta</h1>
         <p class="tagline">
-          A universal document converter in Rust. Read one markup format, render it back out in
-          another. Compatible with pandoc's formats, extensions, and JSON AST.
+          A universal document converter in Rust. Read one markup format, render
+          it back out in another. Fully compatible with pandoc.
         </p>
         <CopyCommand command="cargo install carta" />
         <p class="cta">
@@ -44,19 +45,20 @@ const shippingCount = shipping().length;
       </section>
 
       <section>
-        <h2>Fast</h2>
+        <h2>Fast & lightweight</h2>
         <p>
-          Conversion is measured end to end, process start included, against the same input and
-          equivalent flags.
+          Carta is multiple orders-of-magnitude faster than pandoc, while being
+          a lot smaller.
         </p>
         <SpeedChart />
       </section>
 
       <section>
-        <h2>{shippingCount} formats, one binary</h2>
+        <h2>{shippingCount} formats supported</h2>
         <p>
-          Every format carta converts today, with the directions it supports. The{' '}
-          <a href="/formats/">compatibility page</a>{' '}
+          Every format carta converts today, with the directions it supports.
+          The{" "}
+          <a href="/formats/">compatibility page</a>{" "}
           lists the roadmap and the known gaps per format.
         </p>
         <FormatGrid />
@@ -65,23 +67,24 @@ const shippingCount = shipping().length;
       <section>
         <h2>Pay only for the formats you use</h2>
         <p>
-          Formats are selected at compile time through per-direction Cargo features. A build with
-          one reader and one writer carries neither the code nor the dependencies of the rest.
+          Formats are selected at compile time through per-direction Cargo
+          features. A build with one reader and one writer carries neither the
+          code nor the dependencies of the rest.
         </p>
         <CopyCommand
           command="cargo install carta --no-default-features --features cli,read-commonmark,write-html"
         />
         <p>
-          The same switch applies to the library, so an application embedding carta ships only the
-          conversions it performs.
+          The same switch applies to the library, so an application embedding
+          carta ships only the conversions it performs.
         </p>
       </section>
 
       <aside class="notice">
         <p>
-          carta is pre-1.0: some formats have known gaps and the API is still unstable. Each
-          format's page lists what is missing, and the{' '}
-          <a href="/formats/">compatibility page</a>{' '} tracks the whole surface.
+          carta is pre-1.0: some formats have known gaps and the API is still
+          unstable. Each format's page lists what is missing, and the{" "}
+          <a href="/formats/">compatibility page</a>{" "} tracks the whole surface.
         </p>
       </aside>
     </main>
@@ -105,7 +108,7 @@ const shippingCount = shipping().length;
         font-family:
           system-ui,
           -apple-system,
-          'Segoe UI',
+          "Segoe UI",
           sans-serif;
         line-height: 1.6;
       }

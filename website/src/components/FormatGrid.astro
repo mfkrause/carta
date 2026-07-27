@@ -26,12 +26,15 @@ const direction = (format: Format) =>
           {group.formats.map((format) => (
             <li>
               <span class="name">
-                <code>{format.name}</code>
+                <code>{format.name}</code>{' '}
                 <span class="title">{format.title}</span>
-              </span>
+              </span>{' '}
               <span class="directions">
-                {direction(format).map((entry) => (
-                  <StatusBadge status={entry.status} label={entry.label} />
+                {direction(format).map((entry, index) => (
+                  <>
+                    {index > 0 && ' '}
+                    <StatusBadge status={entry.status} label={entry.label} />
+                  </>
                 ))}
               </span>
             </li>

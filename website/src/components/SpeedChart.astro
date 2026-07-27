@@ -1,12 +1,39 @@
 ---
 import benchmarks from '../data/generated/benchmarks.json';
 
-const { provenance, cases, headline } = benchmarks;
+const { provenance, results, headline } = benchmarks;
+
+// The four conversions this page leads with. The generated data covers every surface; the choice of
+// what a first-time visitor sees is editorial, so it lives here rather than in the measurements.
+const FEATURED = [
+  { surface: 'reader', group: 'commonmark → json' },
+  { surface: 'reader', group: 'html → json' },
+  { surface: 'writer', group: 'json → html' },
+  { surface: 'writer', group: 'json → latex' },
+];
+
+// The largest input measured for each, which is where the parsing and rendering work dominates
+// process start-up and the numbers say the most.
+const cases = FEATURED.map(({ surface, group }) => {
+  const largest = results
+    .filter((entry) => entry.surface === surface && entry.group === group)
+    .sort((a, b) => b.bytes - a.bytes)[0];
+  if (!largest) {
+    throw new Error(`benchmarks.json has no ${surface} results for "${group}"`);
+  }
+  return largest;
+});
 
 // Bars are scaled within their own row: pandoc fills the track and carta takes its share of it, so
 // a bar's length is the speedup. Across rows the absolute times span ~200x, and one shared scale
 // would flatten every fast case into an unreadable sliver.
 const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs) * 100;
+
+const times = (value: number) => `${value.toFixed(0)}×`;
+const range = (span: { low: number; high: number }) =>
+  span.low.toFixed(0) === span.high.toFixed(0)
+    ? times(span.high)
+    : `${span.low.toFixed(0)}–${times(span.high)}`;
 ---
 
 <figure class="speed">
@@ -15,7 +42,7 @@ const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs
       cases.map((entry) => (
         <li>
           <div class="case">
-            <code>{entry.label}</code>
+            <code>{entry.group}</code>
             <span class="size">{entry.size}</span>
             <strong>{entry.speedup.toFixed(1)}× faster</strong>
           </div>
@@ -42,12 +69,12 @@ const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs
 
   <figcaption>
     <p class="binary">
-      Binary size: {headline.binarySize.carta} against {headline.binarySize.pandoc}
-      ({headline.binarySize.ratio} smaller). Peak memory: {headline.peakMemory}.
+      Binary size: {headline.binarySize.carta} against {headline.binarySize.pandoc}{' '}
+      ({times(headline.binarySize.ratio)} smaller). Peak memory: {range(headline.memoryRatio)} less.
     </p>
     <p class="note">
       Each row is scaled to itself, so bar length reads as the speedup; rows do not share a scale.
-      Measured {provenance.date} on {provenance.machine}: carta {provenance.carta} against pandoc{' '}
+      Measured {provenance.date} on {provenance.runner}: carta {provenance.carta} against pandoc{' '}
       {provenance.pandoc}, driven by hyperfine {provenance.hyperfine} (warmup {provenance.warmup},{' '}
       {provenance.runs} runs). Your numbers will differ.
     </p>

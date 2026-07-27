@@ -1,0 +1,193 @@
+---
+/**
+ * The row under a page title that hands the page to an agent: copy it as Markdown, read the
+ * Markdown directly, or open it in an assistant. Every docs page has a `.md` twin (see
+ * `src/pages/[...slug].md.ts`); these are the routes to it.
+ */
+const site = Astro.site ?? new URL('https://carta.rs');
+const markdownPath = `${Astro.url.pathname.replace(/\/$/, '')}.md`;
+const markdownUrl = new URL(markdownPath, site).href;
+const prompt = `Read ${markdownUrl} so I can ask questions about carta.`;
+
+const openIn = [
+  { label: 'ChatGPT', href: `https://chatgpt.com/?${new URLSearchParams({ q: prompt })}` },
+  { label: 'Claude', href: `https://claude.ai/new?${new URLSearchParams({ q: prompt })}` },
+];
+---
+
+<div class="page-actions">
+  <button type="button" data-markdown={markdownPath}>
+    <svg class="copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+      <path d="M5 15V5a2 2 0 0 1 2-2h8"></path>
+    </svg>
+    <svg class="done" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="m5 13 4 4L19 7"></path>
+    </svg>
+    <span class="label">Copy as Markdown</span>
+  </button>
+
+  <details class="open-in">
+    <summary>
+      Open in
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="m6 9 6 6 6-6"></path>
+      </svg>
+    </summary>
+    <ul>
+      <li><a href={markdownPath}>View as Markdown</a></li>
+      {
+        openIn.map((target) => (
+          <li>
+            <a href={target.href} target="_blank" rel="noopener noreferrer">
+              {target.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </details>
+
+  <span class="announce" role="status" aria-live="polite"></span>
+</div>
+
+<style>
+  .page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  button,
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.4rem;
+    background: var(--sl-color-black);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    line-height: 1.4;
+    cursor: pointer;
+  }
+
+  button:hover,
+  button:focus-visible,
+  summary:hover,
+  details[open] summary {
+    border-color: var(--sl-color-gray-4);
+    color: var(--sl-color-white);
+  }
+
+  svg {
+    width: 0.85rem;
+    height: 0.85rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .done,
+  button[data-copied] .copy {
+    display: none;
+  }
+
+  button[data-copied] .done {
+    display: block;
+    stroke: var(--carta-ok, currentColor);
+  }
+
+  summary {
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .open-in {
+    position: relative;
+  }
+
+  .open-in ul {
+    position: absolute;
+    z-index: 10;
+    inset-inline-start: 0;
+    margin: 0.25rem 0 0;
+    padding: 0.25rem;
+    min-width: 11rem;
+    list-style: none;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.4rem;
+    background: var(--sl-color-black);
+    box-shadow: var(--sl-shadow-md);
+  }
+
+  .open-in a {
+    display: block;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.25rem;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    text-decoration: none;
+  }
+
+  .open-in a:hover,
+  .open-in a:focus-visible {
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-white);
+  }
+
+  /* Announced to screen readers; the icon swap carries it visually. */
+  .announce {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+</style>
+
+<script>
+  document
+    .querySelectorAll<HTMLButtonElement>('.page-actions button[data-markdown]')
+    .forEach((button) => {
+      const announce = button.parentElement?.querySelector('.announce');
+      const label = button.querySelector('.label');
+      let reset: ReturnType<typeof setTimeout>;
+
+      button.addEventListener('click', async () => {
+        const path = button.dataset.markdown;
+        if (!path) return;
+        try {
+          const response = await fetch(path);
+          if (!response.ok) throw new Error(String(response.status));
+          await navigator.clipboard.writeText(await response.text());
+        } catch {
+          if (announce) announce.textContent = 'Could not copy';
+          return;
+        }
+        button.dataset.copied = '';
+        if (label) label.textContent = 'Copied';
+        if (announce) announce.textContent = 'Copied as Markdown';
+        clearTimeout(reset);
+        reset = setTimeout(() => {
+          delete button.dataset.copied;
+          if (label) label.textContent = 'Copy as Markdown';
+          if (announce) announce.textContent = '';
+        }, 1500);
+      });
+    });
+
+  // A click anywhere else closes the menu, which `details` does not do on its own.
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll<HTMLDetailsElement>('.page-actions details[open]').forEach((menu) => {
+      if (!menu.contains(event.target as Node)) menu.open = false;
+    });
+  });
+</script>

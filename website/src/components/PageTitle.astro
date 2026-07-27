@@ -1,0 +1,10 @@
+---
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import PageActions from './PageActions.astro';
+
+// The 404 page has no Markdown twin to offer.
+const isNotFound = Astro.locals.starlightRoute.entry.id === '404';
+---
+
+<Default><slot /></Default>
+{!isNotFound && <PageActions />}
