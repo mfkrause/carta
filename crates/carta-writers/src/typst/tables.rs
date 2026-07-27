@@ -88,6 +88,34 @@ fn emit_rows(grid: &mut String, rows: &[Vec<&Cell>], width: usize, wrap: WrapMod
     }
 }
 
+/// A cell's content laid out once, ahead of the two passes that consume it: the glue measurement of
+/// the preceding cells and the cell's own emission.
+enum CellBody {
+    Empty,
+    Inline {
+        fragments: Vec<Fragment>,
+        trailing_space: bool,
+    },
+    Blocks {
+        body: String,
+        trailing_newline: bool,
+    },
+}
+
+fn cell_body(cell: &Cell, width: usize, wrap: WrapMode, smart: bool) -> CellBody {
+    match cell.content.as_slice() {
+        [] => CellBody::Empty,
+        [Block::Plain(inlines) | Block::Para(inlines)] => CellBody::Inline {
+            fragments: fragments(inlines, width, wrap, smart),
+            trailing_space: matches!(inlines.last(), Some(Inline::Space)),
+        },
+        other => CellBody::Blocks {
+            body: blocks(other, width, wrap, smart),
+            trailing_newline: !matches!(other.last(), Some(Block::Plain(_))),
+        },
+    }
+}
+
 /// Render a row's cells as a `, `-joined sequence. Each cell's content is laid out from the column
 /// where its opening bracket falls (so a long cell wraps against the fill column), which depends on
 /// the `prefix` that opens the row line and the widths of the cells before it.
@@ -100,15 +128,24 @@ fn render_row(
     wrap: WrapMode,
     smart: bool,
 ) -> String {
+    let cells: Vec<(String, CellBody)> = row
+        .iter()
+        .map(|cell| (cell_prefix(cell), cell_body(cell, width, wrap, smart)))
+        .collect();
+    let glues = trailing_glue_widths(&cells, suffix);
+
     let mut out = String::new();
     let mut column = display_width(prefix);
-    for (index, cell) in row.iter().enumerate() {
+    for (index, ((cell_prefix, body), glue)) in cells.iter().zip(&glues).enumerate() {
         if index > 0 {
             out.push_str(", ");
             column += 2;
         }
-        let glue = trailing_glue_width(row, index, suffix, width, wrap, smart);
-        let rendered = table_cell(cell, column, indent, width, wrap, smart, glue);
+        let bracket_column = column + display_width(cell_prefix);
+        let rendered = format!(
+            "{cell_prefix}{}",
+            render_cell_body(body, bracket_column, indent, width, wrap, *glue)
+        );
         match rendered.rfind('\n') {
             Some(position) => column = display_width(&rendered[position + 1..]),
             None => column += display_width(&rendered),
@@ -118,54 +155,41 @@ fn render_row(
     out
 }
 
-/// The non-breaking text glued after cell `index`'s inline content: its closing bracket, then for each
-/// following cell its separator, prefix, opening bracket, and leading run, until a content break point
-/// (a space or line break) is reached. After the last cell the row's `suffix` closes the run. A cell's
-/// last word and this run share a physical line, so the run's width enters that word's wrap decision.
-fn trailing_glue_width(
-    row: &[&Cell],
-    index: usize,
-    suffix: &str,
-    width: usize,
-    wrap: WrapMode,
-    smart: bool,
-) -> usize {
-    let mut total = 1; // the cell's own closing `]`
-    let mut next = index + 1;
-    loop {
-        let Some(cell) = row.get(next) else {
-            total += display_width(suffix);
-            return total;
-        };
-        total += 2 + display_width(&cell_prefix(cell)) + 1; // `, ` + prefix + `[`
-        let (run, breaks) = content_leading_run(cell, width, wrap, smart);
-        total += run;
-        if breaks {
-            return total;
-        }
-        total += 1; // this cell is fully glued; close its `]` and continue
-        next += 1;
+/// The non-breaking text glued after each cell's inline content: the cell's closing bracket, then for
+/// each following cell its separator, prefix, opening bracket, and leading run, until a content break
+/// point (a space or line break) is reached. After the last cell the row's `suffix` closes the run. A
+/// cell's last word and this run share a physical line, so the run's width enters that word's wrap
+/// decision. Accumulated back to front, so each cell contributes to its predecessors' glue once.
+fn trailing_glue_widths(cells: &[(String, CellBody)], suffix: &str) -> Vec<usize> {
+    let mut widths = Vec::with_capacity(cells.len());
+    let mut glue = 1 + display_width(suffix);
+    for (prefix, body) in cells.iter().rev() {
+        widths.push(glue);
+        let (run, breaks) = leading_run(body);
+        // `]` + `, ` + prefix + `[` + the run, then this cell's own `]` when nothing broke.
+        glue = 4 + display_width(prefix) + run + if breaks { 0 } else { glue };
     }
+    widths.reverse();
+    widths
 }
 
 /// A cell's leading content run: the width up to its first break point and whether one exists. Inline
 /// content runs to its first space or line break; block content runs to the end of its first physical
 /// line. When no break exists the run glues onward into the following cell.
-fn content_leading_run(cell: &Cell, width: usize, wrap: WrapMode, smart: bool) -> (usize, bool) {
-    match cell.content.as_slice() {
-        [] => (0, false),
-        [Block::Plain(inlines) | Block::Para(inlines)] => {
+fn leading_run(body: &CellBody) -> (usize, bool) {
+    match body {
+        CellBody::Empty => (0, false),
+        CellBody::Inline { fragments, .. } => {
             let mut run = 0;
-            for fragment in fragments(inlines, width, wrap, smart) {
+            for fragment in fragments {
                 match fragment {
-                    Fragment::Text(text) | Fragment::Atom(text) => run += display_width(&text),
+                    Fragment::Text(text) | Fragment::Atom(text) => run += display_width(text),
                     Fragment::Space | Fragment::Soft | Fragment::LineBreak => return (run, true),
                 }
             }
             (run, false)
         }
-        other => {
-            let body = blocks(other, width, wrap, smart);
+        CellBody::Blocks { body, .. } => {
             let first_line = body.split('\n').next().unwrap_or("");
             (display_width(first_line), body.contains('\n'))
         }
@@ -234,69 +258,38 @@ fn alignment(value: &Alignment) -> &'static str {
     }
 }
 
-fn table_cell(
-    cell: &Cell,
-    column: usize,
-    indent: usize,
-    width: usize,
-    wrap: WrapMode,
-    smart: bool,
-    glue: usize,
-) -> String {
-    let prefix = cell_prefix(cell);
-    let bracket_column = column + display_width(&prefix);
-    format!(
-        "{prefix}{}",
-        cell_content(
-            &cell.content,
-            bracket_column,
-            indent,
-            width,
-            wrap,
-            smart,
-            glue
-        )
-    )
-}
-
 /// Render a cell's content within `[..]`. A single block of inline content fills against the column
 /// where its opening bracket sits; richer content is laid out as an indented block. Wrapped lines sit
 /// `indent` columns in.
-fn cell_content(
-    content: &[Block],
+fn render_cell_body(
+    body: &CellBody,
     bracket_column: usize,
     indent: usize,
     width: usize,
     wrap: WrapMode,
-    smart: bool,
     glue: usize,
 ) -> String {
     let pad = " ".repeat(indent);
-    match content {
-        [Block::Plain(inlines) | Block::Para(inlines)] => {
-            let filled = fill_cell(
-                &fragments(inlines, width, wrap, smart),
-                bracket_column + 1,
-                indent,
-                width,
-                wrap,
-                glue,
-            );
+    match body {
+        CellBody::Empty => "[]".to_owned(),
+        CellBody::Inline {
+            fragments,
+            trailing_space,
+        } => {
+            let filled = fill_cell(fragments, bracket_column + 1, indent, width, wrap, glue);
             // A trailing space inline is cell content the fill drops; restore it before `]`.
-            let closing = if matches!(inlines.last(), Some(Inline::Space)) {
-                " ]"
-            } else {
-                "]"
-            };
+            let closing = if *trailing_space { " ]" } else { "]" };
             format!("[{}{closing}", indent_continuation(&filled, &pad))
         }
-        [] => "[]".to_owned(),
-        blocks_value => {
-            let mut body = blocks(blocks_value, width, wrap, smart);
-            if !matches!(blocks_value.last(), Some(Block::Plain(_))) {
-                body.push('\n');
+        CellBody::Blocks {
+            body,
+            trailing_newline,
+        } => {
+            let mut rendered = indent_continuation(body, &pad);
+            if *trailing_newline {
+                rendered.push('\n');
             }
-            format!("[{}\n{pad}]", indent_continuation(&body, &pad))
+            format!("[{rendered}\n{pad}]")
         }
     }
 }

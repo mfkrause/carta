@@ -349,3 +349,47 @@ fn untranslatable_inline_math_falls_back_to_escaped_verbatim() {
 fn untranslatable_display_math_uses_double_dollar_verbatim() {
     assert_eq!(display_math("\\unknowncmd"), "\\$\\$\\\\unknowncmd\\$\\$");
 }
+
+#[test]
+fn deeply_nested_tables_render_without_compounding_layout() {
+    // A cell laid out once per preceding cell would cost 2^24 layouts at this depth.
+    use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table, TableBody};
+
+    // The filler cell has no break point, so the row's glue reaches into the nesting cell.
+    fn nested_table(content: Vec<Block>) -> Block {
+        let cell = Cell {
+            attr: Attr::default(),
+            align: Alignment::AlignDefault,
+            row_span: 1,
+            col_span: 1,
+            content,
+        };
+        let filler = Cell {
+            content: vec![para(vec![str_inline("cell")])],
+            ..cell.clone()
+        };
+        let spec = ColSpec {
+            align: Alignment::AlignDefault,
+            width: ColWidth::ColWidthDefault,
+        };
+        Block::Table(Box::new(Table {
+            col_specs: vec![spec; 2],
+            bodies: vec![TableBody {
+                attr: Attr::default(),
+                row_head_columns: 0,
+                head: Vec::new(),
+                body: vec![Row {
+                    attr: Attr::default(),
+                    cells: vec![filler, cell],
+                }],
+            }],
+            ..Table::default()
+        }))
+    }
+
+    let mut blocks = vec![para(vec![str_inline("x")])];
+    for _ in 0..24 {
+        blocks = vec![nested_table(blocks)];
+    }
+    assert_eq!(render(blocks).matches("#table(").count(), 24);
+}
