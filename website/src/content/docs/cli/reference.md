@@ -153,7 +153,3 @@ Print help
 
 \[*INPUT*\]  
 Read input from this file instead of stdin
-
-## Version
-
-v0.0.8

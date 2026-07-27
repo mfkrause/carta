@@ -27,10 +27,29 @@ pub fn reference(root: &Path) -> Result<String, Box<dyn Error>> {
         &writer_options,
     )?;
 
-    Ok(format!(
-        "{FRONT_MATTER}{}\n",
-        demote_headings(&code_spans(&markdown))
-    ))
+    let body = drop_version_section(&demote_headings(&code_spans(&markdown)));
+    Ok(format!("{FRONT_MATTER}{}\n", body.trim_end()))
+}
+
+/// Drops the version section and everything under it.
+///
+/// The page is committed, so anything version-dependent in it goes stale the moment the next
+/// version is cut, and the freshness check then fails on the release commit itself. The site
+/// tracks the default branch rather than a release; `carta --version` answers this question.
+fn drop_version_section(markdown: &str) -> String {
+    let mut kept: Vec<&str> = Vec::new();
+    let mut dropping = false;
+
+    for line in markdown.lines() {
+        if line.starts_with("## ") {
+            dropping = line == "## Version";
+        }
+        if !dropping {
+            kept.push(line);
+        }
+    }
+
+    kept.join("\n")
 }
 
 /// Builds the workspace's `carta` and runs `--man` on it.
