@@ -2,11 +2,14 @@
 import benchmarks from '../data/generated/benchmarks.json';
 
 const { provenance, cases, headline } = benchmarks;
-const slowest = Math.max(...cases.map((entry) => entry.pandocMs));
-const width = (ms: number) => `${Math.max((ms / slowest) * 100, 0.6)}%`;
+
+// Bars are scaled within their own row: pandoc fills the track and carta takes its share of it, so
+// a bar's length is the speedup. Across rows the absolute times span ~200x, and one shared scale
+// would flatten every fast case into an unreadable sliver.
+const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs) * 100;
 ---
 
-<div class="speed">
+<figure class="speed">
   <ol>
     {
       cases.map((entry) => (
@@ -14,40 +17,55 @@ const width = (ms: number) => `${Math.max((ms / slowest) * 100, 0.6)}%`;
           <div class="case">
             <code>{entry.label}</code>
             <span class="size">{entry.size}</span>
-            <strong>{entry.speedup}× faster</strong>
+            <strong>{entry.speedup.toFixed(1)}× faster</strong>
           </div>
-          <div class="bar carta" style={`--w: ${width(entry.cartaMs)}`}>
-            <span>carta {entry.cartaMs} ms</span>
+
+          <div class="row">
+            <span class="who">carta</span>
+            <span class="track" title={`carta ${entry.cartaMs} ms`}>
+              <span class="fill carta" style={`--w: ${share(entry)}%`} />
+            </span>
+            <span class="ms">{entry.cartaMs} ms</span>
           </div>
-          <div class="bar other" style={`--w: ${width(entry.pandocMs)}`}>
-            <span>pandoc {entry.pandocMs} ms</span>
+
+          <div class="row">
+            <span class="who">pandoc</span>
+            <span class="track" title={`pandoc ${entry.pandocMs} ms`}>
+              <span class="fill other" style="--w: 100%" />
+            </span>
+            <span class="ms">{entry.pandocMs} ms</span>
           </div>
         </li>
       ))
     }
   </ol>
 
-  <p class="binary">
-    Binary size: <strong>{headline.binarySize.carta}</strong> against{' '}
-    {headline.binarySize.pandoc} ({headline.binarySize.ratio} smaller). Peak memory:{' '}
-    {headline.peakMemory}.
-  </p>
-
-  <p class="provenance">
-    Measured {provenance.date} on {provenance.machine}: carta {provenance.carta} against pandoc{' '}
-    {provenance.pandoc}, driven by hyperfine {provenance.hyperfine} (warmup {provenance.warmup},{' '}
-    {provenance.runs} runs). Your numbers will differ.
-  </p>
-</div>
+  <figcaption>
+    <p class="binary">
+      Binary size: <strong>{headline.binarySize.carta}</strong> against {headline.binarySize.pandoc}
+      ({headline.binarySize.ratio} smaller). Peak memory: {headline.peakMemory}.
+    </p>
+    <p class="note">
+      Each row is scaled to itself, so bar length reads as the speedup; rows do not share a scale.
+      Measured {provenance.date} on {provenance.machine}: carta {provenance.carta} against pandoc{' '}
+      {provenance.pandoc}, driven by hyperfine {provenance.hyperfine} (warmup {provenance.warmup},{' '}
+      {provenance.runs} runs). Your numbers will differ.
+    </p>
+  </figcaption>
+</figure>
 
 <style>
+  figure {
+    margin: 0;
+  }
+
   ol {
     list-style: none;
     padding: 0;
     margin: 0 0 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.5rem;
   }
 
   .case {
@@ -55,16 +73,7 @@ const width = (ms: number) => `${Math.max((ms / slowest) * 100, 0.6)}%`;
     align-items: baseline;
     gap: 0.75rem;
     flex-wrap: wrap;
-    margin-bottom: 0.4rem;
-  }
-
-  .size,
-  .provenance {
-    color: var(--carta-muted);
-  }
-
-  .size {
-    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
   }
 
   .case strong {
@@ -72,30 +81,66 @@ const width = (ms: number) => `${Math.max((ms / slowest) * 100, 0.6)}%`;
     color: var(--carta-accent-strong);
   }
 
-  .bar {
-    width: var(--w);
-    min-width: max-content;
-    padding: 0.15rem 0.6rem;
-    border-radius: 0.35rem;
+  .row {
+    display: grid;
+    grid-template-columns: 4rem 1fr 5.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.3rem;
+  }
+
+  /* Labels stay in text ink; the mark beside them carries identity. */
+  .who,
+  .ms,
+  .size,
+  .note {
+    color: var(--carta-muted);
     font-size: 0.8rem;
-    margin-bottom: 0.25rem;
   }
 
-  .bar.carta {
+  .ms {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .track {
+    display: block;
+    height: 0.6rem;
+  }
+
+  .fill {
+    display: block;
+    height: 100%;
+    width: var(--w);
+    /* A rendering floor so a 44x row still shows a mark; far below any readable length. */
+    min-width: 2px;
+    border-radius: 4px;
+  }
+
+  .fill.carta {
     background: var(--carta-accent);
-    color: var(--carta-on-accent);
   }
 
-  .bar.other {
-    background: var(--carta-border);
+  .fill.other {
+    background: var(--carta-track);
   }
 
   .binary {
     margin: 0 0 0.5rem;
   }
 
-  .provenance {
-    font-size: 0.8rem;
+  .note {
     margin: 0;
+  }
+
+  @media (max-width: 30rem) {
+    .row {
+      grid-template-columns: 3.5rem 1fr;
+    }
+
+    .ms {
+      grid-column: 2;
+      text-align: start;
+    }
   }
 </style>
