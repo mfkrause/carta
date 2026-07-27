@@ -5,7 +5,7 @@
 //! not a hand-maintained copy of it.
 
 use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use carta::{ReaderOptions, WrapMode, WriterOptions, convert_text};
@@ -33,37 +33,25 @@ pub fn reference(root: &Path) -> Result<String, Box<dyn Error>> {
     ))
 }
 
-/// Runs `carta --man`, building the binary first if no build has produced one yet.
+/// Builds the workspace's `carta` and runs `--man` on it.
+///
+/// Cargo both builds and runs, so the roff always comes from the current sources. Resolving a
+/// path under `target/` instead would reuse whichever artifact happened to be lying there, and a
+/// stale one describes flags the binary no longer has. Cargo writes its own progress to stderr,
+/// leaving stdout to the man page alone.
 fn man_page(root: &Path) -> Result<String, Box<dyn Error>> {
-    let binary = locate_binary(root).map_or_else(
-        || {
-            let status = Command::new(cargo())
-                .args(["build", "--quiet", "-p", "carta"])
-                .current_dir(root)
-                .status()?;
-            if !status.success() {
-                return Err("failed to build the carta binary for the CLI reference".into());
-            }
-            locate_binary(root).ok_or_else(|| {
-                Box::<dyn Error>::from("carta built but no binary was found under target/")
-            })
-        },
-        Ok,
-    )?;
-
-    let output = Command::new(&binary).arg("--man").output()?;
+    let output = Command::new(cargo())
+        .args(["run", "--quiet", "-p", "carta", "--", "--man"])
+        .current_dir(root)
+        .output()?;
     if !output.status.success() {
-        return Err(format!("{} --man failed", binary.display()).into());
+        return Err(format!(
+            "`cargo run -p carta -- --man` failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
     }
     Ok(String::from_utf8(output.stdout)?)
-}
-
-fn locate_binary(root: &Path) -> Option<PathBuf> {
-    let name = if cfg!(windows) { "carta.exe" } else { "carta" };
-    ["release", "debug"]
-        .iter()
-        .map(|profile| root.join("target").join(profile).join(name))
-        .find(|path| path.is_file())
 }
 
 fn cargo() -> String {

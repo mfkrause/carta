@@ -134,6 +134,33 @@ fn every_documented_writer_is_in_the_registry() {
     assert_documented_in_registry(&carta::output_format_names(), WRITE);
 }
 
+/// Aliases are declared per format rather than per direction, so an alias only has to be accepted
+/// by one of the directions the format ships in: `html5` writes but does not read. The per-direction
+/// reverse checks therefore cannot cover them, and without this a mistyped alias would sit in the
+/// status data unnoticed, since the forward check only ever widens the set it accepts.
+#[test]
+fn every_documented_alias_is_in_a_registry() {
+    let status = status();
+    let readers = carta::input_format_names();
+    let writers = carta::output_format_names();
+
+    for format in &status.formats {
+        if !format.read.ships() && !format.write.ships() {
+            continue;
+        }
+        for alias in &format.aliases {
+            assert!(
+                (format.read.ships() && readers.contains(&alias.as_str()))
+                    || (format.write.ships() && writers.contains(&alias.as_str())),
+                "docs/status.toml declares alias {:?} for shipping format {:?}, but neither \
+                 registry accepts it in a direction that format ships; fix the alias or register it",
+                alias,
+                format.name,
+            );
+        }
+    }
+}
+
 #[test]
 fn roadmap_entries_are_unconstrained() {
     let status = status();

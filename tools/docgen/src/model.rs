@@ -149,7 +149,11 @@ impl Status {
     /// The formats in presentation order: family order first, then name.
     pub fn sorted_formats(&self) -> Vec<&Format> {
         let mut formats: Vec<&Format> = self.formats.iter().collect();
-        formats.sort_by_key(|format| (family_rank(&format.family), format.name.clone()));
+        formats.sort_by(|a, b| {
+            family_rank(&a.family)
+                .cmp(&family_rank(&b.family))
+                .then_with(|| a.name.cmp(&b.name))
+        });
         formats
     }
 }

@@ -1,7 +1,7 @@
 name: Benchmarks
 
-# Measures carta against the pinned pandoc binary and opens a PR with the refreshed numbers. It
-# never commits to main, and it never gates anything: benchmarks are reported, not enforced.
+# Runs the benchmark suite and opens a PR with the refreshed numbers. It never commits to main,
+# and it never gates anything: benchmarks are reported, not enforced.
 #
 # A release-triggered run starts after the tag is cut, so the tagged commit still carries the
 # previous release's numbers; the refresh lands on main one cycle later.

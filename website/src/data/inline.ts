@@ -26,10 +26,19 @@ function codeSpans(text: string): string {
   );
 }
 
+/**
+ * The destinations the status data is allowed to link to: the compatibility page's own anchors,
+ * site-relative paths, and plain web addresses. Anything else (`javascript:` above all) keeps its
+ * brackets and reaches the page as text, because the result goes out through `set:html`.
+ */
+const SAFE_HREF = /^(#|\/|https?:\/\/)/;
+
 function linkSpans(text: string): string {
   return text.replace(
     /\[([^\]]+)\]\(([^)\s]+)\)/g,
-    (_match, label: string, href: string) =>
-      `<a href="${href.startsWith("#") ? ANCHOR_BASE + href : href}">${label}</a>`,
+    (match, label: string, href: string) => {
+      if (!SAFE_HREF.test(href)) return match;
+      return `<a href="${href.startsWith("#") ? ANCHOR_BASE + href : href}">${label}</a>`;
+    },
   );
 }

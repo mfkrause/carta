@@ -21,7 +21,8 @@ export const gaps: ExtensionGap[] = generated.gaps;
 const byFormat = generated.byFormat as Record<string, FormatExtensions>;
 
 export function extensionsFor(format: string): FormatExtensions | undefined {
-  return byFormat[format];
+  // Own properties only: a plain object still answers to "toString" and friends.
+  return Object.hasOwn(byFormat, format) ? byFormat[format] : undefined;
 }
 
 export function isSupported(extension: string): boolean {

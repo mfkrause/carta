@@ -1,6 +1,7 @@
 //! Renders the JSON the documentation site's components read.
 
 use std::collections::BTreeMap;
+use std::error::Error;
 
 use serde::Serialize;
 
@@ -79,26 +80,29 @@ pub fn formats_json(status: &Status) -> Result<String, serde_json::Error> {
 
 /// `extensions.json`: the supported and recognized sets, the tracked per-extension gaps, and the
 /// set each shipping format accepts.
-pub fn extensions_json(status: &Status) -> Result<String, serde_json::Error> {
-    pretty(&ExtensionsFile {
+pub fn extensions_json(status: &Status) -> Result<String, Box<dyn Error>> {
+    Ok(pretty(&ExtensionsFile {
         count: carta::Extension::COUNT,
         supported: &status.extensions.supported,
         recognized_not_modeled: &status.extensions.recognized_not_modeled,
         gaps: &status.extensions.gaps,
-        by_format: by_format(status),
-    })
+        by_format: by_format(status)?,
+    })?)
 }
 
 /// The accepted extension set per shipping format, straight from the library's own resolver.
-fn by_format(status: &Status) -> BTreeMap<&str, FormatExtensions> {
+fn by_format(status: &Status) -> Result<BTreeMap<&str, FormatExtensions>, Box<dyn Error>> {
     let mut sets = BTreeMap::new();
     for format in &status.formats {
         if !format.read.ships() && !format.write.ships() {
             continue;
         }
-        let Ok(entries) = carta::format_extensions(Some(&format.name)) else {
-            continue;
-        };
+        let entries = carta::format_extensions(Some(&format.name)).map_err(|error| {
+            format!(
+                "docs/status.toml marks \"{}\" as shipping, but resolving its extensions failed: {error}",
+                format.name
+            )
+        })?;
         sets.insert(
             format.name.as_str(),
             FormatExtensions {
@@ -111,7 +115,7 @@ fn by_format(status: &Status) -> BTreeMap<&str, FormatExtensions> {
             },
         );
     }
-    sets
+    Ok(sets)
 }
 
 fn direction_entry(format: &Format, direction: Direction) -> DirectionEntry<'_> {
