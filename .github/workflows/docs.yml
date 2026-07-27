@@ -1,5 +1,7 @@
 name: Docs
 
+# The two jobs are coupled: the site reads the JSON docgen generates, so a change to either side
+# needs both checked.
 on:
   push:
     branches: [main]
@@ -7,12 +9,14 @@ on:
       - 'docs/**'
       - 'crates/**'
       - 'tools/docgen/**'
+      - 'website/**'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
       - 'docs/**'
       - 'crates/**'
       - 'tools/docgen/**'
+      - 'website/**'
       - '.github/workflows/docs.yml'
 
 env:
@@ -34,3 +38,24 @@ jobs:
       # docgen names the offending file and prints the regeneration command on failure.
       - name: Check generated artifacts against docs/status.toml
         run: cargo run --manifest-path tools/docgen/Cargo.toml -- --check
+
+  site:
+    name: website build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      # Honors the pnpm version pinned by `packageManager` in website/package.json.
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # The link validator fails the build, which is what keeps the cross-referenced format pages honest.
+      - name: Build
+        run: pnpm build

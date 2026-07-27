@@ -1,0 +1,15 @@
+---
+import { SUPPORT_LABEL, SUPPORT_MARKER, type Support } from '../data/formats';
+
+interface Props {
+  status: Support;
+  label?: string;
+}
+
+const { status, label } = Astro.props;
+---
+
+<span class="status-badge" data-status={status} title={SUPPORT_LABEL[status]}>
+  <span aria-hidden="true">{SUPPORT_MARKER[status]}</span>
+  <span>{label ?? SUPPORT_LABEL[status]}</span>
+</span>

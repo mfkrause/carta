@@ -1,0 +1,77 @@
+---
+title: Library
+description: Using carta as a Rust dependency.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+carta is a library first; the CLI is a shell over it. Add it without the binary and its
+dependencies:
+
+```toml
+[dependencies]
+carta = { version = "0.0.8", default-features = false, features = ["read-commonmark", "write-html"] }
+```
+
+<Aside type="caution" title="Pre-1.0">
+  The API is still unstable and may change between releases.
+</Aside>
+
+## Converting
+
+`convert_text` is the shortcut for text-to-text conversion:
+
+```rust
+use carta::{convert_text, ReaderOptions, WriterOptions};
+
+let html = convert_text(
+    "commonmark",
+    "html",
+    "# Hello, *world*",
+    &ReaderOptions::default(),
+    &WriterOptions::default(),
+)?;
+```
+
+`convert` is the general entry point. It takes raw bytes, which byte-shaped formats such as `docx`
+and `epub` need, and returns an `Output` that is text or bytes depending on the target:
+
+```rust
+use carta::{convert, Output, ReaderOptions, WriterOptions};
+
+let output = convert(
+    "docx",
+    "commonmark",
+    &std::fs::read("input.docx")?,
+    &ReaderOptions::default(),
+    &WriterOptions::default(),
+)?;
+
+match output {
+    Output::Text(text) => println!("{text}"),
+    Output::Bytes(bytes) => std::fs::write("out.bin", bytes)?,
+}
+```
+
+Passing a byte-shaped target to `convert_text` is an error (`Error::BinaryFormat`) rather than a
+silent lossy conversion.
+
+## Options
+
+`ReaderOptions` and `WriterOptions` carry the settings the CLI flags map onto: extensions, wrapping
+and column width, table of contents, section numbering, math method, and the rest. Both implement
+`Default`.
+
+Format names given to either entry point may carry extension toggles
+(`"commonmark+strikeout-raw_html"`); the selected extensions are merged with whatever the options
+already hold.
+
+## Feature flags
+
+Readers and writers are per-direction Cargo features (`read-*`, `write-*`), so a dependency compiles
+only the conversions it performs. `full` turns on every format. `supported_input_formats()` and
+`supported_output_formats()` report what the current build actually contains.
+
+Full API documentation lives on [docs.rs](https://docs.rs/carta).

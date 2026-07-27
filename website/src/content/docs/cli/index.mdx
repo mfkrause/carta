@@ -1,0 +1,29 @@
+---
+title: Command line
+description: Converting documents with the carta command.
+sidebar:
+  order: 1
+---
+
+The `carta` binary is a thin shell over the library. It takes one input, converts it, and writes the
+result to a file or to stdout.
+
+```sh
+carta -f <FROM> -t <TO> [INPUT] [-o OUTPUT]
+```
+
+With no `INPUT` carta reads stdin; with no `-o` it writes stdout. Binary targets (`docx`, `odt`,
+`epub`, `rtf`) refuse to write to a terminal, so give them `-o`.
+
+## Discovering what a build supports
+
+```sh
+carta --list-input-formats
+carta --list-output-formats
+carta --list-extensions=gfm
+carta --list-highlight-languages
+carta --list-highlight-styles
+```
+
+Because formats are selected at compile time, these listings describe the binary in front of you
+rather than the project as a whole. The [formats page](/formats/) covers the full set.

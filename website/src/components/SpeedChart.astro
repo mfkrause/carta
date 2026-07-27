@@ -1,0 +1,101 @@
+---
+import benchmarks from '../data/generated/benchmarks.json';
+
+const { provenance, cases, headline } = benchmarks;
+const slowest = Math.max(...cases.map((entry) => entry.pandocMs));
+const width = (ms: number) => `${Math.max((ms / slowest) * 100, 0.6)}%`;
+---
+
+<div class="speed">
+  <ol>
+    {
+      cases.map((entry) => (
+        <li>
+          <div class="case">
+            <code>{entry.label}</code>
+            <span class="size">{entry.size}</span>
+            <strong>{entry.speedup}× faster</strong>
+          </div>
+          <div class="bar carta" style={`--w: ${width(entry.cartaMs)}`}>
+            <span>carta {entry.cartaMs} ms</span>
+          </div>
+          <div class="bar other" style={`--w: ${width(entry.pandocMs)}`}>
+            <span>pandoc {entry.pandocMs} ms</span>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+
+  <p class="binary">
+    Binary size: <strong>{headline.binarySize.carta}</strong> against{' '}
+    {headline.binarySize.pandoc} ({headline.binarySize.ratio} smaller). Peak memory:{' '}
+    {headline.peakMemory}.
+  </p>
+
+  <p class="provenance">
+    Measured {provenance.date} on {provenance.machine}: carta {provenance.carta} against pandoc{' '}
+    {provenance.pandoc}, driven by hyperfine {provenance.hyperfine} (warmup {provenance.warmup},{' '}
+    {provenance.runs} runs). Your numbers will differ.
+  </p>
+</div>
+
+<style>
+  ol {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .case {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+  }
+
+  .size,
+  .provenance {
+    color: var(--carta-muted);
+  }
+
+  .size {
+    font-size: 0.85rem;
+  }
+
+  .case strong {
+    margin-inline-start: auto;
+    color: var(--carta-accent-strong);
+  }
+
+  .bar {
+    width: var(--w);
+    min-width: max-content;
+    padding: 0.15rem 0.6rem;
+    border-radius: 0.35rem;
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .bar.carta {
+    background: var(--carta-accent);
+    color: var(--carta-on-accent);
+  }
+
+  .bar.other {
+    background: var(--carta-border);
+  }
+
+  .binary {
+    margin: 0 0 0.5rem;
+  }
+
+  .provenance {
+    font-size: 0.8rem;
+    margin: 0;
+  }
+</style>

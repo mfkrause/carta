@@ -1,0 +1,109 @@
+---
+title: Getting started
+description: Install carta and run your first conversion.
+sidebar:
+  order: 1
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+carta reads a document in one markup format and writes it back out in another. One binary, no
+runtime, no external toolchain.
+
+<Aside type="caution" title="Pre-1.0">
+  carta is in active development. Some formats have known gaps and the library API is still
+  unstable. The [compatibility page](/formats/) tracks what works today and what is missing per
+  format.
+</Aside>
+
+## Install
+
+<Tabs>
+  <TabItem label="Prebuilt">
+    Download the archive for your platform from the [latest
+    release](https://github.com/mfkrause/carta/releases/latest). Builds are provided for Linux
+    (x86-64 gnu, static musl, and arm64), macOS (Intel and Apple Silicon), and Windows (x86-64).
+  </TabItem>
+  <TabItem label="binstall">
+    With [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), the matching prebuilt
+    binary is fetched directly:
+
+    ```sh
+    cargo binstall carta
+    ```
+
+  </TabItem>
+  <TabItem label="cargo">
+    ```sh
+    cargo install carta
+    ```
+
+    This builds every format carta supports. To build a smaller binary, see
+    [choosing formats at compile time](#choosing-formats-at-compile-time).
+
+  </TabItem>
+  <TabItem label="Source">
+    ```sh
+    git clone https://github.com/mfkrause/carta
+    cd carta
+    cargo build --release
+    # binary at target/release/carta
+    ```
+  </TabItem>
+</Tabs>
+
+## Your first conversion
+
+<Steps>
+
+1. Convert a Markdown file to HTML:
+
+   ```sh
+   carta -f commonmark -t html input.md -o output.html
+   ```
+
+2. Or pipe through stdin and stdout, which is what carta does when no path is given:
+
+   ```sh
+   echo '# Hello' | carta -f commonmark -t html
+   ```
+
+3. Ask the build what it can do:
+
+   ```sh
+   carta --list-input-formats
+   carta --list-output-formats
+   carta --list-extensions=gfm
+   ```
+
+</Steps>
+
+`-f`/`--from` and `-t`/`--to` name the source and target formats. Both accept extension toggles, so
+`-f markdown+hard_line_breaks-raw_html` reads Pandoc Markdown with hard line breaks on and raw HTML
+off.
+
+## Standalone documents
+
+By default carta emits a document fragment. `-s`/`--standalone` wraps it in the target format's
+scaffold, and the usual document switches work alongside it:
+
+```sh
+carta -f commonmark -t html -s --toc --number-sections input.md -o output.html
+```
+
+## Choosing formats at compile time
+
+Each reader and writer sits behind its own Cargo feature (`read-*` and `write-*`). A build that
+names only the ones you need carries neither the code nor the dependencies of the rest:
+
+```sh
+cargo install carta --no-default-features --features cli,read-commonmark,write-html
+```
+
+The `full` feature, on by default, turns on every format.
+
+## Where to go next
+
+- [Formats](/formats/) — what carta reads and writes, and the gaps that remain.
+- [CLI](/cli/) — every flag, grouped by task.
+- [Library](/library/) — using carta as a Rust dependency.

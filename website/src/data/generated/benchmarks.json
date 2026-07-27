@@ -1,0 +1,48 @@
+{
+  "placeholder": true,
+  "provenance": {
+    "date": "2026-07-26",
+    "carta": "0.0.8",
+    "pandoc": "3.10",
+    "hyperfine": "1.20.0",
+    "machine": "Apple M1 Pro (10 cores), 16 GB RAM, macOS 26.5 (arm64)",
+    "warmup": 3,
+    "runs": 12
+  },
+  "headline": {
+    "endToEndSpeedup": "11-30x",
+    "surfaceSpeedup": "up to 44x",
+    "binarySize": { "carta": "8.5 MB", "pandoc": "179.8 MB", "ratio": "21x" },
+    "peakMemory": "4-24x less"
+  },
+  "cases": [
+    {
+      "label": "commonmark → json",
+      "size": "1 MB",
+      "cartaMs": 23.32,
+      "pandocMs": 511.71,
+      "speedup": 21.9
+    },
+    {
+      "label": "html → json",
+      "size": "1 MB",
+      "cartaMs": 30.67,
+      "pandocMs": 1350.65,
+      "speedup": 44.0
+    },
+    {
+      "label": "json → html",
+      "size": "1 MB",
+      "cartaMs": 6.76,
+      "pandocMs": 115.02,
+      "speedup": 17.0
+    },
+    {
+      "label": "json → latex",
+      "size": "1 MB",
+      "cartaMs": 7.78,
+      "pandocMs": 105.44,
+      "speedup": 13.5
+    }
+  ]
+}
