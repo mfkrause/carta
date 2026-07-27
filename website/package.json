@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@astrojs/markdown-satteri": "^0.3.4",
-    "@astrojs/mdx": "^7.0.3",
+    "@astrojs/mdx": "^7.0.4",
     "@astrojs/starlight": "^0.41.4",
     "@types/hast": "^3.0.5",
     "astro": "^7.1.4",
