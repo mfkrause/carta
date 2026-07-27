@@ -42,7 +42,7 @@ const share = (entry: (typeof cases)[number]) => (entry.cartaMs / entry.pandocMs
 
   <figcaption>
     <p class="binary">
-      Binary size: <strong>{headline.binarySize.carta}</strong> against {headline.binarySize.pandoc}
+      Binary size: {headline.binarySize.carta} against {headline.binarySize.pandoc}
       ({headline.binarySize.ratio} smaller). Peak memory: {headline.peakMemory}.
     </p>
     <p class="note">

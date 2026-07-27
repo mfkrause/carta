@@ -7,7 +7,7 @@ import SpeedChart from '../components/SpeedChart.astro';
 import { shipping } from '../data/formats';
 import '../styles/theme.css';
 
-const title = 'carta — a fast document converter';
+const title = 'carta: a fast document converter';
 const description =
   'Convert documents between markup formats from one binary. Compatible with pandoc formats, extensions, and the pandoc JSON AST.';
 const shippingCount = shipping().length;
@@ -19,6 +19,8 @@ const shippingCount = shipping().length;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="canonical" href="https://carta.rs/" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -28,12 +30,11 @@ const shippingCount = shipping().length;
   <body>
     <main>
       <section class="hero">
-        <Image src={logo} alt="" width={96} height={96} />
+        <Image src={logo} alt="" width={96} height={96} densities={[1, 2]} />
         <h1>carta</h1>
         <p class="tagline">
           A universal document converter in Rust. Read one markup format, render it back out in
-          another, from a single small binary. Compatible with pandoc's formats, extensions, and
-          JSON AST.
+          another. Compatible with pandoc's formats, extensions, and JSON AST.
         </p>
         <CopyCommand command="cargo install carta" />
         <p class="cta">
@@ -54,9 +55,9 @@ const shippingCount = shipping().length;
       <section>
         <h2>{shippingCount} formats, one binary</h2>
         <p>
-          Every format carta converts today, with the directions it supports. The <a
-            href="/formats/">compatibility page</a
-          > lists the roadmap and the known gaps per format.
+          Every format carta converts today, with the directions it supports. The{' '}
+          <a href="/formats/">compatibility page</a>{' '}
+          lists the roadmap and the known gaps per format.
         </p>
         <FormatGrid />
       </section>
@@ -78,9 +79,9 @@ const shippingCount = shipping().length;
 
       <aside class="notice">
         <p>
-          <strong>carta is pre-1.0.</strong> Some formats have known gaps and the API is still
-          unstable. Each format's page lists what is missing, and the
-          <a href="/formats/">compatibility page</a> tracks the whole surface.
+          carta is pre-1.0: some formats have known gaps and the API is still unstable. Each
+          format's page lists what is missing, and the{' '}
+          <a href="/formats/">compatibility page</a>{' '} tracks the whole surface.
         </p>
       </aside>
     </main>

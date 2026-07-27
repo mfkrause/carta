@@ -93,3 +93,16 @@
 .status-badge[data-status='not-applicable'] {
   color: var(--carta-muted);
 }
+
+/* Starlight header adjustments. The nav gap is sized for a wordmark; carta's logo is a square
+   glyph, so it reads as a gulf between the mark and the title. */
+.site-title {
+  gap: 0.55rem;
+}
+
+/* Chrome reserves room for its own dropdown arrow on top of Starlight's caret, which strands the
+   caret well right of the label. `appearance: none` reclaims that space. */
+starlight-theme-select select {
+  appearance: none;
+  width: auto;
+}

@@ -6,6 +6,10 @@ import starlightSidebarTopics from "starlight-sidebar-topics";
 
 export default defineConfig({
   site: "https://carta.rs",
+  markdown: {
+    // Off because the docs are full of CLI flags: smartypants rewrites `--from` to an en dash.
+    smartypants: false,
+  },
   integrations: [
     starlight({
       title: "carta",
@@ -25,6 +29,7 @@ export default defineConfig({
       editLink: {
         baseUrl: "https://github.com/mfkrause/carta/edit/main/website/",
       },
+      favicon: "/favicon.png",
       customCss: ["./src/styles/theme.css"],
       head: [
         {
