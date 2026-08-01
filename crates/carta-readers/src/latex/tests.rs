@@ -228,3 +228,23 @@ fn expansion_ending_at_environment_boundary_matches_flattened() {
         parse("\\begin{quote}content\\end{quote}\n"),
     );
 }
+
+// Every construct that deepens the parse is bounded by the same nesting ceiling, so input nested
+// far past it is read to completion instead of exhausting the stack.
+#[test]
+fn adversarially_nested_input_does_not_overflow_the_stack() {
+    for opener in [
+        "{",
+        "\\emph{",
+        "\\textbf{",
+        "\\footnote{",
+        "``",
+        "[",
+        "\\begin{quote}",
+        "\\begin{itemize}\\item ",
+    ] {
+        let _ = parse(&opener.repeat(10_000));
+    }
+    let balanced = format!("{}x{}", "{".repeat(10_000), "}".repeat(10_000));
+    let _ = parse(&balanced);
+}

@@ -58,6 +58,7 @@ impl Reader for LatexReader {
             in_float: false,
             expand_depth: 0,
             total_expansions: 0,
+            nest_depth: 0,
             last_ws_had_newline: false,
         };
 
@@ -182,6 +183,9 @@ struct Parser {
     /// Total macro expansions performed by this parser, bounded to stop a branching macro from doing
     /// exponential work while staying under the nesting cap.
     total_expansions: u32,
+    /// Current block/inline nesting depth, shared by both parsing funnels and inherited by
+    /// sub-parsers, bounded so adversarially nested input cannot exhaust the stack.
+    nest_depth: u32,
     /// Whether the most recently consumed inter-word whitespace contained a newline, so the gap
     /// renders as a soft break rather than a plain space.
     last_ws_had_newline: bool,
@@ -207,6 +211,8 @@ const MAX_EXPAND_DEPTH: u32 = 200;
 
 /// Bounds the total number of expansions one parser may perform (its overall work budget).
 const MAX_TOTAL_EXPANSIONS: u32 = 100_000;
+
+const MAX_NEST_DEPTH: u32 = 256;
 
 impl Parser {
     /// Replaces the frame stack with a single bottom frame over `source`, resetting the cursor and
@@ -288,7 +294,19 @@ impl Parser {
 
     // --- Block level -----------------------------------------------------------------------------
 
+    /// Parses blocks until `stop`. At the nesting ceiling the body is left unparsed; every caller
+    /// consumes the construct that led here, so the enclosing loop still makes progress.
     fn parse_blocks(&mut self, stop: &Stop) -> Vec<Block> {
+        if self.nest_depth >= MAX_NEST_DEPTH {
+            return Vec::new();
+        }
+        self.nest_depth += 1;
+        let blocks = self.parse_blocks_bounded(stop);
+        self.nest_depth = self.nest_depth.saturating_sub(1);
+        blocks
+    }
+
+    fn parse_blocks_bounded(&mut self, stop: &Stop) -> Vec<Block> {
         let mut blocks = Vec::new();
         loop {
             self.skip_block_ws();

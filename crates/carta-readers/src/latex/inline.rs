@@ -16,7 +16,7 @@ use super::support::{
     switch_kind, symbol_text, trim_inlines, unescape_url, word_accent,
 };
 use super::tables::image_attributes;
-use super::{Frame, InlineStop, Parser, Stop};
+use super::{Frame, InlineStop, MAX_NEST_DEPTH, Parser, Stop};
 
 impl Parser {
     // --- Paragraph & inline ----------------------------------------------------------------------
@@ -26,7 +26,19 @@ impl Parser {
         trim_inlines(inlines)
     }
 
+    /// Parses an inline run until `stop`. At the nesting ceiling the run is left unparsed; every
+    /// caller consumes the opening delimiter first, so the enclosing loop still makes progress.
     pub(super) fn parse_inlines(&mut self, stop: InlineStop) -> Vec<Inline> {
+        if self.nest_depth >= MAX_NEST_DEPTH {
+            return Vec::new();
+        }
+        self.nest_depth += 1;
+        let inlines = self.parse_inlines_bounded(stop);
+        self.nest_depth = self.nest_depth.saturating_sub(1);
+        inlines
+    }
+
+    fn parse_inlines_bounded(&mut self, stop: InlineStop) -> Vec<Inline> {
         let mut out = Vec::new();
         let mut buf = String::new();
         loop {
@@ -633,7 +645,7 @@ impl Parser {
     }
 
     /// A sub-parser over `source` that inherits the shared context (extensions, smart mode, macro
-    /// table, section base level, expansion depth) but starts with fresh cursor and output state
+    /// table, section base level, expansion and nesting depth) but starts with fresh cursor and output state
     /// (metadata and heading ids). It never inherits float context.
     pub(super) fn child(&self, source: &str, in_figure: bool) -> Parser {
         Parser {
@@ -651,6 +663,7 @@ impl Parser {
             in_float: false,
             expand_depth: self.expand_depth,
             total_expansions: 0,
+            nest_depth: self.nest_depth,
             last_ws_had_newline: false,
         }
     }
