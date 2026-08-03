@@ -8,7 +8,7 @@ use carta_core::{Result, Writer, WriterOptions};
 pub struct JsonWriter;
 
 impl Writer for JsonWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
         Ok(carta_ast::to_json(document)?)
     }
 }

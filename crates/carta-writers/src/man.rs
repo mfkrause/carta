@@ -25,7 +25,7 @@ use crate::common::{
 pub struct ManWriter;
 
 impl Writer for ManWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let mut state = State {
             width: options.columns.unwrap_or(FILL_COLUMN),
             wrap: options.wrap,

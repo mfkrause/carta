@@ -92,13 +92,13 @@ pub struct Epub3Writer;
 pub struct Epub2Writer;
 
 impl BytesWriter for Epub3Writer {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         write_epub(Version::Epub3, document, options)
     }
 }
 
 impl BytesWriter for Epub2Writer {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         write_epub(Version::Epub2, document, options)
     }
 }

@@ -113,7 +113,7 @@ fn formula_settings_xml(text_mode: bool) -> String {
 pub struct OdtWriter;
 
 impl BytesWriter for OdtWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         write_odt(document, options)
     }
 }

@@ -21,7 +21,7 @@ use crate::slides::{FrameTitle, Heading, Slide, group_headings, segment, slide_l
 pub struct BeamerWriter;
 
 impl Writer for BeamerWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         if document.blocks.is_empty() {
             return Ok("\\begin{frame}\n\\end{frame}".to_owned());
         }

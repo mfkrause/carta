@@ -22,7 +22,7 @@ use carta_core::{Result, Writer, WriterOptions};
 pub struct NativeWriter;
 
 impl Writer for NativeWriter {
-    fn write(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, _options: &WriterOptions) -> Result<String> {
         Ok(render_doc(&list(
             document.blocks.iter().map(block).collect(),
         )))

@@ -35,7 +35,7 @@ const ZERO_WIDTH_SPACE: char = '\u{200b}';
 pub struct OrgWriter;
 
 impl Writer for OrgWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let width = options.columns.unwrap_or(FILL_COLUMN);
         let mut state = State {
             wrap: options.wrap,

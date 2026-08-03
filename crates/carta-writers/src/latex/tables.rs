@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 
 use carta_ast::{Alignment, Attr, Block, Caption, Cell, ColWidth, Inline, Row, Table};
-use carta_core::WrapMode;
+use carta_core::{WrapMode, budget};
 
 use crate::common::{Piece, display_width, fill};
 use crate::grid;
@@ -14,6 +14,10 @@ use super::{Dialect, Hl, inline_pieces, render_blocks, to_label};
 /// counter is not advanced; a captioned one carries the caption and repeats its head for page
 /// breaks. Spans become `\multicolumn`/`\multirow`; columns are letter classes unless explicit or
 /// block-level cells call for sized `p{…}` columns with minipage cells.
+///
+/// A captioned table prints its head twice, so tables nested through head cells double the output
+/// at each level; the rendering is charged against the write's output ceiling and abandoned once
+/// that ceiling is passed, both before the rows are rendered and once they are in hand.
 pub(super) fn render_table(
     table: &Table,
     width: usize,
@@ -22,6 +26,9 @@ pub(super) fn render_table(
     smart: bool,
     hl: Hl<'_>,
 ) -> String {
+    if budget::exhausted() {
+        return String::new();
+    }
     let plan = ColumnPlan::new(table);
     let head_rows: Vec<&Row> = table.head.rows.iter().collect();
     let body_rows: Vec<&Row> = table
@@ -35,6 +42,9 @@ pub(super) fn render_table(
     let body_lines = render_section(&body_rows, &plan, false, width, dialect, wrap, smart, hl);
     let foot_lines = render_section(&foot_rows, &plan, false, width, dialect, wrap, smart, hl);
     let caption = table_caption(&table.caption, &table.attr, width, dialect, wrap, smart, hl);
+    if budget::exhausted() {
+        return String::new();
+    }
 
     let mut parts = vec![format!("\\begin{{longtable}}[]{{{}}}", plan.colspec())];
     if let Some(caption) = &caption {
@@ -66,11 +76,13 @@ pub(super) fn render_table(
     parts.push("\\end{longtable}".to_owned());
     let body = parts.join("\n");
 
-    if caption.is_some() {
+    let rendered = if caption.is_some() {
         body
     } else {
         format!("{{\\def\\LTcaptype{{none}} % do not increment counter\n{body}\n}}")
-    }
+    };
+    budget::charge(rendered.len());
+    rendered
 }
 
 /// The head segment of a `longtable`: a top rule, the head rows, a closing rule when the head is

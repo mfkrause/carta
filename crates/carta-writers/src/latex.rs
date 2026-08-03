@@ -36,7 +36,7 @@ use self::tables::{flatten_pieces, render_table};
 pub struct LatexWriter;
 
 impl Writer for LatexWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let smart = options.extensions.contains(Extension::Smart);
         let hl = code_highlighting(options);
         let body = render_blocks(

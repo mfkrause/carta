@@ -65,7 +65,7 @@ fn wml_root(name: &str) -> Element {
 pub struct DocxWriter;
 
 impl BytesWriter for DocxWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
         write_docx(document, options)
     }
 }

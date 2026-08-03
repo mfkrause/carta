@@ -26,7 +26,7 @@ const RULE_WIDTH: usize = 14;
 pub struct RstWriter;
 
 impl Writer for RstWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let width = options.columns.unwrap_or(FILL_COLUMN);
         let mut state = State {
             wrap: options.wrap,

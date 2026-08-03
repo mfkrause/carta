@@ -34,7 +34,7 @@ use crate::image_size::{RasterFormat, image_dimensions, image_dpi, raster_format
 pub struct RtfWriter;
 
 impl Writer for RtfWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let mut state = State::with_media(Arc::clone(&options.media));
         let body = state.blocks(&document.blocks);
         Ok(body.trim_end_matches('\n').to_owned())

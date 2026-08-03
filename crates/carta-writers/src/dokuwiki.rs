@@ -12,7 +12,7 @@ use carta_ast::{
     Alignment, Attr, Block, Caption, Cell, Document, Format, Inline, MathType, Row, Table, Target,
     to_plain_text,
 };
-use carta_core::{Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     self, GridSlot, RawTrim, RowSpanGrid, attribute_value, label_matches_url, quote_marks,
@@ -34,7 +34,7 @@ const CONTENT_BREAK: char = '\u{e000}';
 pub struct DokuwikiWriter;
 
 impl Writer for DokuwikiWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let body = render_blocks(&document.blocks, "\n\n", options.wrap);
         // Any content break that survived to the top level stands on its own physical line.
         Ok(body.replace(CONTENT_BREAK, "\n"))
@@ -479,7 +479,14 @@ fn escape(text: &str) -> String {
 /// marked with `|`, every cell padded to its column width per the column's alignment. A cell occupies
 /// one row of the source table, so a break within its content cannot stand as a newline; preserved
 /// source breaks fold into the forced-break marker `\\ ` instead.
+///
+/// Padding to the widest cell means a table nested in a cell is paid for once per row of the
+/// enclosing column, so the rendering is charged against the write's output ceiling and abandoned
+/// once that ceiling is passed, both before the rows are rendered and once they are in hand.
 fn render_table(table: &Table, wrap: WrapMode) -> String {
+    if budget::exhausted() {
+        return String::new();
+    }
     let aligns: Vec<Alignment> = table
         .col_specs
         .iter()
@@ -502,6 +509,10 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
         rows.push(place_row(&mut grid, row, columns, false, cell_wrap));
     }
 
+    if budget::exhausted() {
+        return String::new();
+    }
+
     let widths = column_widths(&rows, columns);
     let mut out = String::new();
     let caption = caption_lines(&table.caption.long, cell_wrap)
@@ -517,6 +528,7 @@ fn render_table(table: &Table, wrap: WrapMode) -> String {
         }
         out.push_str(&render_row(row, &widths, &aligns));
     }
+    budget::charge(out.len());
     out
 }
 
@@ -747,5 +759,58 @@ mod tests {
             render(vec![link(vec![s("click")], "http://e.com/a%20b")]),
             "[[http://e.com/a%20b|click]]"
         );
+    }
+
+    // Every cell is padded to the widest in its column, so a table nested in a cell is paid for
+    // once per row of the enclosing column. The write is refused rather than allowed to render
+    // gigabytes from a few hundred bytes of document.
+    #[test]
+    fn a_table_nested_through_padded_cells_is_refused_past_the_output_ceiling() {
+        use carta_ast::{ColSpec, ColWidth, TableBody, TableHead};
+
+        fn row(content: Vec<Block>) -> Row {
+            Row {
+                cells: vec![Cell {
+                    attr: Attr::default(),
+                    align: Alignment::AlignDefault,
+                    row_span: 1,
+                    col_span: 1,
+                    content,
+                }],
+                ..Row::default()
+            }
+        }
+
+        fn nested_table(content: Vec<Block>) -> Block {
+            Block::Table(Box::new(Table {
+                col_specs: vec![ColSpec {
+                    align: Alignment::AlignDefault,
+                    width: ColWidth::ColWidthDefault,
+                }],
+                head: TableHead::default(),
+                bodies: vec![TableBody {
+                    body: vec![
+                        row(content),
+                        row(vec![Block::Plain(vec![s("filler")])]),
+                        row(vec![Block::Plain(vec![s("filler")])]),
+                    ],
+                    ..TableBody::default()
+                }],
+                ..Table::default()
+            }))
+        }
+
+        let mut block = Block::Plain(vec![s("innermost")]);
+        for _ in 0..40 {
+            block = nested_table(vec![block]);
+        }
+        let document = Document {
+            blocks: vec![block],
+            ..Document::default()
+        };
+        assert!(matches!(
+            DokuwikiWriter.write(&document, &WriterOptions::default()),
+            Err(carta_core::Error::OutputTooLarge)
+        ));
     }
 }

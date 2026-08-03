@@ -8,7 +8,7 @@ use carta_ast::{
     Alignment, Attr, Block, ColWidth, Document, Format, Inline, ListAttributes, MathType,
     QuoteType, Row, Table, Text,
 };
-use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
+use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions, budget};
 
 use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
@@ -24,7 +24,7 @@ use crate::grid;
 pub struct PlainWriter;
 
 impl Writer for PlainWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let width = options.columns.unwrap_or(FILL_COLUMN);
         let mut state = State {
             wrap: options.wrap,
@@ -264,8 +264,12 @@ impl State {
         groups.join("\n\n")
     }
 
+    /// Every layout pads its cells out to their column width, so a table nested in a cell is paid
+    /// for once per row of the enclosing column; the rendering is charged against the write's
+    /// output ceiling and abandoned once that ceiling is passed, both before the rows are rendered
+    /// and once they are in hand.
     fn table(&mut self, table: &Table, width: usize) -> String {
-        if table.col_specs.is_empty() {
+        if table.col_specs.is_empty() || budget::exhausted() {
             return String::new();
         }
         // A fractional column spec is relative to the line the table occupies, so a table laid out
@@ -279,11 +283,16 @@ impl State {
             TableForm::Grid => self.grid_table(table, width),
         };
         self.table_depth = self.table_depth.saturating_sub(1);
-        match self.table_caption(table, form, width) {
+        if budget::exhausted() {
+            return String::new();
+        }
+        let rendered = match self.table_caption(table, form, width) {
             Some(caption) if body.is_empty() => caption,
             Some(caption) => format!("{body}\n\n{caption}"),
             None => body,
-        }
+        };
+        budget::charge(rendered.len());
+        rendered
     }
 
     /// A simple table: one line per cell, column width sized to the widest cell. A non-empty header

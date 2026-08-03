@@ -1,6 +1,7 @@
 //! Table rendering for the reStructuredText writer: simple and grid layouts.
 
 use carta_ast::{Block, Caption, ColWidth, Inline, Row, Table};
+use carta_core::budget;
 
 use crate::common::{block_inlines, body_rows, display_width, indent_block};
 use crate::grid;
@@ -13,7 +14,15 @@ impl State {
     /// indented three columns; without one the table sits at the left margin. The simple form is
     /// chosen when the table is span-free, carries no explicit column widths, and fits the fill
     /// column; otherwise the bordered grid form is used.
+    ///
+    /// Both forms pad every cell out to its column width, so a table nested in a cell is paid for
+    /// once per row of the enclosing column; the rendering is charged against the write's output
+    /// ceiling and abandoned once that ceiling is passed, both before the rows are rendered and
+    /// once they are in hand.
     pub(super) fn table(&mut self, table: &Table, width: usize) -> String {
+        if budget::exhausted() {
+            return String::new();
+        }
         let columns = table.col_specs.len();
         self.table_depth += 1;
         let body = if columns == 0 {
@@ -27,11 +36,16 @@ impl State {
             }
         };
         self.table_depth = self.table_depth.saturating_sub(1);
-        match self.table_caption(&table.caption, width) {
+        if budget::exhausted() {
+            return String::new();
+        }
+        let rendered = match self.table_caption(&table.caption, width) {
             Some(caption) if body.is_empty() => caption,
             Some(caption) => format!("{caption}\n\n{}", indent_block(&body, "   ", "   ")),
             None => body,
-        }
+        };
+        budget::charge(rendered.len());
+        rendered
     }
 
     /// Decide whether the table renders in simple form, returning its per-column content widths when
@@ -75,29 +89,31 @@ impl State {
     fn simple_widths(&mut self, rows: &[&Row], columns: usize) -> Vec<usize> {
         let mut widths = vec![0usize; columns];
         let snapshot = self.snapshot();
-        for row in rows {
-            let mut col = 0;
-            for cell in &row.cells {
-                if col >= columns {
-                    break;
+        budget::refunded(|| {
+            for row in rows {
+                let mut col = 0;
+                for cell in &row.cells {
+                    if col >= columns {
+                        break;
+                    }
+                    let span = grid::span_count(cell.col_span).min(columns - col);
+                    let lines = self.cell_lines(&cell.content, SIMPLE_WIDTH);
+                    let mut content = lines
+                        .iter()
+                        .map(|line| display_width(line))
+                        .max()
+                        .unwrap_or(0);
+                    // A trailing cell space is trimmed from the field but still holds a column of width.
+                    if cell_ends_with_space(&cell.content) {
+                        content += 1;
+                    }
+                    if let Some(slot) = widths.get_mut(col) {
+                        *slot = (*slot).max(content);
+                    }
+                    col += span;
                 }
-                let span = grid::span_count(cell.col_span).min(columns - col);
-                let lines = self.cell_lines(&cell.content, SIMPLE_WIDTH);
-                let mut content = lines
-                    .iter()
-                    .map(|line| display_width(line))
-                    .max()
-                    .unwrap_or(0);
-                // A trailing cell space is trimmed from the field but still holds a column of width.
-                if cell_ends_with_space(&cell.content) {
-                    content += 1;
-                }
-                if let Some(slot) = widths.get_mut(col) {
-                    *slot = (*slot).max(content);
-                }
-                col += span;
             }
-        }
+        });
         self.restore(snapshot);
         widths
     }
@@ -198,13 +214,15 @@ impl State {
             minword.fill(1);
         } else {
             let snapshot = self.snapshot();
-            for (rows, layout) in [
-                (&head, &head_layout),
-                (&body, &body_layout),
-                (&foot, &foot_layout),
-            ] {
-                self.measure_grid(rows, layout, &mut natural, &mut minword);
-            }
+            budget::refunded(|| {
+                for (rows, layout) in [
+                    (&head, &head_layout),
+                    (&body, &body_layout),
+                    (&foot, &foot_layout),
+                ] {
+                    self.measure_grid(rows, layout, &mut natural, &mut minword);
+                }
+            });
             self.restore(snapshot);
         }
 

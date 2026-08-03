@@ -31,7 +31,7 @@ use self::helpers::{
 pub struct AsciidocWriter;
 
 impl Writer for AsciidocWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let mut state = State {
             wrap: options.wrap,
             ..State::default()

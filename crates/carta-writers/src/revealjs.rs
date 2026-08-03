@@ -23,7 +23,7 @@ use crate::slides::{FrameTitle, MAX_LEVEL, Slide, segment, slide_level};
 pub struct RevealjsWriter;
 
 impl Writer for RevealjsWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let level = slide_level(&document.blocks);
         let slides = segment(&document.blocks, level);
         let mut renderer = SlideRenderer::new(highlighting(options));

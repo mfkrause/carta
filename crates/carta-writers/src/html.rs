@@ -21,7 +21,7 @@ use self::helpers::{
 pub struct HtmlWriter;
 
 impl Writer for HtmlWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_with_flavor(
             &document.blocks,
             Flavor::Html5,
@@ -54,7 +54,7 @@ impl Writer for HtmlWriter {
 pub struct Html4Writer;
 
 impl Writer for Html4Writer {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_with_flavor(
             &document.blocks,
             Flavor::Html4,

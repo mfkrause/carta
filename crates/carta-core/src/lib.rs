@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use carta_ast::{Block, Document, Inline};
 
+pub mod budget;
 #[cfg(feature = "container")]
 #[cfg_attr(docsrs, doc(cfg(feature = "container")))]
 pub mod container;
@@ -73,6 +74,10 @@ pub enum Error {
     /// The document holds content the target format cannot represent.
     #[error("cannot represent this content in the target format: {0}")]
     Unrepresentable(String),
+    /// Rendering the document would produce output out of all proportion to its size, which only
+    /// nesting a self-multiplying construct (a table inside a table cell) can cause.
+    #[error("rendering this document would produce output far larger than the document itself")]
+    OutputTooLarge,
     /// Building or reading a container archive failed.
     #[error("container error: {0}")]
     Container(String),
@@ -381,11 +386,22 @@ pub enum MetaVarStyle {
 ///
 /// The returned string carries no trailing newline; the CLI appends exactly one.
 pub trait Writer {
+    /// Renders `document` into this format's text under an output ceiling proportional to the
+    /// document's own size, so a self-multiplying construct cannot exhaust memory. Implemented by
+    /// [`render_document`](Writer::render_document).
+    ///
+    /// # Errors
+    /// Propagates any error from rendering the document, or [`Error::OutputTooLarge`] when the
+    /// rendering passes the ceiling.
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+        budget::scope(document, || self.render_document(document, options))
+    }
+
     /// Renders `document` into this format's text.
     ///
     /// # Errors
     /// Propagates any error from rendering the document.
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String>;
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String>;
 
     /// Render an inline sequence in this format, for interpolating inline metadata (a `title`, an
     /// `author`) into a template variable. Wrapping the inlines in a [`Block::Plain`] yields them
@@ -535,11 +551,22 @@ pub trait BytesReader {
 /// This trait carries no decoration hooks (templates, table of contents, metadata rendering): a
 /// container writer produces a complete document by construction.
 pub trait BytesWriter {
+    /// Renders `document` into this format's bytes under an output ceiling proportional to the
+    /// document's own size, the byte-shaped counterpart of [`Writer::write`]. Implemented by
+    /// [`render_document`](BytesWriter::render_document).
+    ///
+    /// # Errors
+    /// Propagates any error from rendering the document, or [`Error::OutputTooLarge`] when the
+    /// rendering passes the ceiling.
+    fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>> {
+        budget::scope(document, || self.render_document(document, options))
+    }
+
     /// Renders `document` into this format's bytes.
     ///
     /// # Errors
     /// Propagates any error from rendering the document.
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>>;
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<Vec<u8>>;
 }
 
 /// The output of a conversion: text from a text writer, bytes from a byte-shaped writer.
@@ -642,7 +669,11 @@ mod tests {
 
     struct FixedBytesWriter;
     impl BytesWriter for FixedBytesWriter {
-        fn write(&self, _document: &Document, _options: &WriterOptions) -> Result<Vec<u8>> {
+        fn render_document(
+            &self,
+            _document: &Document,
+            _options: &WriterOptions,
+        ) -> Result<Vec<u8>> {
             Ok(vec![0x00, 0xff, 0x9f])
         }
     }

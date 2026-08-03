@@ -19,7 +19,7 @@ use crate::markdown::{MarkdownConfig, render_blocks};
 pub struct OpmlWriter;
 
 impl Writer for OpmlWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let width = options.columns.unwrap_or(FILL_COLUMN);
         let sections = sectionize(&document.blocks);
         let mut out = String::new();

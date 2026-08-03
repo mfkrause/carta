@@ -402,6 +402,54 @@ fn footnote_with_code_block_closes_on_own_line() {
     assert!(out.contains("\n}"));
 }
 
+// A captioned table prints its head twice, so a table nested through head cells doubles the output
+// at every level. The write is refused rather than allowed to render gigabytes from a few hundred
+// bytes of document.
+#[test]
+fn a_table_nested_through_captioned_heads_is_refused_past_the_output_ceiling() {
+    use carta_ast::{Alignment, Caption, Cell, ColSpec, ColWidth, Row, Table, TableHead};
+
+    fn captioned_table(content: Vec<Block>) -> Block {
+        Block::Table(Box::new(Table {
+            caption: Caption {
+                long: vec![Block::Plain(str_inlines("c"))],
+                ..Caption::default()
+            },
+            col_specs: vec![ColSpec {
+                align: Alignment::AlignDefault,
+                width: ColWidth::ColWidthDefault,
+            }],
+            head: TableHead {
+                rows: vec![Row {
+                    cells: vec![Cell {
+                        attr: Attr::default(),
+                        align: Alignment::AlignDefault,
+                        row_span: 1,
+                        col_span: 1,
+                        content,
+                    }],
+                    ..Row::default()
+                }],
+                ..TableHead::default()
+            },
+            ..Table::default()
+        }))
+    }
+
+    let mut block = Block::Plain(str_inlines("innermost"));
+    for _ in 0..40 {
+        block = captioned_table(vec![block]);
+    }
+    let document = Document {
+        blocks: vec![block],
+        ..Document::default()
+    };
+    assert!(matches!(
+        LatexWriter.write(&document, &WriterOptions::default()),
+        Err(carta_core::Error::OutputTooLarge)
+    ));
+}
+
 #[cfg(feature = "highlight")]
 mod listings {
     use super::super::code::{listings_language, listings_options};

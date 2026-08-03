@@ -114,7 +114,7 @@ fn render_dialect(
 pub struct MarkdownWriter;
 
 impl Writer for MarkdownWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_dialect(document, options, presets::MARKDOWN, false))
     }
 
@@ -136,7 +136,7 @@ impl Writer for MarkdownWriter {
 pub struct GfmWriter;
 
 impl Writer for GfmWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_dialect(document, options, presets::GFM, true))
     }
 
@@ -166,7 +166,7 @@ impl Writer for GfmWriter {
 pub struct CommonmarkXWriter;
 
 impl Writer for CommonmarkXWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_dialect(
             document,
             options,
@@ -195,7 +195,7 @@ impl Writer for CommonmarkXWriter {
 pub struct MarkdownGithubWriter;
 
 impl Writer for MarkdownGithubWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_dialect(
             document,
             options,
@@ -226,7 +226,7 @@ impl Writer for MarkdownGithubWriter {
 pub struct MarkdownPhpextraWriter;
 
 impl Writer for MarkdownPhpextraWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_dialect(
             document,
             options,
@@ -252,7 +252,7 @@ impl Writer for MarkdownPhpextraWriter {
 pub struct MarkdownMmdWriter;
 
 impl Writer for MarkdownMmdWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_dialect(
             document,
             options,
@@ -283,7 +283,7 @@ impl Writer for MarkdownMmdWriter {
 pub struct MarkdownStrictWriter;
 
 impl Writer for MarkdownStrictWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         Ok(render_dialect(
             document,
             options,

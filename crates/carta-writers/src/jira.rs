@@ -18,7 +18,7 @@ use crate::common::{self, GridSlot, RawTrim, RowSpanGrid};
 pub struct JiraWriter;
 
 impl Writer for JiraWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let mut state = State {
             wrap: options.wrap,
             ..State::default()

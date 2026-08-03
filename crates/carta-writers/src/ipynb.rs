@@ -48,7 +48,7 @@ const CELL_MARKDOWN_EXTENSIONS: Extensions = Extensions::from_list(&[
 pub struct IpynbWriter;
 
 impl Writer for IpynbWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let cells = build_cells(&document.blocks, options)?;
         let notebook = Json::Object(vec![
             ("cells".to_owned(), Json::Array(cells)),

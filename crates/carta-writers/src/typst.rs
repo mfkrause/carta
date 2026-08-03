@@ -27,7 +27,7 @@ use tables::render_table;
 pub struct TypstWriter;
 
 impl Writer for TypstWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let width = options.columns.unwrap_or(FILL_COLUMN);
         let smart = options.extensions.contains(Extension::Smart);
         let body = blocks(&document.blocks, width, options.wrap, smart);

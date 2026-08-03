@@ -24,7 +24,7 @@ use crate::common::{
 pub struct MediawikiWriter;
 
 impl Writer for MediawikiWriter {
-    fn write(&self, document: &Document, options: &WriterOptions) -> Result<String> {
+    fn render_document(&self, document: &Document, options: &WriterOptions) -> Result<String> {
         let mut state = State {
             wrap: options.wrap,
             ..State::default()
