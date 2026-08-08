@@ -9,6 +9,19 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.9](https://github.com/mfkrause/carta/compare/v0.0.8...v0.0.9) - 2026-08-08
+
+### Fixed
+
+- *(writers)* bound output growth so self-nesting tables cannot exhaust memory
+- *(commonmark)* bound citation affix re-parsing so nested brackets cannot hang the reader
+- *(latex)* bound parse nesting depth so deeply nested input cannot
+- *(writers)* lay out each typst table cell once per row
+
+### Performance
+
+- *(commonmark)* memoize bracketed-citation resolutions so nesting costs linear work
+
 ## [0.0.8](https://github.com/mfkrause/carta/compare/v0.0.7...v0.0.8) - 2026-07-26
 
 ### Fixed
