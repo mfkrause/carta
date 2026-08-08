@@ -125,6 +125,7 @@
         "feature": "read-commonmark",
         "gaps": [
           "`latex_macros` not modeled: `\\newcommand` / `\\def` are neither collected nor expanded.",
+          "Bracketed citations resolve through a memo, so nesting costs linear work; only brackets nested tens of levels deep (past a work budget that bounds total citation output) stay literal text.",
           "Narrow per-extension divergences: see [known parity gaps](#known-parity-gaps)."
         ]
       },
