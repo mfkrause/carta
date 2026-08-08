@@ -79,6 +79,7 @@ fn footnote_reference_resolves_at_the_bracket_boundary() {
     by_id.insert("x".to_owned(), vec![Block::Para(vec![str("note")])]);
     let examples = ExampleMap::new();
     let cite = Cell::new(0);
+    let budget = Cell::new(usize::MAX);
     let notes = RefContext {
         defined: &defined,
         by_id: &by_id,
@@ -86,6 +87,7 @@ fn footnote_reference_resolves_at_the_bracket_boundary() {
         markdown: false,
         examples: &examples,
         cite_count: &cite,
+        cite_budget: &budget,
     };
     let ext = exts(&[Extension::Footnotes]);
     assert_eq!(

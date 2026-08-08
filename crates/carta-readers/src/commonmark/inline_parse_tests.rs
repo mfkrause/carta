@@ -26,6 +26,7 @@ fn no_notes() -> RefContext<'static> {
         markdown: false,
         examples: &NO_EXAMPLES,
         cite_count: Box::leak(Box::new(Cell::new(0))),
+        cite_budget: Box::leak(Box::new(Cell::new(usize::MAX))),
     }
 }
 

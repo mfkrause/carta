@@ -53,6 +53,7 @@ impl Reader for CommonmarkReader {
             &examples,
             ext,
             options.greedy_paragraphs,
+            source.len(),
         );
         Ok(Document {
             meta: meta.into_iter().map(|(k, v)| (k.into(), v)).collect(),
@@ -156,6 +157,7 @@ pub(crate) fn parse_meta_blocks(
         &examples,
         extensions,
         greedy_paragraphs,
+        normalized.len(),
     )
 }
 
@@ -184,6 +186,7 @@ pub(crate) fn parse_table_cell(
         &examples,
         extensions,
         greedy_paragraphs,
+        normalized.len(),
     )
 }
 

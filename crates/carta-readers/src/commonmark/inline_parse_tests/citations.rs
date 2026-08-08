@@ -322,3 +322,18 @@ fn a_second_identical_heading_pops_its_own_queued_parse() {
         ]
     );
 }
+
+#[test]
+fn adversarially_nested_citations_stay_within_the_reparse_budget() {
+    // Without the budget, each nesting level would double the affix re-parsing work.
+    use crate::commonmark::CommonmarkReader;
+    use carta_core::{Reader, ReaderOptions};
+
+    let mut options = ReaderOptions::default();
+    options.extensions = cites();
+    let source = format!("{}{}", "[@a ".repeat(64), "]".repeat(64));
+    let document = CommonmarkReader
+        .read(&source, &options)
+        .expect("reader should not fail");
+    assert_eq!(document.blocks.len(), 1);
+}

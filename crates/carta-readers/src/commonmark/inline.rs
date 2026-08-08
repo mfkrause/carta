@@ -123,6 +123,7 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) ->
     let examples = ExampleMap::new();
     let refs = RefMap::new();
     let cite_count = Cell::new(0);
+    let cite_budget = super::resolve::cite_budget_for(text.len());
     let notes = RefContext {
         defined: &defined,
         by_id: &by_id,
@@ -130,6 +131,7 @@ pub(crate) fn parse_meta_inlines(text: &str, ext: Extensions, markdown: bool) ->
         markdown,
         examples: &examples,
         cite_count: &cite_count,
+        cite_budget: &cite_budget,
     };
     parse_inlines(text, &refs, notes, ext)
 }

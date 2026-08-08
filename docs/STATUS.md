@@ -145,6 +145,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 ### `markdown` ✅
 - `latex_macros` not modeled: `\newcommand` / `\def` are neither collected nor expanded.
+- Bracketed citations nested more than about a dozen levels deep stay literal text, bounding the
+  affix re-parsing that each level would otherwise double.
 - Narrow per-extension divergences: see [known parity gaps](#known-parity-gaps).
 
 ### `markdown_github` ✅

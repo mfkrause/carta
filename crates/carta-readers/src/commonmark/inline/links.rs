@@ -130,6 +130,12 @@ impl<'a> InlineParser<'a> {
         let Some(segments) = split_citation_segments(raw) else {
             return false;
         };
+        // Affix parsing re-reads `raw`, which the enclosing scan already covered, so nesting the
+        // brackets would compound that re-read exponentially.
+        let Some(budget) = self.notes.cite_budget.get().checked_sub(raw.len()) else {
+            return false;
+        };
+        self.notes.cite_budget.set(budget);
         // Interior bare citations are discarded with their nodes: rewind to the count at bracket
         // open before numbering (for `![@key]` the discarded count stays off, numbering one low).
         if let Some(Node::Delimiter(d)) = self.nodes.get(opener_index) {

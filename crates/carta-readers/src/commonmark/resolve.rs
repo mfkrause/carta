@@ -45,6 +45,28 @@ pub(super) struct RefContext<'a> {
     /// in another's affixes advances the count as it is built, so the enclosing group ends up
     /// stamped with the highest number it contains.
     pub(super) cite_count: &'a Cell<i32>,
+    /// Remaining source bytes that bracketed citations may re-read, shared by every inline parse
+    /// under this context. Resolving `[ ... @key ... ]` parses its entries' prefixes and suffixes
+    /// from source the enclosing scan has already covered, so each nesting level doubles the work;
+    /// charging the bracket's own length keeps the total linear in the document. A bracket that
+    /// cannot pay stays literal.
+    pub(super) cite_budget: &'a Cell<usize>,
+}
+
+/// Floor for [`cite_budget_for`]: room for citations nested more than a dozen levels deep, well past
+/// any hand-written document, at a cost of milliseconds when adversarial nesting spends it.
+const MIN_CITE_BUDGET: usize = 1 << 20;
+
+/// Seed for [`RefContext::cite_budget`]. The length term keeps a long document's citations, which
+/// re-read disjoint stretches of source, from starving each other; the floor keeps a short one free
+/// to nest deeper than any reader would write.
+pub(super) fn cite_budget_for(source_len: usize) -> Cell<usize> {
+    Cell::new(
+        source_len
+            .saturating_mul(8)
+            .saturating_add(64)
+            .max(MIN_CITE_BUDGET),
+    )
 }
 
 /// One heading's inline parse, cached under its raw (unparsed) content string, keyed with a queue
@@ -71,12 +93,16 @@ pub(crate) fn resolve_document(
     examples: &ExampleMap,
     ext: Extensions,
     markdown: bool,
+    source_len: usize,
 ) -> Vec<Block> {
     let defined: BTreeSet<String> = footnotes.keys().cloned().collect();
     let empty = BTreeMap::new();
     // Separate counts keep pre-parsing from advancing the body's citation numbering.
     let scratch_count = Cell::new(0);
     let body_count = Cell::new(0);
+    // Separate budgets likewise, so a pre-parsing pass cannot starve the body's citations.
+    let scratch_budget = cite_budget_for(source_len);
+    let body_budget = cite_budget_for(source_len);
     // Context-independent headings are parsed once here and reused by the body pass.
     let mut header_parse_cache: HeaderParseCache = BTreeMap::new();
     // Registered up front so a reference resolves to a heading anywhere in the document.
@@ -88,6 +114,7 @@ pub(crate) fn resolve_document(
             markdown,
             examples,
             cite_count: &scratch_count,
+            cite_budget: &scratch_budget,
         };
         register_header_references(ir, &mut refs, probe, ext, &mut header_parse_cache);
     }
@@ -98,6 +125,7 @@ pub(crate) fn resolve_document(
         markdown,
         examples,
         cite_count: &scratch_count,
+        cite_budget: &scratch_budget,
     };
     let by_id: BTreeMap<String, Vec<Block>> = footnotes
         .iter()
@@ -115,6 +143,7 @@ pub(crate) fn resolve_document(
         markdown,
         examples,
         cite_count: &body_count,
+        cite_budget: &body_budget,
     };
     let mut blocks = resolve_blocks(ir, &refs, top, ext, &mut header_parse_cache);
     super::identifiers::assign_header_identifiers(&mut blocks, ext, markdown);
