@@ -9,11 +9,14 @@ use super::super::postprocess::is_format_name_char;
 use super::super::scan::{
     char_at, escape_uri, normalize_label, scan_following_label, scan_inline_target,
 };
+use super::cite_cache::{ResolvedCitation, replay_weight};
 use super::helpers::{
     citation_fallback_inlines, def_target, find_citation_key, scan_markdown_inline_target,
     split_citation_segments,
 };
-use super::{Delimiter, InlineParser, MAX_LABEL_BYTES, Node, parse_inlines, resolve_inline_nodes};
+use super::{
+    Delimiter, InlineParser, MAX_LABEL_BYTES, Node, parse_inlines_shared, resolve_inline_nodes,
+};
 
 /// Outcome of resolving an explicit link target after a closing `]`.
 enum Explicit {
@@ -123,24 +126,53 @@ impl<'a> InlineParser<'a> {
     /// the brackets for literal handling) when the content is not a citation list.
     fn try_bracket_citation(&mut self, opener_index: usize, is_image: bool) -> bool {
         let raw = self.raw_label(opener_index);
+        // A bracket longer than the remaining budget could never pay (a replay costs at least its
+        // length); bailing before the content scans keeps a run of doomed closes at O(1) each.
+        if raw.len() > self.notes.cite_budget.get() {
+            return false;
+        }
         // No `@` means no citation list; skip the segment scan.
         if !raw.as_bytes().contains(&b'@') {
             return false;
         }
+        // The count the resolution starts from (see the rewind below); part of the memo key
+        // because the numbering stamped into the result depends on it.
+        let entry_count = match self.nodes.get(opener_index) {
+            Some(Node::Delimiter(d)) => d.cite_count_at_open,
+            _ => self.notes.cite_count.get(),
+        };
+        let memo_key = self
+            .cite_cache
+            .range_of(raw)
+            .map(|(start, end)| (start, end, entry_count));
+        if let Some(key) = memo_key
+            && let Some(resolved) = self.cite_cache.get(key)
+        {
+            // A replay still pays its recorded cost, so repeats stay inside the budget's bound.
+            let Some(budget) = self.notes.cite_budget.get().checked_sub(resolved.cost) else {
+                return false;
+            };
+            self.notes.cite_budget.set(budget);
+            self.notes.cite_count.set(resolved.exit_count);
+            self.emit_citation(
+                opener_index,
+                is_image,
+                resolved.citations,
+                resolved.fallback,
+            );
+            return true;
+        }
         let Some(segments) = split_citation_segments(raw) else {
             return false;
         };
-        // Affix parsing re-reads `raw`, which the enclosing scan already covered, so nesting the
-        // brackets would compound that re-read exponentially.
+        // Affix parsing re-reads `raw`; the charge bounds the total resolution work and output.
         let Some(budget) = self.notes.cite_budget.get().checked_sub(raw.len()) else {
             return false;
         };
         self.notes.cite_budget.set(budget);
         // Interior bare citations are discarded with their nodes: rewind to the count at bracket
         // open before numbering (for `![@key]` the discarded count stays off, numbering one low).
-        if let Some(Node::Delimiter(d)) = self.nodes.get(opener_index) {
-            self.notes.cite_count.set(d.cite_count_at_open);
-        }
+        self.notes.cite_count.set(entry_count);
         // Reserve the group's number before parsing affixes so nested citations count after it.
         self.bump_cite_count();
         let mut citations = Vec::with_capacity(segments.len());
@@ -155,6 +187,32 @@ impl<'a> InlineParser<'a> {
             citation.note_num = group_num;
         }
         let fallback = citation_fallback_inlines(&format!("[{raw}]"));
+        if let Some(key) = memo_key {
+            self.cite_cache.insert(
+                key,
+                ResolvedCitation {
+                    exit_count: self.notes.cite_count.get(),
+                    cost: raw
+                        .len()
+                        .saturating_add(replay_weight(&citations, &fallback)),
+                    citations: citations.clone(),
+                    fallback: fallback.clone(),
+                },
+            );
+        }
+        self.emit_citation(opener_index, is_image, citations, fallback);
+        true
+    }
+
+    /// Replace the bracket opener and its interior nodes with the finished `Cite`; an image
+    /// opener's `!` survives as literal text.
+    fn emit_citation(
+        &mut self,
+        opener_index: usize,
+        is_image: bool,
+        citations: Vec<Citation>,
+        fallback: Vec<Inline>,
+    ) {
         self.nodes.truncate(opener_index);
         self.bracket_stack.retain(|&ni| ni < opener_index);
         if is_image {
@@ -162,7 +220,6 @@ impl<'a> InlineParser<'a> {
         }
         self.nodes
             .push(Node::Inline(Inline::Cite(citations, fallback)));
-        true
     }
 
     /// Parse one citation entry from `chars[range]`: locate the first top-level `@key`, taking the
@@ -183,8 +240,20 @@ impl<'a> InlineParser<'a> {
         // joins (`p.\u{a0}5`) are not applied: the suffix stays ordinary inlines.
         Some(Citation {
             id: key.id.into(),
-            prefix: parse_inlines(prefix_src.trim(), self.refs, self.notes, self.ext),
-            suffix: parse_inlines(suffix_src.trim_end(), self.refs, self.notes, self.ext),
+            prefix: parse_inlines_shared(
+                prefix_src.trim(),
+                self.refs,
+                self.notes,
+                self.ext,
+                self.cite_cache,
+            ),
+            suffix: parse_inlines_shared(
+                suffix_src.trim_end(),
+                self.refs,
+                self.notes,
+                self.ext,
+                self.cite_cache,
+            ),
             mode,
             note_num: 0,
             hash: 0,
@@ -453,9 +522,8 @@ impl<'a> InlineParser<'a> {
         let inner = self
             .text
             .get(self.pos + 2..end.saturating_sub(1))
-            .map(str::to_owned)
             .unwrap_or_default();
-        let inlines = parse_inlines(&inner, self.refs, self.notes, self.ext);
+        let inlines = parse_inlines_shared(inner, self.refs, self.notes, self.ext, self.cite_cache);
         self.pos = end;
         self.nodes
             .push(Node::Inline(Inline::Note(vec![para(inlines)])));

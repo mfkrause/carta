@@ -19,10 +19,13 @@ use crate::emoji;
 use crate::inline_scan::is_unicode_whitespace;
 use crate::smart_fold::{fold_dash_run_thirds, fold_ellipsis_run};
 
+mod cite_cache;
 mod helpers;
 mod links;
 mod native_span;
 mod tokens;
+
+use cite_cache::CiteCache;
 
 use native_span::pair_native_spans;
 
@@ -81,12 +84,24 @@ pub(super) fn char_before(text: &str, at: usize) -> Option<char> {
     text.get(..at).and_then(|head| head.chars().next_back())
 }
 
-#[allow(clippy::similar_names)]
 pub(super) fn parse_inlines(
     text: &str,
     refs: &RefMap,
     notes: RefContext,
     ext: Extensions,
+) -> Vec<Inline> {
+    parse_inlines_shared(text, refs, notes, ext, &CiteCache::anchored_to(text))
+}
+
+/// [`parse_inlines`] over a subslice of an enclosing parse's buffer, sharing that parse's
+/// citation memo so a bracket the enclosing scan already resolved replays instead of recomputing.
+#[allow(clippy::similar_names)]
+fn parse_inlines_shared(
+    text: &str,
+    refs: &RefMap,
+    notes: RefContext,
+    ext: Extensions,
+    cite_cache: &CiteCache,
 ) -> Vec<Inline> {
     let mut parser = InlineParser {
         text,
@@ -96,6 +111,7 @@ pub(super) fn parse_inlines(
         notes,
         ext,
         bracket_stack: Vec::new(),
+        cite_cache,
         interesting: interesting_chars(ext),
         backtick_runs: None,
         raw_tex_budget: text.len().saturating_mul(8).saturating_add(64),
@@ -154,6 +170,8 @@ struct InlineParser<'a> {
     /// Indices into `nodes` for each open `[` or `![` delimiter, in parse order. O(1) lookup of
     /// the most recent bracket opener instead of a backward scan through all nodes.
     bracket_stack: Vec<usize>,
+    /// Resolved-citation memo shared with the parses this one spawns over subslices of `text`.
+    cite_cache: &'a CiteCache,
     /// For each ASCII code, whether a character can start a syntactic construct under the active
     /// extensions. Everything else is ordinary text a run scan can skip over in one step.
     interesting: [bool; 128],

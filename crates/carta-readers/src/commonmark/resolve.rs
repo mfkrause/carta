@@ -45,20 +45,20 @@ pub(super) struct RefContext<'a> {
     /// in another's affixes advances the count as it is built, so the enclosing group ends up
     /// stamped with the highest number it contains.
     pub(super) cite_count: &'a Cell<i32>,
-    /// Remaining source bytes that bracketed citations may re-read, shared by every inline parse
-    /// under this context. Resolving `[ ... @key ... ]` parses its entries' prefixes and suffixes
-    /// from source the enclosing scan has already covered, so each nesting level doubles the work;
-    /// charging the bracket's own length keeps the total linear in the document. A bracket that
-    /// cannot pay stays literal.
+    /// Remaining work that bracketed citations may spend, shared by every inline parse under this
+    /// context. Each bracket's first resolution charges its own length; replaying a memoized
+    /// resolution charges the recorded cost of the result it clones. The charges bound the total
+    /// citation output, which grows quadratically under deep nesting because every level's
+    /// fallback repeats the source beneath it. A bracket that cannot pay stays literal.
     pub(super) cite_budget: &'a Cell<usize>,
 }
 
-/// Floor for [`cite_budget_for`]: room for citations nested more than a dozen levels deep, well past
-/// any hand-written document, at a cost of milliseconds when adversarial nesting spends it.
+/// Floor for [`cite_budget_for`]: room for citations nested hundreds of levels deep, far past any
+/// hand-written document, at a bounded cost when adversarial nesting spends it.
 const MIN_CITE_BUDGET: usize = 1 << 20;
 
 /// Seed for [`RefContext::cite_budget`]. The length term keeps a long document's citations, which
-/// re-read disjoint stretches of source, from starving each other; the floor keeps a short one free
+/// resolve disjoint stretches of source, from starving each other; the floor keeps a short one free
 /// to nest deeper than any reader would write.
 pub(super) fn cite_budget_for(source_len: usize) -> Cell<usize> {
     Cell::new(

@@ -323,17 +323,90 @@ fn a_second_identical_heading_pops_its_own_queued_parse() {
     );
 }
 
-#[test]
-fn adversarially_nested_citations_stay_within_the_reparse_budget() {
-    // Without the budget, each nesting level would double the affix re-parsing work.
+fn read_citations(source: &str) -> Vec<Block> {
     use crate::commonmark::CommonmarkReader;
     use carta_core::{Reader, ReaderOptions};
 
     let mut options = ReaderOptions::default();
     options.extensions = cites();
-    let source = format!("{}{}", "[@a ".repeat(64), "]".repeat(64));
-    let document = CommonmarkReader
-        .read(&source, &options)
-        .expect("reader should not fail");
-    assert_eq!(document.blocks.len(), 1);
+    CommonmarkReader
+        .read(source, &options)
+        .expect("reader should not fail")
+        .blocks
+}
+
+/// The deepest chain of `Cite` nodes reachable through citation affixes.
+fn cite_nesting_depth(inlines: &[Inline]) -> usize {
+    inlines
+        .iter()
+        .map(|inline| match inline {
+            Inline::Cite(citations, _) => {
+                1 + citations
+                    .iter()
+                    .map(|c| cite_nesting_depth(&c.prefix).max(cite_nesting_depth(&c.suffix)))
+                    .max()
+                    .unwrap_or(0)
+            }
+            _ => 0,
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+#[test]
+fn nested_citations_resolve_exactly_via_the_memo() {
+    // Every level's suffix carries the next group; the memo keeps the work linear where the old
+    // re-parse doubled per level, so a depth far past real documents still resolves in full.
+    let depth = 30;
+    let source = format!("{}{}", "[@a ".repeat(depth), "]".repeat(depth));
+    let blocks = read_citations(&source);
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected a single paragraph");
+    };
+    assert_eq!(cite_nesting_depth(inlines), depth);
+    // The outermost group takes the highest number any nested citation reached.
+    let Some(Inline::Cite(citations, _)) = inlines.first() else {
+        panic!("expected the paragraph to open with the outermost citation");
+    };
+    assert_eq!(citations.first().map(|c| c.note_num), Some(30));
+}
+
+#[test]
+fn prefix_nested_citations_share_the_group_number() {
+    // Nesting through prefixes replays the inner brackets at shifted citation counts, so this
+    // exercises the memo's count-keyed misses; the group number covers every nested citation.
+    fn collect(inlines: &[Inline], out: &mut Vec<(String, i32)>) {
+        for inline in inlines {
+            if let Inline::Cite(citations, _) = inline {
+                for citation in citations {
+                    out.push((citation.id.to_string(), citation.note_num));
+                    collect(&citation.prefix, out);
+                    collect(&citation.suffix, out);
+                }
+            }
+        }
+    }
+    let blocks = read_citations("[[[@y] @x] @a]");
+    let [Block::Para(inlines)] = blocks.as_slice() else {
+        panic!("expected a single paragraph");
+    };
+    assert_eq!(cite_nesting_depth(inlines), 3);
+    let mut numbers = Vec::new();
+    collect(inlines, &mut numbers);
+    assert_eq!(
+        numbers,
+        vec![
+            ("a".to_owned(), 3),
+            ("x".to_owned(), 3),
+            ("y".to_owned(), 3),
+        ]
+    );
+}
+
+#[test]
+fn adversarially_nested_citations_stay_within_the_reparse_budget() {
+    // Far past the budget's horizon the remaining brackets stay literal instead of compounding.
+    let source = format!("{}{}", "[@a ".repeat(512), "]".repeat(512));
+    let blocks = read_citations(&source);
+    assert_eq!(blocks.len(), 1);
 }
