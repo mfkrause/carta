@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a section: \hyperref[named]{A named section}.
+
+To a titled example: \hyperref[sample]{example\_title}.
+
+To a titled note: \hyperref[remark]{note\_title}.
+
+To nothing at all: \hyperref[absent]{???}.
+
+\section{A named section}\label{named}
+
+Body.
+
+\protect\phantomsection\label{sample}
+A titled example
+
+Body.
+
+\protect\phantomsection\label{remark}
+A titled note
+
+Body.

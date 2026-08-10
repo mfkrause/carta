@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ CodeBlock ( "" , [] , [] ) "col   col\n    indented"
+, CodeBlock ( "" , [] , [] ) "$ carta"
+, LineBlock
+    [ [ Str "a\160\160b\160"
+      , Emph [ Str "emphasized" ]
+      , Str "\160"
+      , Link
+          ( "" , [] , [] )
+          [ Str "linked" ]
+          ( "https://example.com/" , "" )
+      , Str ""
+      ]
+    , [ Str "\160\160second\160\160\160\160line" ]
+    ]
+, CodeBlock ( "" , [] , [] ) "kept  as    code"
+]

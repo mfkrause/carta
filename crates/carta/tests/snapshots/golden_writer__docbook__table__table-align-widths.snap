@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="4">
+    <colspec colwidth="20*" align="left" />
+    <colspec colwidth="20*" align="right" />
+    <colspec colwidth="30*" align="center" />
+    <colspec colwidth="30*" align="left" />
+    <thead>
+      <row>
+        <entry>
+          l
+        </entry>
+        <entry>
+          r
+        </entry>
+        <entry>
+          c
+        </entry>
+        <entry>
+          d
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          1
+        </entry>
+        <entry>
+          2
+        </entry>
+        <entry>
+          3
+        </entry>
+        <entry>
+          4
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>

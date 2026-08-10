@@ -8,7 +8,8 @@ mod emoji;
     feature = "commonmark",
     feature = "html",
     feature = "dokuwiki",
-    feature = "jira"
+    feature = "jira",
+    feature = "docbook"
 ))]
 mod entities;
 #[cfg(any(
@@ -38,7 +39,7 @@ mod inline_scan;
     feature = "rtf"
 ))]
 mod inline_text;
-#[cfg(any(feature = "html", feature = "odt"))]
+#[cfg(any(feature = "html", feature = "odt", feature = "docbook"))]
 mod mathml;
 #[cfg(any(feature = "ipynb", feature = "rtf"))]
 mod numeric;
@@ -52,7 +53,7 @@ mod roman;
     feature = "opml"
 ))]
 mod smart_fold;
-#[cfg(any(feature = "dokuwiki", feature = "rst"))]
+#[cfg(any(feature = "docbook", feature = "dokuwiki", feature = "rst"))]
 mod tabs;
 #[cfg(any(
     feature = "man",
@@ -65,9 +66,16 @@ mod tabs;
 mod transliterate;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
-#[cfg(any(feature = "docx", feature = "epub", feature = "odt", feature = "typst"))]
+#[cfg(any(
+    feature = "docbook",
+    feature = "docx",
+    feature = "epub",
+    feature = "odt",
+    feature = "typst"
+))]
 mod xml;
 #[cfg(any(
+    feature = "docbook",
     feature = "docx",
     feature = "epub",
     feature = "odt",
@@ -82,6 +90,8 @@ mod yaml;
 pub mod commonmark;
 #[cfg(feature = "csv")]
 pub mod csv;
+#[cfg(feature = "docbook")]
+pub mod docbook;
 #[cfg(feature = "docx")]
 pub mod docx;
 #[cfg(feature = "dokuwiki")]
@@ -125,6 +135,8 @@ pub mod typst;
 pub use commonmark::CommonmarkReader;
 #[cfg(feature = "csv")]
 pub use csv::CsvReader;
+#[cfg(feature = "docbook")]
+pub use docbook::DocbookReader;
 #[cfg(feature = "docx")]
 pub use docx::DocxReader;
 #[cfg(feature = "dokuwiki")]

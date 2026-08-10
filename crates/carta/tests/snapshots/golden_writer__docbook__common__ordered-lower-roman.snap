@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<orderedlist numeration="lowerroman" spacing="compact">
+  <listitem>
+    <para>
+      one
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      two
+    </para>
+  </listitem>
+</orderedlist>

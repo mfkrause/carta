@@ -11,7 +11,7 @@ use carta_core::{Extension, Result, TocStyle, WrapMode, Writer, WriterOptions};
 
 use crate::common::{FILL_COLUMN, display_width, fill, fill_cell, fill_hang, indent_block};
 
-use self::block::{block_separator, code_block, raw_block};
+use self::block::{QUOTE_FENCE, block_separator, code_block, raw_block};
 use self::inline::{flatten, to_pieces};
 
 mod block;
@@ -151,22 +151,38 @@ impl State {
     /// non-empty block keeps a space that opens it, so a list item's text keeps the gap the source
     /// put after the marker rather than collapsing it against the marker.
     fn blocks_laid(&mut self, blocks: &[Block], width: usize, top: bool, hang: bool) -> String {
+        self.blocks_led(blocks, width, top, hang).0
+    }
+
+    /// Render a block sequence as [`Self::blocks_laid`], also reporting the first block that produced
+    /// output, so an enclosing marker or directive shapes its opening around what actually renders
+    /// rather than around a block that contributed nothing.
+    fn blocks_led<'a>(
+        &mut self,
+        blocks: &'a [Block],
+        width: usize,
+        top: bool,
+        hang: bool,
+    ) -> (String, Option<&'a Block>) {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
-        let mut first = true;
+        let mut lead: Option<&'a Block> = None;
+        let mut after_fence = false;
         for block in blocks {
-            let text = self.block_laid(block, width, top, hang && first);
+            let text = self.block_laid(block, width, top, hang && lead.is_none());
             if text.is_empty() {
                 continue;
             }
             if let Some(prev) = previous {
-                out.push_str(block_separator(prev, block));
+                let separator = block_separator(prev, block, after_fence);
+                after_fence = separator == QUOTE_FENCE;
+                out.push_str(separator);
             }
             out.push_str(&text);
             previous = Some(block);
-            first = false;
+            lead.get_or_insert(block);
         }
-        out
+        (out, lead)
     }
 
     /// Fill inline content to `width` under the active wrap mode. Inside a table cell the field

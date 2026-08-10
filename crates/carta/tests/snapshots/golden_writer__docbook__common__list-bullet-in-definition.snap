@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<variablelist spacing="compact">
+  <varlistentry>
+    <term>
+      term
+    </term>
+    <listitem>
+      <itemizedlist spacing="compact">
+        <listitem>
+          <para>
+            alpha
+          </para>
+        </listitem>
+        <listitem>
+          <para>
+            beta
+          </para>
+        </listitem>
+      </itemizedlist>
+    </listitem>
+  </varlistentry>
+</variablelist>

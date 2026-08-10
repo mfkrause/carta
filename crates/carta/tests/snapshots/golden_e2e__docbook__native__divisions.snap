@@ -1,0 +1,73 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "titled"
+    , []
+    , [ ( "role" , "pull" ) , ( "role" , "pull" ) ]
+    )
+    [ Div
+        ( "" , [ "title" ] , [] )
+        [ Plain
+            [ Str "The"
+            , Space
+            , Str "title"
+            , Space
+            , Str "of"
+            , Space
+            , Str "a"
+            , Space
+            , Str "quotation"
+            ]
+        ]
+    , BlockQuote
+        [ Para
+            [ Str "The"
+            , Space
+            , Str "quoted"
+            , Space
+            , Str "wording."
+            ]
+        , Para [ Str "\8212 Someone" ]
+        ]
+    ]
+, BlockQuote
+    [ Para
+        [ Str "An"
+        , Space
+        , Str "untitled"
+        , Space
+        , Str "quotation."
+        ]
+    ]
+, BlockQuote
+    [ Para
+        [ Str "An"
+        , Space
+        , Str "epigraph"
+        , Space
+        , Str "states"
+        , Space
+        , Str "no"
+        , Space
+        , Str "title."
+        ]
+    ]
+, Div
+    ( "" , [ "informalexample" ] , [ ( "role" , "demo" ) ] )
+    [ Para
+        [ Str "An"
+        , Space
+        , Str "example"
+        , Space
+        , Str "standing"
+        , Space
+        , Str "without"
+        , Space
+        , Str "a"
+        , Space
+        , Str "title."
+        ]
+    ]
+]

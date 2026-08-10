@@ -16,8 +16,8 @@ use carta::ast::MetaValue;
 #[cfg(feature = "write-html")]
 use carta::inline_resources;
 use carta::{
-    Error, MathMethod, MediaBag, Output, ReaderOptions, Result, WrapMode, WriterOptions, media,
-    read_document, render_document,
+    AnyReader, Error, MathMethod, MediaBag, Output, ReaderOptions, Result, TopLevelDivision,
+    WrapMode, WriterOptions, any_reader_for, media, read_document, render_document,
 };
 use clap::{ArgAction, CommandFactory, Parser};
 
@@ -115,6 +115,21 @@ struct Cli {
     /// Column at which `--wrap=auto` reflows text. Defaults to the writer's built-in width.
     #[arg(long = "columns", value_name = "N")]
     columns: Option<usize>,
+    /// Column grid a tab in the input advances to (default 4).
+    #[arg(long = "tab-stop", value_name = "N", value_parser = parse_tab_stop)]
+    tab_stop: Option<usize>,
+    /// Open the document's top heading level with this division, in a format whose sectioning
+    /// hierarchy is named.
+    #[arg(long = "top-level-division", value_name = "default|section|chapter|part", default_value = "default", value_parser = parse_top_level_division)]
+    top_level_division: TopLevelDivision,
+    /// Shift every heading level by this amount, promoting a heading past the top level into the
+    /// document's title and one past that into a paragraph.
+    #[arg(
+        long = "shift-heading-level-by",
+        value_name = "N",
+        allow_negative_numbers = true
+    )]
+    shift_heading_level_by: Option<i64>,
     /// Number section headings (`1`, `1.1`, …).
     #[arg(short = 'N', long = "number-sections")]
     number_sections: bool,
@@ -319,7 +334,11 @@ fn run(cli: &Cli) -> Result<()> {
 }
 
 fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
-    let input = read_input(cli.input.as_deref())?;
+    let input = decode_input(
+        read_input(cli.input.as_deref())?,
+        from,
+        cli.input.as_deref(),
+    )?;
     // Base format without `+ext`/`-ext` toggles: passed to filters, keys the default template.
     let to_base = carta::parse_format_spec(to)?.0;
     let data_dir = datadir::resolve(cli.data_dir.as_deref());
@@ -344,6 +363,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.wrap = cli.wrap;
     writer_options.columns = cli.columns;
     writer_options.number_sections = cli.number_sections;
+    writer_options.top_level_division = cli.top_level_division;
     writer_options.toc = cli.toc;
     writer_options.toc_depth = cli.toc_depth;
     writer_options.math_method = math_method(cli);
@@ -366,6 +386,9 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
 
     let mut reader_options = ReaderOptions::default();
     reader_options.source_dir = source_dir(cli.input.as_deref());
+    if let Some(tab_stop) = cli.tab_stop {
+        reader_options.tab_stop = tab_stop;
+    }
     let (mut document, resources) = read_document(from, &input, &reader_options)?;
 
     // Fold metadata layers before filters so they see what the writer will and can rewrite it;
@@ -386,6 +409,11 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // Filters run after extraction (they see rewritten references) and before a container packs
     // its media (resources a filter introduces are still gathered).
     filters::run(&mut document, &cli.filter, &to_base, data_dir.as_deref())?;
+
+    // Re-levelling comes after the filters so they see the levels the document was read with.
+    if let Some(by) = cli.shift_heading_level_by {
+        carta_core::sections::shift_heading_levels(&mut document, by);
+    }
 
     // Containers embed referenced resources, so pull local ones off disk here. Self-contained HTML
     // instead inlines after rendering, reaching raw-HTML and stylesheet references the tree omits.
@@ -572,6 +600,19 @@ fn math_method(cli: &Cli) -> MathMethod {
     }
 }
 
+/// Parse the `--top-level-division` argument into a [`TopLevelDivision`].
+fn parse_top_level_division(value: &str) -> std::result::Result<TopLevelDivision, String> {
+    match value {
+        "default" => Ok(TopLevelDivision::Default),
+        "section" => Ok(TopLevelDivision::Section),
+        "chapter" => Ok(TopLevelDivision::Chapter),
+        "part" => Ok(TopLevelDivision::Part),
+        other => Err(format!(
+            "invalid top-level division '{other}' (expected default, section, chapter, or part)"
+        )),
+    }
+}
+
 /// Parse the `--wrap` argument into a [`WrapMode`].
 fn parse_wrap(value: &str) -> std::result::Result<WrapMode, String> {
     match value {
@@ -589,6 +630,13 @@ fn parse_toc_depth(value: &str) -> std::result::Result<usize, String> {
     match value.parse::<usize>() {
         Ok(depth @ 1..=6) => Ok(depth),
         _ => Err(format!("'{value}' is not a heading level between 1 and 6")),
+    }
+}
+
+fn parse_tab_stop(value: &str) -> std::result::Result<usize, String> {
+    match value.parse::<usize>() {
+        Ok(stop @ 1..) => Ok(stop),
+        _ => Err(format!("'{value}' is not a column count greater than 0")),
     }
 }
 
@@ -700,6 +748,25 @@ fn read_input(path: Option<&Path>) -> Result<Vec<u8>> {
         io::stdin().read_to_end(&mut buffer)?;
         Ok(buffer)
     }
+}
+
+/// Bytes a text reader can take. A source that is not UTF-8 is read one byte to a character in the
+/// Latin-1 range instead of being refused, with a warning naming it.
+fn decode_input(input: Vec<u8>, from: &str, path: Option<&Path>) -> Result<Vec<u8>> {
+    if std::str::from_utf8(&input).is_ok() {
+        return Ok(input);
+    }
+    let from_base = carta::parse_format_spec(from)?.0;
+    if !matches!(any_reader_for(&from_base)?, AnyReader::Text(_)) {
+        return Ok(input);
+    }
+    let source = path.map_or_else(|| "input".to_owned(), |path| path.display().to_string());
+    eprintln!("carta: {source} is not UTF-8 encoded: falling back to latin1");
+    Ok(input
+        .iter()
+        .map(|&byte| char::from(byte))
+        .collect::<String>()
+        .into_bytes())
 }
 
 fn write_output(path: Option<&Path>, output: &Output, verbatim: bool) -> Result<()> {

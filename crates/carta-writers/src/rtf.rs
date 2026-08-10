@@ -25,7 +25,7 @@ use carta_core::{MediaBag, Result, Writer, WriterOptions};
 
 use crate::common::{
     GridSlot, RawTrim, RowSpanGrid, attribute_value, clean_prefix_len, dimension_inches,
-    escape_uri, offset_as_i32, ordered_marker, parse_dimension, quote_marks, raw_passthrough,
+    escape_uri, offset_as_i64, ordered_marker, parse_dimension, quote_marks, raw_passthrough,
 };
 use crate::image_size::{RasterFormat, image_dimensions, image_dpi, raster_format};
 
@@ -144,9 +144,9 @@ impl State {
         )
     }
 
-    fn header(&mut self, level: i32, items: &[Inline]) -> String {
+    fn header(&mut self, level: i64, items: &[Inline]) -> String {
         let outline = level.saturating_sub(1);
-        let size = 40i32.saturating_sub(4i32.saturating_mul(level));
+        let size = 40i64.saturating_sub(4i64.saturating_mul(level));
         let content = self.inlines(items);
         let body = format!("\\outlinelevel{outline} \\b \\fs{size} {content}");
         self.paragraph(180, &body)
@@ -205,7 +205,7 @@ impl State {
         self.list_depth = self.list_depth.saturating_add(1);
         let mut out = String::new();
         for (offset, item) in items.iter().enumerate() {
-            let number = attrs.start.saturating_add(offset_as_i32(offset));
+            let number = attrs.start.saturating_add(offset_as_i64(offset));
             let marker = ordered_marker(number, attrs.style, attrs.delim);
             out.push_str(&self.list_item(&marker, item));
         }

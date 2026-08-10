@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1
+    ( "standalone" , [] , [] )
+    [ Str "A"
+    , Space
+    , Str "chapter"
+    , Space
+    , Str "standing"
+    , Space
+    , Str "on"
+    , Space
+    , Str "its"
+    , Space
+    , Str "own"
+    ]
+, Para
+    [ Str "Its"
+    , Space
+    , Str "title"
+    , Space
+    , Str "heads"
+    , Space
+    , Str "the"
+    , Space
+    , Str "body"
+    , Space
+    , Str "rather"
+    , Space
+    , Str "than"
+    , Space
+    , Str "naming"
+    , Space
+    , Str "the"
+    , Space
+    , Str "document."
+    ]
+, Header
+    2 ( "" , [] , [] ) [ Str "Inside" , Space , Str "it" ]
+, Para [ Str "Body." ]
+]

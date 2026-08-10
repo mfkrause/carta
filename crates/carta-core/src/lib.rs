@@ -102,11 +102,13 @@ impl From<template::TemplateError> for Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Options controlling a [`Reader`].
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ReaderOptions {
     /// Format extensions to enable. Strict-CommonMark readers ignore this (the empty preset).
     pub extensions: Extensions,
+    /// Column grid a tab advances to in the formats that expand tabs. Zero leaves tabs as written.
+    pub tab_stop: usize,
     /// When set, an open paragraph is greedy: a following line that would otherwise open a block (a
     /// blockquote, heading, list, thematic break, fenced div, or footnote definition) is folded
     /// into the paragraph as a lazy continuation instead. Only a blank line, a fenced code block, or
@@ -116,6 +118,17 @@ pub struct ReaderOptions {
     /// companion files (included sources, imported modules, image paths) resolves them against it;
     /// unset, such references are left exactly as written.
     pub source_dir: Option<std::path::PathBuf>,
+}
+
+impl Default for ReaderOptions {
+    fn default() -> Self {
+        Self {
+            extensions: Extensions::default(),
+            tab_stop: 4,
+            greedy_paragraphs: false,
+            source_dir: None,
+        }
+    }
 }
 
 /// How math is presented by a format that offers a choice of renderers (the HTML family). The
@@ -147,6 +160,39 @@ pub enum TocStyle {
     /// `toc` flag is exposed and no list is generated.
     Native,
 }
+
+/// The division a format with a named sectioning hierarchy gives the document's top heading level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TopLevelDivision {
+    /// The format's own choice, a section wherever the choice is offered.
+    #[default]
+    Default,
+    /// Top-level headings open sections.
+    Section,
+    /// Top-level headings open chapters, the level below them sections.
+    Chapter,
+    /// Top-level headings open parts, then chapters, then sections.
+    Part,
+}
+
+impl TopLevelDivision {
+    /// The division names the outermost heading levels take, shallowest first. A level past the end
+    /// of the list opens a section.
+    #[must_use]
+    pub fn outer_divisions(self) -> &'static [&'static str] {
+        match self {
+            Self::Default | Self::Section => &[],
+            Self::Chapter => &["chapter"],
+            Self::Part => &["part", "chapter"],
+        }
+    }
+}
+
+/// Opens a line that a template must leave at column zero, however far the slot the value lands in
+/// is indented. A writer marks the lines of a construct whose own layout is its content (verbatim
+/// text, say) and the template rendering strips the mark along with the indentation before it.
+/// Document text cannot carry the character: escaping drops it in every format that marks lines.
+pub const FLUSH_LINE: char = '\u{0}';
 
 /// How a text writer lays out the lines of a paragraph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -242,6 +288,17 @@ pub struct HighlightOptions {
     pub idiomatic: bool,
 }
 
+/// The position rendered text occupies in the layout that receives it: the column its first line
+/// starts at, and the indent its continuation lines carry. A writer that reflows to a fill column
+/// subtracts these so the text fits the place it lands in rather than the left margin.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Slot {
+    /// Columns already consumed on the line the text opens on.
+    pub column: usize,
+    /// Columns prefixed to each line the text continues onto.
+    pub indent: usize,
+}
+
 /// Options controlling a [`Writer`].
 // Each independent output toggle is its own field; grouping them would only obscure the
 // one-option-one-field mapping a caller sets them through.
@@ -272,10 +329,19 @@ pub struct WriterOptions {
     /// writer's built-in default width.
     pub columns: Option<usize>,
 
+    /// Where the rendered text lands in the wrapping template, so a writer that reflows to the fill
+    /// column can lay it out for the position it will occupy. Set for the body and for each metadata
+    /// value a standalone render interpolates; the default sits the text at the left margin.
+    pub slot: Slot,
+
     /// Splice a hierarchical section number into each heading. A format that numbers headings with a
     /// typesetting counter applies it through its template instead (see
     /// [`Writer::numbers_sections_natively`]).
     pub number_sections: bool,
+
+    /// The division the document's top heading level opens in a format whose sectioning hierarchy
+    /// is named. Ignored by a format whose sections are anonymous.
+    pub top_level_division: TopLevelDivision,
 
     /// Emit a table of contents in a standalone document.
     pub toc: bool,

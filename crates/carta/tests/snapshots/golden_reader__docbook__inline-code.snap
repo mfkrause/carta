@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Inline"},{"t":"Space"},{"t":"Str","c":"verbatim"},{"t":"Space"},{"t":"Str","c":"wording"}]}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Spacing"},{"t":"Space"},{"t":"Str","c":"folds"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"a b c"]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"two words"]},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Code","c":[["",[],[]],"--long option"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"manual"},{"t":"Space"},{"t":"Str","c":"page:"},{"t":"Space"},{"t":"Code","c":[["",["citerefentry"],[["role","page"]]],"carta(1)"]},{"t":"Str","c":","},{"t":"Space"},{"t":"Str","c":"and"},{"t":"Space"},{"t":"Str","c":"one"},{"t":"Space"},{"t":"Str","c":"without"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"volume:"},{"t":"Space"},{"t":"Code","c":[["",["citerefentry"],[]],"carta"]},{"t":"Str","c":"."}]}]}

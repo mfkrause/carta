@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Plain, emphasized, strong, bold, underlined and ~~struck~~ runs.
+
+Water is H₂O and the area is r².
+
+A “quotation ‘inside’ another” alternates its marks.
+
+Code faces: literal, ls, /etc/hosts, strlen, Widget, PATH, --verbose,
+done, MAX, count, <br/>, and (...).
+
+Fill in <name> and maybe [a flag].
+
+A lingua franca and a word.
+
+A bare phrase carries nothing extra.
+
+Press Ctrl+C or pick File > Save.
+
+An anchored spot.

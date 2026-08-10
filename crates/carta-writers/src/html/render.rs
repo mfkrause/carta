@@ -519,7 +519,7 @@ impl State {
         row: &Row,
         aligns: &[Alignment],
         header: bool,
-        head_columns: i32,
+        head_columns: i64,
         grid: &mut RowSpanGrid,
     ) {
         out.push_str("<tr");

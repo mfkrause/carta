@@ -257,6 +257,12 @@
       ],
       "enabled": []
     },
+    "docbook": {
+      "accepted": [
+        "east_asian_line_breaks"
+      ],
+      "enabled": []
+    },
     "docx": {
       "accepted": [
         "ascii_identifiers",

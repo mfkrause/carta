@@ -207,7 +207,7 @@ impl Parser<'_> {
                 .insert(normalize_name(&plain), format!("#{id}"));
         }
         Block::Header(
-            level,
+            i64::from(level),
             Box::new(Attr {
                 id: id.into(),
                 classes: Vec::new(),
@@ -449,7 +449,7 @@ impl Parser<'_> {
         compactify(&mut items);
         out.push(Block::OrderedList(
             ListAttributes {
-                start: start_num,
+                start: i64::from(start_num),
                 style,
                 delim,
             },

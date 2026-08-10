@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>To a section: <a href="#named">A named section</a>.</p>
+<p>To a titled example: <a href="#sample">example_title</a>.</p>
+<p>To a titled note: <a href="#remark">note_title</a>.</p>
+<p>To nothing at all: <a href="#absent">???</a>.</p>
+<h1 id="named">A named section</h1>
+<p>Body.</p>
+<div id="sample" class="example">
+<div class="title">
+A titled example
+</div>
+<p>Body.</p>
+</div>
+<div id="remark" class="note">
+<div class="title">
+A titled note
+</div>
+<p>Body.</p>
+</div>

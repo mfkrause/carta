@@ -1,0 +1,94 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "targets" , [] , [] ) [ Str "Targets" ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "external"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "link" ]
+        ( "https://example.org/" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "one"
+    , Space
+    , Str "carrying"
+    , Space
+    , Str "a"
+    , SoftBreak
+    , Link
+        ( "" , [ "external" ] , [ ( "role" , "external" ) ] )
+        [ Str "role" ]
+        ( "https://example.org/two" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "old-style"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "ulink" ]
+        ( "https://example.org/three" , "" )
+    , Str ","
+    , Space
+    , Str "a"
+    , Space
+    , Str "bare"
+    , SoftBreak
+    , Link
+        ( "" , [] , [] )
+        [ Str "https://example.org/four" ]
+        ( "https://example.org/four" , "" )
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Str "an"
+    , Space
+    , Str "address"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "someone@example.org" ]
+        ( "mailto:someone@example.org" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "internal"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "link" , Space , Str "by" , Space , Str "end" ]
+        ( "#targets" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "bare"
+    , SoftBreak
+    , Link
+        ( "" , [] , [] ) [ Str "Targets" ] ( "#targets" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "footnote"
+    , Space
+    , Str "follows."
+    , Note
+        [ Para
+            [ Str "The" , Space , Str "note" , Space , Str "body." ]
+        ]
+    ]
+]

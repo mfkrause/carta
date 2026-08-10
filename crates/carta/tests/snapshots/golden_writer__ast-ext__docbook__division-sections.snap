@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="the-first-section">
+  <title>The first section</title>
+  <para>
+    Text under the first.
+  </para>
+</section>
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="a-section-a-division-opens">
+  <title>A section a division opens</title>
+  <para>
+    Text inside the division.
+  </para>
+  <section xml:id="a-deeper-section-still-inside">
+    <title>A deeper section still inside</title>
+    <para>
+      More text.
+    </para>
+  </section>
+</section>
+<para>
+  Text after the division.
+</para>
+<section xml:id="a-section-the-division-does-not-close">
+  <title>A section the division does not close</title>
+  <para>
+  </para>
+</section>

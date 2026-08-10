@@ -125,7 +125,7 @@ pub(crate) fn wrap_delim(numeral: &str, delim: ListNumberDelim) -> String {
     allow(dead_code)
 )]
 pub(crate) fn ordered_marker(
-    number: i32,
+    number: i64,
     style: ListNumberStyle,
     delim: ListNumberDelim,
 ) -> String {
@@ -157,7 +157,7 @@ pub(crate) fn pad_marker(marker: &str, field: usize) -> String {
     )),
     allow(dead_code)
 )]
-pub(crate) fn numeral(number: i32, style: ListNumberStyle) -> String {
+pub(crate) fn numeral(number: i64, style: ListNumberStyle) -> String {
     match style {
         ListNumberStyle::DefaultStyle | ListNumberStyle::Decimal | ListNumberStyle::Example => {
             number.to_string()
@@ -171,7 +171,7 @@ pub(crate) fn numeral(number: i32, style: ListNumberStyle) -> String {
 
 /// Bijective base-26 alphabetic numeral (1 -> a, 26 -> z, 27 -> aa). Non-positive input falls back
 /// to the decimal form, which cannot be expressed as a letter.
-pub(crate) fn alpha(number: i32, upper: bool) -> String {
+pub(crate) fn alpha(number: i64, upper: bool) -> String {
     if number < 1 {
         return number.to_string();
     }
@@ -191,8 +191,8 @@ pub(crate) fn alpha(number: i32, upper: bool) -> String {
 /// outside that range falls back to the decimal form; besides having no conventional Roman
 /// spelling, such numbers would need one repeated `m` per thousand, so the fallback also caps the
 /// numeral at a handful of characters no matter the input.
-pub(crate) fn roman(number: i32, upper: bool) -> String {
-    const UNITS: [(i32, &str); 13] = [
+pub(crate) fn roman(number: i64, upper: bool) -> String {
+    const UNITS: [(i64, &str); 13] = [
         (1000, "m"),
         (900, "cm"),
         (500, "d"),
@@ -251,7 +251,7 @@ mod tests {
     fn roman_out_of_range_falls_back_to_decimal() {
         assert_eq!(roman(3999, false), "mmmcmxcix");
         assert_eq!(roman(4000, false), "4000");
-        assert_eq!(roman(i32::MAX, true), i32::MAX.to_string());
+        assert_eq!(roman(i64::MAX, true), i64::MAX.to_string());
     }
 
     #[test]

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<book xmlns="http://docbook.org/ns/docbook" xmlns:m="http://www.w3.org/1998/Math/MathML" version="5.0">
+  <info>
+    <title>Outer work</title>
+    <author><personname><firstname>Ada</firstname><surname>Byron</surname></personname></author>
+  </info>
+  <chapter>
+    <title>First chapter</title>
+    <para>Text in the chapter.</para>
+    <section>
+      <title>A section</title>
+      <article>
+        <info>
+          <title>Nested article</title>
+          <abstract><para>Held inside a section.</para></abstract>
+        </info>
+        <para>An equation
+          <equation><m:math><m:mi>e</m:mi><m:mo>=</m:mo><m:mn>2</m:mn></m:math></equation>
+          stands in the sentence around it.</para>
+        <sidebar>
+          <title>Aside</title>
+          <para>Set beside the text.</para>
+        </sidebar>
+        <informalequation role="numbered"><m:math display="block">
+          <m:mi>y</m:mi><m:mo>=</m:mo><m:mi>x</m:mi>
+        </m:math></informalequation>
+        <section>
+          <title>Deeper still</title>
+          <para>The count restarts where the article stands.</para>
+        </section>
+      </article>
+    </section>
+  </chapter>
+  <chapter>
+    <title>Second chapter</title>
+    <figure>
+      <title>A figure</title>
+      <mediaobject>
+        <imageobject>
+          <objectinfo><title>Stated by the object</title></objectinfo>
+          <imagedata fileref="plot.png"/>
+        </imageobject>
+        <textobject><phrase>Alternative words</phrase></textobject>
+      </mediaobject>
+    </figure>
+  </chapter>
+</book>

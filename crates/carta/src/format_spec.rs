@@ -409,9 +409,8 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::WikilinksTitleBeforePipe,
             Extension::YamlMetadataBlock,
         ]),
-        "jira" | "native" | "json" | "csv" | "tsv" | "rtf" | "revealjs" => {
-            Extensions::from_list(&[Extension::EastAsianLineBreaks])
-        }
+        "docbook" | "docbook5" | "jira" | "native" | "json" | "csv" | "tsv" | "rtf"
+        | "revealjs" => Extensions::from_list(&[Extension::EastAsianLineBreaks]),
         _ => return None,
     };
     Some(set)
@@ -420,7 +419,7 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
 /// Splits a format specifier into its base name and the [`Extensions`] it selects.
 ///
 /// The base is the text up to the first `+` or `-`; the remainder is a run of `+name`/`-name`
-/// toggles applied onto `default_extensions`.
+/// toggles applied onto `default_extensions`. Format and extension names are case-insensitive.
 ///
 /// # Errors
 /// [`Error::UnknownExtension`] if a toggle names an extension this build does not recognize.
@@ -442,6 +441,7 @@ fn parse_format_spec_with(
     spec: &str,
     defaults: impl Fn(&str) -> Extensions,
 ) -> Result<(String, Extensions)> {
+    let spec = spec.to_lowercase();
     let base_end = spec.find(['+', '-']).unwrap_or(spec.len());
     let (base, mut rest) = spec.split_at(base_end);
     let mut extensions = defaults(base);
@@ -700,6 +700,8 @@ mod tests {
             "commonmark",
             "commonmark_x",
             "csv",
+            "docbook",
+            "docbook5",
             "docx",
             "dokuwiki",
             "epub",

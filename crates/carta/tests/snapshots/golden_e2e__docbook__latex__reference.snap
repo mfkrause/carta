@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Description}
+
+What it does.
+
+\subsection{Details}
+
+The finer points.
+
+\section{Recursive reference section}
+
+Body.
+
+\section{General questions}
+
+\textbf{Q:} Why?
+
+\textbf{A:} Because.
+
+\section{Sources}
+
+\section{Books}
+
+A book.

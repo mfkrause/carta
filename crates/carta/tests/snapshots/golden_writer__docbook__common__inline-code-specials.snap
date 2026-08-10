@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  before
+  <literal>a &amp; b ~ c \ d % e # f $ g _ h { i } j ^ k | l &lt; m &gt; n</literal>
+  after
+</para>

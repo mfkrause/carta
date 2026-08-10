@@ -99,7 +99,7 @@ fn underline_section_header_gets_slug_id() {
 #[test]
 fn header_levels_follow_first_seen_adornment_order() {
     let blocks = parse("A\n=\n\nB\n-\n\nC\n=\n");
-    let levels: Vec<i32> = blocks
+    let levels: Vec<i64> = blocks
         .iter()
         .filter_map(|b| match b {
             Block::Header(level, _, _) => Some(*level),

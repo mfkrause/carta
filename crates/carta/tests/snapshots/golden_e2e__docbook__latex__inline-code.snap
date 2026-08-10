@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Spacing folds in \texttt{a\ b\ c} and in \texttt{two\ words} and
+\texttt{-\/-long\ option}.
+
+A manual page: \texttt{carta(1)}, and one without a volume:
+\texttt{carta}.

@@ -14,7 +14,7 @@ use crate::common::{
     FILL_COLUMN, MEASURE_WIDTH, NotesHost, Piece, TableForm, append_notes, ascii_punctuation,
     block_inlines, body_rows, cell_inlines, dash_rule, display_width, extend_multiline_body, fill,
     fill_hang, fill_offset, filled_cells, indent_block, indent_lines, is_loose, is_uri,
-    item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i32,
+    item_separator, join_loose, label_matches_url, lay_row, measure_pieces, offset_as_i64,
     ordered_marker, pad_marker, pieces_nonempty, quote_marks, table_form,
 };
 use crate::grid;
@@ -226,7 +226,7 @@ impl State {
             .iter()
             .enumerate()
             .map(|(offset, item)| {
-                let number = attrs.start.saturating_add(offset_as_i32(offset));
+                let number = attrs.start.saturating_add(offset_as_i64(offset));
                 let marker = ordered_marker(number, attrs.style, attrs.delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let body = self.blocks_at(item, width.saturating_sub(field), loose, true);

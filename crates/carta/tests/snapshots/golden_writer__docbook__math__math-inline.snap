@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  an equation
+  <emphasis>a</emphasis><superscript>2</superscript> + <emphasis>b</emphasis><superscript>2</superscript> = <emphasis>c</emphasis><superscript>2</superscript>
+  inline
+</para>

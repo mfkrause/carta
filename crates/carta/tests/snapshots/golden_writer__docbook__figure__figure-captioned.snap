@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<figure>
+  <title>a caption</title>
+  <mediaobject>
+    <imageobject>
+      <imagedata fileref="pic.png" />
+    </imageobject>
+    <textobject><phrase>a caption</phrase></textobject>
+  </mediaobject>
+</figure>

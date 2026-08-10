@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+<thead>
+<tr>
+<th>signs</th>
+<th>selector</th>
+<th>joined</th>
+<th>narrow</th>
+<th>mark</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>⌚⭐✅</td>
+<td>☀️1️⃣</td>
+<td>👨‍👩‍👧👍🏽</td>
+<td>㉈゙</td>
+<td>́abc</td>
+</tr>
+</tbody>
+</table>

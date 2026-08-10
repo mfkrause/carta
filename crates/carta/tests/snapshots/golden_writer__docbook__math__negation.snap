@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+   ≠ <emphasis>b</emphasis>  ≮ <emphasis>c</emphasis>
+   ⊄ <emphasis>B</emphasis>  ⊬ <emphasis>ϕ</emphasis> ↛
+  <emphasis>a̸</emphasis>
+</para>

@@ -22,10 +22,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [features]
-default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "org", "beamer", "revealjs", "ipynb", "epub", "docx", "odt", "highlight", "rtf"]
-html = ["dep:unicode-general-category"]
+default = ["html", "json", "plain", "latex", "native", "commonmark", "markdown", "gfm", "rst", "mediawiki", "typst", "dokuwiki", "jira", "asciidoc", "man", "opml", "org", "beamer", "revealjs", "ipynb", "epub", "docx", "odt", "highlight", "rtf", "docbook"]
+html = []
 # Syntax highlighting for code blocks in the writers that colorize them (HTML family, LaTeX, DOCX).
 highlight = ["dep:carta-highlight", "carta-core/highlight"]
+# The layout of the body depends on whether a template will wrap it.
+docbook = ["dep:carta-highlight", "carta-core/template"]
 epub = ["html", "carta-core/container"]
 docx = ["carta-core/container"]
 odt = ["carta-core/container"]
@@ -55,7 +57,6 @@ slides = []
 carta-ast = { workspace = true }
 carta-core = { workspace = true }
 carta-highlight = { workspace = true, optional = true }
-unicode-general-category = { workspace = true, optional = true }
 # Grows the stack on demand while serializing, so a deeply nested block or inline tree cannot exhaust
 # the thread's stack during the writer's per-level recursion.
 stacker = { workspace = true }

@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An inline equation *a* + *b* in prose.
+
+And one written in MathML: *x* + 1.
+
+*a*<sup>2</sup> + *b*<sup>2</sup> = *c*<sup>2</sup>
+
+<div class="informalequation">
+
+$$\frac{a}{b}$$
+
+</div>

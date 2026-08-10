@@ -123,7 +123,7 @@ impl Ctx {
 
 /// An open heading bookmark: the level of the heading that opened it and its numeric id.
 struct Bookmark {
-    level: i32,
+    level: i64,
     id: u32,
 }
 
@@ -186,7 +186,7 @@ pub(super) fn document_xml(
         render_top_block(block, &mut body, &mut ctx, None);
         previous = Some(block);
     }
-    close_bookmarks(&mut body, &mut ctx.bookmarks, i32::MIN);
+    close_bookmarks(&mut body, &mut ctx.bookmarks, i64::MIN);
     body.push(section_properties());
 
     // Rendered before footnotes so a footnote inside a comment joins the queue below.
@@ -521,7 +521,7 @@ fn body_style(prev_paragraph: bool) -> &'static str {
 }
 
 /// Emits a heading paragraph, opening a section-spanning bookmark when it carries an identifier.
-fn open_heading(level: i32, id: &str, inlines: &[Inline], body: &mut Element, ctx: &mut Ctx) {
+fn open_heading(level: i64, id: &str, inlines: &[Inline], body: &mut Element, ctx: &mut Ctx) {
     let style = heading_style(level);
     if !id.is_empty() {
         let mark = ctx.next_bookmark_id;
@@ -580,8 +580,8 @@ fn close_bookmark(mark: Option<u32>, out: &mut Element) {
 }
 
 /// Emits the `bookmarkEnd` for every open heading bookmark at or deeper than `level`, most-recent
-/// first, so nested sections close from the inside out. `i32::MIN` closes every open bookmark.
-fn close_bookmarks(body: &mut Element, bookmarks: &mut Vec<Bookmark>, level: i32) {
+/// first, so nested sections close from the inside out. `i64::MIN` closes every open bookmark.
+fn close_bookmarks(body: &mut Element, bookmarks: &mut Vec<Bookmark>, level: i64) {
     while let Some(bookmark) = bookmarks.last() {
         if bookmark.level < level {
             break;
@@ -593,7 +593,7 @@ fn close_bookmarks(body: &mut Element, bookmarks: &mut Vec<Bookmark>, level: i32
 }
 
 /// Clamps a heading level to one of the nine defined heading styles.
-fn heading_style(level: i32) -> &'static str {
+fn heading_style(level: i64) -> &'static str {
     match level.clamp(1, 9) {
         1 => "Heading1",
         2 => "Heading2",

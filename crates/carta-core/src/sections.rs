@@ -5,9 +5,11 @@
 //! attribute. [`build_toc`] produces a nested bullet list linking to the document's headings, which a
 //! writer renders into the `toc` template variable. Both number headings the same way (a counter per
 //! level, the result joined from the document's shallowest heading level), so a heading and its
-//! contents entry always carry the same number.
+//! contents entry always carry the same number. [`shift_heading_levels`] re-levels the whole document
+//! ahead of either, so numbering sees the levels the writer will.
 
-use carta_ast::{Attr, Block, Inline, Target, Text};
+use crate::walk;
+use carta_ast::{Attr, Block, Document, Inline, MetaValue, Target, Text};
 
 /// Headings range over levels 1 through 6.
 const MAX_LEVEL: usize = 6;
@@ -40,7 +42,7 @@ impl Counters {
     /// level 2 still numbers from `1`; a skipped level reads as a zero (`1` then a level-3 heading is
     /// `1.0.1`); and a heading deeper than the base level appearing before any heading reaches that
     /// base reads with leading zeros (a level-2 heading before the first level-1 heading is `0.1`).
-    fn advance(&mut self, level: i32, classes: &[Text]) -> Option<Text> {
+    fn advance(&mut self, level: i64, classes: &[Text]) -> Option<Text> {
         if classes.iter().any(|class| class == UNNUMBERED) {
             return None;
         }
@@ -83,6 +85,37 @@ fn min_heading_level(blocks: &[Block]) -> usize {
     let mut min = None;
     walk(blocks, &mut min);
     min.unwrap_or(1)
+}
+
+/// Shift every heading in `document` by `by` levels, everywhere it appears. A heading the shift would
+/// carry above level 1 becomes a paragraph, except that the document's opening run of headings landing
+/// exactly at level 0 is lifted out entirely: the last of them supplies the document's title, replacing
+/// whatever title the metadata held. Anything other than such a heading ends that opening run.
+pub fn shift_heading_levels(document: &mut Document, by: i64) {
+    if by == 0 {
+        return;
+    }
+    if by < 0 {
+        let promoted = document
+            .blocks
+            .iter()
+            .take_while(|block| matches!(block, Block::Header(level, _, _) if level.saturating_add(by) == 0))
+            .count();
+        let mut lifted: Vec<_> = document.blocks.drain(..promoted).collect();
+        if let Some(Block::Header(_, _, inlines)) = lifted.pop() {
+            document
+                .meta
+                .insert(Text::from("title"), MetaValue::MetaInlines(inlines));
+        }
+    }
+    walk::for_each_block(&mut document.blocks, &mut |block| {
+        if let Block::Header(level, _, inlines) = block {
+            *level = level.saturating_add(by);
+            if *level < 1 {
+                *block = Block::Para(std::mem::take(inlines));
+            }
+        }
+    });
 }
 
 /// Splice section numbers into the headings of `blocks`, walking nested sections in document order. A
@@ -150,7 +183,7 @@ pub fn build_toc(blocks: &[Block], depth: usize, numbered: bool, anchors: bool) 
 /// One contents entry: the heading's level (for nesting) and the prepared inlines (a link to the
 /// heading, or plain text when the heading carries no id to target).
 struct Entry {
-    level: i32,
+    level: i64,
     content: Vec<Inline>,
 }
 
@@ -288,7 +321,7 @@ mod tests {
     use super::*;
     use carta_ast::Inline;
 
-    fn header(level: i32, classes: &[&str], text: &str) -> Block {
+    fn header(level: i64, classes: &[&str], text: &str) -> Block {
         Block::Header(
             level,
             Box::new(Attr {

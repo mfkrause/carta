@@ -184,7 +184,7 @@ impl<'a> InlineParser<'a> {
         }
         let group_num = self.notes.cite_count.get();
         for citation in &mut citations {
-            citation.note_num = group_num;
+            citation.note_num = i64::from(group_num);
         }
         let fallback = citation_fallback_inlines(&format!("[{raw}]"));
         if let Some(key) = memo_key {

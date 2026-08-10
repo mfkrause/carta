@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<orderedlist numeration="arabic">
+  <listitem>
+    <para>
+      outer
+    </para>
+    <orderedlist numeration="arabic" spacing="compact">
+      <listitem>
+        <para>
+          inner one
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          inner two
+        </para>
+      </listitem>
+    </orderedlist>
+  </listitem>
+</orderedlist>

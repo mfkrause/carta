@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\pandocbounded{\includegraphics[keepaspectratio,alt={The alternative wording}]{diagram.png}}
+
+An inline
+\pandocbounded{\includegraphics[keepaspectratio,alt={inline alternative}]{icon.png}}
+image.

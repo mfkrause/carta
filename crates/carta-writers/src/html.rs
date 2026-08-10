@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 use carta_ast::{Attr, Block, Document, Inline};
 use carta_core::{MathMethod, MetaVarStyle, Result, WrapMode, Writer, WriterOptions};
 
-use crate::common::{FILL_COLUMN, clean_prefix_len, is_wide};
+use crate::common::{FILL_COLUMN, clean_prefix_len, display_width};
 
 mod helpers;
 mod render;
@@ -170,7 +170,7 @@ impl SlideRenderer {
     /// A slide title rendered as its heading element with the header's classes and key/value pairs
     /// but without its `id` (the `id` belongs to the enclosing `<section>`).
     #[must_use]
-    pub(crate) fn title(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+    pub(crate) fn title(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
         let tag = header_tag(level);
         let titleless = Attr {
             id: carta_ast::Text::default(),
@@ -550,56 +550,12 @@ fn skip_break_points(bytes: &[u8], from: usize) -> usize {
 /// inside a multi-byte sequence.
 fn scan_chunk(input: &str, from: usize) -> (usize, usize) {
     let bytes = input.as_bytes();
-    let mut at = from;
-    let mut width = 0usize;
-    loop {
-        let Some(byte) = bytes.get(at).copied() else {
-            return (at, width);
-        };
-        if byte < 0x80 {
-            if byte == BREAK_BYTE || byte == SOFT_BYTE || byte == FLUSH_BYTE || byte == b'\n' {
-                return (at, width);
-            }
-            width += usize::from(byte >= 0x20 && byte != 0x7F);
-            at += 1;
-        } else {
-            let Some(ch) = input.get(at..).and_then(|rest| rest.chars().next()) else {
-                return (at, width);
-            };
-            width += char_width(ch);
-            at += ch.len_utf8();
-        }
-    }
-}
-
-/// Display width of a character in columns: zero for combining marks and control characters, two
-/// for wide and fullwidth East Asian characters, one otherwise.
-///
-/// This uses a Unicode-category zero-width test, distinct from the range-table measure in
-/// [`crate::common`] that the plain and LaTeX writers share.
-#[inline]
-fn char_width(ch: char) -> usize {
-    let code = ch as u32;
-    // below U+0300 only C0/C1 controls and the soft hyphen are zero-width, so range tests suffice
-    if code < 0x0300 {
-        let zero_width = code < 0x20 || (0x7F..=0x9F).contains(&code) || code == 0x00AD;
-        return usize::from(!zero_width);
-    }
-    if is_zero_width(ch) {
-        return 0;
-    }
-    if is_wide(code) { 2 } else { 1 }
-}
-
-fn is_zero_width(ch: char) -> bool {
-    use unicode_general_category::{GeneralCategory, get_general_category};
-    matches!(
-        get_general_category(ch),
-        GeneralCategory::NonspacingMark
-            | GeneralCategory::EnclosingMark
-            | GeneralCategory::Format
-            | GeneralCategory::Control
-    )
+    let rest = bytes.get(from..).unwrap_or_default();
+    let end = rest
+        .iter()
+        .position(|byte| matches!(*byte, BREAK_BYTE | SOFT_BYTE | FLUSH_BYTE | b'\n'))
+        .map_or(bytes.len(), |offset| from + offset);
+    (end, display_width(input.get(from..end).unwrap_or_default()))
 }
 
 /// Escape `&`, `<`, and `>` to their HTML entities, and additionally `"` when `double_quote` and `'`

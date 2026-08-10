@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<figure id="plot">
+<img src="plot.png" style="width:4in;height:2in"
+alt="A plotted curve" />
+<figcaption>A captioned figure</figcaption>
+</figure>
+
+A standalone block image:
+
+![](standalone.png)
+
+An inline ![](icon.png) image.

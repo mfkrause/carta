@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  an <inlinemediaobject>
+    <imageobject>
+      <imagedata fileref="pic.png" />
+    </imageobject>
+    <textobject>
+      <phrase>alt words</phrase>
+    </textobject>
+  </inlinemediaobject> inline
+</para>

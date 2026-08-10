@@ -1,0 +1,79 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "To"
+    , Space
+    , Str "a"
+    , Space
+    , Str "section:"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "A" , Space , Str "named" , Space , Str "section" ]
+        ( "#named" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "To"
+    , Space
+    , Str "a"
+    , Space
+    , Str "titled"
+    , Space
+    , Str "example:"
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "example_title" ] ( "#sample" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "To"
+    , Space
+    , Str "a"
+    , Space
+    , Str "titled"
+    , Space
+    , Str "note:"
+    , Space
+    , Link
+        ( "" , [] , [] ) [ Str "note_title" ] ( "#remark" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "To"
+    , Space
+    , Str "nothing"
+    , Space
+    , Str "at"
+    , Space
+    , Str "all:"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "???" ] ( "#absent" , "" )
+    , Str "."
+    ]
+, Header
+    1
+    ( "named" , [] , [] )
+    [ Str "A" , Space , Str "named" , Space , Str "section" ]
+, Para [ Str "Body." ]
+, Div
+    ( "sample" , [ "example" ] , [] )
+    [ Div
+        ( "" , [ "title" ] , [] )
+        [ Plain
+            [ Str "A" , Space , Str "titled" , Space , Str "example" ]
+        ]
+    , Para [ Str "Body." ]
+    ]
+, Div
+    ( "remark" , [ "note" ] , [] )
+    [ Div
+        ( "" , [ "title" ] , [] )
+        [ Plain
+            [ Str "A" , Space , Str "titled" , Space , Str "note" ]
+        ]
+    , Para [ Str "Body." ]
+    ]
+]

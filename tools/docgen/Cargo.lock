@@ -64,6 +64,7 @@ dependencies = [
  "ryu",
  "serde",
  "serde_json",
+ "stacker",
  "unicode-general-category",
 ]
 
@@ -113,7 +114,6 @@ dependencies = [
  "carta-highlight",
  "serde_json",
  "stacker",
- "unicode-general-category",
 ]
 
 [[package]]

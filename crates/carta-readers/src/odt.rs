@@ -46,7 +46,7 @@ use support::{
 
 /// The most columns a table grid is allowed to span. Far wider than any authored table, this bounds
 /// the column vector so a document declaring an enormous column repeat cannot exhaust memory.
-const MAX_TABLE_COLUMNS: i32 = 10_000;
+const MAX_TABLE_COLUMNS: i64 = 10_000;
 
 /// Upper bound on the number of spaces a single `<text:s>` run expands to, so a document declaring a
 /// pathological repeat count cannot exhaust memory. Set well above any run real prose contains.
@@ -447,7 +447,7 @@ impl<'a> Converter<'a> {
             .ids
             .assign_with_separator(slug(&inlines_to_plain(&inlines)), '-');
         Block::Header(
-            level,
+            i64::from(level),
             Box::new(Attr {
                 id: id.into(),
                 classes: Vec::new(),
@@ -477,7 +477,7 @@ impl<'a> Converter<'a> {
             Some(LevelStyle::Bullet) => Block::BulletList(items),
             Some(LevelStyle::Number(style, delim, start)) => Block::OrderedList(
                 ListAttributes {
-                    start,
+                    start: i64::from(start),
                     style,
                     delim,
                 },
@@ -577,12 +577,12 @@ impl<'a> Converter<'a> {
             }
             let col_span = child
                 .attr("number-columns-spanned")
-                .and_then(|value| value.parse::<i32>().ok())
+                .and_then(|value| value.parse::<i64>().ok())
                 .filter(|span| *span > 0)
                 .unwrap_or(1);
             let row_span = child
                 .attr("number-rows-spanned")
-                .and_then(|value| value.parse::<i32>().ok())
+                .and_then(|value| value.parse::<i64>().ok())
                 .filter(|span| *span > 0)
                 .unwrap_or(1);
             let content = compact(self.convert_body_blocks(child));

@@ -197,7 +197,7 @@ fn citation(
     prefix: Vec<Inline>,
     suffix: Vec<Inline>,
     mode: CitationMode,
-    note_num: i32,
+    note_num: i64,
 ) -> Citation {
     Citation {
         id: id.to_owned().into(),

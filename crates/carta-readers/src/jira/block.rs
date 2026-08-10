@@ -256,7 +256,7 @@ impl BlockParser<'_> {
         let (ts, te) = trim(self.chars, self.pos + 3, e);
         let inlines = drop_trailing_break(parse_inlines(self.chars, ts, te));
         self.advance_line();
-        Some(Block::Header(level, Box::default(), inlines))
+        Some(Block::Header(i64::from(level), Box::default(), inlines))
     }
 
     fn try_horizontal_rule(&mut self) -> Option<Block> {

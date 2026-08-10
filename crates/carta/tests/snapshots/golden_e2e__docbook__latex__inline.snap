@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Plain, \emph{emphasized}, \textbf{strong}, \textbf{bold},
+\ul{underlined} and \st{struck} runs.
+
+Water is H\textsubscript{2}O and the area is r\textsuperscript{2}.
+
+A ``quotation `inside' another'' alternates its marks.
+
+Code faces: \texttt{literal}, \texttt{ls}, \texttt{/etc/hosts},
+\texttt{strlen}, \texttt{Widget}, \texttt{PATH}, \texttt{-\/-verbose},
+\texttt{done}, \texttt{MAX}, \texttt{count},
+\texttt{\textless{}br/\textgreater{}}, and \texttt{(...)}.
+
+Fill in \textless name\textgreater{} and maybe {[}a flag{]}.
+
+A \emph{lingua franca} and a \emph{word}.
+
+A bare phrase carries nothing extra.
+
+Press {Ctrl+C} or pick {File \textgreater{} Save}.
+
+An \protect\phantomsection\label{spot}{}anchored spot.

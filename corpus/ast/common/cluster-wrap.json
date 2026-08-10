@@ -1,0 +1,237 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Clusters"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "measure"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "one"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "glyph"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "wide:"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "👨‍👩‍👧"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "and"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "wide"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "glyphs"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "一二三"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "take"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "two"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "columns"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "each,"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "while"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "́abc"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "opens"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "a"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "word"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "with"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "a"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "mark."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<pre>col   col
+    indented</pre>
+<pre>$ carta</pre>
+a  b ''emphasized'' [https://example.com/ linked]<br />
+  second    line
+
+<pre>kept  as    code</pre>

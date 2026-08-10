@@ -113,7 +113,7 @@ fn write_epub(version: Version, document: &Document, options: &WriterOptions) ->
         .trim_end_matches('/');
     let split_level = epub
         .split_level
-        .map_or(1, |level| i32::try_from(level).unwrap_or(i32::MAX));
+        .map_or(1, |level| i64::try_from(level).unwrap_or(i64::MAX));
     let toc_depth = options.toc_depth.unwrap_or(3);
 
     // Image references are rewritten to stored paths before the chapter split so both the chapters
@@ -330,7 +330,7 @@ fn build_sectioned(document: &Document, options: &WriterOptions) -> Vec<Block> {
 }
 
 /// Split the sectioned block tree into chapter files, one block list per output XHTML page.
-fn build_chapter_files(sectioned: &[Block], split_level: i32) -> Vec<Chapter> {
+fn build_chapter_files(sectioned: &[Block], split_level: i64) -> Vec<Chapter> {
     sections::split_chapters(sectioned.to_vec(), split_level)
         .into_iter()
         .enumerate()

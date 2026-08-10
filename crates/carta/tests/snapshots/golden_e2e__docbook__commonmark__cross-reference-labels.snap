@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a labelled section: [The label the section states](#labelled).
+
+To a labelled section, overridden: [Some other wording](#labelled).
+
+To a labelled table: [The label the table states](#grid).
+
+To an unlabelled section: [An unlabelled section](#plain).
+
+<span id="wording">Some other wording</span>
+
+# A labelled section
+
+Body.
+
+# An unlabelled section
+
+Body.
+
+<table id="grid">
+<caption>A labelled table</caption>
+<tbody>
+<tr>
+<td>Cell</td>
+</tr>
+</tbody>
+</table>

@@ -79,6 +79,14 @@ fn format_aliases_are_accepted() {
     assert_eq!(result.stdout, "<p><em>x</em></p>\n");
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn format_specs_are_case_insensitive() {
+    let result = run(&["-f", "MarkDown+SMART", "-t", "HTML5"], "\"q\"\n");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<p>\u{201c}q\u{201d}</p>\n");
+}
+
 #[test]
 fn reads_input_file_and_writes_output_file() {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
@@ -163,11 +171,18 @@ fn missing_to_flag_fails() {
 }
 
 #[test]
-fn invalid_utf8_input_fails() {
+fn invalid_utf8_input_falls_back_to_latin1() {
     let result = run_bytes(&["-f", "commonmark", "-t", "html"], &[0xff, 0xfe]);
-    assert!(!result.success);
+    assert!(result.success);
     assert!(
-        result.stderr.contains("input is not valid UTF-8"),
+        result.stdout.contains("\u{ff}\u{fe}"),
+        "stdout: {}",
+        result.stdout
+    );
+    assert!(
+        result
+            .stderr
+            .contains("not UTF-8 encoded: falling back to latin1"),
         "stderr: {}",
         result.stderr
     );
@@ -571,6 +586,81 @@ fn number_sections_prefixes_headings() {
     let plain = run(&["-f", "commonmark", "-t", "html"], TWO_HEADINGS);
     assert!(plain.success, "stderr: {}", plain.stderr);
     assert!(!plain.stdout.contains("data-number"), "{}", plain.stdout);
+}
+
+#[cfg(feature = "write-docbook")]
+#[test]
+fn top_level_division_names_the_outermost_sections() {
+    for (division, outer, inner) in [
+        ("section", "section", "section"),
+        ("chapter", "chapter", "section"),
+        ("part", "part", "chapter"),
+    ] {
+        let result = run(
+            &[
+                "-f",
+                "commonmark",
+                "-t",
+                "docbook",
+                &format!("--top-level-division={division}"),
+            ],
+            TWO_HEADINGS,
+        );
+        assert!(result.success, "stderr: {}", result.stderr);
+        assert!(
+            result.stdout.starts_with(&format!("<{outer} xmlns="))
+                && result.stdout.contains(&format!("<{inner}>"))
+                && result.stdout.trim_end().ends_with(&format!("</{outer}>")),
+            "{division}: {}",
+            result.stdout
+        );
+    }
+}
+
+#[cfg(feature = "write-native")]
+#[test]
+fn shift_heading_level_by_relevels_the_document() {
+    let deeper = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "native",
+            "--shift-heading-level-by=1",
+        ],
+        TWO_HEADINGS,
+    );
+    assert!(deeper.success, "stderr: {}", deeper.stderr);
+    assert!(
+        deeper.stdout.contains("Header 2") && deeper.stdout.contains("Header 3"),
+        "{}",
+        deeper.stdout
+    );
+}
+
+#[cfg(all(feature = "write-json", feature = "read-commonmark"))]
+#[test]
+fn shift_heading_level_by_lifts_the_leading_heading_into_the_title() {
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "json",
+            "--shift-heading-level-by=-1",
+        ],
+        "# One\n\ntext\n\n## Two\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        result.stdout.trim_end(),
+        concat!(
+            r#"{"pandoc-api-version":[1,23,1,2],"#,
+            r#""meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"One"}]}},"#,
+            r#""blocks":[{"t":"Para","c":[{"t":"Str","c":"text"}]},"#,
+            r#"{"t":"Header","c":[1,["",[],[]],[{"t":"Str","c":"Two"}]]}]}"#,
+        )
+    );
 }
 
 #[cfg(feature = "write-markdown")]

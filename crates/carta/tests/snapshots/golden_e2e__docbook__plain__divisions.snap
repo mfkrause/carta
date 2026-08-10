@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+The title of a quotation
+
+  The quoted wording.
+
+  — Someone
+
+  An untitled quotation.
+
+  An epigraph states no title.
+
+An example standing without a title.

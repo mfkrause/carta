@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis role="underline">under</emphasis>
+  <emphasis role="smallcaps">small</emphasis>
+</para>

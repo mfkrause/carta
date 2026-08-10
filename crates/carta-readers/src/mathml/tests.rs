@@ -90,37 +90,37 @@ fn only_limit_bearing_bases_take_limits() {
     );
     assert_eq!(
         tex("<math><munderover><mi>x</mi><mn>0</mn><mn>1</mn></munderover></math>"),
-        "\\overset{1}{\\underset{0}{x}}"
+        "\\underset{0}{\\overset{1}{x}}"
     );
 }
 
 #[test]
 fn takes_limits_recognizes_operators_but_not_symbols() {
-    assert!(takes_limits("\\sum"));
-    assert!(takes_limits("\\lim"));
-    assert!(!takes_limits("\\alpha"));
-    assert!(!takes_limits("x"));
+    assert!(takes_limits('\u{2211}'));
+    assert!(takes_limits('\u{222b}'));
+    assert!(!takes_limits('\u{3b1}'));
+    assert!(!takes_limits('x'));
 }
 
 #[test]
 fn fenced_separators_cycle_and_repeat_the_last() {
     assert_eq!(
         tex("<math><mfenced separators=';,'><mi>a</mi><mi>b</mi><mi>c</mi></mfenced></math>"),
-        "(a;b,c)"
+        "\\left( {a;b,c} \\right)"
     );
     // A single separator applies to every gap.
     assert_eq!(
         tex("<math><mfenced separators=';'><mi>a</mi><mi>b</mi><mi>c</mi></mfenced></math>"),
-        "(a;b;c)"
+        "\\left( {a;b;c} \\right)"
     );
     // Defaults are parentheses and commas.
     assert_eq!(
         tex("<math><mfenced><mi>a</mi><mi>b</mi></mfenced></math>"),
-        "(a,b)"
+        "\\left( {a,b} \\right)"
     );
     assert_eq!(
         tex("<math><mfenced open='[' close=']'><mi>x</mi></mfenced></math>"),
-        "[x]"
+        "\\lbrack x\\rbrack"
     );
 }
 
@@ -157,8 +157,231 @@ fn an_operator_of_tex_specials_is_escaped() {
 }
 
 #[test]
-fn escape_operator_touches_only_specials() {
-    assert_eq!(escape_operator("%"), "\\%");
-    assert_eq!(escape_operator("a#b"), "a\\#b");
-    assert_eq!(escape_operator("plain"), "plain");
+fn character_mapping_touches_only_specials() {
+    assert_eq!(map_characters("%", Faces::default()), "\\%");
+    // An escape keeps the character after it from reading as part of the command.
+    assert_eq!(map_characters("a#b", Faces::default()), "a\\# b");
+    assert_eq!(map_characters("plain", Faces::default()), "plain");
+}
+
+#[test]
+fn an_operator_symbol_maps_to_its_command() {
+    assert_eq!(tex("<math><mo>\u{2264}</mo></math>"), "\\leq");
+    assert_eq!(tex("<math><mo>\u{2208}</mo></math>"), "\\in");
+    assert_eq!(tex("<math><mo>\u{2211}</mo></math>"), "\\sum");
+    assert_eq!(tex("<math><mi>\u{211d}</mi></math>"), "\\mathbb{R}");
+}
+
+#[test]
+fn a_face_written_around_a_fragment_is_not_written_again_inside_it() {
+    let style =
+        |variant, body| format!("<math><mstyle mathvariant='{variant}'>{body}</mstyle></math>");
+    // The face the row is set in leaves the tokens it holds bare.
+    assert_eq!(tex(&style("bold", "<mi>a</mi><mi>b</mi>")), "\\mathbf{ab}");
+    // A letter of the alphanumeric plane comes down to the letter it is set from.
+    assert_eq!(
+        tex(&style("double-struck", "<mi>\u{211d}</mi>")),
+        "\\mathbb{R}"
+    );
+    // A variant that differs is written even where it stands for the same command.
+    assert_eq!(
+        tex(&style("bold", "<mi mathvariant='bold-italic'>a</mi>")),
+        "\\mathbf{\\mathbf{a}}"
+    );
+}
+
+#[test]
+fn a_variant_naming_no_face_reads_as_the_plain_one() {
+    assert_eq!(tex("<math><mi mathvariant='initial'>a</mi></math>"), "a");
+    assert_eq!(
+        tex("<math><mstyle mathvariant='bold'><mi mathvariant='initial'>a</mi></mstyle></math>"),
+        "\\mathbf{\\mathrm{a}}"
+    );
+    // A style wrapper left with no variant in force sets its row in the plain face.
+    assert_eq!(
+        tex("<math><mstyle mathvariant='bold'><mstyle><mi>a</mi></mstyle></mstyle></math>"),
+        "\\mathbf{\\mathrm{a}}"
+    );
+}
+
+#[test]
+fn a_cell_carries_one_gap_after_the_ampersand() {
+    assert_eq!(
+        tex("<math><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mo>+</mo></mtd></mtr></mtable></math>"),
+        "\\begin{matrix}\na & + \n\\end{matrix}"
+    );
+}
+
+#[test]
+fn symbol_roles_and_tables_cover_each_lookup_shape() {
+    use symbols::Role;
+
+    let roles = [
+        Role::Plain,
+        Role::Spaced,
+        Role::Styled,
+        Role::Tight,
+        Role::Infix,
+        Role::Open,
+        Role::Close,
+        Role::Both,
+        Role::Middle,
+        Role::OpenSymbol,
+        Role::CloseSymbol,
+        Role::BothSymbol,
+    ];
+    assert_eq!(roles.iter().filter(|role| role.opens()).count(), 4);
+    assert_eq!(roles.iter().filter(|role| role.closes()).count(), 4);
+    assert_eq!(roles.iter().filter(|role| role.is_sign()).count(), 3);
+    assert_eq!(roles.iter().filter(|role| role.is_delimiter()).count(), 7);
+    assert!(symbols::stacks_over('^'));
+    assert!(!symbols::stacks_over('x'));
+    assert!(symbols::symbol('+').is_some());
+    assert!(symbols::symbol('x').is_none());
+    assert!(symbols::operator("||").is_some());
+    assert!(symbols::operator("unknown").is_none());
+    assert_eq!(
+        symbols::styled_letter('\u{1d400}'),
+        Some((Some("\\mathbf"), 'A'))
+    );
+    assert_eq!(symbols::styled_letter('A'), None);
+}
+
+#[test]
+fn uncommon_layout_and_annotation_elements_keep_their_content() {
+    assert_eq!(
+        tex("<math><mroot><mi>x</mi><mn>3</mn></mroot></math>"),
+        "\\sqrt[3]{x}"
+    );
+    assert_eq!(
+        tex("<math><mphantom><mi>x</mi></mphantom></math>"),
+        "\\phantom{x}"
+    );
+    assert_eq!(
+        tex("<math><semantics><mi>x</mi><annotation>ignored</annotation></semantics></math>"),
+        "x"
+    );
+    assert_eq!(
+        tex("<math><semantics><annotation>ignored</annotation></semantics></math>"),
+        ""
+    );
+    assert_eq!(
+        tex("<math><ms lquote='[' rquote=']'>a#b</ms></math>"),
+        "\\text{[a\\#b]}"
+    );
+    assert_eq!(
+        tex("<math><menclose notation='box'><mi>x</mi></menclose></math>"),
+        "\\boxed{x}"
+    );
+    assert_eq!(
+        tex("<math><menclose notation='updiagonalstrike'><mi>x</mi></menclose></math>"),
+        "\\cancel{x}"
+    );
+    assert_eq!(
+        tex("<math><menclose notation='downdiagonalstrike'><mi>x</mi></menclose></math>"),
+        "\\bcancel{x}"
+    );
+    assert_eq!(
+        tex(
+            "<math><menclose notation='updiagonalstrike downdiagonalstrike'><mi>x</mi></menclose></math>"
+        ),
+        "\\xcancel{x}"
+    );
+    assert_eq!(
+        tex("<math><menclose notation='circle'><mi>x</mi></menclose></math>"),
+        "x"
+    );
+}
+
+#[test]
+fn math_spaces_cover_named_measured_and_fallback_commands() {
+    assert_eq!(space_mu("thinmathspace"), Some(3));
+    assert_eq!(space_mu("negativeveryverythickmathspace"), Some(-7));
+    assert_eq!(space_mu("0.5em"), Some(9));
+    assert_eq!(space_mu("+1em"), None);
+    assert_eq!(space_mu("1px"), None);
+    assert_eq!(space_mu("NaNem"), None);
+    assert_eq!(space_command(0), "");
+    assert_eq!(space_command(3), "\\,");
+    assert_eq!(space_command(4), "\\ ");
+    assert_eq!(space_command(5), "\\;");
+    assert_eq!(space_command(-3), "\\!");
+    assert_eq!(space_command(18), "\\quad");
+    assert_eq!(space_command(36), "\\qquad");
+    assert_eq!(space_command(9), "\\mspace{9mu}");
+}
+
+#[test]
+fn matrix_delimiter_helpers_cover_each_supported_pair() {
+    assert_eq!(matrix_env("(", ")"), Some("pmatrix"));
+    assert_eq!(matrix_env("[", "]"), Some("bmatrix"));
+    assert_eq!(matrix_env("{", "}"), Some("Bmatrix"));
+    assert_eq!(matrix_env("|", "|"), None);
+    assert_eq!(left_right_delim("|"), Some("|"));
+    assert_eq!(left_right_delim("\u{2016}"), Some("\\|"));
+    assert_eq!(left_right_delim("("), None);
+}
+
+#[test]
+fn fenced_matrices_and_scripted_fences_select_their_rendering_paths() {
+    let matrix = "<mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr></mtable>";
+    assert!(
+        tex(&format!("<math><mfenced>{matrix}</mfenced></math>")).starts_with("\\begin{pmatrix}")
+    );
+    assert!(
+        tex(&format!(
+            "<math><mfenced open='[' close=']'>{matrix}</mfenced></math>"
+        ))
+        .starts_with("\\begin{bmatrix}")
+    );
+    assert!(
+        tex(&format!(
+            "<math><mfenced open='{{' close='}}'>{matrix}</mfenced></math>"
+        ))
+        .starts_with("\\begin{Bmatrix}")
+    );
+    let barred = tex(&format!(
+        "<math><mfenced open='|' close='|'>{matrix}</mfenced></math>"
+    ));
+    assert!(barred.starts_with("\\left| \\begin{matrix}"));
+    assert_eq!(
+        tex("<math><msup><mfenced open='[' close=']'><mi>x</mi></mfenced><mn>2</mn></msup></math>"),
+        "\\lbrack x\\rbrack^{2}"
+    );
+}
+
+#[test]
+fn unusual_fence_attributes_preserve_or_omit_their_operators() {
+    assert_eq!(
+        tex("<math><mfenced open='' close=''><mi>x</mi></mfenced></math>"),
+        "x"
+    );
+    assert_eq!(tex("<math><mfenced open='' close=''/></math>"), "");
+    assert!(
+        tex("<math><mfenced open=']' close=''><mi>x</mi></mfenced></math>").contains("\\rbrack")
+    );
+    let named = tex("<math><mfenced open='begin' close='end'><mi>x</mi></mfenced></math>");
+    assert!(named.contains("\\operatorname{begin}"));
+    assert!(named.contains("\\operatorname{end}"));
+    let mixed = tex("<math><mfenced open='|' close=')'><mi>x</mi></mfenced></math>");
+    assert!(mixed.contains('x'));
+    assert!(mixed.contains('|'));
+}
+
+#[test]
+fn covering_scripts_and_operator_forms_keep_each_distinct_form() {
+    assert_eq!(
+        tex("<math><munderover><mi>x</mi><mi>i</mi><mo>^</mo></munderover></math>"),
+        "\\hat{\\underset{i}{x}}"
+    );
+    assert_eq!(tex("<math><mo>||</mo></math>"), "||");
+    assert_eq!(tex("<math><mo>sin</mo></math>"), "\\sin");
+    assert_eq!(
+        tex("<math><mo>custom</mo></math>"),
+        "\\operatorname{custom}"
+    );
+    let escaped = escape_text("%&_#${}~^\\a", Faces::default());
+    assert!(escaped.contains("\\textasciitilde"));
+    assert!(escaped.contains("\\textasciicircum"));
+    assert!(escaped.contains("\\textbackslash a"));
 }

@@ -250,7 +250,7 @@ pub(super) fn resolve_block(
             } else {
                 parse_inlines(content, refs, notes, ext)
             };
-            out.push(Block::Header(*level, Box::new(attr), inlines));
+            out.push(Block::Header(i64::from(*level), Box::new(attr), inlines));
         }
         IrBlock::CodeBlock(attr, text) => {
             out.push(Block::CodeBlock(

@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Named references: & < > " ' © —   …
+
+Numeric references: A A — 😀
+
+Inside CDATA: <not-an-element> & a raw ampersand
+
+::
+
+   if (a < b && c > d) { }
+
+Empty element and a self-closed stay harmless.

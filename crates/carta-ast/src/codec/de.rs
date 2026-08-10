@@ -1,8 +1,8 @@
 //! Recursive-descent JSON reader for [`Document`]: parses interchange bytes straight into the model.
 //!
 //! Errors are reported as [`serde_json::Error`] values built through [`serde::de::Error::custom`],
-//! so the public entry points keep their signatures. A fixed nesting limit bounds stack use on
-//! adversarial input. Payload strings borrow the input when they carry no escapes, copying once
+//! so the public entry points keep their signatures. Recursion grows the stack on demand, so nesting
+//! is bounded only by the input's own length. Payload strings borrow the input when they carry no escapes, copying once
 //! into their inline storage; only escaped strings take the decoding path.
 
 use std::fmt::Display;
@@ -13,9 +13,11 @@ use crate::ast::{Block, Document, Inline, Text};
 
 type Parsed<T> = Result<T, serde_json::Error>;
 
-/// The nesting limit: exceeding it errors rather than risking a stack overflow. Each array and
-/// object counts as one level, so this bounds recursion the same way for every container shape.
-const MAX_DEPTH: usize = 128;
+/// Stack kept free before reading another nested value.
+const STACK_RESERVE: usize = 256 * 1024;
+
+/// Size of the segment borrowed when less than [`STACK_RESERVE`] remains.
+const STACK_SEGMENT: usize = 8 * 1024 * 1024;
 
 /// Whether a tagged node's content value is positioned for parsing or was omitted entirely.
 #[derive(Clone, Copy)]
@@ -32,7 +34,6 @@ pub(super) fn from_json_bytes(bytes: &[u8]) -> Parsed<Document> {
         input: bytes,
         text,
         pos: 0,
-        depth: 0,
     };
     let document = reader.parse_document()?;
     reader.skip_whitespace();
@@ -46,7 +47,6 @@ struct Reader<'a> {
     input: &'a [u8],
     text: &'a str,
     pos: usize,
-    depth: usize,
 }
 
 mod nodes;
@@ -103,27 +103,12 @@ impl Reader<'_> {
         }
     }
 
-    fn enter(&mut self) -> Parsed<()> {
-        self.depth += 1;
-        if self.depth > MAX_DEPTH {
-            return self.fail("recursion limit exceeded");
-        }
-        Ok(())
-    }
-
-    fn leave(&mut self) {
-        self.depth -= 1;
-    }
-
     fn open_array(&mut self) -> Parsed<()> {
-        self.enter()?;
         self.expect(b'[', "'['")
     }
 
     fn close_array(&mut self) -> Parsed<()> {
-        self.expect(b']', "']'")?;
-        self.leave();
-        Ok(())
+        self.expect(b']', "']'")
     }
 
     fn comma(&mut self) -> Parsed<()> {
@@ -140,7 +125,6 @@ impl Reader<'_> {
         self.skip_whitespace();
         if self.peek() == Some(b']') {
             self.pos += 1;
-            self.leave();
             return Ok(items);
         }
         loop {
@@ -152,7 +136,6 @@ impl Reader<'_> {
                 _ => return self.fail("expected ',' or ']'"),
             }
         }
-        self.leave();
         Ok(items)
     }
 
@@ -165,17 +148,15 @@ impl Reader<'_> {
     }
 
     /// Reads a JSON object, invoking `on_member` with each key after its colon. Handles the empty
-    /// object, comma separators, and the closing brace, and counts one nesting level.
+    /// object, comma separators, and the closing brace.
     fn parse_object(
         &mut self,
         mut on_member: impl FnMut(&mut Self, Text) -> Parsed<()>,
     ) -> Parsed<()> {
-        self.enter()?;
         self.expect(b'{', "'{'")?;
         self.skip_whitespace();
         if self.peek() == Some(b'}') {
             self.pos += 1;
-            self.leave();
             return Ok(());
         }
         loop {
@@ -189,7 +170,6 @@ impl Reader<'_> {
                 _ => return self.fail("expected ',' or '}'"),
             }
         }
-        self.leave();
         Ok(())
     }
 
@@ -197,6 +177,15 @@ impl Reader<'_> {
     /// any other member is skipped. `dispatch` builds the value from the resolved tag, reading the
     /// content in place when it follows the tag, or from its buffered span otherwise.
     fn parse_tagged<T>(
+        &mut self,
+        dispatch: impl Fn(&mut Self, &str, Content) -> Parsed<T>,
+    ) -> Parsed<T> {
+        // Every nested value is reached through a tagged object, so growing the stack here lets a
+        // document nest as deeply as its own length allows.
+        stacker::maybe_grow(STACK_RESERVE, STACK_SEGMENT, || self.tagged_value(dispatch))
+    }
+
+    fn tagged_value<T>(
         &mut self,
         dispatch: impl Fn(&mut Self, &str, Content) -> Parsed<T>,
     ) -> Parsed<T> {
@@ -240,7 +229,6 @@ impl Reader<'_> {
                     input: self.input,
                     text: self.text,
                     pos: start,
-                    depth: self.depth,
                 };
                 let value = dispatch(&mut inner, tag.as_str(), Content::Present)?;
                 inner.skip_whitespace();
@@ -314,15 +302,15 @@ impl Reader<'_> {
             .map_err(|_| self.make_error("integer out of range for u32"))
     }
 
-    fn parse_i32(&mut self) -> Parsed<i32> {
+    fn parse_i64(&mut self) -> Parsed<i64> {
         self.skip_whitespace();
         let (number, is_float) = self.scan_number()?;
         if is_float {
             return self.fail("expected an integer");
         }
         number
-            .parse::<i32>()
-            .map_err(|_| self.make_error("integer out of range for i32"))
+            .parse::<i64>()
+            .map_err(|_| self.make_error("integer out of range for i64"))
     }
 
     fn parse_f64(&mut self) -> Parsed<f64> {
@@ -514,6 +502,10 @@ impl Reader<'_> {
     /// Consumes and discards one JSON value of any shape, used for members that carry no meaning
     /// (unknown keys, and content buffered before its tag was seen).
     fn skip_value(&mut self) -> Parsed<()> {
+        stacker::maybe_grow(STACK_RESERVE, STACK_SEGMENT, || self.skip_one_value())
+    }
+
+    fn skip_one_value(&mut self) -> Parsed<()> {
         self.skip_whitespace();
         let byte = self
             .peek()
@@ -553,7 +545,6 @@ impl Reader<'_> {
                 self.skip_whitespace();
                 if self.peek() == Some(b']') {
                     self.pos += 1;
-                    self.leave();
                     return Ok(());
                 }
                 loop {
@@ -565,16 +556,13 @@ impl Reader<'_> {
                         _ => return self.fail("expected ',' or ']'"),
                     }
                 }
-                self.leave();
                 Ok(())
             }
             b'{' => {
-                self.enter()?;
                 self.pos += 1;
                 self.skip_whitespace();
                 if self.peek() == Some(b'}') {
                     self.pos += 1;
-                    self.leave();
                     return Ok(());
                 }
                 loop {
@@ -588,7 +576,6 @@ impl Reader<'_> {
                         _ => return self.fail("expected ',' or '}'"),
                     }
                 }
-                self.leave();
                 Ok(())
             }
             _ => self.fail("expected value"),

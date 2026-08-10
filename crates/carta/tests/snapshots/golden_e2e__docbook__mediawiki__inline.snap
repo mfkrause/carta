@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Plain, ''emphasized'', '''strong''', '''bold''', <u>underlined</u> and <s>struck</s> runs.
+
+Water is H<sub>2</sub>O and the area is r<sup>2</sup>.
+
+A “quotation ‘inside’ another” alternates its marks.
+
+Code faces: <code>literal</code>, <code>ls</code>, <code>/etc/hosts</code>, <code>strlen</code>, <code>Widget</code>, <code>PATH</code>, <code>--verbose</code>, <code>done</code>, <code>MAX</code>, <code>count</code>, <code>&lt;br/&gt;</code>, and <code>(...)</code>.
+
+Fill in &lt;name&gt; and maybe [a flag].
+
+A ''lingua franca'' and a ''word''.
+
+A bare phrase carries nothing extra.
+
+Press <span class="keycombo">Ctrl+C</span> or pick <span class="menuchoice">File &gt; Save</span>.
+
+An <span id="spot"></span>anchored spot.

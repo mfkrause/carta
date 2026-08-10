@@ -13,13 +13,13 @@
 use carta_ast::{Attr, Block, Inline};
 
 /// The deepest header level, used as the slide level when no header introduces content.
-pub(crate) const MAX_LEVEL: i32 = 6;
+pub(crate) const MAX_LEVEL: i64 = 6;
 
 /// One unit of a segmented presentation.
 pub(crate) enum Slide<'a> {
     /// A header shallower than the slide level: a sectioning marker carrying no frame body.
     Section {
-        level: i32,
+        level: i64,
         attr: &'a Attr,
         title: &'a [Inline],
     },
@@ -42,7 +42,7 @@ pub(crate) struct FrameTitle<'a> {
 /// at the top level, by a block that is not a header. When no header introduces content, the level
 /// is the deepest header level, so no header opens a frame on content grounds alone.
 #[must_use]
-pub(crate) fn slide_level(blocks: &[Block]) -> i32 {
+pub(crate) fn slide_level(blocks: &[Block]) -> i64 {
     let mut level = MAX_LEVEL;
     let mut found = false;
     for pair in blocks.windows(2) {
@@ -58,7 +58,7 @@ pub(crate) fn slide_level(blocks: &[Block]) -> i32 {
 
 /// Partition a presentation's blocks into slide units against `level`.
 #[must_use]
-pub(crate) fn segment(blocks: &[Block], level: i32) -> Vec<Slide<'_>> {
+pub(crate) fn segment(blocks: &[Block], level: i64) -> Vec<Slide<'_>> {
     let mut slides = Vec::new();
     let mut index = 0;
     while index < blocks.len() {
@@ -101,7 +101,7 @@ pub(crate) fn segment(blocks: &[Block], level: i32) -> Vec<Slide<'_>> {
 
 /// The end (exclusive) of a frame body starting at `start`: the first top-level horizontal rule or
 /// header at or above the slide level.
-fn frame_end(blocks: &[Block], start: usize, level: i32) -> usize {
+fn frame_end(blocks: &[Block], start: usize, level: i64) -> usize {
     let mut index = start;
     while let Some(block) = blocks.get(index) {
         match block {
@@ -131,7 +131,7 @@ pub(crate) enum Heading<'a> {
 /// the next header at or above `level`) as its body. Blocks before the first such header form a
 /// leading [`Heading::Loose`] run. Unlike [`segment`], horizontal rules are ordinary content here.
 #[must_use]
-pub(crate) fn group_headings(blocks: &[Block], level: i32) -> Vec<Heading<'_>> {
+pub(crate) fn group_headings(blocks: &[Block], level: i64) -> Vec<Heading<'_>> {
     let mut groups = Vec::new();
     let first = blocks
         .iter()
@@ -168,7 +168,7 @@ pub(crate) fn group_headings(blocks: &[Block], level: i32) -> Vec<Heading<'_>> {
 }
 
 /// The end (exclusive) of a heading body starting at `start`: the first header at or above `level`.
-fn heading_end(blocks: &[Block], start: usize, level: i32) -> usize {
+fn heading_end(blocks: &[Block], start: usize, level: i64) -> usize {
     let mut index = start;
     while let Some(block) = blocks.get(index) {
         match block {
@@ -183,7 +183,7 @@ fn heading_end(blocks: &[Block], start: usize, level: i32) -> usize {
 mod tests {
     use super::*;
 
-    fn header(level: i32, id: &str) -> Block {
+    fn header(level: i64, id: &str) -> Block {
         Block::Header(
             level,
             Box::new(Attr {

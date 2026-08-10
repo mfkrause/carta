@@ -63,8 +63,8 @@ pub(super) fn build_rows(rows: Vec<RowRaw>) -> Vec<Row> {
                     span.map(|row_span| Cell {
                         attr: Attr::default(),
                         align: cell.align,
-                        row_span,
-                        col_span: i32::try_from(cell.span).unwrap_or(1).max(1),
+                        row_span: i64::from(row_span),
+                        col_span: i64::try_from(cell.span).unwrap_or(1).max(1),
                         content: cell.content,
                     })
                 })

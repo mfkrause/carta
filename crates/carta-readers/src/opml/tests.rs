@@ -6,7 +6,7 @@ fn read(input: &str) -> Document {
         .expect("outline input parses")
 }
 
-fn headers(document: &Document) -> Vec<(i32, String)> {
+fn headers(document: &Document) -> Vec<(i64, String)> {
     document
         .blocks
         .iter()

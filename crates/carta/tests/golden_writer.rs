@@ -23,6 +23,7 @@ use common::{corpus_cases, corpus_groups, exclusions, is_excluded};
 
 const TARGETS: &[&str] = &[
     "html",
+    "docbook",
     "html4",
     "json",
     "plain",
@@ -119,6 +120,7 @@ macro_rules! writer_golden {
 writer_golden! {
     writer_snapshots_for, WRITER_TARGETS;
     writer_output_snapshots_html => "html",
+    writer_output_snapshots_docbook => "docbook",
     writer_output_snapshots_html4 => "html4",
     writer_output_snapshots_json => "json",
     writer_output_snapshots_plain => "plain",
@@ -180,16 +182,20 @@ fn targets_match_registry_text_writers() {
 writer_golden! {
     writer_ext_snapshots_for, WRITER_EXT_GROUPS;
     writer_ext_output_snapshots_beamer_smart => "beamer-smart",
+    writer_ext_output_snapshots_commonmark => "commonmark",
+    writer_ext_output_snapshots_docbook => "docbook",
     writer_ext_output_snapshots_docx => "docx",
     writer_ext_output_snapshots_docx_empty_paragraphs => "docx+empty_paragraphs",
     writer_ext_output_snapshots_docx_native_numbering => "docx+native_numbering",
     writer_ext_output_snapshots_docx_styles => "docx+styles",
     writer_ext_output_snapshots_gfm_definition_lists => "gfm+definition_lists",
     writer_ext_output_snapshots_latex_smart => "latex-smart",
+    writer_ext_output_snapshots_markdown => "markdown",
     writer_ext_output_snapshots_markdown_bracketed_spans_native_spans => "markdown-bracketed_spans-native_spans",
     writer_ext_output_snapshots_markdown_fenced_code_attributes => "markdown-fenced_code_attributes",
     writer_ext_output_snapshots_markdown_fenced_divs => "markdown-fenced_divs",
     writer_ext_output_snapshots_markdown_strikeout => "markdown-strikeout",
+    writer_ext_output_snapshots_mediawiki => "mediawiki",
     writer_ext_output_snapshots_odt => "odt",
     writer_ext_output_snapshots_odt_empty_paragraphs => "odt+empty_paragraphs",
     writer_ext_output_snapshots_plain_smart => "plain+smart",

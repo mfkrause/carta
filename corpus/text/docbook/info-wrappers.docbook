@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <articleinfo>
+    <title>Wrapped metadata</title>
+    <releaseinfo>Draft 3</releaseinfo>
+  </articleinfo>
+  <para>Body text.</para>
+  <sect1 xml:id="one">
+    <sect1info>
+      <title>A section's own bibliographic material</title>
+      <author><personname>Not the article's author</personname></author>
+    </sect1info>
+    <title>A titled section</title>
+    <para>Section body.</para>
+  </sect1>
+  <section>
+    <info><title>Titled through an info wrapper</title></info>
+    <para>Another section body.</para>
+    <blockinfo><para>Ordinary content: this names no division.</para></blockinfo>
+    <objectinfo><para>Ordinary content as well.</para></objectinfo>
+    <note><info><title>Not a section title</title></info><para>Note body.</para></note>
+  </section>
+</article>

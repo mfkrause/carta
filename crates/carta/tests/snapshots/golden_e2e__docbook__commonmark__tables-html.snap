@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<table id="grid">
+<caption>A titled grid</caption>
+<thead>
+<tr>
+<th style="text-align: right;">Head one</th>
+<th style="text-align: center;">Head two</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">a</td>
+<td style="text-align: center;">b</td>
+</tr>
+<tr>
+<td style="text-align: left;">c</td>
+<td style="text-align: center;"><p>d</p></td>
+</tr>
+</tbody>
+</table>
+
+<table>
+<caption>A caption instead of a title</caption>
+<tbody>
+<tr>
+<td>Spans are not honored</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>x</td>
+<td>y</td>
+<td>z</td>
+</tr>
+</tbody>
+</table>

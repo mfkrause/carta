@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Preformatted content</title>
+  <programlisting>col	col
+	indented</programlisting>
+  <screen>$	carta</screen>
+  <literallayout>a  b <emphasis>emphasized</emphasis> <link xlink:href="https://example.com/">linked</link>
+  second	line</literallayout>
+  <literallayout class="monospaced">kept  as	code</literallayout>
+</article>

@@ -173,7 +173,7 @@ impl Builder<'_> {
         }
     }
 
-    fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) {
+    fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) {
         let style_level = level.clamp(1, 6);
         let outline = level.max(1);
         let _ = write!(
@@ -450,8 +450,10 @@ impl Builder<'_> {
                     continue;
                 }
                 if let Some(cell) = cells.next() {
-                    let span = (cell.col_span.max(1) as usize).min(columns - column);
-                    let rows_spanned = cell.row_span.max(1) as usize;
+                    let span = usize::try_from(cell.col_span.max(1))
+                        .unwrap_or(usize::MAX)
+                        .min(columns - column);
+                    let rows_spanned = usize::try_from(cell.row_span.max(1)).unwrap_or(usize::MAX);
                     let para_header = column < head_columns;
                     self.emit_cell(
                         cell,

@@ -222,6 +222,9 @@ read-gaps = [
   '''Table support covers header detection, per-column alignment, and `\multicolumn` colspan; `\multirow`, partial `\cline` rules, nested tables, and `\caption` placement may flatten or drop.''',
   '''`\raisebox` in its optional depth/height form drops the box content; purely visual commands (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner content.''',
 ]
+write-gaps = [
+  '''In a line block, a line whose content is entirely code spans is set without the trailing `\strut` that keeps its full height, and a space ending a line is dropped.''',
+]
 
 [[format]]
 name = "pdf"
@@ -703,8 +706,20 @@ write = "not-applicable"
 name = "docbook"
 title = "DocBook"
 family = "xml"
-aliases = ["docbook4", "docbook5"]
-read = "not-started"
+aliases = ["docbook5"]
+read = "usable"
+write = "usable"
+read-feature = "read-docbook"
+write-feature = "write-docbook"
+write-gaps = [
+  "A standalone document lists each author as plain text rather than splitting the name into a `personname` element.",
+]
+
+[[format]]
+name = "docbook4"
+title = "DocBook 4"
+family = "xml"
+read = "not-applicable"
 write = "not-started"
 
 [[format]]
@@ -960,6 +975,11 @@ notes = "`revealjs` does not yet emit a slide-relative contents structure."
 name = "Text wrapping (`--wrap`, `--columns`)"
 status = "usable"
 notes = "A few constructs still account for width incorrectly when reflowed at narrow columns: line blocks, footnote bodies, the AsciiDoc list-marker indent, and roff line-continuation."
+
+[[feature]]
+name = "Tab expansion (`--tab-stop`)"
+status = "in-development"
+notes = "Only the `docbook` reader takes the column width from the option; the `rst`, `dokuwiki`, and `mediawiki` readers expand tabs on a fixed four-column grid."
 
 [[feature]]
 name = "Section numbering (`--number-sections`)"

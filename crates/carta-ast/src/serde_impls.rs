@@ -53,7 +53,7 @@ array_record!(Target {
     title: Text,
 });
 array_record!(ListAttributes {
-    start: i32,
+    start: i64,
     style: ListNumberStyle,
     delim: ListNumberDelim,
 });
@@ -79,7 +79,7 @@ array_record!(TableHead {
 });
 array_record!(TableBody {
     attr: Attr,
-    row_head_columns: i32,
+    row_head_columns: i64,
     head: Vec<Row>,
     body: Vec<Row>,
 });
@@ -94,8 +94,8 @@ array_record!(Row {
 array_record!(Cell {
     attr: Attr,
     align: Alignment,
-    row_span: i32,
-    col_span: i32,
+    row_span: i64,
+    col_span: i64,
     content: Vec<Block>,
 });
 

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  (<emphasis>x</emphasis>) [{<emphasis>y</emphasis>}]
+  ⟨<emphasis>v</emphasis>⟩
+  (<emphasis>a</emphasis>/<emphasis>b</emphasis>
+</para>
+<para>
+  (∑<subscript><emphasis>i</emphasis></subscript><emphasis>a</emphasis><subscript><emphasis>i</emphasis></subscript>)
+</para>

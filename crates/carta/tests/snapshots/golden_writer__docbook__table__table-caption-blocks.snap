@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+  <title>First caption paragraph
+  Second caption paragraph</title>
+  <tgroup cols="1">
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          h
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          v
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</table>

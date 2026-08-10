@@ -6,6 +6,9 @@
 //! far is entirely ASCII spaces, those spaces become the indent prefixed to every continuation line
 //! of the value. A line prefix containing anything else (a tab, any non-space character) suppresses
 //! the indent. Literal template text is always emitted verbatim.
+//!
+//! A value line opening with [`FLUSH_LINE`] (under its own leading spaces) claims column zero: the
+//! indent, those spaces, and the mark itself all come off.
 
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -15,6 +18,7 @@ use std::rc::Rc;
 use super::node::{Expr, Node, Template};
 use super::pipe;
 use super::{TemplateError, Value};
+use crate::FLUSH_LINE;
 
 /// Guards against unbounded partial recursion (a partial that includes itself).
 const MAX_DEPTH: usize = 64;
@@ -94,25 +98,33 @@ impl Sink {
     fn push_value(&mut self, text: &str) {
         let text = self.take_absorbed(text);
         let ends_with_newline = text.ends_with('\n');
-        let indent = self.current_indent();
-        if indent == 0 || !text.contains('\n') {
-            self.buf.push_str(text);
-        } else {
-            let pad = " ".repeat(indent);
-            let mut lines = text.split('\n');
-            if let Some(first) = lines.next() {
-                self.buf.push_str(first);
-            }
-            for line in lines {
-                self.buf.push('\n');
-                // Prefix only content lines; indenting a blank one would leave trailing spaces.
-                if !line.is_empty() {
-                    self.buf.push_str(&pad);
-                    self.buf.push_str(line);
-                }
+        let pad = " ".repeat(self.current_indent());
+        let mut lines = text.split('\n');
+        if let Some(first) = lines.next() {
+            self.push_value_line(first, "");
+        }
+        for line in lines {
+            self.buf.push('\n');
+            // Prefix only content lines; indenting a blank one would leave trailing spaces.
+            if !line.is_empty() {
+                self.push_value_line(line, &pad);
             }
         }
         self.absorb_newline = ends_with_newline;
+    }
+
+    /// Append one line of an interpolated value under `pad`, or at column zero when the line marks
+    /// itself for it.
+    fn push_value_line(&mut self, line: &str, pad: &str) {
+        match line.split_once(FLUSH_LINE) {
+            Some((leading, rest)) if leading.bytes().all(|byte| byte == b' ') => {
+                self.buf.push_str(rest);
+            }
+            _ => {
+                self.buf.push_str(pad);
+                self.buf.push_str(line);
+            }
+        }
     }
 
     /// Drop every leading newline from `text` when a preceding value armed the rule.

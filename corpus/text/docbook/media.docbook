@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Figures and media</title>
+  <figure xml:id="plot">
+    <title>A captioned figure</title>
+    <mediaobject>
+      <imageobject>
+        <imagedata fileref="plot.png" width="4in" depth="2in"/>
+      </imageobject>
+      <textobject><phrase>A plotted curve</phrase></textobject>
+    </mediaobject>
+  </figure>
+  <para>A standalone block image:</para>
+  <mediaobject>
+    <imageobject><imagedata fileref="standalone.png" scale="50"/></imageobject>
+  </mediaobject>
+  <para>An inline <inlinemediaobject><imageobject><imagedata fileref="icon.png"/></imageobject></inlinemediaobject> image.</para>
+</article>

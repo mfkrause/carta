@@ -249,7 +249,7 @@ fn build_headline(
         ..Attr::default()
     };
     let level = i32::try_from(level).unwrap_or(6).clamp(1, 6);
-    Block::Header(level, Box::new(attr), inlines)
+    Block::Header(i64::from(level), Box::new(attr), inlines)
 }
 
 fn todo_span(keyword: &str) -> Inline {

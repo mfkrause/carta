@@ -1,0 +1,169 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Plain,"
+    , Space
+    , Emph [ Str "emphasized" ]
+    , Str ","
+    , Space
+    , Strong [ Str "strong" ]
+    , Str ","
+    , SoftBreak
+    , Strong [ Str "bold" ]
+    , Str ","
+    , Space
+    , Underline [ Str "underlined" ]
+    , Space
+    , Str "and"
+    , SoftBreak
+    , Strikeout [ Str "struck" ]
+    , Space
+    , Str "runs."
+    ]
+, Para
+    [ Str "Water"
+    , Space
+    , Str "is"
+    , Space
+    , Str "H"
+    , Subscript [ Str "2" ]
+    , Str "O"
+    , Space
+    , Str "and"
+    , Space
+    , Str "the"
+    , Space
+    , Str "area"
+    , Space
+    , Str "is"
+    , Space
+    , Str "r"
+    , Superscript [ Str "2" ]
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Quoted
+        DoubleQuote
+        [ Str "quotation"
+        , Space
+        , Quoted SingleQuote [ Str "inside" ]
+        , Space
+        , Str "another"
+        ]
+    , Space
+    , Str "alternates"
+    , Space
+    , Str "its"
+    , Space
+    , Str "marks."
+    ]
+, Para
+    [ Str "Code"
+    , Space
+    , Str "faces:"
+    , Space
+    , Code ( "" , [] , [] ) "literal"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "ls"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "/etc/hosts"
+    , Str ","
+    , SoftBreak
+    , Code ( "" , [] , [] ) "strlen"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "Widget"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "PATH"
+    , Str ","
+    , SoftBreak
+    , Code ( "" , [] , [] ) "--verbose"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "done"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "MAX"
+    , Str ","
+    , SoftBreak
+    , Code ( "" , [] , [] ) "count"
+    , Str ","
+    , Space
+    , Code ( "" , [] , [] ) "<br/>"
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "(...)"
+    , Str "."
+    ]
+, Para
+    [ Str "Fill"
+    , Space
+    , Str "in"
+    , Space
+    , Str "<name>"
+    , Space
+    , Str "and"
+    , Space
+    , Str "maybe"
+    , Space
+    , Str "[a"
+    , Space
+    , Str "flag]."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Emph [ Str "lingua" , Space , Str "franca" ]
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Emph [ Str "word" ]
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "bare"
+    , Space
+    , Str "phrase"
+    , Space
+    , Str "carries"
+    , Space
+    , Str "nothing"
+    , Space
+    , Str "extra."
+    ]
+, Para
+    [ Str "Press"
+    , Space
+    , Span ( "" , [ "keycombo" ] , [] ) [ Str "Ctrl+C" ]
+    , Space
+    , Str "or"
+    , Space
+    , Str "pick"
+    , SoftBreak
+    , Span
+        ( "" , [ "menuchoice" ] , [] )
+        [ Str "File" , Space , Str ">" , Space , Str "Save" ]
+    , Str "."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Span ( "spot" , [] , [] ) []
+    , Str "anchored"
+    , Space
+    , Str "spot."
+    ]
+]

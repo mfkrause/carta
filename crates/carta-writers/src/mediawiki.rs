@@ -126,9 +126,9 @@ impl State {
         }
     }
 
-    fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+    fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
         let depth = level.clamp(1, 6);
-        let equals = "=".repeat(depth.unsigned_abs() as usize);
+        let equals = "=".repeat(usize::try_from(depth.unsigned_abs()).unwrap_or(usize::MAX));
         let text = self.inlines(inlines);
         let heading = if text.is_empty() {
             format!("{equals} {equals}")
@@ -187,7 +187,26 @@ impl State {
         rendered.join("<br />\n")
     }
 
+    /// Render a definition list, choosing the compact prefix notation when every definition is a
+    /// single-line item and HTML tags otherwise.
     fn definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> String {
+        if is_simple_definition_list(items) {
+            self.compact_definition_list(items, "")
+        } else {
+            self.html_definition_list(items)
+        }
+    }
+
+    /// Render a definition list in the compact prefix notation. `parent` is the accumulated marker
+    /// run of the enclosing levels; a term line appends `;` to it, a definition line `:`, and a list
+    /// nested inside a definition continues the run with this level's `;`.
+    fn compact_definition_list(
+        &mut self,
+        items: &[(Vec<Inline>, Vec<Vec<Block>>)],
+        parent: &str,
+    ) -> String {
+        let term_prefix = format!("{parent};");
+        let definition_prefix = format!("{parent}:");
         let mut lines = Vec::new();
         for (term, definitions) in items {
             self.in_term = true;
@@ -195,15 +214,67 @@ impl State {
             let rendered_term = self.inlines(term);
             self.in_term = false;
             self.single_line = false;
-            lines.push(marked_line(";", &rendered_term));
+            lines.push(marked_line(&term_prefix, &rendered_term));
             for definition in definitions {
-                self.single_line = true;
-                let body = self.blocks(definition);
-                self.single_line = false;
-                lines.push(format!(": {}", body.trim_end_matches('\n')));
+                if definition.is_empty() {
+                    lines.push(format!("{definition_prefix} "));
+                    continue;
+                }
+                let mut definition_has_marker = false;
+                for inner in definition {
+                    match inner {
+                        Block::BulletList(_)
+                        | Block::OrderedList(..)
+                        | Block::DefinitionList(_) => {
+                            let mut rendered = self.compact_sublist(inner, &term_prefix);
+                            if !definition_has_marker {
+                                rendered = format!("{definition_prefix} {rendered}");
+                            }
+                            lines.push(rendered);
+                        }
+                        other => {
+                            self.single_line = true;
+                            let body = self.block(other);
+                            self.single_line = false;
+                            lines.push(format!(
+                                "{definition_prefix} {}",
+                                body.trim_end_matches('\n')
+                            ));
+                        }
+                    }
+                    definition_has_marker = true;
+                }
             }
         }
         lines.join("\n")
+    }
+
+    /// Render a list nested inside a compact item or definition, continuing the marker run `parent`.
+    fn compact_sublist(&mut self, block: &Block, parent: &str) -> String {
+        match block {
+            Block::BulletList(items) => self.compact_list('*', items, parent),
+            Block::OrderedList(_, items) => self.compact_list('#', items, parent),
+            Block::DefinitionList(items) => self.compact_definition_list(items, parent),
+            _ => String::new(),
+        }
+    }
+
+    fn html_definition_list(&mut self, items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> String {
+        let mut groups = Vec::new();
+        for (term, definitions) in items {
+            self.in_term = true;
+            let rendered_term = self.inlines(term);
+            self.in_term = false;
+            let mut group = format!("<dt>{rendered_term}</dt>\n");
+            let mut bodies = Vec::new();
+            for definition in definitions {
+                let body = self.block_seq(definition, true);
+                bodies.push(format!("<dd>{}</dd>", body.trim_end_matches('\n')));
+            }
+            group.push_str(&bodies.join("\n"));
+            groups.push(group);
+        }
+        format!("<dl>\n{}</dl>", groups.join("\n"))
     }
 
     /// Render a bullet or ordered list, choosing the compact prefix notation when the whole list is
@@ -246,13 +317,8 @@ impl State {
                         lines.push(marked_line(&prefix, &text));
                         item_has_marker = true;
                     }
-                    Block::BulletList(sub) | Block::OrderedList(_, sub) => {
-                        let submarker = if matches!(inner, Block::OrderedList(..)) {
-                            '#'
-                        } else {
-                            '*'
-                        };
-                        let mut rendered = self.compact_list(submarker, sub, &prefix);
+                    Block::BulletList(_) | Block::OrderedList(..) | Block::DefinitionList(_) => {
+                        let mut rendered = self.compact_sublist(inner, &prefix);
                         if !item_has_marker {
                             rendered = format!("{prefix} {rendered}");
                             item_has_marker = true;
@@ -335,7 +401,7 @@ impl State {
         row: &Row,
         aligns: &[Alignment],
         header: bool,
-        head_columns: i32,
+        head_columns: i64,
         grid: &mut RowSpanGrid,
     ) -> String {
         let mut out = format!("|-{}", render_html_attr(&row.attr));
@@ -590,9 +656,9 @@ fn join_blocks(rendered: &[(&Block, String)], html: bool) -> String {
 
 /// The separator between two consecutive rendered blocks. Inside an HTML list item a blank line
 /// follows a block that closes a standalone construct (a heading, rule, or list) and precedes a
-/// rule; everything else is joined by a single newline. At the top level a code block, raw block,
-/// or blockquote joins to the next block with a single newline unless that block is a rule, which
-/// always stands off by a blank line; any other pairing is separated by a blank line.
+/// rule; everything else is joined by a single newline. At the top level a plain block, code block,
+/// raw block, or blockquote joins to the next block with a single newline unless that block is a
+/// rule, which always stands off by a blank line; any other pairing is separated by a blank line.
 fn separator(prev: &Block, next: &Block, html: bool) -> &'static str {
     if html {
         if needs_trailing_blank(prev) || matches!(next, Block::HorizontalRule) {
@@ -602,7 +668,7 @@ fn separator(prev: &Block, next: &Block, html: bool) -> &'static str {
         }
     } else if matches!(
         prev,
-        Block::CodeBlock(..) | Block::RawBlock(..) | Block::BlockQuote(_)
+        Block::Plain(_) | Block::CodeBlock(..) | Block::RawBlock(..) | Block::BlockQuote(_)
     ) && !matches!(next, Block::HorizontalRule)
     {
         "\n"
@@ -700,8 +766,18 @@ fn is_simple_list(block: &Block) -> bool {
                 )
                 && items.iter().all(|item| is_simple_item(item))
         }
+        Block::DefinitionList(items) => is_simple_definition_list(items),
         _ => false,
     }
+}
+
+/// Whether a definition list fits the compact notation: every definition is itself a compact item.
+fn is_simple_definition_list(items: &[(Vec<Inline>, Vec<Vec<Block>>)]) -> bool {
+    items.iter().all(|(_, definitions)| {
+        definitions
+            .iter()
+            .all(|definition| is_simple_item(definition))
+    })
 }
 
 /// Whether a list item fits the compact notation: empty, a single text block, or a single text block

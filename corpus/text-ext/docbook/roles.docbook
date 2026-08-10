@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Roles and index entries</title>
+  <para xml:id="opening" role="lead">A paragraph carrying an identifier and a role.</para>
+  <para>A <phrase role="lead">phrase with a role</phrase> and a <phrase>bare phrase</phrase>.</para>
+  <para>An indexed<indexterm role="concept" significance="preferred"><primary>topic</primary></indexterm>
+  word.</para>
+  <literallayout>Line one
+    indented line two</literallayout>
+</article>

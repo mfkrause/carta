@@ -11,7 +11,7 @@ fn strict_with(input: &str, extensions: Extensions) -> Vec<IrBlock> {
     parse(input, extensions, false).0
 }
 
-fn ordered_start(blocks: &[IrBlock]) -> Option<i32> {
+fn ordered_start(blocks: &[IrBlock]) -> Option<i64> {
     match blocks {
         [IrBlock::OrderedList(attrs, _)] => Some(attrs.start),
         _ => None,
@@ -167,7 +167,7 @@ fn commonmark_allows_up_to_three_spaces_before_an_atx_heading() {
 use carta_ast::{ListNumberDelim, ListNumberStyle};
 
 /// The (start, style, delim) of a single ordered list, or `None` for anything else.
-fn ordered_attrs(blocks: &[IrBlock]) -> Option<(i32, ListNumberStyle, ListNumberDelim)> {
+fn ordered_attrs(blocks: &[IrBlock]) -> Option<(i64, ListNumberStyle, ListNumberDelim)> {
     match blocks {
         [IrBlock::OrderedList(attrs, _)] => Some((attrs.start, attrs.style, attrs.delim)),
         _ => None,

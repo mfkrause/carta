@@ -32,11 +32,11 @@ pub(crate) fn offset_horizontal_rule(item: &[Block], body: String) -> String {
 }
 
 /// The deepest heading an ATX marker can express: `######`.
-const MAX_ATX_HEADING_LEVEL: i32 = 6;
+const MAX_ATX_HEADING_LEVEL: i64 = 6;
 
 /// The `#` run opening an ATX heading. The level is clamped into the marker's expressible range,
 /// which also bounds the allocation against an absurd level in the document model.
-pub(crate) fn atx_heading_marker(level: i32) -> String {
+pub(crate) fn atx_heading_marker(level: i64) -> String {
     "#".repeat(usize::try_from(level.clamp(1, MAX_ATX_HEADING_LEVEL)).unwrap_or(1))
 }
 

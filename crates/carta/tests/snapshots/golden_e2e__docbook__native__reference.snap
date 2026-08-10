@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "" , [] , [] ) [ Str "Description" ]
+, Para
+    [ Str "What" , Space , Str "it" , Space , Str "does." ]
+, Header 2 ( "" , [] , [] ) [ Str "Details" ]
+, Para
+    [ Str "The" , Space , Str "finer" , Space , Str "points." ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Recursive"
+    , Space
+    , Str "reference"
+    , Space
+    , Str "section"
+    ]
+, Para [ Str "Body." ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "General" , Space , Str "questions" ]
+, Para [ Strong [ Str "Q:" ] , Str " Why?" ]
+, Para [ Strong [ Str "A:" ] , Str " Because." ]
+, Header 1 ( "" , [] , [] ) [ Str "Sources" ]
+, Header 1 ( "" , [] , [] ) [ Str "Books" ]
+, Para [ Str "A" , Space , Str "book." ]
+]

@@ -1,0 +1,58 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "Body" , Space , Str "text." ]
+, Header
+    1
+    ( "one" , [] , [] )
+    [ Str "A" , Space , Str "titled" , Space , Str "section" ]
+, Para [ Str "Section" , Space , Str "body." ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "Titled"
+    , Space
+    , Str "through"
+    , Space
+    , Str "an"
+    , Space
+    , Str "info"
+    , Space
+    , Str "wrapper"
+    ]
+, Para
+    [ Str "Another"
+    , Space
+    , Str "section"
+    , Space
+    , Str "body."
+    ]
+, Para
+    [ Str "Ordinary"
+    , Space
+    , Str "content:"
+    , Space
+    , Str "this"
+    , Space
+    , Str "names"
+    , Space
+    , Str "no"
+    , Space
+    , Str "division."
+    ]
+, Para
+    [ Str "Ordinary"
+    , Space
+    , Str "content"
+    , Space
+    , Str "as"
+    , Space
+    , Str "well."
+    ]
+, Div
+    ( "" , [ "note" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) []
+    , Para [ Str "Note" , Space , Str "body." ]
+    ]
+]

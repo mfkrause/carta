@@ -1,0 +1,355 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "Str",
+          "c": "A"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "plain"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "block"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "opens"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "document."
+        }
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "A"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "paragraph"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "follows"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "it."
+        }
+      ]
+    },
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Another"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "plain"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "block."
+        }
+      ]
+    },
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "Str",
+          "c": "And"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "a"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "second"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "one."
+        }
+      ]
+    },
+    {
+      "t": "BulletList",
+      "c": [
+        [
+          {
+            "t": "Plain",
+            "c": [
+              {
+                "t": "Str",
+                "c": "An"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "item."
+              }
+            ]
+          },
+          {
+            "t": "Plain",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "plain"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "block"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "running"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "on"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "inside"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "it."
+              }
+            ]
+          }
+        ],
+        [
+          {
+            "t": "Plain",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "second"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "item."
+              }
+            ]
+          },
+          {
+            "t": "BulletList",
+            "c": [
+              [
+                {
+                  "t": "Plain",
+                  "c": [
+                    {
+                      "t": "Str",
+                      "c": "A"
+                    },
+                    {
+                      "t": "Space"
+                    },
+                    {
+                      "t": "Str",
+                      "c": "nested"
+                    },
+                    {
+                      "t": "Space"
+                    },
+                    {
+                      "t": "Str",
+                      "c": "item."
+                    }
+                  ]
+                }
+              ]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "BlockQuote",
+      "c": [
+        {
+          "t": "Plain",
+          "c": [
+            {
+              "t": "Str",
+              "c": "Quoted"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "plain"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "text."
+            }
+          ]
+        },
+        {
+          "t": "Para",
+          "c": [
+            {
+              "t": "Str",
+              "c": "A"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "quoted"
+            },
+            {
+              "t": "Space"
+            },
+            {
+              "t": "Str",
+              "c": "paragraph."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "t": "Plain",
+      "c": [
+        {
+          "t": "Str",
+          "c": "A"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "plain"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "block"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "closes"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "it."
+        }
+      ]
+    }
+  ]
+}

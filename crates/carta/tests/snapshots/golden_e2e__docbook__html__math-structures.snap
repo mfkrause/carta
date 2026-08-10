@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Symbols and escapes: <span class="math inline">\(x \leq y \in
+{\mathbb{R}}\text{50\% \#1}\)</span>.</p>
+<p>Fences and scripts: <span class="math inline">\(\left( {a,b}
+\right)\left\lbrack {c;d} \right\rbrack\mathfrak{p}^{2}a_{1}^{2}\sqrt{b
++ c}\sqrt[3]{d}\)</span>.</p>
+<p>Accents and limits: <span class="math inline">\(\hat{v}\sum\limits_{i
+= 1}^{n}i_{2}\)</span>.</p>
+<div class="informalequation">
+<p><span class="math display">\[\left( \frac{p}{q} \right) =
+\begin{bmatrix}
+1 &amp; 0 \\
+0 &amp; 1
+\end{bmatrix}\]</span></p>
+</div>
+<div class="informalequation">
+<p><span class="math display">\[{}_{3}^{4}F_{1}^{2}\]</span></p>
+</div>

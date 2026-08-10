@@ -1,0 +1,86 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    1 ( "" , [] , [] ) [ Str "First" , Space , Str "chapter" ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "chapter."
+    ]
+, Header
+    2 ( "" , [] , [] ) [ Str "A" , Space , Str "section" ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "equation"
+    , SoftBreak
+    , Math DisplayMath "e = 2"
+    , SoftBreak
+    , Str "stands"
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "sentence"
+    , Space
+    , Str "around"
+    , Space
+    , Str "it."
+    ]
+, Div
+    ( "" , [ "sidebar" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) [ Plain [ Str "Aside" ] ]
+    , Para
+        [ Str "Set"
+        , Space
+        , Str "beside"
+        , Space
+        , Str "the"
+        , Space
+        , Str "text."
+        ]
+    ]
+, Div
+    ( ""
+    , [ "informalequation" ]
+    , [ ( "role" , "numbered" ) ]
+    )
+    [ Para [ Math DisplayMath "y = x" ] ]
+, Header
+    2 ( "" , [] , [] ) [ Str "Deeper" , Space , Str "still" ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "count"
+    , Space
+    , Str "restarts"
+    , Space
+    , Str "where"
+    , Space
+    , Str "the"
+    , Space
+    , Str "article"
+    , Space
+    , Str "stands."
+    ]
+, Header
+    1 ( "" , [] , [] ) [ Str "Second" , Space , Str "chapter" ]
+, Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Plain [ Str "A" , Space , Str "figure" ] ])
+    [ Plain
+        [ Image
+            ( "" , [] , [] )
+            [ Str "Alternative" , Space , Str "words" ]
+            ( "plot.png" , "Stated by the object" )
+        ]
+    ]
+]

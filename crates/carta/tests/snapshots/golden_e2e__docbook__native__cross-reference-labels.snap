@@ -1,0 +1,135 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "To"
+    , Space
+    , Str "a"
+    , Space
+    , Str "labelled"
+    , Space
+    , Str "section:"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "The"
+        , Space
+        , Str "label"
+        , Space
+        , Str "the"
+        , Space
+        , Str "section"
+        , Space
+        , Str "states"
+        ]
+        ( "#labelled" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "To"
+    , Space
+    , Str "a"
+    , Space
+    , Str "labelled"
+    , Space
+    , Str "section,"
+    , Space
+    , Str "overridden:"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "Some" , Space , Str "other" , Space , Str "wording" ]
+        ( "#labelled" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "To"
+    , Space
+    , Str "a"
+    , Space
+    , Str "labelled"
+    , Space
+    , Str "table:"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "The"
+        , Space
+        , Str "label"
+        , Space
+        , Str "the"
+        , Space
+        , Str "table"
+        , Space
+        , Str "states"
+        ]
+        ( "#grid" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "To"
+    , Space
+    , Str "an"
+    , Space
+    , Str "unlabelled"
+    , Space
+    , Str "section:"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "An"
+        , Space
+        , Str "unlabelled"
+        , Space
+        , Str "section"
+        ]
+        ( "#plain" , "" )
+    , Str "."
+    ]
+, Para
+    [ Span
+        ( "wording" , [] , [] )
+        [ Str "Some" , Space , Str "other" , Space , Str "wording" ]
+    ]
+, Header
+    1
+    ( "labelled" , [] , [] )
+    [ Str "A" , Space , Str "labelled" , Space , Str "section" ]
+, Para [ Str "Body." ]
+, Header
+    1
+    ( "plain" , [] , [] )
+    [ Str "An"
+    , Space
+    , Str "unlabelled"
+    , Space
+    , Str "section"
+    ]
+, Para [ Str "Body." ]
+, Table
+    ( "grid" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "A" , Space , Str "labelled" , Space , Str "table" ]
+       ])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Plain [ Str "Cell" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+]

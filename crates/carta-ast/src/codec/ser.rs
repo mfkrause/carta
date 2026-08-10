@@ -41,7 +41,7 @@ fn write_u32_array(out: &mut String, values: &[u32]) {
     out.push(']');
 }
 
-fn write_i32(out: &mut String, value: i32) {
+fn write_i64(out: &mut String, value: i64) {
     let mut buffer = itoa::Buffer::new();
     out.push_str(buffer.format(value));
 }
@@ -172,7 +172,7 @@ fn write_block(out: &mut String, block: &Block) {
         Block::Header(level, attr, inlines) => {
             open_tag(out, "Header");
             out.push('[');
-            write_i32(out, *level);
+            write_i64(out, *level);
             out.push(',');
             write_attr(out, attr);
             out.push(',');
@@ -319,9 +319,9 @@ fn write_citation(out: &mut String, citation: &Citation) {
     out.push_str(",\"citationMode\":");
     write_citation_mode(out, &citation.mode);
     out.push_str(",\"citationNoteNum\":");
-    write_i32(out, citation.note_num);
+    write_i64(out, citation.note_num);
     out.push_str(",\"citationHash\":");
-    write_i32(out, citation.hash);
+    write_i64(out, citation.hash);
     out.push('}');
 }
 
@@ -353,7 +353,7 @@ fn write_table_body(out: &mut String, body: &TableBody) {
     out.push('[');
     write_attr(out, &body.attr);
     out.push(',');
-    write_i32(out, body.row_head_columns);
+    write_i64(out, body.row_head_columns);
     out.push(',');
     write_list(out, &body.head, write_row);
     out.push(',');
@@ -383,9 +383,9 @@ fn write_cell(out: &mut String, cell: &Cell) {
     out.push(',');
     write_alignment(out, &cell.align);
     out.push(',');
-    write_i32(out, cell.row_span);
+    write_i64(out, cell.row_span);
     out.push(',');
-    write_i32(out, cell.col_span);
+    write_i64(out, cell.col_span);
     out.push(',');
     write_block_list(out, &cell.content);
     out.push(']');
@@ -451,7 +451,7 @@ fn write_target(out: &mut String, target: &Target) {
 
 fn write_list_attributes(out: &mut String, attributes: &ListAttributes) {
     out.push('[');
-    write_i32(out, attributes.start);
+    write_i64(out, attributes.start);
     out.push(',');
     write_list_number_style(out, attributes.style);
     out.push(',');

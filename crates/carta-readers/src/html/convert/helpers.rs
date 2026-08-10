@@ -241,7 +241,7 @@ pub(super) fn list_attributes(e: &Element) -> ListAttributes {
         _ => ListNumberStyle::DefaultStyle,
     };
     ListAttributes {
-        start,
+        start: i64::from(start),
         style,
         delim: ListNumberDelim::DefaultDelim,
     }

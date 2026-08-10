@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE article [
+  <!ENTITY product "Carta">
+  <!ENTITY release '0.1'>
+  <!ENTITY full "&product; &release; &amp; friends">
+  <!ENTITY styled "<emphasis>emphasized</emphasis>">
+]>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>&product; declarations</title>
+  <para>A declaration nested in another: &full;.</para>
+  <para>A declaration standing for markup: &styled;.</para>
+  <para><link xlink:href="https://example.com/&release;">In an attribute value</link></para>
+  <programlisting>&product; in verbatim text</programlisting>
+</article>

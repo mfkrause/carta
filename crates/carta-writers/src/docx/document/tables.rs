@@ -236,7 +236,7 @@ fn continuation_cell(span: u32) -> Element {
 fn render_normal_cell(
     cell: &Cell,
     span: u32,
-    rows: i32,
+    rows: i64,
     jc: Option<&str>,
     ctx: &mut Ctx,
 ) -> Element {

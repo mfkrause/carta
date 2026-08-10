@@ -1,0 +1,70 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+[ Para
+    [ Str "Clusters"
+    , Space
+    , Str "measure"
+    , Space
+    , Str "one"
+    , Space
+    , Str "glyph"
+    , Space
+    , Str "wide:"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "\128104\8205\128105\8205\128103"
+    , Space
+    , Str "and"
+    , Space
+    , Str "the"
+    , Space
+    , Str "wide"
+    , Space
+    , Str "glyphs"
+    , Space
+    , Str "\19968\20108\19977"
+    , Space
+    , Str "take"
+    , Space
+    , Str "two"
+    , Space
+    , Str "columns"
+    , Space
+    , Str "each,"
+    , Space
+    , Str "while"
+    , Space
+    , Str "\769abc"
+    , Space
+    , Str "opens"
+    , Space
+    , Str "a"
+    , Space
+    , Str "word"
+    , Space
+    , Str "with"
+    , Space
+    , Str "a"
+    , Space
+    , Str "mark."
+    ]
+]

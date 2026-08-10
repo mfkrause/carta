@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. container::
+   :name: titled
+
+   ..
+
+      The quoted wording.
+
+      — Someone
+
+..
+
+   An untitled quotation.
+
+   An epigraph states no title.
+
+.. container:: informalexample
+
+   An example standing without a title.

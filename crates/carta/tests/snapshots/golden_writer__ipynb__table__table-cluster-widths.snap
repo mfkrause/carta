@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "| signs  | selector | joined | narrow | mark |\n",
+    "|--------|----------|--------|--------|------|\n",
+    "| ⌚⭐✅ | ☀️1️⃣     | 👨‍👩‍👧👍🏽   | ㉈゙      | ́abc  |"
+   ],
+   "id": "3e40f04a-c82c-4dc5-902d-c250655118c2"
+  }
+ ],
+ "nbformat": 4,
+ "nbformat_minor": 5,
+ "metadata": {}
+}

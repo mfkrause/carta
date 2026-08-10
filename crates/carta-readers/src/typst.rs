@@ -878,7 +878,7 @@ fn enumeration_from(args: &[Arg], current: &ListAttributes) -> ListAttributes {
             .and_then(Value::as_number)
             .map_or(current.start, |value| {
                 #[allow(clippy::cast_possible_truncation)]
-                let start = value as i32;
+                let start = value as i64;
                 start
             }),
         style,
@@ -1244,7 +1244,7 @@ impl Parser {
             }
         }
         let mut out = vec![Block::Header(
-            i32::try_from(level).unwrap_or(i32::MAX),
+            i64::try_from(level).unwrap_or(i64::MAX),
             Box::default(),
             inlines,
         )];
@@ -1281,7 +1281,7 @@ impl Parser {
         ) {
             return None;
         }
-        let start = self.slice(self.pos, index).parse::<i32>().unwrap_or(1);
+        let start = self.slice(self.pos, index).parse::<i64>().unwrap_or(1);
         let items = self.list_items(indent, ListMarker::Enum);
         Some(vec![Block::OrderedList(
             ListAttributes {
@@ -4718,7 +4718,7 @@ impl Parser {
         #[allow(clippy::cast_possible_truncation)]
         let level = level.max(1.0).min(f64::from(i32::MAX)) as i32;
         Value::Content(vec![Block::Header(
-            level,
+            i64::from(level),
             Box::default(),
             content_inlines(args),
         )])
@@ -6024,10 +6024,10 @@ fn lay_out_rows(cells: Vec<Cell>, count: usize) -> Vec<Row> {
     let mut column = 0usize;
 
     for mut cell in cells {
-        #[allow(clippy::cast_sign_loss)]
-        let width = (cell.col_span.max(1) as usize).clamp(1, count);
-        #[allow(clippy::cast_sign_loss)]
-        let height = cell.row_span.max(1) as usize;
+        let width = usize::try_from(cell.col_span.max(1))
+            .unwrap_or(usize::MAX)
+            .clamp(1, count);
+        let height = usize::try_from(cell.row_span.max(1)).unwrap_or(usize::MAX);
         loop {
             while covered.get(column).is_some_and(|slot| *slot > 0) {
                 column += 1;
@@ -6037,10 +6037,7 @@ fn lay_out_rows(cells: Vec<Cell>, count: usize) -> Vec<Row> {
             }
             close_row(&mut rows, &mut current, &mut covered, &mut column);
         }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        {
-            cell.col_span = width as i32;
-        }
+        cell.col_span = i64::try_from(width).unwrap_or(i64::MAX);
         spans.push((rows.len(), current.len(), height));
         current.push(cell);
         for slot in covered.iter_mut().skip(column).take(width) {
@@ -6063,10 +6060,8 @@ fn lay_out_rows(cells: Vec<Cell>, count: usize) -> Vec<Row> {
         else {
             continue;
         };
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        {
-            cell.row_span = height.min(total.saturating_sub(row_index)).max(1) as i32;
-        }
+        cell.row_span =
+            i64::try_from(height.min(total.saturating_sub(row_index)).max(1)).unwrap_or(i64::MAX);
     }
     rows
 }
@@ -6077,14 +6072,14 @@ fn cell_from(value: &Value) -> Cell {
             .and_then(Value::as_number)
             .map_or(1, |n| {
                 #[allow(clippy::cast_possible_truncation)]
-                let span = n as i32;
+                let span = n as i64;
                 span.max(1)
             });
         let row_span = named(inner, "rowspan")
             .and_then(Value::as_number)
             .map_or(1, |n| {
                 #[allow(clippy::cast_possible_truncation)]
-                let span = n as i32;
+                let span = n as i64;
                 span.max(1)
             });
         return Cell {

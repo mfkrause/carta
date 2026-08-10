@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Symbols and escapes: x ≤ y ∈ ℝ50%#1.
+
+Fences and scripts:
+$\left( {a,b} \right)\left\lbrack {c;d} \right\rbrack\mathfrak{p}^{2}a_{1}^{2}\sqrt{b + c}\sqrt[3]{d}$.
+
+Accents and limits: $\hat{v}\sum\limits_{i = 1}^{n}i_{2}$.
+
+$$\left( \frac{p}{q} \right) = \begin{bmatrix}
+1 & 0 \\
+0 & 1
+\end{bmatrix}$$
+
+₃⁴F₁²

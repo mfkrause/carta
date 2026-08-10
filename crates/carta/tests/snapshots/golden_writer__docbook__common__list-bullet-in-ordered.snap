@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<orderedlist numeration="arabic" spacing="compact">
+  <listitem>
+    <para>
+      first
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      second
+    </para>
+    <itemizedlist spacing="compact">
+      <listitem>
+        <para>
+          suba
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          subb
+        </para>
+      </listitem>
+    </itemizedlist>
+  </listitem>
+  <listitem>
+    <para>
+      third
+    </para>
+  </listitem>
+</orderedlist>

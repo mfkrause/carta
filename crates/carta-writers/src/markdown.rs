@@ -18,7 +18,7 @@ use carta_core::{Extension, Extensions, Result, WrapMode, Writer, WriterOptions,
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, fill, fill_into, fill_offset, indent_block,
-    is_loose, item_separator, offset_as_i32, ordered_marker, render_html_attr,
+    is_loose, item_separator, offset_as_i64, ordered_marker, render_html_attr,
 };
 use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, indent_code, is_html_format, needs_separator,
@@ -342,6 +342,10 @@ struct State {
     in_anchor: bool,
     /// How many tables the current render is nested inside, counting the one being rendered.
     table_depth: usize,
+    /// Whether rendering is somewhere inside a list item, a definition, or a table cell, where a
+    /// [`Block::Plain`] runs on into the block after it instead of standing apart as a paragraph
+    /// does.
+    in_item: bool,
 }
 
 impl State {
@@ -353,9 +357,22 @@ impl State {
             footnotes: Vec::new(),
             in_anchor: false,
             table_depth: 0,
+            in_item: false,
         }
     }
 
+    /// Render a list item's, definition's, or table cell's blocks, which run on as
+    /// [`Self::blocks_to_string`] describes, together with everything nested inside them.
+    fn item_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+        let outer = std::mem::replace(&mut self.in_item, true);
+        let body = self.blocks_to_string(blocks, width);
+        self.in_item = outer;
+        body
+    }
+
+    /// Render a block sequence, dropping blocks that produce no output. Blocks stand apart by a
+    /// blank line, except that inside a list item a [`Block::Plain`] runs straight on into the next
+    /// block and that certain neighbors need an HTML-comment separator (see [`needs_separator`]).
     fn blocks_to_string(&mut self, blocks: &[Block], width: usize) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
@@ -367,7 +384,7 @@ impl State {
             if let Some(previous) = previous {
                 if needs_separator(previous, block) {
                     out.push_str("\n\n<!-- -->\n\n");
-                } else if matches!(previous, Block::Plain(_)) {
+                } else if self.in_item && matches!(previous, Block::Plain(_)) {
                     out.push('\n');
                 } else {
                     out.push_str("\n\n");
@@ -404,7 +421,7 @@ impl State {
         }
     }
 
-    fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+    fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
         let hashes = atx_heading_marker(level);
         let text = self.inlines_oneline(inlines);
         let auto_identifiers = self.config.has(Extension::AutoIdentifiers)
@@ -546,7 +563,7 @@ impl State {
             fill_into(&mut out, &pieces, body_width, self.wrap, first, rest);
             return out;
         }
-        let body = self.blocks_to_string(item, body_width);
+        let body = self.item_to_string(item, body_width);
         let body = offset_horizontal_rule(item, body);
         indent_block(&body, first, rest)
     }
@@ -563,7 +580,7 @@ impl State {
             .zip(marks)
             .map(|(item, checked)| {
                 let stripped = strip_checkbox(item);
-                let body = self.blocks_to_string(&stripped, body_width);
+                let body = self.item_to_string(&stripped, body_width);
                 let marker = if checked { "- [x] " } else { "- [ ] " };
                 indent_block(&body, marker, "  ")
             })
@@ -584,7 +601,7 @@ impl State {
             .iter()
             .enumerate()
             .map(|(offset, item)| {
-                let number = start.saturating_add(offset_as_i32(offset));
+                let number = start.saturating_add(offset_as_i64(offset));
                 let marker = ordered_marker(number, style, delim);
                 let field = (marker.chars().count() + 1).max(4);
                 let first = format!("{marker:<field$}");
@@ -615,7 +632,7 @@ impl State {
 
     /// The first ordered-list number. The `CommonMark` family and the `startnum` extension honor the
     /// source list's start number; the other `markdown` dialects renumber from 1.
-    fn ordered_start(&self, attrs: &ListAttributes) -> i32 {
+    fn ordered_start(&self, attrs: &ListAttributes) -> i64 {
         if self.config.cmark || self.config.has(Extension::Startnum) {
             attrs.start
         } else {
@@ -653,7 +670,7 @@ impl State {
         let bodies: Vec<String> = definitions
             .iter()
             .map(|definition| {
-                let body = self.blocks_to_string(definition, width.saturating_sub(2));
+                let body = self.item_to_string(definition, width.saturating_sub(2));
                 indent_block(&body, ": ", "  ")
             })
             .collect();

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <email>someone@example.org</email>
+</para>
+<para>
+  Reach the team (<email>team@example.org</email>).
+</para>
+<para>
+  (<email>silent@example.org</email>)
+</para>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Reference divisions</title>
+  <refentry xml:id="carta">
+    <refsect1>
+      <title>Description</title>
+      <para>What it does.</para>
+      <refsect2>
+        <title>Details</title>
+        <para>The finer points.</para>
+      </refsect2>
+    </refsect1>
+    <refsection>
+      <title>Recursive reference section</title>
+      <para>Body.</para>
+    </refsection>
+  </refentry>
+  <qandaset>
+    <qandadiv>
+      <title>General questions</title>
+      <qandaentry>
+        <question><para>Why?</para></question>
+        <answer><para>Because.</para></answer>
+      </qandaentry>
+    </qandadiv>
+  </qandaset>
+  <bibliography>
+    <title>Sources</title>
+    <bibliodiv>
+      <title>Books</title>
+      <bibliomixed>A book.</bibliomixed>
+    </bibliodiv>
+  </bibliography>
+</article>

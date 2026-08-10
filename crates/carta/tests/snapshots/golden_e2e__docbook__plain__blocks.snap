@@ -1,0 +1,59 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph carrying an identifier.
+
+A simple paragraph.
+
+A formal paragraph
+
+Its body.
+
+A free-floating heading
+
+    fn main() {
+        println!("hi");
+    }
+
+    $ carta --version
+    carta 0.0.0
+
+Line one
+line two
+
+  A quoted paragraph.
+
+  — Someone
+
+  An epigraph.
+
+Between the quoted forms.
+
+  Standing abstract text.
+
+Take note.
+
+Careful
+
+A titled warning.
+
+A tip.
+
+A caution.
+
+Something important.
+
+Aside
+
+Beside the point.
+
+An example
+
+    example body
+
+References
+
+KEY
+
+Plain mixed entry.

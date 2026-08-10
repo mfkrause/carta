@@ -172,7 +172,7 @@ impl State {
         }
     }
 
-    fn header(&mut self, level: i32, items: &[Inline]) -> String {
+    fn header(&mut self, level: i64, items: &[Inline]) -> String {
         let text = self.inline_run(items);
         if level <= 1 {
             format!(".SH {text}")
@@ -865,7 +865,7 @@ fn ordered_markers(attrs: &ListAttributes, count: usize) -> Vec<String> {
         .map(|offset| {
             let number = attrs
                 .start
-                .saturating_add(i32::try_from(offset).unwrap_or(i32::MAX));
+                .saturating_add(i64::try_from(offset).unwrap_or(i64::MAX));
             ordered_marker(number, attrs.style, attrs.delim)
         })
         .collect();

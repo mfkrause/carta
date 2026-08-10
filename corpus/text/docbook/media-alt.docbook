@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Alternative text</title>
+  <mediaobject>
+    <alt>The alternative wording</alt>
+    <imageobject><imagedata fileref="diagram.png"/></imageobject>
+    <textobject><phrase>The text object, outranked by the alternative</phrase></textobject>
+  </mediaobject>
+  <para>An inline <inlinemediaobject><alt>inline alternative</alt><imageobject><imagedata fileref="icon.png"/></imageobject></inlinemediaobject> image.</para>
+</article>

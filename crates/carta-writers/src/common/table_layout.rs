@@ -2,7 +2,7 @@
 //! row assembly, and piece measurement. The whole module is gated to those writers at its `mod`
 //! declaration, so within its feature family every item is referenced.
 
-use super::{Piece, body_rows, display_width, fill_lines};
+use super::{Piece, body_rows, continued_width, display_width, fill_lines};
 use carta_ast::{Alignment, Block, Cell, ColWidth, Inline, Row, Table};
 
 /// Width used to render a grid cell when measuring its natural extent, before column widths are
@@ -122,9 +122,23 @@ pub(crate) fn dash_rule(field: &[usize]) -> String {
         .join(" ")
 }
 
-/// Pad `text` to `width`, placing the slack according to the column's alignment.
+/// Pad `text`, laid out from the start of its line, to `width`, placing the slack according to the
+/// column's alignment.
 pub(crate) fn pad_align(text: &str, width: usize, align: &Alignment) -> String {
-    let pad = width.saturating_sub(display_width(text));
+    pad_slack(text, width.saturating_sub(display_width(text)), align)
+}
+
+/// Pad `text`, laid out after content already on its line, to `width`.
+#[cfg_attr(
+    not(any(feature = "gfm", feature = "markdown")),
+    allow(dead_code, reason = "used by the pipe-table writers")
+)]
+pub(crate) fn pad_align_continued(text: &str, width: usize, align: &Alignment) -> String {
+    pad_slack(text, width.saturating_sub(continued_width(text)), align)
+}
+
+/// Spread `pad` columns of slack around `text` according to the column's alignment.
+fn pad_slack(text: &str, pad: usize, align: &Alignment) -> String {
     match align {
         Alignment::AlignRight => format!("{}{text}", " ".repeat(pad)),
         Alignment::AlignCenter => {

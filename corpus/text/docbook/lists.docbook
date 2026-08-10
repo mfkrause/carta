@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Lists</title>
+  <itemizedlist>
+    <title>A titled bullet list</title>
+    <listitem><para>First bullet.</para></listitem>
+    <listitem><para>Second bullet, with a nested list.</para>
+      <itemizedlist>
+        <listitem><para>Inner bullet.</para></listitem>
+      </itemizedlist>
+    </listitem>
+  </itemizedlist>
+  <orderedlist numeration="arabic">
+    <listitem><para>Arabic one.</para></listitem>
+    <listitem><para>Arabic two.</para></listitem>
+  </orderedlist>
+  <orderedlist numeration="loweralpha" startingnumber="3">
+    <listitem><para>Alpha item.</para></listitem>
+  </orderedlist>
+  <orderedlist numeration="upperroman">
+    <listitem><para>Roman item.</para></listitem>
+  </orderedlist>
+  <procedure>
+    <title>A procedure</title>
+    <step><para>Do the first thing.</para>
+      <substeps>
+        <step><para>A sub-step.</para></step>
+      </substeps>
+    </step>
+    <step><para>Do the second thing.</para></step>
+  </procedure>
+  <calloutlist>
+    <callout arearefs="one"><para>Explains the first mark.</para></callout>
+  </calloutlist>
+  <variablelist>
+    <varlistentry>
+      <term>First term</term>
+      <term>Also this term</term>
+      <listitem><para>Their shared definition.</para></listitem>
+    </varlistentry>
+  </variablelist>
+  <qandaset>
+    <qandaentry>
+      <question><para>Is this a question?</para></question>
+      <answer><para>It is.</para></answer>
+    </qandaentry>
+  </qandaset>
+  <glossary>
+    <title>Glossary</title>
+    <glossdiv>
+      <title>G</title>
+      <glossentry>
+        <glossterm>Gloss</glossterm>
+        <glossdef><para>A brief shine.</para></glossdef>
+      </glossentry>
+    </glossdiv>
+  </glossary>
+</article>

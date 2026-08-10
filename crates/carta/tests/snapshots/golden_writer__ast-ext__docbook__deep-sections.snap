@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="h1">
+  <title>Level 1</title>
+  <para>
+    Body under level 1.
+  </para>
+  <section xml:id="h2">
+    <title>Level 2</title>
+    <para>
+      Body under level 2.
+    </para>
+    <section xml:id="h3">
+      <title>Level 3</title>
+      <para>
+        Body under level 3.
+      </para>
+      <section xml:id="h4">
+        <title>Level 4</title>
+        <para>
+          Body under level 4.
+        </para>
+        <section xml:id="h5">
+          <title>Level 5</title>
+          <para>
+            Body under level 5.
+          </para>
+          <simplesect xml:id="h6">
+            <title>Level 6</title>
+            <para>
+              Body under level 6.
+            </para>
+            <simplesect xml:id="h7">
+              <title>Level 7</title>
+              <para>
+                Body under level 7.
+              </para>
+            </simplesect>
+          </simplesect>
+        </section>
+      </section>
+    </section>
+  </section>
+</section>

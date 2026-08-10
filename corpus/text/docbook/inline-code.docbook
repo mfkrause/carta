@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Inline verbatim wording</title>
+  <para>Spacing folds in <literal>  a
+  b  c </literal> and in <filename>two  words</filename> and <option>--long  option</option>.</para>
+  <para>A manual page: <citerefentry xml:id="dropped" role="page"><refentrytitle>carta</refentrytitle><manvolnum>1</manvolnum></citerefentry>, and one without a volume: <citerefentry><refentrytitle>carta</refentrytitle></citerefentry>.</para>
+</article>

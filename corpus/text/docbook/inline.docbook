@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Inline markup</title>
+  <para>Plain, <emphasis>emphasized</emphasis>, <emphasis role="strong">strong</emphasis>,
+  <emphasis role="bold">bold</emphasis>, <emphasis role="underline">underlined</emphasis> and
+  <emphasis role="strikethrough">struck</emphasis> runs.</para>
+  <para>Water is H<subscript>2</subscript>O and the area is r<superscript>2</superscript>.</para>
+  <para>A <quote>quotation <quote>inside</quote> another</quote> alternates its marks.</para>
+  <para>Code faces: <literal>literal</literal>, <command>ls</command>, <filename>/etc/hosts</filename>,
+  <function>strlen</function>, <classname>Widget</classname>, <envar>PATH</envar>,
+  <option>--verbose</option>, <computeroutput>done</computeroutput>, <constant>MAX</constant>,
+  <parameter>count</parameter>, <markup>&lt;br/&gt;</markup>, and <varargs/>.</para>
+  <para>Fill in <replaceable>name</replaceable> and maybe <optional>a flag</optional>.</para>
+  <para>A <foreignphrase>lingua franca</foreignphrase> and a <wordasword>word</wordasword>.</para>
+  <para>A <phrase>bare phrase</phrase> carries nothing extra.</para>
+  <para>Press <keycombo><keycap>Ctrl</keycap><keycap>C</keycap></keycombo> or pick
+  <menuchoice><guimenu>File</guimenu><guimenuitem>Save</guimenuitem></menuchoice>.</para>
+  <para>An <anchor xml:id="spot"/>anchored spot.</para>
+</article>

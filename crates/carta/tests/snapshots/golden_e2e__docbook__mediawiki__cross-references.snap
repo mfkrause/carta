@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a section: [[#named|A named section]].
+
+To a titled example: [[#sample|example_title]].
+
+To a titled note: [[#remark|note_title]].
+
+To nothing at all: [[#absent|???]].
+
+<span id="named"></span>
+= A named section =
+
+Body.
+
+<div id="sample" class="example">
+<div class="title">
+A titled example
+</div>
+
+Body.
+
+</div>
+
+<div id="remark" class="note">
+<div class="title">
+A titled note
+</div>
+
+Body.
+
+</div>

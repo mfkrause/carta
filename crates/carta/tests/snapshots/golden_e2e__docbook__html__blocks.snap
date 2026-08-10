@@ -1,0 +1,76 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A paragraph carrying an identifier.</p>
+<p>A simple paragraph.</p>
+<div class="formalpara">
+<div class="title">
+A formal paragraph
+</div>
+<p>Its body.</p>
+</div>
+<p><strong>A free-floating heading</strong></p>
+<pre class="rust numberLines"><code>fn main() {
+    println!(&quot;hi&quot;);
+}</code></pre>
+<pre><code>$ carta --version
+carta 0.0.0</code></pre>
+<div class="line-block">Line one<br />
+line two</div>
+<blockquote>
+<p>A quoted paragraph.</p>
+<p>— Someone</p>
+</blockquote>
+<blockquote>
+<p>An epigraph.</p>
+</blockquote>
+<p>Between the quoted forms.</p>
+<blockquote>
+<p>Standing abstract text.</p>
+</blockquote>
+<div class="note">
+<div class="title">
+
+</div>
+<p>Take note.</p>
+</div>
+<div class="warning">
+<div class="title">
+Careful
+</div>
+<p>A titled warning.</p>
+</div>
+<div class="tip">
+<div class="title">
+
+</div>
+<p>A tip.</p>
+</div>
+<div class="caution">
+<div class="title">
+
+</div>
+<p>A caution.</p>
+</div>
+<div class="important">
+<div class="title">
+
+</div>
+<p>Something important.</p>
+</div>
+<div class="sidebar">
+<div class="title">
+Aside
+</div>
+<p>Beside the point.</p>
+</div>
+<div class="example">
+<div class="title">
+An example
+</div>
+<pre><code>example body</code></pre>
+</div>
+<h1>References</h1>
+<p>KEY</p>
+<p>Plain mixed entry.</p>

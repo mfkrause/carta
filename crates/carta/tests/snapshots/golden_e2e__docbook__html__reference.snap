@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>Description</h1>
+<p>What it does.</p>
+<h2>Details</h2>
+<p>The finer points.</p>
+<h1>Recursive reference section</h1>
+<p>Body.</p>
+<h1>General questions</h1>
+<p><strong>Q:</strong> Why?</p>
+<p><strong>A:</strong> Because.</p>
+<h1>Sources</h1>
+<h1>Books</h1>
+<p>A book.</p>

@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis>emph</emphasis> <emphasis role="strong">strong</emphasis>
+  <emphasis role="strikethrough">struck</emphasis>
+  super<superscript>2</superscript> sub<subscript>3</subscript>
+</para>

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Constructs"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"empty"},{"t":"Space"},{"t":"Str","c":"parts"}]}},"blocks":[{"t":"Header","c":[1,["",[],[]],[{"t":"Str","c":"Glossary"}]]},{"t":"Plain","c":[{"t":"Str","c":"Glimmer"}]},{"t":"Para","c":[{"t":"Str","c":"See"},{"t":"Space"},{"t":"Str","c":"Gloss."}]},{"t":"Figure","c":[["",[],[]],[null,[]],[{"t":"Plain","c":[{"t":"Image","c":[["",[],[]],[],["sketch.png",""]]}]}]]},{"t":"Plain","c":[{"t":"Str","c":"carta"}]},{"t":"Plain","c":[{"t":"Str","c":"converts"},{"t":"Space"},{"t":"Str","c":"documents"}]},{"t":"Header","c":[1,["",[],[]],[{"t":"Str","c":"Description"}]]},{"t":"Para","c":[{"t":"Str","c":"What"},{"t":"Space"},{"t":"Str","c":"it"},{"t":"Space"},{"t":"Str","c":"does."}]}]}

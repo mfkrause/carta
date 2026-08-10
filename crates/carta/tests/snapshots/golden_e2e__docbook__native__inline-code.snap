@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Spacing"
+    , Space
+    , Str "folds"
+    , Space
+    , Str "in"
+    , Space
+    , Code ( "" , [] , [] ) "a b c"
+    , Space
+    , Str "and"
+    , Space
+    , Str "in"
+    , Space
+    , Code ( "" , [] , [] ) "two words"
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "--long option"
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "manual"
+    , Space
+    , Str "page:"
+    , Space
+    , Code
+        ( "" , [ "citerefentry" ] , [ ( "role" , "page" ) ] )
+        "carta(1)"
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Str "one"
+    , Space
+    , Str "without"
+    , Space
+    , Str "a"
+    , Space
+    , Str "volume:"
+    , Space
+    , Code ( "" , [ "citerefentry" ] , [] ) "carta"
+    , Str "."
+    ]
+]

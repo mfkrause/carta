@@ -347,31 +347,31 @@ pub(super) fn formula_part_path(href: &str) -> String {
 
 /// The widest row's column count, summing each cell's column span with saturating arithmetic so a
 /// cell declaring an outsized span cannot overflow the running total.
-pub(super) fn row_width(rows: &[Row]) -> i32 {
+pub(super) fn row_width(rows: &[Row]) -> i64 {
     rows.iter().map(cells_width).max().unwrap_or(0)
 }
 
 /// A row's occupied column count: the sum of its cells' column spans, saturating so a cell declaring
 /// an outsized span cannot overflow the running total.
-fn cells_width(row: &Row) -> i32 {
+fn cells_width(row: &Row) -> i64 {
     row.cells
         .iter()
-        .fold(0i32, |acc, cell| acc.saturating_add(cell.col_span.max(1)))
+        .fold(0i64, |acc, cell| acc.saturating_add(cell.col_span.max(1)))
 }
 
 /// Squares each row off to the grid width by appending empty single-column cells, so every row spans
 /// the same number of columns, while leaving columns already occupied by a row-spanning cell
 /// overhanging from an earlier row unfilled. A row whose cells plus inherited overhang already reach
 /// the width is left untouched.
-pub(super) fn square_rows(rows: &mut [Row], columns: i32) {
+pub(super) fn square_rows(rows: &mut [Row], columns: i64) {
     let width = usize::try_from(columns).unwrap_or(0);
     // `covered[c]`: how many further rows column `c` stays covered by a row span from above.
-    let mut covered = vec![0i32; width];
+    let mut covered = vec![0i64; width];
     for row in rows {
         let overhang =
-            i32::try_from(covered.iter().filter(|count| **count > 0).count()).unwrap_or(i32::MAX);
+            i64::try_from(covered.iter().filter(|count| **count > 0).count()).unwrap_or(i64::MAX);
         // Walk real cells across the grid, skipping covered columns, to find this row's new spans.
-        let mut new_cover = vec![0i32; width];
+        let mut new_cover = vec![0i64; width];
         let mut column = 0usize;
         for cell in &row.cells {
             while covered.get(column).is_some_and(|count| *count > 0) {

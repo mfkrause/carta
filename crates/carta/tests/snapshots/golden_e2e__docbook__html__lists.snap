@@ -1,0 +1,51 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div>
+<div class="title">
+A titled bullet list
+</div>
+<ul>
+<li><p>First bullet.</p></li>
+<li><p>Second bullet, with a nested list.</p>
+<ul>
+<li><p>Inner bullet.</p></li>
+</ul></li>
+</ul>
+</div>
+<ol type="1">
+<li><p>Arabic one.</p></li>
+<li><p>Arabic two.</p></li>
+</ol>
+<ol start="3" type="a">
+<li><p>Alpha item.</p></li>
+</ol>
+<ol type="I">
+<li><p>Roman item.</p></li>
+</ol>
+<ol>
+<li><p>Do the first thing.</p>
+<ol>
+<li><p>A sub-step.</p></li>
+</ol></li>
+<li><p>Do the second thing.</p></li>
+</ol>
+<ul>
+<li><p>Explains the first mark.</p></li>
+</ul>
+<dl>
+<dt>First term; Also this term</dt>
+<dd>
+<p>Their shared definition.</p>
+</dd>
+</dl>
+<p><strong>Q:</strong> Is this a question?</p>
+<p><strong>A:</strong> It is.</p>
+<h1>Glossary</h1>
+<dl>
+<dt>Gloss</dt>
+<dd>
+<p>A brief shine.</p>
+</dd>
+</dl>

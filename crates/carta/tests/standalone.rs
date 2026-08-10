@@ -430,3 +430,32 @@ fn typst_default_template_renders_a_structured_author_name() {
         "a structured author must not collapse to a boolean: {output}"
     );
 }
+
+#[cfg(feature = "write-docbook")]
+#[test]
+fn a_filled_value_wraps_for_the_place_its_template_seats_it() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    let output = convert_text(
+        "markdown",
+        "docbook",
+        "---\ntitle: A report whose title runs on far past the fill column so the writer must wrap the words of it\n---\n\nBody text that also runs long enough to wrap once the writer fills it to the column the template leaves for the body of the document.\n",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    // The title opens after the indent and the tag, and continues at the margin; the body carries
+    // its indent on every line, so it fills to that much less than the column.
+    assert!(
+        output.contains(
+            "    <title>A report whose title runs on far past the fill column so the\nwriter must wrap the words of it</title>"
+        ),
+        "title should fill the slot the template seats it in: {output}"
+    );
+    assert!(
+        output.contains(
+            "    Body text that also runs long enough to wrap once the writer fills\n    it to the column the template leaves for the body of the document."
+        ),
+        "body should fill the width its indent leaves: {output}"
+    );
+}

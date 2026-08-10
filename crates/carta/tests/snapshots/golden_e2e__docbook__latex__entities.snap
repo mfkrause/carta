@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Named references: \& \textless{} \textgreater{} " \textquotesingle{} ©
+--- ~ \ldots{}
+
+Numeric references: A A --- 😀
+
+Inside CDATA: \textless not-an-element\textgreater{} \& a raw ampersand
+
+\begin{verbatim}
+if (a < b && c > d) { }
+\end{verbatim}
+
+Empty element {} and a self-closed stay harmless.

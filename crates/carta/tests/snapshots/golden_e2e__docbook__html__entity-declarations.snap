@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A declaration nested in another: Carta 0.1 &amp; friends.</p>
+<p>A declaration standing for markup: <em>emphasized</em>.</p>
+<p><a href="https://example.com/0.1">In an attribute value</a></p>
+<pre><code>Carta in verbatim text</code></pre>

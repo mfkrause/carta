@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Preformatted"},{"t":"Space"},{"t":"Str","c":"content"}]}},"blocks":[{"t":"CodeBlock","c":[["",[],[]],"col   col\n    indented"]},{"t":"CodeBlock","c":[["",[],[]],"$ carta"]},{"t":"LineBlock","c":[[{"t":"Str","c":"a  b "},{"t":"Emph","c":[{"t":"Str","c":"emphasized"}]},{"t":"Str","c":" "},{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"linked"}],["https://example.com/",""]]},{"t":"Str","c":""}],[{"t":"Str","c":"  second    line"}]]},{"t":"CodeBlock","c":[["",[],[]],"kept  as    code"]}]}

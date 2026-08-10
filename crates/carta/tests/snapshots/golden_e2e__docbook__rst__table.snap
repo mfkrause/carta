@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. table:: A formal table
+
+   ====== ===== ===========================
+   Name   Count Note
+   ====== ===== ===========================
+   First  1     A cell holding a paragraph.
+   Second 2     
+   ====== ===== ===========================
+
+= =
+a b
+= =

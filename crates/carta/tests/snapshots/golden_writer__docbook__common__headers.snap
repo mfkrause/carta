@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="one">
+  <title>One</title>
+  <section xml:id="two">
+    <title>Two</title>
+    <simplesect xml:id="six">
+      <title>Six</title>
+      <para>
+      </para>
+    </simplesect>
+  </section>
+</section>

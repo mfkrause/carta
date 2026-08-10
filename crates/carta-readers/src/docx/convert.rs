@@ -99,7 +99,7 @@ impl Converter<'_> {
                 Vec::new()
             };
             sink.emit(Block::Header(
-                level,
+                i64::from(level),
                 Box::new(Attr {
                     id: id.into(),
                     classes,
@@ -224,7 +224,7 @@ impl Converter<'_> {
     fn list_numbering(&self, num_id: i32, ilvl: i32) -> Option<ListAttributes> {
         let level = self.lists.get(&num_id)?.get(&ilvl)?;
         level.style.map(|style| ListAttributes {
-            start: level.start,
+            start: i64::from(level.start),
             style,
             delim: level.delim,
         })

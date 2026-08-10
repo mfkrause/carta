@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Glossary"},{"t":"Space"},{"t":"Str","c":"lists"}]}},"blocks":[{"t":"DefinitionList","c":[[[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"term"}],[[{"t":"Para","c":[{"t":"Str","c":"What"},{"t":"Space"},{"t":"Str","c":"it"},{"t":"Space"},{"t":"Str","c":"means."}]}]]],[[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"term"}],[[{"t":"Para","c":[{"t":"Str","c":"One"},{"t":"Space"},{"t":"Str","c":"reading."}]},{"t":"Para","c":[{"t":"Str","c":"Another"},{"t":"Space"},{"t":"Str","c":"reading."}]}]]]]}]}

@@ -241,7 +241,7 @@ pub(super) fn build_row(parser: &Parser, source: &str, ncols: usize) -> Row {
             attr: Attr::default(),
             align,
             row_span: 1,
-            col_span,
+            col_span: i64::from(col_span),
             content,
         });
         span_total += col_span.max(1);

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" xmlns:m="http://www.w3.org/1998/Math/MathML" version="5.0">
+  <title>Math faces</title>
+  <para>A bold identifier:
+    <inlineequation><m:math><m:mi mathvariant="bold">v</m:mi></m:math></inlineequation>.
+  </para>
+  <para>Faces on single tokens:
+    <inlineequation><m:math>
+      <m:mi mathvariant="italic">x</m:mi>
+      <m:mi mathvariant="script">L</m:mi>
+      <m:mi mathvariant="fraktur">g</m:mi>
+      <m:mi mathvariant="double-struck">R</m:mi>
+      <m:mi mathvariant="sans-serif">s</m:mi>
+      <m:mi mathvariant="monospace">t</m:mi>
+    </m:math></inlineequation>.
+  </para>
+  <para>Faces on text:
+    <inlineequation><m:math>
+      <m:mtext mathvariant="bold">bold words</m:mtext>
+      <m:mtext mathvariant="bold-italic">both</m:mtext>
+      <m:mtext mathvariant="sans-serif-bold-italic">all three</m:mtext>
+    </m:math></inlineequation>.
+  </para>
+  <para>A face inherited by a whole row:
+    <inlineequation><m:math>
+      <m:mrow mathvariant="bold"><m:mi>a</m:mi><m:mo>+</m:mo><m:mi>b</m:mi></m:mrow>
+    </m:math></inlineequation>.
+  </para>
+  <para>A face inherited through nested constructs:
+    <inlineequation><m:math>
+      <m:mfrac mathvariant="fraktur"><m:mi>p</m:mi><m:mi>q</m:mi></m:mfrac>
+      <m:msqrt mathvariant="script"><m:mi>y</m:mi></m:msqrt>
+    </m:math></inlineequation>.
+  </para>
+  <para>A token overriding the face it inherits:
+    <inlineequation><m:math>
+      <m:mrow mathvariant="bold"><m:mi>a</m:mi><m:mi mathvariant="monospace">b</m:mi></m:mrow>
+    </m:math></inlineequation>.
+  </para>
+  <informalequation><m:math display="block">
+    <m:mstyle mathvariant="bold"><m:mi>u</m:mi><m:mo>=</m:mo><m:mi>w</m:mi></m:mstyle>
+  </m:math></informalequation>
+</article>

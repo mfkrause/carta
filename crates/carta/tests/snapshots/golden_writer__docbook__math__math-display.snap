@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  ∫<subscript>0</subscript><superscript>1</superscript><emphasis>x</emphasis> <emphasis>d</emphasis><emphasis>x</emphasis>
+</para>

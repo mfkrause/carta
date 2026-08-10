@@ -204,11 +204,11 @@ impl Parser {
         }
     }
 
-    fn parse_i32(&mut self) -> Result<i32> {
+    fn parse_i64(&mut self) -> Result<i64> {
         let opened = self.open_paren();
         let value = match self.take()? {
             Token::Num(number) => number
-                .parse::<i32>()
+                .parse::<i64>()
                 .map_err(|error| syntax_error(format!("invalid integer '{number}': {error}")))?,
             found => {
                 return Err(syntax_error(format!(
@@ -368,7 +368,7 @@ impl Parser {
                 self.parse_list(Self::parse_definition_item)?,
             )),
             "Header" => {
-                let level = self.parse_i32()?;
+                let level = self.parse_i64()?;
                 let attr = self.parse_attr()?;
                 let inlines = self.parse_inline_list()?;
                 Ok(Block::Header(level, Box::new(attr), inlines))
@@ -500,7 +500,7 @@ impl Parser {
 
     fn parse_list_attributes(&mut self) -> Result<ListAttributes> {
         self.eat(&Token::LParen)?;
-        let start = self.parse_i32()?;
+        let start = self.parse_i64()?;
         self.eat(&Token::Comma)?;
         let style = self.parse_list_number_style()?;
         self.eat(&Token::Comma)?;
@@ -611,8 +611,8 @@ impl Parser {
                 "citationPrefix" => citation.prefix = self.parse_inline_list()?,
                 "citationSuffix" => citation.suffix = self.parse_inline_list()?,
                 "citationMode" => citation.mode = self.parse_citation_mode()?,
-                "citationNoteNum" => citation.note_num = self.parse_i32()?,
-                "citationHash" => citation.hash = self.parse_i32()?,
+                "citationNoteNum" => citation.note_num = self.parse_i64()?,
+                "citationHash" => citation.hash = self.parse_i64()?,
                 other => return Err(syntax_error(format!("unknown citation field '{other}'"))),
             }
             match self.advance()? {
@@ -729,10 +729,10 @@ impl Parser {
         })
     }
 
-    fn parse_int_newtype(&mut self, name: &str) -> Result<i32> {
+    fn parse_int_newtype(&mut self, name: &str) -> Result<i64> {
         let opened = self.open_paren();
         self.eat_ident(name)?;
-        let value = self.parse_i32()?;
+        let value = self.parse_i64()?;
         self.close_if(opened)?;
         Ok(value)
     }

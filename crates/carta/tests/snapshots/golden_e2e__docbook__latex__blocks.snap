@@ -1,0 +1,71 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph carrying an identifier.
+
+A simple paragraph.
+
+A formal paragraph
+
+Its body.
+
+\textbf{A free-floating heading}
+
+\begin{verbatim}
+fn main() {
+    println!("hi");
+}
+\end{verbatim}
+
+\begin{verbatim}
+$ carta --version
+carta 0.0.0
+\end{verbatim}
+
+Line~one\\
+line~two
+
+\begin{quote}
+A quoted paragraph.
+
+--- Someone
+\end{quote}
+
+\begin{quote}
+An epigraph.
+\end{quote}
+
+Between the quoted forms.
+
+\begin{quote}
+Standing abstract text.
+\end{quote}
+
+Take note.
+
+Careful
+
+A titled warning.
+
+A tip.
+
+A caution.
+
+Something important.
+
+Aside
+
+Beside the point.
+
+An example
+
+\begin{verbatim}
+example body
+\end{verbatim}
+
+\section{References}
+
+KEY
+
+Plain mixed entry.

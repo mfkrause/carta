@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Constructs with empty parts</title>
+  <glossary>
+    <title>Glossary</title>
+    <glossentry>
+      <glossterm>Glimmer</glossterm>
+      <glosssee otherterm="gloss">Gloss</glosssee>
+    </glossentry>
+  </glossary>
+  <informalfigure>
+    <mediaobject>
+      <imageobject><imagedata fileref="sketch.png"/></imageobject>
+    </mediaobject>
+  </informalfigure>
+  <refentry xml:id="carta">
+    <refnamediv>
+      <refname>carta</refname>
+      <refpurpose>converts documents</refpurpose>
+    </refnamediv>
+    <refsect1>
+      <title>Description</title>
+      <para>What it does.</para>
+    </refsect1>
+  </refentry>
+</article>

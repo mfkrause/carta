@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Body text.
+
+<span id="one"></span>
+= A titled section =
+
+Section body.
+
+= Titled through an info wrapper =
+
+Another section body.
+
+Ordinary content: this names no division.
+
+Ordinary content as well.
+
+<div class="note">
+<div class="title">
+</div>
+
+Note body.
+
+</div>

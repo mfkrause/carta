@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+.PP
+.TS
+tab(@);
+l l l l l.
+T{
+signs
+T}@T{
+selector
+T}@T{
+joined
+T}@T{
+narrow
+T}@T{
+mark
+T}
+_
+T{
+⌚⭐✅
+T}@T{
+☀️1️⃣
+T}@T{
+👨‍👩‍👧👍🏽
+T}@T{
+㉈゙
+T}@T{
+́abc
+T}
+.TE

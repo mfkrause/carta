@@ -1,0 +1,100 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A paragraph carrying an identifier.
+
+A simple paragraph.
+
+<div class="formalpara">
+<div class="title">
+A formal paragraph
+</div>
+
+Its body.
+
+</div>
+
+'''A free-floating heading'''
+
+<syntaxhighlight lang="rust" line>fn main() {
+    println!("hi");
+}</syntaxhighlight>
+<pre>$ carta --version
+carta 0.0.0</pre>
+Line one<br />
+line two
+
+<blockquote>A quoted paragraph.
+
+— Someone
+</blockquote>
+<blockquote>An epigraph.
+</blockquote>
+Between the quoted forms.
+
+<blockquote>Standing abstract text.
+</blockquote>
+<div class="note">
+<div class="title">
+</div>
+
+Take note.
+
+</div>
+
+<div class="warning">
+<div class="title">
+Careful
+</div>
+
+A titled warning.
+
+</div>
+
+<div class="tip">
+<div class="title">
+</div>
+
+A tip.
+
+</div>
+
+<div class="caution">
+<div class="title">
+</div>
+
+A caution.
+
+</div>
+
+<div class="important">
+<div class="title">
+</div>
+
+Something important.
+
+</div>
+
+<div class="sidebar">
+<div class="title">
+Aside
+</div>
+
+Beside the point.
+
+</div>
+
+<div class="example">
+<div class="title">
+An example
+</div>
+
+<pre>example body</pre>
+</div>
+
+= References =
+
+KEY
+
+Plain mixed entry.

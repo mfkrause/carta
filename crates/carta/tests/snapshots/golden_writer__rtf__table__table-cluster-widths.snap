@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx1728\clbrdrb\brdrs\cellx3456\clbrdrb\brdrs\cellx5184\clbrdrb\brdrs\cellx6912\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 signs\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 selector\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 joined\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 narrow\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 mark\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx1728\cellx3456\cellx5184\cellx6912\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u8986 ?\u11088 ?\u9989 ?\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u9728 ?\u65039 ?1\u65039 ?\u8419 ?\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u55357 ?\u56424 ?\u8205 ?\u55357 ?\u56425 ?\u8205 ?\u55357 ?\u56423 ?\u55357 ?\u56397 ?\u55356 ?\u57341 ?\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u12872 ?\u12441 ?\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 \u769 ?abc\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}

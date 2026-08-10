@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a section: A named section.
+
+To a titled example: example_title.
+
+To a titled note: note_title.
+
+To nothing at all: ???.
+
+A named section
+
+Body.
+
+A titled example
+
+Body.
+
+A titled note
+
+Body.

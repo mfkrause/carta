@@ -73,7 +73,7 @@ impl Writer for RevealjsWriter {
 }
 
 /// The sectioning-marker level of a slide, or `None` for a frame.
-fn section_level(slide: &Slide) -> Option<i32> {
+fn section_level(slide: &Slide) -> Option<i64> {
     match slide {
         Slide::Section { level, .. } => Some(*level),
         Slide::Frame { .. } => None,
@@ -82,7 +82,7 @@ fn section_level(slide: &Slide) -> Option<i32> {
 
 /// Whether the top-level sectioning marker at `index` is followed by at least one nested slide
 /// before the next top-level marker, the condition that wraps its group in an outer `<section>`.
-fn opens_outer(slides: &[Slide], index: usize, top: i32) -> bool {
+fn opens_outer(slides: &[Slide], index: usize, top: i64) -> bool {
     matches!(
         slides.get(index + 1),
         Some(next) if section_level(next) != Some(top)
@@ -93,14 +93,14 @@ fn opens_outer(slides: &[Slide], index: usize, top: i32) -> bool {
 /// between slides reflects how many nested sections a level change conceptually closes.
 struct Deck {
     out: String,
-    level: i32,
-    open_levels: Vec<i32>,
+    level: i64,
+    open_levels: Vec<i64>,
     outer_open: bool,
     first: bool,
 }
 
 impl Deck {
-    fn new(level: i32) -> Self {
+    fn new(level: i64) -> Self {
         Self {
             out: String::new(),
             level,
@@ -118,7 +118,7 @@ impl Deck {
         );
     }
 
-    fn push(&mut self, renderer: &mut SlideRenderer, slide: &Slide, top: i32, has_children: bool) {
+    fn push(&mut self, renderer: &mut SlideRenderer, slide: &Slide, top: i64, has_children: bool) {
         match slide {
             Slide::Section { level, attr, title } if *level == top => {
                 if self.outer_open {
@@ -161,7 +161,7 @@ impl Deck {
     }
 
     /// Pop every open level at or below `level`, returning the count removed.
-    fn pop_to(&mut self, level: i32) -> usize {
+    fn pop_to(&mut self, level: i64) -> usize {
         let mut popped = 0;
         while self.open_levels.last().is_some_and(|open| *open >= level) {
             self.open_levels.pop();
@@ -185,7 +185,7 @@ impl Deck {
 
     /// Close the open outer `<section>`, prefixing it with one newline per open level deeper than the
     /// horizontal axis, then clear the level stack.
-    fn append_outer_close(&mut self, top: i32) {
+    fn append_outer_close(&mut self, top: i64) {
         let above = self.open_levels.iter().filter(|open| **open > top).count();
         self.separate(above);
         self.out.push_str("</section>");
@@ -195,7 +195,7 @@ impl Deck {
 
     fn section_marker(
         renderer: &mut SlideRenderer,
-        level: i32,
+        level: i64,
         attr: &carta_ast::Attr,
         title: &[Inline],
     ) -> String {
@@ -239,7 +239,7 @@ impl Deck {
     }
 }
 
-fn level_class(level: i32) -> String {
+fn level_class(level: i64) -> String {
     format!("level{level}")
 }
 
@@ -260,7 +260,7 @@ mod tests {
             .unwrap()
     }
 
-    fn header(level: i32, id: &str, title: &str) -> Block {
+    fn header(level: i64, id: &str, title: &str) -> Block {
         Block::Header(
             level,
             Box::new(Attr {

@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<figure>
+  <title>alt text</title>
+  <mediaobject>
+    <imageobject>
+      <imagedata fileref="pic.png" width="200px" />
+    </imageobject>
+    <textobject><phrase>alt text</phrase></textobject>
+  </mediaobject>
+</figure>

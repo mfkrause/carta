@@ -47,7 +47,7 @@ impl Parser {
             classes.push("unnumbered".into());
         }
         Block::Header(
-            level,
+            i64::from(level),
             Box::new(Attr {
                 id: id.into(),
                 classes,

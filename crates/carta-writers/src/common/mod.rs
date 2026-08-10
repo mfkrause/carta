@@ -84,8 +84,8 @@ pub(crate) fn ascii_punctuation(ch: char) -> Option<&'static str> {
     )),
     allow(dead_code)
 )]
-pub(crate) fn offset_as_i32(offset: usize) -> i32 {
-    i32::try_from(offset).unwrap_or(i32::MAX)
+pub(crate) fn offset_as_i64(offset: usize) -> i64 {
+    i64::try_from(offset).unwrap_or(i64::MAX)
 }
 
 /// Byte length of the longest prefix of `text` that contains no trigger byte, per `is_trigger`. An
@@ -149,9 +149,9 @@ mod tests {
 
     #[test]
     fn offset_conversion_saturates() {
-        assert_eq!(offset_as_i32(0), 0);
-        assert_eq!(offset_as_i32(7), 7);
-        assert_eq!(offset_as_i32(usize::MAX), i32::MAX);
+        assert_eq!(offset_as_i64(0), 0);
+        assert_eq!(offset_as_i64(7), 7);
+        assert_eq!(offset_as_i64(usize::MAX), i64::MAX);
     }
 
     #[test]

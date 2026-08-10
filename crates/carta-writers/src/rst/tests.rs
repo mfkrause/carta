@@ -187,3 +187,58 @@ fn deeply_nested_links_render_each_label_once() {
         .write(&doc, &WriterOptions::default())
         .expect("write");
 }
+
+#[test]
+fn a_run_flush_against_a_math_directive_keeps_the_null_separator() {
+    use carta_ast::MathType;
+
+    let math = |tex: &str| Inline::Math(MathType::DisplayMath, tex.into());
+    let doc = Document {
+        blocks: vec![Block::Para(vec![
+            Inline::Str("a".into()),
+            math("x"),
+            Inline::Str("b".into()),
+            Inline::Space,
+            math("y"),
+            Inline::Str("c".into()),
+        ])],
+        ..Document::default()
+    };
+    let out = RstWriter.write(&doc, &WriterOptions::default()).unwrap();
+    assert_eq!(out, "a\\ \n\n.. math:: x\n\n\\ b\n\n.. math:: y\n\n\\ c");
+}
+
+#[test]
+fn only_the_first_math_directive_hands_a_spaced_run_back_the_flow() {
+    use carta_ast::MathType;
+
+    let math = |tex: &str| Inline::Math(MathType::DisplayMath, tex.into());
+    let spaced = |blocks| Document {
+        blocks,
+        ..Document::default()
+    };
+    let doc = spaced(vec![Block::Para(vec![
+        Inline::Str("a".into()),
+        Inline::Space,
+        math("x"),
+        Inline::Space,
+        Inline::Str("b".into()),
+        Inline::Space,
+        math("y"),
+        Inline::Space,
+        Inline::Str("c".into()),
+    ])]);
+    let out = RstWriter.write(&doc, &WriterOptions::default()).unwrap();
+    assert_eq!(out, "a\n\n.. math:: x\n\n\\ b\n\n.. math:: y\n\nc");
+
+    // A line break parts the run from the directive, and no marker opens it.
+    let broken = spaced(vec![Block::Para(vec![
+        Inline::Str("a".into()),
+        Inline::Space,
+        math("x"),
+        Inline::SoftBreak,
+        Inline::Str("b".into()),
+    ])]);
+    let out = RstWriter.write(&broken, &WriterOptions::default()).unwrap();
+    assert_eq!(out, "a\n\n.. math:: x\n\nb");
+}

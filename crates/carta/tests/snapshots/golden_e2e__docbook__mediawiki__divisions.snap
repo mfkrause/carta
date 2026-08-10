@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="titled" role="pull" role="pull">
+<div class="title">
+The title of a quotation
+</div>
+
+<blockquote>The quoted wording.
+
+— Someone
+</blockquote>
+</div>
+
+<blockquote>An untitled quotation.
+</blockquote>
+<blockquote>An epigraph states no title.
+</blockquote>
+<div class="informalexample" role="demo">
+An example standing without a title.
+
+</div>

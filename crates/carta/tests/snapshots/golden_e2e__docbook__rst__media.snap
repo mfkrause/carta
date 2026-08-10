@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. figure:: plot.png
+   name: plot
+   :alt: A plotted curve
+   :width: 4in
+   :height: 2in
+
+   A captioned figure
+
+A standalone block image:
+
+|image1|
+
+An inline |image2| image.
+
+.. |image1| image:: standalone.png
+.. |image2| image:: icon.png

@@ -49,7 +49,7 @@ pub(crate) struct RowSpanGrid {
     /// The table's declared column count; a cell's column span cannot cover columns past it.
     columns: usize,
     /// Per column, how many upcoming rows a span opened in an earlier row still covers.
-    pending: Vec<i32>,
+    pending: Vec<i64>,
 }
 
 #[cfg_attr(
@@ -198,7 +198,7 @@ mod tests {
     use super::*;
     use carta_ast::Cell;
 
-    fn cell(row_span: i32, col_span: i32) -> Cell {
+    fn cell(row_span: i64, col_span: i64) -> Cell {
         Cell {
             attr: carta_ast::Attr::default(),
             align: carta_ast::Alignment::AlignDefault,
@@ -228,14 +228,14 @@ mod tests {
     #[test]
     fn column_span_clamps_to_table_edge() {
         let mut grid = RowSpanGrid::new(3);
-        let row = [cell(1, 1), cell(1, i32::MAX)];
+        let row = [cell(1, 1), cell(1, i64::MAX)];
         assert_eq!(slot_kinds(&grid.place_slots(&row)), ['c', 'c', '-']);
     }
 
     #[test]
     fn column_span_in_zero_column_table_stays_single() {
         let mut grid = RowSpanGrid::new(0);
-        let row = [cell(1, i32::MAX), cell(1, i32::MAX)];
+        let row = [cell(1, i64::MAX), cell(1, i64::MAX)];
         assert_eq!(slot_kinds(&grid.place_slots(&row)), ['c', 'c']);
     }
 
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn oversized_row_span_covers_each_following_row() {
         let mut grid = RowSpanGrid::new(2);
-        let first = [cell(i32::MAX, 1), cell(1, 1)];
+        let first = [cell(i64::MAX, 1), cell(1, 1)];
         assert_eq!(slot_kinds(&grid.place_slots(&first)), ['c', 'c']);
         let second = [cell(1, 1)];
         assert_eq!(slot_kinds(&grid.place_slots(&second)), ['-', 'c']);

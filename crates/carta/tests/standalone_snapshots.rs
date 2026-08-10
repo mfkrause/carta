@@ -47,7 +47,7 @@ fn main() {}
 /// Every format that ships a default standalone template.
 const WRAPPING_TARGETS: &[&str] = &[
     "html", "html4", "latex", "beamer", "revealjs", "typst", "markdown", "gfm", "rst", "asciidoc",
-    "plain", "man", "opml", "rtf",
+    "plain", "man", "opml", "rtf", "docbook",
 ];
 
 #[test]

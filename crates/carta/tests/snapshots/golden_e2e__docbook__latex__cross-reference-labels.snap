@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a labelled section: \hyperref[labelled]{The label the section
+states}.
+
+To a labelled section, overridden: \hyperref[labelled]{Some other
+wording}.
+
+To a labelled table: \hyperref[grid]{The label the table states}.
+
+To an unlabelled section: \hyperref[plain]{An unlabelled section}.
+
+\protect\phantomsection\label{wording}{Some other wording}
+
+\section{A labelled section}\label{labelled}
+
+Body.
+
+\section{An unlabelled section}\label{plain}
+
+Body.
+
+\begin{longtable}[]{@{}l@{}}
+\caption{A labelled table}\label{grid}\tabularnewline
+\toprule\noalign{}
+\endfirsthead
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Cell \\
+\end{longtable}

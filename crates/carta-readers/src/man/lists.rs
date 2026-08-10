@@ -64,7 +64,7 @@ fn enumerator_body(body: &str, delim: ListNumberDelim) -> Option<ListAttributes>
             ListNumberStyle::LowerRoman
         };
         return Some(ListAttributes {
-            start,
+            start: i64::from(start),
             style,
             delim,
         });
@@ -80,7 +80,7 @@ fn enumerator_body(body: &str, delim: ListNumberDelim) -> Option<ListAttributes>
             ListNumberStyle::LowerAlpha
         };
         return Some(ListAttributes {
-            start,
+            start: i64::from(start),
             style,
             delim,
         });

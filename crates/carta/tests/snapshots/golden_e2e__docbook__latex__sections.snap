@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\subsection{Preface}\label{front}
+
+Words before the parts begin.
+
+\section{Part one}\label{first-part}
+
+\subsection{Opening chapter}\label{opening}
+
+Chapter text.
+
+\subsubsection{A numbered section}\label{numbered-one}
+
+Body of sect1.
+
+\paragraph{A deeper numbered section}
+
+Body of sect2.
+
+\subsubsection{A recursive section}\label{recursive}
+
+Body of the recursive section.
+
+\paragraph{Nested once more}
+
+\subparagraph*{A simple section}
+\addcontentsline{toc}{subparagraph}{A simple section}
+
+Unnumbered body.
+
+\subsection{Appendix}\label{back}
+
+Closing material.

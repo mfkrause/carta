@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a section: `A named section <#named>`__.
+
+To a titled example: `example_title <#sample>`__.
+
+To a titled note: `note_title <#remark>`__.
+
+To nothing at all: `??? <#absent>`__.
+
+.. _named:
+
+A named section
+===============
+
+Body.
+
+.. container:: example
+   :name: sample
+
+   Body.
+
+.. note::
+   :name: remark
+
+   Body.

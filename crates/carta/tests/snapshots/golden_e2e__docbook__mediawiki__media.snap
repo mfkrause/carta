@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div id="plot" class="figure">
+[[File:plot.png|384x192px|A plotted curve]]
+</div>
+
+A standalone block image:
+
+[[File:standalone.png]]
+
+An inline [[File:icon.png]] image.

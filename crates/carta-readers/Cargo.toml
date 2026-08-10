@@ -22,10 +22,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [features]
-default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org", "rtf", "docx", "epub", "odt", "typst"]
+default = ["commonmark", "json", "html", "native", "csv", "tsv", "opml", "rst", "ipynb", "mediawiki", "dokuwiki", "jira", "man", "latex", "org", "rtf", "docx", "epub", "odt", "typst", "docbook"]
 commonmark = ["dep:unicode-general-category", "dep:caseless", "dep:serde_json"]
 json = ["carta-ast/serde", "carta-core/serde"]
 html = []
+docbook = []
 docx = ["carta-core/container"]
 epub = ["html", "carta-core/container"]
 odt = ["carta-core/container"]

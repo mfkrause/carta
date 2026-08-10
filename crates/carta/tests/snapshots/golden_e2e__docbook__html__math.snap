@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>An inline equation <span class="math inline">\(a + b\)</span> in
+prose.</p>
+<p>And one written in MathML: <span class="math inline">\(x +
+1\)</span>.</p>
+<p><span class="math display">\[a^2 + b^2 = c^2\]</span></p>
+<div class="informalequation">
+<p><span class="math display">\[\frac{a}{b}\]</span></p>
+</div>

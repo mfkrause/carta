@@ -73,28 +73,29 @@ mod restore_tests {
 }
 
 #[cfg(test)]
-mod char_width_tests {
-    use super::super::{char_width, is_zero_width};
+mod width_tests {
+    use super::super::{BREAK, reflow};
+    use carta_core::WrapMode;
 
     #[test]
-    fn low_range_fast_path_matches_category_lookup() {
-        for code in 0u32..0x0300 {
-            let Some(ch) = char::from_u32(code) else {
-                continue;
-            };
-            let expected = usize::from(!is_zero_width(ch));
-            assert_eq!(char_width(ch), expected, "width mismatch at U+{code:04X}");
-        }
+    fn a_joined_cluster_fills_the_two_columns_of_one_glyph() {
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        let input = format!("{family}{BREAK}{family}{BREAK}{family}");
+        assert_eq!(
+            reflow(&input, WrapMode::Auto, 8),
+            format!("{family} {family} {family}")
+        );
+        assert_eq!(
+            reflow(&input, WrapMode::Auto, 7),
+            format!("{family} {family}\n{family}")
+        );
     }
 
     #[test]
-    fn pins_representative_widths() {
-        assert_eq!(char_width('a'), 1);
-        assert_eq!(char_width('\u{200B}'), 0); // zero-width space (Format)
-        assert_eq!(char_width('\u{0301}'), 0); // combining acute accent (Nonspacing_Mark)
-        assert_eq!(char_width('\u{7}'), 0); // bell (Control)
-        assert_eq!(char_width('\u{4E00}'), 2); // CJK ideograph (wide)
-        assert_eq!(char_width('\u{1F600}'), 2); // grinning face emoji (wide)
+    fn a_wide_character_fills_two_columns() {
+        let input = format!("\u{4E00}\u{4E00}{BREAK}ab");
+        assert_eq!(reflow(&input, WrapMode::Auto, 7), "\u{4E00}\u{4E00} ab");
+        assert_eq!(reflow(&input, WrapMode::Auto, 6), "\u{4E00}\u{4E00}\nab");
     }
 }
 

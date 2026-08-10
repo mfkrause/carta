@@ -142,12 +142,13 @@ fn consecutive_lists_get_comment_separator() {
 }
 
 #[test]
-fn plain_followed_by_block_uses_single_newline() {
-    let out = render(vec![
+fn plain_runs_on_only_inside_a_list_item() {
+    let plains = vec![
         Block::Plain(str_inlines("a")),
         Block::Plain(str_inlines("b")),
-    ]);
-    assert_eq!(out, "a\nb");
+    ];
+    assert_eq!(render(plains.clone()), "a\n\nb");
+    assert_eq!(render(vec![Block::BulletList(vec![plains])]), "- a\n  b");
 }
 
 #[test]

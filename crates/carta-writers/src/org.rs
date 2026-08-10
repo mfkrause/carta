@@ -16,7 +16,8 @@ use carta_core::{Extension, Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, Piece, append_notes, attribute_value, display_width, fill, fill_hang,
-    indent_block, item_separator, label_matches_url, offset_as_i32, quote_marks,
+    indent_block, item_separator, label_matches_url, offset_as_i64, per_character_width,
+    quote_marks,
 };
 
 /// Number of dashes emitted for a horizontal rule.
@@ -124,7 +125,7 @@ impl State {
     /// a heading, keyword, or table. Only a character from literal text needs guarding: an emphasis or
     /// other markup delimiter that opens the line (e.g. the `*` of a bold span) is unambiguous.
     fn leaf(&mut self, inlines: &[Inline], width: usize, hang: bool) -> String {
-        let pieces = self.pieces(inlines);
+        let pieces = separate_characters(self.pieces(inlines));
         if hang {
             fill_hang(&pieces, width, self.wrap)
         } else {
@@ -151,9 +152,9 @@ impl State {
         fence("#+begin_verse", &rendered.join("\n"), "#+end_verse")
     }
 
-    fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+    fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
         // Org has no syntactic depth ceiling; the cap keeps an absurd level from unbounded allocation.
-        const MAX_HEADLINE_LEVEL: i32 = 32;
+        const MAX_HEADLINE_LEVEL: i64 = 32;
         let stars = "*".repeat(usize::try_from(level.clamp(1, MAX_HEADLINE_LEVEL)).unwrap_or(1));
         let text = self.flat(inlines);
         let heading = format!("{stars} {text}");
@@ -220,7 +221,7 @@ impl State {
         };
         let mut units = Vec::new();
         for (index, item) in items.iter().enumerate() {
-            let number = attrs.start.saturating_add(offset_as_i32(index));
+            let number = attrs.start.saturating_add(offset_as_i64(index));
             let marker = format!("{number}{delim}");
             let field = marker.chars().count() + 1;
             let cookie = if index == 0 && attrs.start != 1 {
@@ -381,7 +382,7 @@ impl State {
             .collect();
         let widest = lines
             .iter()
-            .map(|line| display_width(line))
+            .map(|line| per_character_width(line))
             .max()
             .unwrap_or(0);
         RenderedCell {
@@ -699,6 +700,32 @@ fn join_items(units: Vec<String>, separator: &str) -> String {
         .filter(|unit| !unit.is_empty())
         .collect::<Vec<_>>()
         .join(separator)
+}
+
+/// Split every text run that reaches beyond ASCII into one piece per character. Org sets a line one
+/// character at a time, so each character claims its columns alone: a cluster spread over several
+/// characters is not drawn as one glyph, and a combining mark keeps a column of its own.
+fn separate_characters(pieces: Vec<Piece>) -> Vec<Piece> {
+    if pieces.iter().all(|piece| match piece {
+        Piece::Text(text) => text.is_ascii(),
+        _ => true,
+    }) {
+        return pieces;
+    }
+    let mut out = Vec::with_capacity(pieces.len());
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) if !text.is_ascii() => {
+                let mut buffer = [0u8; 4];
+                out.extend(
+                    text.chars()
+                        .map(|ch| Piece::text(&*ch.encode_utf8(&mut buffer))),
+                );
+            }
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 /// Guard a paragraph whose first character would open Org syntax with a zero-width space.

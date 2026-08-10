@@ -10,6 +10,7 @@ mod node;
 mod parse;
 mod pipe;
 mod render;
+mod slot;
 #[cfg(test)]
 mod tests;
 

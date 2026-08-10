@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<itemizedlist>
+  <listitem>
+    <para>
+      a
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      b
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      c
+    </para>
+  </listitem>
+</itemizedlist>

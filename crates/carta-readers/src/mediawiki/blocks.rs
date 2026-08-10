@@ -76,7 +76,7 @@ impl Parser {
                         classes: Vec::new(),
                         attributes: Vec::new(),
                     };
-                    blocks.push(Block::Header(level, Box::new(attr), inlines));
+                    blocks.push(Block::Header(i64::from(level), Box::new(attr), inlines));
                     let (np, ls) = finish_inline_block(chars, closer_end);
                     pos = np;
                     line_start = ls;
@@ -284,7 +284,7 @@ impl Parser {
                 .unwrap_or(1);
             Block::OrderedList(
                 ListAttributes {
-                    start: start_num,
+                    start: i64::from(start_num),
                     style: ListNumberStyle::DefaultStyle,
                     delim: ListNumberDelim::DefaultDelim,
                 },

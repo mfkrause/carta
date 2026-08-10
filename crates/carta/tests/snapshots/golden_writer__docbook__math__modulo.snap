@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis>a</emphasis> (mod  <emphasis>n</emphasis>)
+  <emphasis>a</emphasis> mod  <emphasis>b</emphasis>
+  <emphasis>a</emphasis> mod  <emphasis>b</emphasis>
+  <emphasis>a</emphasis> (<emphasis>n</emphasis>)
+</para>

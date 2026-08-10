@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An inline equation \(a + b\) in prose.
+
+And one written in MathML: \(x + 1\).
+
+\[a^2 + b^2 = c^2\]
+
+\[\frac{a}{b}\]

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"abstract":{"t":"MetaBlocks","c":[{"t":"Para","c":[{"t":"Str","c":"要約の中の"},{"t":"Str","c":"改行も同じです。"}]}]},"author":{"t":"MetaInlines","c":[{"t":"Str","c":"広い文字"}]},"title":{"t":"MetaInlines","c":[{"t":"Str","c":"広い文字の間の"},{"t":"Str","c":"改行は消えます"}]}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Body."}]}]}

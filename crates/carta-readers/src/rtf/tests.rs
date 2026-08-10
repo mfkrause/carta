@@ -266,7 +266,11 @@ fn extreme_outline_level_saturates_without_overflow() {
     let doc = read(r"{\rtf1\ansi \outlinelevel2147483647 Edge\par}");
     assert_eq!(
         doc.blocks,
-        vec![Block::Header(i32::MAX, Box::default(), vec![s("Edge")])]
+        vec![Block::Header(
+            i64::from(i32::MAX) + 1,
+            Box::default(),
+            vec![s("Edge")]
+        )]
     );
 }
 

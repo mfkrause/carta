@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<itemizedlist spacing="compact">
+  <listitem>
+    <itemizedlist spacing="compact">
+      <listitem>
+        <para>
+          inner one
+        </para>
+      </listitem>
+      <listitem>
+        <para>
+          inner two
+        </para>
+      </listitem>
+    </itemizedlist>
+  </listitem>
+  <listitem>
+    <para>
+      outer two
+    </para>
+  </listitem>
+</itemizedlist>

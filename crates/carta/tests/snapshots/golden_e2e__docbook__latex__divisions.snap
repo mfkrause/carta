@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\protect\phantomsection\label{titled}
+The title of a quotation
+
+\begin{quote}
+The quoted wording.
+
+--- Someone
+\end{quote}
+
+\begin{quote}
+An untitled quotation.
+\end{quote}
+
+\begin{quote}
+An epigraph states no title.
+\end{quote}
+
+An example standing without a title.

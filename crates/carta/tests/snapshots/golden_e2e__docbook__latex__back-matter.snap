@@ -1,0 +1,33 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\subsection{A preface}
+
+Front words.
+
+\subsubsection{Inside the preface}
+
+Deeper front words.
+
+\section{The only part}
+
+\subsection{A chapter}
+
+\subsubsection{A numbered section}
+
+Chapter words.
+
+\subsection{An appendix}
+
+Closing words.
+
+\subsubsection{Inside the appendix}
+
+Deeper closing words.
+
+\subsection{A glossary}
+
+Term
+
+Meaning.

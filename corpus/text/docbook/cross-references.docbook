@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Cross references</title>
+  <para>To a section: <xref linkend="named"/>.</para>
+  <para>To a titled example: <xref linkend="sample"/>.</para>
+  <para>To a titled note: <xref linkend="remark"/>.</para>
+  <para>To nothing at all: <xref linkend="absent"/>.</para>
+  <section xml:id="named"><title>A named section</title><para>Body.</para></section>
+  <example xml:id="sample"><title>A titled example</title><para>Body.</para></example>
+  <note xml:id="remark"><title>A titled note</title><para>Body.</para></note>
+</article>

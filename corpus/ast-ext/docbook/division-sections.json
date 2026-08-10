@@ -1,0 +1,311 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Header",
+      "c": [
+        1,
+        [
+          "the-first-section",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "The"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "first"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "section"
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Text"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "under"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "first."
+        }
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "wrapper"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Header",
+            "c": [
+              1,
+              [
+                "a-section-a-division-opens",
+                [],
+                []
+              ],
+              [
+                {
+                  "t": "Str",
+                  "c": "A"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "section"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "a"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "division"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "opens"
+                }
+              ]
+            ]
+          },
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "Text"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "inside"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "the"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "division."
+              }
+            ]
+          },
+          {
+            "t": "Header",
+            "c": [
+              2,
+              [
+                "a-deeper-section-still-inside",
+                [],
+                []
+              ],
+              [
+                {
+                  "t": "Str",
+                  "c": "A"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "deeper"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "section"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "still"
+                },
+                {
+                  "t": "Space"
+                },
+                {
+                  "t": "Str",
+                  "c": "inside"
+                }
+              ]
+            ]
+          },
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "More"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "text."
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Para",
+      "c": [
+        {
+          "t": "Str",
+          "c": "Text"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "after"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "the"
+        },
+        {
+          "t": "Space"
+        },
+        {
+          "t": "Str",
+          "c": "division."
+        }
+      ]
+    },
+    {
+      "t": "Header",
+      "c": [
+        2,
+        [
+          "a-section-the-division-does-not-close",
+          [],
+          []
+        ],
+        [
+          {
+            "t": "Str",
+            "c": "A"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "section"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "the"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "division"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "does"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "not"
+          },
+          {
+            "t": "Space"
+          },
+          {
+            "t": "Str",
+            "c": "close"
+          }
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Targets
+=======
+
+An external `link <https://example.org/>`__ and one carrying a
+`role <https://example.org/two>`__.
+
+An old-style `ulink <https://example.org/three>`__, a bare
+https://example.org/four, and an address someone@example.org.
+
+An internal `link by end <#targets>`__ and a bare
+`Targets <#targets>`__.
+
+A footnote follows. [1]_
+
+.. [1]
+   The note body.

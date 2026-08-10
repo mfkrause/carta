@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{First chapter}
+
+Text in the chapter.
+
+\subsection{A section}
+
+An equation \[e = 2\] stands in the sentence around it.
+
+Aside
+
+Set beside the text.
+
+\[y = x\]
+
+\subsection{Deeper still}
+
+The count restarts where the article stands.
+
+\section{Second chapter}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={Alternative words}]{plot.png}}
+\caption{A figure}
+\end{figure}

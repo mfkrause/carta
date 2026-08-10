@@ -109,7 +109,8 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 | Format | Reader | Writer |
 | --- | :---: | :---: |
 | BITS (`bits`) | ❌ | ➖ |
-| DocBook (`docbook`, `docbook4`, `docbook5`) | ❌ | ❌ |
+| DocBook (`docbook`, `docbook5`) | ✅ | ✅ |
+| DocBook 4 (`docbook4`) | ➖ | ❌ |
 | JATS (`jats`, `jats_archiving`, `jats_articleauthoring`, `jats_publishing`) | ❌ | ❌ |
 | TEI (`tei`) | ➖ | ❌ |
 | Generic XML (`xml`) | ❌ | ❌ |
@@ -360,16 +361,16 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Formatting inside an `\info` field is flattened to plain text, and `\generator` is not captured as
   document metadata.
 
+### `docbook` ✅
 ### `csv` ✅
 ### `json` ✅
 ### `native` ✅
 ### `opml` ✅
 ### `tsv` ✅
 
-**Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook` (+
-`4`, `5`), `endnotexml`, `fb2`, `haddock`, `jats` (+ `_archiving`, `_articleauthoring`,
-`_publishing`), `mdoc`, `muse`, `pod`, `pptx`, `ris`, `t2t`, `textile`, `tikiwiki`, `twiki`,
-`vimwiki`, `xlsx`, `xml`.
+**Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`,
+`endnotexml`, `fb2`, `haddock`, `jats` (+ `_archiving`, `_articleauthoring`, `_publishing`), `mdoc`,
+`muse`, `pod`, `pptx`, `ris`, `t2t`, `textile`, `tikiwiki`, `twiki`, `vimwiki`, `xlsx`, `xml`.
 
 ---
 
@@ -395,6 +396,9 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Headings are not section-numbered.
 
 ### `latex` ✅
+- In a line block, a line whose content is entirely code spans is set without the trailing `\strut`
+  that keeps its full height, and a space ending a line is dropped.
+
 ### `typst` ✅
 
 ### `asciidoc` ✅
@@ -567,6 +571,10 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - A nested ordered list with default style is numbered with decimal markers at every level rather
   than cycling the marker style by depth.
 
+### `docbook` (+ `docbook5`) ✅
+- A standalone document lists each author as plain text rather than splitting the name into a
+  `personname` element.
+
 ### `json` ✅
 ### `native` ✅
 
@@ -577,9 +585,9 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,
-`docbook` (+ `4`, `5`), `dzslides`, `fb2`, `haddock`, `icml`, `jats` (+ `_archiving`,
-`_articleauthoring`, `_publishing`), `markua`, `ms`, `muse`, `opendocument`, `pdf`, `pptx`, `s5`,
-`slideous`, `slidy`, `tei`, `texinfo`, `textile`, `vimdoc`, `xml`, `xwiki`, `zimwiki`.
+`docbook4`, `dzslides`, `fb2`, `haddock`, `icml`, `jats` (+ `_archiving`, `_articleauthoring`,
+`_publishing`), `markua`, `ms`, `muse`, `opendocument`, `pdf`, `pptx`, `s5`, `slideous`, `slidy`,
+`tei`, `texinfo`, `textile`, `vimdoc`, `xml`, `xwiki`, `zimwiki`.
 
 ---
 
@@ -642,6 +650,7 @@ Notes list gaps and limitations only.
 | Standalone output + templates (`-s`, `--template`) | ✅ | Each writer's scaffold (CSS, preamble) is authored independently and is not byte-identical across tools. |
 | Table of contents (`--toc`) | ✅ | `revealjs` does not yet emit a slide-relative contents structure. |
 | Text wrapping (`--wrap`, `--columns`) | ✅ | A few constructs still account for width incorrectly when reflowed at narrow columns: line blocks, footnote bodies, the AsciiDoc list-marker indent, and roff line-continuation. |
+| Tab expansion (`--tab-stop`) | 🚧 | Only the `docbook` reader takes the column width from the option; the `rst`, `dokuwiki`, and `mediawiki` readers expand tabs on a fixed four-column grid. |
 | Section numbering (`--number-sections`) | ✅ | Inert in the Markdown family and `plain` (no heading-number syntax); `revealjs` is not yet numbered. |
 | Metadata / variables (`-M`, `-V`, `--metadata-file`) | ✅ | — |
 | Syntax highlighting | ✅ | Language classes resolve as written (no alias canonicalization), so a mixed-case spelling of an alias may color differently from its lowercase form. |

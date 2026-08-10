@@ -1,0 +1,52 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "declaration"
+    , Space
+    , Str "nested"
+    , Space
+    , Str "in"
+    , Space
+    , Str "another:"
+    , Space
+    , Str "Carta"
+    , Space
+    , Str "0.1"
+    , Space
+    , Str "&"
+    , Space
+    , Str "friends."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "declaration"
+    , Space
+    , Str "standing"
+    , Space
+    , Str "for"
+    , Space
+    , Str "markup:"
+    , Space
+    , Emph [ Str "emphasized" ]
+    , Str "."
+    ]
+, Para
+    [ Link
+        ( "" , [] , [] )
+        [ Str "In"
+        , Space
+        , Str "an"
+        , Space
+        , Str "attribute"
+        , Space
+        , Str "value"
+        ]
+        ( "https://example.com/0.1" , "" )
+    ]
+, CodeBlock ( "" , [] , [] ) "Carta in verbatim text"
+]

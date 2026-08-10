@@ -127,6 +127,7 @@ reader_golden! {
     reader_snapshots_for, READER_TEXT_GROUPS;
     reader_ast_snapshots_commonmark => "commonmark",
     reader_ast_snapshots_csv => "csv",
+    reader_ast_snapshots_docbook => "docbook",
     reader_ast_snapshots_dokuwiki => "dokuwiki",
     reader_ast_snapshots_html => "html",
     reader_ast_snapshots_ipynb => "ipynb",
@@ -200,6 +201,8 @@ reader_golden! {
     reader_ext_ast_snapshots_commonmark_task_lists => "commonmark+task_lists",
     reader_ext_ast_snapshots_commonmark_tex_math_dollars => "commonmark+tex_math_dollars",
     reader_ext_ast_snapshots_commonmark_yaml_metadata_block => "commonmark+yaml_metadata_block",
+    reader_ext_ast_snapshots_docbook => "docbook",
+    reader_ext_ast_snapshots_docbook_east_asian_line_breaks => "docbook+east_asian_line_breaks",
     reader_ext_ast_snapshots_docx_empty_paragraphs => "docx+empty_paragraphs",
     reader_ext_ast_snapshots_docx_styles => "docx+styles",
     reader_ext_ast_snapshots_dokuwiki_auto_identifiers => "dokuwiki+auto_identifiers",

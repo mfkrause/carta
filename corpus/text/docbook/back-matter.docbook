@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<book xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <bookinfo><title>Back matter levels</title></bookinfo>
+  <preface>
+    <title>A preface</title>
+    <para>Front words.</para>
+    <section><title>Inside the preface</title><para>Deeper front words.</para></section>
+  </preface>
+  <part>
+    <title>The only part</title>
+    <chapter>
+      <chapterinfo><author><personname>Not the book's author</personname></author></chapterinfo>
+      <title>A chapter</title>
+      <sect1><title>A numbered section</title><para>Chapter words.</para></sect1>
+    </chapter>
+  </part>
+  <appendix>
+    <title>An appendix</title>
+    <para>Closing words.</para>
+    <section>
+      <title>Inside the appendix</title>
+      <para>Deeper closing words.</para>
+    </section>
+  </appendix>
+  <glossary>
+    <title>A glossary</title>
+    <glossentry><glossterm>Term</glossterm><glossdef><para>Meaning.</para></glossdef></glossentry>
+  </glossary>
+</book>

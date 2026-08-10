@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+====== ======== ====== ====== ====
+signs  selector joined narrow mark
+====== ======== ====== ====== ====
+⌚⭐✅ ☀️1️⃣     👨‍👩‍👧👍🏽   ㉈゙      ́abc
+====== ======== ====== ====== ====

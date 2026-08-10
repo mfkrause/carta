@@ -31,3 +31,12 @@ fn image_size_converts_dimensions_to_pixels() {
     assert_eq!(image_size(&attr(&[("width", "50%")])), None);
     assert_eq!(image_size(&attr(&[])), None);
 }
+
+#[test]
+fn plain_runs_on_into_the_next_block() {
+    let plain = Block::Plain(Vec::new());
+    let para = Block::Para(Vec::new());
+    assert_eq!(separator(&plain, &para, false), "\n");
+    assert_eq!(separator(&plain, &Block::HorizontalRule, false), "\n\n");
+    assert_eq!(separator(&para, &plain, false), "\n\n");
+}

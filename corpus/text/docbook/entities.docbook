@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A leading comment, dropped along with the processing instruction below. -->
+<?docbook-target option="value"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Character data</title>
+  <para>Named references: &amp; &lt; &gt; &quot; &apos; &copy; &mdash; &nbsp; &hellip;</para>
+  <para>Numeric references: &#65; &#x41; &#8212; &#x1F600;</para>
+  <para><![CDATA[Inside CDATA: <not-an-element> & a raw ampersand]]></para>
+  <programlisting><![CDATA[if (a < b && c > d) { }]]></programlisting>
+  <para>Empty element <anchor/> and a self-closed <phrase/> stay harmless.</para>
+</article>

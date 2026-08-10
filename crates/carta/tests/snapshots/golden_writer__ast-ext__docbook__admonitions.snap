@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<note>
+  <para>
+    A note division.
+  </para>
+</note>
+<warning>
+  <para>
+    A warning division.
+  </para>
+</warning>
+<tip>
+  <para>
+    A tip division.
+  </para>
+</tip>
+<caution>
+  <para>
+    A caution division.
+  </para>
+</caution>
+<important>
+  <para>
+    A important division.
+  </para>
+</important>
+<danger>
+  <para>
+    A danger division.
+  </para>
+</danger>

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  She said <quote>hello</quote> and <quote>hi</quote>.
+</para>

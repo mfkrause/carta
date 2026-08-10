@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a labelled section: The label the section states.
+
+To a labelled section, overridden: Some other wording.
+
+To a labelled table: The label the table states.
+
+To an unlabelled section: An unlabelled section.
+
+Some other wording
+
+A labelled section
+
+Body.
+
+An unlabelled section
+
+Body.
+
+  ------
+  Cell
+  ------
+
+  : A labelled table {#grid}

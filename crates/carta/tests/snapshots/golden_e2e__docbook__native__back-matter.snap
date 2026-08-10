@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header
+    2 ( "" , [] , [] ) [ Str "A" , Space , Str "preface" ]
+, Para [ Str "Front" , Space , Str "words." ]
+, Header
+    3
+    ( "" , [] , [] )
+    [ Str "Inside" , Space , Str "the" , Space , Str "preface" ]
+, Para
+    [ Str "Deeper"
+    , Space
+    , Str "front"
+    , Space
+    , Str "words."
+    ]
+, Header
+    1
+    ( "" , [] , [] )
+    [ Str "The" , Space , Str "only" , Space , Str "part" ]
+, Header
+    2 ( "" , [] , [] ) [ Str "A" , Space , Str "chapter" ]
+, Header
+    3
+    ( "" , [] , [] )
+    [ Str "A" , Space , Str "numbered" , Space , Str "section" ]
+, Para [ Str "Chapter" , Space , Str "words." ]
+, Header
+    2 ( "" , [] , [] ) [ Str "An" , Space , Str "appendix" ]
+, Para [ Str "Closing" , Space , Str "words." ]
+, Header
+    3
+    ( "" , [] , [] )
+    [ Str "Inside"
+    , Space
+    , Str "the"
+    , Space
+    , Str "appendix"
+    ]
+, Para
+    [ Str "Deeper"
+    , Space
+    , Str "closing"
+    , Space
+    , Str "words."
+    ]
+, Header
+    2 ( "" , [] , [] ) [ Str "A" , Space , Str "glossary" ]
+, Plain [ Str "Term" ]
+, Para [ Str "Meaning." ]
+]

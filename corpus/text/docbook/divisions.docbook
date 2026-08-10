@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Quoted and exemplary divisions</title>
+  <blockquote xml:id="titled" role="pull">
+    <title>The title of a quotation</title>
+    <para>The quoted wording.</para>
+    <attribution>Someone</attribution>
+  </blockquote>
+  <blockquote><para>An untitled quotation.</para></blockquote>
+  <epigraph xml:id="ep"><title>Dropped</title><para>An epigraph states no title.</para></epigraph>
+  <informalexample xml:id="dropped" role="demo">
+    <para>An example standing without a title.</para>
+  </informalexample>
+</article>

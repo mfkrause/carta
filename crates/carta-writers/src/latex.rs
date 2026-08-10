@@ -114,7 +114,7 @@ pub(crate) fn render_fragment(
 /// Render a header as a sectioning command, the form used for headers above a presentation's slide
 /// level. Identical to a top-level header in the article dialect.
 pub(crate) fn render_heading(
-    level: i32,
+    level: i64,
     attr: &Attr,
     inlines: &[Inline],
     wrap: WrapMode,
@@ -229,7 +229,7 @@ fn block_to_string(
 
 #[allow(clippy::too_many_arguments)]
 fn header(
-    level: i32,
+    level: i64,
     attr: &Attr,
     inlines: &[Inline],
     width: usize,
@@ -638,7 +638,8 @@ fn definition_list(
 /// has content to act on: while only empty lines have been seen it is `\hfill\break` (which both fills
 /// the line and breaks it, so no `\\` follows); once real content has appeared it is `\strut`, which
 /// gives the otherwise-blank line its height ahead of the `\\`. A trailing empty line contributes
-/// nothing beyond the break already closing the previous line.
+/// nothing beyond the break already closing the previous line. A line whose own content opens on a
+/// non-breaking space takes the same strut ahead of it.
 fn line_block(
     lines: &[Vec<Inline>],
     width: usize,
@@ -653,7 +654,12 @@ fn line_block(
         let is_last = index + 1 == lines.len();
         let mut breaks = true;
         if !line.is_empty() {
-            out.push_str(&inlines_to_string(line, width, dialect, wrap, smart, hl));
+            let rendered = inlines_to_string(line, width, dialect, wrap, smart, hl);
+            // A line opening on a non-breaking space carries no glyph to set its height.
+            if rendered.starts_with('~') {
+                out.push_str("\\strut ");
+            }
+            out.push_str(&rendered);
             only_empty_so_far = false;
         } else if is_last {
             // The break ending the previous line already stands in for this one.

@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+  <title>Table caption</title>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <tbody>
+      <row>
+        <entry>
+          a
+        </entry>
+        <entry>
+          b
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</table>

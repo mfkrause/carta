@@ -1,0 +1,96 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="4">
+    <colspec colwidth="34*" align="left" />
+    <colspec colwidth="18*" align="left" />
+    <colspec colwidth="15*" align="left" />
+    <colspec colwidth="15*" align="left" />
+    <thead>
+      <row>
+        <entry>
+          Header row, column 1
+        </entry>
+        <entry>
+          Header 2
+        </entry>
+        <entry>
+          Header 3
+        </entry>
+        <entry>
+          Header 4
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          body row 1, column 1
+        </entry>
+        <entry>
+          column 2
+        </entry>
+        <entry>
+          column 3
+        </entry>
+        <entry>
+          column 4
+        </entry>
+      </row>
+      <row>
+        <entry>
+          body row 2
+        </entry>
+        <entry>
+          Cells may span columns.
+        </entry>
+        <entry>
+        </entry>
+        <entry>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          body row 3
+        </entry>
+        <entry>
+          Cells may span rows.
+        </entry>
+        <entry>
+          <itemizedlist spacing="compact">
+            <listitem>
+              <para>
+                Cells.
+              </para>
+            </listitem>
+            <listitem>
+              <para>
+                Contain.
+              </para>
+            </listitem>
+            <listitem>
+              <para>
+                Blocks.
+              </para>
+            </listitem>
+          </itemizedlist>
+        </entry>
+        <entry>
+        </entry>
+      </row>
+      <row>
+        <entry>
+          body row 4
+        </entry>
+        <entry>
+        </entry>
+        <entry>
+        </entry>
+        <entry>
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>

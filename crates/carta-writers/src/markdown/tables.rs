@@ -6,8 +6,8 @@ use carta_core::Extension;
 use crate::common::{
     MEASURE_WIDTH, Piece, TableForm, block_inlines, body_rows, boundary_space_count, cell_inlines,
     dash_rule, display_width, extend_multiline_body, fill, fill_offset, filled_cells, indent_block,
-    indent_lines, is_simple_cell, lay_row, measure_pieces, pad_align, pieces_nonempty, table_form,
-    trimmed_cell_inlines,
+    indent_lines, is_simple_cell, lay_row, measure_pieces, pad_align_continued, pieces_nonempty,
+    table_form, trimmed_cell_inlines,
 };
 use crate::grid;
 use crate::markdown_common::attr_is_empty;
@@ -445,7 +445,7 @@ impl State {
     }
 
     fn cell_lines(&mut self, content: &[Block], width: usize) -> Vec<String> {
-        let rendered = self.blocks_to_string(content, width.max(1));
+        let rendered = self.item_to_string(content, width.max(1));
         if rendered.is_empty() {
             Vec::new()
         } else {
@@ -533,7 +533,8 @@ fn attribute_suffix(attr: &Attr) -> Option<String> {
 }
 
 /// One pipe-table row: each cell padded to its column width and wrapped in `| … |`. Alignment
-/// controls the padding side.
+/// controls the padding side. A cell continues the line the row bar opened, so its padding is
+/// measured that way.
 fn pipe_row(cells: &[String], widths: &[usize], aligns: &[Alignment]) -> String {
     let mut out = String::from("|");
     for (index, width) in widths.iter().enumerate() {
@@ -543,7 +544,7 @@ fn pipe_row(cells: &[String], widths: &[usize], aligns: &[Alignment]) -> String 
             .cloned()
             .unwrap_or(Alignment::AlignDefault);
         out.push(' ');
-        out.push_str(&pad_align(text, *width, &align));
+        out.push_str(&pad_align_continued(text, *width, &align));
         out.push_str(" |");
     }
     out

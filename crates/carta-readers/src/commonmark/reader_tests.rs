@@ -100,8 +100,8 @@ fn reference_targets(blocks: &[Block]) -> Vec<String> {
     out
 }
 
-fn cite_note_nums(blocks: &[Block]) -> Vec<i32> {
-    fn collect(inlines: &[Inline], out: &mut Vec<i32>) {
+fn cite_note_nums(blocks: &[Block]) -> Vec<i64> {
+    fn collect(inlines: &[Inline], out: &mut Vec<i64>) {
         for inline in inlines {
             if let Inline::Cite(citations, _) = inline {
                 out.extend(citations.iter().map(|c| c.note_num));
@@ -163,8 +163,8 @@ fn definition_items(blocks: &[Block]) -> Vec<(String, Vec<Vec<Block>>)> {
 
 /// Each ordered list in `input` (parsed with fancy lists on) reduced to its
 /// `(start, style, delimiter, item count)`.
-fn ordered_lists(input: &str) -> Vec<(i32, ListNumberStyle, ListNumberDelim, usize)> {
-    fn collect(blocks: &[Block], out: &mut Vec<(i32, ListNumberStyle, ListNumberDelim, usize)>) {
+fn ordered_lists(input: &str) -> Vec<(i64, ListNumberStyle, ListNumberDelim, usize)> {
+    fn collect(blocks: &[Block], out: &mut Vec<(i64, ListNumberStyle, ListNumberDelim, usize)>) {
         for block in blocks {
             if let Block::OrderedList(attrs, items) = block {
                 out.push((attrs.start, attrs.style, attrs.delim, items.len()));
@@ -181,8 +181,8 @@ fn ordered_lists(input: &str) -> Vec<(i32, ListNumberStyle, ListNumberDelim, usi
 
 /// Every example list in `input` (parsed with example lists on) as (start, style, delim, item
 /// count), in document order, descendants included.
-fn example_lists(input: &str) -> Vec<(i32, ListNumberStyle, ListNumberDelim, usize)> {
-    fn collect(blocks: &[Block], out: &mut Vec<(i32, ListNumberStyle, ListNumberDelim, usize)>) {
+fn example_lists(input: &str) -> Vec<(i64, ListNumberStyle, ListNumberDelim, usize)> {
+    fn collect(blocks: &[Block], out: &mut Vec<(i64, ListNumberStyle, ListNumberDelim, usize)>) {
         for block in blocks {
             match block {
                 Block::OrderedList(attrs, items) => {

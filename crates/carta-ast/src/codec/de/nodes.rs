@@ -140,7 +140,7 @@ impl Reader<'_> {
             "Header" => {
                 reader.require_present(content)?;
                 reader.open_array()?;
-                let level = reader.parse_i32()?;
+                let level = reader.parse_i64()?;
                 reader.comma()?;
                 let attr = reader.parse_attr()?;
                 reader.comma()?;
@@ -330,10 +330,10 @@ impl Reader<'_> {
                 let value = reader.parse_citation_mode()?;
                 Self::store(&mut mode, value, reader, "citationMode")
             } else if key.as_str() == "citationNoteNum" {
-                let value = reader.parse_i32()?;
+                let value = reader.parse_i64()?;
                 Self::store(&mut note_num, value, reader, "citationNoteNum")
             } else if key.as_str() == "citationHash" {
-                let value = reader.parse_i32()?;
+                let value = reader.parse_i64()?;
                 Self::store(&mut hash, value, reader, "citationHash")
             } else {
                 reader.fail(format_args!("unknown field `{key}`"))

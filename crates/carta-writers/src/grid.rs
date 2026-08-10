@@ -8,7 +8,7 @@ use carta_core::WrapMode;
 use crate::common::display_width;
 
 /// A cell span (`row_span`/`col_span`) as a count: never below one, never negative.
-pub(crate) fn span_count(value: i32) -> usize {
+pub(crate) fn span_count(value: i64) -> usize {
     usize::try_from(value.max(1)).unwrap_or(1)
 }
 

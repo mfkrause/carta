@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[[File:diagram.png|The alternative wording]]
+
+An inline [[File:icon.png|inline alternative]] image.

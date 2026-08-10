@@ -46,7 +46,7 @@ impl Reader<'_> {
         self.open_array()?;
         let attr = self.parse_attr()?;
         self.comma()?;
-        let row_head_columns = self.parse_i32()?;
+        let row_head_columns = self.parse_i64()?;
         self.comma()?;
         let head = self.parse_array(Self::parse_row)?;
         self.comma()?;
@@ -84,9 +84,9 @@ impl Reader<'_> {
         self.comma()?;
         let align = self.parse_alignment()?;
         self.comma()?;
-        let row_span = self.parse_i32()?;
+        let row_span = self.parse_i64()?;
         self.comma()?;
-        let col_span = self.parse_i32()?;
+        let col_span = self.parse_i64()?;
         self.comma()?;
         let content = self.parse_blocks()?;
         self.close_array()?;
@@ -171,7 +171,7 @@ impl Reader<'_> {
 
     pub(super) fn parse_list_attributes(&mut self) -> Parsed<ListAttributes> {
         self.open_array()?;
-        let start = self.parse_i32()?;
+        let start = self.parse_i64()?;
         self.comma()?;
         let style = self.parse_list_number_style()?;
         self.comma()?;

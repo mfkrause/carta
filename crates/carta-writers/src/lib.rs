@@ -7,6 +7,7 @@
     feature = "plain",
     feature = "latex",
     feature = "commonmark",
+    feature = "docbook",
     feature = "markdown",
     feature = "gfm",
     feature = "rst",
@@ -38,6 +39,7 @@ mod highlight;
     feature = "markdown",
     feature = "gfm",
     feature = "plain",
+    feature = "docbook",
     feature = "man",
     feature = "jira",
     feature = "typst",
@@ -62,6 +64,8 @@ pub mod asciidoc;
 pub mod beamer;
 #[cfg(feature = "commonmark")]
 pub mod commonmark;
+#[cfg(feature = "docbook")]
+pub mod docbook;
 #[cfg(feature = "docx")]
 pub mod docx;
 #[cfg(feature = "dokuwiki")]
@@ -111,6 +115,8 @@ pub use asciidoc::AsciidocWriter;
 pub use beamer::BeamerWriter;
 #[cfg(feature = "commonmark")]
 pub use commonmark::CommonmarkWriter;
+#[cfg(feature = "docbook")]
+pub use docbook::DocbookWriter;
 #[cfg(feature = "docx")]
 pub use docx::DocxWriter;
 #[cfg(feature = "dokuwiki")]

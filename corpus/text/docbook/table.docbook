@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Tables</title>
+  <table xml:id="rates">
+    <title>A formal table</title>
+    <tgroup cols="3">
+      <colspec colwidth="2*" align="left"/>
+      <colspec colwidth="1*" align="right"/>
+      <colspec align="center"/>
+      <thead>
+        <row>
+          <entry>Name</entry>
+          <entry>Count</entry>
+          <entry>Note</entry>
+        </row>
+      </thead>
+      <tbody>
+        <row>
+          <entry>First</entry>
+          <entry>1</entry>
+          <entry><para>A cell holding a paragraph.</para></entry>
+        </row>
+        <row>
+          <entry>Second</entry>
+          <entry>2</entry>
+          <entry/>
+        </row>
+      </tbody>
+      <tfoot>
+        <row>
+          <entry>Total</entry>
+          <entry>3</entry>
+          <entry/>
+        </row>
+      </tfoot>
+    </tgroup>
+  </table>
+  <informaltable>
+    <tgroup cols="2">
+      <tbody>
+        <row><entry>a</entry><entry>b</entry></row>
+      </tbody>
+    </tgroup>
+  </informaltable>
+</article>

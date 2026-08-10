@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Body text.
+
+A titled section
+
+Section body.
+
+Titled through an info wrapper
+
+Another section body.
+
+Ordinary content: this names no division.
+
+Ordinary content as well.
+
+Note body.

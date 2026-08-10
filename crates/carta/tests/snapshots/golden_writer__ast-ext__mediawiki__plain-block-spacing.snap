@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+A plain block opens the document.
+A paragraph follows it.
+
+Another plain block.
+And a second one.
+<ul>
+<li>An item.
+A plain block running on inside it.</li>
+<li>A second item.
+<ul>
+<li>A nested item.</li></ul></li></ul>
+
+<blockquote>Quoted plain text.
+A quoted paragraph.
+</blockquote>
+A plain block closes it.

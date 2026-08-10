@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1 id="standalone">A chapter standing on its own</h1>
+<p>Its title heads the body rather than naming the document.</p>
+<h2>Inside it</h2>
+<p>Body.</p>

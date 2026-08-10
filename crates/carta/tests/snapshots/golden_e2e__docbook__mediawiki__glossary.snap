@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<dl>
+<dt>First term</dt>
+<dd><p>What it means.</p></dd>
+<dt>Second term</dt>
+<dd><p>One reading.</p>
+<p>Another reading.</p></dd></dl>

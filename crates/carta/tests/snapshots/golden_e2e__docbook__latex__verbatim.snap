@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{verbatim}
+col   col
+    indented
+\end{verbatim}
+
+\begin{verbatim}
+$ carta
+\end{verbatim}
+
+a~~b~\emph{emphasized}~\href{https://example.com/}{linked}\\
+\strut ~~second~~~~line
+
+\begin{verbatim}
+kept  as    code
+\end{verbatim}

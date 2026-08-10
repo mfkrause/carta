@@ -16,7 +16,7 @@ pub use carta_ast::Document;
 pub use carta_core::{
     AnyReader, AnyWriter, BytesReader, BytesWriter, DocxOptions, EpubOptions, Error, Extension,
     Extensions, MathMethod, MediaBag, MediaItem, Output, Reader, ReaderOptions, Result, TocStyle,
-    WrapMode, Writer, WriterOptions, media, presets, walk,
+    TopLevelDivision, WrapMode, Writer, WriterOptions, media, presets, walk,
 };
 
 use std::sync::Arc;
@@ -200,6 +200,10 @@ fn render_body(
     let wraps_standalone = writer_options.standalone || writer_options.template.is_some();
     #[cfg(feature = "standalone")]
     let mut toc_source = standalone::TocSource::Document;
+    #[cfg(feature = "standalone")]
+    if wraps_standalone {
+        writer_options.slot = standalone::body_slot(writer.as_ref(), &writer_options);
+    }
 
     let mut document = document;
     let body = if writer_options.number_sections && writer.numbers_sections_in_body() {

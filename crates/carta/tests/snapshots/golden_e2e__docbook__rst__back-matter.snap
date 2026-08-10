@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A preface
+---------
+
+Front words.
+
+Inside the preface
+~~~~~~~~~~~~~~~~~~
+
+Deeper front words.
+
+The only part
+=============
+
+A chapter
+---------
+
+A numbered section
+~~~~~~~~~~~~~~~~~~
+
+Chapter words.
+
+An appendix
+-----------
+
+Closing words.
+
+Inside the appendix
+~~~~~~~~~~~~~~~~~~~
+
+Deeper closing words.
+
+A glossary
+----------
+
+Term
+Meaning.

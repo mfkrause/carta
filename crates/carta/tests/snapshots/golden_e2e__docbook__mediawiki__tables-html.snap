@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| id="grid" class="wikitable"
+|+ A titled grid
+|-
+! style="text-align: right;"| Head one
+! style="text-align: center;"| Head two
+|-
+| style="text-align: right;"| a
+| style="text-align: center;"| b
+|-
+| style="text-align: left;"| c
+| style="text-align: center;"| d
+|}
+
+{| class="wikitable"
+|+ A caption instead of a title
+|-
+| Spans are not honored
+|
+|
+|-
+| x
+| y
+| z
+|}

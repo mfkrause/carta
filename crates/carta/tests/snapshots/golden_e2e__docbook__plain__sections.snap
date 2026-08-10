@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Preface
+
+Words before the parts begin.
+
+Part one
+
+Opening chapter
+
+Chapter text.
+
+A numbered section
+
+Body of sect1.
+
+A deeper numbered section
+
+Body of sect2.
+
+A recursive section
+
+Body of the recursive section.
+
+Nested once more
+
+A simple section
+
+Unnumbered body.
+
+Appendix
+
+Closing material.

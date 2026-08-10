@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" version="5.0">
+  <title>Links and notes</title>
+  <section xml:id="targets">
+    <title>Targets</title>
+    <para>An external <link xlink:href="https://example.org/">link</link> and one carrying a
+    <link xlink:href="https://example.org/two" role="external">role</link>.</para>
+    <para>An old-style <ulink url="https://example.org/three">ulink</ulink>, a bare
+    <uri>https://example.org/four</uri>, and an address <email>someone@example.org</email>.</para>
+    <para>An internal <link linkend="targets">link by end</link> and a bare
+    <xref linkend="targets"/>.</para>
+    <para>A footnote follows.<footnote><para>The note body.</para></footnote></para>
+  </section>
+</article>

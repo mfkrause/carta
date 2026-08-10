@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <info>
+    <title>A documented article</title>
+    <subtitle>With a subtitle</subtitle>
+    <date>2026-08-09</date>
+    <releaseinfo>Draft 2</releaseinfo>
+    <copyright><year>2026</year><holder>The authors</holder></copyright>
+    <authorgroup>
+      <author><personname><firstname>Ada</firstname><surname>Lovelace</surname></personname></author>
+      <author><firstname>Grace</firstname><surname>Hopper</surname></author>
+    </authorgroup>
+    <address>Somewhere</address>
+    <abstract>
+      <para>A one-paragraph summary.</para>
+    </abstract>
+  </info>
+  <para>The body of the article.</para>
+</article>

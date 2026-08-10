@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Cross reference wording</title>
+  <para>To a labelled section: <xref linkend="labelled"/>.</para>
+  <para>To a labelled section, overridden: <xref linkend="labelled" endterm="wording"/>.</para>
+  <para>To a labelled table: <xref linkend="grid"/>.</para>
+  <para>To an unlabelled section: <xref linkend="plain"/>.</para>
+  <para><phrase xml:id="wording">Some other wording</phrase></para>
+  <section xml:id="labelled" xreflabel="The label the section states">
+    <info><title>A labelled section</title></info>
+    <para>Body.</para>
+  </section>
+  <section xml:id="plain">
+    <title>An unlabelled section</title>
+    <para>Body.</para>
+  </section>
+  <table xml:id="grid" xreflabel="The label the table states">
+    <title>A labelled table</title>
+    <tgroup cols="1"><tbody><row><entry>Cell</entry></row></tbody></tgroup>
+  </table>
+</article>

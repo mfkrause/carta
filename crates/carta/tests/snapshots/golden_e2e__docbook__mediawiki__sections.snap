@@ -1,0 +1,41 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="front"></span>
+== Preface ==
+
+Words before the parts begin.
+
+<span id="first-part"></span>
+= Part one =
+
+<span id="opening"></span>
+== Opening chapter ==
+
+Chapter text.
+
+<span id="numbered-one"></span>
+=== A numbered section ===
+
+Body of sect1.
+
+==== A deeper numbered section ====
+
+Body of sect2.
+
+<span id="recursive"></span>
+=== A recursive section ===
+
+Body of the recursive section.
+
+==== Nested once more ====
+
+===== A simple section =====
+
+Unnumbered body.
+
+<span id="back"></span>
+== Appendix ==
+
+Closing material.

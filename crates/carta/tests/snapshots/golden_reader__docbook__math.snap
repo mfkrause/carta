@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Mathematics"}]}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Str","c":"equation"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"a + b"]},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"prose."}]},{"t":"Para","c":[{"t":"Str","c":"And"},{"t":"Space"},{"t":"Str","c":"one"},{"t":"Space"},{"t":"Str","c":"written"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"MathML:"},{"t":"SoftBreak"},{"t":"Math","c":[{"t":"InlineMath"},"x + 1"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"a^2 + b^2 = c^2"]}]},{"t":"Div","c":[["",["informalequation"],[]],[{"t":"Para","c":[{"t":"Math","c":[{"t":"DisplayMath"},"\\frac{a}{b}"]}]}]]}]}

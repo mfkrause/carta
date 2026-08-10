@@ -1,0 +1,39 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Figure
+    ( "plot" , [] , [] )
+    (Caption
+       Nothing
+       [ Plain
+           [ Str "A" , Space , Str "captioned" , Space , Str "figure" ]
+       ])
+    [ Plain
+        [ Image
+            ( "" , [] , [ ( "width" , "4in" ) , ( "height" , "2in" ) ] )
+            [ Str "A" , Space , Str "plotted" , Space , Str "curve" ]
+            ( "plot.png" , "" )
+        ]
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "standalone"
+    , Space
+    , Str "block"
+    , Space
+    , Str "image:"
+    ]
+, Para
+    [ Image ( "" , [] , [] ) [] ( "standalone.png" , "" ) ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Image ( "" , [] , [] ) [] ( "icon.png" , "" )
+    , Space
+    , Str "image."
+    ]
+]

@@ -1,0 +1,76 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 2 ( "front" , [] , [] ) [ Str "Preface" ]
+, Para
+    [ Str "Words"
+    , Space
+    , Str "before"
+    , Space
+    , Str "the"
+    , Space
+    , Str "parts"
+    , Space
+    , Str "begin."
+    ]
+, Header
+    1
+    ( "first-part" , [] , [] )
+    [ Str "Part" , Space , Str "one" ]
+, Header
+    2
+    ( "opening" , [] , [] )
+    [ Str "Opening" , Space , Str "chapter" ]
+, Para [ Str "Chapter" , Space , Str "text." ]
+, Header
+    3
+    ( "numbered-one" , [] , [] )
+    [ Str "A" , Space , Str "numbered" , Space , Str "section" ]
+, Para
+    [ Str "Body" , Space , Str "of" , Space , Str "sect1." ]
+, Header
+    4
+    ( "" , [] , [] )
+    [ Str "A"
+    , Space
+    , Str "deeper"
+    , Space
+    , Str "numbered"
+    , Space
+    , Str "section"
+    ]
+, Para
+    [ Str "Body" , Space , Str "of" , Space , Str "sect2." ]
+, Header
+    3
+    ( "recursive" , [] , [] )
+    [ Str "A"
+    , Space
+    , Str "recursive"
+    , Space
+    , Str "section"
+    ]
+, Para
+    [ Str "Body"
+    , Space
+    , Str "of"
+    , Space
+    , Str "the"
+    , Space
+    , Str "recursive"
+    , Space
+    , Str "section."
+    ]
+, Header
+    4
+    ( "" , [] , [] )
+    [ Str "Nested" , Space , Str "once" , Space , Str "more" ]
+, Header
+    5
+    ( "" , [ "unnumbered" ] , [] )
+    [ Str "A" , Space , Str "simple" , Space , Str "section" ]
+, Para [ Str "Unnumbered" , Space , Str "body." ]
+, Header 2 ( "back" , [] , [] ) [ Str "Appendix" ]
+, Para [ Str "Closing" , Space , Str "material." ]
+]

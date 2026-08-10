@@ -1,0 +1,129 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [] , [] )
+    [ Div
+        ( "" , [ "title" ] , [] )
+        [ Plain
+            [ Str "A"
+            , Space
+            , Str "titled"
+            , Space
+            , Str "bullet"
+            , Space
+            , Str "list"
+            ]
+        ]
+    , BulletList
+        [ [ Para [ Str "First" , Space , Str "bullet." ] ]
+        , [ Para
+              [ Str "Second"
+              , Space
+              , Str "bullet,"
+              , Space
+              , Str "with"
+              , Space
+              , Str "a"
+              , Space
+              , Str "nested"
+              , Space
+              , Str "list."
+              ]
+          , BulletList
+              [ [ Para [ Str "Inner" , Space , Str "bullet." ] ] ]
+          ]
+        ]
+    ]
+, OrderedList
+    ( 1 , Decimal , DefaultDelim )
+    [ [ Para [ Str "Arabic" , Space , Str "one." ] ]
+    , [ Para [ Str "Arabic" , Space , Str "two." ] ]
+    ]
+, OrderedList
+    ( 3 , LowerAlpha , DefaultDelim )
+    [ [ Para [ Str "Alpha" , Space , Str "item." ] ] ]
+, OrderedList
+    ( 1 , UpperRoman , DefaultDelim )
+    [ [ Para [ Str "Roman" , Space , Str "item." ] ] ]
+, OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Para
+          [ Str "Do"
+          , Space
+          , Str "the"
+          , Space
+          , Str "first"
+          , Space
+          , Str "thing."
+          ]
+      , OrderedList
+          ( 1 , DefaultStyle , DefaultDelim )
+          [ [ Para [ Str "A" , Space , Str "sub-step." ] ] ]
+      ]
+    , [ Para
+          [ Str "Do"
+          , Space
+          , Str "the"
+          , Space
+          , Str "second"
+          , Space
+          , Str "thing."
+          ]
+      ]
+    ]
+, BulletList
+    [ [ Para
+          [ Str "Explains"
+          , Space
+          , Str "the"
+          , Space
+          , Str "first"
+          , Space
+          , Str "mark."
+          ]
+      ]
+    ]
+, DefinitionList
+    [ ( [ Str "First"
+        , Space
+        , Str "term; Also"
+        , Space
+        , Str "this"
+        , Space
+        , Str "term"
+        ]
+      , [ [ Para
+              [ Str "Their"
+              , Space
+              , Str "shared"
+              , Space
+              , Str "definition."
+              ]
+          ]
+        ]
+      )
+    ]
+, Para
+    [ Strong [ Str "Q:" ]
+    , Str " Is"
+    , Space
+    , Str "this"
+    , Space
+    , Str "a"
+    , Space
+    , Str "question?"
+    ]
+, Para
+    [ Strong [ Str "A:" ] , Str " It" , Space , Str "is." ]
+, Header 1 ( "" , [] , [] ) [ Str "Glossary" ]
+, DefinitionList
+    [ ( [ Str "Gloss" ]
+      , [ [ Para
+              [ Str "A" , Space , Str "brief" , Space , Str "shine." ]
+          ]
+        ]
+      )
+    ]
+]

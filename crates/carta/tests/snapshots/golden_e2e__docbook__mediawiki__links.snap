@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="targets"></span>
+= Targets =
+
+An external [https://example.org/ link] and one carrying a [https://example.org/two role].
+
+An old-style [https://example.org/three ulink], a bare https://example.org/four, and an address [mailto:someone@example.org someone@example.org].
+
+An internal [[#targets|link by end]] and a bare [[#targets|Targets]].
+
+A footnote follows.<ref>The note body.</ref>
+
+<references />

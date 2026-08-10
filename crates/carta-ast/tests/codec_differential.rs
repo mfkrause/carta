@@ -9,6 +9,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
+
 use carta_ast::{
     Alignment, ApiVersion, Attr, Block, Caption, Cell, Citation, CitationMode, ColSpec, ColWidth,
     Document, Format, Inline, ListAttributes, ListNumberDelim, ListNumberStyle, MathType,
@@ -40,10 +42,27 @@ fn assert_roundtrip(document: &Document, label: &str) {
 }
 
 /// The hand-written reader must accept exactly what the derived serde reader accepts, and agree on
-/// the decoded value when both accept.
+/// the decoded value when both accept. Reading, comparing and dropping a deeply nested document all
+/// recurse per level, so the comparison runs on a large dedicated stack.
 fn assert_decode_parity(bytes: &[u8], label: &str) {
+    let joined = std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(DEEP_STACK)
+            .spawn_scoped(scope, || compare_decoders(bytes, label))
+            .expect("spawn the comparison")
+            .join()
+    });
+    if let Err(payload) = joined {
+        std::panic::resume_unwind(payload);
+    }
+}
+
+/// Stack reserved for the recursion a deeply nested document drives.
+const DEEP_STACK: usize = 256 * 1024 * 1024;
+
+fn compare_decoders(bytes: &[u8], label: &str) {
     let mine = from_json(bytes);
-    let reference: Result<Document, _> = serde_json::from_slice(bytes);
+    let reference = serde_decode(bytes);
     match (mine, reference) {
         (Ok(mine), Ok(reference)) => {
             assert_eq!(mine, reference, "decoded value differs for {label}");
@@ -56,6 +75,16 @@ fn assert_decode_parity(bytes: &[u8], label: &str) {
             panic!("{label}: hand-written reader rejected input the serde reader accepted: {error}")
         }
     }
+}
+
+/// The derived reader with `serde_json`'s fixed nesting cap lifted, so the comparison is about what
+/// the two readers accept rather than how deep each dares recurse.
+fn serde_decode(bytes: &[u8]) -> Result<Document, serde_json::Error> {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    deserializer.disable_recursion_limit();
+    let document = Document::deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(document)
 }
 
 fn corpus_files() -> Vec<PathBuf> {
@@ -236,8 +265,8 @@ fn every_block() -> Vec<Block> {
             vec![vec![Block::Para(vec![Inline::Str("def".into())])]],
         )]),
         Block::Header(1, Box::new(attr()), vec![Inline::Str("h".into())]),
-        Block::Header(i32::MIN, Box::new(attr()), vec![Inline::Str("min".into())]),
-        Block::Header(i32::MAX, Box::new(attr()), vec![Inline::Str("max".into())]),
+        Block::Header(i64::MIN, Box::new(attr()), vec![Inline::Str("min".into())]),
+        Block::Header(i64::MAX, Box::new(attr()), vec![Inline::Str("max".into())]),
         Block::HorizontalRule,
         Block::Table(Box::new(full_table())),
         Block::Figure(
@@ -355,19 +384,19 @@ fn parity_documents() -> Vec<(String, Document, bool)> {
             api_version: ApiVersion(vec![0, u32::MAX]),
             meta: BTreeMap::new(),
             blocks: vec![
-                Block::Header(i32::MIN, Box::default(), vec![]),
+                Block::Header(i64::MIN, Box::default(), vec![]),
                 Block::Table(Box::new(Table {
                     bodies: vec![TableBody {
                         attr: Attr::default(),
-                        row_head_columns: i32::MAX,
+                        row_head_columns: i64::MAX,
                         head: vec![],
                         body: vec![Row {
                             attr: Attr::default(),
                             cells: vec![Cell {
                                 attr: Attr::default(),
                                 align: Alignment::AlignDefault,
-                                row_span: i32::MIN,
-                                col_span: i32::MAX,
+                                row_span: i64::MIN,
+                                col_span: i64::MAX,
                                 content: vec![],
                             }],
                         }],
@@ -380,8 +409,8 @@ fn parity_documents() -> Vec<(String, Document, bool)> {
                         prefix: vec![],
                         suffix: vec![],
                         mode: CitationMode::AuthorInText,
-                        note_num: i32::MIN,
-                        hash: i32::MAX,
+                        note_num: i64::MIN,
+                        hash: i64::MAX,
                     }],
                     vec![],
                 )]),
@@ -502,6 +531,9 @@ fn adversarial_inputs_accept_identically() {
         ("float_header".into(), inline_block(r#"{"t":"Header","c":[1.0,["",[],[]],[]]}"#)),
         ("i32_min_header".into(), inline_block(r#"{"t":"Header","c":[-2147483648,["",[],[]],[]]}"#)),
         ("i32_over_header".into(), inline_block(r#"{"t":"Header","c":[2147483648,["",[],[]],[]]}"#)),
+        ("i64_min_header".into(), inline_block(r#"{"t":"Header","c":[-9223372036854775808,["",[],[]],[]]}"#)),
+        ("i64_max_header".into(), inline_block(r#"{"t":"Header","c":[9223372036854775807,["",[],[]],[]]}"#)),
+        ("i64_over_header".into(), inline_block(r#"{"t":"Header","c":[9223372036854775808,["",[],[]],[]]}"#)),
         ("colwidth_int".into(), colwidth_input("1")),
         ("colwidth_float".into(), colwidth_input("0.5")),
         ("colwidth_exp".into(), colwidth_input("1e-7")),

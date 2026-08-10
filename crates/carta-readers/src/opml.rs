@@ -95,7 +95,7 @@ fn emit_outline(outline: &Element, level: i32, blocks: &mut Vec<Block>) -> Resul
     } else {
         heading
     };
-    blocks.push(Block::Header(level, Box::default(), heading));
+    blocks.push(Block::Header(i64::from(level), Box::default(), heading));
     if let Some(note) = outline.attributes.get("_note") {
         let parsed = CommonmarkReader.read(note, &note_options())?;
         blocks.extend(parsed.blocks);

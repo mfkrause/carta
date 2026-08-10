@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+To a labelled section: [[#labelled|The label the section states]].
+
+To a labelled section, overridden: [[#labelled|Some other wording]].
+
+To a labelled table: [[#grid|The label the table states]].
+
+To an unlabelled section: [[#plain|An unlabelled section]].
+
+<span id="wording">Some other wording</span>
+
+<span id="labelled"></span>
+= A labelled section =
+
+Body.
+
+<span id="plain"></span>
+= An unlabelled section =
+
+Body.
+
+{| id="grid" class="wikitable"
+|+ A labelled table
+|-
+| Cell
+|}

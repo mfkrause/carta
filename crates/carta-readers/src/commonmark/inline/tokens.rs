@@ -79,7 +79,7 @@ impl InlineParser<'_> {
             prefix: Vec::new(),
             suffix: Vec::new(),
             mode: CitationMode::AuthorInText,
-            note_num,
+            note_num: i64::from(note_num),
             hash: 0,
         };
         self.nodes.push(Node::Inline(Inline::Cite(

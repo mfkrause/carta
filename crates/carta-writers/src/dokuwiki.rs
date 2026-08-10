@@ -72,9 +72,9 @@ fn block(block: &Block, wrap: WrapMode) -> String {
 
 /// A heading: a run of `=` whose length decreases as the level deepens (level 1 is the widest), with
 /// the heading text (markup stripped to plain text) set off by single spaces.
-fn header(level: i32, inlines: &[Inline]) -> String {
+fn header(level: i64, inlines: &[Inline]) -> String {
     let depth = level.clamp(1, 6);
-    let equals = "=".repeat((7 - depth).unsigned_abs() as usize);
+    let equals = "=".repeat(usize::try_from((7 - depth).unsigned_abs()).unwrap_or(usize::MAX));
     let text = bare_inlines(inlines);
     format!("{equals} {text} {equals}")
 }

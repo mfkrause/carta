@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. table:: A titled grid
+
+   ======== ========
+   Head one Head two
+   ======== ========
+   a        b
+   c        d
+   ======== ========
+
+.. table:: A caption instead of a title
+
+   ===================== = =
+   Spans are not honored   
+   x                     y z
+   ===================== = =

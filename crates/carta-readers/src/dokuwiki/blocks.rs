@@ -28,7 +28,7 @@ pub(super) fn parse_blocks(
         }
         if let Some((level, title, trailing)) = header_split(line) {
             blocks.push(Block::Header(
-                level,
+                i64::from(level),
                 Box::default(),
                 inline_content(&title, ctx, depth),
             ));

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Row and cell tables</title>
+  <table xml:id="grid">
+    <title>A titled grid</title>
+    <colgroup><col align="right"/><col align="center"/></colgroup>
+    <thead><tr><th>Head one</th><th>Head two</th></tr></thead>
+    <tbody>
+      <tr><td>a</td><td>b</td></tr>
+      <tr><td align="left">c</td><td><para>d</para></td></tr>
+    </tbody>
+    <tfoot><tr><td>ignored</td><td>foot</td></tr></tfoot>
+  </table>
+  <informaltable>
+    <caption>A caption instead of a title</caption>
+    <tr><td colspan="2" rowspan="2">Spans are not honored</td></tr>
+    <tr><td>x</td><td>y</td><td>z</td></tr>
+  </informaltable>
+</article>

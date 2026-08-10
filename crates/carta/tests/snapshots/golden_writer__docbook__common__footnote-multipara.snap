@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  ref<footnote>
+    <para>
+      first paragraph
+    </para>
+    <para>
+      second paragraph
+    </para>
+  </footnote>
+</para>

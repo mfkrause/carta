@@ -135,7 +135,7 @@ fn comma_nests_a_bare_citation_in_the_suffix() {
 #[test]
 fn document_order_numbers_each_group() {
     let out = pe("@a and [@b]", cites());
-    let nums: Vec<i32> = out
+    let nums: Vec<i64> = out
         .iter()
         .filter_map(|inline| match inline {
             Inline::Cite(citations, _) => citations.first().map(|c| c.note_num),
@@ -375,7 +375,7 @@ fn nested_citations_resolve_exactly_via_the_memo() {
 fn prefix_nested_citations_share_the_group_number() {
     // Nesting through prefixes replays the inner brackets at shifted citation counts, so this
     // exercises the memo's count-keyed misses; the group number covers every nested citation.
-    fn collect(inlines: &[Inline], out: &mut Vec<(String, i32)>) {
+    fn collect(inlines: &[Inline], out: &mut Vec<(String, i64)>) {
         for inline in inlines {
             if let Inline::Cite(citations, _) = inline {
                 for citation in citations {

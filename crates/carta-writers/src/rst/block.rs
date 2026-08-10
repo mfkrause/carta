@@ -7,7 +7,7 @@ use carta_ast::{
 
 use crate::common::{
     Dimension, attribute_value, display_width, format_length_dimension, format_percent_dimension,
-    indent_block, offset_as_i32, ordered_marker, pad_marker, parse_dimension,
+    indent_block, offset_as_i64, ordered_marker, pad_marker, parse_dimension,
 };
 
 use super::State;
@@ -38,63 +38,101 @@ impl State {
     }
 
     /// Render a paragraph that carries display math, splitting it into `.. math::` directives around
-    /// the surrounding inline runs. A run adjacent to a directive keeps an escaped-space marker on the
-    /// touching side so the inline flow survives the block break; two abutting directives are parted by
-    /// a standalone escaped space.
+    /// the surrounding inline runs. Content that runs straight into a directive, with no space to part
+    /// them, keeps an escaped-space marker on that side so it is not read as continuing markup, and a
+    /// run parted from the paragraph's first directive by a space opens with one so the flow carries
+    /// across the break.
     fn para_with_math(&mut self, inlines: &[Inline], width: usize) -> String {
         enum Piece {
             Math(String),
             Text(String),
         }
+        /// A piece with the marker its edges need where they meet a directive.
+        struct Part {
+            piece: Piece,
+            /// What precedes it ends flush against it.
+            flush_lead: bool,
+            /// What follows it starts flush against it.
+            flush_trail: bool,
+        }
         const MARKER: &str = "\\ ";
-        let mut pieces: Vec<Piece> = Vec::new();
+        let spacing = |inline: &Inline| {
+            matches!(
+                inline,
+                Inline::Space | Inline::SoftBreak | Inline::LineBreak
+            )
+        };
+        let mut parts: Vec<Part> = Vec::new();
         let mut start = 0;
+        let mut flush_lead = false;
+        let mut resumes: Option<usize> = None;
+        let mut opened = false;
         for (index, inline) in inlines.iter().enumerate() {
-            if let Inline::Math(MathType::DisplayMath, tex) = inline {
-                if let Some(segment) = inlines.get(start..index) {
-                    let text = self.lay(segment, width, false);
-                    if !text.is_empty() {
-                        pieces.push(Piece::Text(text));
-                    }
+            let Inline::Math(MathType::DisplayMath, tex) = inline else {
+                continue;
+            };
+            let flush_trail = index > start
+                && index
+                    .checked_sub(1)
+                    .and_then(|before| inlines.get(before))
+                    .is_some_and(|before| !spacing(before));
+            if let Some(segment) = inlines.get(start..index) {
+                let text = self.lay(segment, width, false);
+                if !text.is_empty() {
+                    parts.push(Part {
+                        piece: Piece::Text(text),
+                        flush_lead,
+                        flush_trail,
+                    });
+                    flush_lead = false;
                 }
-                pieces.push(Piece::Math(tex.to_string()));
-                start = index + 1;
             }
+            parts.push(Part {
+                piece: Piece::Math(tex.to_string()),
+                flush_lead,
+                flush_trail: false,
+            });
+            if !opened {
+                opened = true;
+                if matches!(inlines.get(index + 1), Some(Inline::Space)) {
+                    resumes = Some(parts.len());
+                }
+            }
+            flush_lead = inlines.get(index + 1).is_some_and(|next| !spacing(next));
+            start = index + 1;
         }
         if let Some(segment) = inlines.get(start..) {
             let text = self.lay(segment, width, false);
             if !text.is_empty() {
-                pieces.push(Piece::Text(text));
+                parts.push(Part {
+                    piece: Piece::Text(text),
+                    flush_lead,
+                    flush_trail: false,
+                });
             }
         }
 
-        let mut parts: Vec<String> = Vec::new();
-        for (index, piece) in pieces.iter().enumerate() {
-            let prev_math = index
-                .checked_sub(1)
-                .is_some_and(|prev| matches!(pieces.get(prev), Some(Piece::Math(_))));
-            let next_math = matches!(pieces.get(index + 1), Some(Piece::Math(_)));
-            match piece {
+        let mut rendered: Vec<String> = Vec::new();
+        for (index, part) in parts.iter().enumerate() {
+            let lead = if part.flush_lead || resumes == Some(index) {
+                MARKER
+            } else {
+                ""
+            };
+            match &part.piece {
                 Piece::Math(tex) => {
-                    if prev_math {
-                        parts.push(MARKER.to_owned());
+                    if !lead.is_empty() {
+                        rendered.push(lead.to_owned());
                     }
-                    parts.push(math_directive(tex));
+                    rendered.push(math_directive(tex));
                 }
                 Piece::Text(text) => {
-                    let mut line = String::new();
-                    if prev_math {
-                        line.push_str(MARKER);
-                    }
-                    line.push_str(text);
-                    if next_math {
-                        line.push_str(MARKER);
-                    }
-                    parts.push(line);
+                    let trail = if part.flush_trail { MARKER } else { "" };
+                    rendered.push(format!("{lead}{text}{trail}"));
                 }
             }
         }
-        parts.join("\n\n")
+        rendered.join("\n\n")
     }
 
     /// Render one line-block line: its inlines filled to the body width, then prefixed with `| ` and
@@ -106,7 +144,7 @@ impl State {
 
     pub(super) fn header(
         &mut self,
-        level: i32,
+        level: i64,
         attr: &Attr,
         inlines: &[Inline],
         top: bool,
@@ -133,11 +171,11 @@ impl State {
     }
 
     fn item_body(&mut self, item: &[Block], width: usize) -> String {
-        let body = self.blocks_laid(item, width, false, true);
-        if !body.is_empty() && item.first().is_some_and(marker_stands_alone) {
+        let (body, lead) = self.blocks_led(item, width, false, true);
+        if !body.is_empty() && lead.is_some_and(marker_stands_alone) {
             format!("\n\n{body}")
         } else {
-            lead_quote_fence(item, body)
+            lead_quote_fence(lead, body)
         }
     }
 
@@ -166,7 +204,7 @@ impl State {
                 if auto_enumerated {
                     "#.".to_string()
                 } else {
-                    let number = attrs.start.saturating_add(offset_as_i32(offset));
+                    let number = attrs.start.saturating_add(offset_as_i64(offset));
                     ordered_marker(number, attrs.style, attrs.delim)
                 }
             })
@@ -195,8 +233,9 @@ impl State {
             let mut def_units = Vec::new();
             for definition in definitions {
                 let simple = matches!(definition.as_slice(), [Block::Plain(_)]);
-                let body = self.blocks_to_string(definition, width.saturating_sub(3), false);
-                let body = lead_quote_fence(definition, body);
+                let (body, lead) =
+                    self.blocks_led(definition, width.saturating_sub(3), false, false);
+                let body = lead_quote_fence(lead, body);
                 let indented = if body.is_empty() {
                     String::new()
                 } else {
@@ -267,8 +306,8 @@ impl State {
         if is_bare_title(attr) {
             return String::new();
         }
-        let body = self.blocks_to_string(blocks, width.saturating_sub(3), false);
-        let body = lead_quote_fence(blocks, body);
+        let (body, lead) = self.blocks_led(blocks, width.saturating_sub(3), false, false);
+        let body = lead_quote_fence(lead, body);
         let mut directive = match attr.classes.first() {
             Some(class) if is_admonition(class) => format!(".. {class}::"),
             _ if attr.classes.is_empty() => ".. container::".to_owned(),
@@ -311,13 +350,22 @@ pub(super) fn join_loose_items(units: Vec<(bool, String)>) -> String {
     out
 }
 
+/// The empty comment that fences a block quote off from the indented block above it.
+pub(super) const QUOTE_FENCE: &str = "\n\n..\n\n";
+
 /// The text placed between two consecutive rendered blocks. A block quote that follows a block whose
 /// body is indented or directive-introduced is fenced off with an empty `..` comment, so the quote's
-/// indentation is not read as a continuation of the block above. A [`Block::Plain`] sits one newline
-/// above a block that can follow it tightly; everything else is separated by a blank line.
-pub(super) fn block_separator(previous: &Block, current: &Block) -> &'static str {
-    if matches!(current, Block::BlockQuote(_)) && needs_quote_fence(previous) {
-        return "\n\n..\n\n";
+/// indentation is not read as a continuation of the block above; `after_fence` reports whether that
+/// comment already stands above `previous`, which spares the run a second one. A [`Block::Plain`]
+/// sits one newline above a block that can follow it tightly; everything else is separated by a
+/// blank line.
+pub(super) fn block_separator(
+    previous: &Block,
+    current: &Block,
+    after_fence: bool,
+) -> &'static str {
+    if matches!(current, Block::BlockQuote(_)) && needs_quote_fence(previous) && !after_fence {
+        return QUOTE_FENCE;
     }
     if matches!(previous, Block::Plain(_)) && tight_after_plain(current) {
         return "\n";
@@ -328,8 +376,8 @@ pub(super) fn block_separator(previous: &Block, current: &Block) -> &'static str
 /// Prefix an empty `..` comment when an indented container's content opens with a block quote, whose
 /// own indentation would otherwise merge into the container's body. Returns `body` unchanged when it
 /// is empty or does not begin with a quote.
-fn lead_quote_fence(blocks: &[Block], body: String) -> String {
-    if !body.is_empty() && matches!(blocks.first(), Some(Block::BlockQuote(_))) {
+fn lead_quote_fence(lead: Option<&Block>, body: String) -> String {
+    if !body.is_empty() && matches!(lead, Some(Block::BlockQuote(_))) {
         format!("..\n\n{body}")
     } else {
         body
@@ -599,7 +647,7 @@ fn auto_identifier(inlines: &[Inline]) -> String {
 }
 
 /// The underline glyph for a heading level.
-fn heading_char(level: i32) -> char {
+fn heading_char(level: i64) -> char {
     match level {
         1 => '=',
         2 => '-',

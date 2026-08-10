@@ -117,7 +117,7 @@ fn block(value: &Block, width: usize, wrap: WrapMode, smart: bool) -> String {
 }
 
 fn header(
-    level: i32,
+    level: i64,
     attr: &Attr,
     items: &[Inline],
     width: usize,
@@ -129,7 +129,7 @@ fn header(
         format!("#heading(level: {level}, numbering: none)[{text}]")
     } else {
         // The cap keeps an absurd level from forcing an unbounded marker allocation.
-        const MAX_HEADING_LEVEL: i32 = 32;
+        const MAX_HEADING_LEVEL: i64 = 32;
         let depth = usize::try_from(level.clamp(1, MAX_HEADING_LEVEL)).unwrap_or(1);
         format!("{} {text}", "=".repeat(depth))
     };

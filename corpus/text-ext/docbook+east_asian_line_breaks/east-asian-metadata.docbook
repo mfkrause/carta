@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <info>
+    <title>広い文字の間の
+改行は消えます</title>
+    <author><personname><firstname>広い</firstname><surname>文字</surname></personname></author>
+    <abstract><para>要約の中の
+改行も同じです。</para></abstract>
+  </info>
+  <para>Body.</para>
+</article>

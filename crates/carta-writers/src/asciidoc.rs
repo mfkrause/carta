@@ -147,9 +147,9 @@ impl State {
         (!rendered.is_empty()).then_some(rendered)
     }
 
-    fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+    fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
         // One past AsciiDoc's deepest section: distinct markers, no unbounded allocation.
-        const MAX_SECTION_LEVEL: i32 = 6;
+        const MAX_SECTION_LEVEL: i64 = 6;
         let depth = usize::try_from(level.clamp(0, MAX_SECTION_LEVEL))
             .unwrap_or(0)
             .saturating_add(1);

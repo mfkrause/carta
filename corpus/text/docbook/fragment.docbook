@@ -1,0 +1,3 @@
+<para xmlns="http://docbook.org/ns/docbook">A first root element.</para>
+<para xmlns="http://docbook.org/ns/docbook">A second root element.</para>
+Trailing character data outside any element.

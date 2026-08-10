@@ -1,0 +1,49 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Symbols"
+    , Space
+    , Str "and"
+    , Space
+    , Str "escapes:"
+    , SoftBreak
+    , Math
+        InlineMath "x \\leq y \\in {\\mathbb{R}}\\text{50\\% \\#1}"
+    , Str "."
+    ]
+, Para
+    [ Str "Fences"
+    , Space
+    , Str "and"
+    , Space
+    , Str "scripts:"
+    , SoftBreak
+    , Math
+        InlineMath
+        "\\left( {a,b} \\right)\\left\\lbrack {c;d} \\right\\rbrack\\mathfrak{p}^{2}a_{1}^{2}\\sqrt{b + c}\\sqrt[3]{d}"
+    , Str "."
+    ]
+, Para
+    [ Str "Accents"
+    , Space
+    , Str "and"
+    , Space
+    , Str "limits:"
+    , SoftBreak
+    , Math InlineMath "\\hat{v}\\sum\\limits_{i = 1}^{n}i_{2}"
+    , Str "."
+    ]
+, Div
+    ( "" , [ "informalequation" ] , [] )
+    [ Para
+        [ Math
+            DisplayMath
+            "\\left( \\frac{p}{q} \\right) = \\begin{bmatrix}\n1 & 0 \\\\\n0 & 1\n\\end{bmatrix}"
+        ]
+    ]
+, Div
+    ( "" , [ "informalequation" ] , [] )
+    [ Para [ Math DisplayMath "{}_{3}^{4}F_{1}^{2}" ] ]
+]

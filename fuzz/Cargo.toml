@@ -279,6 +279,20 @@ doc = false
 bench = false
 
 [[bin]]
+name = "read_docbook"
+path = "fuzz_targets/read_docbook.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "write_docbook"
+path = "fuzz_targets/write_docbook.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "write_opml"
 path = "fuzz_targets/write_opml.rs"
 test = false

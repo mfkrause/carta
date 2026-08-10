@@ -1,0 +1,34 @@
+---
+source: crates/carta/tests/standalone_snapshots.rs
+expression: output
+---
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE article>
+<article
+  xml:lang="en"
+  xmlns="http://docbook.org/ns/docbook" version="5.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink" >
+  <info>
+    <title>A <emphasis>Grand</emphasis> <quote>Report</quote></title>
+    <subtitle>On Matters of Import</subtitle>
+    <authorgroup>
+      <author>
+        Ada Lovelace
+      </author>
+      <author>
+        Alan Turing
+      </author>
+    </authorgroup>
+    <date>2026-06-20</date>
+  </info>
+  <section xml:id="introduction">
+    <title>Introduction</title>
+    <para>
+      The opening remarks, with <emphasis>emphasis</emphasis> and a
+      <link xlink:href="https://example.com">link</link>.
+    </para>
+    <programlisting language="rust">
+fn main() {}
+</programlisting>
+  </section>
+</article>

@@ -243,7 +243,7 @@ impl Converter {
             BlockKind::Header(level) => {
                 let inlines = trim_inlines(self.build_inlines(&e.children));
                 let attr = self.header_attr(e, &inlines);
-                out.push(Block::Header(level, Box::new(attr), inlines));
+                out.push(Block::Header(i64::from(level), Box::new(attr), inlines));
             }
             BlockKind::BulletList => out.push(Block::BulletList(self.list_items(e))),
             BlockKind::OrderedList => {
@@ -467,7 +467,7 @@ impl Converter {
             },
             bodies: vec![TableBody {
                 attr: Attr::default(),
-                row_head_columns,
+                row_head_columns: i64::from(row_head_columns),
                 head: Vec::new(),
                 body: body_rows,
             }],
@@ -512,8 +512,8 @@ impl Converter {
         Cell {
             attr,
             align: cell_alignment(cell),
-            row_span: span_attr(cell, "rowspan"),
-            col_span: span_attr(cell, "colspan"),
+            row_span: i64::from(span_attr(cell, "rowspan")),
+            col_span: i64::from(span_attr(cell, "colspan")),
             content: self.child_blocks(&cell.children, Flow::Framed),
         }
     }

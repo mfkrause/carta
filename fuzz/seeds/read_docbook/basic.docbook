@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Block constructs</title>
+  <para xml:id="opening">A paragraph carrying an identifier.</para>
+  <simpara>A simple paragraph.</simpara>
+  <formalpara>
+    <title>A formal paragraph</title>
+    <para>Its body.</para>
+  </formalpara>
+  <bridgehead renderas="sect2">A free-floating heading</bridgehead>
+  <programlisting language="rust" linenumbering="numbered">fn main() {
+    println!("hi");
+}</programlisting>
+  <screen>$ carta --version
+carta 0.0.0</screen>
+  <literallayout>Line one
+line two</literallayout>
+  <blockquote>
+    <para>A quoted paragraph.</para>
+    <attribution>Someone</attribution>
+  </blockquote>
+  <epigraph>
+    <para>An epigraph.</para>
+  </epigraph>
+  <para>Between the quoted forms.</para>
+  <abstract>
+    <para>Standing abstract text.</para>
+  </abstract>
+  <note><para>Take note.</para></note>
+  <warning><title>Careful</title><para>A titled warning.</para></warning>
+  <tip><para>A tip.</para></tip>
+  <caution><para>A caution.</para></caution>
+  <important><para>Something important.</para></important>
+  <sidebar><title>Aside</title><para>Beside the point.</para></sidebar>
+  <example>
+    <title>An example</title>
+    <programlisting>example body</programlisting>
+  </example>
+  <bibliography>
+    <title>References</title>
+    <biblioentry><abbrev>KEY</abbrev><title>A cited work</title></biblioentry>
+    <bibliomixed>Plain mixed entry.</bibliomixed>
+  </bibliography>
+</article>

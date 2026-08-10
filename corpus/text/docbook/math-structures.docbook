@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" xmlns:m="http://www.w3.org/1998/Math/MathML" version="5.0">
+  <title>Math structures</title>
+  <para>Symbols and escapes:
+    <inlineequation><m:math>
+      <m:mi>x</m:mi><m:mo>&#x2264;</m:mo><m:mi>y</m:mi>
+      <m:mo>&#x2208;</m:mo><m:mi>&#x211D;</m:mi>
+      <m:mtext>50% #1</m:mtext>
+      <m:mtext></m:mtext>
+    </m:math></inlineequation>.
+  </para>
+  <para>Fences and scripts:
+    <inlineequation><m:math>
+      <m:mfenced open="(" close=")"><m:mi>a</m:mi><m:mi>b</m:mi></m:mfenced>
+      <m:mfenced open="[" close="]" separators=";"><m:mi>c</m:mi><m:mi>d</m:mi></m:mfenced>
+      <m:msup><m:mi mathvariant="fraktur">p</m:mi><m:mn>2</m:mn></m:msup>
+      <m:msubsup><m:mi>a</m:mi><m:mn>1</m:mn><m:mn>2</m:mn></m:msubsup>
+      <m:msqrt><m:mrow><m:mi>b</m:mi><m:mo>+</m:mo><m:mi>c</m:mi></m:mrow></m:msqrt>
+      <m:mroot><m:mi>d</m:mi><m:mn>3</m:mn></m:mroot>
+    </m:math></inlineequation>.
+  </para>
+  <para>Accents and limits:
+    <inlineequation><m:math>
+      <m:mover accent="true"><m:mi>v</m:mi><m:mo>&#x5E;</m:mo></m:mover>
+      <m:munderover>
+        <m:mo>&#x2211;</m:mo>
+        <m:mrow><m:mi>i</m:mi><m:mo>=</m:mo><m:mn>1</m:mn></m:mrow>
+        <m:mi>n</m:mi>
+      </m:munderover>
+      <m:msub><m:mi>i</m:mi><m:mn>2</m:mn></m:msub>
+    </m:math></inlineequation>.
+  </para>
+  <informalequation><m:math display="block">
+    <m:mrow>
+      <m:mo>(</m:mo>
+      <m:mfrac><m:mi>p</m:mi><m:mi>q</m:mi></m:mfrac>
+      <m:mo>)</m:mo>
+      <m:mo>=</m:mo>
+      <m:mo>[</m:mo>
+      <m:mtable>
+        <m:mtr><m:mtd><m:mn>1</m:mn></m:mtd><m:mtd><m:mn>0</m:mn></m:mtd></m:mtr>
+        <m:mtr><m:mtd><m:mn>0</m:mn></m:mtd><m:mtd><m:mn>1</m:mn></m:mtd></m:mtr>
+      </m:mtable>
+      <m:mo>]</m:mo>
+    </m:mrow>
+  </m:math></informalequation>
+  <informalequation><m:math display="block">
+    <m:mmultiscripts>
+      <m:mi>F</m:mi>
+      <m:mn>1</m:mn><m:mn>2</m:mn>
+      <m:mprescripts/>
+      <m:mn>3</m:mn><m:mn>4</m:mn>
+    </m:mmultiscripts>
+  </m:math></informalequation>
+</article>

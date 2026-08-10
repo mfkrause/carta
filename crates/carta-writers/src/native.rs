@@ -405,7 +405,7 @@ fn caption_argument(value: &Caption) -> Doc {
 
 fn list_attributes(value: &ListAttributes) -> Doc {
     tuple(vec![
-        integer(i64::from(value.start), NumberPos::Standalone),
+        integer(value.start, NumberPos::Standalone),
         atom(number_style(value.style)),
         atom(number_delim(value.delim)),
     ])
@@ -450,7 +450,7 @@ fn block(value: &Block) -> Doc {
         Block::Header(level, a, items) => cons(
             "Header",
             vec![
-                integer(i64::from(*level), NumberPos::Argument),
+                integer(*level, NumberPos::Argument),
                 attr(a),
                 inlines(items),
             ],
@@ -510,12 +510,9 @@ fn citation(value: &Citation) -> Doc {
             field("citationMode", atom(citation_mode(&value.mode))),
             field(
                 "citationNoteNum",
-                integer(i64::from(value.note_num), NumberPos::Standalone),
+                integer(value.note_num, NumberPos::Standalone),
             ),
-            field(
-                "citationHash",
-                integer(i64::from(value.hash), NumberPos::Standalone),
-            ),
+            field("citationHash", integer(value.hash, NumberPos::Standalone)),
         ])],
     )
 }
@@ -575,11 +572,11 @@ fn cell(value: &Cell) -> Doc {
             atom(alignment(&value.align)),
             wrap(cons(
                 "RowSpan",
-                vec![integer(i64::from(value.row_span), NumberPos::Argument)],
+                vec![integer(value.row_span, NumberPos::Argument)],
             )),
             wrap(cons(
                 "ColSpan",
-                vec![integer(i64::from(value.col_span), NumberPos::Argument)],
+                vec![integer(value.col_span, NumberPos::Argument)],
             )),
             blocks(&value.content),
         ],
@@ -593,10 +590,7 @@ fn table_body(value: &TableBody) -> Doc {
             attr(&value.attr),
             wrap(cons(
                 "RowHeadColumns",
-                vec![integer(
-                    i64::from(value.row_head_columns),
-                    NumberPos::Argument,
-                )],
+                vec![integer(value.row_head_columns, NumberPos::Argument)],
             )),
             list(value.head.iter().map(row).collect()),
             list(value.body.iter().map(row).collect()),

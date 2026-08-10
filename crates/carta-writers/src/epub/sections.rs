@@ -66,7 +66,7 @@ fn build_sections(blocks: &[Block], seen: &mut BTreeSet<String>) -> Vec<Block> {
     out
 }
 
-fn section_div(level: i32, attr: &Attr, inlines: &[Inline], id: Text, body: Vec<Block>) -> Block {
+fn section_div(level: i64, attr: &Attr, inlines: &[Inline], id: Text, body: Vec<Block>) -> Block {
     let mut classes = vec![
         Text::from(SECTION_CLASS),
         Text::from(format!("level{level}")),
@@ -159,7 +159,7 @@ fn synthetic_section(title: &[Inline], preamble: &[Block], seen: &mut BTreeSet<S
 }
 
 /// The nesting level a section `Div` records in its `level{N}` class, if any.
-fn section_level(attr: &Attr) -> Option<i32> {
+fn section_level(attr: &Attr) -> Option<i64> {
     attr.classes
         .iter()
         .find_map(|class| class.strip_prefix("level").and_then(|n| n.parse().ok()))
@@ -168,7 +168,7 @@ fn section_level(attr: &Attr) -> Option<i32> {
 /// Whether a block is a section `Div` shallow enough to begin its own chapter file: one whose level
 /// is at or above the split level. Testing the level directly, rather than expecting the next level
 /// down, lifts a section out even where the heading levels jump (an `H1` straight to an `H3`).
-fn is_promotable_section(block: &Block, split_level: i32) -> bool {
+fn is_promotable_section(block: &Block, split_level: i64) -> bool {
     matches!(block, Block::Div(attr, _)
         if attr.classes.iter().any(|class| class == SECTION_CLASS)
             && section_level(attr).is_some_and(|level| level <= split_level))
@@ -177,7 +177,7 @@ fn is_promotable_section(block: &Block, split_level: i32) -> bool {
 /// Break the sectioned blocks into chapters, one block list per output file. A section at a level up
 /// to `split_level` starts a new file; deeper sections stay within their ancestor's file. With the
 /// default `split_level` of one, each top-level section becomes its own chapter.
-pub(crate) fn split_chapters(blocks: Vec<Block>, split_level: i32) -> Vec<Vec<Block>> {
+pub(crate) fn split_chapters(blocks: Vec<Block>, split_level: i64) -> Vec<Vec<Block>> {
     let mut chapters = Vec::new();
     for block in blocks {
         push_chapter(block, split_level, &mut chapters);
@@ -188,7 +188,7 @@ pub(crate) fn split_chapters(blocks: Vec<Block>, split_level: i32) -> Vec<Vec<Bl
 /// Append the chapters a single top-level section contributes. When the section sits above the split
 /// level and holds sub-sections, those sub-sections are lifted into their own chapters and the
 /// section keeps only its own leading content.
-fn push_chapter(block: Block, split_level: i32, chapters: &mut Vec<Vec<Block>>) {
+fn push_chapter(block: Block, split_level: i64, chapters: &mut Vec<Vec<Block>>) {
     if let Block::Div(attr, children) = &block
         && let Some(level) = section_level(attr)
         && level < split_level
@@ -224,7 +224,7 @@ mod tests {
         vec![Inline::Str(Text::from(text))]
     }
 
-    fn header(level: i32, id: &str, text: &str) -> Block {
+    fn header(level: i64, id: &str, text: &str) -> Block {
         Block::Header(
             level,
             Box::new(Attr {

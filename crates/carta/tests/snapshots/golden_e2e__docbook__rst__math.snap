@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+An inline equation :math:`a + b` in prose.
+
+And one written in MathML: :math:`x + 1`.
+
+.. math:: a^2 + b^2 = c^2
+
+.. container:: informalequation
+
+   .. math:: \frac{a}{b}

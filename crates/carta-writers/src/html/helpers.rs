@@ -138,7 +138,7 @@ pub(super) fn title_attr(title: &Text) -> String {
     }
 }
 
-pub(super) fn header_tag(level: i32) -> &'static str {
+pub(super) fn header_tag(level: i64) -> &'static str {
     const TAGS: [&str; 6] = ["h1", "h2", "h3", "h4", "h5", "h6"];
     let index = usize::try_from(level.clamp(1, 6) - 1).unwrap_or(0);
     TAGS.get(index).copied().unwrap_or("h1")
@@ -281,10 +281,7 @@ pub(super) fn cell_attr(attr: &Attr, align_style: Option<&str>) -> String {
     };
     let mut keyvals = String::new();
     let mut merged = false;
-    for (key, value) in &attr.attributes {
-        if key.is_empty() {
-            continue;
-        }
+    for (key, value) in first_per_key(&attr.attributes) {
         keyvals.push(BREAK);
         if key == "style" {
             let combined = combine_style(align_style, value);
@@ -346,15 +343,26 @@ pub(super) fn render_class_into(out: &mut String, classes: &[Text]) {
     out.push('"');
 }
 
+/// The renderable key/value pairs of an attribute set: unnamed pairs dropped, and at most one pair
+/// per key, since an element cannot carry the same attribute name twice. Comparison is on the key as
+/// written, before any `data-` prefix.
+fn first_per_key(attributes: &[(Text, Text)]) -> Vec<(&Text, &Text)> {
+    let mut kept: Vec<(&Text, &Text)> = Vec::with_capacity(attributes.len());
+    for (key, value) in attributes {
+        if key.is_empty() || kept.iter().any(|(seen, _)| *seen == key) {
+            continue;
+        }
+        kept.push((key, value));
+    }
+    kept
+}
+
 /// Render an attribute set's key/value pairs. In the html5 dialect a non-standard key is carried
 /// through under a `data-` prefix; in html4 it is emitted by its bare name. The EPUB 2 dialect
 /// targets XHTML 1.1, which admits no such extension attributes, so any key that is not a universal
 /// html4 attribute is dropped rather than carried through.
 pub(super) fn render_keyvals_into(out: &mut String, attributes: &[(Text, Text)], flavor: Flavor) {
-    for (key, value) in attributes {
-        if key.is_empty() {
-            continue;
-        }
+    for (key, value) in first_per_key(attributes) {
         let prefixed = matches!(flavor, Flavor::Html5 | Flavor::Slides | Flavor::Epub3)
             && !is_known_attribute(key);
         let dropped = flavor == Flavor::Epub2

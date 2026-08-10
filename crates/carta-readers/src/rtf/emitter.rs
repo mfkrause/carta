@@ -325,7 +325,7 @@ impl Emitter {
         }
         let block = if let Some(level) = self.outline_level {
             Block::Header(
-                level.saturating_add(1).max(1),
+                i64::from(level).saturating_add(1).max(1),
                 Box::default(),
                 strip_heading_emphasis(build_inlines(atoms)),
             )
@@ -530,7 +530,7 @@ fn build_one_list(entries: &[ListParagraph], depth: usize) -> (Block, usize) {
     let block = match numbering {
         Some((start, style)) => Block::OrderedList(
             ListAttributes {
-                start,
+                start: i64::from(start),
                 style,
                 delim: ListNumberDelim::Period,
             },

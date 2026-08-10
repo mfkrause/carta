@@ -107,6 +107,7 @@ format_dispatch! {
     "read-epub" => "epub" => bytes carta_readers::EpubReader;
     "read-odt" => "odt" => bytes carta_readers::OdtReader;
     "read-typst" => "typst" => text carta_readers::TypstReader;
+    "read-docbook" => "docbook" => text carta_readers::DocbookReader;
 }
 
 format_dispatch! {
@@ -147,6 +148,7 @@ format_dispatch! {
     "write-docx" => "docx" => bytes carta_writers::DocxWriter;
     "write-odt" => "odt" => bytes carta_writers::OdtWriter;
     "write-rtf" => "rtf" => text carta_writers::RtfWriter;
+    "write-docbook" => "docbook" | "docbook5" => text carta_writers::DocbookWriter;
 }
 
 /// Resolves a format name to its boxed [`Reader`], the text-only view of [`any_reader_for`].

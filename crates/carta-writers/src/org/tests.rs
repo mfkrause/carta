@@ -63,8 +63,8 @@ fn oversized_cell_spans_stay_bounded() {
     let cell = Cell {
         attr: Attr::default(),
         align: Alignment::AlignLeft,
-        row_span: i32::MAX,
-        col_span: i32::MAX,
+        row_span: i64::MAX,
+        col_span: i64::MAX,
         content: Vec::new(),
     };
     let table = Table {

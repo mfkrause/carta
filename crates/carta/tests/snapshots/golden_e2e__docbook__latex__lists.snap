@@ -1,0 +1,71 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A titled bullet list
+
+\begin{itemize}
+\item
+  First bullet.
+\item
+  Second bullet, with a nested list.
+
+  \begin{itemize}
+  \item
+    Inner bullet.
+  \end{itemize}
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  Arabic one.
+\item
+  Arabic two.
+\end{enumerate}
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi}.}
+\setcounter{enumi}{2}
+\item
+  Alpha item.
+\end{enumerate}
+
+\begin{enumerate}
+\def\labelenumi{\Roman{enumi}.}
+\item
+  Roman item.
+\end{enumerate}
+
+\begin{enumerate}
+\item
+  Do the first thing.
+
+  \begin{enumerate}
+  \item
+    A sub-step.
+  \end{enumerate}
+\item
+  Do the second thing.
+\end{enumerate}
+
+\begin{itemize}
+\item
+  Explains the first mark.
+\end{itemize}
+
+\begin{description}
+\item[First term; Also this term]
+Their shared definition.
+\end{description}
+
+\textbf{Q:} Is this a question?
+
+\textbf{A:} It is.
+
+\section{Glossary}
+
+\begin{description}
+\item[Gloss]
+A brief shine.
+\end{description}

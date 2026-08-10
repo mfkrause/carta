@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{A chapter standing on its own}\label{standalone}
+
+Its title heads the body rather than naming the document.
+
+\subsection{Inside it}
+
+Body.

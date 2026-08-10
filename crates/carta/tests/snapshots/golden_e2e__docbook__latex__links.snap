@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Targets}\label{targets}
+
+An external \href{https://example.org/}{link} and one carrying a
+\href{https://example.org/two}{role}.
+
+An old-style \href{https://example.org/three}{ulink}, a bare
+\url{https://example.org/four}, and an address
+\href{mailto:someone@example.org}{\nolinkurl{someone@example.org}}.
+
+An internal \hyperref[targets]{link by end} and a bare
+\hyperref[targets]{Targets}.
+
+A footnote follows.\footnote{The note body.}

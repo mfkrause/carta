@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "equation"
+    , Space
+    , Math InlineMath "a + b"
+    , Space
+    , Str "in"
+    , Space
+    , Str "prose."
+    ]
+, Para
+    [ Str "And"
+    , Space
+    , Str "one"
+    , Space
+    , Str "written"
+    , Space
+    , Str "in"
+    , Space
+    , Str "MathML:"
+    , SoftBreak
+    , Math InlineMath "x + 1"
+    , Str "."
+    ]
+, Para [ Math DisplayMath "a^2 + b^2 = c^2" ]
+, Div
+    ( "" , [ "informalequation" ] , [] )
+    [ Para [ Math DisplayMath "\\frac{a}{b}" ] ]
+]

@@ -106,7 +106,7 @@ impl State {
         }
     }
 
-    fn header(&mut self, level: i32, attr: &Attr, inlines: &[Inline]) -> String {
+    fn header(&mut self, level: i64, attr: &Attr, inlines: &[Inline]) -> String {
         let text = self.inlines(inlines);
         format!("h{level}. {{anchor:{}}}{text}", attr.id)
     }

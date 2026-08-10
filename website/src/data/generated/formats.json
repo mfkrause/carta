@@ -469,7 +469,9 @@
         "status": "usable",
         "ships": true,
         "feature": "write-latex",
-        "gaps": []
+        "gaps": [
+          "In a line block, a line whose content is entirely code spans is set without the trailing `\\strut` that keeps its full height, and a space ending a line is dropped."
+        ]
       }
     },
     {
@@ -1308,11 +1310,30 @@
       "title": "DocBook",
       "family": "xml",
       "aliases": [
-        "docbook4",
         "docbook5"
       ],
       "read": {
-        "status": "not-started",
+        "status": "usable",
+        "ships": true,
+        "feature": "read-docbook",
+        "gaps": []
+      },
+      "write": {
+        "status": "usable",
+        "ships": true,
+        "feature": "write-docbook",
+        "gaps": [
+          "A standalone document lists each author as plain text rather than splitting the name into a `personname` element."
+        ]
+      }
+    },
+    {
+      "name": "docbook4",
+      "title": "DocBook 4",
+      "family": "xml",
+      "aliases": [],
+      "read": {
+        "status": "not-applicable",
         "ships": false,
         "feature": null,
         "gaps": []

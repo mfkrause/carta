@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<book xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>A short book</title>
+  <preface xml:id="front">
+    <title>Preface</title>
+    <para>Words before the parts begin.</para>
+  </preface>
+  <part xml:id="first-part">
+    <title>Part one</title>
+    <chapter xml:id="opening">
+      <title>Opening chapter</title>
+      <para>Chapter text.</para>
+      <sect1 xml:id="numbered-one">
+        <title>A numbered section</title>
+        <para>Body of sect1.</para>
+        <sect2>
+          <title>A deeper numbered section</title>
+          <para>Body of sect2.</para>
+        </sect2>
+      </sect1>
+      <section xml:id="recursive">
+        <title>A recursive section</title>
+        <para>Body of the recursive section.</para>
+        <section>
+          <title>Nested once more</title>
+          <simplesect>
+            <title>A simple section</title>
+            <para>Unnumbered body.</para>
+          </simplesect>
+        </section>
+      </section>
+    </chapter>
+  </part>
+  <appendix xml:id="back">
+    <title>Appendix</title>
+    <para>Closing material.</para>
+  </appendix>
+</book>

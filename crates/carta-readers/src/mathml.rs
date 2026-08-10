@@ -4,10 +4,21 @@
 //! The element tree is walked into a TeX string: token elements (`<mi>`, `<mn>`, `<mo>`) map to
 //! their literal or symbolic form, and layout elements (`<msup>`, `<mfrac>`, `<msqrt>`, …) wrap their
 //! rendered children in the matching TeX construct. An operator that reads as a binary or relation
-//! symbol is spaced from its neighbors; large operators, punctuation, and fences sit tight.
+//! symbol is spaced from its neighbors; large operators, punctuation, and fences sit tight. A
+//! `mathvariant` selects the face a token is set in and passes down to the tokens a construct holds.
+//!
+//! Delimiters are assembled across a row rather than emitted where they stand: an opening bracket
+//! takes everything up to its match as the content of a `\left`…`\right` pair, a closing bracket
+//! with nothing open takes what precedes it, and a dividing or infix symbol stretches its pair over
+//! the whole row. A pair that holds a single token and needs no stretching is written without the
+//! `\left`…`\right` machinery.
 //!
 //! The walk is written against [`MathTree`], a minimal read-only view of an element, so the same
 //! renderer serves the different element trees the container readers build.
+
+mod symbols;
+
+use symbols::Role;
 
 /// A read-only view of a MathML element: enough of an element's shape to render it, abstracted over
 /// the concrete tree a given reader parsed into.
@@ -24,7 +35,12 @@ pub(crate) trait MathTree: Sized {
     fn nth_element_child(&self, index: usize) -> Option<&Self>;
 }
 
-#[cfg(any(feature = "docx", feature = "epub", feature = "odt"))]
+#[cfg(any(
+    feature = "docbook",
+    feature = "docx",
+    feature = "epub",
+    feature = "odt"
+))]
 impl MathTree for crate::xml::Element {
     fn tag(&self) -> &str {
         crate::xml::local_name(&self.name)
@@ -45,42 +61,241 @@ impl MathTree for crate::xml::Element {
 
 /// Render a `<math>` element's presentation MathML to a TeX string.
 pub(crate) fn to_tex<T: MathTree>(math: &T) -> String {
-    render_row(&math.element_children())
+    let piece = wrap(&math.element_children(), Context::default());
+    let tex = trim_row(&piece.tex);
+    if piece.nucleus {
+        format!("{{}}{tex}")
+    } else {
+        tex
+    }
 }
 
-/// Render a sequence of element children as an inline row, then trim the surrounding spacing an edge
-/// operator would otherwise leave.
-fn render_row<T: MathTree>(elements: &[&T]) -> String {
-    let mut pieces: Vec<String> = Vec::new();
-    let mut index = 0;
-    while index < elements.len() {
-        // a fence pair around an <mtable> reads as one delimited matrix, not three loose tokens
-        if let (Some(open), Some(table), Some(close)) = (
-            elements.get(index),
-            elements.get(index + 1),
-            elements.get(index + 2),
-        ) && let Some(rendered) = matrix_fence(*open, *table, *close)
-        {
-            pieces.push(rendered);
-            index += 3;
-            continue;
+/// What an element inherits from the construct that holds it.
+#[derive(Clone, Copy)]
+struct Context<'a> {
+    /// The face the enclosing construct selects.
+    variant: Option<&'a str>,
+    /// The variant the innermost face command written around the element stands for.
+    applied: &'a str,
+    /// The faces written around the element, which a character set in one of them drops.
+    faces: Faces,
+    /// Whether the element sits in a script, where each delimiter stands as it is written instead of
+    /// pairing off with the ones around it.
+    script: bool,
+}
+
+impl Default for Context<'_> {
+    fn default() -> Self {
+        Self {
+            variant: None,
+            applied: "normal",
+            faces: Faces::default(),
+            script: false,
         }
-        if let Some(element) = elements.get(index) {
-            let rendered = render(*element);
-            if !rendered.is_empty() {
-                pieces.push(rendered);
+    }
+}
+
+impl Context<'_> {
+    /// The context the content of an element renders in, where the element writes `face` around it.
+    fn inside(self, face: Option<&str>) -> Self {
+        Self {
+            faces: self.faces.with(face),
+            ..self
+        }
+    }
+
+    /// The context a construct's script arguments render in.
+    fn scripted(self) -> Self {
+        Self {
+            script: true,
+            ..self
+        }
+    }
+}
+
+/// The faces written around a fragment, as a set of the commands standing for them.
+#[derive(Clone, Copy, Default)]
+struct Faces(u8);
+
+impl Faces {
+    /// The set with `face` added, where there is a face to add.
+    fn with(self, face: Option<&str>) -> Self {
+        Self(self.0 | face.map_or(0, Self::bit))
+    }
+
+    /// Whether the face is one of those already written.
+    fn holds(self, face: &str) -> bool {
+        let bit = Self::bit(face);
+        bit != 0 && self.0 & bit != 0
+    }
+
+    fn bit(face: &str) -> u8 {
+        match face {
+            "\\mathbf" => 1,
+            "\\mathit" => 1 << 1,
+            "\\mathcal" => 1 << 2,
+            "\\mathfrak" => 1 << 3,
+            "\\mathbb" => 1 << 4,
+            "\\mathsf" => 1 << 5,
+            "\\mathtt" => 1 << 6,
+            "\\mathrm" => 1 << 7,
+            _ => 0,
+        }
+    }
+}
+
+/// A rendered fragment and what the code around it may do with it.
+#[derive(Default)]
+#[allow(clippy::struct_excessive_bools)]
+struct Piece {
+    tex: String,
+    /// Whether the fragment needs braces where a single token is expected.
+    grouped: bool,
+    /// Whether a bracket pair can hold the fragment without stretching to it.
+    simple: bool,
+    /// Whether the fragment is held apart from its neighbors.
+    spaced: bool,
+    /// Whether a script attaching to the fragment needs it braced.
+    braces_as_base: bool,
+    /// Whether the fragment carries a script of its own stacked above and below it.
+    limits: bool,
+    /// Whether the fragment takes a leading empty group where it stands as a whole formula.
+    nucleus: bool,
+    /// How the fragment joins to the token after it.
+    join: Join,
+    /// The content of a pair with no delimiters of its own, which an enclosing pair takes over.
+    spanned: Option<String>,
+}
+
+impl Piece {
+    /// A single token: an identifier, a number, a space, or a symbol.
+    fn token(tex: String) -> Self {
+        Self {
+            tex,
+            simple: true,
+            ..Self::default()
+        }
+    }
+
+    /// A fragment that already reads as one unit, whatever its length.
+    fn construct(tex: String) -> Self {
+        Self {
+            tex,
+            ..Self::default()
+        }
+    }
+
+    /// A fragment a script cannot attach to directly, and so takes braces where one does.
+    fn compound(tex: String) -> Self {
+        Self {
+            tex,
+            braces_as_base: true,
+            ..Self::default()
+        }
+    }
+}
+
+/// A delimiter a `<mo>` stands for: the character, its TeX form, and how it reads.
+#[derive(Clone, Copy)]
+struct Delimiter {
+    character: char,
+    tex: &'static str,
+    role: Role,
+}
+
+impl Delimiter {
+    /// Whether TeX writes the delimiter as it stands, with no `\left`/`\right` pair to size it.
+    fn is_plain(self) -> bool {
+        matches!(self.character, '(' | ')' | '[' | ']' | '|')
+    }
+
+    /// The operand of `\left`/`\right`: a sign carries no bracket, leaving the pair empty.
+    fn bracket(self) -> &'static str {
+        if self.role.is_sign() { "." } else { self.tex }
+    }
+
+    /// The sign a delimiter with no bracket of its own contributes to the content.
+    fn sign(self) -> &'static str {
+        if self.role.is_sign() { self.tex } else { "" }
+    }
+}
+
+/// One row of elements assembled up to the delimiter that ends it.
+struct Level {
+    pieces: Vec<Piece>,
+    close: Option<Delimiter>,
+    /// The index just past the delimiter that ended the level.
+    next: usize,
+}
+
+/// How a token joins to the one that follows it.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum Join {
+    /// Separate a following word or number wherever TeX would otherwise read the two as one control
+    /// sequence.
+    #[default]
+    Normal,
+    /// The token carries its own boundary; nothing after it needs separating.
+    Tight,
+    /// Always separate a following word or number, whatever the token ends with.
+    Always,
+}
+
+/// Accumulates rendered tokens, separating a token from the one before it wherever TeX would
+/// otherwise read the two as a single control sequence (`\int f`, not `\intf`).
+#[derive(Default)]
+struct Tokens {
+    out: String,
+    join: Join,
+}
+
+impl Tokens {
+    fn push(&mut self, tex: &str, join: Join) {
+        if self.needs_separator(tex) {
+            self.out.push(' ');
+        }
+        self.out.push_str(tex);
+        self.join = join;
+    }
+
+    /// Open a gap around a spaced operator, unless one is already there.
+    fn push_gap(&mut self) {
+        if !self.out.ends_with(' ') {
+            self.out.push(' ');
+            self.join = Join::Normal;
+        }
+    }
+
+    fn needs_separator(&self, next: &str) -> bool {
+        // Only a character TeX reads as part of a control sequence, rather than as the punctuation or
+        // backslash that ends one, has to be held off.
+        let absorbed = next.starts_with(|c: char| !c.is_ascii() || c.is_ascii_alphanumeric());
+        if !absorbed || self.out.ends_with(' ') {
+            return false;
+        }
+        match self.join {
+            Join::Always => true,
+            Join::Tight => ends_with_control_word(&self.out),
+            Join::Normal => {
+                ends_with_control_word(&self.out) || ends_with_control_symbol(&self.out)
             }
         }
-        index += 1;
     }
-    let row = join_tokens(&pieces);
-    let trimmed = row.trim();
-    // a trailing lone backslash can only be the control space `\ ` whose space trimming stripped
-    if ends_with_lone_backslash(trimmed) {
-        format!("{trimmed} ")
-    } else {
-        trimmed.to_string()
-    }
+}
+
+/// Whether `s` ends with a TeX control word: a run of ASCII letters immediately preceded by a
+/// backslash.
+fn ends_with_control_word(s: &str) -> bool {
+    let head = s.trim_end_matches(|c: char| c.is_ascii_alphabetic());
+    head.len() < s.len() && ends_with_lone_backslash(head)
+}
+
+/// Whether `s` ends with a TeX control symbol: a single non-letter immediately preceded by a
+/// backslash, as in `\%` or `\|`.
+fn ends_with_control_symbol(s: &str) -> bool {
+    let mut chars = s.chars();
+    let last = chars.next_back();
+    last.is_some_and(|c| !c.is_ascii_alphabetic()) && ends_with_lone_backslash(chars.as_str())
 }
 
 /// Whether `s` ends with an odd run of backslashes, so its final backslash stands alone rather than
@@ -89,58 +304,380 @@ fn ends_with_lone_backslash(s: &str) -> bool {
     s.chars().rev().take_while(|&c| c == '\\').count() % 2 == 1
 }
 
-/// Concatenate rendered row pieces, inserting a separating space wherever the left piece ends with a
-/// control word (`\` followed by letters) and the right piece begins with a letter or digit, so a
-/// command does not swallow the token that follows it (`\int f`, not `\intf`).
-fn join_tokens(pieces: &[String]) -> String {
-    let mut out = String::new();
+/// Render a sequence of element children as a row that stands on its own: a whole formula or the
+/// argument of a construct.
+fn render_row<T: MathTree>(elements: &[&T], ctx: Context<'_>) -> String {
+    trim_row(&wrap(elements, ctx).tex)
+}
+
+/// Trim the spacing an edge operator leaves around a row, keeping a control space that the trim
+/// would otherwise strip to a bare backslash.
+fn trim_row(row: &str) -> String {
+    let trimmed = row.trim();
+    if ends_with_lone_backslash(trimmed) {
+        format!("{trimmed} ")
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Assemble a sequence of elements into one piece: a lone piece stands for the row, and anything
+/// else reads as a group, holding no spacing of its own at either edge.
+fn wrap<T: MathTree>(elements: &[&T], ctx: Context<'_>) -> Piece {
+    let mut pieces = assemble(elements, 0, ctx, false).pieces;
+    if pieces.len() == 1 {
+        return pieces.remove(0);
+    }
+    let mut tokens = Tokens::default();
+    flatten(&pieces, &mut tokens);
+    Piece {
+        tex: trim_row(&tokens.out),
+        grouped: true,
+        ..Piece::default()
+    }
+}
+
+/// Concatenate rendered pieces, bracing each one that needs to read as a unit and opening a gap
+/// around each spaced operator.
+fn flatten(pieces: &[Piece], tokens: &mut Tokens) {
     for piece in pieces {
-        if ends_with_control_word(&out)
-            && piece
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_alphanumeric())
-        {
-            out.push(' ');
+        if piece.spaced {
+            tokens.push_gap();
         }
-        out.push_str(piece);
+        if piece.grouped {
+            tokens.push(&format!("{{{}}}", piece.tex), Join::Normal);
+        } else {
+            tokens.push(&piece.tex, piece.join);
+        }
+        if piece.spaced {
+            tokens.push_gap();
+        }
+    }
+}
+
+/// Assemble the elements from `start` into one level of delimiter nesting. `enclosed` marks a level
+/// that is the content of an open delimiter, and so ends at the first delimiter that closes it.
+fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclosed: bool) -> Level {
+    let mut pieces: Vec<Piece> = Vec::new();
+    // where the last completed group left off, so a later closing delimiter takes only what follows
+    let mut barrier = 0;
+    // whether a dividing or infix symbol has claimed the run of pieces since the last group
+    let mut spanning = false;
+    // whether such a symbol found anything in that run to divide
+    let mut spans = false;
+    let mut index = start;
+    while index < elements.len() {
+        // a fence pair around an <mtable> reads as one delimited matrix, not three loose tokens
+        if !ctx.script
+            && let (Some(open), Some(table), Some(close)) = (
+                elements.get(index),
+                elements.get(index + 1),
+                elements.get(index + 2),
+            )
+            && let Some(rendered) = matrix_fence(*open, *table, *close, ctx)
+        {
+            pieces.push(Piece::construct(rendered));
+            barrier = pieces.len();
+            index += 3;
+            continue;
+        }
+        let Some(element) = elements.get(index) else {
+            break;
+        };
+        if !ctx.script
+            && let Some(delimiter) = delimiter_of(*element)
+        {
+            let leads = !enclosed && index == start;
+            let last = index + 1 == elements.len();
+            // A dividing symbol opens a group where nothing is open for it to divide.
+            if matches!(delimiter.role, Role::Open | Role::OpenSymbol)
+                || (leads && (delimiter.role.opens() || delimiter.role == Role::Middle))
+            {
+                let inner = assemble(elements, index + 1, ctx, true);
+                pieces.push(render_group(Some(delimiter), &inner.pieces, inner.close));
+                barrier = pieces.len();
+                index = inner.next;
+                continue;
+            }
+            if delimiter.role.closes() || (delimiter.role == Role::Middle && last) {
+                if enclosed {
+                    return Level {
+                        pieces: lone_element(elements, start, index, pieces, ctx),
+                        close: Some(delimiter),
+                        next: index + 1,
+                    };
+                }
+                let content = pieces.split_off(barrier);
+                pieces.push(render_group(None, &content, Some(delimiter)));
+                spanning = false;
+                spans = false;
+                barrier = pieces.len();
+                index += 1;
+                continue;
+            }
+            if delimiter.role == Role::Middle || delimiter.role == Role::Infix {
+                pieces.push(if delimiter.role == Role::Middle {
+                    Piece {
+                        tex: format!("\\middle{}", delimiter.tex),
+                        spaced: true,
+                        ..Piece::default()
+                    }
+                } else {
+                    Piece::construct(delimiter.tex.to_string())
+                });
+                spanning = true;
+                spans = spans || pieces.len() > barrier + 1;
+                index += 1;
+                continue;
+            }
+        }
+        pieces.push(render(*element, ctx));
+        index += 1;
+        spans = spans || (spanning && pieces.len() > barrier + 1);
+    }
+    let pieces = lone_element(elements, start, elements.len(), pieces, ctx);
+    let pieces = if !enclosed && spans {
+        vec![render_group(None, &pieces, None)]
+    } else {
+        pieces
+    };
+    Level {
+        pieces,
+        close: None,
+        next: elements.len(),
+    }
+}
+
+/// A level spanning a single element holds no delimiters of its own: that element renders as it
+/// stands, brackets and all.
+fn lone_element<T: MathTree>(
+    elements: &[&T],
+    start: usize,
+    end: usize,
+    pieces: Vec<Piece>,
+    ctx: Context<'_>,
+) -> Vec<Piece> {
+    if end.saturating_sub(start) != 1 {
+        return pieces;
+    }
+    match elements.get(start) {
+        Some(element) => vec![render(*element, ctx)],
+        None => pieces,
+    }
+}
+
+/// Render a delimited group: a pair that holds a single token and needs no sizing is written as it
+/// stands, and anything else takes a `\left`…`\right` pair, with `.` where a side has no delimiter.
+fn render_group(open: Option<Delimiter>, content: &[Piece], close: Option<Delimiter>) -> Piece {
+    let spanned = match content.first() {
+        Some(piece) if content.len() == 1 => piece.spanned.clone(),
+        _ => None,
+    };
+    let plain = open.is_some_and(Delimiter::is_plain) && close.is_some_and(Delimiter::is_plain);
+    if spanned.is_none()
+        && (content.is_empty() || (plain && content.iter().all(|piece| piece.simple)))
+    {
+        let mut tokens = Tokens::default();
+        if let Some(open) = open {
+            tokens.push(open.tex, Join::Normal);
+        }
+        flatten(content, &mut tokens);
+        if let Some(close) = close {
+            tokens.push(close.tex, Join::Normal);
+        }
+        return Piece {
+            tex: tokens.out,
+            grouped: content.is_empty() && open.is_some() && close.is_some(),
+            ..Piece::default()
+        };
+    }
+    let body = if let Some(body) = spanned {
+        body
+    } else {
+        let mut tokens = Tokens::default();
+        tokens.push(open.map_or("", Delimiter::sign), Join::Normal);
+        flatten(content, &mut tokens);
+        trim_row(&tokens.out)
+    };
+    // Nothing between the delimiters holds no gap of its own.
+    let padded = if body.is_empty() {
+        String::new()
+    } else {
+        format!("{body} ")
+    };
+    let tex = format!(
+        "\\left{} {padded}\\right{}{}",
+        open.map_or(".", Delimiter::bracket),
+        close.map_or(".", Delimiter::bracket),
+        close.map_or("", Delimiter::sign),
+    );
+    Piece {
+        spanned: (open.is_none() && close.is_none()).then_some(body),
+        tex,
+        ..Piece::default()
+    }
+}
+
+/// The delimiter or infix symbol an element stands for, or `None` for anything that renders as
+/// content. Only an operator carries a reading; the same character elsewhere is a literal symbol.
+fn delimiter_of<T: MathTree>(e: &T) -> Option<Delimiter> {
+    if e.tag() != "mo" {
+        return None;
+    }
+    let text = e.inner_text();
+    let text = trim_token(&text);
+    let mut characters = text.chars();
+    let character = characters.next()?;
+    if characters.next().is_some() {
+        let (tex, role) = symbols::operator(text)?;
+        return (role == Role::Infix).then_some(Delimiter {
+            character,
+            tex,
+            role,
+        });
+    }
+    let (tex, role) = symbols::symbol(character)?;
+    (role.is_delimiter() || role == Role::Infix).then_some(Delimiter {
+        character,
+        tex,
+        role,
+    })
+}
+
+/// Render one element in the context the construct that holds it passes down. An element's own
+/// `mathvariant` supersedes the face it inherits and passes on in its place.
+fn render<T: MathTree>(e: &T, inherited: Context<'_>) -> Piece {
+    let own = e.attribute("mathvariant");
+    let selected = own.as_deref().or(inherited.variant).map(selected_face);
+    let variant = selected.map(|(variant, _)| variant);
+    // The face already written around an element is not written a second time inside it.
+    let face = selected
+        .filter(|(selected, _)| *selected != inherited.applied)
+        .map(|(_, command)| command);
+    let ctx = Context {
+        variant,
+        ..inherited
+    };
+    let text = e.inner_text();
+    match e.tag() {
+        "mi" => render_identifier(trim_token(&text), face, ctx.inside(face)),
+        "mn" => Piece::token(map_characters(trim_token(&text), ctx.faces)),
+        "mo" => render_operator(trim_token(&text), ctx.faces),
+        "mtext" if text.trim().is_empty() => Piece::token(String::new()),
+        "mtext" => Piece::construct(in_text_face(variant, &escape_text(text.trim(), ctx.faces))),
+        "ms" => Piece::construct(render_string(e, ctx)),
+        "mspace" => render_space(e),
+        "msup" => Piece::compound(render_script(e, '^', ctx)),
+        "msub" => Piece::compound(render_script(e, '_', ctx)),
+        "msubsup" => Piece::compound(render_subsup(e, ctx)),
+        "mfrac" => Piece::construct(render_binary(e, "\\frac", ctx)),
+        "msqrt" => Piece::compound(format!(
+            "\\sqrt{{{}}}",
+            render_row(&e.element_children(), ctx)
+        )),
+        "mroot" => Piece::compound(render_root(e, ctx)),
+        "mover" => Piece::compound(render_over(e, ctx)),
+        "munder" => Piece::compound(render_under(e, ctx)),
+        "munderover" => Piece::compound(render_underover(e, ctx)),
+        "mfenced" => render_fenced(e, ctx),
+        "mtable" => Piece::construct(render_mtable(e, "matrix", ctx)),
+        "mmultiscripts" => render_mmultiscripts(e, ctx),
+        "mphantom" => Piece::compound(format!(
+            "\\phantom{{{}}}",
+            render_row(&e.element_children(), ctx)
+        )),
+        "menclose" => Piece::construct(render_menclose(e, ctx)),
+        "semantics" => render_semantics(e, ctx),
+        // A style wrapper restyles the row it holds as a whole, rather than each token in it, and one
+        // left with no variant in force restyles it to the plain face.
+        "mstyle" => {
+            let (selected, command) = selected_face(variant.unwrap_or("normal"));
+            let face = (selected != inherited.applied).then_some(command);
+            let held = Context {
+                variant: None,
+                applied: selected,
+                ..ctx.inside(face)
+            };
+            match face {
+                Some(command) => Piece::construct(format!(
+                    "{command}{{{}}}",
+                    render_row(&e.element_children(), held)
+                )),
+                None => wrap(&e.element_children(), held),
+            }
+        }
+        // A grouping or presentational wrapper carries no structure of its own: render its content.
+        _ => wrap(&e.element_children(), ctx),
+    }
+}
+
+/// Trim the whitespace an element's markup leaves around a token's text. Only the space characters
+/// XML uses for layout are stripped, so that a no-break space keeps its symbol.
+fn trim_token(text: &str) -> &str {
+    text.trim_matches(|c| matches!(c, ' ' | '\t' | '\n' | '\r'))
+}
+
+/// The variant an element sets and the TeX command that writes it, where a `mathvariant` with no
+/// command of its own reads as the plain face.
+fn selected_face(variant: &str) -> (&str, &'static str) {
+    match math_face(variant) {
+        Some(command) => (variant, command),
+        None => ("normal", "\\mathrm"),
+    }
+}
+
+/// The TeX command a `mathvariant` selects in math mode, or `None` for a variant with no command of
+/// its own.
+fn math_face(variant: &str) -> Option<&'static str> {
+    Some(match variant {
+        "bold" | "bold-italic" | "bold-sans-serif" | "sans-serif-bold-italic" => "\\mathbf",
+        "italic" => "\\mathit",
+        "script" | "bold-script" => "\\mathcal",
+        "fraktur" | "bold-fraktur" => "\\mathfrak",
+        "double-struck" => "\\mathbb",
+        "sans-serif" | "sans-serif-italic" => "\\mathsf",
+        "monospace" => "\\mathtt",
+        "normal" => "\\mathrm",
+        _ => return None,
+    })
+}
+
+/// Rendered math set in the face given, or left as it stands where there is no face to write.
+fn in_face(face: Option<&str>, content: &str) -> String {
+    match face {
+        Some(command) => format!("{command}{{{content}}}"),
+        None => content.to_string(),
+    }
+}
+
+/// The text-mode commands a `mathvariant` selects, innermost first. An empty list leaves the plain
+/// text box.
+fn text_face(variant: &str) -> &'static [&'static str] {
+    match variant {
+        "bold" => &["\\textbf"],
+        "italic" => &["\\textit"],
+        "bold-italic" => &["\\textbf", "\\textit"],
+        "sans-serif" => &["\\textsf"],
+        "bold-sans-serif" => &["\\textsf", "\\textbf"],
+        "sans-serif-italic" => &["\\textsf", "\\textit"],
+        "sans-serif-bold-italic" => &["\\textsf", "\\textit", "\\textbf"],
+        "monospace" => &["\\texttt"],
+        _ => &[],
+    }
+}
+
+/// Escaped literal text set in the face its variant selects, in a plain `\text` box when the variant
+/// selects none.
+fn in_text_face(variant: Option<&str>, escaped: &str) -> String {
+    let commands = variant.map(text_face).unwrap_or_default();
+    let Some((innermost, rest)) = commands.split_first() else {
+        return format!("\\text{{{escaped}}}");
+    };
+    let mut out = format!("{innermost}{{{escaped}}}");
+    for command in rest {
+        out = format!("{command}{{{out}}}");
     }
     out
-}
-
-/// Whether `s` ends with a TeX control word: a run of ASCII letters immediately preceded by a
-/// backslash.
-fn ends_with_control_word(s: &str) -> bool {
-    let head = s.trim_end_matches(|c: char| c.is_ascii_alphabetic());
-    head.len() < s.len() && head.ends_with('\\')
-}
-
-fn render<T: MathTree>(e: &T) -> String {
-    match e.tag() {
-        "mi" => render_ident(e.inner_text().trim()),
-        "mn" => e.inner_text().trim().to_string(),
-        "mo" => render_operator(e.inner_text().trim()),
-        "mtext" => format!("\\text{{{}}}", escape_text(e.inner_text().trim())),
-        "ms" => render_string(e),
-        "mspace" => render_space(e),
-        "msup" => render_script(e, '^'),
-        "msub" => render_script(e, '_'),
-        "msubsup" => render_subsup(e),
-        "mfrac" => render_binary(e, "\\frac"),
-        "msqrt" => format!("\\sqrt{{{}}}", render_row(&e.element_children())),
-        "mroot" => render_root(e),
-        "mover" => render_over(e),
-        "munder" => render_under(e),
-        "munderover" => render_underover(e),
-        "mfenced" => render_fenced(e),
-        "mtable" => render_mtable(e, "matrix"),
-        "mmultiscripts" => render_mmultiscripts(e),
-        "mphantom" => format!("\\phantom{{{}}}", render_row(&e.element_children())),
-        "menclose" => render_menclose(e),
-        "semantics" => render_semantics(e),
-        // A grouping or presentational wrapper carries no structure of its own: render its content.
-        _ => render_row(&e.element_children()),
-    }
 }
 
 /// The `index`-th element child.
@@ -148,95 +685,113 @@ fn nth_child<T: MathTree>(e: &T, index: usize) -> Option<&T> {
     e.nth_element_child(index)
 }
 
-fn rendered_child<T: MathTree>(e: &T, index: usize) -> String {
-    nth_child(e, index).map(render).unwrap_or_default()
+/// The `index`-th child as a piece, or an empty piece where there is no such child.
+fn child_piece<T: MathTree>(e: &T, index: usize, ctx: Context<'_>) -> Piece {
+    nth_child(e, index).map_or_else(Piece::default, |child| render(child, ctx))
+}
+
+/// The `index`-th child as the argument of a construct, which holds it without needing braces of
+/// its own.
+fn rendered_child<T: MathTree>(e: &T, index: usize, ctx: Context<'_>) -> String {
+    trim_row(&child_piece(e, index, ctx).tex)
+}
+
+/// A piece filling a slot that holds it as it stands: a group takes braces, a spaced operator keeps
+/// the gaps around it, and an empty piece contributes nothing.
+fn as_slot(piece: &Piece) -> String {
+    if piece.tex.is_empty() {
+        return String::new();
+    }
+    let mut tokens = Tokens::default();
+    flatten(std::slice::from_ref(piece), &mut tokens);
+    tokens.out
 }
 
 /// A single-script element (`<msup>`/`<msub>`): base plus one script in braces.
-fn render_script<T: MathTree>(e: &T, marker: char) -> String {
-    let base = rendered_child(e, 0);
-    let script = rendered_child(e, 1);
-    format!("{}{}{{{}}}", brace_base(&base), marker, script)
+fn render_script<T: MathTree>(e: &T, marker: char, ctx: Context<'_>) -> String {
+    let base = brace_base(&child_piece(e, 0, ctx));
+    let script = rendered_child(e, 1, ctx.scripted());
+    format!("{base}{marker}{{{script}}}")
 }
 
 /// `<msubsup>`: base with both a subscript and a superscript.
-fn render_subsup<T: MathTree>(e: &T) -> String {
-    let base = rendered_child(e, 0);
-    let sub = rendered_child(e, 1);
-    let sup = rendered_child(e, 2);
-    format!("{}_{{{}}}^{{{}}}", brace_base(&base), sub, sup)
+fn render_subsup<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
+    let base = brace_base(&child_piece(e, 0, ctx));
+    let sub = rendered_child(e, 1, ctx.scripted());
+    let sup = rendered_child(e, 2, ctx.scripted());
+    format!("{base}_{{{sub}}}^{{{sup}}}")
 }
 
 /// A two-argument construct written `cmd{first}{second}`, e.g. `<mfrac>` → `\frac`.
-fn render_binary<T: MathTree>(e: &T, command: &str) -> String {
-    let first = rendered_child(e, 0);
-    let second = rendered_child(e, 1);
+fn render_binary<T: MathTree>(e: &T, command: &str, ctx: Context<'_>) -> String {
+    let first = rendered_child(e, 0, ctx);
+    let second = rendered_child(e, 1, ctx);
     format!("{command}{{{first}}}{{{second}}}")
 }
 
 /// `<mroot>`: base under a radical with an explicit index.
-fn render_root<T: MathTree>(e: &T) -> String {
-    let base = rendered_child(e, 0);
-    let index = rendered_child(e, 1);
+fn render_root<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
+    let base = rendered_child(e, 0, ctx);
+    let index = as_slot(&child_piece(e, 1, ctx));
     format!("\\sqrt[{index}]{{{base}}}")
 }
 
-/// `<mover>`: a base with an overscript. A recognized accent character maps to its accent command;
-/// any other overscript is stacked over the base with `\overset` so its content is preserved rather
-/// than dropped.
-fn render_over<T: MathTree>(e: &T) -> String {
-    let base = rendered_child(e, 0);
-    let accent = nth_child(e, 1)
+/// `<mover>`: a base with an overscript. A recognized accent character maps to its accent command, a
+/// large operator or limit-like function carries the script with `\limits`, and anything else is
+/// stacked over the base with `\overset` so its content is preserved rather than dropped.
+fn render_over<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
+    let piece = child_piece(e, 0, ctx);
+    stack_over(e, 1, &trim_row(&piece.tex), piece.limits, ctx)
+}
+
+/// Set the script at `index` above `base`: a recognized accent character takes its accent commands,
+/// a base that carries its scripts stacked takes the script with `\limits`, and anything else sits
+/// over the base with `\overset` so its content is preserved rather than dropped.
+fn stack_over<T: MathTree>(
+    e: &T,
+    index: usize,
+    base: &str,
+    limits: bool,
+    ctx: Context<'_>,
+) -> String {
+    let accent = nth_child(e, index)
         .map(|c| c.inner_text().trim().to_string())
         .unwrap_or_default();
-    match accent_command(&accent) {
-        Some(command) => format!("{command}{{{base}}}"),
-        None => format!("\\overset{{{}}}{{{}}}", rendered_child(e, 1), base),
+    if let Some(commands) = accent_commands(&accent) {
+        return commands.iter().fold(base.to_string(), |inner, command| {
+            format!("{command}{{{inner}}}")
+        });
+    }
+    let over = rendered_child(e, index, ctx.scripted());
+    if limits {
+        format!("{base}\\limits^{{{over}}}")
+    } else {
+        format!("\\overset{{{over}}}{{{base}}}")
     }
 }
 
-/// Whether a rendered base is a large operator or limit-like function that carries its scripts as
-/// stacked limits (`\sum\limits_{...}`). Anything else, an ordinary symbol, a Greek letter, or a
-/// compound expression, takes an `\underset`/`\overset` instead, since `\limits` is only valid after
-/// an operator.
-fn takes_limits(base: &str) -> bool {
-    matches!(
-        base,
-        "\\sum"
-            | "\\prod"
-            | "\\coprod"
-            | "\\int"
-            | "\\oint"
-            | "\\iint"
-            | "\\iiint"
-            | "\\bigcup"
-            | "\\bigcap"
-            | "\\bigvee"
-            | "\\bigwedge"
-            | "\\bigsqcup"
-            | "\\biguplus"
-            | "\\bigodot"
-            | "\\bigoplus"
-            | "\\bigotimes"
-            | "\\lim"
-            | "\\limsup"
-            | "\\liminf"
-            | "\\max"
-            | "\\min"
-            | "\\sup"
-            | "\\inf"
-            | "\\gcd"
-            | "\\det"
-            | "\\Pr"
-    )
+/// Whether an operator character carries its scripts stacked above and below it (`\sum\limits_{...}`)
+/// rather than beside it: the large operators, the integrals, and the n-ary set and logic operators.
+/// Anything else, an ordinary symbol, a Greek letter, or a compound expression, takes an
+/// `\underset`/`\overset` instead, since `\limits` is only valid after an operator.
+fn takes_limits(character: char) -> bool {
+    matches!(character,
+        '|' | '\u{2140}' | '\u{220f}' | '\u{2210}' | '\u{2211}' | '\u{29f8}' | '\u{29f9}'
+        | '\u{2afc}' | '\u{2aff}'
+        | '\u{222b}'..='\u{2233}'
+        | '\u{22c0}'..='\u{22c3}'
+        | '\u{27d5}'..='\u{27d9}'
+        | '\u{2a00}'..='\u{2a09}'
+        | '\u{2a0b}'..='\u{2a21}')
 }
 
 /// `<munder>`: an under-script. A large operator or limit-like function carries its script with
 /// `\limits`; anything else uses `\underset`.
-fn render_under<T: MathTree>(e: &T) -> String {
-    let base = rendered_child(e, 0);
-    let under = rendered_child(e, 1);
-    if takes_limits(&base) {
+fn render_under<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
+    let piece = child_piece(e, 0, ctx);
+    let base = trim_row(&piece.tex);
+    let under = rendered_child(e, 1, ctx.scripted());
+    if piece.limits {
         format!("{base}\\limits_{{{under}}}")
     } else {
         format!("\\underset{{{under}}}{{{base}}}")
@@ -244,41 +799,241 @@ fn render_under<T: MathTree>(e: &T) -> String {
 }
 
 /// `<munderover>`: both an under-script and an over-script on the base.
-fn render_underover<T: MathTree>(e: &T) -> String {
-    let base = rendered_child(e, 0);
-    let under = rendered_child(e, 1);
-    let over = rendered_child(e, 2);
-    if takes_limits(&base) {
+fn render_underover<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
+    let piece = child_piece(e, 0, ctx);
+    let base = trim_row(&piece.tex);
+    let under = rendered_child(e, 1, ctx.scripted());
+    // A script drawn across the whole base covers the underscript with it.
+    if nth_child(e, 2).is_some_and(covers_base) {
+        let stacked = if piece.limits {
+            format!("{base}\\limits_{{{under}}}")
+        } else {
+            format!("\\underset{{{under}}}{{{base}}}")
+        };
+        return stack_over(e, 2, &stacked, false, ctx);
+    }
+    let over = rendered_child(e, 2, ctx.scripted());
+    if piece.limits {
         format!("{base}\\limits_{{{under}}}^{{{over}}}")
     } else {
-        format!("\\overset{{{over}}}{{\\underset{{{under}}}{{{base}}}}}")
+        format!("\\underset{{{under}}}{{\\overset{{{over}}}{{{base}}}}}")
+    }
+}
+
+/// Whether a script is a lone operator that is drawn across everything below it, an accent, a bar or
+/// brace, or a stretchy horizontal arrow.
+fn covers_base<T: MathTree>(script: &T) -> bool {
+    let mut element = script;
+    while element.tag() != "mo" {
+        match element.element_children().as_slice() {
+            [only] => element = only,
+            _ => return false,
+        }
+    }
+    let text = element.inner_text();
+    let mut characters = text.trim().chars();
+    match (characters.next(), characters.next()) {
+        (Some(character), None) => symbols::stacks_over(character),
+        _ => false,
     }
 }
 
 /// `<mfenced>`: children wrapped in delimiters, defaulting to parentheses with comma separators. The
 /// `separators` attribute lists one character per gap between children (whitespace ignored); when the
 /// children outnumber the listed separators the last one repeats, and an explicitly empty list places
-/// no separators at all.
-fn render_fenced<T: MathTree>(e: &T) -> String {
+/// no separators at all. A delimiter that names no bracket is written as an operator beside the
+/// content, and a pair of empty delimiters leaves the content bare.
+fn render_fenced<T: MathTree>(e: &T, ctx: Context<'_>) -> Piece {
     let open = e.attribute("open").unwrap_or_else(|| "(".to_string());
     let close = e.attribute("close").unwrap_or_else(|| ")".to_string());
+    let children = e.element_children();
+    if !ctx.script
+        && let [table] = children.as_slice()
+        && table.tag() == "mtable"
+        && let Some(rendered) = fenced_matrix(*table, &open, &close, ctx)
+    {
+        return Piece::construct(rendered);
+    }
     let separators: Vec<char> = e
         .attribute("separators")
         .unwrap_or_else(|| ",".to_string())
         .chars()
         .filter(|c| !c.is_whitespace())
         .collect();
-    let mut out = open;
-    for (index, child) in e.element_children().iter().enumerate() {
+    let mut content: Vec<Piece> = Vec::new();
+    for (index, child) in children.iter().enumerate() {
         if index > 0
             && let Some(separator) = separators.get(index - 1).or_else(|| separators.last())
         {
-            out.push(*separator);
+            content.push(render_operator(&separator.to_string(), ctx.faces));
         }
-        out.push_str(&render(*child));
+        let rendered = render(*child, ctx);
+        if !rendered.tex.is_empty() {
+            content.push(rendered);
+        }
     }
-    out.push_str(&close);
-    out
+    let content = match content.len() {
+        0 => None,
+        1 => Some(content.remove(0)),
+        _ => Some(as_group(&content)),
+    };
+    let open_fence = fence_attribute(&open, opens_fence, ctx.faces);
+    let close_fence = fence_attribute(&close, closes_fence, ctx.faces);
+    if ctx.script {
+        return scripted_fence(open_fence, content, close_fence);
+    }
+    // An opening attribute that only ever closes shuts a pair of its own, ahead of the content.
+    let (before, open_fence) = match open_fence {
+        Fence::Beside(operator) if operator.closing => (
+            Some(render_group(None, &[], operator.delimiter)),
+            Fence::None,
+        ),
+        other => (None, other),
+    };
+    if before.is_none() && matches!(open_fence, Fence::None) && matches!(close_fence, Fence::None) {
+        return content.unwrap_or_default();
+    }
+    let mut pieces = Vec::new();
+    let open_bracket = match open_fence {
+        Fence::Bracket(delimiter) => Some(delimiter),
+        Fence::Beside(operator) => {
+            pieces.push(operator.piece);
+            None
+        }
+        Fence::None => None,
+    };
+    // A pair with nothing between its delimiters still holds a group, empty as it is.
+    pieces.push(content.unwrap_or(Piece {
+        grouped: true,
+        ..Piece::default()
+    }));
+    let close_bracket = match close_fence {
+        Fence::Bracket(delimiter) => Some(delimiter),
+        Fence::Beside(operator) => {
+            pieces.push(operator.piece);
+            None
+        }
+        Fence::None => None,
+    };
+    let group = match (open_bracket, close_bracket) {
+        (None, None) => as_group(&pieces),
+        (open_bracket, close_bracket) => render_group(open_bracket, &pieces, close_bracket),
+    };
+    match before {
+        Some(before) => as_group(&[before, group]),
+        None => group,
+    }
+}
+
+/// Rendered pieces taken together as one group.
+fn as_group(pieces: &[Piece]) -> Piece {
+    let mut tokens = Tokens::default();
+    flatten(pieces, &mut tokens);
+    Piece {
+        tex: trim_row(&tokens.out),
+        grouped: true,
+        ..Piece::default()
+    }
+}
+
+/// In a script the delimiters stand as they are written, around whatever content there is.
+fn scripted_fence(open: Fence, content: Option<Piece>, close: Fence) -> Piece {
+    let mut tokens = Tokens::default();
+    match open {
+        Fence::Bracket(delimiter) => tokens.push(delimiter.tex, Join::Normal),
+        Fence::Beside(operator) => flatten(&[operator.piece], &mut tokens),
+        Fence::None => {}
+    }
+    if let Some(content) = content {
+        flatten(std::slice::from_ref(&content), &mut tokens);
+    }
+    match close {
+        Fence::Bracket(delimiter) => tokens.push(delimiter.tex, Join::Normal),
+        Fence::Beside(operator) => flatten(&[operator.piece], &mut tokens),
+        Fence::None => {}
+    }
+    Piece {
+        tex: tokens.out,
+        grouped: true,
+        ..Piece::default()
+    }
+}
+
+/// A fence pair given as `mfenced` attributes around a lone table, taken together as one delimited
+/// matrix.
+fn fenced_matrix<T: MathTree>(
+    table: &T,
+    open: &str,
+    close: &str,
+    ctx: Context<'_>,
+) -> Option<String> {
+    if let Some(env) = matrix_env(open, close) {
+        return Some(render_mtable(table, env, ctx));
+    }
+    let (left, right) = (left_right_delim(open)?, left_right_delim(close)?);
+    Some(format!(
+        "\\left{left} {} \\right{right}",
+        render_mtable(table, "matrix", ctx)
+    ))
+}
+
+/// What a delimiter attribute contributes on its side of the content.
+enum Fence {
+    /// Nothing at all.
+    None,
+    /// A bracket the pair stretches to.
+    Bracket(Delimiter),
+    /// An operator standing beside the content.
+    Beside(FenceOperator),
+}
+
+/// An operator a delimiter attribute renders as, and the delimiter it stands for where the attribute
+/// names one that reads the wrong way round for its side.
+struct FenceOperator {
+    piece: Piece,
+    closing: bool,
+    delimiter: Option<Delimiter>,
+}
+
+/// Whether a symbol reads as the opening side of a pair.
+fn opens_fence(role: Role) -> bool {
+    role.opens() || role == Role::Middle
+}
+
+/// Whether a symbol reads as the closing side of a pair.
+fn closes_fence(role: Role) -> bool {
+    role.closes() || role == Role::Middle
+}
+
+/// Read an `mfenced` delimiter attribute: either the bracket it names, or the operator it renders as
+/// beside the content. An empty attribute contributes nothing.
+fn fence_attribute(text: &str, accepts: fn(Role) -> bool, faces: Faces) -> Fence {
+    let mut characters = text.chars();
+    let Some(character) = characters.next() else {
+        return Fence::None;
+    };
+    let single = characters.next().is_none();
+    let symbol = single.then(|| symbols::symbol(character)).flatten();
+    if let Some((tex, role)) = symbol {
+        let delimiter = Delimiter {
+            character,
+            tex,
+            role,
+        };
+        if accepts(role) {
+            return Fence::Bracket(delimiter);
+        }
+        return Fence::Beside(FenceOperator {
+            piece: render_operator(text, faces),
+            closing: role.closes(),
+            delimiter: Some(delimiter),
+        });
+    }
+    Fence::Beside(FenceOperator {
+        piece: render_operator(text, faces),
+        closing: false,
+        delimiter: None,
+    })
 }
 
 /// The named matrix environment a fence pair selects, or `None` for a fence that keeps an explicit
@@ -305,30 +1060,19 @@ fn left_right_delim(op: &str) -> Option<&'static str> {
 /// An open operator, a table, and a close operator taken together as a delimited matrix: a
 /// recognized bracket pair becomes the matching matrix environment, and a stretchy bar pair wraps a
 /// plain matrix in `\left`…`\right`.
-fn matrix_fence<T: MathTree>(open: &T, table: &T, close: &T) -> Option<String> {
+fn matrix_fence<T: MathTree>(open: &T, table: &T, close: &T, ctx: Context<'_>) -> Option<String> {
     if open.tag() != "mo" || table.tag() != "mtable" || close.tag() != "mo" {
         return None;
     }
     let open_text = open.inner_text();
     let close_text = close.inner_text();
-    let (open_delim, close_delim) = (open_text.trim(), close_text.trim());
-    if let Some(env) = matrix_env(open_delim, close_delim) {
-        return Some(render_mtable(table, env));
-    }
-    if let (Some(left), Some(right)) = (left_right_delim(open_delim), left_right_delim(close_delim))
-    {
-        return Some(format!(
-            "\\left{left} {} \\right{right}",
-            render_mtable(table, "matrix")
-        ));
-    }
-    None
+    fenced_matrix(table, open_text.trim(), close_text.trim(), ctx)
 }
 
 /// `<mtable>`: rows of cells laid out as a TeX matrix, cells separated by `&` and rows by `\\`. Every
 /// row is padded to the widest so the columns line up, and a multi-token cell is braced so its
 /// content reads as one grid entry.
-fn render_mtable<T: MathTree>(e: &T, env: &str) -> String {
+fn render_mtable<T: MathTree>(e: &T, env: &str, ctx: Context<'_>) -> String {
     let rows: Vec<Vec<String>> = e
         .element_children()
         .into_iter()
@@ -337,7 +1081,7 @@ fn render_mtable<T: MathTree>(e: &T, env: &str) -> String {
             row.element_children()
                 .into_iter()
                 .filter(|cell| cell.tag() == "mtd")
-                .map(|cell| matrix_cell(&render_row(&cell.element_children())))
+                .map(|cell| as_slot(&wrap(&cell.element_children(), ctx)))
                 .collect()
         })
         .collect();
@@ -346,39 +1090,56 @@ fn render_mtable<T: MathTree>(e: &T, env: &str) -> String {
         .into_iter()
         .map(|mut cells| {
             cells.resize(width, String::new());
-            cells.join(" & ")
+            join_cells(&cells)
         })
         .collect();
-    format!(
-        "\\begin{{{env}}}\n{}\n\\end{{{env}}}",
-        lines.join(" \\\\\n")
-    )
+    let last = lines.len().saturating_sub(1);
+    let body: Vec<String> = lines
+        .into_iter()
+        .enumerate()
+        .map(|(index, line)| {
+            if index == last {
+                line
+            } else {
+                format!("{} \\\\", line.trim_end())
+            }
+        })
+        .collect();
+    format!("\\begin{{{env}}}\n{}\n\\end{{{env}}}", body.join("\n"))
 }
 
-/// A matrix cell: a lone token sits bare, a compound expression is braced so it reads as one entry,
-/// and an empty cell contributes nothing.
-fn matrix_cell(content: &str) -> String {
-    match content.chars().count() {
-        0 => String::new(),
-        1 => content.to_string(),
-        _ => format!("{{{content}}}"),
+/// One row of rendered cells, each set off from the one before it by an ampersand that keeps the
+/// spacing the cell itself ends with, with the gap around the ampersand written once.
+fn join_cells(cells: &[String]) -> String {
+    let mut row = String::new();
+    for (index, cell) in cells.iter().enumerate() {
+        if index > 0 {
+            if !row.ends_with(' ') {
+                row.push(' ');
+            }
+            row.push_str("& ");
+        }
+        row.push_str(if row.ends_with(' ') {
+            cell.trim_start_matches(' ')
+        } else {
+            cell
+        });
     }
+    row
 }
 
 /// `<mmultiscripts>`: a base carrying post-scripts and, after an `<mprescripts/>` marker, pre-scripts.
 /// The subscripts on a side gather into one subscript group and the superscripts into one superscript
 /// group, so the base takes at most a single `_` and `^` per side rather than an invalid chain of
-/// them. A side present at all (the post-scripts whenever any follow the base, the pre-scripts once an
-/// `<mprescripts/>` marker appears) emits both its groups even when a `<none/>` slot leaves one empty,
-/// behind a leading empty nucleus that gives the pre-scripts something to attach to.
+/// them. A side carrying any slot at all emits both its groups even when a `<none/>` slot leaves one
+/// empty, and pre-scripts sit behind a leading empty nucleus that gives them something to attach to.
 #[allow(clippy::similar_names)]
-fn render_mmultiscripts<T: MathTree>(e: &T) -> String {
+fn render_mmultiscripts<T: MathTree>(e: &T, ctx: Context<'_>) -> Piece {
     let children = e.element_children();
     let mut iter = children.into_iter();
     let base = iter
         .next()
-        .map(|element| render(element))
-        .unwrap_or_default();
+        .map_or_else(Piece::default, |element| render(element, ctx));
     let mut pre = ScriptSide::default();
     let mut post = ScriptSide::default();
     let mut in_pre = false;
@@ -388,19 +1149,31 @@ fn render_mmultiscripts<T: MathTree>(e: &T) -> String {
             continue;
         }
         let target_pre = in_pre;
-        let sub = script_token(sub_element);
+        let sub = script_token(sub_element, ctx);
         let sup = match iter.next() {
             Some(element) if element.tag() == "mprescripts" => {
                 in_pre = true;
                 String::new()
             }
-            Some(element) => script_token(element),
+            Some(element) => script_token(element, ctx),
             None => String::new(),
         };
         let side = if target_pre { &mut pre } else { &mut post };
         side.push(&sub, &sup);
     }
-    format!("{{}}{}{}{}", pre.render(), brace_base(&base), post.render())
+    let nucleus = if pre.present { "{}" } else { "" };
+    Piece {
+        tex: format!(
+            "{nucleus}{}{}{}",
+            pre.render(),
+            brace_base(&base),
+            post.render()
+        ),
+        grouped: pre.present,
+        braces_as_base: pre.present || post.present,
+        nucleus: !pre.present,
+        ..Piece::default()
+    }
 }
 
 /// The accumulated scripts on one side of a multiscript base: every subscript concatenated and every
@@ -431,18 +1204,18 @@ impl ScriptSide {
 
 /// A single multiscript slot: an explicit empty (`<none/>`) contributes nothing, anything else its
 /// rendered form.
-fn script_token<T: MathTree>(e: &T) -> String {
+fn script_token<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
     if e.tag() == "none" {
         String::new()
     } else {
-        render(e)
+        trim_row(&render(e, ctx).tex)
     }
 }
 
 /// `<menclose>`: content wrapped in the TeX command its `notation` denotes (a boxed frame or a
 /// cancel line), or left bare for a notation with no TeX equivalent.
-fn render_menclose<T: MathTree>(e: &T) -> String {
-    let inner = render_row(&e.element_children());
+fn render_menclose<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
+    let inner = render_row(&e.element_children(), ctx);
     match enclose_command(&e.attribute("notation").unwrap_or_default()) {
         Some(command) => format!("{command}{{{inner}}}"),
         None => inner,
@@ -470,38 +1243,41 @@ fn enclose_command(notation: &str) -> Option<&'static str> {
 }
 
 /// `<semantics>`: render the presentation child, dropping any annotation payload.
-fn render_semantics<T: MathTree>(e: &T) -> String {
+fn render_semantics<T: MathTree>(e: &T, ctx: Context<'_>) -> Piece {
     for element in e.element_children() {
         if element.tag() == "annotation" || element.tag() == "annotation-xml" {
             continue;
         }
-        return render(element);
+        return render(element, ctx);
     }
-    String::new()
+    Piece::default()
 }
 
-/// `<ms>`: a string literal set inside a `\text{...}` box between quotation marks. The `lquote` and
-/// `rquote` attributes supply the marks, defaulting to typographic double quotes, and the literal
-/// text has its LaTeX specials escaped.
-fn render_string<T: MathTree>(e: &T) -> String {
+/// `<ms>`: a string literal set in a text box between quotation marks. The `lquote` and `rquote`
+/// attributes supply the marks, defaulting to typographic double quotes, and the literal text has
+/// its LaTeX specials escaped.
+fn render_string<T: MathTree>(e: &T, ctx: Context<'_>) -> String {
     let open = e
         .attribute("lquote")
         .unwrap_or_else(|| "\u{201c}".to_string());
     let close = e
         .attribute("rquote")
         .unwrap_or_else(|| "\u{201d}".to_string());
-    format!(
-        "\\text{{{open}{}{close}}}",
-        escape_text(e.inner_text().trim())
+    in_text_face(
+        ctx.variant,
+        &format!(
+            "{open}{}{close}",
+            escape_text(e.inner_text().trim(), ctx.faces)
+        ),
     )
 }
 
 /// Escape text bound for a TeX text box (`\text{...}`): the characters LaTeX reads as control syntax
 /// take their text-mode escapes. The three that expand to a control word are held apart from a
 /// following letter or digit so the command does not absorb it.
-fn escape_text(text: &str) -> String {
+fn escape_text(text: &str, faces: Faces) -> String {
     let mut out = String::new();
-    for ch in text.chars() {
+    for ch in text.chars().map(|character| unstyled(character, faces)) {
         match ch {
             '%' => out.push_str("\\%"),
             '&' => out.push_str("\\&"),
@@ -524,31 +1300,113 @@ fn escape_text(text: &str) -> String {
     out
 }
 
-/// A script base is braced unless it is a single character, so `x^{2}` stays bare while a compound
-/// base like `a + b` is grouped.
-fn brace_base(base: &str) -> String {
-    if base.chars().count() == 1 {
-        base.to_string()
+/// A script base, braced where it would otherwise read as more than one token or already carries a
+/// part of its own where the script has to go.
+fn brace_base(base: &Piece) -> String {
+    let content = trim_row(&base.tex);
+    if base.grouped || base.braces_as_base {
+        format!("{{{content}}}")
+    } else if base.spaced {
+        // A script closes the gap after the operator it attaches to, leaving the one before it.
+        format!(" {content}")
     } else {
-        format!("{{{base}}}")
+        content
     }
 }
 
-/// Map an identifier to its TeX form: a Greek letter to its command, a known function name to its
-/// control word, and anything else to the literal text.
-fn render_ident(ident: &str) -> String {
+/// `<mi>`: an identifier. A known function name takes its control word; anything else maps character
+/// by character, and reads as a group unless it comes to a single plain token.
+fn render_identifier(ident: &str, face: Option<&str>, ctx: Context<'_>) -> Piece {
     if ident.is_empty() {
-        return String::new();
-    }
-    if let Some(command) = greek(ident) {
-        return command.to_string();
+        return Piece::default();
     }
     if is_function(ident) {
-        return format!("\\{ident}");
+        return Piece {
+            limits: true,
+            ..Piece::construct(in_face(face, &format!("\\{ident}")))
+        };
     }
-    ident.to_string()
+    let styled = ident.chars().count() > 1
+        || ident
+            .chars()
+            .next()
+            .is_some_and(|character| character_tex(character, ctx.faces).1 == Role::Styled);
+    let tex = map_characters(ident, ctx.faces);
+    Piece {
+        tex: in_face(face, &tex),
+        grouped: styled && face.is_none(),
+        simple: true,
+        ..Piece::default()
+    }
 }
 
+/// The TeX form of a run of literal characters, each mapped to its symbol and held apart from the
+/// one after it where TeX needs the separation.
+fn map_characters(text: &str, faces: Faces) -> String {
+    let mut tokens = Tokens::default();
+    for character in text.chars() {
+        let (tex, role) = character_tex(character, faces);
+        tokens.push(&tex, join_after(role));
+    }
+    tokens.out
+}
+
+/// How a token of the given reading joins to the token after it: a spacing symbol carries its own
+/// boundary.
+fn join_after(role: Role) -> Join {
+    if role == Role::Tight {
+        Join::Tight
+    } else {
+        Join::Normal
+    }
+}
+
+/// The TeX form and reading of a single character: its table entry, the face command a styled letter
+/// of the mathematical alphanumeric plane stands for, or the character itself. A character whose face
+/// is one of those already written comes down to the letter it is set from.
+fn character_tex(character: char, faces: Faces) -> (String, Role) {
+    if let Some((tex, role)) = symbols::symbol(character) {
+        return match within_face(tex, faces) {
+            Some(base) => character_tex(base, faces),
+            None => (tex.to_string(), role),
+        };
+    }
+    if let Some((face, base)) = symbols::styled_letter(character) {
+        let (tex, role) = character_tex(base, faces);
+        return match face {
+            Some(face) if !faces.holds(face) => (format!("{face}{{{tex}}}"), Role::Styled),
+            Some(_) => (tex, role),
+            None => (tex, Role::Plain),
+        };
+    }
+    (character.to_string(), Role::Plain)
+}
+
+/// The single character a face command in `tex` is written around, where that face is already
+/// written and so leaves the character to stand on its own.
+fn within_face(tex: &str, faces: Faces) -> Option<char> {
+    let (command, rest) = tex.split_once('{')?;
+    if !faces.holds(command) {
+        return None;
+    }
+    let mut inner = rest.strip_suffix('}')?.chars();
+    let base = inner.next()?;
+    inner.next().is_none().then_some(base)
+}
+
+/// The letter a character already set in one of the faces written around it comes down to, or the
+/// character as it stands.
+fn unstyled(character: char, faces: Faces) -> char {
+    if let Some((tex, _)) = symbols::symbol(character) {
+        return within_face(tex, faces).unwrap_or(character);
+    }
+    match symbols::styled_letter(character) {
+        Some((Some(face), base)) if faces.holds(face) => base,
+        _ => character,
+    }
+}
+
+/// The function names that take a control word of their own.
 fn is_function(name: &str) -> bool {
     matches!(
         name,
@@ -587,69 +1445,31 @@ fn is_function(name: &str) -> bool {
     )
 }
 
-fn greek(ident: &str) -> Option<&'static str> {
-    Some(match ident {
-        "\u{3b1}" => "\\alpha",
-        "\u{3b2}" => "\\beta",
-        "\u{3b3}" => "\\gamma",
-        "\u{3b4}" => "\\delta",
-        "\u{3b5}" => "\\epsilon",
-        "\u{3b6}" => "\\zeta",
-        "\u{3b7}" => "\\eta",
-        "\u{3b8}" => "\\theta",
-        "\u{3b9}" => "\\iota",
-        "\u{3ba}" => "\\kappa",
-        "\u{3bb}" => "\\lambda",
-        "\u{3bc}" => "\\mu",
-        "\u{3bd}" => "\\nu",
-        "\u{3be}" => "\\xi",
-        "\u{3c0}" => "\\pi",
-        "\u{3c1}" => "\\rho",
-        "\u{3c3}" => "\\sigma",
-        "\u{3c4}" => "\\tau",
-        "\u{3c5}" => "\\upsilon",
-        "\u{3c6}" => "\\phi",
-        "\u{3c7}" => "\\chi",
-        "\u{3c8}" => "\\psi",
-        "\u{3c9}" => "\\omega",
-        "\u{393}" => "\\Gamma",
-        "\u{394}" => "\\Delta",
-        "\u{398}" => "\\Theta",
-        "\u{39b}" => "\\Lambda",
-        "\u{39e}" => "\\Xi",
-        "\u{3a0}" => "\\Pi",
-        "\u{3a3}" => "\\Sigma",
-        "\u{3a6}" => "\\Phi",
-        "\u{3a8}" => "\\Psi",
-        "\u{3a9}" => "\\Omega",
-        _ => return None,
-    })
-}
-
 /// Map an accent character to its TeX accent command, or `None` when the overscript is not a
 /// recognized accent and should be stacked over the base generically instead. Only characters with a
 /// dedicated accent command appear here; near-miss glyphs (a plain ASCII tilde, a period, a
 /// right-arrow operator) fall through to the generic `\overset` stacking.
-fn accent_command(accent: &str) -> Option<&'static str> {
+fn accent_commands(accent: &str) -> Option<&'static [&'static str]> {
     Some(match accent {
-        "^" => "\\hat",
-        "\u{302}" => "\\widehat",
-        "\u{303}" => "\\widetilde",
-        "\u{2c7}" | "\u{30c}" => "\\check",
-        "\u{301}" => "\\acute",
-        "\u{300}" => "\\grave",
-        "\u{306}" | "\u{2d8}" => "\\breve",
-        "\u{307}" => "\\dot",
-        "\u{308}" => "\\ddot",
-        "\u{20db}" => "\\dddot",
-        "\u{20dc}" => "\\ddddot",
-        "\u{30a}" => "\\mathring",
-        "\u{af}" | "\u{305}" => "\\overline",
-        "\u{304}" | "\u{203e}" => "\\bar",
-        "\u{20d7}" => "\\overrightarrow",
-        "\u{20d6}" => "\\overleftarrow",
-        "\u{23de}" => "\\overbrace",
-        "\u{23b4}" => "\\overbracket",
+        "^" => &["\\hat"],
+        "\u{2c6}" | "\u{302}" => &["\\widehat"],
+        "\u{2dc}" | "\u{303}" => &["\\widetilde"],
+        "\u{2c7}" | "\u{30c}" => &["\\check"],
+        "\u{b4}" | "\u{301}" => &["\\acute"],
+        "\u{60}" | "\u{300}" => &["\\grave"],
+        "\u{306}" | "\u{2d8}" => &["\\breve"],
+        "\u{307}" => &["\\dot"],
+        "\u{308}" => &["\\ddot"],
+        "\u{20db}" => &["\\dddot"],
+        "\u{20dc}" => &["\\ddddot"],
+        "\u{30a}" => &["\\mathring"],
+        "\u{af}" | "\u{305}" => &["\\overline"],
+        "\u{33f}" => &["\\overline", "\\overline"],
+        "\u{304}" | "\u{203e}" => &["\\bar"],
+        "\u{20d7}" => &["\\overrightarrow"],
+        "\u{20d6}" => &["\\overleftarrow"],
+        "\u{23de}" => &["\\overbrace"],
+        "\u{23b4}" => &["\\overbracket"],
         _ => return None,
     })
 }
@@ -660,151 +1480,56 @@ fn is_invisible(op: &str) -> bool {
     matches!(op, "\u{2061}" | "\u{2062}" | "\u{2063}" | "\u{2064}")
 }
 
-/// Render an operator. An empty or invisible operator vanishes; a function name spelled as an
-/// operator takes its control word; a binary or relation symbol is surrounded by spaces so it sits
-/// apart from its operands; large operators, arrows, punctuation, and fences stay tight (the row
-/// join reintroduces any space a following command needs).
-fn render_operator(op: &str) -> String {
-    if op.is_empty() || is_invisible(op) {
-        return String::new();
+/// `<mo>`: an operator. An invisible operator vanishes; a single character takes its symbol, spaced
+/// from its operands where it reads as a binary or relation sign; a known function name takes its
+/// control word; and any other run of characters is set as an operator name.
+fn render_operator(op: &str, faces: Faces) -> Piece {
+    if is_invisible(op) {
+        return Piece::token(String::new());
     }
+    let mut characters = op.chars();
+    if let Some(character) = characters.next()
+        && characters.next().is_none()
+    {
+        let (tex, role) = character_tex(character, faces);
+        return Piece {
+            tex,
+            spaced: role == Role::Spaced,
+            join: join_after(role),
+            simple: role != Role::Infix,
+            limits: takes_limits(character),
+            ..Piece::default()
+        };
+    }
+    if let Some((tex, role)) = symbols::operator(op) {
+        return Piece {
+            tex: tex.to_string(),
+            spaced: role == Role::Spaced,
+            simple: true,
+            ..Piece::default()
+        };
+    }
+    // A named operator stacks its scripts above and below itself, as the large operators do.
     if is_function(op) {
-        return format!("\\{op}");
+        return Piece {
+            limits: true,
+            ..Piece::construct(format!("\\{op}"))
+        };
     }
-    let (tex, spaced) = operator_tex(op);
-    if spaced { format!(" {tex} ") } else { tex }
-}
-
-fn operator_tex(op: &str) -> (String, bool) {
-    match op {
-        "+" => ("+".into(), true),
-        "-" | "\u{2212}" => ("-".into(), true),
-        "=" => ("=".into(), true),
-        "<" => ("<".into(), true),
-        ">" => (">".into(), true),
-        "\u{d7}" => ("\\times".into(), true),
-        "\u{f7}" => ("\\div".into(), true),
-        "\u{b7}" | "\u{22c5}" => ("\\cdot".into(), true),
-        "\u{2217}" => ("\\ast".into(), true),
-        "\u{2264}" => ("\\leq".into(), true),
-        "\u{2265}" => ("\\geq".into(), true),
-        "\u{2260}" => ("\\neq".into(), true),
-        "\u{2248}" => ("\\approx".into(), true),
-        "\u{2261}" => ("\\equiv".into(), true),
-        "\u{b1}" => ("\\pm".into(), true),
-        "\u{2213}" => ("\\mp".into(), true),
-        "\u{2208}" => ("\\in".into(), true),
-        "\u{2209}" => ("\\notin".into(), true),
-        "\u{2192}" => ("\\rightarrow".into(), false),
-        "\u{2190}" => ("\\leftarrow".into(), false),
-        "\u{2194}" => ("\\leftrightarrow".into(), false),
-        "\u{21d2}" => ("\\Rightarrow".into(), false),
-        "\u{21d0}" => ("\\Leftarrow".into(), false),
-        "\u{21d4}" => ("\\Leftrightarrow".into(), false),
-        "\u{21a6}" => ("\\mapsto".into(), false),
-        "\u{2211}" => ("\\sum".into(), false),
-        "\u{220f}" => ("\\prod".into(), false),
-        "\u{222b}" => ("\\int".into(), false),
-        "\u{222e}" => ("\\oint".into(), false),
-        "\u{221a}" => ("\\sqrt{}".into(), false),
-        "\u{221e}" => ("\\infty".into(), false),
-        "\u{2032}" => ("'".into(), false),
-        "\u{2282}" => ("\\subset".into(), true),
-        "\u{2283}" => ("\\supset".into(), true),
-        "\u{2286}" => ("\\subseteq".into(), true),
-        "\u{2287}" => ("\\supseteq".into(), true),
-        "\u{228a}" => ("\\subsetneq".into(), true),
-        "\u{228b}" => ("\\supsetneq".into(), true),
-        "\u{220b}" => ("\\ni".into(), true),
-        "\u{2245}" => ("\\cong".into(), true),
-        "\u{221d}" => ("\\propto".into(), true),
-        "\u{2225}" => ("\\parallel".into(), true),
-        "\u{2226}" => ("\\nparallel".into(), true),
-        "\u{2223}" => ("\\mid".into(), true),
-        "\u{2224}" => ("\\nmid".into(), true),
-        "\u{226a}" => ("\\ll".into(), true),
-        "\u{226b}" => ("\\gg".into(), true),
-        "\u{227a}" => ("\\prec".into(), true),
-        "\u{227b}" => ("\\succ".into(), true),
-        "\u{226c}" => ("\\between".into(), true),
-        "\u{224d}" => ("\\asymp".into(), true),
-        "\u{2250}" => ("\\doteq".into(), true),
-        "\u{2252}" => ("\\fallingdotseq".into(), true),
-        "\u{2253}" => ("\\risingdotseq".into(), true),
-        "\u{2227}" => ("\\land".into(), true),
-        "\u{2228}" => ("\\vee".into(), true),
-        "\u{222a}" => ("\\cup".into(), true),
-        "\u{2229}" => ("\\cap".into(), true),
-        "\u{2295}" => ("\\oplus".into(), true),
-        "\u{2296}" => ("\\ominus".into(), true),
-        "\u{2297}" => ("\\otimes".into(), true),
-        "\u{2298}" => ("\\oslash".into(), true),
-        "\u{2299}" => ("\\odot".into(), true),
-        "\u{2218}" => ("\\circ".into(), true),
-        "\u{2219}" => ("\\bullet".into(), true),
-        "\u{2216}" => ("\\smallsetminus".into(), true),
-        "\u{22c6}" => ("\\star".into(), true),
-        "\u{2020}" => ("\\dagger".into(), true),
-        "\u{2021}" => ("\\ddagger".into(), true),
-        "\u{2200}" => ("\\forall".into(), false),
-        "\u{2203}" => ("\\exists".into(), false),
-        "\u{2202}" => ("\\partial".into(), false),
-        "\u{2207}" => ("\\nabla".into(), false),
-        "\u{2205}" => ("\\varnothing".into(), false),
-        "\u{22a5}" => ("\\bot".into(), false),
-        "\u{2220}" => ("\\angle".into(), false),
-        "\u{ac}" => ("\\neg".into(), false),
-        "\u{2113}" => ("\\ell".into(), false),
-        "\u{2118}" => ("\\wp".into(), false),
-        "\u{2135}" => ("\\aleph".into(), false),
-        "\u{25a1}" => ("\\square".into(), false),
-        "\u{2662}" => ("\\diamondsuit".into(), false),
-        "\u{2663}" => ("\\clubsuit".into(), false),
-        "\u{2660}" => ("\\spadesuit".into(), false),
-        "\u{2661}" => ("\\heartsuit".into(), false),
-        "\u{22c0}" => ("\\bigwedge".into(), false),
-        "\u{22c1}" => ("\\bigvee".into(), false),
-        "\u{22c2}" => ("\\bigcap".into(), false),
-        "\u{22c3}" => ("\\bigcup".into(), false),
-        "\u{222c}" => ("\\iint".into(), false),
-        "\u{222d}" => ("\\iiint".into(), false),
-        "\u{2210}" => ("\\coprod".into(), false),
-        "\u{2a00}" => ("\\bigodot".into(), false),
-        "\u{2a01}" => ("\\bigoplus".into(), false),
-        "\u{2a02}" => ("\\bigotimes".into(), false),
-        "\u{2a04}" => ("\\biguplus".into(), false),
-        "\u{2a06}" => ("\\bigsqcup".into(), false),
-        _ => (escape_operator(op), false),
+    Piece {
+        limits: true,
+        ..Piece::construct(format!("\\operatorname{{{}}}", map_characters(op, faces)))
     }
 }
 
-/// Escape an operator emitted verbatim so its TeX-special characters cannot break the surrounding
-/// math: a bare `%` would comment out the rest of the line and a `$` would close math mode. Each
-/// special takes its math-mode escape; every other character passes through unchanged.
-fn escape_operator(op: &str) -> String {
-    let mut out = String::new();
-    for ch in op.chars() {
-        match ch {
-            '%' => out.push_str("\\%"),
-            '&' => out.push_str("\\&"),
-            '#' => out.push_str("\\#"),
-            '$' => out.push_str("\\$"),
-            '_' => out.push_str("\\_"),
-            '{' => out.push_str("\\{"),
-            '}' => out.push_str("\\}"),
-            '\\' => out.push_str("\\backslash "),
-            other => out.push(other),
-        }
-    }
-    out
-}
-
-/// `<mspace>`: a horizontal gap rendered as the TeX spacing command its `width` selects, followed by a
-/// separating space so the gap stays apart from the token after it. A named math-space keyword or an
-/// `em` length is honored; a width in any other unit yields no command, leaving just the separator.
-fn render_space<T: MathTree>(e: &T) -> String {
+/// `<mspace>`: a horizontal gap rendered as the TeX spacing command its `width` selects. A named
+/// math-space keyword or an `em` length is honored; a width in any other unit yields no command.
+fn render_space<T: MathTree>(e: &T) -> Piece {
     let mu = e.attribute("width").and_then(|w| space_mu(&w)).unwrap_or(0);
-    format!("{} ", space_command(mu))
+    Piece {
+        join: Join::Always,
+        ..Piece::token(space_command(mu))
+    }
 }
 
 /// The width of an `<mspace>` in math units: a named math space, or an `em` length scaled at eighteen
@@ -851,13 +1576,13 @@ fn named_space_mu(name: &str) -> Option<i32> {
 
 /// The TeX spacing command for a width in math units: the short control-symbol spaces where one
 /// exists, `\quad`/`\qquad` at the em and double-em, an empty command at zero width, and an explicit
-/// `\mspace` for every other amount. The bare backslash for four mu becomes the control space `\ `
-/// once the caller appends its separator, and is kept as a control space at a row's edge.
+/// `\mspace` for every other amount. Four mu is the control space, whose own trailing space both
+/// separates it and keeps it from reading as a bare backslash.
 fn space_command(mu: i32) -> String {
     match mu {
         0 => String::new(),
         3 => "\\,".to_string(),
-        4 => "\\".to_string(),
+        4 => "\\ ".to_string(),
         5 => "\\;".to_string(),
         -3 => "\\!".to_string(),
         18 => "\\quad".to_string(),

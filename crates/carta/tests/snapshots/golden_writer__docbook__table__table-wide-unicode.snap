@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          項目
+        </entry>
+        <entry>
+          値
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          名前
+        </entry>
+        <entry>
+          漢字テキスト
+        </entry>
+      </row>
+      <row>
+        <entry>
+          x
+        </entry>
+        <entry>
+          y
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>

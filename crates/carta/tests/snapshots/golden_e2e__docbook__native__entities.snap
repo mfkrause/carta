@@ -1,0 +1,74 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Named"
+    , Space
+    , Str "references:"
+    , Space
+    , Str "&"
+    , Space
+    , Str "<"
+    , Space
+    , Str ">"
+    , Space
+    , Str "\""
+    , Space
+    , Str "'"
+    , Space
+    , Str "\169"
+    , Space
+    , Str "\8212"
+    , Space
+    , Str "\160"
+    , Space
+    , Str "\8230"
+    ]
+, Para
+    [ Str "Numeric"
+    , Space
+    , Str "references:"
+    , Space
+    , Str "A"
+    , Space
+    , Str "A"
+    , Space
+    , Str "\8212"
+    , Space
+    , Str "\128512"
+    ]
+, Para
+    [ Str "Inside"
+    , Space
+    , Str "CDATA:"
+    , Space
+    , Str "<not-an-element>"
+    , Space
+    , Str "&"
+    , Space
+    , Str "a"
+    , Space
+    , Str "raw"
+    , Space
+    , Str "ampersand"
+    ]
+, CodeBlock ( "" , [] , [] ) "if (a < b && c > d) { }"
+, Para
+    [ Str "Empty"
+    , Space
+    , Str "element"
+    , Space
+    , Span ( "" , [] , [] ) []
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "self-closed"
+    , Space
+    , Str "stay"
+    , Space
+    , Str "harmless."
+    ]
+]

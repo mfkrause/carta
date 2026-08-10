@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<note>
+  <title><para>
+    A title in two paragraphs
+  </para>
+  <para>
+    with a second one
+  </para></title>
+  <para>
+    The note’s body.
+  </para>
+</note>
+<warning>
+  <title><itemizedlist spacing="compact">
+    <listitem>
+      <para>
+        A title that is a list
+      </para>
+    </listitem>
+    <listitem>
+      <para>
+        with two items
+      </para>
+    </listitem>
+  </itemizedlist></title>
+  <para>
+    The warning’s body.
+  </para>
+</warning>
+<tip>
+  <title></title>
+  <para>
+    A tip whose title says nothing.
+  </para>
+</tip>

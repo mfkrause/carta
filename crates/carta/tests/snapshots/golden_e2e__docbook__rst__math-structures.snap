@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Symbols and escapes: :math:`x \leq y \in {\mathbb{R}}\text{50\% \#1}`.
+
+Fences and scripts:
+:math:`\left( {a,b} \right)\left\lbrack {c;d} \right\rbrack\mathfrak{p}^{2}a_{1}^{2}\sqrt{b + c}\sqrt[3]{d}`.
+
+Accents and limits: :math:`\hat{v}\sum\limits_{i = 1}^{n}i_{2}`.
+
+.. container:: informalequation
+
+   .. math::
+
+      \left( \frac{p}{q} \right) = \begin{bmatrix}
+      1 & 0 \\
+      0 & 1
+      \end{bmatrix}
+
+.. container:: informalequation
+
+   .. math:: {}_{3}^{4}F_{1}^{2}

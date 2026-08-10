@@ -456,6 +456,16 @@ fn space_prefixed_variable_indents_continuations() {
 }
 
 #[test]
+fn marked_lines_claim_column_zero() {
+    let body = format!("<pre>\n{0}verbatim\n  {0}</pre>\ntail", crate::FLUSH_LINE);
+    let ctx = map(&[("body", s(&body))]);
+    assert_eq!(
+        render("  $body$\n", &ctx),
+        "  <pre>\nverbatim\n</pre>\n  tail\n"
+    );
+}
+
+#[test]
 fn non_space_prefix_suppresses_indent() {
     let ctx = map(&[("body", s("<p>p1</p>\n<p>p2</p>"))]);
     assert_eq!(render("XY: $body$\n", &ctx), "XY: <p>p1</p>\n<p>p2</p>\n");

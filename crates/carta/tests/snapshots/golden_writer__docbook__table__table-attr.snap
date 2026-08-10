@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<table>
+  <title>Captioned and attributed</title>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          h1
+        </entry>
+        <entry>
+          h2
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          a
+        </entry>
+        <entry>
+          b
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</table>

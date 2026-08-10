@@ -124,7 +124,7 @@ node_enum! {
         /// A definition list: each entry pairs a term with its definition bodies.
         DefinitionList(Vec<(Vec<Inline>, Vec<Vec<Block>>)>),
         /// A section heading: level, attributes, and heading text.
-        Header(i32, Box<Attr>, Vec<Inline>),
+        Header(i64, Box<Attr>, Vec<Inline>),
         /// A thematic break.
         HorizontalRule,
         /// A table; see [`Table`].
@@ -320,7 +320,7 @@ pub enum CitationMode {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct ListAttributes {
     /// The number the first item carries.
-    pub start: i32,
+    pub start: i64,
     /// The numeral style of the markers.
     pub style: ListNumberStyle,
     /// The punctuation around the markers.
@@ -347,10 +347,10 @@ pub struct Citation {
     pub mode: CitationMode,
     /// The sequence number of the note the citation belongs to; `0` before citations are processed.
     #[cfg_attr(feature = "serde", serde(rename = "citationNoteNum"))]
-    pub note_num: i32,
+    pub note_num: i64,
     /// An occurrence hash assigned by a citation processor; `0` before citations are processed.
     #[cfg_attr(feature = "serde", serde(rename = "citationHash"))]
-    pub hash: i32,
+    pub hash: i64,
 }
 
 /// A table (or figure) caption: an optional short form plus the full block-level caption.
@@ -412,7 +412,7 @@ pub struct TableBody {
     /// The section's attributes.
     pub attr: Attr,
     /// How many leading columns of each row act as row headers.
-    pub row_head_columns: i32,
+    pub row_head_columns: i64,
     /// Header rows specific to this body section.
     pub head: Vec<Row>,
     /// The section's content rows.
@@ -448,9 +448,9 @@ pub struct Cell {
     /// The cell's horizontal alignment; [`Alignment::AlignDefault`] defers to the column's.
     pub align: Alignment,
     /// How many rows the cell spans.
-    pub row_span: i32,
+    pub row_span: i64,
     /// How many columns the cell spans.
-    pub col_span: i32,
+    pub col_span: i64,
     /// The cell's block content.
     pub content: Vec<Block>,
 }

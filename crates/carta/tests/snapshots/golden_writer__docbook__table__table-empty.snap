@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="0">
+    <tbody>
+    </tbody>
+  </tgroup>
+</informaltable>

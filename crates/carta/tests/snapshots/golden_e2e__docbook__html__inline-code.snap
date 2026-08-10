@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Spacing folds in <code>a b c</code> and in <code>two words</code> and
+<code>--long option</code>.</p>
+<p>A manual page: <code class="citerefentry"
+role="page">carta(1)</code>, and one without a volume: <code
+class="citerefentry">carta</code>.</p>

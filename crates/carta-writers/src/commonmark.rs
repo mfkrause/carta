@@ -15,7 +15,7 @@ use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
     FILL_COLUMN, NotesHost, Piece, append_notes, escape_html_attr, escape_xml, fill, fill_groups,
-    indent_block, is_loose, item_separator, normalize_image_attr, offset_as_i32, ordered_marker,
+    indent_block, is_loose, item_separator, normalize_image_attr, offset_as_i64, ordered_marker,
     quote_marks, render_html_attr, render_html_fragment_attr,
 };
 use crate::markdown_common::{
@@ -64,6 +64,9 @@ struct State {
     /// raw-HTML link fallback, whose opening tag, body, and closing tag fold together rather than
     /// letting the surrounding text wrap between them.
     groups: Vec<(usize, usize)>,
+    /// Whether rendering is somewhere inside a list item, where a [`Block::Plain`] runs on into the
+    /// block after it instead of standing apart as a paragraph does.
+    in_item: bool,
 }
 
 impl Default for State {
@@ -74,17 +77,18 @@ impl Default for State {
             width: FILL_COLUMN,
             in_anchor: false,
             groups: Vec::new(),
+            in_item: false,
         }
     }
 }
 
 impl State {
     /// Render a block sequence, dropping blocks that produce no output. Blocks are separated by a
-    /// blank line, except that a [`Block::Plain`] is followed by a single newline and certain
-    /// neighbors require an HTML-comment separator (see [`needs_separator`]). This is the layout used
-    /// for the document body, blockquotes, divs, list items, and definitions. When `hang` is set the
-    /// first non-empty block keeps a space that opens it, so content laid out under a list marker or
-    /// block-quote prefix keeps the gap the source put after that prefix.
+    /// blank line, except that inside a list item a [`Block::Plain`] is followed by a single newline
+    /// and that certain neighbors require an HTML-comment separator (see [`needs_separator`]). This
+    /// is the layout used for the document body, blockquotes, divs, list items, and definitions.
+    /// When `hang` is set the first non-empty block keeps a space that opens it, so content laid out
+    /// under a list marker or block-quote prefix keeps the gap the source put after that prefix.
     fn blocks_to_string(&mut self, blocks: &[Block], width: usize, hang: bool) -> String {
         let mut out = String::new();
         let mut previous: Option<&Block> = None;
@@ -97,7 +101,7 @@ impl State {
             if let Some(previous) = previous {
                 if needs_separator(previous, block) {
                     out.push_str("\n\n<!-- -->\n\n");
-                } else if matches!(previous, Block::Plain(_)) {
+                } else if self.in_item && matches!(previous, Block::Plain(_)) {
                     out.push('\n');
                 } else {
                     out.push_str("\n\n");
@@ -108,6 +112,15 @@ impl State {
             first = false;
         }
         out
+    }
+
+    /// Render a list item's blocks, which run on as [`Self::blocks_to_string`] describes, together
+    /// with everything nested inside them.
+    fn item_to_string(&mut self, blocks: &[Block], width: usize) -> String {
+        let outer = std::mem::replace(&mut self.in_item, true);
+        let body = self.blocks_to_string(blocks, width, true);
+        self.in_item = outer;
+        body
     }
 
     fn block(&mut self, block: &Block, width: usize, hang: bool) -> String {
@@ -175,7 +188,7 @@ impl State {
         let rendered: Vec<String> = items
             .iter()
             .map(|item| {
-                let rendered = self.blocks_to_string(item, body_width, true);
+                let rendered = self.item_to_string(item, body_width);
                 let body = offset_horizontal_rule(item, rendered);
                 indent_block(&body, "- ", "  ")
             })
@@ -199,10 +212,10 @@ impl State {
             .iter()
             .enumerate()
             .map(|(offset, item)| {
-                let number = attrs.start.saturating_add(offset_as_i32(offset));
+                let number = attrs.start.saturating_add(offset_as_i64(offset));
                 let marker = ordered_marker(number, ListNumberStyle::Decimal, delim);
                 let field = (marker.chars().count() + 1).max(4);
-                let rendered = self.blocks_to_string(item, width.saturating_sub(field), true);
+                let rendered = self.item_to_string(item, width.saturating_sub(field));
                 let body = offset_horizontal_rule(item, rendered);
                 let first = format!("{marker:<field$}");
                 let rest = " ".repeat(field);

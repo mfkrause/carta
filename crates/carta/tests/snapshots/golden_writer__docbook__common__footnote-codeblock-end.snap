@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  ref<footnote>
+    <programlisting>
+code only
+</programlisting>
+  </footnote>
+</para>

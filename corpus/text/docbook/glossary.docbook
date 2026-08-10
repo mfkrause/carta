@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Glossary lists</title>
+  <glosslist>
+    <glossentry xml:id="first">
+      <glossterm>First term</glossterm>
+      <glossdef><para>What it means.</para></glossdef>
+    </glossentry>
+    <glossentry>
+      <glossterm>Second term</glossterm>
+      <glossdef><para>One reading.</para><para>Another reading.</para></glossdef>
+    </glossentry>
+  </glosslist>
+</article>

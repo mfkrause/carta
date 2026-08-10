@@ -1,0 +1,233 @@
+{
+  "pandoc-api-version": [
+    1,
+    23,
+    1,
+    2
+  ],
+  "meta": {},
+  "blocks": [
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "note"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "note"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "division."
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "warning"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "warning"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "division."
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "tip"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "tip"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "division."
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "caution"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "caution"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "division."
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "important"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "important"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "division."
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "t": "Div",
+      "c": [
+        [
+          "",
+          [
+            "danger"
+          ],
+          []
+        ],
+        [
+          {
+            "t": "Para",
+            "c": [
+              {
+                "t": "Str",
+                "c": "A"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "danger"
+              },
+              {
+                "t": "Space"
+              },
+              {
+                "t": "Str",
+                "c": "division."
+              }
+            ]
+          }
+        ]
+      ]
+    }
+  ]
+}

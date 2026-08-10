@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<section xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:id="section-one">
+  <title>Section One</title>
+  <para>
+    Back to <link linkend="section-one">the section</link>, or an
+    <link xlink:href="https://example.org/docs">outside page</link>.
+  </para>
+</section>

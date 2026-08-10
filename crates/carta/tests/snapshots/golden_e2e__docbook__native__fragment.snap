@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "first"
+    , Space
+    , Str "root"
+    , Space
+    , Str "element."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "second"
+    , Space
+    , Str "root"
+    , Space
+    , Str "element."
+    ]
+, Plain
+    [ Str "Trailing"
+    , Space
+    , Str "character"
+    , Space
+    , Str "data"
+    , Space
+    , Str "outside"
+    , Space
+    , Str "any"
+    , Space
+    , Str "element."
+    ]
+]

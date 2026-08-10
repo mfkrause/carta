@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"Carta"},{"t":"Space"},{"t":"Str","c":"declarations"}]}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"declaration"},{"t":"Space"},{"t":"Str","c":"nested"},{"t":"Space"},{"t":"Str","c":"in"},{"t":"Space"},{"t":"Str","c":"another:"},{"t":"Space"},{"t":"Str","c":"Carta"},{"t":"Space"},{"t":"Str","c":"0.1"},{"t":"Space"},{"t":"Str","c":"&"},{"t":"Space"},{"t":"Str","c":"friends."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"declaration"},{"t":"Space"},{"t":"Str","c":"standing"},{"t":"Space"},{"t":"Str","c":"for"},{"t":"Space"},{"t":"Str","c":"markup:"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"emphasized"}]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Link","c":[["",[],[]],[{"t":"Str","c":"In"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"attribute"},{"t":"Space"},{"t":"Str","c":"value"}],["https://example.com/0.1",""]]}]},{"t":"CodeBlock","c":[["",[],[]],"Carta in verbatim text"]}]}

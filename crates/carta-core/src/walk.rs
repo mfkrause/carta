@@ -5,8 +5,9 @@
 //! container format's inline resource references (a notebook's `attachment:` links on the way in, its
 //! file names on the way out, an e-book's cross-file fragment links) is the same walk with a
 //! different callback, so the traversal lives here once rather than in each reader and writer.
+//! [`for_each_block`] is the same walk reporting whole blocks, for a transform that rewrites them.
 
-use carta_ast::{Block, Caption, Inline, Table, Target};
+use carta_ast::{Block, Caption, Inline, Row, Table, Target};
 
 /// Which kind of target a traversal reports.
 enum TargetKind {
@@ -32,6 +33,101 @@ pub fn for_each_link_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Tar
             visit(target);
         }
     });
+}
+
+/// Applies `visit` to every block throughout `blocks`, descending into every nested block sequence
+/// (list items, table cells, notes, captions, and the rest) in document order. A block is reported
+/// before the blocks it holds, so a callback may replace one and still have the replacement walked.
+pub fn for_each_block(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Block)) {
+    for block in blocks {
+        visit(block);
+        descend_blocks(block, visit);
+    }
+}
+
+fn descend_blocks(block: &mut Block, visit: &mut dyn FnMut(&mut Block)) {
+    match block {
+        Block::BlockQuote(inner) | Block::Div(_, inner) => for_each_block(inner, visit),
+        Block::OrderedList(_, items) | Block::BulletList(items) => {
+            for item in items {
+                for_each_block(item, visit);
+            }
+        }
+        Block::DefinitionList(items) => {
+            for (term, definitions) in items {
+                blocks_in_inlines(term, visit);
+                for definition in definitions {
+                    for_each_block(definition, visit);
+                }
+            }
+        }
+        Block::Figure(_, caption, inner) => {
+            for_each_block(&mut caption.long, visit);
+            for_each_block(inner, visit);
+        }
+        Block::Table(table) => {
+            for_each_block(&mut table.caption.long, visit);
+            for rows in row_groups(table) {
+                for row in rows {
+                    for cell in &mut row.cells {
+                        for_each_block(&mut cell.content, visit);
+                    }
+                }
+            }
+        }
+        Block::Plain(inlines) | Block::Para(inlines) | Block::Header(_, _, inlines) => {
+            blocks_in_inlines(inlines, visit);
+        }
+        Block::LineBlock(lines) => {
+            for line in lines {
+                blocks_in_inlines(line, visit);
+            }
+        }
+        Block::CodeBlock(..) | Block::RawBlock(..) | Block::HorizontalRule => {}
+    }
+}
+
+/// The blocks an inline run carries, which only a footnote holds.
+fn blocks_in_inlines(inlines: &mut [Inline], visit: &mut dyn FnMut(&mut Block)) {
+    for inline in inlines {
+        match inline {
+            Inline::Note(blocks) => for_each_block(blocks, visit),
+            Inline::Emph(children)
+            | Inline::Underline(children)
+            | Inline::Strong(children)
+            | Inline::Strikeout(children)
+            | Inline::Superscript(children)
+            | Inline::Subscript(children)
+            | Inline::SmallCaps(children)
+            | Inline::Quoted(_, children)
+            | Inline::Span(_, children)
+            | Inline::Link(_, children, _)
+            | Inline::Image(_, children, _) => blocks_in_inlines(children, visit),
+            Inline::Cite(citations, children) => {
+                for citation in citations {
+                    blocks_in_inlines(&mut citation.prefix, visit);
+                    blocks_in_inlines(&mut citation.suffix, visit);
+                }
+                blocks_in_inlines(children, visit);
+            }
+            Inline::Str(_)
+            | Inline::Code(..)
+            | Inline::Space
+            | Inline::SoftBreak
+            | Inline::LineBreak
+            | Inline::Math(..)
+            | Inline::RawInline(..) => {}
+        }
+    }
+}
+
+/// Every row sequence a table holds, head through foot.
+fn row_groups(table: &mut Table) -> impl Iterator<Item = &mut Vec<Row>> {
+    std::iter::once(&mut table.head.rows)
+        .chain(table.bodies.iter_mut().flat_map(|body| {
+            std::iter::once(&mut body.head).chain(std::iter::once(&mut body.body))
+        }))
+        .chain(std::iter::once(&mut table.foot.rows))
 }
 
 fn for_each_target(blocks: &mut [Block], visit: &mut dyn FnMut(&mut Target, TargetKind)) {

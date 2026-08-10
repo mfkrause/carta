@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{"title":{"t":"MetaInlines","c":[{"t":"Str","c":"East"},{"t":"Space"},{"t":"Str","c":"Asian"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"Space"},{"t":"Str","c":"breaks"}]}},"blocks":[{"t":"Para","c":[{"t":"Str","c":"広い文字の間の"},{"t":"Str","c":"改行は消えます。"}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"latin"},{"t":"Space"},{"t":"Str","c":"line"},{"t":"SoftBreak"},{"t":"Str","c":"break"},{"t":"Space"},{"t":"Str","c":"stays"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"break."}]}]}

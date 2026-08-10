@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ DefinitionList
+    [ ( [ Str "First" , Space , Str "term" ]
+      , [ [ Para
+              [ Str "What" , Space , Str "it" , Space , Str "means." ]
+          ]
+        ]
+      )
+    , ( [ Str "Second" , Space , Str "term" ]
+      , [ [ Para [ Str "One" , Space , Str "reading." ]
+          , Para [ Str "Another" , Space , Str "reading." ]
+          ]
+        ]
+      )
+    ]
+]

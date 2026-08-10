@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A bold identifier: <math display="inline">\mathbf{v}</math>.
+
+Faces on single tokens: <math display="inline">\mathit{x}\mathcal{L}\mathfrak{g}\mathbb{R}\mathsf{s}\mathtt{t}</math>.
+
+Faces on text: <math display="inline">\textbf{bold words}\textit{\textbf{both}}\textbf{\textit{\textsf{all three}}}</math>.
+
+A face inherited by a whole row: <math display="inline">\mathbf{a} + \mathbf{b}</math>.
+
+A face inherited through nested constructs: <math display="inline">\frac{\mathfrak{p}}{\mathfrak{q}}\sqrt{\mathcal{y}}</math>.
+
+A token overriding the face it inherits: <math display="inline">\mathbf{a}\mathtt{b}</math>.
+
+<div class="informalequation">
+<math display="block">\mathbf{u = w}</math>
+
+</div>

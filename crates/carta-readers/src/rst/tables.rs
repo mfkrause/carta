@@ -344,8 +344,8 @@ impl Parser<'_> {
         Cell {
             attr: Attr::default(),
             align: Alignment::AlignDefault,
-            row_span,
-            col_span,
+            row_span: i64::from(row_span),
+            col_span: i64::from(col_span),
             content,
         }
     }

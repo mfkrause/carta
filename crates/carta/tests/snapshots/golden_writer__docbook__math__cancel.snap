@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  $\cancel{x}$ $\bcancel{y+z}$ $\xcancel{abc}$
+</para>

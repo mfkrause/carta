@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>First chapter</h1>
+<p>Text in the chapter.</p>
+<h2>A section</h2>
+<p>An equation <span class="math display">\[e = 2\]</span> stands in the
+sentence around it.</p>
+<div class="sidebar">
+<div class="title">
+Aside
+</div>
+<p>Set beside the text.</p>
+</div>
+<div class="informalequation" role="numbered">
+<p><span class="math display">\[y = x\]</span></p>
+</div>
+<h2>Deeper still</h2>
+<p>The count restarts where the article stands.</p>
+<h1>Second chapter</h1>
+<figure>
+<img src="plot.png" title="Stated by the object"
+alt="Alternative words" />
+<figcaption>A figure</figcaption>
+</figure>

@@ -103,6 +103,7 @@ e2e_golden! {
     e2e_snapshots_for, E2E_TEXT_FORMATS;
     e2e_snapshots_commonmark => "commonmark",
     e2e_snapshots_csv => "csv",
+    e2e_snapshots_docbook => "docbook",
     e2e_snapshots_dokuwiki => "dokuwiki",
     e2e_snapshots_html => "html",
     e2e_snapshots_ipynb => "ipynb",

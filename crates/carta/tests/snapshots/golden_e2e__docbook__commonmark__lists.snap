@@ -1,0 +1,53 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div>
+
+<div class="title">
+
+A titled bullet list
+
+</div>
+
+- First bullet.
+
+- Second bullet, with a nested list.
+
+  - Inner bullet.
+
+</div>
+
+1.  Arabic one.
+
+2.  Arabic two.
+
+<!-- -->
+
+3.  Alpha item.
+
+<!-- -->
+
+1.  Roman item.
+
+<!-- -->
+
+1.  Do the first thing.
+
+    1.  A sub-step.
+
+2.  Do the second thing.
+
+- Explains the first mark.
+
+First term; Also this term  
+Their shared definition.
+
+**Q:** Is this a question?
+
+**A:** It is.
+
+# Glossary
+
+Gloss  
+A brief shine.

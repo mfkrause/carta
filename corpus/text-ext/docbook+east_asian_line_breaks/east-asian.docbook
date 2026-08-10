@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>East Asian line breaks</title>
+  <para>広い文字の間の
+改行は消えます。</para>
+  <para>A latin line
+break stays a break.</para>
+</article>

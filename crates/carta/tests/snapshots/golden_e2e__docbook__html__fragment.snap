@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A first root element.</p>
+<p>A second root element.</p>
+Trailing character data outside any element.

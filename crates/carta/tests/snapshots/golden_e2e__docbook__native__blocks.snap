@@ -1,0 +1,120 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "carrying"
+    , Space
+    , Str "an"
+    , Space
+    , Str "identifier."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "simple"
+    , Space
+    , Str "paragraph."
+    ]
+, Div
+    ( "" , [ "formalpara" ] , [] )
+    [ Div
+        ( "" , [ "title" ] , [] )
+        [ Plain
+            [ Str "A" , Space , Str "formal" , Space , Str "paragraph" ]
+        ]
+    , Para [ Str "Its" , Space , Str "body." ]
+    ]
+, Para
+    [ Strong
+        [ Str "A"
+        , Space
+        , Str "free-floating"
+        , Space
+        , Str "heading"
+        ]
+    ]
+, CodeBlock
+    ( "" , [ "rust" , "numberLines" ] , [] )
+    "fn main() {\n    println!(\"hi\");\n}"
+, CodeBlock
+    ( "" , [] , [] ) "$ carta --version\ncarta 0.0.0"
+, LineBlock
+    [ [ Str "Line\160one" ] , [ Str "line\160two" ] ]
+, BlockQuote
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "quoted"
+        , Space
+        , Str "paragraph."
+        ]
+    , Para [ Str "\8212 Someone" ]
+    ]
+, BlockQuote [ Para [ Str "An" , Space , Str "epigraph." ] ]
+, Para
+    [ Str "Between"
+    , Space
+    , Str "the"
+    , Space
+    , Str "quoted"
+    , Space
+    , Str "forms."
+    ]
+, BlockQuote
+    [ Para
+        [ Str "Standing"
+        , Space
+        , Str "abstract"
+        , Space
+        , Str "text."
+        ]
+    ]
+, Div
+    ( "" , [ "note" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) []
+    , Para [ Str "Take" , Space , Str "note." ]
+    ]
+, Div
+    ( "" , [ "warning" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) [ Plain [ Str "Careful" ] ]
+    , Para
+        [ Str "A" , Space , Str "titled" , Space , Str "warning." ]
+    ]
+, Div
+    ( "" , [ "tip" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) []
+    , Para [ Str "A" , Space , Str "tip." ]
+    ]
+, Div
+    ( "" , [ "caution" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) []
+    , Para [ Str "A" , Space , Str "caution." ]
+    ]
+, Div
+    ( "" , [ "important" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) []
+    , Para [ Str "Something" , Space , Str "important." ]
+    ]
+, Div
+    ( "" , [ "sidebar" ] , [] )
+    [ Div ( "" , [ "title" ] , [] ) [ Plain [ Str "Aside" ] ]
+    , Para
+        [ Str "Beside" , Space , Str "the" , Space , Str "point." ]
+    ]
+, Div
+    ( "" , [ "example" ] , [] )
+    [ Div
+        ( "" , [ "title" ] , [] )
+        [ Plain [ Str "An" , Space , Str "example" ] ]
+    , CodeBlock ( "" , [] , [] ) "example body"
+    ]
+, Header 1 ( "" , [] , [] ) [ Str "References" ]
+, Para [ Str "KEY" ]
+, Para
+    [ Str "Plain" , Space , Str "mixed" , Space , Str "entry." ]
+]

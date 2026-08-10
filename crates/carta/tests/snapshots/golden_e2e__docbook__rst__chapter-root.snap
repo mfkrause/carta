@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. _standalone:
+
+A chapter standing on its own
+=============================
+
+Its title heads the body rather than naming the document.
+
+Inside it
+---------
+
+Body.

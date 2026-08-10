@@ -17,7 +17,7 @@ carta - Document converter
 
 ## Synopsis
 
-**carta** \[**-f**\|**--from**\] \[**-t**\|**--to**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--wrap**\] \[**--columns**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
+**carta** \[**-f**\|**--from**\] \[**-t**\|**--to**\] \[**-o**\|**--output**\] \[**--extract-media**\] \[**--resource-path**\] \[**--embed-resources**\] \[**--self-contained**\] \[**--sandbox**\] \[**-s**\|**--standalone**\] \[**--template**\] \[**-V**\|**--variable**\] \[**--wrap**\] \[**--columns**\] \[**--tab-stop**\] \[**--top-level-division**\] \[**--shift-heading-level-by**\] \[**-N**\|**--number-sections**\] \[**--toc**\] \[**--toc-depth**\] \[**--mathjax**\] \[**--katex**\] \[**-M**\|**--metadata**\] \[**--metadata-file**\] \[**-F**\|**--filter**\] \[**--data-dir**\] \[**-c**\|**--css**\] \[**--epub-cover-image**\] \[**--epub-embed-font**\] \[**--epub-metadata**\] \[**--epub-subdirectory**\] \[**--split-level**\] \[**--reference-doc**\] \[**--highlight-style**\] \[**--no-highlight**\] \[**--syntax-highlighting**\] \[**--syntax-definition**\] \[**--list-highlight-languages**\] \[**--list-highlight-styles**\] \[**--print-highlight-style**\] \[**--list-input-formats**\] \[**--list-output-formats**\] \[**--list-extensions**\] \[**-D**\|**--print-default-template**\] \[**--version**\] \[**-h**\|**--help**\] \[*INPUT*\]
 
 ## Description
 
@@ -63,6 +63,15 @@ Text wrapping in the output: `auto` reflows to the column width, `none` keeps ea
 
 **--columns** *\<N\>*  
 Column at which `--wrap=auto` reflows text. Defaults to the writer's built-in width
+
+**--tab-stop** *\<N\>*  
+Column grid a tab in the input advances to (default 4)
+
+**--top-level-division** *\<default\|section\|chapter\|part\>* \[default: default\]  
+Open the document's top heading level with this division, in a format whose sectioning hierarchy is named
+
+**--shift-heading-level-by** *\<N\>*  
+Shift every heading level by this amount, promoting a heading past the top level into the document's title and one past that into a paragraph
 
 **-N**, **--number-sections**  
 Number section headings (`1`, `1.1`, …)

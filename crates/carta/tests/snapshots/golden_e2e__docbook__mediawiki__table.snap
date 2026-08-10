@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| id="rates" class="wikitable"
+|+ A formal table
+|-
+! style="text-align: left;"| Name
+! style="text-align: right;"| Count
+! style="text-align: center;"| Note
+|-
+| style="text-align: left;"| First
+| style="text-align: right;"| 1
+| style="text-align: center;"| A cell holding a paragraph.
+|-
+| style="text-align: left;"| Second
+| style="text-align: right;"| 2
+| style="text-align: center;"|
+|}
+
+{| class="wikitable"
+|-
+| a
+| b
+|}

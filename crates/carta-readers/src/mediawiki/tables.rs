@@ -137,8 +137,8 @@ impl Parser {
                 cells.push(Cell {
                     attr: c.attr.clone(),
                     align: c.align.clone(),
-                    row_span,
-                    col_span: i32::try_from(col_span).unwrap_or(1),
+                    row_span: i64::from(row_span),
+                    col_span: i64::try_from(col_span).unwrap_or(1),
                     content,
                 });
                 for k in col..col + col_span {

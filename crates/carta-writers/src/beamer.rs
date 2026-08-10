@@ -81,7 +81,7 @@ const FRAME_CLASSES: &[&str] = &[
     "t",
 ];
 
-fn render_slide(slide: &Slide, level: i32, wrap: WrapMode, smart: bool, hl: Hl<'_>) -> String {
+fn render_slide(slide: &Slide, level: i64, wrap: WrapMode, smart: bool, hl: Hl<'_>) -> String {
     match slide {
         Slide::Section { level, attr, title } => {
             render_heading(*level, attr, title, wrap, smart, hl)
@@ -95,7 +95,7 @@ fn render_slide(slide: &Slide, level: i32, wrap: WrapMode, smart: bool, hl: Hl<'
 fn render_frame(
     title: Option<&FrameTitle>,
     body: &[Block],
-    level: i32,
+    level: i64,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
@@ -157,7 +157,7 @@ fn frame_options(title: Option<&FrameTitle>, fragile: bool) -> String {
 /// grouped one level deeper.
 fn render_body(
     blocks: &[Block],
-    block_level: i32,
+    block_level: i64,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
@@ -186,7 +186,7 @@ fn render_block_env(
     attr: &Attr,
     title: &[Inline],
     body: &[Block],
-    group_level: i32,
+    group_level: i64,
     wrap: WrapMode,
     smart: bool,
     hl: Hl<'_>,
@@ -211,7 +211,7 @@ fn render_block_env(
 }
 
 /// The shallowest header level in a block run, or `None` when it holds no headers.
-fn shallowest_header(blocks: &[Block]) -> Option<i32> {
+fn shallowest_header(blocks: &[Block]) -> Option<i64> {
     blocks
         .iter()
         .filter_map(|block| match block {
@@ -321,7 +321,7 @@ mod tests {
         Block::Para(vec![Inline::Str(text.to_owned().into())])
     }
 
-    fn header(level: i32, id: &str, title: &str) -> Block {
+    fn header(level: i64, id: &str, title: &str) -> Block {
         Block::Header(
             level,
             Box::new(Attr {
@@ -343,7 +343,7 @@ mod tests {
         // the level range; deepening it by one must saturate rather than wrap.
         let out = render(vec![
             header(1, "", "Frame"),
-            header(i32::MAX, "id", "Deep"),
+            header(i64::MAX, "id", "Deep"),
             para("body"),
         ]);
         assert!(out.contains("\\begin{block}{Deep}"));

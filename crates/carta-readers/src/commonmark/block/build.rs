@@ -413,7 +413,7 @@ impl Parser {
                     (info.style, info.delim)
                 };
             let attrs = ListAttributes {
-                start,
+                start: i64::from(start),
                 style,
                 delim,
             };

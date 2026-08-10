@@ -40,7 +40,7 @@ enum Shape {
         checked: bool,
     },
     Ordered {
-        start: i32,
+        start: i64,
         style: ListNumberStyle,
         delim: ListNumberDelim,
     },
@@ -52,7 +52,7 @@ enum Shape {
 pub(super) struct ListPlan {
     /// Each concrete instance in document order: the abstract id it binds to and, for an ordered
     /// instance, the start value its number overrides to. Instance `i` is number `FIRST_NUM + i`.
-    instances: Vec<(u32, Option<i32>)>,
+    instances: Vec<(u32, Option<i64>)>,
     /// The distinct abstract definitions to emit, in first-appearance order (the scaffold aside).
     definitions: Vec<(u32, Shape)>,
 }
@@ -111,7 +111,7 @@ impl ListPlan {
 /// lists that agree on all three share one definition.
 fn ordered_abstract_id(attrs: &ListAttributes) -> u32 {
     let base = 99_000 + style_code(attrs.style) * 100 + delim_code(attrs.delim) * 10;
-    let start = i64::from(attrs.start).clamp(0, 9);
+    let start = attrs.start.clamp(0, 9);
     u32::try_from(i64::from(base) + start).unwrap_or(99_000)
 }
 
@@ -231,7 +231,7 @@ fn checkbox_level(checked: bool, depth: u32) -> Element {
 
 /// One level of an ordered definition: the marker style and text at that depth.
 fn ordered_level(
-    start: i32,
+    start: i64,
     style: ListNumberStyle,
     delim: ListNumberDelim,
     depth: u32,
@@ -278,7 +278,7 @@ fn scaffold_abstract() -> Element {
 
 /// A concrete number bound to an abstract definition. An ordered instance overrides its start value
 /// at every level, so lists that share a definition still begin where each was declared to.
-fn num(num_id: u32, abstract_id: u32, start_override: Option<i32>) -> Element {
+fn num(num_id: u32, abstract_id: u32, start_override: Option<i64>) -> Element {
     let mut element = Element::new("w:num")
         .attr("w:numId", &num_id.to_string())
         .child(Element::new("w:abstractNumId").attr("w:val", &abstract_id.to_string()));

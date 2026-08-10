@@ -1,0 +1,98 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "bold"
+    , Space
+    , Str "identifier:"
+    , SoftBreak
+    , Math InlineMath "\\mathbf{v}"
+    , Str "."
+    ]
+, Para
+    [ Str "Faces"
+    , Space
+    , Str "on"
+    , Space
+    , Str "single"
+    , Space
+    , Str "tokens:"
+    , SoftBreak
+    , Math
+        InlineMath
+        "\\mathit{x}\\mathcal{L}\\mathfrak{g}\\mathbb{R}\\mathsf{s}\\mathtt{t}"
+    , Str "."
+    ]
+, Para
+    [ Str "Faces"
+    , Space
+    , Str "on"
+    , Space
+    , Str "text:"
+    , SoftBreak
+    , Math
+        InlineMath
+        "\\textbf{bold words}\\textit{\\textbf{both}}\\textbf{\\textit{\\textsf{all three}}}"
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "face"
+    , Space
+    , Str "inherited"
+    , Space
+    , Str "by"
+    , Space
+    , Str "a"
+    , Space
+    , Str "whole"
+    , Space
+    , Str "row:"
+    , SoftBreak
+    , Math InlineMath "\\mathbf{a} + \\mathbf{b}"
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "face"
+    , Space
+    , Str "inherited"
+    , Space
+    , Str "through"
+    , Space
+    , Str "nested"
+    , Space
+    , Str "constructs:"
+    , SoftBreak
+    , Math
+        InlineMath
+        "\\frac{\\mathfrak{p}}{\\mathfrak{q}}\\sqrt{\\mathcal{y}}"
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "token"
+    , Space
+    , Str "overriding"
+    , Space
+    , Str "the"
+    , Space
+    , Str "face"
+    , Space
+    , Str "it"
+    , Space
+    , Str "inherits:"
+    , SoftBreak
+    , Math InlineMath "\\mathbf{a}\\mathtt{b}"
+    , Str "."
+    ]
+, Div
+    ( "" , [ "informalequation" ] , [] )
+    [ Para [ Math DisplayMath "\\mathbf{u = w}" ] ]
+]

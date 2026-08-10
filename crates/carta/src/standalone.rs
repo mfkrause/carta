@@ -13,7 +13,7 @@ use carta_ast::{
 };
 use carta_core::sections::build_toc;
 use carta_core::template::{Template, Value};
-use carta_core::{MathMethod, MetaVarStyle, Result, TocStyle, Writer, WriterOptions};
+use carta_core::{MathMethod, MetaVarStyle, Result, Slot, TocStyle, Writer, WriterOptions};
 
 /// The deepest heading level a table of contents includes when no explicit depth is given.
 pub(crate) const DEFAULT_TOC_DEPTH: usize = 3;
@@ -71,7 +71,7 @@ pub(crate) fn render(
         },
     };
     let template = Template::parse(source)?;
-    let context = build_context(document, writer, body, options, toc_source)?;
+    let context = build_context(document, writer, body, options, toc_source, &template)?;
 
     let dir = options.template_dir.clone();
     let datadir = options.template_datadir.clone();
@@ -99,6 +99,7 @@ fn build_context(
     mut body: String,
     options: &WriterOptions,
     toc_source: TocSource,
+    template: &Template,
 ) -> Result<Value> {
     let line_oriented = writer.body_ends_with_newline();
     // Line-oriented writers: block metadata carries two trailing newlines, `meta-json` keeps one; glyph-ending writers add neither.
@@ -107,7 +108,11 @@ fn build_context(
 
     let mut context: BTreeMap<String, Value> = BTreeMap::new();
     let mut meta_json = serde_json::Map::new();
+    let mut scoped = options.clone();
     for (key, value) in &document.meta {
+        // The value is laid out for the place the template interpolates it, not for the margin.
+        scoped.slot = template.slot(key).unwrap_or_default();
+        let options = &scoped;
         // Flattening writers build the two forms from different content, so each renders on its
         // own; other writers render each leaf once, the forms differing only in the trailing.
         let (context_value, json) = if writer.flatten_block_metadata() {
@@ -135,8 +140,16 @@ fn build_context(
     if line_oriented && !body.is_empty() {
         body.push_str("\n\n");
     }
-    insert_identity_vars(&mut context, document, writer, options)?;
-    insert_output_vars(&mut context, document, writer, options, &body, toc_source)?;
+    insert_identity_vars(&mut context, document, writer, options, template)?;
+    insert_output_vars(
+        &mut context,
+        document,
+        writer,
+        options,
+        &body,
+        toc_source,
+        template,
+    )?;
     context.insert("body".to_owned(), Value::Str(body));
     if let Some(block) = writer.title_block(document, options)? {
         context.insert("titleblock".to_owned(), Value::Str(block));
@@ -166,6 +179,30 @@ fn enable_colorlinks(context: &mut BTreeMap<String, Value>) {
     if any_color {
         context.insert("colorlinks".to_owned(), Value::Bool(true));
     }
+}
+
+/// The writer options for rendering the value of `name`, seated where the template interpolates it.
+fn at_slot(options: &WriterOptions, template: &Template, name: &str) -> WriterOptions {
+    let mut scoped = options.clone();
+    scoped.slot = template.slot(name).unwrap_or_default();
+    scoped
+}
+
+/// Where the template seats the body, so the writer reflows it to the width the slot leaves. The
+/// template resolves as it does for the render itself; one that will not parse yields the margin,
+/// and the parse failure surfaces when the body is wrapped.
+pub(crate) fn body_slot(writer: &dyn Writer, options: &WriterOptions) -> Slot {
+    let source: &str = match &options.template {
+        Some(text) => text.as_ref(),
+        None => match writer.default_template() {
+            Some(text) => text,
+            None => return Slot::default(),
+        },
+    };
+    Template::parse(source)
+        .ok()
+        .and_then(|template| template.slot("body"))
+        .unwrap_or_default()
 }
 
 /// How a metadata value's block-shaped content becomes a template value.
@@ -323,6 +360,7 @@ fn insert_identity_vars(
     document: &Document,
     writer: &dyn Writer,
     options: &WriterOptions,
+    template: &Template,
 ) -> Result<()> {
     // Plain-text forms decide presence; inline forms carry the quotation into the rendered variable.
     let title_text = plain_meta(document, "title");
@@ -347,18 +385,25 @@ fn insert_identity_vars(
             if let Some(page) = page {
                 context.insert(
                     "pagetitle".to_owned(),
-                    Value::Str(writer.render_meta_inlines(&page, options)?),
+                    Value::Str(
+                        writer
+                            .render_meta_inlines(&page, &at_slot(options, template, "pagetitle"))?,
+                    ),
                 );
             }
             if !date_text.is_empty() {
                 context.insert(
                     "date-meta".to_owned(),
-                    Value::Str(writer.render_meta_inlines(&date, options)?),
+                    Value::Str(
+                        writer
+                            .render_meta_inlines(&date, &at_slot(options, template, "date-meta"))?,
+                    ),
                 );
             }
             let mut list = Vec::with_capacity(authors.len());
+            let scoped = at_slot(options, template, "author-meta");
             for author in &authors {
-                list.push(Value::Str(writer.render_meta_inlines(author, options)?));
+                list.push(Value::Str(writer.render_meta_inlines(author, &scoped)?));
             }
             context.insert("author-meta".to_owned(), Value::List(list));
         }
@@ -366,11 +411,15 @@ fn insert_identity_vars(
             // Always defined (empty when absent) so templates may reference them unconditionally.
             context.insert(
                 "title-meta".to_owned(),
-                Value::Str(writer.render_meta_inlines(&title, options)?),
+                Value::Str(
+                    writer
+                        .render_meta_inlines(&title, &at_slot(options, template, "title-meta"))?,
+                ),
             );
             let mut rendered = Vec::with_capacity(authors.len());
+            let scoped = at_slot(options, template, "author-meta");
             for author in &authors {
-                rendered.push(writer.render_meta_inlines(author, options)?);
+                rendered.push(writer.render_meta_inlines(author, &scoped)?);
             }
             context.insert("author-meta".to_owned(), Value::Str(rendered.join("; ")));
         }
@@ -390,6 +439,7 @@ fn insert_output_vars(
     options: &WriterOptions,
     body: &str,
     toc_source: TocSource,
+    template: &Template,
 ) -> Result<()> {
     if options.toc {
         let depth = options.toc_depth.unwrap_or(DEFAULT_TOC_DEPTH);
@@ -408,7 +458,8 @@ fn insert_output_vars(
                     TocSource::Prebuilt(block) => block,
                 };
                 if let Some(block) = toc {
-                    let rendered = writer.render_meta_blocks(&[block], options)?;
+                    let rendered =
+                        writer.render_meta_blocks(&[block], &at_slot(options, template, "toc"))?;
                     context.insert("toc".to_owned(), Value::Str(rendered));
                 }
             }

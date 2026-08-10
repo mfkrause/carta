@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <emphasis>emph with <emphasis role="strong">strong</emphasis>
+  inside</emphasis> end
+</para>

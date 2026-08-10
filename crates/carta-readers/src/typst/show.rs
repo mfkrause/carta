@@ -375,7 +375,8 @@ fn block_selected(rule: &Rule, block: &Block) -> bool {
     };
     match (name.as_str(), block) {
         ("heading", Block::Header(level, ..)) => fields.iter().all(|(key, want)| {
-            matches!(key.as_str(), "level" | "depth") && want.as_number() == Some(f64::from(*level))
+            matches!(key.as_str(), "level" | "depth")
+                && want.as_number() == i32::try_from(*level).ok().map(f64::from)
         }),
         ("raw", Block::CodeBlock(..)) => fields
             .iter()

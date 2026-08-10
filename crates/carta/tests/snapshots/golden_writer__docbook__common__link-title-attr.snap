@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<para>
+  <link xlink:href="http://example.com" id="l" role="ext">text</link>
+</para>

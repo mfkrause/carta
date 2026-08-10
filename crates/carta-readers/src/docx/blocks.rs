@@ -39,7 +39,7 @@ pub(super) struct BlockSink {
     last_attachable: Attachable,
     /// Running ordinal for each numbered level, keyed by `(numId, ilvl)`, so a list resumes its count
     /// after an interrupting block instead of restarting.
-    list_counters: BTreeMap<(i32, i32), i32>,
+    list_counters: BTreeMap<(i32, i32), i64>,
 }
 
 impl BlockSink {

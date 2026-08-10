@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<informaltable>
+  <tgroup cols="2">
+    <colspec align="left" />
+    <colspec align="left" />
+    <thead>
+      <row>
+        <entry>
+          k
+        </entry>
+        <entry>
+          description
+        </entry>
+      </row>
+    </thead>
+    <tbody>
+      <row>
+        <entry>
+          a
+        </entry>
+        <entry>
+          this cell holds a deliberately long run of text that cannot
+          fit inside one seventy-two column line and therefore forces a
+          layout decision
+        </entry>
+      </row>
+    </tbody>
+  </tgroup>
+</informaltable>
