@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  first item whose text wraps onto a line indented less than the marker
+  width
+\item
+  second item
+
+  \begin{itemize}
+  \item
+    nested item whose text also wraps under-indented
+  \end{itemize}
+\item
+  third item
+\end{itemize}
+
+\begin{enumerate}
+\item
+  numbered item continuing here
+\end{enumerate}
+
+\begin{description}
+\item[Term]
+a definition whose body wraps under-indented too
+\end{description}

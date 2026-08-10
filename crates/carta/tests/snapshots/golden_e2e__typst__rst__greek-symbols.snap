@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Uppercase: Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π Ρ Σ Τ Υ Φ Χ Ψ Ω
+
+.. math:: Α + Β + \Gamma + \Delta + Ε + Ζ + Η + \Theta
+
+.. math:: Ι + Κ + \Lambda + Μ + Ν + \Xi + Ο + Ρ
+
+.. math:: \Pi + \Sigma + Τ + \Upsilon + \Phi + Χ + \Psi + \Omega

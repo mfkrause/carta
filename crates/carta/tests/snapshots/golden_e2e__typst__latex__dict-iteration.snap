@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  small is 1
+\end{itemize}
+
+\begin{itemize}
+\item
+  large is 3
+\end{itemize}
+
+small/1 large/3

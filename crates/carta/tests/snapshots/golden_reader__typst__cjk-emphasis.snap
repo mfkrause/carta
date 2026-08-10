@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"中文"},{"t":"Strong","c":[{"t":"Str","c":"粗体"}]},{"t":"Str","c":"文字和"},{"t":"Emph","c":[{"t":"Str","c":"斜体"}]},{"t":"Str","c":"文字。"}]},{"t":"Para","c":[{"t":"Str","c":"日本語の"},{"t":"Strong","c":[{"t":"Str","c":"強調"}]},{"t":"Str","c":"と"},{"t":"Emph","c":[{"t":"Str","c":"傾き"}]},{"t":"Str","c":"です。"}]}]}

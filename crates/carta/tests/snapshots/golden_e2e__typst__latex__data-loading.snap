@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Read: 0 characters.
+
+Csv: 0 rows, cell .
+
+Json: .k, .s, .a.at(1).
+
+Toml: .title, .n, .owner.name.
+
+Yaml: .k, .list.at(1).
+
+Xml: .tag, .attrs.a, .children.at(0).

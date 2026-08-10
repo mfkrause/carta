@@ -96,6 +96,7 @@ dependencies = [
  "carta-ast",
  "carta-core",
  "caseless",
+ "fancy-regex",
  "memchr",
  "serde",
  "serde_json",

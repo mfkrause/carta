@@ -1,0 +1,11 @@
+Arrows: $a -> b$, $a <- b$, $a <-> b$, $a |-> b$, $a >-> b$, $a ->> b$.
+
+Long arrows: $a --> b$, $a <-- b$, $a <--> b$, $a ==> b$, $a <== b$, $a <==> b$.
+
+Order: $a << b$, $a <<< b$, $a >> b$, $a >>> b$.
+
+Definitions: $a := b$, $a ::= b$, $a =: b$.
+
+Relations: $a != b$, $a <= b$, $a >= b$, $a ~ b$.
+
+Fences: $[|a|]$ and $norm(a)$.

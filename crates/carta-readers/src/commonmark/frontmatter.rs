@@ -14,7 +14,7 @@ use carta_core::{Error, Extension, ReaderOptions, Result};
 
 use super::inline::parse_meta_inlines;
 use super::parse_meta_blocks;
-use super::yaml::{self, Scalar, Yaml};
+use crate::yaml::{self, Scalar, Yaml};
 
 /// Document metadata together with the body that remains once any front matter is stripped. A `None`
 /// body means the input carried no front matter and should be parsed unchanged.

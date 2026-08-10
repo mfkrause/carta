@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A linked body keeps the padding of its content.
+
+A box holds its own spacing within the line.
+
+An underlined padded body sits beside plain words.
+
+  A spaced quotation.
+
+  —  A. Author
+
+A footnote body is trimmed [1] here.
+
+[]
+
+Loop rounds join with their padding: 1 2 3 .
+
+A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.
+
+[]
+
+The binding kept survives its statement.
+
+[1] Trimmed on both ends.

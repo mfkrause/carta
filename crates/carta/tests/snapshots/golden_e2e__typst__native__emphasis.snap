@@ -1,0 +1,69 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Plain,"
+    , Space
+    , Strong [ Str "strong" ]
+    , Str ","
+    , Space
+    , Emph [ Str "emphasis" ]
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Emph [ Str "both" , Space , Str "nested" ] ]
+    , Str "."
+    ]
+, Para
+    [ Str "Function"
+    , Space
+    , Str "forms:"
+    , Space
+    , Emph [ Str "emphasised" ]
+    , Str ","
+    , Space
+    , Strong [ Str "bold" ]
+    , Str ","
+    , Space
+    , Strikeout [ Str "struck" ]
+    , Str ","
+    , SoftBreak
+    , Underline [ Str "underlined" ]
+    , Str ","
+    , Space
+    , SmallCaps [ Str "Small" , Space , Str "Caps" ]
+    , Str ","
+    , Space
+    , Superscript [ Str "up" ]
+    , Str ","
+    , Space
+    , Subscript [ Str "down" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Case"
+    , Space
+    , Str "folding:"
+    , Space
+    , Str "SHOUT,"
+    , Space
+    , Str "whisper."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "word"
+    , Space
+    , Str "with"
+    , Space
+    , Str "intra*word*stars"
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "middle."
+    ]
+]

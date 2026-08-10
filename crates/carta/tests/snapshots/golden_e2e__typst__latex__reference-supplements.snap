@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Setup}\label{setup}
+
+Read \hyperref[setup]{Chapter}before \hyperref[setup]{the \emph{opening}
+part}.
+
+An empty supplement: \hyperref[setup]{}.
+
+Unresolved: {[}nowhere{]}.

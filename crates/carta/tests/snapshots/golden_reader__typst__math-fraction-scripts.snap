@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Denominator"},{"t":"Space"},{"t":"Str","c":"scripts:"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\frac{a}{b^{2}}"]},{"t":"Str","c":","},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\frac{x}{y_{1}}"]},{"t":"Str","c":","},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\frac{p}{q_{i}^{n}}"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Numerator"},{"t":"Space"},{"t":"Str","c":"first:"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\frac{a^{2}}{b}"]},{"t":"Str","c":","},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\frac{x + 1}{y^{2}}"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Nested:"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\frac{\\frac{1}{2}}{3^{4}}"]},{"t":"Str","c":"."}]}]}

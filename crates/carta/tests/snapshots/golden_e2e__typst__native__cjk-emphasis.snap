@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "\20013\25991"
+    , Strong [ Str "\31895\20307" ]
+    , Str "\25991\23383\21644"
+    , Emph [ Str "\26012\20307" ]
+    , Str "\25991\23383\12290"
+    ]
+, Para
+    [ Str "\26085\26412\35486\12398"
+    , Strong [ Str "\24375\35519" ]
+    , Str "\12392"
+    , Emph [ Str "\20670\12365" ]
+    , Str "\12391\12377\12290"
+    ]
+]

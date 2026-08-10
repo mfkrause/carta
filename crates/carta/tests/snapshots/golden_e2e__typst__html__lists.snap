@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li><p>first bullet</p></li>
+<li><p>second bullet</p>
+<ul>
+<li><p>nested bullet</p></li>
+<li><p>another nested</p></li>
+</ul></li>
+<li><p>third bullet</p></li>
+</ul>
+<ol>
+<li><p>first numbered</p></li>
+<li><p>second numbered</p>
+<ol>
+<li><p>nested numbered</p></li>
+</ol></li>
+<li><p>explicit start</p></li>
+<li><p>next explicit</p></li>
+</ol>
+<dl>
+<dt>Term</dt>
+<dd>
+<p>the definition body.</p>
+</dd>
+<dt>Other term</dt>
+<dd>
+<p>another definition.</p>
+</dd>
+</dl>
+<ol type="a">
+<li><p>lettered first</p></li>
+<li><p>lettered second</p></li>
+</ol>
+<ol start="4" type="1">
+<li><p>starts at four</p></li>
+<li><p>and five</p></li>
+</ol>
+<ol start="4" type="I">
+<li><p>roman one</p></li>
+<li><p>roman two</p></li>
+</ol>

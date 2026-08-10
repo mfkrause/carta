@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>k: 7 list:</p>
+<ul>
+<li><p>one</p></li>
+<li><p>two</p></li>
+</ul>

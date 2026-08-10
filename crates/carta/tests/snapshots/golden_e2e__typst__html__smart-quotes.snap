@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>He said“hello“and left.</p>
+<p>A quote after a letter: word“quoted“word.</p>
+<p>Normal “quoted phrase” here.</p>
+<p>Apostrophes: it’s the reader’s job.</p>

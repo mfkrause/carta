@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Emph [ Str "word" ]
+    , Str "\8220quoted\8221"
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "bold" ]
+    , Str "\8216single\8217."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Span ( "" , [ "box" ] , [] ) [ Str "thing" ]
+    , Space
+    , Str "\8220spaced\8221"
+    , Space
+    , Str "quote."
+    ]
+, Para
+    [ Emph [ Str "a" ] , Str "\8220b\8221" , Emph [ Str "c" ] ]
+]

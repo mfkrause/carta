@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A sentence with a footnote. [1]_
+
+A second note [2]_
+
+.. [1]
+   The note body.
+
+.. [2]
+   A note with two blocks.
+
+   The second block.

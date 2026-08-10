@@ -1,0 +1,35 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A block container body.
+
+<div data-stack="ttb">
+<div>
+First panel
+
+</div>
+
+<div>
+Second panel
+
+</div>
+
+</div>
+
+<div class="columns-flow" data-count="2">
+Two-column flow text.
+
+</div>
+
+<div class="rect">
+A framed box.
+
+</div>
+
+<div class="circle">
+Round.
+
+</div>
+
+-----

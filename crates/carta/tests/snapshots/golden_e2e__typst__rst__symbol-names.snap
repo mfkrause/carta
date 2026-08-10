@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Punctuation: –, —, %, #, @, †.
+
+Currency: €, $, £, ¥.
+
+Marks: •, ⋆, ✓, ©.
+
+Quotes: “, ”, «, ».
+
+Brackets: ⟦, ⟧.
+
+Shapes: ◯, ⬤, ▶.
+
+In math: :math:`a \cdot b`, :math:`a \pm b`, :math:`a \bullet b`,
+:math:`a \bullet b`.
+
+More math: :math:`a⟦b⟧`, :math:`a ::= b`.

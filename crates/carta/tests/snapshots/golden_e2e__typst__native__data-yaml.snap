@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "k:" , Space , Str "7" , SoftBreak , Str "list:" ]
+, BulletList
+    [ [ Para [ Str "one" ] ] , [ Para [ Str "two" ] ] ]
+]

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"BlockQuote","c":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"block"},{"t":"Space"},{"t":"Str","c":"quotation"},{"t":"Space"},{"t":"Str","c":"body."}]}]},{"t":"Para","c":[{"t":"Quoted","c":[{"t":"DoubleQuote"},[{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"inline"},{"t":"Space"},{"t":"Str","c":"quotation"}]]}]},{"t":"BlockQuote","c":[{"t":"Para","c":[{"t":"Str","c":"Attributed"},{"t":"Space"},{"t":"Str","c":"block"},{"t":"Space"},{"t":"Str","c":"quotation."}]},{"t":"Para","c":[{"t":"Str","c":"— Someone"}]}]},{"t":"HorizontalRule"},{"t":"BlockQuote","c":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"first"},{"t":"Space"},{"t":"Str","c":"quoted"},{"t":"Space"},{"t":"Str","c":"paragraph."}]},{"t":"BulletList","c":[[{"t":"Para","c":[{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"quoted"},{"t":"Space"},{"t":"Str","c":"item"}]}],[{"t":"Para","c":[{"t":"Str","c":"another"},{"t":"Space"},{"t":"Str","c":"item"}]}]]}]}]}

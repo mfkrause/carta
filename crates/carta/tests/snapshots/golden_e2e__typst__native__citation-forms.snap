@@ -1,0 +1,88 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "normal"
+    , Space
+    , Str "reference"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "knuth1984"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[knuth1984]" ]
+    , Space
+    , Str "sits"
+    , Space
+    , Str "in"
+    , Space
+    , Str "the"
+    , Space
+    , Str "sentence."
+    ]
+, Para
+    [ Str "Author"
+    , Space
+    , Str "and"
+    , Space
+    , Str "year:"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "knuth1984"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[knuth1984]" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Year"
+    , Space
+    , Str "only:"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "knuth1984"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = SuppressAuthor
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[knuth1984]" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Prose"
+    , Space
+    , Str "form:"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "knuth1984"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[knuth1984]" ]
+    , Str "."
+    ]
+]

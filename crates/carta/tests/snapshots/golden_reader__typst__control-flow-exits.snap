@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Signs:"},{"t":"Space"},{"t":"Str","c":"negative,"},{"t":"Space"},{"t":"Str","c":"zero,"},{"t":"Space"},{"t":"Str","c":"positive."}]},{"t":"Para","c":[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"even:"},{"t":"Space"},{"t":"Str","c":"8."}]},{"t":"Para","c":[{"t":"Str","c":"Capped"},{"t":"Space"},{"t":"Str","c":"sum"},{"t":"Space"},{"t":"Str","c":"10."}]},{"t":"Para","c":[{"t":"Str","c":"Counted"},{"t":"Space"},{"t":"Str","c":"5"},{"t":"Space"},{"t":"Str","c":"odd"},{"t":"Space"},{"t":"Str","c":"values."}]},{"t":"Para","c":[{"t":"Str","c":"Ran"},{"t":"Space"},{"t":"Str","c":"3"},{"t":"Space"},{"t":"Str","c":"rounds."}]},{"t":"Para","c":[{"t":"Str","c":"Quiet:"},{"t":"Space"},{"t":"Str","c":"done."}]},{"t":"Para","c":[{"t":"Str","c":"Commented:"},{"t":"Space"},{"t":"Str","c":"2."}]}]}

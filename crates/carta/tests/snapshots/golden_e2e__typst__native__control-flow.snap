@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "High" , Space , Str "level." ]
+, Para [ Str "Chosen:" , Space , Str "many." ]
+, Para
+    [ Str "Item"
+    , Space
+    , Str "1."
+    , Space
+    , Str "Item"
+    , Space
+    , Str "2."
+    , Space
+    , Str "Item"
+    , Space
+    , Str "3."
+    ]
+, Para
+    [ Str "Total"
+    , Space
+    , Str "6"
+    , Space
+    , Str "after"
+    , Space
+    , Str "3"
+    , Space
+    , Str "steps."
+    ]
+, Para
+    [ Str "Scratch" , Space , Str "is" , Space , Str "10." ]
+, Para
+    [ Str "Counted"
+    , Space
+    , Str "600"
+    , Space
+    , Str "values."
+    ]
+]

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Dashes: a–“quoted”, b—‘single’, c-“maybe”.</p>
+<p>Ties: d “tied” and e…“trailed”.</p>
+<p>Runs: “first”“second” and ‘inner’“outer”.</p>

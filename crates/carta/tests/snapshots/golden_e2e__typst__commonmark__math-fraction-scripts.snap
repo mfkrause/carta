@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Denominator scripts: $\frac{a}{b^{2}}$, $\frac{x}{y\_{1}}$,
+$\frac{p}{q\_{i}^{n}}$.
+
+Numerator first: $\frac{a^{2}}{b}$, $\frac{x + 1}{y^{2}}$.
+
+Nested: $\frac{\frac{1}{2}}{3^{4}}$.

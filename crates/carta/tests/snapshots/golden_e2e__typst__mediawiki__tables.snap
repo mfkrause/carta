@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+{| class="wikitable"
+|-
+! Name
+! Kind
+! Count
+|-
+| alpha
+| first
+| 1
+|-
+| beta
+| second
+| 2
+|-
+! total
+!
+! 3
+|}
+
+{| class="wikitable"
+|-
+| style="text-align: left;"| left cell
+| style="text-align: right;"| right cell
+|}
+
+{| class="wikitable"
+|-
+| a
+| b
+|-
+| c
+| d
+|}

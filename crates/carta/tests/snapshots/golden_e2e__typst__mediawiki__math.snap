@@ -1,0 +1,23 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math <math display="inline">x^{2} + y^{2} = z^{2}</math> inside a sentence.
+
+<math display="block">\sum_{i = 1}^{n}i = \frac{n(n + 1)}{2}</math>
+
+Fractions and roots: <math display="inline">\frac{a}{b}</math>, <math display="inline">\sqrt{x}</math>, <math display="inline">\sqrt[3]{x}</math>.
+
+Matrices:
+
+<math display="block">\begin{pmatrix}
+1 & 2 \\
+3 & 4
+\end{pmatrix}</math>
+
+Cases:
+
+<math display="block">\begin{cases}
+x\text{ if }y \\
+z\text{ otherwise}
+\end{cases}</math>

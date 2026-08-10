@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Literals:"},{"t":"Space"},{"t":"Str","c":"1.2345678901234568e29"}]},{"t":"Para","c":[{"t":"Str","c":"Sums:"},{"t":"Space"},{"t":"Str","c":"9223372036854775808,"},{"t":"Space"},{"t":"Str","c":"-9223372036854775809."}]},{"t":"Para","c":[{"t":"Str","c":"Products:"},{"t":"Space"},{"t":"Str","c":"9999999999800000000001,"},{"t":"Space"},{"t":"Str","c":"6."}]},{"t":"Para","c":[{"t":"Str","c":"Powers:"},{"t":"Space"},{"t":"Str","c":"1267650600228229401496703205376,"},{"t":"Space"},{"t":"Str","c":"51090942171709440000,"},{"t":"Space"},{"t":"Str","c":"100891344545564193334812497256,"},{"t":"Space"},{"t":"Str","c":"202843204931727360000."}]},{"t":"Para","c":[{"t":"Str","c":"Division:"},{"t":"Space"},{"t":"Str","c":"33333333333333333333,"},{"t":"Space"},{"t":"Str","c":"2."}]},{"t":"Para","c":[{"t":"Str","c":"Divisors:"},{"t":"Space"},{"t":"Str","c":"1152921504606846976,"},{"t":"Space"},{"t":"Str","c":"12."}]}]}

@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Alignment: :math:`\begin{pmatrix}
+1 & 2
+\end{pmatrix}`.
+
+Rows: :math:`\begin{pmatrix}
+1 & 2 \\
+3 & 4
+\end{pmatrix}`.
+
+Vector: :math:`\begin{pmatrix}
+a \\
+b
+\end{pmatrix}`.
+
+Cases: :math:`\begin{cases}
+a \\
+b
+\end{cases}`.

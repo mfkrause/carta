@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Attachment slots: \({}_{c}^{a}\underset{1}{\overset{n}{\sum_{d}^{b}}}\).
+
+Repeated scripts: \({x^{2}}^{3}\), \({y_{1}}_{2}\), \({z_{b}^{a}}^{c}\).
+
+Grouped digits: \(1,234 + 5,678\).
+
+Percent: \(50\%\) and \(x + 3\%\).
+
+\[\lim\limits_{x \rightarrow 0}f(x)\]

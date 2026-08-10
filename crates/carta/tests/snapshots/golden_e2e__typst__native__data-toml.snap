@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "title"
+    , Space
+    , Str "="
+    , Space
+    , Str "\8220T\8221"
+    , SoftBreak
+    , Str "n"
+    , Space
+    , Str "="
+    , Space
+    , Str "42"
+    ]
+, Para
+    [ Str "[owner]"
+    , SoftBreak
+    , Str "name"
+    , Space
+    , Str "="
+    , Space
+    , Str "\8220N\8221"
+    ]
+]

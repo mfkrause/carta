@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Denominator"
+    , Space
+    , Str "scripts:"
+    , Space
+    , Math InlineMath "\\frac{a}{b^{2}}"
+    , Str ","
+    , Space
+    , Math InlineMath "\\frac{x}{y_{1}}"
+    , Str ","
+    , Space
+    , Math InlineMath "\\frac{p}{q_{i}^{n}}"
+    , Str "."
+    ]
+, Para
+    [ Str "Numerator"
+    , Space
+    , Str "first:"
+    , Space
+    , Math InlineMath "\\frac{a^{2}}{b}"
+    , Str ","
+    , Space
+    , Math InlineMath "\\frac{x + 1}{y^{2}}"
+    , Str "."
+    ]
+, Para
+    [ Str "Nested:"
+    , Space
+    , Math InlineMath "\\frac{\\frac{1}{2}}{3^{4}}"
+    , Str "."
+    ]
+]

@@ -1,0 +1,59 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "Before" ]
+, Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Para [ Str "A" , Space , Str "caption." ] ])
+    [ Para [ Image ( "" , [] , [] ) [] ( "logo.png" , "" ) ] ]
+, Para [ Str "after." ]
+, Para [ Str "Text" ]
+, Table
+    ( "" , [] , [] )
+    (Caption Nothing [])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para [ Str "a" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para [ Str "b" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para [ Str "more" , Space , Str "text." ]
+, Para [ Str "Lead" ]
+, Header
+    1 ( "" , [] , [] ) [ Str "A" , Space , Str "heading" ]
+, Para [ Str "trail." ]
+, BulletList
+    [ [ Para [ Str "item" ]
+      , BulletList [ [ Para [ Str "nested" ] ] ]
+      , Para [ Str "tail" ]
+      ]
+    ]
+, Para [ Str "Quoted" ]
+, BlockQuote [ Para [ Str "A" , Space , Str "quotation." ] ]
+, Para [ Str "onward." ]
+, Para [ Str "Code" ]
+, CodeBlock ( "" , [] , [] ) "let x = 1"
+, Para [ Str "onward." ]
+]

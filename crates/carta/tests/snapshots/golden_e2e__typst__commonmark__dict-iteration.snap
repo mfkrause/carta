@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+- small is 1
+
+<!-- -->
+
+- large is 3
+
+small/1 large/3

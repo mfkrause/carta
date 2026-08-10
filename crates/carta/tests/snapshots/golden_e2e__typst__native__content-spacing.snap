@@ -1,0 +1,176 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Space , Str "linked" , Space , Str "body" , Space ]
+        ( "https://example.com" , "" )
+    , Space
+    , Str "keeps"
+    , Space
+    , Str "the"
+    , Space
+    , Str "padding"
+    , Space
+    , Str "of"
+    , Space
+    , Str "its"
+    , Space
+    , Str "content."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "box"
+    , Space
+    , Str "holds"
+    , Space
+    , Span
+        ( "" , [ "box" ] , [] )
+        [ Space
+        , Str "its"
+        , Space
+        , Str "own"
+        , Space
+        , Str "spacing"
+        , Space
+        ]
+    , Space
+    , Str "within"
+    , Space
+    , Str "the"
+    , Space
+    , Str "line."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "underlined"
+    , Space
+    , Underline
+        [ Space , Str "padded" , Space , Str "body" , Space ]
+    , Space
+    , Str "sits"
+    , Space
+    , Str "beside"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "words."
+    ]
+, BlockQuote
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "spaced"
+        , Space
+        , Str "quotation."
+        ]
+    , Para
+        [ Str "\8212\160"
+        , Space
+        , Str "A."
+        , Space
+        , Str "Author"
+        , Space
+        ]
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "footnote"
+    , Space
+    , Str "body"
+    , Space
+    , Str "is"
+    , Space
+    , Str "trimmed"
+    , Space
+    , Note
+        [ Para
+            [ Str "Trimmed"
+            , Space
+            , Str "on"
+            , Space
+            , Str "both"
+            , Space
+            , Str "ends."
+            ]
+        ]
+    , Space
+    , Str "here."
+    ]
+, Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing [ Para [ Str "Figure" , Space , Str "caption." ] ])
+    [ Para [ Image ( "" , [] , [] ) [] ( "diagram.png" , "" ) ]
+    ]
+, Para
+    [ Str "Loop"
+    , Space
+    , Str "rounds"
+    , Space
+    , Str "join"
+    , Space
+    , Str "with"
+    , Space
+    , Str "their"
+    , Space
+    , Str "padding:"
+    , Space
+    , Str "1"
+    , Space
+    , Str "2"
+    , Space
+    , Str "3"
+    , Space
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "measurement"
+    , Space
+    , Str "of"
+    , Space
+    , Str "6.0em,"
+    , Space
+    , Str "a"
+    , Space
+    , Str "ratio"
+    , Space
+    , Str "of"
+    , Space
+    , Str "50%,"
+    , Space
+    , Str "and"
+    , Space
+    , Str "1.5e-2"
+    , Space
+    , Str "exact."
+    ]
+, Para
+    [ Image
+        ( "" , [] , [ ( "width" , "1000.0pt" ) ] )
+        []
+        ( "diagram.png" , "" )
+    ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "binding"
+    , Space
+    , Str "kept"
+    , Space
+    , Str "survives"
+    , Space
+    , Str "its"
+    , Space
+    , Str "statement."
+    ]
+]

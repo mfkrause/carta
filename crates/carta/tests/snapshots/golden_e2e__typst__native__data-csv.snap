@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "a,b" , SoftBreak , Str "2,\8220x,y\8221" ] ]

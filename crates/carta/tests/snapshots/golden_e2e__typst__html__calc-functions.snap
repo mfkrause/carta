@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Roots and powers: 2.718281828459045, 0.0, 2.9999999999999996,
+3.0.</p>
+<p>Trigonometry: 0.0, 1.0, 0.0, 0.0deg.</p>
+<p>Inverses: 0.0deg, 0.0deg, 0.0deg.</p>
+<p>Hyperbolic: 0.0, 1.0, 0.0.</p>
+<p>Counting: 12, 20, 10.</p>
+<p>Distance: 5.0.</p>

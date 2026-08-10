@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "block"
+    , Space
+    , Str "container"
+    , Space
+    , Str "body."
+    ]
+, Div
+    ( "" , [] , [ ( "stack" , "ttb" ) ] )
+    [ Div
+        ( "" , [] , [] )
+        [ Para [ Str "First" , Space , Str "panel" ] ]
+    , Div
+        ( "" , [] , [] )
+        [ Para [ Str "Second" , Space , Str "panel" ] ]
+    ]
+, Div
+    ( "" , [ "columns-flow" ] , [ ( "count" , "2" ) ] )
+    [ Para
+        [ Str "Two-column"
+        , Space
+        , Str "flow"
+        , Space
+        , Str "text."
+        ]
+    ]
+, Div
+    ( "" , [ "rect" ] , [] )
+    [ Para
+        [ Str "A" , Space , Str "framed" , Space , Str "box." ]
+    ]
+, Div ( "" , [ "circle" ] , [] ) [ Para [ Str "Round." ] ]
+, HorizontalRule
+]

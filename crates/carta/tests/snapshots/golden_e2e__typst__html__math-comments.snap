@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p><span class="math display">\[a + b + c\]</span></p>
+<p><span class="math display">\[x + y\]</span></p>
+<p><span class="math display">\[p + q\]</span></p>
+<p>Inline <span class="math inline">\(u + v\)</span> stays in the
+line.</p>

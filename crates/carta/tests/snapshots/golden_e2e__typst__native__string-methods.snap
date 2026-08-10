@@ -1,0 +1,40 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Found:"
+    , Space
+    , Str "two,"
+    , Space
+    , Str "at"
+    , Space
+    , Str "4."
+    , SoftBreak
+    , Str "Bounds:"
+    , Space
+    , Str "true,"
+    , Space
+    , Str "true,"
+    , Space
+    , Str "true."
+    , SoftBreak
+    , Str "Parts:"
+    , Space
+    , Str "two,"
+    , Space
+    , Str "two,"
+    , Space
+    , Str "one"
+    , Space
+    , Str "2"
+    , Space
+    , Str "three."
+    , SoftBreak
+    , Str "Letters:"
+    , Space
+    , Str "5,"
+    , Space
+    , Str "a."
+    ]
+]

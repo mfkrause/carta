@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Denominator scripts: <span
+class="math inline">\(\frac{a}{b^{2}}\)</span>, <span
+class="math inline">\(\frac{x}{y_{1}}\)</span>, <span
+class="math inline">\(\frac{p}{q_{i}^{n}}\)</span>.</p>
+<p>Numerator first: <span
+class="math inline">\(\frac{a^{2}}{b}\)</span>, <span
+class="math inline">\(\frac{x + 1}{y^{2}}\)</span>.</p>
+<p>Nested: <span
+class="math inline">\(\frac{\frac{1}{2}}{3^{4}}\)</span>.</p>

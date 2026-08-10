@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Para
+          [ Str "small" , Space , Str "is" , Space , Str "1" ]
+      ]
+    ]
+, BulletList
+    [ [ Para
+          [ Str "large" , Space , Str "is" , Space , Str "3" ]
+      ]
+    ]
+, Para [ Str "small/1" , Space , Str "large/3" ]
+]

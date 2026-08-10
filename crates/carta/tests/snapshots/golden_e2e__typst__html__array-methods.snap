@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Grown: (0, 1, 4, 9), 4.</p>
+<p>Removed: 1, popped: 3, left: (9, 2).</p>
+<p>Folded: 6, 6. Chosen: true, true, 1. Shaped: ((1, 3), (2, 4)), (1, 2,
+3), (3, 2, 1).</p>

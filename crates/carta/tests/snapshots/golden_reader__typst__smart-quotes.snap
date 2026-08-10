@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"He"},{"t":"Space"},{"t":"Str","c":"said“hello“and"},{"t":"Space"},{"t":"Str","c":"left."}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"quote"},{"t":"Space"},{"t":"Str","c":"after"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"letter:"},{"t":"Space"},{"t":"Str","c":"word“quoted“word."}]},{"t":"Para","c":[{"t":"Str","c":"Normal"},{"t":"Space"},{"t":"Str","c":"“quoted"},{"t":"Space"},{"t":"Str","c":"phrase”"},{"t":"Space"},{"t":"Str","c":"here."}]},{"t":"Para","c":[{"t":"Str","c":"Apostrophes:"},{"t":"Space"},{"t":"Str","c":"it’s"},{"t":"Space"},{"t":"Str","c":"the"},{"t":"Space"},{"t":"Str","c":"reader’s"},{"t":"Space"},{"t":"Str","c":"job."}]}]}

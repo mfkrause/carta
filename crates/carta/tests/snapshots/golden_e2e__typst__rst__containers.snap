@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A block container body.
+
+.. container::
+
+   .. container::
+
+      First panel
+
+   .. container::
+
+      Second panel
+
+.. container:: columns-flow
+
+   Two-column flow text.
+
+.. container:: rect
+
+   A framed box.
+
+.. container:: circle
+
+   Round.
+
+--------------

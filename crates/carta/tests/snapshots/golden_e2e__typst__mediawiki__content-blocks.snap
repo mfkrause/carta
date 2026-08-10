@@ -1,0 +1,42 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="box">
+boxed first
+
+boxed second
+
+</div>
+
+<div data-align="center">
+centered first
+
+centered second
+
+</div>
+
+<div class="rotate" data-angle="45.0">
+turned first
+
+turned second
+
+</div>
+
+colored first
+
+colored second
+
+<div class="box">
+* boxed item
+* second item
+
+</div>
+
+<span class="box">a single line stays inline</span>
+
+<span data-align="center">centered inline body</span>
+
+colored inline body
+
+<span class="rotate" data-angle="45.0">turned inline body</span>

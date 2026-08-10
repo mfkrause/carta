@@ -112,6 +112,10 @@ pub struct ReaderOptions {
     /// into the paragraph as a lazy continuation instead. Only a blank line, a fenced code block, or
     /// an HTML block ends the paragraph. Unset, every such line interrupts the paragraph.
     pub greedy_paragraphs: bool,
+    /// The directory the input was named under, as written. A format whose sources refer to
+    /// companion files (included sources, imported modules, image paths) resolves them against it;
+    /// unset, such references are left exactly as written.
+    pub source_dir: Option<std::path::PathBuf>,
 }
 
 /// How math is presented by a format that offers a choice of renderers (the HTML family). The

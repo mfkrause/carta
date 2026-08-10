@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Doubled: 8, item one.
+
+Items: 3, 3, 2, 4, 9. Ordered: ((0, 2), (1, 3), (2, 4)), (4, 3, 2), (3,
+4), 2 and 3 and 4.
+
+Fields: Report, 12, ("title", "pages"), ("Report", 12).
+
+Repeated: ababab, xx.
+
+Converted: 42, 7, 1.5, (1, 2), float, 2.
+
+Joined: ab, xy, (1, 2, 3).

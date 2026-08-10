@@ -1,0 +1,59 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Para [ Str "first" , Space , Str "bullet" ] ]
+    , [ Para [ Str "second" , Space , Str "bullet" ]
+      , BulletList
+          [ [ Para [ Str "nested" , Space , Str "bullet" ] ]
+          , [ Para [ Str "another" , Space , Str "nested" ] ]
+          ]
+      ]
+    , [ Para [ Str "third" , Space , Str "bullet" ] ]
+    ]
+, OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Para [ Str "first" , Space , Str "numbered" ] ]
+    , [ Para [ Str "second" , Space , Str "numbered" ]
+      , OrderedList
+          ( 1 , DefaultStyle , DefaultDelim )
+          [ [ Para [ Str "nested" , Space , Str "numbered" ] ] ]
+      ]
+    , [ Para [ Str "explicit" , Space , Str "start" ] ]
+    , [ Para [ Str "next" , Space , Str "explicit" ] ]
+    ]
+, DefinitionList
+    [ ( [ Str "Term" ]
+      , [ [ Para
+              [ Str "the"
+              , Space
+              , Str "definition"
+              , Space
+              , Str "body."
+              ]
+          ]
+        ]
+      )
+    , ( [ Str "Other" , Space , Str "term" ]
+      , [ [ Para [ Str "another" , Space , Str "definition." ] ] ]
+      )
+    ]
+, OrderedList
+    ( 1 , LowerAlpha , OneParen )
+    [ [ Para [ Str "lettered" , Space , Str "first" ] ]
+    , [ Para [ Str "lettered" , Space , Str "second" ] ]
+    ]
+, OrderedList
+    ( 4 , Decimal , Period )
+    [ [ Para
+          [ Str "starts" , Space , Str "at" , Space , Str "four" ]
+      ]
+    , [ Para [ Str "and" , Space , Str "five" ] ]
+    ]
+, OrderedList
+    ( 4 , UpperRoman , TwoParens )
+    [ [ Para [ Str "roman" , Space , Str "one" ] ]
+    , [ Para [ Str "roman" , Space , Str "two" ] ]
+    ]
+]

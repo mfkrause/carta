@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Area: 12.</p>
+<p>-3 is negative.</p>
+<p>Empty: 0, -3, -4.</p>

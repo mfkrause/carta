@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Alignment: <span class="math inline">\(\begin{pmatrix}
+1 &amp; 2
+\end{pmatrix}\)</span>.</p>
+<p>Rows: <span class="math inline">\(\begin{pmatrix}
+1 &amp; 2 \\
+3 &amp; 4
+\end{pmatrix}\)</span>.</p>
+<p>Vector: <span class="math inline">\(\begin{pmatrix}
+a \\
+b
+\end{pmatrix}\)</span>.</p>
+<p>Cases: <span class="math inline">\(\begin{cases}
+a \\
+b
+\end{cases}\)</span>.</p>

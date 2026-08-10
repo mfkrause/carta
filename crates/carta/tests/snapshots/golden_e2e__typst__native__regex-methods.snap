@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Matches:"
+    , Space
+    , Str "2."
+    , SoftBreak
+    , Str "First:"
+    , Space
+    , Str "12,"
+    , Space
+    , Str "at"
+    , Space
+    , Str "1."
+    , SoftBreak
+    , Str "Split:"
+    , Space
+    , Str "a-b-c."
+    , SoftBreak
+    , Str "Replaced:"
+    , Space
+    , Str "a#b2c."
+    ]
+]

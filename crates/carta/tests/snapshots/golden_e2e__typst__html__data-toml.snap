@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>title = “T” n = 42</p>
+<p>[owner] name = “N”</p>

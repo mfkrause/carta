@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Arrows: \(a \rightarrow b\), \(a \leftarrow b\), \(a \leftarrow > b\),
+\(a \mapsto b\), \(a \rightarrowtail b\), \(a \twoheadrightarrow b\).
+
+Long arrows: \(a \longrightarrow b\), \(a \longleftarrow b\),
+\(a \longleftrightarrow b\), \(a \Longrightarrow b\),
+\(a \Longleftarrow b\), \(a \Longleftrightarrow b\).
+
+Order: \(a \ll b\), \(a \lll b\), \(a \gg b\), \(a \ggg b\).
+
+Definitions: \(a ≔ b\), \(a ::= b\), \(a ≕ b\).
+
+Relations: \(a \neq b\), \(a \leq b\), \(a \geq b\), \(a \sim b\).
+
+Fences: \(⟦a⟧\) and \(\left\| a \right\|\).

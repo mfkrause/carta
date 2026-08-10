@@ -65,10 +65,18 @@ mod tabs;
 mod transliterate;
 #[cfg(any(feature = "dokuwiki", feature = "rst", feature = "mediawiki"))]
 mod url_schemes;
-#[cfg(any(feature = "docx", feature = "epub", feature = "odt"))]
+#[cfg(any(feature = "docx", feature = "epub", feature = "odt", feature = "typst"))]
 mod xml;
-#[cfg(any(feature = "docx", feature = "epub", feature = "odt", feature = "opml"))]
+#[cfg(any(
+    feature = "docx",
+    feature = "epub",
+    feature = "odt",
+    feature = "opml",
+    feature = "typst"
+))]
 mod xml_entities;
+#[cfg(any(feature = "commonmark", feature = "typst"))]
+mod yaml;
 
 #[cfg(feature = "commonmark")]
 pub mod commonmark;
@@ -110,6 +118,8 @@ pub mod rst;
 pub mod rtf;
 #[cfg(feature = "tsv")]
 pub mod tsv;
+#[cfg(feature = "typst")]
+pub mod typst;
 
 #[cfg(feature = "commonmark")]
 pub use commonmark::CommonmarkReader;
@@ -149,3 +159,5 @@ pub use rst::RstReader;
 pub use rtf::RtfReader;
 #[cfg(feature = "tsv")]
 pub use tsv::TsvReader;
+#[cfg(feature = "typst")]
+pub use typst::TypstReader;

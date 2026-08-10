@@ -73,6 +73,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "read_typst"
+path = "fuzz_targets/read_typst.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "read_ipynb"
 path = "fuzz_targets/read_ipynb.rs"
 test = false

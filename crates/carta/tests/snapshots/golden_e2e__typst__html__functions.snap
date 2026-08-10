@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Hello, Ada! Hi, Bob!</p>
+<p>left and right</p>
+<p>3 positional, cm</p>
+<p>one leads 2 others</p>
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>A</p></td>
+<td style="text-align: right;"><p>B</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>C</p></td>
+<td style="text-align: right;"><p>D</p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p>alpha</p></li>
+<li><p>beta</p></li>
+</ul>

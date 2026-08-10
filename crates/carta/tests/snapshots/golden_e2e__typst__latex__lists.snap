@@ -1,0 +1,68 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{itemize}
+\item
+  first bullet
+\item
+  second bullet
+
+  \begin{itemize}
+  \item
+    nested bullet
+  \item
+    another nested
+  \end{itemize}
+\item
+  third bullet
+\end{itemize}
+
+\begin{enumerate}
+\item
+  first numbered
+\item
+  second numbered
+
+  \begin{enumerate}
+  \item
+    nested numbered
+  \end{enumerate}
+\item
+  explicit start
+\item
+  next explicit
+\end{enumerate}
+
+\begin{description}
+\item[Term]
+the definition body.
+\item[Other term]
+another definition.
+\end{description}
+
+\begin{enumerate}
+\def\labelenumi{\alph{enumi})}
+\item
+  lettered first
+\item
+  lettered second
+\end{enumerate}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{3}
+\item
+  starts at four
+\item
+  and five
+\end{enumerate}
+
+\begin{enumerate}
+\def\labelenumi{(\Roman{enumi})}
+\setcounter{enumi}{3}
+\item
+  roman one
+\item
+  roman two
+\end{enumerate}

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Renamed: <em>slanted</em>. Fixed: tinted. Applied: <em>direct</em>,
+echo echo. Passed: (2, 3, 4).</p>

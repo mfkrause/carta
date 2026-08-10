@@ -106,6 +106,7 @@ format_dispatch! {
     "read-docx" => "docx" => bytes carta_readers::DocxReader;
     "read-epub" => "epub" => bytes carta_readers::EpubReader;
     "read-odt" => "odt" => bytes carta_readers::OdtReader;
+    "read-typst" => "typst" => text carta_readers::TypstReader;
 }
 
 format_dispatch! {

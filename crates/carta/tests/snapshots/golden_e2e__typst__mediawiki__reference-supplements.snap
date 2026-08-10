@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="setup"></span>
+= Setup =
+
+Read [[#setup|Chapter]]before [[#setup|the ''opening'' part]].
+
+An empty supplement: [[#setup|]].
+
+Unresolved: [nowhere].

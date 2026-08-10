@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A statement needing support <span class="citation"
+data-cites="missing-key">[missing-key]</span> here.</p>
+<p>Grouped keys <span class="citation"
+data-cites="first-key second-key">[first-key][second-key]</span> in
+sequence.</p>
+<p>A call form <span class="citation"
+data-cites="third-key">[third-key]</span> in running text.</p>
+<p>A call form <span class="citation"
+data-cites="fourth-key">[fourth-key]</span> built from a label call.</p>

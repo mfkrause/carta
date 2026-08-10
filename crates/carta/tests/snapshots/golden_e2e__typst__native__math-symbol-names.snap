@@ -1,0 +1,59 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Relations:"
+    , Space
+    , Math InlineMath "\\mapsto"
+    , Str ","
+    , Space
+    , Math InlineMath "\\vartriangleleft"
+    , Str ","
+    , Space
+    , Math InlineMath "\\vartriangleright"
+    , Str ","
+    , Space
+    , Math InlineMath "\8797"
+    , Str ","
+    , Space
+    , Math InlineMath "\8799"
+    , Str "."
+    ]
+, Para
+    [ Str "Letters:"
+    , Space
+    , Math InlineMath "\1488"
+    , Str ","
+    , Space
+    , Math InlineMath "\295"
+    , Str ","
+    , Space
+    , Math InlineMath "\10718"
+    , Str "."
+    ]
+, Para
+    [ Str "Marks:"
+    , Space
+    , Math InlineMath "\10003"
+    , Str ","
+    , Space
+    , Math InlineMath "\10007"
+    , Str ","
+    , Space
+    , Math InlineMath "\\complement"
+    , Str ","
+    , Space
+    , Math InlineMath "\9900"
+    , Str "."
+    ]
+, Para
+    [ Str "Fences:"
+    , Space
+    , Math InlineMath "\10629"
+    , Str ","
+    , Space
+    , Math InlineMath "\10214"
+    , Str "."
+    ]
+]

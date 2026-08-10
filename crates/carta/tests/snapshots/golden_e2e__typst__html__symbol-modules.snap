@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Arrows: →, ⇉, ↪.</p>
+<p>Marks: ⋆, ∗, ✗, ✓.</p>
+<p>Shapes: ●, ○, ▲.</p>
+<p>Spaces: a  b  c  d.</p>

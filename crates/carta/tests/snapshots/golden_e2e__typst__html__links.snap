@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A bare URL <a
+href="https://example.com/page">https://example.com/page</a> in
+text.</p>
+<p>A <a href="https://example.com">labelled link</a> and a <a
+href="mailto:someone@example.com">mail link</a>.</p>
+<p>A <a href="https://example.com">https://example.com</a> with no
+body.</p>
+<p>A <a href="https://example.com">positional body</a> in text.</p>
+<p><a href="https://example.com">first itemsecond item</a></p>

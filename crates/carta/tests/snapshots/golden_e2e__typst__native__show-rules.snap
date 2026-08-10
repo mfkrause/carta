@@ -1,0 +1,82 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "The"
+    , Space
+    , Str "carta"
+    , Space
+    , Str "appears"
+    , Space
+    , Str "here:"
+    , Space
+    , Str "carta."
+    ]
+, Para
+    [ Str "Now"
+    , Space
+    , Strong [ Emph [ Str "emphasis" ] ]
+    , Space
+    , Str "reads"
+    , Space
+    , Str "as"
+    , Space
+    , Str "strong."
+    ]
+, Para
+    [ Str "Numbers"
+    , Space
+    , Str "N"
+    , Space
+    , Str "and"
+    , Space
+    , Str "N"
+    , Space
+    , Str "stand"
+    , Space
+    , Str "in."
+    ]
+, Para
+    [ Str "Section:"
+    , Space
+    , Str "Second"
+    , Space
+    , Str "level"
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "(labelled"
+    , Space
+    , Str "link)"
+    , Space
+    , Str "here."
+    ]
+, Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "code"
+    , Space
+    , Str "snippet"
+    , Space
+    , Str "in"
+    , Space
+    , Str "a"
+    , Space
+    , Str "line."
+    ]
+, Para
+    [ Str "A" , Space , Str "drops" , Space , Str "out." ]
+, Para
+    [ Str "Wrapped:"
+    , SoftBreak
+    , Str "The"
+    , Space
+    , Str "document"
+    , Space
+    , Str "tail."
+    ]
+]

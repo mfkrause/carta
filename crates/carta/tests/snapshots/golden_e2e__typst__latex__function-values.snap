@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Renamed: \emph{slanted}. Fixed: tinted. Applied: \emph{direct}, echo
+echo. Passed: (2, 3, 4).

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>First: <strong>note</strong>.</p>
+<p>Second: <strong>note</strong> and <strong>note</strong>.</p>
+<p>Third: <strong>note</strong> and <strong>note</strong>, then
+<strong>note</strong> and <strong>note</strong>.</p>
+<p>Fourth: <strong>note</strong> and <strong>note</strong>, then
+<strong>note</strong> and <strong>note</strong> <strong>note</strong>
+and <strong>note</strong>, then <strong>note</strong> and
+<strong>note</strong>.</p>

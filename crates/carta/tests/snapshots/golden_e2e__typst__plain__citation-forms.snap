@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A normal reference [knuth1984] sits in the sentence.
+
+Author and year: [knuth1984].
+
+Year only: [knuth1984].
+
+Prose form: [knuth1984].

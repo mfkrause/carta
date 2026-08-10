@@ -1,0 +1,113 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Doubled:"
+    , Space
+    , Str "8,"
+    , Space
+    , Str "item"
+    , Space
+    , Str "one."
+    ]
+, Para
+    [ Str "Items:"
+    , Space
+    , Str "3,"
+    , Space
+    , Str "3,"
+    , Space
+    , Str "2,"
+    , Space
+    , Str "4,"
+    , Space
+    , Str "9."
+    , SoftBreak
+    , Str "Ordered:"
+    , Space
+    , Str "((0,"
+    , Space
+    , Str "2),"
+    , Space
+    , Str "(1,"
+    , Space
+    , Str "3),"
+    , Space
+    , Str "(2,"
+    , Space
+    , Str "4)),"
+    , Space
+    , Str "(4,"
+    , Space
+    , Str "3,"
+    , Space
+    , Str "2),"
+    , Space
+    , Str "(3,"
+    , Space
+    , Str "4),"
+    , Space
+    , Str "2"
+    , Space
+    , Str "and"
+    , Space
+    , Str "3"
+    , Space
+    , Str "and"
+    , Space
+    , Str "4."
+    ]
+, Para
+    [ Str "Fields:"
+    , Space
+    , Str "Report,"
+    , Space
+    , Str "12,"
+    , Space
+    , Str "(\"title\","
+    , Space
+    , Str "\"pages\"),"
+    , Space
+    , Str "(\"Report\","
+    , Space
+    , Str "12)."
+    ]
+, Para
+    [ Str "Repeated:"
+    , Space
+    , Str "ababab,"
+    , Space
+    , Str "xx."
+    ]
+, Para
+    [ Str "Converted:"
+    , Space
+    , Str "42,"
+    , Space
+    , Str "7,"
+    , Space
+    , Str "1.5,"
+    , Space
+    , Str "(1,"
+    , Space
+    , Str "2),"
+    , Space
+    , Str "float,"
+    , Space
+    , Str "2."
+    ]
+, Para
+    [ Str "Joined:"
+    , Space
+    , Str "ab,"
+    , Space
+    , Str "xy,"
+    , Space
+    , Str "(1,"
+    , Space
+    , Str "2,"
+    , Space
+    , Str "3)."
+    ]
+]

@@ -1,0 +1,27 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Arrows: <span class="math inline">\(a \rightarrow b\)</span>, <span
+class="math inline">\(a \leftarrow b\)</span>, <span
+class="math inline">\(a \leftarrow &gt; b\)</span>, <span
+class="math inline">\(a \mapsto b\)</span>, <span
+class="math inline">\(a \rightarrowtail b\)</span>, <span
+class="math inline">\(a \twoheadrightarrow b\)</span>.</p>
+<p>Long arrows: <span class="math inline">\(a \longrightarrow
+b\)</span>, <span class="math inline">\(a \longleftarrow b\)</span>,
+<span class="math inline">\(a \longleftrightarrow b\)</span>, <span
+class="math inline">\(a \Longrightarrow b\)</span>, <span
+class="math inline">\(a \Longleftarrow b\)</span>, <span
+class="math inline">\(a \Longleftrightarrow b\)</span>.</p>
+<p>Order: <span class="math inline">\(a \ll b\)</span>, <span
+class="math inline">\(a \lll b\)</span>, <span class="math inline">\(a
+\gg b\)</span>, <span class="math inline">\(a \ggg b\)</span>.</p>
+<p>Definitions: <span class="math inline">\(a ≔ b\)</span>, <span
+class="math inline">\(a ::= b\)</span>, <span class="math inline">\(a ≕
+b\)</span>.</p>
+<p>Relations: <span class="math inline">\(a \neq b\)</span>, <span
+class="math inline">\(a \leq b\)</span>, <span class="math inline">\(a
+\geq b\)</span>, <span class="math inline">\(a \sim b\)</span>.</p>
+<p>Fences: <span class="math inline">\(⟦a⟧\)</span> and <span
+class="math inline">\(\left\| a \right\|\)</span>.</p>

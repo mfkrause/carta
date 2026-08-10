@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Before</p>
+<figure>
+<p><img src="logo.png" /></p>
+<figcaption><p>A caption.</p></figcaption>
+</figure>
+<p>after.</p>
+<p>Text</p>
+<table>
+<tbody>
+<tr>
+<td><p>a</p></td>
+<td><p>b</p></td>
+</tr>
+</tbody>
+</table>
+<p>more text.</p>
+<p>Lead</p>
+<h1>A heading</h1>
+<p>trail.</p>
+<ul>
+<li><p>item</p>
+<ul>
+<li><p>nested</p></li>
+</ul>
+<p>tail</p></li>
+</ul>
+<p>Quoted</p>
+<blockquote>
+<p>A quotation.</p>
+</blockquote>
+<p>onward.</p>
+<p>Code</p>
+<pre><code>let x = 1</code></pre>
+<p>onward.</p>

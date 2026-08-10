@@ -1,0 +1,59 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Roots"
+    , Space
+    , Str "and"
+    , Space
+    , Str "powers:"
+    , Space
+    , Str "2.718281828459045,"
+    , Space
+    , Str "0.0,"
+    , Space
+    , Str "2.9999999999999996,"
+    , Space
+    , Str "3.0."
+    ]
+, Para
+    [ Str "Trigonometry:"
+    , Space
+    , Str "0.0,"
+    , Space
+    , Str "1.0,"
+    , Space
+    , Str "0.0,"
+    , Space
+    , Str "0.0deg."
+    ]
+, Para
+    [ Str "Inverses:"
+    , Space
+    , Str "0.0deg,"
+    , Space
+    , Str "0.0deg,"
+    , Space
+    , Str "0.0deg."
+    ]
+, Para
+    [ Str "Hyperbolic:"
+    , Space
+    , Str "0.0,"
+    , Space
+    , Str "1.0,"
+    , Space
+    , Str "0.0."
+    ]
+, Para
+    [ Str "Counting:"
+    , Space
+    , Str "12,"
+    , Space
+    , Str "20,"
+    , Space
+    , Str "10."
+    ]
+, Para [ Str "Distance:" , Space , Str "5.0." ]
+]

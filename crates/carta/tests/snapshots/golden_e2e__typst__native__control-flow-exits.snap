@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Signs:"
+    , Space
+    , Str "negative,"
+    , Space
+    , Str "zero,"
+    , Space
+    , Str "positive."
+    ]
+, Para
+    [ Str "First" , Space , Str "even:" , Space , Str "8." ]
+, Para
+    [ Str "Capped" , Space , Str "sum" , Space , Str "10." ]
+, Para
+    [ Str "Counted"
+    , Space
+    , Str "5"
+    , Space
+    , Str "odd"
+    , Space
+    , Str "values."
+    ]
+, Para
+    [ Str "Ran" , Space , Str "3" , Space , Str "rounds." ]
+, Para [ Str "Quiet:" , Space , Str "done." ]
+, Para [ Str "Commented:" , Space , Str "2." ]
+]

@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<blockquote>A block quotation body.
+</blockquote>
+“an inline quotation”
+
+<blockquote>Attributed block quotation.
+
+— Someone
+</blockquote>
+
+-----
+
+<blockquote>A first quoted paragraph.
+
+* a quoted item
+* another item
+</blockquote>

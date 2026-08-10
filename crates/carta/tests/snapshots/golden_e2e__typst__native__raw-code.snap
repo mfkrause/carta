@@ -1,0 +1,37 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Inline"
+    , Space
+    , Code ( "" , [] , [] ) "raw text"
+    , Space
+    , Str "and"
+    , Space
+    , Code ( "" , [] , [] ) "call form"
+    , Space
+    , Str "in"
+    , Space
+    , Str "a"
+    , Space
+    , Str "paragraph."
+    ]
+, CodeBlock
+    ( "" , [] , [] )
+    "An unlabelled raw block\nspanning two lines."
+, CodeBlock
+    ( "" , [ "rust" ] , [] )
+    "fn main() {\n    println!(\"hi\");\n}"
+, CodeBlock ( "" , [ "python" ] , [] ) "print(1)"
+, CodeBlock ( "" , [] , [] ) "{r}\nplot(1)"
+, CodeBlock ( "" , [ "rust" ] , [] ) ",ignore\nfn main() {}"
+, CodeBlock ( "" , [ "python" ] , [] ) "print(1)"
+, Div
+    ( "" , [ "box" ] , [] )
+    [ CodeBlock ( "" , [ "rust" ] , [] ) "fn nested() {}" ]
+, BulletList
+    [ [ Para [ Code ( "" , [] , [] ) "inline raw" ] ]
+    , [ Para [ Str "plain" , Space , Str "item" ] ]
+    ]
+]

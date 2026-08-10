@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Attachment slots: ${}\_{c}^{a}\underset{1}{\overset{n}{\sum\_{d}^{b}}}$.
+
+Repeated scripts: *x*<sup>2</sup><sup>3</sup>,
+*y*<sub>1</sub><sub>2</sub>,
+*z*<sub>*b*</sub><sup>*a*</sup><sup>*c*</sup>.
+
+Grouped digits: 1, 234 + 5, 678.
+
+Percent: 50% and *x* + 3%.
+
+$$\lim\limits\_{x \rightarrow 0}f(x)$$

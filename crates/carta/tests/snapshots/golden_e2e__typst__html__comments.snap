@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Text before. More text.</p>
+<p>Text after the block comment.</p>
+<p>Text with a comment inside.</p>

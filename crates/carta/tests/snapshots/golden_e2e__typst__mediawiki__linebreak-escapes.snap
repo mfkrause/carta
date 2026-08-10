@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+first<br />
+second line
+
+third<br />
+fourth line
+
+fifth<br />
+sixth line

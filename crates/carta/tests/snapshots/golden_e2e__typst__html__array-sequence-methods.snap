@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Duplicates: (1, 2), ("a"), ().</p>
+<p>Windows: ((1, 2), (2, 3)), ((1), (2), (3)), ().</p>
+<p>Chained: 2.</p>

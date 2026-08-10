@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Text"
+    , Space
+    , Str "before."
+    , SoftBreak
+    , Str "More"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "after"
+    , Space
+    , Str "the"
+    , Space
+    , Str "block"
+    , Space
+    , Str "comment."
+    ]
+, Para
+    [ Str "Text"
+    , Space
+    , Str "with"
+    , Space
+    , Str "a"
+    , Space
+    , Str "comment"
+    , Space
+    , Str "inside."
+    ]
+]

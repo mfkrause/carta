@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Arrows: <math display="inline">a \rightarrow b</math>, <math display="inline">a \leftarrow b</math>, <math display="inline">a \leftarrow > b</math>, <math display="inline">a \mapsto b</math>, <math display="inline">a \rightarrowtail b</math>, <math display="inline">a \twoheadrightarrow b</math>.
+
+Long arrows: <math display="inline">a \longrightarrow b</math>, <math display="inline">a \longleftarrow b</math>, <math display="inline">a \longleftrightarrow b</math>, <math display="inline">a \Longrightarrow b</math>, <math display="inline">a \Longleftarrow b</math>, <math display="inline">a \Longleftrightarrow b</math>.
+
+Order: <math display="inline">a \ll b</math>, <math display="inline">a \lll b</math>, <math display="inline">a \gg b</math>, <math display="inline">a \ggg b</math>.
+
+Definitions: <math display="inline">a ≔ b</math>, <math display="inline">a ::= b</math>, <math display="inline">a ≕ b</math>.
+
+Relations: <math display="inline">a \neq b</math>, <math display="inline">a \leq b</math>, <math display="inline">a \geq b</math>, <math display="inline">a \sim b</math>.
+
+Fences: <math display="inline">⟦a⟧</math> and <math display="inline">\left\| a \right\|</math>.

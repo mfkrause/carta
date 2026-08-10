@@ -1,0 +1,44 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline ``raw text`` and ``call form`` in a paragraph.
+
+::
+
+   An unlabelled raw block
+   spanning two lines.
+
+.. code:: rust
+
+   fn main() {
+       println!("hi");
+   }
+
+.. code:: python
+
+   print(1)
+
+::
+
+   {r}
+   plot(1)
+
+.. code:: rust
+
+   ,ignore
+   fn main() {}
+
+.. code:: python
+
+   print(1)
+
+.. container:: box
+
+   .. code:: rust
+
+      fn nested() {}
+
+- ``inline raw``
+
+- plain item

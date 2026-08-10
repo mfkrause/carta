@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<figure>
+<p><img src="logo.png" style="width:40.0%" /></p>
+<figcaption><p>A pictured caption.</p></figcaption>
+</figure>
+
+<table>
+<caption><p>A tabular caption.</p></caption>
+<tbody>
+<tr>
+<td><p>x</p></td>
+<td><p>y</p></td>
+</tr>
+</tbody>
+</table>
+
+An inline ![](inline.png) in a paragraph.

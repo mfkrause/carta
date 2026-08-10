@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Setup
+=====
+
+Read `Chapter <#setup>`__\ before `the opening part <#setup>`__.
+
+An empty supplement: ` <#setup>`__.
+
+Unresolved: [nowhere].

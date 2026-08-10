@@ -1,0 +1,30 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A [ linked body ](https://example.com) keeps the padding of its content.
+
+A box holds <span class="box"> its own spacing </span> within the line.
+
+An underlined <u> padded body </u> sits beside plain words.
+
+> A spaced quotation.
+>
+> —  A. Author
+
+A footnote body is trimmed [1] here.
+
+<figure>
+<p><img src="diagram.png" /></p>
+<figcaption><p>Figure caption.</p></figcaption>
+</figure>
+
+Loop rounds join with their padding: 1 2 3 .
+
+A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.
+
+<img src="diagram.png" style="width:1000pt" />
+
+The binding kept survives its statement.
+
+[1] Trimmed on both ends.

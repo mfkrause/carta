@@ -1,0 +1,9 @@
+A first paragraph with plain text
+continued on a second line.
+
+A second paragraph separated by a blank line.
+
+Escapes: \* \_ \# \$ \\ \< \@ and a literal \~ tilde.
+
+Line one \
+line two after a forced break.

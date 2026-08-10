@@ -1,0 +1,61 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Before
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{logo.png}}
+\caption{A caption.}
+\end{figure}
+
+after.
+
+Text
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+a & b \\
+\end{longtable}
+}
+
+more text.
+
+Lead
+
+\section{A heading}
+
+trail.
+
+\begin{itemize}
+\item
+  item
+
+  \begin{itemize}
+  \item
+    nested
+  \end{itemize}
+
+  tail
+\end{itemize}
+
+Quoted
+
+\begin{quote}
+A quotation.
+\end{quote}
+
+onward.
+
+Code
+
+\begin{verbatim}
+let x = 1
+\end{verbatim}
+
+onward.

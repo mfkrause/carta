@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Ink"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"stocked."}]},{"t":"Para","c":[{"t":"Str","c":"Chalk"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"missing."}]},{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"notion"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"5."}]},{"t":"Para","c":[{"t":"Str","c":"Has"},{"t":"Space"},{"t":"Str","c":"an"},{"t":"Space"},{"t":"Str","c":"a."}]},{"t":"Para","c":[{"t":"Str","c":"Nested:"},{"t":"Space"},{"t":"Str","c":"pen"},{"t":"Space"},{"t":"Str","c":"is"},{"t":"Space"},{"t":"Str","c":"there."}]}]}

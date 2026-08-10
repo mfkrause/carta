@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"block"},{"t":"Space"},{"t":"Str","c":"container"},{"t":"Space"},{"t":"Str","c":"body."}]},{"t":"Div","c":[["",[],[["stack","ttb"]]],[{"t":"Div","c":[["",[],[]],[{"t":"Para","c":[{"t":"Str","c":"First"},{"t":"Space"},{"t":"Str","c":"panel"}]}]]},{"t":"Div","c":[["",[],[]],[{"t":"Para","c":[{"t":"Str","c":"Second"},{"t":"Space"},{"t":"Str","c":"panel"}]}]]}]]},{"t":"Div","c":[["",["columns-flow"],[["count","2"]]],[{"t":"Para","c":[{"t":"Str","c":"Two-column"},{"t":"Space"},{"t":"Str","c":"flow"},{"t":"Space"},{"t":"Str","c":"text."}]}]]},{"t":"Div","c":[["",["rect"],[]],[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"framed"},{"t":"Space"},{"t":"Str","c":"box."}]}]]},{"t":"Div","c":[["",["circle"],[]],[{"t":"Para","c":[{"t":"Str","c":"Round."}]}]]},{"t":"HorizontalRule"}]}

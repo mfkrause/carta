@@ -1,0 +1,71 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Uppercase:"
+    , Space
+    , Str "\913"
+    , Space
+    , Str "\914"
+    , Space
+    , Str "\915"
+    , Space
+    , Str "\916"
+    , Space
+    , Str "\917"
+    , Space
+    , Str "\918"
+    , Space
+    , Str "\919"
+    , Space
+    , Str "\920"
+    , Space
+    , Str "\921"
+    , Space
+    , Str "\922"
+    , Space
+    , Str "\923"
+    , Space
+    , Str "\924"
+    , Space
+    , Str "\925"
+    , Space
+    , Str "\926"
+    , Space
+    , Str "\927"
+    , Space
+    , Str "\928"
+    , Space
+    , Str "\929"
+    , Space
+    , Str "\931"
+    , Space
+    , Str "\932"
+    , Space
+    , Str "\933"
+    , Space
+    , Str "\934"
+    , Space
+    , Str "\935"
+    , Space
+    , Str "\936"
+    , Space
+    , Str "\937"
+    ]
+, Para
+    [ Math
+        DisplayMath
+        "\913 + \914 + \\Gamma + \\Delta + \917 + \918 + \919 + \\Theta"
+    ]
+, Para
+    [ Math
+        DisplayMath
+        "\921 + \922 + \\Lambda + \924 + \925 + \\Xi + \927 + \929"
+    ]
+, Para
+    [ Math
+        DisplayMath
+        "\\Pi + \\Sigma + \932 + \\Upsilon + \\Phi + \935 + \\Psi + \\Omega"
+    ]
+]

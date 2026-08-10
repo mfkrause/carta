@@ -1,0 +1,54 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BlockQuote
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "block"
+        , Space
+        , Str "quotation"
+        , Space
+        , Str "body."
+        ]
+    ]
+, Para
+    [ Quoted
+        DoubleQuote
+        [ Str "an"
+        , Space
+        , Str "inline"
+        , Space
+        , Str "quotation"
+        ]
+    ]
+, BlockQuote
+    [ Para
+        [ Str "Attributed"
+        , Space
+        , Str "block"
+        , Space
+        , Str "quotation."
+        ]
+    , Para [ Str "\8212\160Someone" ]
+    ]
+, HorizontalRule
+, BlockQuote
+    [ Para
+        [ Str "A"
+        , Space
+        , Str "first"
+        , Space
+        , Str "quoted"
+        , Space
+        , Str "paragraph."
+        ]
+    , BulletList
+        [ [ Para
+              [ Str "a" , Space , Str "quoted" , Space , Str "item" ]
+          ]
+        , [ Para [ Str "another" , Space , Str "item" ] ]
+        ]
+    ]
+]

@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>The carta appears here: carta.</p>
+<p>Now <strong><em>emphasis</em></strong> reads as strong.</p>
+<p>Numbers N and N stand in.</p>
+<p>Section: Second level</p>
+<p>A (labelled link) here.</p>
+<p>An inline code snippet in a line.</p>
+<p>A drops out.</p>
+<p>Wrapped: The document tail.</p>

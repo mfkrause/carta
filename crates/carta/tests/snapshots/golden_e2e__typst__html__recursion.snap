@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>deep</p>
+<p><em><em><em><em><em><em><em><em><em><em><em><em><em>layers</em></em></em></em></em></em></em></em></em></em></em></em></em></p>

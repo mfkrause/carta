@@ -1,0 +1,16 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<span id="intro"></span>
+= Introduction =
+
+<span id="methods"></span>
+= Methods =
+
+<span id="results"></span>
+= Results =
+
+and more text.
+
+See [[#intro|[intro]]], [[#methods|[methods]]], and [[#results|[results]]].

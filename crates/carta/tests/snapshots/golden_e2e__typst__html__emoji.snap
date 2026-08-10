@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A sun ☀ and a rocket 🚀.</p>
+<p>Faces 😄 and 😭.</p>
+<p>Arrows ➡ and ⬅.</p>

@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+* first bullet
+* second bullet
+** nested bullet
+** another nested
+* third bullet
+
+# first numbered
+# second numbered
+## nested numbered
+# explicit start
+# next explicit
+
+; Term
+: the definition body.
+; Other term
+: another definition.
+
+<ol style="list-style-type: lower-alpha;">
+<li><p>lettered first</p></li>
+<li><p>lettered second</p></li></ol>
+
+<ol start="4" style="list-style-type: decimal;">
+<li><p>starts at four</p></li>
+<li><p>and five</p></li></ol>
+
+<ol start="4" style="list-style-type: upper-roman;">
+<li><p>roman one</p></li>
+<li><p>roman two</p></li></ol>

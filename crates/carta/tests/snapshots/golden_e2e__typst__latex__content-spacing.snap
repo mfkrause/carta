@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A \href{https://example.com}{ linked body } keeps the padding of its
+content.
+
+A box holds { its own spacing } within the line.
+
+An underlined \ul{ padded body } sits beside plain words.
+
+\begin{quote}
+A spaced quotation.
+
+---~ A. Author
+\end{quote}
+
+A footnote body is trimmed \footnote{Trimmed on both ends.} here.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{diagram.png}}
+\caption{Figure caption.}
+\end{figure}
+
+Loop rounds join with their padding: 1 2 3 .
+
+A measurement of 6.0em, a ratio of 50\%, and 1.5e-2 exact.
+
+\includegraphics[width=1000pt,height=\textheight,keepaspectratio]{diagram.png}
+
+The binding kept survives its statement.

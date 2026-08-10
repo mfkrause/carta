@@ -1,0 +1,111 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "statement"
+    , Space
+    , Str "needing"
+    , Space
+    , Str "support"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "missing-key"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[missing-key]" ]
+    , Space
+    , Str "here."
+    ]
+, Para
+    [ Str "Grouped"
+    , Space
+    , Str "keys"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "first-key"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        , Citation
+            { citationId = "second-key"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[first-key]" , Str "[second-key]" ]
+    , Space
+    , Str "in"
+    , Space
+    , Str "sequence."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "call"
+    , Space
+    , Str "form"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "third-key"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[third-key]" ]
+    , Space
+    , Str "in"
+    , Space
+    , Str "running"
+    , Space
+    , Str "text."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "call"
+    , Space
+    , Str "form"
+    , Space
+    , Cite
+        [ Citation
+            { citationId = "fourth-key"
+            , citationPrefix = []
+            , citationSuffix = []
+            , citationMode = NormalCitation
+            , citationNoteNum = 0
+            , citationHash = 0
+            }
+        ]
+        [ Str "[fourth-key]" ]
+    , Space
+    , Str "built"
+    , Space
+    , Str "from"
+    , Space
+    , Str "a"
+    , Space
+    , Str "label"
+    , Space
+    , Str "call."
+    ]
+]

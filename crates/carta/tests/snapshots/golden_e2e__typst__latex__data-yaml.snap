@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+k: 7 list:
+
+\begin{itemize}
+\item
+  one
+\item
+  two
+\end{itemize}

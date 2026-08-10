@@ -1,0 +1,106 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "" , [] , [] ) [ Str "Introduction" ]
+, Para [ Span ( "intro" , [] , [] ) [] ]
+, Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [ "ref" ] , [] ) [ Str "[intro]" ] ( "#intro" , "" )
+    , Space
+    , Str "for"
+    , Space
+    , Str "context."
+    ]
+, Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Para
+           [ Str "A" , Space , Str "labelled" , Space , Str "figure." ]
+       ])
+    [ Para [ Image ( "" , [] , [] ) [] ( "plot.png" , "" ) ] ]
+, Para [ Span ( "fig-plot" , [] , [] ) [] ]
+, Para
+    [ Str "Reference"
+    , Space
+    , Str "to"
+    , Space
+    , Link
+        ( "" , [ "ref" ] , [] )
+        [ Str "[fig-plot]" ]
+        ( "#fig-plot" , "" )
+    , Space
+    , Str "as"
+    , Space
+    , Str "well."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Link ( "" , [ "ref" ] , [] ) [] ( "#intro" , "" )
+    , Space
+    , Str "written"
+    , Space
+    , Str "as"
+    , Space
+    , Str "a"
+    , Space
+    , Str "call."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Link
+        ( "" , [] , [] )
+        [ Str "link"
+        , Space
+        , Str "to"
+        , Space
+        , Str "a"
+        , Space
+        , Str "label"
+        ]
+        ( "#intro" , "" )
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "bare"
+    , Space
+    , Link ( "" , [] , [] ) [ Str "#intro" ] ( "#intro" , "" )
+    , Str "."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Link
+        ( "" , [ "ref" ] , [] ) [ Str "Chapter" ] ( "#intro" , "" )
+    , Space
+    , Str "with"
+    , Space
+    , Str "its"
+    , Space
+    , Str "own"
+    , Space
+    , Str "supplement."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Link ( "" , [ "ref" ] , [] ) [] ( "#intro" , "" )
+    , Space
+    , Str "built"
+    , Space
+    , Str "from"
+    , Space
+    , Str "a"
+    , Space
+    , Str "label"
+    , Space
+    , Str "call."
+    ]
+]

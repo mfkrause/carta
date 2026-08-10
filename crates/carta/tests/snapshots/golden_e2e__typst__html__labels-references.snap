@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<h1>Introduction</h1>
+<p><span id="intro"></span></p>
+<p>See <a href="#intro" class="ref">[intro]</a> for context.</p>
+<figure>
+<p><img src="plot.png" /></p>
+<figcaption><p>A labelled figure.</p></figcaption>
+</figure>
+<p><span id="fig-plot"></span></p>
+<p>Reference to <a href="#fig-plot" class="ref">[fig-plot]</a> as
+well.</p>
+<p>A <a href="#intro" class="ref"></a> written as a call.</p>
+<p>A <a href="#intro">link to a label</a> and a bare <a
+href="#intro">#intro</a>.</p>
+<p>A <a href="#intro" class="ref">Chapter</a> with its own
+supplement.</p>
+<p>A <a href="#intro" class="ref"></a> built from a label call.</p>

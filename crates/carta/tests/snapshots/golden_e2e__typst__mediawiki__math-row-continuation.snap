@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<math display="block">\begin{array}{r}
+a = b \\
+c = d \\
+e = f
+\end{array}</math>
+
+<math display="block">\begin{pmatrix}
+1 & 2 \\
+3 & 4
+\end{pmatrix}</math>

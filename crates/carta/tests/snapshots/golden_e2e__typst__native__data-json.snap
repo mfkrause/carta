@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "{\8220k\8221:"
+    , Space
+    , Str "7,"
+    , Space
+    , Str "\8220s\8221:"
+    , Space
+    , Str "\8220hello\8221,"
+    , Space
+    , Str "\8220a\8221:"
+    , Space
+    , Str "[1,"
+    , Space
+    , Str "2]}"
+    ]
+]

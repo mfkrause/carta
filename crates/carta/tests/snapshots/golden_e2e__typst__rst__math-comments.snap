@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. math:: a + b + c
+
+.. math:: x + y
+
+.. math:: p + q
+
+Inline :math:`u + v` stays in the line.

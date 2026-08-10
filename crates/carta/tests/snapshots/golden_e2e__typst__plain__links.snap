@@ -1,0 +1,13 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+A bare URL https://example.com/page in text.
+
+A labelled link and a mail link.
+
+A https://example.com with no body.
+
+A positional body in text.
+
+first itemsecond item

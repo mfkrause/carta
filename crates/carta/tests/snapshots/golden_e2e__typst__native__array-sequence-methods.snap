@@ -1,0 +1,36 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Duplicates:"
+    , Space
+    , Str "(1,"
+    , Space
+    , Str "2),"
+    , Space
+    , Str "(\"a\"),"
+    , Space
+    , Str "()."
+    ]
+, Para
+    [ Str "Windows:"
+    , Space
+    , Str "((1,"
+    , Space
+    , Str "2),"
+    , Space
+    , Str "(2,"
+    , Space
+    , Str "3)),"
+    , Space
+    , Str "((1),"
+    , Space
+    , Str "(2),"
+    , Space
+    , Str "(3)),"
+    , Space
+    , Str "()."
+    ]
+, Para [ Str "Chained:" , Space , Str "2." ]
+]

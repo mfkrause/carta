@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Dashes:"
+    , Space
+    , Str "a\8211\8220quoted\8221,"
+    , Space
+    , Str "b\8212\8216single\8217,"
+    , Space
+    , Str "c-\8220maybe\8221."
+    ]
+, Para
+    [ Str "Ties:"
+    , Space
+    , Str "d\160\8220tied\8221"
+    , Space
+    , Str "and"
+    , Space
+    , Str "e\8230\8220trailed\8221."
+    ]
+, Para
+    [ Str "Runs:"
+    , Space
+    , Str "\8220first\8221\8220second\8221"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\8216inner\8217\8220outer\8221."
+    ]
+]

@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+中文\textbf{粗体}文字和\emph{斜体}文字。
+
+日本語の\textbf{強調}と\emph{傾き}です。

@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# Introduction
+
+# Methods
+
+# Results
+
+and more text.
+
+See <a href="#intro" class="ref">[intro]</a>,
+<a href="#methods" class="ref">[methods]</a>, and
+<a href="#results" class="ref">[results]</a>.

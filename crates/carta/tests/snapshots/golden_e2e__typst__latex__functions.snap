@@ -1,0 +1,29 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Hello, Ada! Hi, Bob!
+
+left and right
+
+3 positional, cm
+
+one leads 2 others
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}lr@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+A & B \\
+C & D \\
+\end{longtable}
+}
+
+\begin{itemize}
+\item
+  alpha
+\item
+  beta
+\end{itemize}

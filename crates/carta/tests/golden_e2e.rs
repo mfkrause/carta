@@ -117,6 +117,7 @@ e2e_golden! {
     e2e_snapshots_rst => "rst",
     e2e_snapshots_rtf => "rtf",
     e2e_snapshots_tsv => "tsv",
+    e2e_snapshots_typst => "typst",
 }
 
 #[test]

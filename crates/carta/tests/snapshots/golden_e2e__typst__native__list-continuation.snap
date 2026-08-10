@@ -1,0 +1,92 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ BulletList
+    [ [ Para
+          [ Str "first"
+          , Space
+          , Str "item"
+          , Space
+          , Str "whose"
+          , Space
+          , Str "text"
+          , SoftBreak
+          , Str "wraps"
+          , Space
+          , Str "onto"
+          , Space
+          , Str "a"
+          , Space
+          , Str "line"
+          , Space
+          , Str "indented"
+          , Space
+          , Str "less"
+          , Space
+          , Str "than"
+          , Space
+          , Str "the"
+          , Space
+          , Str "marker"
+          , Space
+          , Str "width"
+          ]
+      ]
+    , [ Para [ Str "second" , Space , Str "item" ]
+      , BulletList
+          [ [ Para
+                [ Str "nested"
+                , Space
+                , Str "item"
+                , Space
+                , Str "whose"
+                , Space
+                , Str "text"
+                , SoftBreak
+                , Str "also"
+                , Space
+                , Str "wraps"
+                , Space
+                , Str "under-indented"
+                ]
+            ]
+          ]
+      ]
+    , [ Para [ Str "third" , Space , Str "item" ] ]
+    ]
+, OrderedList
+    ( 1 , DefaultStyle , DefaultDelim )
+    [ [ Para
+          [ Str "numbered"
+          , Space
+          , Str "item"
+          , SoftBreak
+          , Str "continuing"
+          , Space
+          , Str "here"
+          ]
+      ]
+    ]
+, DefinitionList
+    [ ( [ Str "Term" ]
+      , [ [ Para
+              [ Str "a"
+              , Space
+              , Str "definition"
+              , Space
+              , Str "whose"
+              , Space
+              , Str "body"
+              , SoftBreak
+              , Str "wraps"
+              , Space
+              , Str "under-indented"
+              , Space
+              , Str "too"
+              ]
+          ]
+        ]
+      )
+    ]
+]

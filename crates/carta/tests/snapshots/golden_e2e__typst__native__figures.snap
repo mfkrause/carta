@@ -1,0 +1,68 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Figure
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Para
+           [ Str "A"
+           , Space
+           , Str "pictured"
+           , Space
+           , Str "caption."
+           ]
+       ])
+    [ Para
+        [ Image
+            ( "" , [] , [ ( "width" , "40%" ) ] ) [] ( "logo.png" , "" )
+        ]
+    ]
+, Table
+    ( "" , [] , [] )
+    (Caption
+       Nothing
+       [ Para
+           [ Str "A" , Space , Str "tabular" , Space , Str "caption." ]
+       ])
+    [ ( AlignDefault , ColWidthDefault )
+    , ( AlignDefault , ColWidthDefault )
+    ]
+    (TableHead ( "" , [] , [] ) [])
+    [ TableBody
+        ( "" , [] , [] )
+        (RowHeadColumns 0)
+        []
+        [ Row
+            ( "" , [] , [] )
+            [ Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para [ Str "x" ] ]
+            , Cell
+                ( "" , [] , [] )
+                AlignDefault
+                (RowSpan 1)
+                (ColSpan 1)
+                [ Para [ Str "y" ] ]
+            ]
+        ]
+    ]
+    (TableFoot ( "" , [] , [] ) [])
+, Para
+    [ Str "An"
+    , Space
+    , Str "inline"
+    , Space
+    , Image ( "" , [] , [] ) [] ( "inline.png" , "" )
+    , Space
+    , Str "in"
+    , Space
+    , Str "a"
+    , Space
+    , Str "paragraph."
+    ]
+]

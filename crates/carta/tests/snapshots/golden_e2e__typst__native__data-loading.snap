@@ -1,0 +1,57 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Read:"
+    , Space
+    , Str "0"
+    , Space
+    , Str "characters."
+    ]
+, Para
+    [ Str "Csv:"
+    , Space
+    , Str "0"
+    , Space
+    , Str "rows,"
+    , Space
+    , Str "cell"
+    , Space
+    , Str "."
+    ]
+, Para
+    [ Str "Json:"
+    , Space
+    , Str ".k,"
+    , Space
+    , Str ".s,"
+    , Space
+    , Str ".a.at(1)."
+    ]
+, Para
+    [ Str "Toml:"
+    , Space
+    , Str ".title,"
+    , Space
+    , Str ".n,"
+    , Space
+    , Str ".owner.name."
+    ]
+, Para
+    [ Str "Yaml:"
+    , Space
+    , Str ".k,"
+    , Space
+    , Str ".list.at(1)."
+    ]
+, Para
+    [ Str "Xml:"
+    , Space
+    , Str ".tag,"
+    , Space
+    , Str ".attrs.a,"
+    , Space
+    , Str ".children.at(0)."
+    ]
+]

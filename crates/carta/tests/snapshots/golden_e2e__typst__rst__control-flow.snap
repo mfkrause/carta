@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+High level.
+
+Chosen: many.
+
+Item 1. Item 2. Item 3.
+
+Total 6 after 3 steps.
+
+Scratch is 10.
+
+Counted 600 values.

@@ -364,7 +364,9 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     // A template (default or `--template`) emits verbatim; a bare fragment gets one trailing newline.
     let verbatim = writer_options.standalone || cli.template.is_some();
 
-    let (mut document, resources) = read_document(from, &input, &ReaderOptions::default())?;
+    let mut reader_options = ReaderOptions::default();
+    reader_options.source_dir = source_dir(cli.input.as_deref());
+    let (mut document, resources) = read_document(from, &input, &reader_options)?;
 
     // Fold metadata layers before filters so they see what the writer will and can rewrite it;
     // clearing the layers keeps rendering from resurrecting a filter-deleted `-M` key.
@@ -529,6 +531,15 @@ fn source_name(input: Option<&Path>) -> String {
             .unwrap_or("-")
             .to_owned(),
     }
+}
+
+/// The directory a source's companion files resolve against: the input file's own parent, as
+/// written. Standard input, and a bare file name with no directory part, resolve nothing.
+fn source_dir(input: Option<&Path>) -> Option<PathBuf> {
+    input
+        .and_then(Path::parent)
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map(Path::to_path_buf)
 }
 
 /// The directory a template's partials resolve against: the template file's own parent (the current

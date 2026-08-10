@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+# Setup
+
+Read <a href="#setup" class="ref">Chapter</a>before
+<a href="#setup" class="ref">the <em>opening</em> part</a>.
+
+An empty supplement: <a href="#setup" class="ref"></a>.
+
+Unresolved: \[nowhere\].

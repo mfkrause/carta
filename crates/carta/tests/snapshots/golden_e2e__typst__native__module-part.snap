@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "An"
+    , Space
+    , Str "included"
+    , Space
+    , Str "paragraph."
+    ]
+]

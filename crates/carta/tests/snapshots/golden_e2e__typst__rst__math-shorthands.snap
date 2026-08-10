@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Arrows: :math:`a \rightarrow b`, :math:`a \leftarrow b`,
+:math:`a \leftarrow > b`, :math:`a \mapsto b`,
+:math:`a \rightarrowtail b`, :math:`a \twoheadrightarrow b`.
+
+Long arrows: :math:`a \longrightarrow b`, :math:`a \longleftarrow b`,
+:math:`a \longleftrightarrow b`, :math:`a \Longrightarrow b`,
+:math:`a \Longleftarrow b`, :math:`a \Longleftrightarrow b`.
+
+Order: :math:`a \ll b`, :math:`a \lll b`, :math:`a \gg b`,
+:math:`a \ggg b`.
+
+Definitions: :math:`a ≔ b`, :math:`a ::= b`, :math:`a ≕ b`.
+
+Relations: :math:`a \neq b`, :math:`a \leq b`, :math:`a \geq b`,
+:math:`a \sim b`.
+
+Fences: :math:`⟦a⟧` and :math:`\left\| a \right\|`.

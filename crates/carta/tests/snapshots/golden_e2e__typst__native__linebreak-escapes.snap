@@ -1,0 +1,26 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "first"
+    , LineBreak
+    , Str "second"
+    , Space
+    , Str "line"
+    ]
+, Para
+    [ Str "third"
+    , LineBreak
+    , Str "fourth"
+    , Space
+    , Str "line"
+    ]
+, Para
+    [ Str "fifth"
+    , LineBreak
+    , Str "sixth"
+    , Space
+    , Str "line"
+    ]
+]

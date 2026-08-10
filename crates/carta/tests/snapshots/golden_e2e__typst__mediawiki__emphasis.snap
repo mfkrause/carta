@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Plain, '''strong''', ''emphasis'', and '''''both nested'''''.
+
+Function forms: ''emphasised'', '''bold''', <s>struck</s>, <u>underlined</u>, Small Caps, <sup>up</sup>, <sub>down</sub>.
+
+Case folding: SHOUT, whisper.
+
+A word with intra*word*stars in the middle.

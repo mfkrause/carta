@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Signs: negative, zero, positive.</p>
+<p>First even: 8.</p>
+<p>Capped sum 10.</p>
+<p>Counted 5 odd values.</p>
+<p>Ran 3 rounds.</p>
+<p>Quiet: done.</p>
+<p>Commented: 2.</p>

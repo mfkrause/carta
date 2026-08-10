@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Read:"},{"t":"Space"},{"t":"Str","c":"0"},{"t":"Space"},{"t":"Str","c":"characters."}]},{"t":"Para","c":[{"t":"Str","c":"Csv:"},{"t":"Space"},{"t":"Str","c":"0"},{"t":"Space"},{"t":"Str","c":"rows,"},{"t":"Space"},{"t":"Str","c":"cell"},{"t":"Space"},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Json:"},{"t":"Space"},{"t":"Str","c":".k,"},{"t":"Space"},{"t":"Str","c":".s,"},{"t":"Space"},{"t":"Str","c":".a.at(1)."}]},{"t":"Para","c":[{"t":"Str","c":"Toml:"},{"t":"Space"},{"t":"Str","c":".title,"},{"t":"Space"},{"t":"Str","c":".n,"},{"t":"Space"},{"t":"Str","c":".owner.name."}]},{"t":"Para","c":[{"t":"Str","c":"Yaml:"},{"t":"Space"},{"t":"Str","c":".k,"},{"t":"Space"},{"t":"Str","c":".list.at(1)."}]},{"t":"Para","c":[{"t":"Str","c":"Xml:"},{"t":"Space"},{"t":"Str","c":".tag,"},{"t":"Space"},{"t":"Str","c":".attrs.a,"},{"t":"Space"},{"t":"Str","c":".children.at(0)."}]}]}

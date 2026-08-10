@@ -1,0 +1,14 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Plain, \textbf{strong}, \emph{emphasis}, and \textbf{\emph{both
+nested}}.
+
+Function forms: \emph{emphasised}, \textbf{bold}, \st{struck},
+\ul{underlined}, \textsc{Small Caps}, \textsuperscript{up},
+\textsubscript{down}.
+
+Case folding: SHOUT, whisper.
+
+A word with intra*word*stars in the middle.

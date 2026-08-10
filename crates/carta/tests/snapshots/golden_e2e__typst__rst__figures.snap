@@ -1,0 +1,18 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+.. figure:: logo.png
+   :width: 40.0%
+
+   A pictured caption.
+
+.. table:: A tabular caption.
+
+   = =
+   x y
+   = =
+
+An inline |image1| in a paragraph.
+
+.. |image1| image:: inline.png

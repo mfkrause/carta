@@ -4,7 +4,7 @@
 //! (`[a, b]`, `{k: v}`), plain/single-quoted/double-quoted scalars, and literal (`|`) and folded
 //! (`>`) block scalars, plus `#` comments. Scalar *flavor* is retained ([`Scalar`]) because type
 //! resolution (booleans, null, and number canonicalization) applies only to unquoted plain
-//! scalars; the conversion to metadata happens in [`super::frontmatter`].
+//! scalars.
 //!
 //! The grammar handled here is the one document front matter needs, not all of YAML; anchors,
 //! aliases, tags, and multi-document streams are out of scope
@@ -30,6 +30,7 @@ pub(crate) enum Scalar {
 }
 
 /// The top-level shape of a metadata block's content.
+#[cfg(feature = "commonmark")]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum TopLevel {
     /// A mapping (possibly empty): its entries become metadata keys.
@@ -45,6 +46,7 @@ const MAX_NESTING_DEPTH: usize = 512;
 
 /// Parse the text between metadata fences. `Err` marks malformed input, a hard failure the caller
 /// surfaces as an error; `Ok` carries the top-level classification.
+#[cfg(feature = "commonmark")]
 pub(crate) fn parse(content: &str) -> Result<TopLevel, ()> {
     let mut reader = Reader::new(content);
     reader.skip_ignorable();
@@ -60,6 +62,26 @@ pub(crate) fn parse(content: &str) -> Result<TopLevel, ()> {
         return Ok(TopLevel::Mapping(parse_mapping(&mut reader, indent, 0)?));
     }
     Ok(TopLevel::NotMapping)
+}
+
+/// Parse a whole document, keeping a top-level sequence or scalar instead of classifying it.
+#[cfg(feature = "typst")]
+pub(crate) fn parse_document(content: &str) -> Result<Yaml, ()> {
+    let mut reader = Reader::new(content);
+    reader.skip_ignorable();
+    let Some(first) = reader.peek() else {
+        return Ok(Yaml::Mapping(Vec::new()));
+    };
+    let indent = indent_of(first);
+    let body = slice_from(first, indent);
+    if is_sequence_entry(body) {
+        return Ok(Yaml::Sequence(parse_sequence(&mut reader, indent, 0)?));
+    }
+    if key_colon(body).is_some() {
+        return Ok(Yaml::Mapping(parse_mapping(&mut reader, indent, 0)?));
+    }
+    reader.advance();
+    parse_value(&mut reader, body, indent, 0)
 }
 
 /// A line cursor over the block's content. Lines are kept raw (blanks and comments included) so that
@@ -846,4 +868,5 @@ fn scientific(digits: &[u8], point: i64) -> String {
 }
 
 #[cfg(test)]
+#[cfg(feature = "commonmark")]
 mod tests;

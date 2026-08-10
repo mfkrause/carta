@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\begin{figure}
+\centering
+\includegraphics[width=0.4\linewidth,height=\textheight,keepaspectratio]{logo.png}
+\caption{A pictured caption.}
+\end{figure}
+
+\begin{longtable}[]{@{}ll@{}}
+\caption{A tabular caption.}\tabularnewline
+\toprule\noalign{}
+\endfirsthead
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+x & y \\
+\end{longtable}
+
+An inline \pandocbounded{\includegraphics[keepaspectratio]{inline.png}}
+in a paragraph.

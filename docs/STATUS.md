@@ -50,7 +50,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 | LaTeX (`latex`) | ✅ | ✅ |
 | PDF (`pdf`) | ➖ | ❌ |
 | Texinfo (`texinfo`) | ➖ | ❌ |
-| Typst (`typst`) | ❌ | ✅ |
+| Typst (`typst`) | ✅ | ✅ |
 
 ### Lightweight markup
 
@@ -202,6 +202,12 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - `\raisebox` in its optional depth/height form drops the box content; purely visual commands
   (font-size macros, `\bfseries` scoping, spacing macros) drop styling and keep only the inner
   content.
+
+### `typst` ✅
+- Content holding several blocks that opens mid-paragraph folds into the surrounding paragraph
+  rather than splitting it.
+- A `math.` function called from code mode (`#math.frac(1, 2)`) contributes no math node.
+- An unknown `#emoji.` name contributes nothing instead of reporting invalid input.
 
 ### `org` ✅
 - Drawers: a headline's property drawer is consumed and supplies its `CUSTOM_ID` as the heading
@@ -363,7 +369,7 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 **Not started:** `asciidoc`, `biblatex`, `bibtex`, `bits`, `creole`, `csljson`, `djot`, `docbook` (+
 `4`, `5`), `endnotexml`, `fb2`, `haddock`, `jats` (+ `_archiving`, `_articleauthoring`,
 `_publishing`), `mdoc`, `muse`, `pod`, `pptx`, `ris`, `t2t`, `textile`, `tikiwiki`, `twiki`,
-`typst`, `vimwiki`, `xlsx`, `xml`.
+`vimwiki`, `xlsx`, `xml`.
 
 ---
 

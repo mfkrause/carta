@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+boxed first
+
+boxed second
+
+centered first
+
+centered second
+
+turned first
+
+turned second
+
+colored first
+
+colored second
+
+- boxed item
+
+- second item
+
+a single line stays inline
+
+centered inline body
+
+colored inline body
+
+turned inline body

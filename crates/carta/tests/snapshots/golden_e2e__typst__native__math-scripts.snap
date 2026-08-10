@@ -1,0 +1,49 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Attachment"
+    , Space
+    , Str "slots:"
+    , Space
+    , Math
+        InlineMath
+        "{}_{c}^{a}\\underset{1}{\\overset{n}{\\sum_{d}^{b}}}"
+    , Str "."
+    ]
+, Para
+    [ Str "Repeated"
+    , Space
+    , Str "scripts:"
+    , Space
+    , Math InlineMath "{x^{2}}^{3}"
+    , Str ","
+    , Space
+    , Math InlineMath "{y_{1}}_{2}"
+    , Str ","
+    , Space
+    , Math InlineMath "{z_{b}^{a}}^{c}"
+    , Str "."
+    ]
+, Para
+    [ Str "Grouped"
+    , Space
+    , Str "digits:"
+    , Space
+    , Math InlineMath "1,234 + 5,678"
+    , Str "."
+    ]
+, Para
+    [ Str "Percent:"
+    , Space
+    , Math InlineMath "50\\%"
+    , Space
+    , Str "and"
+    , Space
+    , Math InlineMath "x + 3\\%"
+    , Str "."
+    ]
+, Para
+    [ Math DisplayMath "\\lim\\limits_{x \\rightarrow 0}f(x)" ]
+]

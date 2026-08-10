@@ -14,9 +14,9 @@ use carta_ast::{
 use carta_core::{Result, WrapMode, Writer, WriterOptions};
 
 use crate::common::{
-    FILL_COLUMN, NotesHost, Piece, append_notes, escape_html_attr, fill, fill_groups, indent_block,
-    is_loose, item_separator, normalize_image_attr, offset_as_i32, ordered_marker, quote_marks,
-    render_html_attr, render_html_fragment_attr,
+    FILL_COLUMN, NotesHost, Piece, append_notes, escape_html_attr, escape_xml, fill, fill_groups,
+    indent_block, is_loose, item_separator, normalize_image_attr, offset_as_i32, ordered_marker,
+    quote_marks, render_html_attr, render_html_fragment_attr,
 };
 use crate::markdown_common::{
     attr_is_empty, atx_heading_marker, autolink, begins_character_reference, begins_named_entity,
@@ -304,6 +304,9 @@ impl State {
     }
 
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>, line_start: bool) {
+        if self.in_anchor && self.anchor_inline(inline, out) {
+            return;
+        }
         match inline {
             Inline::Str(text) => out.push(Piece::text(escape_str(text, line_start))),
             Inline::Emph(inlines) => match inlines.as_slice() {
@@ -395,6 +398,47 @@ impl State {
         }
     }
 
+    /// Render the nodes an anchor body spells as html rather than markdown, reporting whether the
+    /// node was one of them. Markdown delimiters carry no meaning between `<a>` tags.
+    fn anchor_inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) -> bool {
+        match inline {
+            Inline::Str(text) => out.push(Piece::text(escape_xml(text, false))),
+            Inline::Emph(inlines) => self.anchor_tag("em", inlines, out),
+            Inline::Strong(inlines) => self.anchor_tag("strong", inlines, out),
+            Inline::Strikeout(inlines) => self.anchor_tag("del", inlines, out),
+            Inline::Code(_, text) => out.push(Piece::text(format!(
+                "<code>{}</code>",
+                escape_xml(text, false)
+            ))),
+            Inline::Cite(citations, inlines) => {
+                let keys: Vec<&str> = citations.iter().map(|cite| cite.id.as_str()).collect();
+                push_html(
+                    out,
+                    &format!(
+                        "<span class=\"citation\" data-cites=\"{}\">",
+                        escape_html_attr(&keys.join(" "))
+                    ),
+                    true,
+                );
+                self.extend_pieces(inlines, out, false);
+                out.push(Piece::text("</span>"));
+            }
+            Inline::LineBreak => {
+                out.push(Piece::text("<br />"));
+                out.push(Piece::Hard);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    /// An html element wrapping anchor-body content, kept even when that content is empty.
+    fn anchor_tag(&mut self, tag: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        out.push(Piece::text(format!("<{tag}>")));
+        self.extend_pieces(inlines, out, false);
+        out.push(Piece::text(format!("</{tag}>")));
+    }
+
     fn wrap_markup(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
         if inlines.is_empty() {
             return;
@@ -455,7 +499,7 @@ impl State {
     }
 
     fn image(&mut self, attr: &Attr, inlines: &[Inline], target: &Target, out: &mut Vec<Piece>) {
-        if attr_is_empty(attr) {
+        if attr_is_empty(attr) && !self.in_anchor {
             out.push(Piece::text("!["));
             self.extend_pieces(inlines, out, false);
             out.push(Piece::text(format!("]({})", destination(target))));

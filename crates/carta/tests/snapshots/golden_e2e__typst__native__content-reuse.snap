@@ -1,0 +1,70 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "First:" , Space , Strong [ Str "note" ] , Str "." ]
+, Para
+    [ Str "Second:"
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "note" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Third:"
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "note" ]
+    , Str ","
+    , Space
+    , Str "then"
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "note" ]
+    , Str "."
+    ]
+, Para
+    [ Str "Fourth:"
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "note" ]
+    , Str ","
+    , Space
+    , Str "then"
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "note" ]
+    , Str ","
+    , Space
+    , Str "then"
+    , Space
+    , Strong [ Str "note" ]
+    , Space
+    , Str "and"
+    , Space
+    , Strong [ Str "note" ]
+    , Str "."
+    ]
+]

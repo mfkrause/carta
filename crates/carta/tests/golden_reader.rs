@@ -141,6 +141,7 @@ reader_golden! {
     reader_ast_snapshots_rst => "rst",
     reader_ast_snapshots_rtf => "rtf",
     reader_ast_snapshots_tsv => "tsv",
+    reader_ast_snapshots_typst => "typst",
 }
 
 #[test]
@@ -280,6 +281,7 @@ reader_golden! {
     reader_ext_ast_snapshots_rst_gfm_auto_identifiers => "rst+gfm_auto_identifiers",
     reader_ext_ast_snapshots_rst_smart => "rst+smart",
     reader_ext_ast_snapshots_rst_auto_identifiers => "rst-auto_identifiers",
+    reader_ext_ast_snapshots_typst_east_asian_line_breaks => "typst+east_asian_line_breaks",
 }
 
 #[test]

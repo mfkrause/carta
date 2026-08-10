@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Top level}
+
+Body under the top heading.
+
+\subsection{Second level}
+
+\subsubsection{Third level}
+
+\paragraph{Fourth level}
+
+\subparagraph{Fifth level}
+
+Sixth level
+
+\section{\texorpdfstring{Heading with \textbf{strong} and
+\emph{emph}}{Heading with strong and emph}}
+
+\subsection{Inline heading text}

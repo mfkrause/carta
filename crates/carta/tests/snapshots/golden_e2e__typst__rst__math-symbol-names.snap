@@ -1,0 +1,12 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Relations: :math:`\mapsto`, :math:`\vartriangleleft`,
+:math:`\vartriangleright`, :math:`≝`, :math:`≟`.
+
+Letters: :math:`א`, :math:`ħ`, :math:`⧞`.
+
+Marks: :math:`✓`, :math:`✗`, :math:`\complement`, :math:`⚬`.
+
+Fences: :math:`⦅`, :math:`⟦`.

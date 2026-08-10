@@ -121,24 +121,7 @@ impl State {
             Block::HorizontalRule => "-----".to_owned(),
             Block::Table(table) => self.table(table),
             Block::Figure(attr, _, blocks) => self.figure(attr, blocks),
-            Block::Div(attr, blocks) => {
-                if blocks.is_empty() {
-                    return format!("<div{}>\n</div>", render_html_attr(attr));
-                }
-                let rendered = self.render_blocks(blocks, false);
-                let body = join_blocks(&rendered, false);
-                let trailing = match rendered.last() {
-                    Some((block, _))
-                        if matches!(block, Block::Para(_) | Block::Div(..))
-                            || needs_trailing_blank(block) =>
-                    {
-                        "\n\n"
-                    }
-                    Some(_) => "\n",
-                    None => "",
-                };
-                format!("<div{}>\n{body}{trailing}</div>", render_html_attr(attr))
-            }
+            Block::Div(attr, blocks) => self.division(attr, blocks),
             Block::LineBlock(lines) => self.line_block(lines),
         }
     }
@@ -167,8 +150,36 @@ impl State {
                 .collect(),
             attributes: attr.attributes.clone(),
         };
-        let body = self.blocks(blocks);
-        format!("<div{}>\n{body}\n</div>", render_html_attr(&merged))
+        let legacy_image = matches!(
+            blocks,
+            [Block::Para(inlines)]
+                if matches!(inlines.as_slice(), [Inline::Image(_, _, target)] if target.title == "fig:")
+        );
+        if legacy_image {
+            let body = self.blocks(blocks);
+            format!("<div{}>\n{body}\n</div>", render_html_attr(&merged))
+        } else {
+            self.division(&merged, blocks)
+        }
+    }
+
+    fn division(&mut self, attr: &Attr, blocks: &[Block]) -> String {
+        if blocks.is_empty() {
+            return format!("<div{}>\n</div>", render_html_attr(attr));
+        }
+        let rendered = self.render_blocks(blocks, false);
+        let body = join_blocks(&rendered, false);
+        let trailing = match rendered.last() {
+            Some((block, _))
+                if matches!(block, Block::Para(_) | Block::Div(..))
+                    || needs_trailing_blank(block) =>
+            {
+                "\n\n"
+            }
+            Some(_) => "\n",
+            None => "",
+        };
+        format!("<div{}>\n{body}{trailing}</div>", render_html_attr(attr))
     }
 
     fn line_block(&mut self, lines: &[Vec<Inline>]) -> String {

@@ -1,0 +1,65 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Div
+    ( "" , [ "box" ] , [] )
+    [ Para [ Str "boxed" , Space , Str "first" ]
+    , Para [ Str "boxed" , Space , Str "second" ]
+    ]
+, Div
+    ( "" , [] , [ ( "align" , "center" ) ] )
+    [ Para [ Str "centered" , Space , Str "first" ]
+    , Para [ Str "centered" , Space , Str "second" ]
+    ]
+, Div
+    ( "" , [ "rotate" ] , [ ( "angle" , "45.0" ) ] )
+    [ Para [ Str "turned" , Space , Str "first" ]
+    , Para [ Str "turned" , Space , Str "second" ]
+    ]
+, Para [ Str "colored" , Space , Str "first" ]
+, Para [ Str "colored" , Space , Str "second" ]
+, Div
+    ( "" , [ "box" ] , [] )
+    [ BulletList
+        [ [ Para [ Str "boxed" , Space , Str "item" ] ]
+        , [ Para [ Str "second" , Space , Str "item" ] ]
+        ]
+    ]
+, Para
+    [ Span
+        ( "" , [ "box" ] , [] )
+        [ Str "a"
+        , Space
+        , Str "single"
+        , Space
+        , Str "line"
+        , Space
+        , Str "stays"
+        , Space
+        , Str "inline"
+        ]
+    ]
+, Para
+    [ Span
+        ( "" , [] , [ ( "align" , "center" ) ] )
+        [ Str "centered"
+        , Space
+        , Str "inline"
+        , Space
+        , Str "body"
+        ]
+    ]
+, Para
+    [ Str "colored"
+    , Space
+    , Str "inline"
+    , Space
+    , Str "body"
+    ]
+, Para
+    [ Span
+        ( "" , [ "rotate" ] , [ ( "angle" , "45.0" ) ] )
+        [ Str "turned" , Space , Str "inline" , Space , Str "body" ]
+    ]
+]

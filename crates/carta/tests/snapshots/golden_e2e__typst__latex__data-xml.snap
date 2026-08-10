@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\textless r
+a=``1``\textgreater text\textless c/\textgreater\textless/r\textgreater{}

@@ -1,0 +1,6 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Found: two, at 4. Bounds: true, true, true. Parts: two, two, one 2
+three. Letters: 5, a.

@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Alignment:"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\begin{pmatrix}\n1 & 2\n\\end{pmatrix}"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Rows:"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\begin{pmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{pmatrix}"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Vector:"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\begin{pmatrix}\na \\\\\nb\n\\end{pmatrix}"]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Cases:"},{"t":"Space"},{"t":"Math","c":[{"t":"InlineMath"},"\\begin{cases}\na \\\\\nb\n\\end{cases}"]},{"t":"Str","c":"."}]}]}

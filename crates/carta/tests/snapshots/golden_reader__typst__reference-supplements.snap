@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Header","c":[1,["setup",[],[]],[{"t":"Str","c":"Setup"}]]},{"t":"Para","c":[{"t":"Str","c":"Read"},{"t":"Space"},{"t":"Link","c":[["",["ref"],[]],[{"t":"Str","c":"Chapter"}],["#setup",""]]},{"t":"Str","c":"before"},{"t":"Space"},{"t":"Link","c":[["",["ref"],[]],[{"t":"Str","c":"the"},{"t":"Space"},{"t":"Emph","c":[{"t":"Str","c":"opening"}]},{"t":"Space"},{"t":"Str","c":"part"}],["#setup",""]]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"An"},{"t":"Space"},{"t":"Str","c":"empty"},{"t":"Space"},{"t":"Str","c":"supplement:"},{"t":"Space"},{"t":"Link","c":[["",["ref"],[]],[],["#setup",""]]},{"t":"Str","c":"."}]},{"t":"Para","c":[{"t":"Str","c":"Unresolved:"},{"t":"Space"},{"t":"Cite","c":[[{"citationId":"nowhere","citationPrefix":[],"citationSuffix":[],"citationMode":{"t":"NormalCitation"},"citationNoteNum":0,"citationHash":0}],[{"t":"Str","c":"[nowhere]"}]]},{"t":"Str","c":"."}]}]}

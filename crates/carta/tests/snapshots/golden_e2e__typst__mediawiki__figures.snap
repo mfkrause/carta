@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<div class="figure">
+[[File:logo.png]]
+
+</div>
+
+{| class="wikitable"
+|+ A tabular caption.
+|-
+| x
+| y
+|}
+
+An inline [[File:inline.png]] in a paragraph.

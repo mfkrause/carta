@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Arrows:"
+    , Space
+    , Str "\8594,"
+    , Space
+    , Str "\8649,"
+    , Space
+    , Str "\8618."
+    ]
+, Para
+    [ Str "Marks:"
+    , Space
+    , Str "\8902,"
+    , Space
+    , Str "\8727,"
+    , Space
+    , Str "\10007,"
+    , Space
+    , Str "\10003."
+    ]
+, Para
+    [ Str "Shapes:"
+    , Space
+    , Str "\9679,"
+    , Space
+    , Str "\9675,"
+    , Space
+    , Str "\9650."
+    ]
+, Para
+    [ Str "Spaces:"
+    , Space
+    , Str "a\160"
+    , Space
+    , Str "b\8195"
+    , Space
+    , Str "c\8201"
+    , Space
+    , Str "d."
+    ]
+]

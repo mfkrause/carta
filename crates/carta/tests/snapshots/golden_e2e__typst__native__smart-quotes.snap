@@ -1,0 +1,45 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "He"
+    , Space
+    , Str "said\8220hello\8220and"
+    , Space
+    , Str "left."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "quote"
+    , Space
+    , Str "after"
+    , Space
+    , Str "a"
+    , Space
+    , Str "letter:"
+    , Space
+    , Str "word\8220quoted\8220word."
+    ]
+, Para
+    [ Str "Normal"
+    , Space
+    , Str "\8220quoted"
+    , Space
+    , Str "phrase\8221"
+    , Space
+    , Str "here."
+    ]
+, Para
+    [ Str "Apostrophes:"
+    , Space
+    , Str "it\8217s"
+    , Space
+    , Str "the"
+    , Space
+    , Str "reader\8217s"
+    , Space
+    , Str "job."
+    ]
+]

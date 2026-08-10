@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Ink" , Space , Str "is" , Space , Str "stocked." ]
+, Para
+    [ Str "Chalk" , Space , Str "is" , Space , Str "missing." ]
+, Para
+    [ Str "The"
+    , Space
+    , Str "notion"
+    , Space
+    , Str "is"
+    , Space
+    , Str "5."
+    ]
+, Para [ Str "Has" , Space , Str "an" , Space , Str "a." ]
+, Para
+    [ Str "Nested:"
+    , Space
+    , Str "pen"
+    , Space
+    , Str "is"
+    , Space
+    , Str "there."
+    ]
+]

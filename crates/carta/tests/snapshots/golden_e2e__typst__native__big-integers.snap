@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Literals:" , Space , Str "1.2345678901234568e29" ]
+, Para
+    [ Str "Sums:"
+    , Space
+    , Str "9223372036854775808,"
+    , Space
+    , Str "-9223372036854775809."
+    ]
+, Para
+    [ Str "Products:"
+    , Space
+    , Str "9999999999800000000001,"
+    , Space
+    , Str "6."
+    ]
+, Para
+    [ Str "Powers:"
+    , Space
+    , Str "1267650600228229401496703205376,"
+    , Space
+    , Str "51090942171709440000,"
+    , Space
+    , Str "100891344545564193334812497256,"
+    , Space
+    , Str "202843204931727360000."
+    ]
+, Para
+    [ Str "Division:"
+    , Space
+    , Str "33333333333333333333,"
+    , Space
+    , Str "2."
+    ]
+, Para
+    [ Str "Divisors:"
+    , Space
+    , Str "1152921504606846976,"
+    , Space
+    , Str "12."
+    ]
+]

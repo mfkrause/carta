@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"Found:"},{"t":"Space"},{"t":"Str","c":"two,"},{"t":"Space"},{"t":"Str","c":"at"},{"t":"Space"},{"t":"Str","c":"4."},{"t":"SoftBreak"},{"t":"Str","c":"Bounds:"},{"t":"Space"},{"t":"Str","c":"true,"},{"t":"Space"},{"t":"Str","c":"true,"},{"t":"Space"},{"t":"Str","c":"true."},{"t":"SoftBreak"},{"t":"Str","c":"Parts:"},{"t":"Space"},{"t":"Str","c":"two,"},{"t":"Space"},{"t":"Str","c":"two,"},{"t":"Space"},{"t":"Str","c":"one"},{"t":"Space"},{"t":"Str","c":"2"},{"t":"Space"},{"t":"Str","c":"three."},{"t":"SoftBreak"},{"t":"Str","c":"Letters:"},{"t":"Space"},{"t":"Str","c":"5,"},{"t":"Space"},{"t":"Str","c":"a."}]}]}

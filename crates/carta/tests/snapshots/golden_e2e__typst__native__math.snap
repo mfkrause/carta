@@ -1,0 +1,50 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Inline"
+    , Space
+    , Str "math"
+    , Space
+    , Math InlineMath "x^{2} + y^{2} = z^{2}"
+    , Space
+    , Str "inside"
+    , Space
+    , Str "a"
+    , Space
+    , Str "sentence."
+    ]
+, Para
+    [ Math
+        DisplayMath "\\sum_{i = 1}^{n}i = \\frac{n(n + 1)}{2}"
+    ]
+, Para
+    [ Str "Fractions"
+    , Space
+    , Str "and"
+    , Space
+    , Str "roots:"
+    , Space
+    , Math InlineMath "\\frac{a}{b}"
+    , Str ","
+    , Space
+    , Math InlineMath "\\sqrt{x}"
+    , Str ","
+    , Space
+    , Math InlineMath "\\sqrt[3]{x}"
+    , Str "."
+    ]
+, Para [ Str "Matrices:" ]
+, Para
+    [ Math
+        DisplayMath
+        "\\begin{pmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{pmatrix}"
+    ]
+, Para [ Str "Cases:" ]
+, Para
+    [ Math
+        DisplayMath
+        "\\begin{cases}\nx\\text{ if }y \\\\\nz\\text{ otherwise}\n\\end{cases}"
+    ]
+]

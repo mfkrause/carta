@@ -1,0 +1,11 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Relations: <math display="inline">\mapsto</math>, <math display="inline">\vartriangleleft</math>, <math display="inline">\vartriangleright</math>, <math display="inline">≝</math>, <math display="inline">≟</math>.
+
+Letters: <math display="inline">א</math>, <math display="inline">ħ</math>, <math display="inline">⧞</math>.
+
+Marks: <math display="inline">✓</math>, <math display="inline">✗</math>, <math display="inline">\complement</math>, <math display="inline">⚬</math>.
+
+Fences: <math display="inline">⦅</math>, <math display="inline">⟦</math>.

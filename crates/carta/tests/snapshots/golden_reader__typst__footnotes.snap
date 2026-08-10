@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_reader.rs
+expression: json
+---
+{"pandoc-api-version":[1,23,1,2],"meta":{},"blocks":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"sentence"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"a"},{"t":"Space"},{"t":"Str","c":"footnote."},{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"note"},{"t":"Space"},{"t":"Str","c":"body."}]}]}]},{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"second"},{"t":"Space"},{"t":"Str","c":"note"},{"t":"Note","c":[{"t":"Para","c":[{"t":"Str","c":"A"},{"t":"Space"},{"t":"Str","c":"note"},{"t":"Space"},{"t":"Str","c":"with"},{"t":"Space"},{"t":"Str","c":"two"},{"t":"Space"},{"t":"Str","c":"blocks."}]},{"t":"Para","c":[{"t":"Str","c":"The"},{"t":"Space"},{"t":"Str","c":"second"},{"t":"Space"},{"t":"Str","c":"block."}]}]}]}]}

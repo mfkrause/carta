@@ -21,7 +21,6 @@ mod resolve;
 pub(crate) mod scan;
 mod table;
 mod texttable;
-mod yaml;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;

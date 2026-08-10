@@ -1,0 +1,97 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Punctuation:"
+    , Space
+    , Str "\8211,"
+    , Space
+    , Str "\8212,"
+    , Space
+    , Str "%,"
+    , Space
+    , Str "#,"
+    , Space
+    , Str "@,"
+    , Space
+    , Str "\8224."
+    ]
+, Para
+    [ Str "Currency:"
+    , Space
+    , Str "\8364,"
+    , Space
+    , Str "$,"
+    , Space
+    , Str "\163,"
+    , Space
+    , Str "\165."
+    ]
+, Para
+    [ Str "Marks:"
+    , Space
+    , Str "\8226,"
+    , Space
+    , Str "\8902,"
+    , Space
+    , Str "\10003,"
+    , Space
+    , Str "\169."
+    ]
+, Para
+    [ Str "Quotes:"
+    , Space
+    , Str "\8220,"
+    , Space
+    , Str "\8221,"
+    , Space
+    , Str "\171,"
+    , Space
+    , Str "\187."
+    ]
+, Para
+    [ Str "Brackets:"
+    , Space
+    , Str "\10214,"
+    , Space
+    , Str "\10215."
+    ]
+, Para
+    [ Str "Shapes:"
+    , Space
+    , Str "\9711,"
+    , Space
+    , Str "\11044,"
+    , Space
+    , Str "\9654."
+    ]
+, Para
+    [ Str "In"
+    , Space
+    , Str "math:"
+    , Space
+    , Math InlineMath "a \\cdot b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\pm b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\bullet b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\bullet b"
+    , Str "."
+    ]
+, Para
+    [ Str "More"
+    , Space
+    , Str "math:"
+    , Space
+    , Math InlineMath "a\10214b\10215"
+    , Str ","
+    , Space
+    , Math InlineMath "a ::= b"
+    , Str "."
+    ]
+]

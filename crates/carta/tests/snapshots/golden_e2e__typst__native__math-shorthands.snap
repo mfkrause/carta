@@ -1,0 +1,101 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Arrows:"
+    , Space
+    , Math InlineMath "a \\rightarrow b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\leftarrow b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\leftarrow > b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\mapsto b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\rightarrowtail b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\twoheadrightarrow b"
+    , Str "."
+    ]
+, Para
+    [ Str "Long"
+    , Space
+    , Str "arrows:"
+    , Space
+    , Math InlineMath "a \\longrightarrow b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\longleftarrow b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\longleftrightarrow b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\Longrightarrow b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\Longleftarrow b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\Longleftrightarrow b"
+    , Str "."
+    ]
+, Para
+    [ Str "Order:"
+    , Space
+    , Math InlineMath "a \\ll b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\lll b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\gg b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\ggg b"
+    , Str "."
+    ]
+, Para
+    [ Str "Definitions:"
+    , Space
+    , Math InlineMath "a \8788 b"
+    , Str ","
+    , Space
+    , Math InlineMath "a ::= b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \8789 b"
+    , Str "."
+    ]
+, Para
+    [ Str "Relations:"
+    , Space
+    , Math InlineMath "a \\neq b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\leq b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\geq b"
+    , Str ","
+    , Space
+    , Math InlineMath "a \\sim b"
+    , Str "."
+    ]
+, Para
+    [ Str "Fences:"
+    , Space
+    , Math InlineMath "\10214a\10215"
+    , Space
+    , Str "and"
+    , Space
+    , Math InlineMath "\\left\\| a \\right\\|"
+    , Str "."
+    ]
+]

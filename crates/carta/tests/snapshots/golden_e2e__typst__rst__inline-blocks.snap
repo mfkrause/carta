@@ -1,0 +1,46 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Before
+
+.. figure:: logo.png
+
+   A caption.
+
+after.
+
+Text
+
+= =
+a b
+= =
+
+more text.
+
+Lead
+
+A heading
+=========
+
+trail.
+
+- item
+
+  - nested
+
+  tail
+
+Quoted
+
+   A quotation.
+
+onward.
+
+Code
+
+::
+
+   let x = 1
+
+onward.

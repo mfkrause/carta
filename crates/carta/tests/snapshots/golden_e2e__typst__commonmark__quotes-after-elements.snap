@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+*word*“quoted” and **bold**‘single’.
+
+A <span class="box">thing</span> “spaced” quote.
+
+*a*“b”*c*

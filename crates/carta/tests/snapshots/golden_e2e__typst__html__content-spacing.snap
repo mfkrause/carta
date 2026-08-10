@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>A <a href="https://example.com"> linked body </a> keeps the padding
+of its content.</p>
+<p>A box holds <span class="box"> its own spacing </span> within the
+line.</p>
+<p>An underlined <u> padded body </u> sits beside plain words.</p>
+<blockquote>
+<p>A spaced quotation.</p>
+<p>—  A. Author </p>
+</blockquote>
+<p>A footnote body is trimmed <a href="#fn1" class="footnote-ref"
+id="fnref1" role="doc-noteref"><sup>1</sup></a> here.</p>
+<figure>
+<p><img src="diagram.png" /></p>
+<figcaption><p>Figure caption.</p></figcaption>
+</figure>
+<p>Loop rounds join with their padding: 1 2 3 .</p>
+<p>A measurement of 6.0em, a ratio of 50%, and 1.5e-2 exact.</p>
+<p><img src="diagram.png" style="width:1000pt" /></p>
+<p>The binding kept survives its statement.</p>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>Trimmed on both ends.<a href="#fnref1"
+class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>

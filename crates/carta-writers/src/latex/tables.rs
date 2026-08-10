@@ -50,7 +50,12 @@ pub(super) fn render_table(
     if let Some(caption) = &caption {
         parts.push(caption.clone());
         parts.push(head_block(&head_lines, "\\endfirsthead"));
-        parts.push(head_block(&head_lines, "\\endhead"));
+        // Without head rows the repeated head draws nothing, so a rule of its own would double up.
+        if head_lines.is_empty() {
+            parts.push("\\endhead".to_owned());
+        } else {
+            parts.push(head_block(&head_lines, "\\endhead"));
+        }
     } else {
         parts.push(head_block(&head_lines, "\\endhead"));
     }

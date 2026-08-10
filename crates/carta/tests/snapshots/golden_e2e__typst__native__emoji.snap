@@ -1,0 +1,38 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "sun"
+    , Space
+    , Str "\9728"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "rocket"
+    , Space
+    , Str "\128640."
+    ]
+, Para
+    [ Str "Faces"
+    , Space
+    , Str "\128516"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\128557."
+    ]
+, Para
+    [ Str "Arrows"
+    , Space
+    , Str "\10145"
+    , Space
+    , Str "and"
+    , Space
+    , Str "\11013."
+    ]
+]

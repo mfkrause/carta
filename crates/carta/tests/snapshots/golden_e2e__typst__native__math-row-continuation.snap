@@ -1,0 +1,15 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Math
+        DisplayMath
+        "\\begin{array}{r}\na = b \\\\\nc = d \\\\\ne = f\n\\end{array}"
+    ]
+, Para
+    [ Math
+        DisplayMath
+        "\\begin{pmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{pmatrix}"
+    ]
+]

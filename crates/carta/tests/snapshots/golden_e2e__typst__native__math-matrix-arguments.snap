@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Alignment:"
+    , Space
+    , Math InlineMath "\\begin{pmatrix}\n1 & 2\n\\end{pmatrix}"
+    , Str "."
+    ]
+, Para
+    [ Str "Rows:"
+    , Space
+    , Math
+        InlineMath
+        "\\begin{pmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{pmatrix}"
+    , Str "."
+    ]
+, Para
+    [ Str "Vector:"
+    , Space
+    , Math
+        InlineMath "\\begin{pmatrix}\na \\\\\nb\n\\end{pmatrix}"
+    , Str "."
+    ]
+, Para
+    [ Str "Cases:"
+    , Space
+    , Math InlineMath "\\begin{cases}\na \\\\\nb\n\\end{cases}"
+    , Str "."
+    ]
+]

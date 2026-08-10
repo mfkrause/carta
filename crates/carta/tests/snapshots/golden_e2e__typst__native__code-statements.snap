@@ -1,0 +1,17 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para [ Str "Area:" , Space , Str "12." ]
+, Para
+    [ Str "-3" , Space , Str "is" , Space , Str "negative." ]
+, Para
+    [ Str "Empty:"
+    , Space
+    , Str "0,"
+    , Space
+    , Str "-3,"
+    , Space
+    , Str "-4."
+    ]
+]

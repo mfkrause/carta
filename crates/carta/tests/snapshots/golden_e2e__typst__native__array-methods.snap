@@ -1,0 +1,70 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Grown:"
+    , Space
+    , Str "(0,"
+    , Space
+    , Str "1,"
+    , Space
+    , Str "4,"
+    , Space
+    , Str "9),"
+    , Space
+    , Str "4."
+    ]
+, Para
+    [ Str "Removed:"
+    , Space
+    , Str "1,"
+    , Space
+    , Str "popped:"
+    , Space
+    , Str "3,"
+    , Space
+    , Str "left:"
+    , Space
+    , Str "(9,"
+    , Space
+    , Str "2)."
+    ]
+, Para
+    [ Str "Folded:"
+    , Space
+    , Str "6,"
+    , Space
+    , Str "6."
+    , SoftBreak
+    , Str "Chosen:"
+    , Space
+    , Str "true,"
+    , Space
+    , Str "true,"
+    , Space
+    , Str "1."
+    , SoftBreak
+    , Str "Shaped:"
+    , Space
+    , Str "((1,"
+    , Space
+    , Str "3),"
+    , Space
+    , Str "(2,"
+    , Space
+    , Str "4)),"
+    , Space
+    , Str "(1,"
+    , Space
+    , Str "2,"
+    , Space
+    , Str "3),"
+    , Space
+    , Str "(3,"
+    , Space
+    , Str "2,"
+    , Space
+    , Str "1)."
+    ]
+]

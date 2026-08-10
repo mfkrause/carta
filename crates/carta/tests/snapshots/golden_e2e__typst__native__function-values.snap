@@ -1,0 +1,32 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "Renamed:"
+    , Space
+    , Emph [ Str "slanted" ]
+    , Str "."
+    , SoftBreak
+    , Str "Fixed:"
+    , Space
+    , Str "tinted."
+    , SoftBreak
+    , Str "Applied:"
+    , Space
+    , Emph [ Str "direct" ]
+    , Str ","
+    , Space
+    , Str "echo"
+    , Space
+    , Str "echo."
+    , SoftBreak
+    , Str "Passed:"
+    , Space
+    , Str "(2,"
+    , Space
+    , Str "3,"
+    , Space
+    , Str "4)."
+    ]
+]

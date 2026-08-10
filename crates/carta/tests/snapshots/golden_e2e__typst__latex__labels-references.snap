@@ -1,0 +1,28 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+\section{Introduction}
+
+\protect\phantomsection\label{intro}{}
+
+See \hyperref[intro]{{[}intro{]}} for context.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio]{plot.png}}
+\caption{A labelled figure.}
+\end{figure}
+
+\protect\phantomsection\label{fig-plot}{}
+
+Reference to \hyperref[fig-plot]{{[}fig-plot{]}} as well.
+
+A \hyperref[intro]{} written as a call.
+
+A \hyperref[intro]{link to a label} and a bare
+\hyperref[intro]{\#intro}.
+
+A \hyperref[intro]{Chapter} with its own supplement.
+
+A \hyperref[intro]{} built from a label call.

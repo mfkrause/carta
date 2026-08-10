@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Introduction
+
+See [intro] for context.
+
+[]
+
+Reference to [fig-plot] as well.
+
+A written as a call.
+
+A link to a label and a bare #intro.
+
+A Chapter with its own supplement.
+
+A built from a label call.

@@ -1,0 +1,89 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Para
+    [ Str "A"
+    , Space
+    , Str "first"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "with"
+    , Space
+    , Str "plain"
+    , Space
+    , Str "text"
+    , SoftBreak
+    , Str "continued"
+    , Space
+    , Str "on"
+    , Space
+    , Str "a"
+    , Space
+    , Str "second"
+    , Space
+    , Str "line."
+    ]
+, Para
+    [ Str "A"
+    , Space
+    , Str "second"
+    , Space
+    , Str "paragraph"
+    , Space
+    , Str "separated"
+    , Space
+    , Str "by"
+    , Space
+    , Str "a"
+    , Space
+    , Str "blank"
+    , Space
+    , Str "line."
+    ]
+, Para
+    [ Str "Escapes:"
+    , Space
+    , Str "*"
+    , Space
+    , Str "_"
+    , Space
+    , Str "#"
+    , Space
+    , Str "$"
+    , Space
+    , Str "\\"
+    , Space
+    , Str "<"
+    , Space
+    , Str "@"
+    , Space
+    , Str "and"
+    , Space
+    , Str "a"
+    , Space
+    , Str "literal"
+    , Space
+    , Str "~"
+    , Space
+    , Str "tilde."
+    ]
+, Para
+    [ Str "Line"
+    , Space
+    , Str "one"
+    , LineBreak
+    , Str "line"
+    , Space
+    , Str "two"
+    , Space
+    , Str "after"
+    , Space
+    , Str "a"
+    , Space
+    , Str "forced"
+    , Space
+    , Str "break."
+    ]
+]

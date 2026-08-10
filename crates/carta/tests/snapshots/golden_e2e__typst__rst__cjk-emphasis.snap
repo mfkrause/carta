@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+中文\ **粗体**\ 文字和\ *斜体*\ 文字。
+
+日本語の\ **強調**\ と\ *傾き*\ です。

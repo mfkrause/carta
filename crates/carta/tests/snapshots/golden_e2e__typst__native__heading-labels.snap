@@ -1,0 +1,31 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+[ Header 1 ( "intro" , [] , [] ) [ Str "Introduction" ]
+, Header 1 ( "methods" , [] , [] ) [ Str "Methods" ]
+, Header 1 ( "results" , [] , [] ) [ Str "Results" ]
+, Para
+    [ Str "and" , Space , Str "more" , Space , Str "text." ]
+, Para
+    [ Str "See"
+    , Space
+    , Link
+        ( "" , [ "ref" ] , [] ) [ Str "[intro]" ] ( "#intro" , "" )
+    , Str ","
+    , Space
+    , Link
+        ( "" , [ "ref" ] , [] )
+        [ Str "[methods]" ]
+        ( "#methods" , "" )
+    , Str ","
+    , Space
+    , Str "and"
+    , Space
+    , Link
+        ( "" , [ "ref" ] , [] )
+        [ Str "[results]" ]
+        ( "#results" , "" )
+    , Str "."
+    ]
+]

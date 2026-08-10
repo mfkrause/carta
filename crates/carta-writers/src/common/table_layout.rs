@@ -46,11 +46,23 @@ pub(crate) fn table_form(table: &Table) -> TableForm {
         .iter()
         .any(|spec| matches!(spec.width, ColWidth::ColWidth(fraction) if fraction > 0.0));
     let has_break = rows.iter().any(|row| row.cells.iter().any(cell_has_break));
-    if has_explicit || has_break {
-        TableForm::Multiline
-    } else {
-        TableForm::Simple
+    if !has_explicit && !has_break {
+        return TableForm::Simple;
     }
+    // Multiline cells are separated by blank lines, which a paragraph in a cell would be read as.
+    let has_paragraph = rows
+        .iter()
+        .any(|row| row.cells.iter().any(cell_is_paragraph));
+    if has_paragraph {
+        TableForm::Grid
+    } else {
+        TableForm::Multiline
+    }
+}
+
+/// Whether the cell holds a paragraph rather than the bare inline run the multiline form needs.
+fn cell_is_paragraph(cell: &Cell) -> bool {
+    matches!(cell.content.as_slice(), [Block::Para(_)])
 }
 
 /// A cell that holds at most one paragraph of inline content, the precondition for the simple and

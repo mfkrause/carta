@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Inline <code>raw text</code> and <code>call form</code> in a
+paragraph.</p>
+<pre><code>An unlabelled raw block
+spanning two lines.</code></pre>
+<pre class="rust"><code>fn main() {
+    println!(&quot;hi&quot;);
+}</code></pre>
+<pre class="python"><code>print(1)</code></pre>
+<pre><code>{r}
+plot(1)</code></pre>
+<pre class="rust"><code>,ignore
+fn main() {}</code></pre>
+<pre class="python"><code>print(1)</code></pre>
+<div class="box">
+<pre class="rust"><code>fn nested() {}</code></pre>
+</div>
+<ul>
+<li><p><code>inline raw</code></p></li>
+<li><p>plain item</p></li>
+</ul>

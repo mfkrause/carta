@@ -1,0 +1,22 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<ul>
+<li><p>first item whose text wraps onto a line indented less than the
+marker width</p></li>
+<li><p>second item</p>
+<ul>
+<li><p>nested item whose text also wraps under-indented</p></li>
+</ul></li>
+<li><p>third item</p></li>
+</ul>
+<ol>
+<li><p>numbered item continuing here</p></li>
+</ol>
+<dl>
+<dt>Term</dt>
+<dd>
+<p>a definition whose body wraps under-indented too</p>
+</dd>
+</dl>

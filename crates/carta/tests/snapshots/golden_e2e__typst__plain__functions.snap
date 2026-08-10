@@ -1,0 +1,20 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Hello, Ada! Hi, Bob!
+
+left and right
+
+3 positional, cm
+
+one leads 2 others
+
+  --- ---
+  A     B
+  C     D
+  --- ---
+
+- alpha
+
+- beta

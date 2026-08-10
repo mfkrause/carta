@@ -1,0 +1,5 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+<p>Matches: 2. First: 12, at 1. Split: a-b-c. Replaced: a#b2c.</p>

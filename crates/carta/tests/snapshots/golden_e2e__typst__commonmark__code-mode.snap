@@ -1,0 +1,25 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Hello, Typst!
+
+Twice three is 6.
+
+Shown when true.
+
+Item 1.
+
+Item 2.
+
+Item 3.
+
+Sum: 7.
+
+Read where it stands.
+
+Two plus two is 4.0
+
+Total: 7.
+
+Flag: true.

@@ -1,0 +1,19 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+The carta appears here: carta.
+
+Now '''''emphasis''''' reads as strong.
+
+Numbers N and N stand in.
+
+Section: Second level
+
+A (labelled link) here.
+
+An inline code snippet in a line.
+
+A drops out.
+
+Wrapped: The document tail.

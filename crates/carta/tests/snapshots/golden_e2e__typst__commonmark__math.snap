@@ -1,0 +1,24 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+Inline math *x*<sup>2</sup> + *y*<sup>2</sup> = *z*<sup>2</sup> inside a
+sentence.
+
+$$\sum\_{i = 1}^{n}i = \frac{n(n + 1)}{2}$$
+
+Fractions and roots: $\frac{a}{b}$, $\sqrt{x}$, $\sqrt\[3\]{x}$.
+
+Matrices:
+
+$$\begin{pmatrix}
+1 & 2 \\
+3 & 4
+\end{pmatrix}$$
+
+Cases:
+
+$$\begin{cases}
+x\text{ if }y \\
+z\text{ otherwise}
+\end{cases}$$

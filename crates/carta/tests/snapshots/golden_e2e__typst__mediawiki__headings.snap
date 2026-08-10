@@ -1,0 +1,21 @@
+---
+source: crates/carta/tests/golden_e2e.rs
+expression: output
+---
+= Top level =
+
+Body under the top heading.
+
+== Second level ==
+
+=== Third level ===
+
+==== Fourth level ====
+
+===== Fifth level =====
+
+====== Sixth level ======
+
+= Heading with '''strong''' and ''emph'' =
+
+== Inline heading text ==
