@@ -2,542 +2,542 @@
 # Measurements only: edit by re-running the suite, not by hand.
 
 [meta]
-date = "2026-07-27"
-carta = "0.0.8"
+date = "2026-08-11"
+carta = "0.0.9"
 pandoc = "3.10"
 hyperfine = "1.20.0"
-runner = "Apple M1 Pro (10 cores), 16 GB RAM, macOS 26.5 (arm64)"
-warmup = 3
-runs = 12
+runner = "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz (4 cores), 16 GB RAM, Ubuntu 24.04.4 LTS (x86_64)"
+warmup = 5
+runs = 20
 
 [binary]
-carta = 8874064
-pandoc = 188563376
+carta = 12297072
+pandoc = 162316016
 
 [[result]]
 surface = "reader"
 group = "commonmark → json"
 bytes = 13368
-runs = 12
-carta-ms = 3.67
-carta-sd-ms = 0.34
-pandoc-ms = 43.09
-pandoc-sd-ms = 1.41
-carta-rss = 4947968
-pandoc-rss = 113016832
+runs = 20
+carta-ms = 2.01
+carta-sd-ms = 0.27
+pandoc-ms = 49.32
+pandoc-sd-ms = 5.35
+carta-rss = 7811072
+pandoc-rss = 122384384
 
 [[result]]
 surface = "reader"
 group = "commonmark → json"
 bytes = 103602
-runs = 12
-carta-ms = 5.61
-carta-sd-ms = 0.98
-pandoc-ms = 92.23
-pandoc-sd-ms = 1.91
-carta-rss = 8650752
-pandoc-rss = 127713280
+runs = 20
+carta-ms = 6.26
+carta-sd-ms = 1.05
+pandoc-ms = 120.25
+pandoc-sd-ms = 4.01
+carta-rss = 10801152
+pandoc-rss = 135229440
 
 [[result]]
 surface = "reader"
 group = "commonmark → json"
 bytes = 1049388
-runs = 12
-carta-ms = 23.76
-carta-sd-ms = 0.64
-pandoc-ms = 542.03
-pandoc-sd-ms = 8.84
-carta-rss = 51200000
-pandoc-rss = 236797952
+runs = 20
+carta-ms = 43.41
+carta-sd-ms = 2.9
+pandoc-ms = 871.98
+pandoc-sd-ms = 12.75
+carta-rss = 43958272
+pandoc-rss = 247115776
 
 [[result]]
 surface = "reader"
 group = "html → json"
 bytes = 19092
-runs = 12
-carta-ms = 3.24
-carta-sd-ms = 0.25
-pandoc-ms = 57.61
-pandoc-sd-ms = 4.34
-carta-rss = 4767744
-pandoc-rss = 115163136
+runs = 20
+carta-ms = 2.26
+carta-sd-ms = 0.14
+pandoc-ms = 66.15
+pandoc-sd-ms = 5.2
+carta-rss = 8077312
+pandoc-rss = 123965440
 
 [[result]]
 surface = "reader"
 group = "html → json"
 bytes = 148249
-runs = 12
-carta-ms = 5.7
-carta-sd-ms = 0.32
-pandoc-ms = 205.49
-pandoc-sd-ms = 5.25
-carta-rss = 9650176
-pandoc-rss = 157024256
+runs = 20
+carta-ms = 7.75
+carta-sd-ms = 1.14
+pandoc-ms = 303.07
+pandoc-sd-ms = 12.34
+carta-rss = 12795904
+pandoc-rss = 163868672
 
 [[result]]
 surface = "reader"
 group = "html → json"
 bytes = 1505025
-runs = 12
-carta-ms = 29.92
-carta-sd-ms = 0.9
-pandoc-ms = 1387.98
-pandoc-sd-ms = 9.19
-carta-rss = 60129280
-pandoc-rss = 490487808
+runs = 20
+carta-ms = 62.53
+carta-sd-ms = 0.92
+pandoc-ms = 2226.68
+pandoc-sd-ms = 21.84
+carta-rss = 64851968
+pandoc-rss = 500264960
 
 [[result]]
 surface = "writer"
 group = "json → html"
 bytes = 12631
-runs = 12
-carta-ms = 4.23
-carta-sd-ms = 0.27
-pandoc-ms = 30.04
-pandoc-sd-ms = 0.77
-carta-rss = 6340608
-pandoc-rss = 45842432
-
-[[result]]
-surface = "writer"
-group = "json → html"
-bytes = 115411
-runs = 12
-carta-ms = 4.31
-carta-sd-ms = 0.12
-pandoc-ms = 40.64
-pandoc-sd-ms = 4.72
-carta-rss = 6651904
-pandoc-rss = 65257472
-
-[[result]]
-surface = "writer"
-group = "json → html"
-bytes = 1169804
-runs = 12
-carta-ms = 6.82
-carta-sd-ms = 0.18
-pandoc-ms = 112.94
-pandoc-sd-ms = 4.71
-carta-rss = 9076736
-pandoc-rss = 129236992
-
-[[result]]
-surface = "writer"
-group = "json → latex"
-bytes = 12631
-runs = 12
-carta-ms = 4.4
-carta-sd-ms = 0.28
-pandoc-ms = 30.45
-pandoc-sd-ms = 0.75
-carta-rss = 6438912
-pandoc-rss = 43892736
-
-[[result]]
-surface = "writer"
-group = "json → latex"
-bytes = 115411
-runs = 12
-carta-ms = 4.35
+runs = 20
+carta-ms = 2.32
 carta-sd-ms = 0.06
-pandoc-ms = 33.49
-pandoc-sd-ms = 5.09
-carta-rss = 6815744
-pandoc-rss = 59392000
+pandoc-ms = 14.23
+pandoc-sd-ms = 2.4
+carta-rss = 8687616
+pandoc-rss = 43671552
 
 [[result]]
 surface = "writer"
-group = "json → latex"
-bytes = 1169804
-runs = 12
-carta-ms = 7.46
-carta-sd-ms = 0.15
-pandoc-ms = 103.67
-pandoc-sd-ms = 1.36
-carta-rss = 9388032
-pandoc-rss = 128794624
-
-[[result]]
-surface = "writer"
-group = "json → rst"
-bytes = 12631
-runs = 12
-carta-ms = 3.4
-carta-sd-ms = 0.19
-pandoc-ms = 30.34
-pandoc-sd-ms = 0.66
-carta-rss = 3784704
-pandoc-rss = 41451520
-
-[[result]]
-surface = "writer"
-group = "json → rst"
+group = "json → html"
 bytes = 115411
-runs = 12
-carta-ms = 3.1
-carta-sd-ms = 0.2
-pandoc-ms = 29.98
-pandoc-sd-ms = 0.73
-carta-rss = 4358144
-pandoc-rss = 43237376
-
-[[result]]
-surface = "writer"
-group = "json → rst"
-bytes = 1169804
-runs = 12
-carta-ms = 5.91
-carta-sd-ms = 0.22
-pandoc-ms = 91.9
-pandoc-sd-ms = 2.05
-carta-rss = 6946816
-pandoc-rss = 128237568
-
-[[result]]
-surface = "writer"
-group = "json → plain"
-bytes = 12631
-runs = 12
-carta-ms = 2.6
-carta-sd-ms = 0.06
-pandoc-ms = 30.95
-pandoc-sd-ms = 0.77
-carta-rss = 3751936
-pandoc-rss = 41730048
-
-[[result]]
-surface = "writer"
-group = "json → plain"
-bytes = 115411
-runs = 12
-carta-ms = 3.15
-carta-sd-ms = 0.34
-pandoc-ms = 31.52
-pandoc-sd-ms = 3.21
-carta-rss = 4423680
-pandoc-rss = 65552384
-
-[[result]]
-surface = "writer"
-group = "json → plain"
-bytes = 1169804
-runs = 12
-carta-ms = 5.49
-carta-sd-ms = 0.16
-pandoc-ms = 92.01
-pandoc-sd-ms = 2.81
-carta-rss = 6979584
-pandoc-rss = 128647168
-
-[[result]]
-surface = "writer"
-group = "json → commonmark"
-bytes = 12631
-runs = 12
+runs = 20
 carta-ms = 2.69
-carta-sd-ms = 0.19
-pandoc-ms = 30.19
-pandoc-sd-ms = 1.02
-carta-rss = 3751936
-pandoc-rss = 43778048
+carta-sd-ms = 0.09
+pandoc-ms = 26.98
+pandoc-sd-ms = 2.58
+carta-rss = 8744960
+pandoc-rss = 74686464
 
 [[result]]
 surface = "writer"
-group = "json → commonmark"
-bytes = 115411
-runs = 12
-carta-ms = 3.26
-carta-sd-ms = 0.27
-pandoc-ms = 44.8
-pandoc-sd-ms = 6.17
-carta-rss = 4423680
-pandoc-rss = 66387968
-
-[[result]]
-surface = "writer"
-group = "json → commonmark"
+group = "json → html"
 bytes = 1169804
-runs = 12
-carta-ms = 5.62
-carta-sd-ms = 0.19
-pandoc-ms = 183.42
-pandoc-sd-ms = 5.53
-carta-rss = 7225344
-pandoc-rss = 129482752
+runs = 20
+carta-ms = 6.87
+carta-sd-ms = 0.18
+pandoc-ms = 152.65
+pandoc-sd-ms = 7.96
+carta-rss = 11366400
+pandoc-rss = 140390400
 
 [[result]]
 surface = "writer"
-group = "json → mediawiki"
+group = "json → latex"
 bytes = 12631
-runs = 12
+runs = 20
+carta-ms = 2.42
+carta-sd-ms = 0.08
+pandoc-ms = 9.15
+pandoc-sd-ms = 1.74
+carta-rss = 8814592
+pandoc-rss = 37756928
+
+[[result]]
+surface = "writer"
+group = "json → latex"
+bytes = 115411
+runs = 20
 carta-ms = 2.84
-carta-sd-ms = 0.27
-pandoc-ms = 30.01
-pandoc-sd-ms = 0.85
-carta-rss = 3686400
-pandoc-rss = 41451520
-
-[[result]]
-surface = "writer"
-group = "json → mediawiki"
-bytes = 115411
-runs = 12
-carta-ms = 3.82
-carta-sd-ms = 0.29
-pandoc-ms = 30.23
-pandoc-sd-ms = 0.66
-carta-rss = 4341760
-pandoc-rss = 45170688
-
-[[result]]
-surface = "writer"
-group = "json → mediawiki"
-bytes = 1169804
-runs = 12
-carta-ms = 5.43
-carta-sd-ms = 0.16
-pandoc-ms = 91.69
-pandoc-sd-ms = 1.38
-carta-rss = 6995968
-pandoc-rss = 128122880
-
-[[result]]
-surface = "writer"
-group = "json → native"
-bytes = 12631
-runs = 12
-carta-ms = 2.71
-carta-sd-ms = 0.19
-pandoc-ms = 29.63
-pandoc-sd-ms = 1.22
-carta-rss = 3604480
-pandoc-rss = 40828928
-
-[[result]]
-surface = "writer"
-group = "json → native"
-bytes = 115411
-runs = 12
-carta-ms = 3.16
-carta-sd-ms = 0.24
-pandoc-ms = 32.29
-pandoc-sd-ms = 4.25
-carta-rss = 4308992
-pandoc-rss = 44793856
-
-[[result]]
-surface = "writer"
-group = "json → native"
-bytes = 1169804
-runs = 12
-carta-ms = 6.25
-carta-sd-ms = 0.07
-pandoc-ms = 166.23
-pandoc-sd-ms = 3.22
-carta-rss = 9535488
-pandoc-rss = 150044672
-
-[[result]]
-surface = "writer"
-group = "json → json"
-bytes = 12631
-runs = 12
-carta-ms = 2.63
-carta-sd-ms = 0.15
-pandoc-ms = 29.83
-pandoc-sd-ms = 0.8
-carta-rss = 3440640
-pandoc-rss = 40714240
-
-[[result]]
-surface = "writer"
-group = "json → json"
-bytes = 115411
-runs = 12
-carta-ms = 3.1
-carta-sd-ms = 0.38
-pandoc-ms = 29.75
-pandoc-sd-ms = 0.68
-carta-rss = 3899392
-pandoc-rss = 41975808
-
-[[result]]
-surface = "writer"
-group = "json → json"
-bytes = 1169804
-runs = 12
-carta-ms = 4.72
-carta-sd-ms = 0.32
-pandoc-ms = 83.67
-pandoc-sd-ms = 5.18
-carta-rss = 6520832
-pandoc-rss = 127860736
-
-[[result]]
-surface = "e2e"
-group = "commonmark → html"
-bytes = 13368
-runs = 12
-carta-ms = 6.21
-carta-sd-ms = 0.67
-pandoc-ms = 55.75
-pandoc-sd-ms = 1.38
-carta-rss = 7815168
-pandoc-rss = 114425856
-
-[[result]]
-surface = "e2e"
-group = "commonmark → html"
-bytes = 103602
-runs = 12
-carta-ms = 8.51
-carta-sd-ms = 0.41
-pandoc-ms = 171.87
-pandoc-sd-ms = 8.41
-carta-rss = 10665984
-pandoc-rss = 128073728
-
-[[result]]
-surface = "e2e"
-group = "commonmark → html"
-bytes = 1049388
-runs = 12
-carta-ms = 38.71
-carta-sd-ms = 1.52
-pandoc-ms = 1175.16
-pandoc-sd-ms = 17.9
-carta-rss = 46989312
-pandoc-rss = 258129920
-
-[[result]]
-surface = "e2e"
-group = "commonmark → latex"
-bytes = 13368
-runs = 12
-carta-ms = 5.41
-carta-sd-ms = 0.12
-pandoc-ms = 55.25
-pandoc-sd-ms = 1.53
-carta-rss = 7979008
-pandoc-rss = 112885760
-
-[[result]]
-surface = "e2e"
-group = "commonmark → latex"
-bytes = 103602
-runs = 12
-carta-ms = 8.96
 carta-sd-ms = 0.11
-pandoc-ms = 141.28
+pandoc-ms = 24.26
+pandoc-sd-ms = 3.73
+carta-rss = 9154560
+pandoc-rss = 68075520
+
+[[result]]
+surface = "writer"
+group = "json → latex"
+bytes = 1169804
+runs = 20
+carta-ms = 7.2
+carta-sd-ms = 0.16
+pandoc-ms = 136.91
+pandoc-sd-ms = 6.21
+carta-rss = 11554816
+pandoc-rss = 139264000
+
+[[result]]
+surface = "writer"
+group = "json → rst"
+bytes = 12631
+runs = 20
+carta-ms = 1.55
+carta-sd-ms = 0.42
+pandoc-ms = 4.66
+pandoc-sd-ms = 0.77
+carta-rss = 6828032
+pandoc-rss = 27500544
+
+[[result]]
+surface = "writer"
+group = "json → rst"
+bytes = 115411
+runs = 20
+carta-ms = 1.87
+carta-sd-ms = 0.1
+pandoc-ms = 12.75
+pandoc-sd-ms = 1.38
+carta-rss = 7176192
+pandoc-rss = 37175296
+
+[[result]]
+surface = "writer"
+group = "json → rst"
+bytes = 1169804
+runs = 20
+carta-ms = 5.89
+carta-sd-ms = 0.2
+pandoc-ms = 115.84
+pandoc-sd-ms = 8.55
+carta-rss = 9461760
+pandoc-rss = 135512064
+
+[[result]]
+surface = "writer"
+group = "json → plain"
+bytes = 12631
+runs = 20
+carta-ms = 1.37
+carta-sd-ms = 0.05
+pandoc-ms = 5.56
+pandoc-sd-ms = 1.2
+carta-rss = 6893568
+pandoc-rss = 28545024
+
+[[result]]
+surface = "writer"
+group = "json → plain"
+bytes = 115411
+runs = 20
+carta-ms = 1.78
+carta-sd-ms = 0.08
+pandoc-ms = 22.94
+pandoc-sd-ms = 2.64
+carta-rss = 7319552
+pandoc-rss = 73871360
+
+[[result]]
+surface = "writer"
+group = "json → plain"
+bytes = 1169804
+runs = 20
+carta-ms = 5.24
+carta-sd-ms = 0.23
+pandoc-ms = 124.67
+pandoc-sd-ms = 6.97
+carta-rss = 9428992
+pandoc-rss = 135974912
+
+[[result]]
+surface = "writer"
+group = "json → commonmark"
+bytes = 12631
+runs = 20
+carta-ms = 1.43
+carta-sd-ms = 0.1
+pandoc-ms = 11.45
+pandoc-sd-ms = 1.12
+carta-rss = 6844416
+pandoc-rss = 38821888
+
+[[result]]
+surface = "writer"
+group = "json → commonmark"
+bytes = 115411
+runs = 20
+carta-ms = 1.87
+carta-sd-ms = 0.1
+pandoc-ms = 46.7
+pandoc-sd-ms = 5.46
+carta-rss = 7192576
+pandoc-rss = 74723328
+
+[[result]]
+surface = "writer"
+group = "json → commonmark"
+bytes = 1169804
+runs = 20
+carta-ms = 5.94
+carta-sd-ms = 0.17
+pandoc-ms = 293.93
+pandoc-sd-ms = 6.42
+carta-rss = 9555968
+pandoc-rss = 138166272
+
+[[result]]
+surface = "writer"
+group = "json → mediawiki"
+bytes = 12631
+runs = 20
+carta-ms = 1.73
+carta-sd-ms = 0.73
+pandoc-ms = 5.68
+pandoc-sd-ms = 1.17
+carta-rss = 6254592
+pandoc-rss = 28782592
+
+[[result]]
+surface = "writer"
+group = "json → mediawiki"
+bytes = 115411
+runs = 20
+carta-ms = 1.76
+carta-sd-ms = 0.1
+pandoc-ms = 16.29
+pandoc-sd-ms = 2.98
+carta-rss = 6782976
+pandoc-rss = 40095744
+
+[[result]]
+surface = "writer"
+group = "json → mediawiki"
+bytes = 1169804
+runs = 20
+carta-ms = 5.49
+carta-sd-ms = 0.55
+pandoc-ms = 121.65
+pandoc-sd-ms = 8.35
+carta-rss = 9465856
+pandoc-rss = 135864320
+
+[[result]]
+surface = "writer"
+group = "json → native"
+bytes = 12631
+runs = 20
+carta-ms = 1.41
+carta-sd-ms = 0.08
+pandoc-ms = 7.48
+pandoc-sd-ms = 1.02
+carta-rss = 6610944
+pandoc-rss = 30015488
+
+[[result]]
+surface = "writer"
+group = "json → native"
+bytes = 115411
+runs = 20
+carta-ms = 1.91
+carta-sd-ms = 0.05
+pandoc-ms = 28.62
+pandoc-sd-ms = 4.88
+carta-rss = 7233536
+pandoc-rss = 44752896
+
+[[result]]
+surface = "writer"
+group = "json → native"
+bytes = 1169804
+runs = 20
+carta-ms = 7.62
+carta-sd-ms = 0.42
+pandoc-ms = 265.61
+pandoc-sd-ms = 6.26
+carta-rss = 12165120
+pandoc-rss = 159948800
+
+[[result]]
+surface = "writer"
+group = "json → json"
+bytes = 12631
+runs = 20
+carta-ms = 1.31
+carta-sd-ms = 0.06
+pandoc-ms = 4.02
+pandoc-sd-ms = 0.56
+carta-rss = 6311936
+pandoc-rss = 24444928
+
+[[result]]
+surface = "writer"
+group = "json → json"
+bytes = 115411
+runs = 20
+carta-ms = 1.63
+carta-sd-ms = 0.06
+pandoc-ms = 11.63
+pandoc-sd-ms = 2.21
+carta-rss = 6340608
+pandoc-rss = 34545664
+
+[[result]]
+surface = "writer"
+group = "json → json"
+bytes = 1169804
+runs = 20
+carta-ms = 4.78
+carta-sd-ms = 0.36
+pandoc-ms = 100.72
+pandoc-sd-ms = 6.29
+carta-rss = 9011200
+pandoc-rss = 135278592
+
+[[result]]
+surface = "e2e"
+group = "commonmark → html"
+bytes = 13368
+runs = 20
+carta-ms = 3.55
+carta-sd-ms = 0.14
+pandoc-ms = 60.54
+pandoc-sd-ms = 5.1
+carta-rss = 9715712
+pandoc-rss = 126906368
+
+[[result]]
+surface = "e2e"
+group = "commonmark → html"
+bytes = 103602
+runs = 20
+carta-ms = 8.35
+carta-sd-ms = 1.32
+pandoc-ms = 218.42
+pandoc-sd-ms = 8.44
+carta-rss = 12099584
+pandoc-rss = 140771328
+
+[[result]]
+surface = "e2e"
+group = "commonmark → html"
+bytes = 1049388
+runs = 20
+carta-ms = 53.08
+carta-sd-ms = 0.59
+pandoc-ms = 1819.02
+pandoc-sd-ms = 36.69
+carta-rss = 39804928
+pandoc-rss = 271777792
+
+[[result]]
+surface = "e2e"
+group = "commonmark → latex"
+bytes = 13368
+runs = 20
+carta-ms = 3.66
+carta-sd-ms = 0.06
+pandoc-ms = 53.61
 pandoc-sd-ms = 3.48
-carta-rss = 10911744
-pandoc-rss = 129662976
+carta-rss = 10031104
+pandoc-rss = 124878848
+
+[[result]]
+surface = "e2e"
+group = "commonmark → latex"
+bytes = 103602
+runs = 20
+carta-ms = 8.88
+carta-sd-ms = 0.24
+pandoc-ms = 195.6
+pandoc-sd-ms = 8.94
+carta-rss = 12738560
+pandoc-rss = 141524992
 
 [[result]]
 surface = "e2e"
 group = "commonmark → latex"
 bytes = 1049388
-runs = 12
-carta-ms = 47.57
-carta-sd-ms = 0.48
-pandoc-ms = 1058.73
-pandoc-sd-ms = 26.64
-carta-rss = 48775168
-pandoc-rss = 267091968
+runs = 20
+carta-ms = 67.72
+carta-sd-ms = 0.57
+pandoc-ms = 1694.74
+pandoc-sd-ms = 22.95
+carta-rss = 41185280
+pandoc-rss = 280006656
 
 [[result]]
 surface = "e2e"
 group = "commonmark → rst"
 bytes = 13368
-runs = 12
-carta-ms = 3.5
-carta-sd-ms = 0.36
-pandoc-ms = 45.56
-pandoc-sd-ms = 4.61
-carta-rss = 5341184
-pandoc-rss = 112082944
+runs = 20
+carta-ms = 2.12
+carta-sd-ms = 0.04
+pandoc-ms = 50.5
+pandoc-sd-ms = 4.92
+carta-rss = 8011776
+pandoc-rss = 122122240
 
 [[result]]
 surface = "e2e"
 group = "commonmark → rst"
 bytes = 103602
-runs = 12
-carta-ms = 6.25
-carta-sd-ms = 0.15
-pandoc-ms = 117.37
-pandoc-sd-ms = 1.47
-carta-rss = 8847360
-pandoc-rss = 127844352
+runs = 20
+carta-ms = 6.55
+carta-sd-ms = 0.19
+pandoc-ms = 157.6
+pandoc-sd-ms = 6.75
+carta-rss = 10825728
+pandoc-rss = 138108928
 
 [[result]]
 surface = "e2e"
 group = "commonmark → rst"
 bytes = 1049388
-runs = 12
-carta-ms = 37.53
-carta-sd-ms = 0.74
-pandoc-ms = 806.33
-pandoc-sd-ms = 7.38
-carta-rss = 45105152
-pandoc-rss = 248496128
+runs = 20
+carta-ms = 57.17
+carta-sd-ms = 0.37
+pandoc-ms = 1277.62
+pandoc-sd-ms = 8.88
+carta-rss = 37957632
+pandoc-rss = 258662400
 
 [[result]]
 surface = "e2e"
 group = "commonmark → json"
 bytes = 13368
-runs = 12
-carta-ms = 3.2
-carta-sd-ms = 0.15
-pandoc-ms = 43.43
-pandoc-sd-ms = 0.74
-carta-rss = 4816896
-pandoc-rss = 113016832
+runs = 20
+carta-ms = 1.94
+carta-sd-ms = 0.1
+pandoc-ms = 46.22
+pandoc-sd-ms = 4.84
+carta-rss = 7897088
+pandoc-rss = 122646528
 
 [[result]]
 surface = "e2e"
 group = "commonmark → json"
 bytes = 103602
-runs = 12
+runs = 20
 carta-ms = 5.08
-carta-sd-ms = 0.24
-pandoc-ms = 92.39
-pandoc-sd-ms = 1.64
-carta-rss = 8634368
-pandoc-rss = 127713280
+carta-sd-ms = 0.1
+pandoc-ms = 123.31
+pandoc-sd-ms = 7
+carta-rss = 11124736
+pandoc-rss = 135032832
 
 [[result]]
 surface = "e2e"
 group = "commonmark → json"
 bytes = 1049388
-runs = 12
-carta-ms = 24.44
-carta-sd-ms = 0.5
-pandoc-ms = 538.28
-pandoc-sd-ms = 10.31
-carta-rss = 51249152
-pandoc-rss = 236797952
+runs = 20
+carta-ms = 41.32
+carta-sd-ms = 0.44
+pandoc-ms = 855.13
+pandoc-sd-ms = 18.36
+carta-rss = 43909120
+pandoc-rss = 247132160
 
 [[result]]
 surface = "startup"
 group = "commonmark → html (near-empty input)"
 bytes = 27
-runs = 12
-carta-ms = 3.73
-carta-sd-ms = 0.57
-pandoc-ms = 31.36
-pandoc-sd-ms = 1.41
-carta-rss = 3604480
-pandoc-rss = 43089920
+runs = 20
+carta-ms = 1.32
+carta-sd-ms = 0.05
+pandoc-ms = 7.63
+pandoc-sd-ms = 1.43
+carta-rss = 7090176
+pandoc-rss = 33284096
 
 [[result]]
 surface = "startup"
 group = "commonmark → json (near-empty input)"
 bytes = 27
-runs = 12
-carta-ms = 2.62
-carta-sd-ms = 0.06
-pandoc-ms = 31.13
-pandoc-sd-ms = 0.79
-carta-rss = 3637248
-pandoc-rss = 41369600
+runs = 20
+carta-ms = 1.39
+carta-sd-ms = 0.08
+pandoc-ms = 3.09
+pandoc-sd-ms = 0.41
+carta-rss = 6823936
+pandoc-rss = 22380544
