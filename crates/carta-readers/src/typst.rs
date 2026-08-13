@@ -44,13 +44,13 @@ const MAX_DEPTH: usize = 64;
 /// above any count a document plausibly writes out.
 const MAX_ITERATIONS: usize = 1 << 20;
 
-/// Document nodes a parse may copy out of its bindings, per character of source. Reading a binding
-/// duplicates whatever it holds, so a chain of bindings that each splice the one before grows
-/// exponentially; this keeps what a source can materialize proportional to its own length.
+/// Document nodes a parse may copy or repeat, per character of source. Reading a binding or
+/// repeating a sequence duplicates content, so this keeps materialized output proportional to the
+/// source length.
 const COPIES_PER_CHAR: usize = 64;
 
-/// The copying allowance every parse starts with, so that reuse within a short source, and the
-/// long loops a few lines can spell out, never run into the ceiling.
+/// The materialization allowance every parse starts with, so that reuse within a short source, and
+/// the long loops a few lines can spell out, never run into the ceiling.
 const BASE_COPIES: usize = 1 << 20;
 
 /// Parses Typst markup into the document model.
@@ -963,8 +963,8 @@ struct Parser {
     /// The pending exit a `return`, `break`, or `continue` requested, which the loop or call it
     /// leaves clears again.
     flow: Option<Flow>,
-    /// How much content copying a binding may still materialize. A binding whose body splices
-    /// another one doubles what it holds, so without a ceiling a few lines can fill memory.
+    /// How much copied or repeated content may still materialize. Without a ceiling, a few
+    /// operators or bindings can fill memory.
     copies: usize,
 }
 
@@ -3418,7 +3418,7 @@ impl Parser {
             self.bump();
             self.skip_spaces();
             let right = self.expression();
-            value = combine(value, right, operator);
+            value = combine(value, right, operator, &mut self.copies);
         }
         value
     }
@@ -3791,7 +3791,10 @@ impl Parser {
         self.skip_argument_space();
         let right = self.argument_value();
         let value = match operator {
-            Some(op) => combine(self.bound_copy(&name).unwrap_or(Value::Nothing), right, op),
+            Some(op) => {
+                let left = self.bound_copy(&name).unwrap_or(Value::Nothing);
+                combine(left, right, op, &mut self.copies)
+            }
             None => right,
         };
         self.env.insert(name, value);
@@ -3916,13 +3919,13 @@ impl Parser {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.product();
-                    value = combine(value, right, '+');
+                    value = combine(value, right, '+', &mut self.copies);
                 }
                 Some('-') if value.as_number().is_some() => {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.product();
-                    value = combine(value, right, '-');
+                    value = combine(value, right, '-', &mut self.copies);
                 }
                 _ => {
                     self.pos = saved;
@@ -3943,7 +3946,7 @@ impl Parser {
                     self.bump();
                     self.skip_argument_space();
                     let right = self.negation();
-                    value = combine(value, right, op);
+                    value = combine(value, right, op, &mut self.copies);
                 }
                 _ => {
                     self.pos = saved;
@@ -4144,7 +4147,7 @@ fn numeric_order(left: &Value, right: &Value) -> Option<Ordering> {
 }
 
 /// Combine two operands of a code-mode arithmetic or concatenation operator.
-fn combine(left: Value, right: Value, op: char) -> Value {
+fn combine(left: Value, right: Value, op: char, copies: &mut usize) -> Value {
     if let (Value::Int(a), Value::Int(b)) = (&left, &right) {
         let exact = match op {
             '-' => Some(a.subtract(b)),
@@ -4180,7 +4183,7 @@ fn combine(left: Value, right: Value, op: char) -> Value {
     if op == '*'
         && let Some(count) = right.as_number()
     {
-        return repeat_value(left, count);
+        return repeat_value(left, count, copies);
     }
     match (left, right) {
         (Value::Content(mut a), b) => {
@@ -4227,13 +4230,15 @@ fn repeatable(value: &Value) -> bool {
 }
 
 /// Repeat a sequence the given number of times.
-fn repeat_value(value: Value, count: f64) -> Value {
+fn repeat_value(value: Value, count: f64, copies: &mut usize) -> Value {
+    let weight = value_weight(&value).max(1);
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         clippy::cast_precision_loss
     )]
-    let count = count.max(0.0).min(MAX_ITERATIONS as f64) as usize;
+    let count = (count.max(0.0).min(MAX_ITERATIONS as f64) as usize).min(*copies / weight);
+    *copies = copies.saturating_sub(weight.saturating_mul(count));
     match value {
         Value::Str(text) => Value::Str(text.repeat(count)),
         Value::Array(items) => Value::Array(

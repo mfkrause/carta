@@ -401,6 +401,23 @@ fn reused_bindings_stay_within_the_copying_allowance() {
     );
 }
 
+#[test]
+fn sequence_repetition_spends_the_materialization_allowance() {
+    let mut copies = 8;
+    let count = Value::Int(Integer::from(100usize));
+    let repeated = combine(
+        Value::Str("ab".to_string()),
+        count.clone(),
+        '*',
+        &mut copies,
+    );
+    assert_eq!(repeated, Value::Str("abab".to_string()));
+    assert_eq!(
+        combine(repeated, count, '*', &mut copies),
+        Value::Str(String::new())
+    );
+}
+
 /// Reads from a caller stack too shallow for the nesting, which proves the read runs on its own
 /// deep worker stack.
 fn parse_from_a_shallow_stack(source: String) -> Vec<Block> {
