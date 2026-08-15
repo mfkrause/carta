@@ -448,8 +448,7 @@ fn assemble<T: MathTree>(elements: &[&T], start: usize, ctx: Context<'_>, enclos
     }
 }
 
-/// A level spanning a single element holds no delimiters of its own: that element renders as it
-/// stands, brackets and all.
+/// A level spanning one delimiter renders that delimiter as written, with no inferred pair.
 fn lone_element<T: MathTree>(
     elements: &[&T],
     start: usize,
@@ -461,8 +460,8 @@ fn lone_element<T: MathTree>(
         return pieces;
     }
     match elements.get(start) {
-        Some(element) => vec![render(*element, ctx)],
-        None => pieces,
+        Some(element) if delimiter_of(*element).is_some() => vec![render(*element, ctx)],
+        _ => pieces,
     }
 }
 

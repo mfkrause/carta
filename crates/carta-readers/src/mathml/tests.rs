@@ -21,6 +21,17 @@ fn a_binary_operator_is_spaced_from_its_operands() {
 }
 
 #[test]
+fn deeply_nested_groups_render_once_per_level() {
+    let depth = 48;
+    let mathml = format!(
+        "<math>{}<mi>x</mi>{}</math>",
+        "<mrow>".repeat(depth),
+        "</mrow>".repeat(depth)
+    );
+    assert_eq!(tex(&mathml), "x");
+}
+
+#[test]
 fn layout_elements_wrap_their_children() {
     assert_eq!(
         tex("<math><mfrac><mn>1</mn><mn>2</mn></mfrac></math>"),
