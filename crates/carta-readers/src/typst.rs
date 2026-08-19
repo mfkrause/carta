@@ -53,6 +53,18 @@ const COPIES_PER_CHAR: usize = 64;
 /// the long loops a few lines can spell out, never run into the ceiling.
 const BASE_COPIES: usize = 1 << 20;
 
+/// Largest regular expression accepted for compilation. Larger generated patterns can take
+/// disproportionate time to optimize while adding no practical document value.
+const MAX_REGEX_BYTES: usize = 1 << 16;
+
+/// Compile a regular expression within the parser's work bound.
+fn compile_regex(source: &str) -> Option<Regex> {
+    if source.len() > MAX_REGEX_BYTES {
+        return None;
+    }
+    Regex::new(source).ok()
+}
+
 /// Parses Typst markup into the document model.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct TypstReader;
@@ -5067,9 +5079,9 @@ impl Pattern {
     /// The pattern an argument writes, or `None` where a regular expression does not compile.
     fn of(value: Option<&Value>) -> Option<Self> {
         match value? {
-            Value::Regex(source) => Regex::new(source)
-                .ok()
-                .map(|regex| Pattern::Expression(Box::new(regex))),
+            Value::Regex(source) => {
+                compile_regex(source).map(|regex| Pattern::Expression(Box::new(regex)))
+            }
             other => Some(Pattern::Text(other.as_text())),
         }
     }

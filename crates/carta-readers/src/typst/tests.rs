@@ -402,6 +402,15 @@ fn reused_bindings_stay_within_the_copying_allowance() {
 }
 
 #[test]
+fn generated_regular_expressions_stay_within_the_compilation_bound() {
+    let source = format!(
+        "#show regex(\"a\" * {}): \"x\"\nbody\n",
+        MAX_REGEX_BYTES + 1
+    );
+    assert_eq!(parse(&source), vec![Block::Para(vec![text("body")])]);
+}
+
+#[test]
 fn sequence_repetition_spends_the_materialization_allowance() {
     let mut copies = 8;
     let count = Value::Int(Integer::from(100usize));
