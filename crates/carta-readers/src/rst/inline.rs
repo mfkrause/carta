@@ -8,7 +8,9 @@ use super::inline_helpers::{
     split_embedded_uri, trailing_reference_name,
 };
 use super::markers::is_citation_label;
-use super::{Parser, REF_SENTINEL, defer_reference, indirect_referent, normalize_name};
+use super::{
+    MAX_FOOTNOTE_DEPTH, Parser, REF_SENTINEL, defer_reference, indirect_referent, normalize_name,
+};
 use crate::inline_text::trim_inline_ends;
 use crate::smart_fold::{
     QuoteCtx, can_close_quote, can_open_quote, fold_dash_run_greedy, fold_ellipsis_run,
@@ -557,8 +559,16 @@ impl Parser<'_> {
             );
             return Some((vec![link], false, end));
         }
+        let named = !matches!(label.as_str(), "#" | "*");
+        if self.active_footnotes.len() >= MAX_FOOTNOTE_DEPTH
+            || named && self.active_footnotes.iter().any(|active| active == &label)
+        {
+            return None;
+        }
         let body = self.footnote_body_for(&label)?;
+        self.active_footnotes.push(label);
         let blocks = self.blocks(&body);
+        self.active_footnotes.pop();
         Some((vec![Inline::Note(blocks)], true, end))
     }
 

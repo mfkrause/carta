@@ -76,6 +76,7 @@ pub(super) fn included_blocks(path: &str, ext: Extensions, depth: usize) -> Opti
         default_role: DEFAULT_ROLE.to_string(),
         include_depth: depth,
         active_substitutions: Vec::new(),
+        active_footnotes: Vec::new(),
         deferred: BTreeMap::new(),
     };
     let mut blocks = parser.blocks(&lines);

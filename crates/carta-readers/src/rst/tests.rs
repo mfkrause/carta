@@ -50,6 +50,11 @@ fn circular_substitution_does_not_overflow_the_stack() {
 }
 
 #[test]
+fn recursive_footnote_does_not_overflow_the_stack() {
+    let _ = parse(".. [1] Self [1]_\n\nRef [1]_\n");
+}
+
+#[test]
 fn pipe_not_followed_by_space_does_not_stall_the_scan() {
     // A `|` without a following space/EOL is not a line block; the scan must advance past its line.
     let _ = parse("\u{0b}\t|\u{0}");

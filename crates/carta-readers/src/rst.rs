@@ -50,6 +50,7 @@ impl Reader for RstReader {
             default_role: DEFAULT_ROLE.to_string(),
             include_depth: 0,
             active_substitutions: Vec::new(),
+            active_footnotes: Vec::new(),
             deferred: BTreeMap::new(),
         };
         let mut blocks = parser.blocks(&lines);
@@ -204,6 +205,8 @@ struct Parser<'a> {
     /// bound and overflow the stack. RST forbids circular substitution references; a name already
     /// on this stack is left unexpanded instead of re-entered.
     active_substitutions: Vec<String>,
+    /// Footnote labels currently being expanded, used to bound nesting and detect named cycles.
+    active_footnotes: Vec<String>,
     /// Every hyperlink-target name discovered while building the tree (explicit targets, internal
     /// targets, section titles, and the labels of phrase references with an embedded destination),
     /// mapped to its destination. Filled in document order so a later definition supersedes an
@@ -215,3 +218,6 @@ struct Parser<'a> {
 /// The deepest chain of nested `include` directives that is followed before further includes are
 /// ignored, guarding against a cycle of files including one another.
 const MAX_INCLUDE_DEPTH: usize = 64;
+
+/// The deepest chain of nested footnote bodies parsed before further references stay literal.
+const MAX_FOOTNOTE_DEPTH: usize = 64;
