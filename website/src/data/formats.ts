@@ -58,12 +58,6 @@ export function shipping(): Format[] {
   return formats.filter((format) => format.read.ships || format.write.ships);
 }
 
-export function findFormat(name: string): Format | undefined {
-  return formats.find(
-    (format) => format.name === name || format.aliases.includes(name),
-  );
-}
-
 /** Every name a format answers to, canonical first. */
 export function allNames(format: Format): string[] {
   return [format.name, ...format.aliases];
