@@ -9,6 +9,26 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.10](https://github.com/mfkrause/carta/compare/v0.0.9...v0.0.10) - 2026-08-27
+
+### Fixed
+
+- *(carta)* make fetch independently selectable
+- *(highlight)* stop nonconsuming context cycles
+- *(typst)* reject missing regex patterns
+- *(typst)* bound regular expression compilation
+- *(rst)* bound recursive footnote expansion
+- *(mathml)* avoid repeated nested rendering
+- *(typst)* bound sequence repetition
+- *(markdown)* honor raw html toggle
+
+### Other
+
+- *(carta)* derive ipynb extensions from markdown
+- *(highlight)* remove unused grammar state
+- *(readers)* reuse shared parsing helpers
+- *(readers)* remove direct serde dependency
+
 ## [0.0.9](https://github.com/mfkrause/carta/compare/v0.0.8...v0.0.9) - 2026-08-11
 
 ### Added
