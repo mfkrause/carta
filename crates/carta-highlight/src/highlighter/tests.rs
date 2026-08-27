@@ -70,6 +70,28 @@ fn unknown_language_returns_none() {
 }
 
 #[test]
+fn stops_nonconsuming_context_cycles() {
+    let mut hl = Highlighter::new();
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/syntax-copyleft/bash.xml");
+    let xml = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+    hl.registry_mut()
+        .add_definition_with_stem(&xml, "bash")
+        .expect("parse bash grammar");
+
+    let lines = hl.highlight("bash", "[[\nn\n\r;").expect("bash is known");
+    assert_eq!(
+        lines,
+        vec![
+            vec![Token::new(TokenKind::Keyword, "[[")],
+            vec![Token::new(TokenKind::Normal, "n")],
+            vec![Token::new(TokenKind::Normal, "\r;")],
+        ]
+    );
+}
+
+#[test]
 fn normalizes_adjacent_same_kind() {
     let merged = normalize(vec![
         Token::new(TokenKind::Normal, "a"),

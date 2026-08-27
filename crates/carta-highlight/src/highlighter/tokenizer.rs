@@ -21,6 +21,9 @@ const MAX_LINE_STEPS: usize = 100_000;
 /// The maximum depth of nested rule inclusion, guarding against cyclic `IncludeRules`.
 const MAX_INCLUDE_DEPTH: usize = 100;
 
+/// The maximum number of distinct context states allowed without consuming input.
+const MAX_NONCONSUMING_STATES: usize = 100;
+
 /// The mutable state of an in-progress tokenization.
 pub(super) struct Tokenizer<'a> {
     hl: &'a Highlighter,
@@ -94,6 +97,7 @@ impl<'a> Tokenizer<'a> {
 
         let mut tokens = Vec::new();
         let mut steps = 0usize;
+        let mut nonconsuming_states = Vec::new();
         while self.pos < self.line.len() {
             steps += 1;
             if steps > MAX_LINE_STEPS {
@@ -102,11 +106,27 @@ impl<'a> Tokenizer<'a> {
                 tokens.push(Token::new(kind, rest));
                 break;
             }
+            let previous_position = self.pos;
             match self.step() {
                 Step::Emitted(Some(token)) => tokens.push(token),
                 Step::Emitted(None) => {}
                 Step::Stop => break,
             }
+            if self.pos != previous_position {
+                nonconsuming_states.clear();
+                continue;
+            }
+
+            let state = self.stack_identity();
+            if nonconsuming_states.contains(&state)
+                || nonconsuming_states.len() >= MAX_NONCONSUMING_STATES
+            {
+                let rest = self.remaining().to_string();
+                let kind = self.current_attr_kind();
+                tokens.push(Token::new(kind, rest));
+                break;
+            }
+            nonconsuming_states.push(state);
         }
 
         self.finish_line();
@@ -622,6 +642,19 @@ impl<'a> Tokenizer<'a> {
         self.stack
             .last()
             .map(|f| (Rc::as_ptr(&f.grammar) as usize, f.context))
+    }
+
+    fn stack_identity(&self) -> Vec<(usize, usize, Vec<String>)> {
+        self.stack
+            .iter()
+            .map(|frame| {
+                (
+                    Rc::as_ptr(&frame.grammar) as usize,
+                    frame.context,
+                    frame.captures.clone(),
+                )
+            })
+            .collect()
     }
 
     fn apply_switch(&mut self, switch: &ContextSwitch, owner: &Rc<Grammar>) {
