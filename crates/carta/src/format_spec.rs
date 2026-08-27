@@ -332,83 +332,11 @@ pub(crate) fn supported_extensions(base: &str) -> Option<Extensions> {
             Extension::WikilinksTitleBeforePipe,
             Extension::YamlMetadataBlock,
         ]),
-        "ipynb" => Extensions::from_list(&[
-            Extension::Abbreviations,
-            Extension::Alerts,
-            Extension::AllSymbolsEscapable,
-            Extension::AngleBracketsEscapable,
-            Extension::AsciiIdentifiers,
-            Extension::AutoIdentifiers,
-            Extension::Autolink,
-            Extension::BacktickCodeBlocks,
-            Extension::BlankBeforeBlockquote,
-            Extension::BlankBeforeHeader,
-            Extension::BracketedSpans,
-            Extension::Citations,
-            Extension::DefinitionLists,
-            Extension::EastAsianLineBreaks,
-            Extension::Emoji,
-            Extension::EscapedLineBreaks,
-            Extension::ExampleLists,
-            Extension::FancyLists,
-            Extension::FencedCodeAttributes,
-            Extension::FencedCodeBlocks,
-            Extension::FencedDivs,
-            Extension::Footnotes,
-            Extension::FourSpaceRule,
-            Extension::GfmAutoIdentifiers,
-            Extension::GridTables,
-            Extension::Gutenberg,
-            Extension::HardLineBreaks,
-            Extension::HeaderAttributes,
-            Extension::IgnoreLineBreaks,
-            Extension::ImplicitFigures,
-            Extension::ImplicitHeaderReferences,
-            Extension::InlineCodeAttributes,
-            Extension::InlineNotes,
-            Extension::IntrawordUnderscores,
-            Extension::LatexMacros,
-            Extension::LineBlocks,
-            Extension::LinkAttributes,
-            Extension::ListsWithoutPrecedingBlankline,
-            Extension::LiterateHaskell,
-            Extension::Mark,
-            Extension::MarkdownAttribute,
-            Extension::MarkdownInHtmlBlocks,
-            Extension::MmdHeaderIdentifiers,
-            Extension::MmdLinkAttributes,
-            Extension::MmdTitleBlock,
-            Extension::MultilineTables,
-            Extension::NativeDivs,
-            Extension::NativeSpans,
-            Extension::OldDashes,
-            Extension::PandocTitleBlock,
-            Extension::PipeTables,
-            Extension::RawAttribute,
-            Extension::RawHtml,
-            Extension::RawMarkdown,
-            Extension::RawTex,
-            Extension::RebaseRelativePaths,
-            Extension::ShortSubsuperscripts,
-            Extension::ShortcutReferenceLinks,
-            Extension::SimpleTables,
-            Extension::Smart,
-            Extension::SpaceInAtxHeader,
-            Extension::SpacedReferenceLinks,
-            Extension::Startnum,
-            Extension::Strikeout,
-            Extension::Subscript,
-            Extension::Superscript,
-            Extension::TableAttributes,
-            Extension::TableCaptions,
-            Extension::TaskLists,
-            Extension::TexMathDollars,
-            Extension::TexMathDoubleBackslash,
-            Extension::TexMathSingleBackslash,
-            Extension::WikilinksTitleAfterPipe,
-            Extension::WikilinksTitleBeforePipe,
-            Extension::YamlMetadataBlock,
-        ]),
+        "ipynb" => {
+            let mut set = supported_extensions("markdown")?;
+            set.insert(Extension::RawMarkdown);
+            set
+        }
         "docbook" | "docbook5" | "jira" | "native" | "json" | "csv" | "tsv" | "rtf"
         | "revealjs" => Extensions::from_list(&[Extension::EastAsianLineBreaks]),
         _ => return None,
@@ -484,7 +412,7 @@ fn parse_format_spec_with(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_format_spec;
+    use super::{parse_format_spec, supported_extensions};
     use carta_core::{Error, Extension};
 
     #[test]
@@ -643,6 +571,13 @@ mod tests {
     }
 
     #[test]
+    fn ipynb_accepts_markdown_extensions_plus_raw_markdown() {
+        let mut expected = supported_extensions("markdown").unwrap_or_default();
+        expected.insert(Extension::RawMarkdown);
+        assert_eq!(supported_extensions("ipynb"), Some(expected));
+    }
+
+    #[test]
     fn latex_defaults_include_identifiers_and_macros() {
         let (base, ext) = parse_format_spec("latex").unwrap();
         assert_eq!(base, "latex");
@@ -692,7 +627,6 @@ mod tests {
 
     #[test]
     fn every_registry_format_declares_its_accepted_set_status() {
-        use super::supported_extensions;
         // A new format must be added to exactly one of these two arrays, deliberately.
         const WITH_SET: &[&str] = &[
             "asciidoc",
