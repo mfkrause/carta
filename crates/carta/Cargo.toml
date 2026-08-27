@@ -33,7 +33,7 @@ pkg-fmt = "zip"
 workspace = true
 
 [features]
-default = ["full", "cli"]
+default = ["full", "cli", "fetch"]
 # The `carta` binary. Default so `cargo install carta` yields the tool; library-only users set
 # `default-features = false`. Pair with format features (or `full`) to choose what it converts.
 cli = [
@@ -42,7 +42,6 @@ cli = [
     "dep:clap_mangen",
     "standalone",
     "metadata-file",
-    "fetch",
     "carta-ast/serde",
     "carta-core/serde",
 ]
