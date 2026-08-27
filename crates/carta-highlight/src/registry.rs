@@ -499,9 +499,7 @@ pub fn style_names() -> Vec<String> {
 fn empty_grammar() -> Grammar {
     Grammar {
         name: String::new(),
-        section: String::new(),
         extensions: Vec::new(),
-        alternative_names: Vec::new(),
         priority: 0,
         hidden: false,
         keyword_lists: std::collections::BTreeMap::new(),

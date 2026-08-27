@@ -181,8 +181,6 @@ impl FirstBytes {
             }
             // A spliced context's rules are tried on their own, so this set is never consulted.
             Matcher::IncludeRules { .. } => return FirstBytes::any(),
-            // Nothing acts on an unmodeled element.
-            Matcher::Unsupported => {}
         }
         set
     }

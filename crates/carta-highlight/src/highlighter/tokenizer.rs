@@ -417,7 +417,7 @@ impl<'a> Tokenizer<'a> {
                     }
                 })
             }
-            Matcher::IncludeRules { .. } | Matcher::Unsupported => None,
+            Matcher::IncludeRules { .. } => None,
         }
     }
 

@@ -21,12 +21,8 @@ pub(crate) const STANDARD_DELIMITERS: &str = " \n\t.():!+,-<=>%&*/;?[]^{|}~\\";
 pub struct Grammar {
     /// Display name, e.g. `C++`. Cross-definition references address a definition by this name.
     pub name: String,
-    /// The menu section the definition belongs to, e.g. `Sources`.
-    pub section: String,
     /// File-name globs the definition claims, e.g. `*.c`.
     pub extensions: Vec<String>,
-    /// Additional names the definition answers to.
-    pub alternative_names: Vec<String>,
     /// Selection priority when several definitions claim the same extension; higher wins.
     pub priority: i64,
     /// Whether the definition is a helper not offered in language listings.
@@ -231,8 +227,6 @@ pub enum Matcher {
         target: ContextTarget,
         include_attribute: bool,
     },
-    /// An element the tokenizer does not act on.
-    Unsupported,
 }
 
 /// A context transition: how many contexts to leave, then an optional one to enter.

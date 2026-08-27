@@ -71,7 +71,6 @@ pub(crate) fn parse_grammar(xml: &str) -> Result<Grammar, ParseError> {
 
 fn build_grammar(language: &Node) -> Grammar {
     let name = language.attr("name").unwrap_or_default().to_string();
-    let section = language.attr("section").unwrap_or_default().to_string();
     let extensions = split_list(language.attr("extensions").unwrap_or_default());
     let priority = language
         .attr("priority")
@@ -140,9 +139,7 @@ fn build_grammar(language: &Node) -> Grammar {
 
     Grammar {
         name,
-        section,
         extensions,
-        alternative_names: Vec::new(),
         priority,
         hidden,
         keyword_lists,
