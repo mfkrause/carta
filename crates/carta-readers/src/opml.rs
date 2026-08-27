@@ -8,19 +8,16 @@
 //! is drawn from the document head: `title`, `ownerName` (as the author list), and `dateModified`
 //! (as the date), each taken as plain text.
 //!
-//! XML is parsed by a small hand-written scanner over the subset the format uses: elements,
-//! attributes with entity decoding, self-closing tags, and nesting. The scanner is panic-free on
-//! malformed input: unrecognized or unbalanced markup is skipped rather than rejected.
+//! XML parsing is permissive: malformed or unbalanced markup is kept where possible.
 
 use std::collections::BTreeMap;
 
-use carta_ast::{Block, Document, Inline, MetaValue, QuoteType, Target};
+use carta_ast::{Block, Document, Inline, MetaValue, Target};
 use carta_core::{Reader, ReaderOptions, Result, presets};
 
 use crate::commonmark::CommonmarkReader;
 use crate::html::parse_inline_fragment;
-use crate::smart_fold::{fold_dash_run_greedy, fold_ellipsis_run};
-use crate::xml_entities::decode_entities;
+use crate::xml::{Element, Node, parse_tolerant};
 
 /// Parses an outline document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -28,67 +25,59 @@ pub struct OpmlReader;
 
 impl Reader for OpmlReader {
     fn read(&self, input: &str, _options: &ReaderOptions) -> Result<Document> {
-        let nodes = parse_nodes(input);
+        let document = parse_tolerant(input.as_bytes(), 512);
         let mut blocks = Vec::new();
-        let head = find_child(&nodes, "head");
-        let body = find_child(&nodes, "body");
-        for node in body.map(element_children).unwrap_or_default() {
-            emit_outline(node, 1, &mut blocks)?;
+        let head = find_child(&document, "head");
+        if let Some(body) = find_child(&document, "body") {
+            for node in body.elements() {
+                emit_outline(node, 1, &mut blocks)?;
+            }
         }
         Ok(Document {
             api_version: carta_ast::ApiVersion::default(),
             meta: build_meta(head)
                 .into_iter()
-                .map(|(k, v)| (k.into(), v))
+                .map(|(key, value)| (key.into(), value))
                 .collect(),
             blocks,
         })
     }
 }
 
-/// A parsed XML element with its decoded attributes and its element children. Text nodes are not
-/// retained: the format carries its content in attributes.
-#[derive(Debug)]
-struct Element {
-    name: String,
-    attributes: BTreeMap<String, String>,
-    children: Vec<Element>,
-}
-
-fn element_children(element: &Element) -> Vec<&Element> {
-    element.children.iter().collect()
-}
-
-/// The first descendant search is shallow by design: `head` and `body` are direct children of the
-/// document root, found among the top-level parse and the root `opml` element's children.
-fn find_child<'a>(nodes: &'a [Element], name: &str) -> Option<&'a Element> {
-    for node in nodes {
+fn find_child<'a>(document: &'a Element, name: &str) -> Option<&'a Element> {
+    for node in document.elements() {
         if node.name == name {
             return Some(node);
         }
-        if let Some(found) = node.children.iter().find(|child| child.name == name) {
+        if let Some(found) = node.elements().find(|child| child.name == name) {
             return Some(found);
         }
     }
     None
 }
 
+fn attr<'a>(element: &'a Element, name: &str) -> Option<&'a str> {
+    element
+        .attrs
+        .iter()
+        .rev()
+        .find(|(key, _)| key == name)
+        .map(|(_, value)| value.as_str())
+}
+
 fn emit_outline(outline: &Element, level: i32, blocks: &mut Vec<Block>) -> Result<()> {
     if outline.name != "outline" {
         return Ok(());
     }
-    let heading = outline
-        .attributes
-        .get("text")
-        .map(|text| smart_inlines(parse_inline_fragment(text)))
+    let heading = attr(outline, "text")
+        .map(parse_inline_fragment)
         .unwrap_or_default();
     let heading = if is_link_outline(outline) {
-        let url = outline.attributes.get("url").cloned().unwrap_or_default();
         vec![Inline::Link(
             Box::default(),
             heading,
             Box::new(Target {
-                url: url.into(),
+                url: attr(outline, "url").unwrap_or_default().to_owned().into(),
                 title: carta_ast::Text::default(),
             }),
         )]
@@ -96,28 +85,19 @@ fn emit_outline(outline: &Element, level: i32, blocks: &mut Vec<Block>) -> Resul
         heading
     };
     blocks.push(Block::Header(i64::from(level), Box::default(), heading));
-    if let Some(note) = outline.attributes.get("_note") {
-        let parsed = CommonmarkReader.read(note, &note_options())?;
-        blocks.extend(parsed.blocks);
+    if let Some(note) = attr(outline, "_note") {
+        blocks.extend(CommonmarkReader.read(note, &note_options())?.blocks);
     }
-    for child in &outline.children {
-        emit_outline(child, level + 1, blocks)?;
+    for child in outline.elements() {
+        emit_outline(child, level.saturating_add(1), blocks)?;
     }
     Ok(())
 }
 
-/// An outline of `type="link"` (case-insensitive) names a hyperlink: its heading content is wrapped
-/// in a link to the outline's `url`, which may be absent (an empty target).
 fn is_link_outline(outline: &Element) -> bool {
-    outline
-        .attributes
-        .get("type")
-        .is_some_and(|kind| kind.eq_ignore_ascii_case("link"))
+    attr(outline, "type").is_some_and(|kind| kind.eq_ignore_ascii_case("link"))
 }
 
-/// Reader options for a `_note` body: the extended Markdown dialect's full extension set (so smart
-/// typography, definition lists, and the other Markdown-flavored constructs are on) with greedy
-/// paragraphs, so a bare following line continues the paragraph rather than opening a new block.
 fn note_options() -> ReaderOptions {
     let mut options = ReaderOptions::default();
     options.extensions = presets::MARKDOWN;
@@ -126,36 +106,39 @@ fn note_options() -> ReaderOptions {
 }
 
 fn build_meta(head: Option<&Element>) -> BTreeMap<String, MetaValue> {
-    let mut meta = BTreeMap::new();
-    // present-but-empty is distinct from absent: a present `ownerName` always contributes an
-    // author entry, even an empty one
-    let value = |name: &str| -> Option<&str> {
-        head.and_then(|head| head.children.iter().find(|child| child.name == name))
-            .map(|element| {
-                element
-                    .attributes
-                    .get("__text")
-                    .map(String::as_str)
-                    .unwrap_or_default()
-            })
+    let value = |name: &str| {
+        head.and_then(|head| head.elements().find(|child| child.name == name))
+            .map(direct_text)
     };
-    let title = tokenize_meta(value("title").unwrap_or_default());
-    let date = tokenize_meta(value("dateModified").unwrap_or_default());
-    let author = match value("ownerName") {
-        Some(owner) => vec![MetaValue::MetaInlines(tokenize_meta(owner))],
-        None => Vec::new(),
-    };
-    meta.insert("title".to_owned(), MetaValue::MetaInlines(title));
-    meta.insert("author".to_owned(), MetaValue::MetaList(author));
-    meta.insert("date".to_owned(), MetaValue::MetaInlines(date));
-    meta
+    let title = value("title").unwrap_or_default();
+    let date = value("dateModified").unwrap_or_default();
+    let author = value("ownerName")
+        .map(|owner| MetaValue::MetaInlines(tokenize_meta(&owner)))
+        .into_iter()
+        .collect();
+    BTreeMap::from([
+        (
+            "title".to_owned(),
+            MetaValue::MetaInlines(tokenize_meta(&title)),
+        ),
+        ("author".to_owned(), MetaValue::MetaList(author)),
+        (
+            "date".to_owned(),
+            MetaValue::MetaInlines(tokenize_meta(&date)),
+        ),
+    ])
 }
 
-/// Tokenize a metadata value into inlines, preserving boundary whitespace. Each maximal
-/// non-whitespace run becomes one `Str`; each maximal whitespace run becomes a single break, a
-/// `SoftBreak` when the run spans a line ending, otherwise a `Space`. Leading and trailing
-/// whitespace is kept, unlike inline body text where it is trimmed. Smart typography is not applied:
-/// metadata values keep their straight quotes, hyphens, and dots verbatim.
+fn direct_text(element: &Element) -> String {
+    let mut text = String::new();
+    for node in &element.children {
+        if let Node::Text(value) = node {
+            text.push_str(value);
+        }
+    }
+    text
+}
+
 fn tokenize_meta(text: &str) -> Vec<Inline> {
     let mut out = Vec::new();
     let mut chars = text.chars().peekable();
@@ -186,623 +169,6 @@ fn tokenize_meta(text: &str) -> Vec<Inline> {
         out.push(Inline::Str(word.into()));
     }
     out
-}
-
-/// Parse the top-level elements of a document. Anything outside an element (prolog, stray text) is
-/// skipped.
-fn parse_nodes(input: &str) -> Vec<Element> {
-    let chars: Vec<char> = input.chars().collect();
-    let mut pos = 0;
-    let mut nodes = Vec::new();
-    while let Some(element) = next_element(&chars, &mut pos) {
-        nodes.push(element);
-    }
-    nodes
-}
-
-/// Scan the next element starting at or after `pos`. Returns `None` at end of input. Comments,
-/// processing instructions, declarations, and DOCTYPE are skipped; text between elements is
-/// captured into the parent via [`parse_children`].
-fn next_element(chars: &[char], pos: &mut usize) -> Option<Element> {
-    loop {
-        skip_to_tag(chars, pos);
-        if *pos >= chars.len() {
-            return None;
-        }
-        if skip_non_element(chars, pos) {
-            continue;
-        }
-        return parse_element(chars, pos);
-    }
-}
-
-fn skip_to_tag(chars: &[char], pos: &mut usize) {
-    while let Some(&ch) = chars.get(*pos) {
-        if ch == '<' {
-            return;
-        }
-        *pos += 1;
-    }
-}
-
-/// If the tag at `pos` is a comment, processing instruction, declaration, or DOCTYPE, skip it and
-/// return `true`. A closing tag is also consumed here so a caller scanning siblings stops.
-fn skip_non_element(chars: &[char], pos: &mut usize) -> bool {
-    if starts_with(chars, *pos, "<!--") {
-        skip_until(chars, pos, "-->");
-        return true;
-    }
-    if starts_with(chars, *pos, "<?") {
-        skip_until(chars, pos, "?>");
-        return true;
-    }
-    if starts_with(chars, *pos, "<!") {
-        skip_until(chars, pos, ">");
-        return true;
-    }
-    false
-}
-
-/// Parse one element whose `<` is at `pos`, including its children up to the matching close tag.
-fn parse_element(chars: &[char], pos: &mut usize) -> Option<Element> {
-    if chars.get(*pos) != Some(&'<') {
-        return None;
-    }
-    *pos += 1;
-    let name = read_name(chars, pos);
-    if name.is_empty() {
-        skip_until(chars, pos, ">");
-        return None;
-    }
-    let mut attributes = BTreeMap::new();
-    loop {
-        skip_whitespace(chars, pos);
-        match chars.get(*pos) {
-            None => {
-                return Some(Element {
-                    name,
-                    attributes,
-                    children: Vec::new(),
-                });
-            }
-            Some('/') => {
-                *pos += 1;
-                skip_until(chars, pos, ">");
-                return Some(Element {
-                    name,
-                    attributes,
-                    children: Vec::new(),
-                });
-            }
-            Some('>') => {
-                *pos += 1;
-                break;
-            }
-            Some(_) => {
-                if let Some((key, value)) = read_attribute(chars, pos) {
-                    attributes.insert(key, value);
-                } else {
-                    *pos += 1;
-                }
-            }
-        }
-    }
-    let (children, text) = parse_children(chars, pos);
-    if !text.is_empty() {
-        attributes.insert("__text".to_owned(), text);
-    }
-    Some(Element {
-        name,
-        attributes,
-        children,
-    })
-}
-
-/// Parse the content of an open element up to its matching `</name>`: nested elements become
-/// children, and the concatenated raw text (entity-decoded) is returned for leaf elements.
-fn parse_children(chars: &[char], pos: &mut usize) -> (Vec<Element>, String) {
-    let mut children = Vec::new();
-    let mut text = String::new();
-    loop {
-        let mut run = String::new();
-        while let Some(&ch) = chars.get(*pos) {
-            if ch == '<' {
-                break;
-            }
-            run.push(ch);
-            *pos += 1;
-        }
-        text.push_str(&decode_entities(&run));
-        if *pos >= chars.len() {
-            break;
-        }
-        if starts_with(chars, *pos, "</") {
-            *pos += 2;
-            let _ = read_name(chars, pos);
-            skip_until(chars, pos, ">");
-            break;
-        }
-        if skip_non_element(chars, pos) {
-            continue;
-        }
-        if let Some(child) = parse_element(chars, pos) {
-            children.push(child);
-        } else {
-            skip_to_tag(chars, pos);
-            *pos = (*pos).saturating_add(1);
-        }
-    }
-    // untrimmed: boundary whitespace becomes boundary `Space`/`SoftBreak` inlines in [`tokenize_meta`]
-    (children, text)
-}
-
-fn read_name(chars: &[char], pos: &mut usize) -> String {
-    let mut name = String::new();
-    while let Some(&ch) = chars.get(*pos) {
-        if ch.is_whitespace() || ch == '>' || ch == '/' {
-            break;
-        }
-        name.push(ch);
-        *pos += 1;
-    }
-    name
-}
-
-/// Read one `key="value"` (or single-quoted) attribute. Returns `None` when the cursor is not at a
-/// name character.
-fn read_attribute(chars: &[char], pos: &mut usize) -> Option<(String, String)> {
-    let key = read_attr_name(chars, pos);
-    if key.is_empty() {
-        return None;
-    }
-    skip_whitespace(chars, pos);
-    if chars.get(*pos) != Some(&'=') {
-        return Some((key, String::new()));
-    }
-    *pos += 1;
-    skip_whitespace(chars, pos);
-    let Some(&quote @ ('"' | '\'')) = chars.get(*pos) else {
-        return Some((key, String::new()));
-    };
-    *pos += 1;
-    let mut raw = String::new();
-    while let Some(&ch) = chars.get(*pos) {
-        if ch == quote {
-            *pos += 1;
-            break;
-        }
-        raw.push(ch);
-        *pos += 1;
-    }
-    Some((key, decode_entities(&raw)))
-}
-
-fn read_attr_name(chars: &[char], pos: &mut usize) -> String {
-    let mut name = String::new();
-    while let Some(&ch) = chars.get(*pos) {
-        if ch.is_whitespace() || ch == '=' || ch == '>' || ch == '/' {
-            break;
-        }
-        name.push(ch);
-        *pos += 1;
-    }
-    name
-}
-
-fn skip_whitespace(chars: &[char], pos: &mut usize) {
-    while let Some(&ch) = chars.get(*pos) {
-        if !ch.is_whitespace() {
-            return;
-        }
-        *pos += 1;
-    }
-}
-
-fn starts_with(chars: &[char], pos: usize, prefix: &str) -> bool {
-    prefix
-        .chars()
-        .enumerate()
-        .all(|(offset, expected)| chars.get(pos + offset) == Some(&expected))
-}
-
-/// Advance the cursor past the next occurrence of `marker`, consuming the marker. If the marker is
-/// absent the cursor moves to the end of input.
-fn skip_until(chars: &[char], pos: &mut usize, marker: &str) {
-    let marker_len = marker.chars().count();
-    while *pos < chars.len() {
-        if starts_with(chars, *pos, marker) {
-            *pos += marker_len;
-            return;
-        }
-        *pos += 1;
-    }
-}
-
-/// Apply smart typography to an inline tree: straight double and single quotes become curly quotes
-/// (paired into `Quoted` spans where they enclose a run, otherwise directional glyphs); runs of
-/// hyphens fold to en/em dashes; runs of three dots fold to an ellipsis. Container inlines are
-/// transformed recursively; the content of a code span is transformed textually (its quotes become
-/// directional glyphs rather than `Quoted` spans). Quote pairing does not cross a non-text inline:
-/// such an inline is a hard boundary for the pairing search.
-fn smart_inlines(inlines: Vec<Inline>) -> Vec<Inline> {
-    let folded = inlines.into_iter().map(fold_inline).collect();
-    pair_quotes(folded)
-}
-
-/// Recurse into one inline applying the textual smart transforms (dashes, dots, and, in code and
-/// string contexts, directional quote glyphs). Quote *pairing* into `Quoted` spans is left to
-/// [`pair_quotes`], which sees the whole run.
-fn fold_inline(inline: Inline) -> Inline {
-    match inline {
-        Inline::Str(text) => Inline::Str(fold_text(&text).into()),
-        Inline::Code(attr, text) => Inline::Code(attr, smart_code(&text).into()),
-        Inline::Emph(children) => Inline::Emph(smart_inlines(children)),
-        Inline::Underline(children) => Inline::Underline(smart_inlines(children)),
-        Inline::Strong(children) => Inline::Strong(smart_inlines(children)),
-        Inline::Strikeout(children) => Inline::Strikeout(smart_inlines(children)),
-        Inline::Superscript(children) => Inline::Superscript(smart_inlines(children)),
-        Inline::Subscript(children) => Inline::Subscript(smart_inlines(children)),
-        Inline::SmallCaps(children) => Inline::SmallCaps(smart_inlines(children)),
-        Inline::Quoted(kind, children) => Inline::Quoted(kind, smart_inlines(children)),
-        Inline::Span(attr, children) => Inline::Span(attr, smart_inlines(children)),
-        Inline::Link(attr, children, target) => Inline::Link(attr, smart_inlines(children), target),
-        Inline::Image(attr, children, target) => {
-            Inline::Image(attr, smart_inlines(children), target)
-        }
-        other => other,
-    }
-}
-
-/// Fold the dash and dot runs of a plain text string: `---` and longer fold to em/en dashes, `...`
-/// folds to an ellipsis. Straight quotes are left untouched here; they are resolved by
-/// [`pair_quotes`], which can see their surrounding context across the whole run.
-fn fold_text(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    while let Some(ch) = chars.next() {
-        match ch {
-            '-' => {
-                let mut len = 1;
-                while chars.peek() == Some(&'-') {
-                    chars.next();
-                    len += 1;
-                }
-                out.push_str(&fold_dash_run_greedy(len));
-            }
-            '.' => {
-                let mut len = 1;
-                while chars.peek() == Some(&'.') {
-                    chars.next();
-                    len += 1;
-                }
-                out.push_str(&fold_ellipsis_run(len));
-            }
-            other => out.push(other),
-        }
-    }
-    out
-}
-
-/// Smart-transform the verbatim content of a code span: fold dash and dot runs, and curl its
-/// quotes. A code span holds only a string, so a matched quote pair renders as its two directional
-/// glyphs (left then right) rather than a `Quoted` node; an unmatched quote becomes a directional
-/// glyph. The same opener/closer pairing drives both, so `'q'` curls to `‘q’` and a lone leading
-/// `'open` to `’open`.
-fn smart_code(text: &str) -> String {
-    let folded = fold_text(text);
-    let mut run: Vec<RunTok> = Vec::new();
-    for ch in folded.chars() {
-        if ch == '\'' || ch == '"' {
-            run.push(RunTok::Quote(ch));
-        } else {
-            run.push(RunTok::Char(ch));
-        }
-    }
-    let mut items = classify_run(&run);
-    match_quotes(&mut items);
-    let mut out = String::with_capacity(folded.len());
-    for (index, item) in items.iter().enumerate() {
-        match item {
-            Item::Text(text) => out.push_str(text),
-            Item::Break(_) => {}
-            Item::Quote(quote) => out.push(match quote.partner {
-                // a matched pair turns to left/right glyphs; an unmatched quote keeps its directional fallback
-                Some(partner) if partner > index => paired_code_glyph(quote.ch, true),
-                Some(_) => paired_code_glyph(quote.ch, false),
-                None => quote.glyph,
-            }),
-        }
-    }
-    out
-}
-
-/// One position in a flattened text run: an ordinary character, a quote delimiter, or a break
-/// (a space or a soft/hard line break, which the inline tree carries as its own node).
-enum RunTok {
-    Char(char),
-    Quote(char),
-    Break(Inline),
-}
-
-/// Resolve straight quotes across the inline sequence. Within each maximal run of text inlines
-/// (`Str` plus break nodes), pair a quote opener with a later closer of the same kind into a
-/// `Quoted` span; any quote that does not pair becomes a directional glyph. A non-text inline ends
-/// the current run and is itself a word-like boundary for the flanking of adjacent quotes.
-fn pair_quotes(inlines: Vec<Inline>) -> Vec<Inline> {
-    let mut out = Vec::new();
-    let mut run: Vec<RunTok> = Vec::new();
-    for inline in inlines {
-        match inline {
-            Inline::Str(text) => {
-                for ch in text.chars() {
-                    if ch == '\'' || ch == '"' {
-                        run.push(RunTok::Quote(ch));
-                    } else {
-                        run.push(RunTok::Char(ch));
-                    }
-                }
-            }
-            brk @ (Inline::Space | Inline::SoftBreak | Inline::LineBreak) => {
-                run.push(RunTok::Break(brk));
-            }
-            barrier => {
-                out.extend(resolve_run(&std::mem::take(&mut run)));
-                out.push(barrier);
-            }
-        }
-    }
-    out.extend(resolve_run(&run));
-    out
-}
-
-/// Whether the character before a quote permits it to open a span: the start of the run, whitespace,
-/// or one of a small set of leading characters (a dash glyph, a dot, a backslash, a currency sign,
-/// an ellipsis, or an already-curled quote). A quote glued to a letter, a digit, or an opening
-/// bracket does not satisfy this; there it reads as a closer or apostrophe instead.
-fn open_context(before: Option<char>) -> bool {
-    match before {
-        None => true,
-        Some(ch) => {
-            ch.is_whitespace()
-                || matches!(
-                    ch,
-                    '"' | '\''
-                        | '$'
-                        | '-'
-                        | '.'
-                        | '\\'
-                        | '\u{2013}'
-                        | '\u{2014}'
-                        | '\u{2018}'
-                        | '\u{2019}'
-                        | '\u{201c}'
-                        | '\u{201d}'
-                        | '\u{2026}'
-                )
-        }
-    }
-}
-
-/// Whether a quote opens a span here: its preceding character permits opening and a non-whitespace
-/// character follows it. A quote followed by whitespace (or the run's end) cannot open; it reads as
-/// a closing glyph or apostrophe.
-fn opens_quote(before: Option<char>, after: Option<char>) -> bool {
-    open_context(before) && after.is_some_and(|next| !next.is_whitespace())
-}
-
-/// Whether a quote at this position may end a quoted span. A double quote always closes an open
-/// double quote. A single quote closes only when it is not glued to a following alphanumeric; that
-/// case is an apostrophe inside or after a word (`it's`, `dogs'`), not a closing quote.
-fn can_close_quote(ch: char, after: Option<char>) -> bool {
-    if ch == '"' {
-        return true;
-    }
-    !after.is_some_and(char::is_alphanumeric)
-}
-
-/// The directional glyph an unpaired straight quote becomes. A single quote always becomes the right
-/// single glyph (`’`), which doubles as the apostrophe. A double quote becomes the left glyph (`“`)
-/// only where it reads as an opener: its preceding character permits opening (start of run,
-/// whitespace, a dash, or one of the other leading characters) and a non-space character follows it;
-/// otherwise it becomes the right glyph (`”`).
-fn directional_quote(ch: char, before: Option<char>, after: Option<char>) -> char {
-    if ch == '\'' {
-        return '\u{2019}';
-    }
-    if opens_quote(before, after) {
-        '\u{201c}'
-    } else {
-        '\u{201d}'
-    }
-}
-
-/// The directional glyph a paired quote contributes inside a code span, where a pair is rendered as
-/// its two directional glyphs rather than a `Quoted` node: the left glyph (`‘`/`“`) on open, the
-/// right glyph (`’`/`”`) on close.
-fn paired_code_glyph(ch: char, open: bool) -> char {
-    match (ch, open) {
-        ('\'', true) => '\u{2018}',
-        ('\'', false) => '\u{2019}',
-        (_, true) => '\u{201c}',
-        (_, false) => '\u{201d}',
-    }
-}
-
-/// One position in the run after quote classification: settled text, a break node, or a quote with
-/// the context flags that decide whether it may open or close a span and the glyph it falls back to.
-enum Item {
-    Text(String),
-    Break(Inline),
-    Quote(QuoteItem),
-}
-
-/// A classified quote delimiter: its kind, whether its surrounding characters let it open or close a
-/// span, the glyph it becomes when it stays unmatched, and (once matching runs) the index of the
-/// partner it pairs with.
-struct QuoteItem {
-    ch: char,
-    can_open: bool,
-    can_close: bool,
-    glyph: char,
-    partner: Option<usize>,
-}
-
-/// Resolve a single flattened text run into inlines by pairing its quotes. A first pass classifies
-/// each quote by its context; a second matches openers to closers; the matched pairs become
-/// `Quoted` spans and every unmatched quote becomes its directional glyph.
-fn resolve_run(run: &[RunTok]) -> Vec<Inline> {
-    let mut items = classify_run(run);
-    match_quotes(&mut items);
-    render_items(&items, &mut 0)
-}
-
-/// Classify the run into [`Item`]s: consecutive characters coalesce into one text item, breaks pass
-/// through, and each quote records whether its context lets it open or close and the glyph it falls
-/// back to.
-fn classify_run(run: &[RunTok]) -> Vec<Item> {
-    let context = run_context(run);
-    let mut items = Vec::new();
-    for (index, tok) in run.iter().enumerate() {
-        match tok {
-            RunTok::Char(ch) => match items.last_mut() {
-                Some(Item::Text(text)) => text.push(*ch),
-                _ => items.push(Item::Text(ch.to_string())),
-            },
-            RunTok::Break(brk) => items.push(Item::Break(brk.clone())),
-            RunTok::Quote(ch) => {
-                let (before, after) = context.get(index).copied().unwrap_or((None, None));
-                items.push(Item::Quote(QuoteItem {
-                    ch: *ch,
-                    can_open: opens_quote(before, after),
-                    can_close: can_close_quote(*ch, after),
-                    glyph: directional_quote(*ch, before, after),
-                    partner: None,
-                }));
-            }
-        }
-    }
-    items
-}
-
-/// Match quote openers to closers across the classified run with a stack of still-open quotes.
-/// Scanning left to right, a quote of a kind already open closes that span (recorded as a mutual
-/// partner link), abandoning any inner openers of the other kind that never closed, so a span does
-/// not straddle a closed inner span. A quote with no open partner of its kind opens a new span where
-/// its context permits; quotes of one kind do not nest within their own kind. A single quote never
-/// forms an empty pair, so `''` stays two apostrophes.
-fn match_quotes(items: &mut [Item]) {
-    let mut open: Vec<usize> = Vec::new();
-    for index in 0..items.len() {
-        let Some(Item::Quote(quote)) = items.get(index) else {
-            continue;
-        };
-        let (ch, can_open, can_close) = (quote.ch, quote.can_open, quote.can_close);
-        let open_same = open.iter().rposition(|&i| quote_at(items, i) == ch);
-        if can_close
-            && let Some(stack_pos) = open_same
-            && let Some(&opener) = open.get(stack_pos)
-            && !(ch == '\'' && opener + 1 == index)
-        {
-            open.truncate(stack_pos);
-            set_partner(items, opener, index);
-            set_partner(items, index, opener);
-        } else if open_same.is_none() && can_open {
-            open.push(index);
-        }
-    }
-}
-
-/// The kind of the quote item at `index`, or a placeholder that matches nothing.
-fn quote_at(items: &[Item], index: usize) -> char {
-    match items.get(index) {
-        Some(Item::Quote(quote)) => quote.ch,
-        _ => '\0',
-    }
-}
-
-fn set_partner(items: &mut [Item], index: usize, partner: usize) {
-    if let Some(Item::Quote(quote)) = items.get_mut(index) {
-        quote.partner = Some(partner);
-    }
-}
-
-/// Render the classified, matched items into inlines starting at `*cursor`, consuming items until
-/// the run ends or a closing quote whose opener precedes `*cursor` is reached. A matched opening
-/// quote recurses to gather its span's content into a `Quoted`; an unmatched quote contributes its
-/// directional glyph; text and breaks pass through.
-fn render_items(items: &[Item], cursor: &mut usize) -> Vec<Inline> {
-    let mut out: Vec<Inline> = Vec::new();
-    let mut pending = String::new();
-    let flush = |pending: &mut String, out: &mut Vec<Inline>| {
-        if !pending.is_empty() {
-            out.push(Inline::Str(std::mem::take(pending).into()));
-        }
-    };
-    while let Some(item) = items.get(*cursor) {
-        match item {
-            Item::Text(text) => {
-                pending.push_str(text);
-                *cursor += 1;
-            }
-            Item::Break(brk) => {
-                flush(&mut pending, &mut out);
-                out.push(brk.clone());
-                *cursor += 1;
-            }
-            Item::Quote(quote) => match quote.partner {
-                Some(partner) if partner > *cursor => {
-                    flush(&mut pending, &mut out);
-                    let ch = quote.ch;
-                    *cursor += 1;
-                    let inner = render_items(items, cursor);
-                    // Step past the closing partner that ended the recursion.
-                    *cursor += 1;
-                    out.push(Inline::Quoted(quote_kind(ch), inner));
-                }
-                Some(_) => {
-                    // The closing partner of an open span: stop so the opener's frame collects it.
-                    break;
-                }
-                None => {
-                    pending.push(quote.glyph);
-                    *cursor += 1;
-                }
-            },
-        }
-    }
-    flush(&mut pending, &mut out);
-    out
-}
-
-/// For each token in the run, the character immediately before and after it (skipping nothing:
-/// breaks count as spaces, run edges as `None`). Used to decide quote flanking with full context.
-fn run_context(run: &[RunTok]) -> Vec<(Option<char>, Option<char>)> {
-    let plain: Vec<Option<char>> = run
-        .iter()
-        .map(|tok| match tok {
-            RunTok::Char(ch) | RunTok::Quote(ch) => Some(*ch),
-            RunTok::Break(_) => Some(' '),
-        })
-        .collect();
-    (0..run.len())
-        .map(|i| {
-            let before = i
-                .checked_sub(1)
-                .and_then(|j| plain.get(j))
-                .copied()
-                .flatten();
-            let after = plain.get(i + 1).copied().flatten();
-            (before, after)
-        })
-        .collect()
-}
-
-fn quote_kind(ch: char) -> QuoteType {
-    if ch == '\'' {
-        QuoteType::SingleQuote
-    } else {
-        QuoteType::DoubleQuote
-    }
 }
 
 #[cfg(test)]

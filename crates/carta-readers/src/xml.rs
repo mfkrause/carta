@@ -34,6 +34,15 @@ pub(crate) fn local_name(name: &str) -> &str {
     }
 }
 
+#[cfg_attr(
+    not(any(
+        feature = "docbook",
+        feature = "docx",
+        feature = "epub",
+        feature = "odt"
+    )),
+    allow(dead_code)
+)]
 impl Element {
     /// The value of the attribute whose local name is `key`, if any.
     pub(crate) fn attr(&self, key: &str) -> Option<&str> {
@@ -101,6 +110,10 @@ impl Element {
     }
 
     /// Consumes a synthetic root, yielding its first top-level element.
+    #[cfg_attr(
+        not(any(feature = "docx", feature = "epub", feature = "odt")),
+        allow(dead_code)
+    )]
     fn into_first_element(self) -> Option<Element> {
         self.children.into_iter().find_map(|node| match node {
             Node::Element(element) => Some(element),
@@ -111,6 +124,10 @@ impl Element {
 
 /// Parses `input` into the single root element, returning `None` when it holds no element (empty,
 /// blank, or non-markup input). `max_depth` bounds materialized nesting.
+#[cfg_attr(
+    not(any(feature = "docx", feature = "epub", feature = "odt")),
+    allow(dead_code)
+)]
 pub(crate) fn parse(input: &[u8], max_depth: usize) -> Option<Element> {
     parse_tolerant(input, max_depth).into_first_element()
 }
@@ -119,6 +136,15 @@ pub(crate) fn parse(input: &[u8], max_depth: usize) -> Option<Element> {
 /// fails: unterminated constructs end the scan, stray close tags are ignored, and elements left open
 /// by truncated input are folded back into the root. `max_depth` bounds materialized nesting.
 pub(crate) fn parse_tolerant(input: &[u8], max_depth: usize) -> Element {
+    parse_tolerant_with(input, max_depth, decode_entities)
+}
+
+/// Parses tolerant XML with the caller's character-reference decoder.
+pub(crate) fn parse_tolerant_with(
+    input: &[u8],
+    max_depth: usize,
+    decode: fn(&str) -> String,
+) -> Element {
     let input = input.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(input);
     let mut stack: Vec<Element> = vec![Element::default()];
     let mut i = 0;
@@ -132,6 +158,8 @@ pub(crate) fn parse_tolerant(input: &[u8], max_depth: usize) -> Element {
                     push_text(&mut stack, text.to_owned());
                 }
                 i = (end + 3).min(input.len());
+            } else if starts_with(input, i, b"<!DOCTYPE") {
+                i = doctype_end(input, i);
             } else if starts_with(input, i, b"<!") || starts_with(input, i, b"<?") {
                 i = find_byte(input, i + 2, b'>').map_or(input.len(), |end| end + 1);
             } else if starts_with(input, i, b"</") {
@@ -139,14 +167,14 @@ pub(crate) fn parse_tolerant(input: &[u8], max_depth: usize) -> Element {
                 close_element(&mut stack);
                 i = (end + 1).min(input.len());
             } else {
-                i = parse_start_tag(input, i, &mut stack, max_depth);
+                i = parse_start_tag(input, i, &mut stack, max_depth, decode);
             }
         } else {
             let end = find_byte(input, i, b'<').unwrap_or(input.len());
             if let Some(text) = slice_str(input, i, end)
                 && !text.is_empty()
             {
-                push_text(&mut stack, decode_entities(text));
+                push_text(&mut stack, decode(text));
             }
             i = end;
         }
@@ -164,6 +192,7 @@ fn parse_start_tag(
     start: usize,
     stack: &mut Vec<Element>,
     max_depth: usize,
+    decode: fn(&str) -> String,
 ) -> usize {
     let mut i = start + 1;
     let name_start = i;
@@ -211,7 +240,7 @@ fn parse_start_tag(
                         let value_start = i + 1;
                         let value_end = find_byte(input, value_start, quote).unwrap_or(input.len());
                         value = slice_str(input, value_start, value_end)
-                            .map(decode_entities)
+                            .map(decode)
                             .unwrap_or_default();
                         i = (value_end + 1).min(input.len());
                     }
@@ -266,6 +295,27 @@ fn find(input: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
         i += 1;
     }
     None
+}
+
+fn doctype_end(input: &[u8], start: usize) -> usize {
+    let mut index = start + 2;
+    let mut quote = None;
+    let mut subset = false;
+    while let Some(&byte) = input.get(index) {
+        index += 1;
+        match quote {
+            Some(mark) if byte == mark => quote = None,
+            Some(_) => {}
+            None => match byte {
+                b'"' | b'\'' => quote = Some(byte),
+                b'[' => subset = true,
+                b']' => subset = false,
+                b'>' if !subset => return index,
+                _ => {}
+            },
+        }
+    }
+    input.len()
 }
 
 fn find_byte(input: &[u8], from: usize, byte: u8) -> Option<usize> {

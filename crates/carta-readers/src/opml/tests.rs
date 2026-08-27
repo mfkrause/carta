@@ -1,4 +1,6 @@
 use super::*;
+use crate::xml_entities::decode_entities;
+use carta_ast::QuoteType;
 
 fn read(input: &str) -> Document {
     OpmlReader
@@ -353,26 +355,6 @@ fn text_attribute_folds_dashes_and_ellipsis() {
             "a\u{2014}b\u{2013}c\u{2026}d".to_owned().into()
         )]
     );
-}
-
-#[test]
-fn dash_runs_fold_greedily_to_em_dashes() {
-    assert_eq!(fold_dash_run_greedy(1), "-");
-    assert_eq!(fold_dash_run_greedy(2), "\u{2013}");
-    assert_eq!(fold_dash_run_greedy(3), "\u{2014}");
-    assert_eq!(fold_dash_run_greedy(4), "\u{2014}-");
-    assert_eq!(fold_dash_run_greedy(5), "\u{2014}\u{2013}");
-    assert_eq!(fold_dash_run_greedy(6), "\u{2014}\u{2014}");
-    assert_eq!(fold_dash_run_greedy(7), "\u{2014}\u{2014}-");
-}
-
-#[test]
-fn ellipsis_runs_fold_per_group_of_three() {
-    assert_eq!(fold_ellipsis_run(1), ".");
-    assert_eq!(fold_ellipsis_run(2), "..");
-    assert_eq!(fold_ellipsis_run(3), "\u{2026}");
-    assert_eq!(fold_ellipsis_run(4), "\u{2026}.");
-    assert_eq!(fold_ellipsis_run(6), "\u{2026}\u{2026}");
 }
 
 #[test]

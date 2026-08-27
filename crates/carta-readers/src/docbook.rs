@@ -12,11 +12,8 @@
 //! back-matter divisions (`appendix`, `preface`, `glossary`, `bibliography`) always sit at the top
 //! level.
 //!
-//! XML is read by a hand-written scanner over the subset the format uses, with the full named
-//! character-reference table (the vocabulary's prose relies on `&copy;`, `&mdash;`, and the rest).
-//! It is panic-free on malformed input: an unterminated construct ends the scan, a stray close tag
-//! is ignored, and an unresolvable reference is kept verbatim. Materialized nesting is capped, so
-//! adversarially deep markup neither exhausts the stack nor deepens the conversion recursion.
+//! XML character references include the full named-entity table used by the vocabulary. Malformed
+//! input stays permissive, and materialized nesting is capped to bound conversion recursion.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -29,8 +26,9 @@ use carta_ast::{
 use carta_core::{Extension, Reader, ReaderOptions, Result};
 
 use crate::entities::{code_point, lookup_named};
-use crate::mathml::{MathTree, to_tex};
+use crate::mathml::to_tex;
 use crate::tabs::expand_tabs;
+use crate::xml::{Element, Node, local_name, parse_tolerant_with};
 
 /// Parses a `DocBook` document into the document model.
 #[derive(Debug, Default, Clone, Copy)]
@@ -1957,85 +1955,6 @@ fn is_wide(ch: char) -> bool {
         | 0x2_0000..=0x3_FFFD)
 }
 
-// XML scanning
-
-/// A node inside an element: a child element or a run of character data.
-#[derive(Debug)]
-enum Node {
-    Text(String),
-    Element(Element),
-}
-
-/// A parsed element: its qualified name, its attributes in source order, and its child nodes.
-#[derive(Debug, Default)]
-struct Element {
-    name: String,
-    attrs: Vec<(String, String)>,
-    children: Vec<Node>,
-}
-
-impl Element {
-    /// The value of the attribute whose local name is `key`.
-    fn attr(&self, key: &str) -> Option<&str> {
-        self.attrs
-            .iter()
-            .find(|(name, _)| local_name(name) == key)
-            .map(|(_, value)| value.as_str())
-    }
-
-    fn elements(&self) -> impl Iterator<Item = &Element> {
-        self.children.iter().filter_map(|node| match node {
-            Node::Element(element) => Some(element),
-            Node::Text(_) => None,
-        })
-    }
-
-    /// The first child element whose local name is `key`.
-    fn child(&self, key: &str) -> Option<&Element> {
-        self.elements()
-            .find(|element| local_name(&element.name) == key)
-    }
-
-    /// The concatenated character data of this element and its descendants.
-    fn text(&self) -> String {
-        let mut out = String::new();
-        let mut stack: Vec<&Node> = self.children.iter().rev().collect();
-        while let Some(node) = stack.pop() {
-            match node {
-                Node::Text(text) => out.push_str(text),
-                Node::Element(element) => stack.extend(element.children.iter().rev()),
-            }
-        }
-        out
-    }
-}
-
-impl MathTree for Element {
-    fn tag(&self) -> &str {
-        local_name(&self.name)
-    }
-    fn attribute(&self, key: &str) -> Option<String> {
-        self.attr(key).map(str::to_owned)
-    }
-    fn inner_text(&self) -> String {
-        self.text()
-    }
-    fn element_children(&self) -> Vec<&Self> {
-        self.elements().collect()
-    }
-    fn nth_element_child(&self, index: usize) -> Option<&Self> {
-        self.elements().nth(index)
-    }
-}
-
-/// The local part of a qualified name (`mml:math` becomes `math`, `xml:id` becomes `id`).
-fn local_name(name: &str) -> &str {
-    match name.rsplit_once(':') {
-        Some((_, tail)) => tail,
-        None => name,
-    }
-}
-
 /// The wording an element carries in its own right, with any nested markup left out.
 fn direct_text(element: &Element) -> Vec<Inline> {
     let mut joined = String::new();
@@ -2067,131 +1986,8 @@ fn index_ids<'a>(element: &'a Element, ids: &mut BTreeMap<&'a str, &'a Element>)
     }
 }
 
-/// Parses a document into a synthetic root whose children are its top-level nodes. Never fails:
-/// an unterminated construct ends the scan, a stray close tag is ignored, and elements left open
-/// fold back into the root.
 fn scan(input: &str) -> Element {
-    let input = input.strip_prefix('\u{feff}').unwrap_or(input);
-    let bytes = input.as_bytes();
-    let mut stack: Vec<Element> = vec![Element::default()];
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes.get(index) == Some(&b'<') {
-            if starts_with(bytes, index, b"<!--") {
-                index = find(bytes, index + 4, b"-->").map_or(bytes.len(), |end| end + 3);
-            } else if starts_with(bytes, index, b"<![CDATA[") {
-                let end = find(bytes, index + 9, b"]]>").unwrap_or(bytes.len());
-                if let Some(text) = input.get(index + 9..end) {
-                    attach(&mut stack, Node::Text(text.to_owned()));
-                }
-                index = (end + 3).min(bytes.len());
-            } else if starts_with(bytes, index, b"<!DOCTYPE") {
-                index = doctype_end(bytes, index);
-            } else if starts_with(bytes, index, b"<!") || starts_with(bytes, index, b"<?") {
-                index = find_byte(bytes, index + 2, b'>').map_or(bytes.len(), |end| end + 1);
-            } else if starts_with(bytes, index, b"</") {
-                let end = find_byte(bytes, index, b'>').unwrap_or(bytes.len());
-                close(&mut stack);
-                index = (end + 1).min(bytes.len());
-            } else {
-                index = start_tag(input, index, &mut stack);
-            }
-        } else {
-            let end = find_byte(bytes, index, b'<').unwrap_or(bytes.len());
-            if let Some(text) = input.get(index..end)
-                && !text.is_empty()
-            {
-                attach(&mut stack, Node::Text(decode_entities(text)));
-            }
-            index = end;
-        }
-    }
-    while stack.len() > 1 {
-        close(&mut stack);
-    }
-    stack.into_iter().next().unwrap_or_default()
-}
-
-/// Parses the start tag beginning at `start`, returning the index just past it.
-fn start_tag(input: &str, start: usize, stack: &mut Vec<Element>) -> usize {
-    let bytes = input.as_bytes();
-    let mut index = start + 1;
-    let name_start = index;
-    while let Some(&byte) = bytes.get(index) {
-        if matches!(byte, b' ' | b'\t' | b'\r' | b'\n' | b'>' | b'/') {
-            break;
-        }
-        index += 1;
-    }
-    let mut element = Element {
-        name: input.get(name_start..index).unwrap_or_default().to_owned(),
-        ..Element::default()
-    };
-    let mut self_closing = false;
-    loop {
-        index = skip_space(bytes, index);
-        match bytes.get(index) {
-            None => break,
-            Some(&b'>') => {
-                index += 1;
-                break;
-            }
-            Some(&b'/') => {
-                self_closing = true;
-                index += 1;
-            }
-            Some(_) => {
-                let key_start = index;
-                while let Some(&byte) = bytes.get(index) {
-                    if matches!(byte, b'=' | b' ' | b'\t' | b'\r' | b'\n' | b'>' | b'/') {
-                        break;
-                    }
-                    index += 1;
-                }
-                let key = input.get(key_start..index).unwrap_or_default().to_owned();
-                index = skip_space(bytes, index);
-                let mut value = String::new();
-                if bytes.get(index) == Some(&b'=') {
-                    index = skip_space(bytes, index + 1);
-                    if let Some(&quote) = bytes.get(index)
-                        && (quote == b'"' || quote == b'\'')
-                    {
-                        let value_start = index + 1;
-                        let value_end = find_byte(bytes, value_start, quote).unwrap_or(bytes.len());
-                        value = input
-                            .get(value_start..value_end)
-                            .map(decode_entities)
-                            .unwrap_or_default();
-                        index = (value_end + 1).min(bytes.len());
-                    }
-                }
-                if !key.is_empty() {
-                    element.attrs.push((key, value));
-                }
-            }
-        }
-    }
-    if self_closing || stack.len() >= MAX_DEPTH {
-        attach(stack, Node::Element(element));
-    } else {
-        stack.push(element);
-    }
-    index
-}
-
-fn close(stack: &mut Vec<Element>) {
-    if stack.len() <= 1 {
-        return;
-    }
-    if let Some(element) = stack.pop() {
-        attach(stack, Node::Element(element));
-    }
-}
-
-fn attach(stack: &mut [Element], node: Node) {
-    if let Some(top) = stack.last_mut() {
-        top.children.push(node);
-    }
+    parse_tolerant_with(input.as_bytes(), MAX_DEPTH, decode_entities)
 }
 
 /// The general entities a document declares for itself, by the name each answers to.

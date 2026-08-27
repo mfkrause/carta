@@ -119,11 +119,12 @@ fn find_next_double(items: &[Item], from: usize, hi: usize) -> Option<usize> {
     (from..hi).find(|&j| matches!(items.get(j), Some(Item::Lit('"'))))
 }
 
-/// The index in `from..hi` of the single quote that closes a single-quoted span: the first one not
-/// glued to a following letter or digit, so a contraction's apostrophe is skipped over.
+/// The index in `from..hi` of the single quote that closes a nonempty single-quoted span: the first
+/// one not glued to a following letter or digit, so a contraction's apostrophe is skipped over.
 fn find_single_close(items: &[Item], from: usize, hi: usize) -> Option<usize> {
     (from..hi).find(|&j| {
-        matches!(items.get(j), Some(Item::Lit('\'')))
+        j > from
+            && matches!(items.get(j), Some(Item::Lit('\'')))
             && !matches!(items.get(j + 1), Some(Item::Lit(c)) if c.is_alphanumeric())
     })
 }

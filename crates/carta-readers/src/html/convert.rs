@@ -42,6 +42,7 @@ use smart::{Item, codify, emit_code, emit_math_only, resolve_smart};
 pub(super) fn inlines_from_nodes(nodes: &[Node]) -> Vec<Inline> {
     let converter = Converter {
         preserve_unknown_tags: true,
+        ext: Extensions::from_list(&[Extension::Smart]),
         ..Converter::default()
     };
     trim_inlines(converter.build_inlines(nodes))

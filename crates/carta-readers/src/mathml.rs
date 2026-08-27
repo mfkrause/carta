@@ -39,7 +39,8 @@ pub(crate) trait MathTree: Sized {
     feature = "docbook",
     feature = "docx",
     feature = "epub",
-    feature = "odt"
+    feature = "odt",
+    all(test, feature = "html")
 ))]
 impl MathTree for crate::xml::Element {
     fn tag(&self) -> &str {

@@ -53,7 +53,12 @@ mod roman;
     feature = "opml"
 ))]
 mod smart_fold;
-#[cfg(any(feature = "docbook", feature = "dokuwiki", feature = "rst"))]
+#[cfg(any(
+    feature = "docbook",
+    feature = "dokuwiki",
+    feature = "mediawiki",
+    feature = "rst"
+))]
 mod tabs;
 #[cfg(any(
     feature = "man",
@@ -71,7 +76,9 @@ mod url_schemes;
     feature = "docx",
     feature = "epub",
     feature = "odt",
-    feature = "typst"
+    feature = "opml",
+    feature = "typst",
+    all(test, feature = "html")
 ))]
 mod xml;
 #[cfg(any(
@@ -80,7 +87,8 @@ mod xml;
     feature = "epub",
     feature = "odt",
     feature = "opml",
-    feature = "typst"
+    feature = "typst",
+    all(test, feature = "html")
 ))]
 mod xml_entities;
 #[cfg(any(feature = "commonmark", feature = "typst"))]

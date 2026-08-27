@@ -6,35 +6,11 @@ use super::{ScanBounds, at, collect_range, find_seq, matches_prefix_ci};
 /// Expands tab characters to spaces on a four-column grid, with the column resetting at each line
 /// break. Wikitext markup is column-sensitive (a leading space marks preformatted text), so tabs
 /// are normalized before any block scanning runs.
-///
-/// A deliberate variant of [`crate::tabs::expand_tabs`]: it runs over the whole input at once
-/// (resetting the column at line breaks) rather than line by line.
 pub(super) fn expand_tabs(input: &str) -> String {
-    if !input.contains('\t') {
-        return input.to_string();
-    }
-    let mut out = String::with_capacity(input.len());
-    let mut col = 0usize;
-    for ch in input.chars() {
-        match ch {
-            '\t' => {
-                let spaces = 4 - (col % 4);
-                for _ in 0..spaces {
-                    out.push(' ');
-                }
-                col += spaces;
-            }
-            '\n' => {
-                out.push('\n');
-                col = 0;
-            }
-            other => {
-                out.push(other);
-                col += 1;
-            }
-        }
-    }
-    out
+    input
+        .split_inclusive('\n')
+        .map(|line| crate::tabs::expand_tabs(line, 4))
+        .collect()
 }
 
 /// Removes wikitext comments. A comment that is the whole line (preceded by a line start and
