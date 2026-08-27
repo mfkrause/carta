@@ -15,14 +15,19 @@ fn main() {
     println!("cargo:rerun-if-changed=data/entities.json");
 
     let source = fs::read_to_string("data/entities.json").expect("read data/entities.json");
-    let table: BTreeMap<String, Entity> =
+    let table: BTreeMap<String, serde_json::Value> =
         serde_json::from_str(&source).expect("parse entities.json");
 
     let mut entries: Vec<(String, String)> = table
         .into_iter()
         .filter_map(|(name, entity)| {
             let inner = name.strip_prefix('&')?.strip_suffix(';')?;
-            Some((inner.to_owned(), entity.characters))
+            let characters = entity
+                .get("characters")
+                .and_then(serde_json::Value::as_str)
+                .expect("entity characters")
+                .to_owned();
+            Some((inner.to_owned(), characters))
         })
         .collect();
     entries.sort_by(|a, b| a.0.cmp(&b.0));
@@ -36,9 +41,4 @@ fn main() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR");
     fs::write(Path::new(&out_dir).join("entities_table.rs"), generated)
         .expect("write entities_table.rs");
-}
-
-#[derive(serde::Deserialize)]
-struct Entity {
-    characters: String,
 }

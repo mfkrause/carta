@@ -212,7 +212,6 @@ dependencies = [
  "caseless",
  "fancy-regex",
  "memchr",
- "serde",
  "serde_json",
  "unicode-general-category",
  "unicode-normalization",

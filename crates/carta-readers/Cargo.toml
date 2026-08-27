@@ -59,5 +59,4 @@ serde_json = { workspace = true, optional = true }
 fancy-regex = { workspace = true, optional = true }
 
 [build-dependencies]
-serde = { workspace = true }
 serde_json = { workspace = true }
