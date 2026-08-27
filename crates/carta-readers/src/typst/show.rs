@@ -9,8 +9,7 @@ use carta_ast::{Block, Inline};
 use fancy_regex::Regex;
 
 use super::{
-    Arg, Function, MAX_DEPTH, MAX_ITERATIONS, Parser, Value, compile_regex, positional_text,
-    table_rows,
+    Arg, Function, MAX_DEPTH, MAX_ITERATIONS, Parser, Value, compile_regex, positional, table_rows,
 };
 
 /// What a show rule picks out.
@@ -128,7 +127,7 @@ impl Parser {
         let name = self.read_path();
         if name == "regex" {
             let args = self.call_arguments()?;
-            let pattern = compile_regex(&positional_text(&args))?;
+            let pattern = compile_regex(&positional(&args)?.as_text())?;
             return Some(Selector::Pattern(Box::new(pattern)));
         }
         let Some(element) = name.strip_suffix(".where") else {
