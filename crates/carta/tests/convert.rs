@@ -123,6 +123,20 @@ fn number_sections_with_standalone_toc_numbers_body_and_toc_exactly_once() {
     );
 }
 
+#[cfg(all(feature = "read-html", feature = "write-gfm"))]
+#[test]
+fn gfm_without_raw_html_uses_markdown_fallbacks() {
+    let output = convert_text(
+        "html+raw_html",
+        "gfm-raw_html",
+        "<div id=\"x\"><p><span class=\"x\">hello</span> <u>under</u> <sup>up</sup> <sub>down</sub> <span class=\"smallcaps\"><a href=\"/Mixed\">label</a></span> <custom-tag>raw</custom-tag></p></div>",
+        &ReaderOptions::default(),
+        &WriterOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(output, "hello *under* ^(up) _(down) [LABEL](/Mixed) raw");
+}
+
 #[cfg(all(feature = "read-json", feature = "write-json"))]
 #[test]
 fn json_round_trips() {

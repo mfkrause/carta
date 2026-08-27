@@ -49,44 +49,63 @@ impl State {
 
     fn inline(&mut self, inline: &Inline, out: &mut Vec<Piece>) {
         match inline {
-            Inline::Str(text) => out.push(Piece::text(self.escape_str(text))),
+            Inline::Str(text) => {
+                let text = if self.small_caps {
+                    self.escape_str(&text.to_uppercase())
+                } else {
+                    self.escape_str(text)
+                };
+                out.push(Piece::text(text));
+            }
             Inline::Emph(inlines) => self.wrap_markup("*", inlines, out),
             Inline::Strong(inlines) => self.wrap_markup("**", inlines, out),
             Inline::Strikeout(inlines) => {
                 if self.config.has(Extension::Strikeout) {
                     self.wrap_markup("~~", inlines, out);
-                } else {
+                } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("s", inlines, out);
+                } else {
+                    self.extend_pieces(inlines, out);
                 }
             }
             Inline::Underline(inlines) => {
                 if self.config.span_syntax() {
                     self.wrap_span(&underline_attr(), inlines, out);
-                } else {
+                } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("u", inlines, out);
+                } else {
+                    self.wrap_markup("*", inlines, out);
                 }
             }
             Inline::Superscript(inlines) => {
                 if self.config.has(Extension::Superscript) {
                     self.wrap_markup("^", inlines, out);
-                } else {
+                } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("sup", inlines, out);
+                } else {
+                    self.wrap_script("^", inlines, out);
                 }
             }
             Inline::Subscript(inlines) => {
                 if self.config.has(Extension::Subscript) {
                     self.wrap_markup("~", inlines, out);
-                } else {
+                } else if self.config.has(Extension::RawHtml) {
                     self.wrap_tag("sub", inlines, out);
+                } else {
+                    self.wrap_script("_", inlines, out);
                 }
             }
             Inline::SmallCaps(inlines) => {
                 if self.config.span_syntax() {
                     self.wrap_span(&smallcaps_attr(), inlines, out);
-                } else {
+                } else if self.config.has(Extension::RawHtml) {
                     out.push(Piece::text("<span class=\"smallcaps\">"));
                     self.extend_pieces(inlines, out);
                     out.push(Piece::text("</span>"));
+                } else {
+                    let previous = std::mem::replace(&mut self.small_caps, true);
+                    self.extend_pieces(inlines, out);
+                    self.small_caps = previous;
                 }
             }
             Inline::Quoted(kind, inlines) => {
@@ -116,10 +135,12 @@ impl State {
                     self.extend_pieces(inlines, out);
                 } else if self.config.span_syntax() {
                     self.wrap_span(attr, inlines, out);
-                } else {
+                } else if self.config.has(Extension::RawHtml) {
                     out.push(Piece::text(format!("<span{}>", render_html_attr(attr))));
                     self.extend_pieces(inlines, out);
                     out.push(Piece::text("</span>"));
+                } else {
+                    self.extend_pieces(inlines, out);
                 }
             }
             Inline::Note(blocks) => {
@@ -206,7 +227,7 @@ impl State {
 
     fn raw_inline(&mut self, format: &Format, text: &str, out: &mut Vec<Piece>) {
         if !self.config.has(Extension::RawAttribute) {
-            if is_html_format(format) {
+            if is_html_format(format) && self.config.has(Extension::RawHtml) {
                 out.push(Piece::text(text.to_owned()));
             }
             return;
@@ -291,6 +312,12 @@ impl State {
         out.push(Piece::text(format!("</{tag}>")));
     }
 
+    fn wrap_script(&mut self, marker: &str, inlines: &[Inline], out: &mut Vec<Piece>) {
+        out.push(Piece::text(format!("{marker}(")));
+        self.extend_pieces(inlines, out);
+        out.push(Piece::text(")"));
+    }
+
     fn wrap_span(&mut self, attr: &Attr, inlines: &[Inline], out: &mut Vec<Piece>) {
         out.push(Piece::text("["));
         self.extend_pieces(inlines, out);
@@ -314,7 +341,10 @@ impl State {
             out.push(Piece::text(autolink));
             return;
         }
-        if !self.config.has(Extension::LinkAttributes) && !attr_is_empty(attr) {
+        if !self.config.has(Extension::LinkAttributes)
+            && !attr_is_empty(attr)
+            && self.config.has(Extension::RawHtml)
+        {
             push_html(
                 out,
                 &format!(
@@ -333,7 +363,7 @@ impl State {
         }
         out.push(Piece::text("["));
         self.extend_pieces(inlines, out);
-        let attr_suffix = if attr_is_empty(attr) {
+        let attr_suffix = if attr_is_empty(attr) || !self.config.has(Extension::LinkAttributes) {
             String::new()
         } else {
             attr_braces(attr)
@@ -347,7 +377,9 @@ impl State {
     /// Whether an image carrying `attr` must fall back to an HTML `<img>`: it has attributes the
     /// dialect cannot express as a native `{…}` suffix because it lacks `link_attributes`.
     pub(super) fn image_renders_as_html(&self, attr: &Attr) -> bool {
-        !self.config.has(Extension::LinkAttributes) && (has_dimension(attr) || !attr_is_empty(attr))
+        self.config.has(Extension::RawHtml)
+            && !self.config.has(Extension::LinkAttributes)
+            && (has_dimension(attr) || !attr_is_empty(attr))
     }
 
     pub(super) fn image(
@@ -363,7 +395,7 @@ impl State {
         }
         out.push(Piece::text("!["));
         self.extend_pieces(inlines, out);
-        let attr_suffix = if attr_is_empty(attr) {
+        let attr_suffix = if attr_is_empty(attr) || !self.config.has(Extension::LinkAttributes) {
             String::new()
         } else {
             attr_braces(attr)

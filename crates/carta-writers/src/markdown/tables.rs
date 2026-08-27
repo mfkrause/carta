@@ -31,7 +31,11 @@ impl State {
             if self.config.has(Extension::PipeTables) {
                 return self.github_table(table, width);
             }
-            return self.html_table(table);
+            return if self.config.has(Extension::RawHtml) {
+                self.html_table(table)
+            } else {
+                "[TABLE]".to_owned()
+            };
         }
         if table.col_specs.is_empty() {
             return String::new();
@@ -68,7 +72,7 @@ impl State {
     /// HTML table. A column-aligned pipe table whose columns together exceed the fill column drops to
     /// a narrow form with single-space cell padding. The caption follows the table as its own block.
     fn github_table(&mut self, table: &Table, width: usize) -> String {
-        if !pipe_representable(table) {
+        if !pipe_representable(table) && self.config.has(Extension::RawHtml) {
             return self.html_table(table);
         }
         let columns = table.col_specs.len();

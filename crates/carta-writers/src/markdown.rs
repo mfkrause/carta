@@ -42,8 +42,8 @@ mod yaml;
 /// set decides which constructs have native syntax versus a fallback. `cmark` marks the `CommonMark`
 /// writer family (`gfm`, `commonmark_x`) as opposed to the `markdown`-dialect family (`markdown` and
 /// the sparse dialects): the two families share nearly identical extension sets but differ in a handful
-/// of constructs no extension can distinguish: a div with no fenced-div syntax wraps in raw `<div>`
-/// for the former and renders its contents transparently for the latter; an ordered list with no
+/// of constructs no extension can distinguish: a div with no fenced-div syntax can wrap in raw
+/// HTML for the former and renders its contents transparently for the latter; an ordered list with no
 /// `fancy_lists`/`startnum` keeps its delimiter and start number for the former and collapses to
 /// `1.` for the latter; a hard line break writes `\` for the former and two trailing spaces for the
 /// latter. The flag also selects a fenced div's braced `{.class}` shorthand over the bare `class`
@@ -340,6 +340,7 @@ struct State {
     /// Whether rendering is inside an HTML `<a>` fallback's label, where a nested link must
     /// downgrade to a `<span>` (HTML forbids an anchor inside an anchor).
     in_anchor: bool,
+    small_caps: bool,
     /// How many tables the current render is nested inside, counting the one being rendered.
     table_depth: usize,
     /// Whether rendering is somewhere inside a list item, a definition, or a table cell, where a
@@ -356,6 +357,7 @@ impl State {
             width,
             footnotes: Vec::new(),
             in_anchor: false,
+            small_caps: false,
             table_depth: 0,
             in_item: false,
         }
@@ -416,7 +418,7 @@ impl State {
             Block::HorizontalRule => "-".repeat(width),
             Block::Div(attr, blocks) => self.div(attr, blocks, width),
             Block::LineBlock(lines) => self.line_block(lines),
-            Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks),
+            Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks, width),
             Block::Table(table) => self.table(table, width),
         }
     }
@@ -504,10 +506,11 @@ impl State {
             // CommonMark family and HTML-parsing `markdown` dialects wrap in a literal `<div>` (with
             // `data-markdown="1"` under `markdown_attribute`); sparse dialects render contents transparently.
             let marker = self.config.has(Extension::MarkdownAttribute);
-            if self.config.cmark
-                || self.config.has(Extension::NativeDivs)
-                || self.config.has(Extension::MarkdownInHtmlBlocks)
-                || marker
+            if self.config.has(Extension::RawHtml)
+                && (self.config.cmark
+                    || self.config.has(Extension::NativeDivs)
+                    || self.config.has(Extension::MarkdownInHtmlBlocks)
+                    || marker)
             {
                 let data = if marker { " data-markdown=\"1\"" } else { "" };
                 return format!("<div{}{data}>\n\n{body}\n\n</div>", render_html_attr(attr));
@@ -709,19 +712,20 @@ impl State {
         groups.join("\n\n")
     }
 
-    fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block]) -> String {
-        if !self.config.has(Extension::ImplicitFigures) {
-            return crate::html::render_fragment(
-                &[Block::Figure(
-                    Box::new(attr.clone()),
-                    Box::new(caption.clone()),
-                    blocks.to_vec(),
-                )],
-                self.wrap,
-            );
-        }
-        if let Some(rendered) = self.implicit_figure(attr, caption, blocks) {
+    fn figure(&mut self, attr: &Attr, caption: &Caption, blocks: &[Block], width: usize) -> String {
+        if self.config.has(Extension::ImplicitFigures)
+            && let Some(rendered) = self.implicit_figure(attr, caption, blocks)
+        {
             return rendered;
+        }
+        if !self.config.has(Extension::RawHtml) {
+            let body = self.blocks_to_string(blocks, width);
+            let caption = self.blocks_to_string(&caption.long, width);
+            return match (body.is_empty(), caption.is_empty()) {
+                (true, _) => caption,
+                (_, true) => body,
+                _ => format!("{body}\n\n{caption}"),
+            };
         }
         crate::html::render_fragment(
             &[Block::Figure(
