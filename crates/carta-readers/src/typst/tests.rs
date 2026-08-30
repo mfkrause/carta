@@ -962,6 +962,7 @@ fn malformed_show_rules_leave_following_content_readable() {
         "#show regex: \"y\"\nbody",
         "#show regex(\"[\"): \"y\"\nbody",
         "#show regex(level: 1): it => [x]\nbody",
+        "#show regex(level =>: 1): it => [x]\nbody",
     ] {
         assert_eq!(parse(source), vec![Block::Para(vec![text("body")])]);
     }

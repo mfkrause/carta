@@ -127,7 +127,10 @@ impl Parser {
         let name = self.read_path();
         if name == "regex" {
             let args = self.call_arguments()?;
-            let pattern = compile_regex(&positional(&args)?.as_text())?;
+            let Value::Str(source) = positional(&args)? else {
+                return None;
+            };
+            let pattern = compile_regex(source)?;
             return Some(Selector::Pattern(Box::new(pattern)));
         }
         let Some(element) = name.strip_suffix(".where") else {
