@@ -46,7 +46,7 @@ jobs:
           tools/fetch-pandoc-tests.sh
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-      - uses: taiki-e/install-action@fcf5432d9f50d67e37ee6e29bdb7a224ff67b4a7 # v2
+      - uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2
         with:
           tool: hyperfine
 
