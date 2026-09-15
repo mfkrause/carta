@@ -53,7 +53,7 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
 }
 
 #[test]
-fn an_oversized_column_fraction_stays_within_the_fill_column() {
+fn table_measurement_stays_within_the_fill_column() {
     use super::MarkdownWriter;
     use carta_ast::{
         Alignment, Attr, Block, Cell, ColSpec, ColWidth, Document, Inline, Row, Table, TableBody,
@@ -90,7 +90,10 @@ fn an_oversized_column_fraction_stays_within_the_fill_column() {
         vec![Block::Para(vec![Inline::Str("inner".into())])],
     );
     let doc = Document {
-        blocks: vec![table(ColWidth::ColWidthDefault, vec![inner])],
+        blocks: vec![table(
+            ColWidth::ColWidthDefault,
+            vec![inner, Block::HorizontalRule],
+        )],
         ..Document::default()
     };
     let mut options = WriterOptions::default();

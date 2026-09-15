@@ -146,7 +146,7 @@ impl State {
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
-            Block::HorizontalRule => "-".repeat(width),
+            Block::HorizontalRule => "-".repeat(width.min(self.width)),
             Block::Table(table) => self.table(table, width),
             Block::Figure(attr, caption, blocks) => {
                 match self.simple_figure(attr, &caption.long, blocks) {

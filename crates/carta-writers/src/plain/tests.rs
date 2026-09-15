@@ -64,7 +64,7 @@ fn deeply_nested_tables_render_without_compounding_measurement() {
 }
 
 #[test]
-fn an_oversized_column_fraction_stays_within_the_fill_column() {
+fn table_measurement_stays_within_the_fill_column() {
     use carta_ast::{Alignment, Cell, ColSpec, ColWidth, Row, Table, TableBody};
 
     fn table(width: ColWidth, content: Vec<Block>) -> Block {
@@ -96,7 +96,10 @@ fn an_oversized_column_fraction_stays_within_the_fill_column() {
         ColWidth::ColWidth(1e300),
         vec![Block::Para(vec![Inline::Str("inner".into())])],
     );
-    let outer = table(ColWidth::ColWidthDefault, vec![inner]);
+    let outer = table(
+        ColWidth::ColWidthDefault,
+        vec![inner, Block::HorizontalRule],
+    );
     let rendered = render_columns(vec![outer], 40);
     // The framing each nesting level adds puts the total slightly over the fill column; what matters
     // is that the width tracks the fill column rather than the sizing width.

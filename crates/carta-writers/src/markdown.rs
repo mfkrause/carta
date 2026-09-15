@@ -415,7 +415,7 @@ impl State {
             Block::BulletList(items) => self.bullet_list(items, width),
             Block::OrderedList(attrs, items) => self.ordered_list(attrs, items, width),
             Block::DefinitionList(items) => self.definition_list(items, width),
-            Block::HorizontalRule => "-".repeat(width),
+            Block::HorizontalRule => "-".repeat(width.min(self.width)),
             Block::Div(attr, blocks) => self.div(attr, blocks, width),
             Block::LineBlock(lines) => self.line_block(lines),
             Block::Figure(attr, caption, blocks) => self.figure(attr, caption, blocks, width),
