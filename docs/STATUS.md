@@ -381,7 +381,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 ### `gfm` ✅
 
 ### `markdown` ✅
-- Horizontal rules stay within the configured line width during table measurement.
 - The reader-only and `mmd_*` pandoc-markdown extension families are not modeled.
 
 ### `markdown_github` ✅
@@ -583,7 +582,6 @@ Each entry lists only what is still missing or known to diverge. An entry with n
 - Lossy by the format's nature: the body is serialized to Markdown inside `_note`.
 
 ### `plain` ✅
-- Horizontal rules stay within the configured line width during table measurement.
 
 **Not started:** `ansi`, `asciidoc_legacy`, `asciidoctor`, `bbcode` (+ `_fluxbb`, `_hubzilla`,
 `_phpbb`, `_steam`, `_xenforo`), `biblatex`, `bibtex`, `chunkedhtml`, `context`, `csljson`, `djot`,
