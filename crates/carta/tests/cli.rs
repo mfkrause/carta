@@ -149,24 +149,398 @@ fn unsupported_output_format_fails() {
 }
 
 #[test]
-fn missing_from_flag_fails() {
-    let result = run(&["-t", "html"], "x");
+fn omitted_from_flag_defaults_to_markdown() {
+    let result = run(&["-t", "html"], "\"x\"");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<p>\u{201c}x\u{201d}</p>\n");
+}
+
+#[test]
+fn omitted_to_flag_defaults_to_html() {
+    let result = run(&["-f", "commonmark"], "x");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<p>x</p>\n");
+}
+
+fn input_directory(name: &str) -> PathBuf {
+    let directory = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
+    fs::create_dir_all(&directory).expect("create input directory");
+    directory
+}
+
+#[test]
+fn no_format_flags_convert_markdown_to_html() {
+    let result = run(&[], "*text*");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<p><em>text</em></p>\n");
+}
+
+#[test]
+fn filenames_select_readers_case_insensitively() {
+    let directory = input_directory("inferred-readers");
+    for (extension, source, expected) in [
+        ("MD", "\"text\"", "<p>\u{201c}text\u{201d}</p>\n"),
+        (
+            "htm",
+            "<p><strong>text</strong></p>",
+            "<p><strong>text</strong></p>\n",
+        ),
+        ("TEX", "\\emph{text}", "<p><em>text</em></p>\n"),
+        ("rst", "**text**", "<p><strong>text</strong></p>\n"),
+        ("org", "Some *text*", "<p>Some <strong>text</strong></p>\n"),
+        ("typ", "*text*", "<p><strong>text</strong></p>\n"),
+        ("json", SAMPLE_JSON, "<p>hi</p>\n"),
+        ("native", "[Para [Str \"hi\"]]", "<p>hi</p>\n"),
+    ] {
+        let path = directory.join(format!("input.{extension}"));
+        fs::write(&path, source).unwrap();
+        let result = run(&[path.to_str().unwrap()], "");
+        assert!(result.success, "{extension}: {}", result.stderr);
+        assert_eq!(result.stdout, expected, "{extension}");
+        assert!(result.stderr.is_empty(), "{extension}: {}", result.stderr);
+    }
+}
+
+#[test]
+fn filenames_select_writers_case_insensitively() {
+    let directory = input_directory("inferred-writers");
+    for (extension, expected) in [
+        ("TEX", "\\emph{text}\n"),
+        ("md", "*text*\n"),
+        ("txt", "*text*\n"),
+        ("typ", "#emph[text]\n"),
+        ("htm", "<p><em>text</em></p>\n"),
+        ("unknown", "<p><em>text</em></p>\n"),
+    ] {
+        let path = directory.join(format!("output.{extension}"));
+        let result = run(&["-o", path.to_str().unwrap()], "*text*");
+        assert!(result.success, "{extension}: {}", result.stderr);
+        assert!(result.stdout.is_empty());
+        assert_eq!(fs::read_to_string(path).unwrap(), expected, "{extension}");
+    }
+}
+
+#[test]
+fn explicit_formats_override_filenames() {
+    let directory = input_directory("explicit-formats");
+    let input = directory.join("input.json");
+    let output = directory.join("output.tex");
+    fs::write(&input, "*text*").unwrap();
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            "-t",
+            "html",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        fs::read_to_string(output).unwrap(),
+        "<p><em>text</em></p>\n"
+    );
+    assert!(result.stderr.is_empty());
+}
+
+#[test]
+fn unknown_input_extension_warns_and_uses_markdown() {
+    let directory = input_directory("unknown-input-extension");
+    for name in ["input.unknown", "no-extension"] {
+        let input = directory.join(name);
+        fs::write(&input, "*text*").unwrap();
+        let result = run(&[input.to_str().unwrap()], "");
+        assert!(result.success, "stderr: {}", result.stderr);
+        assert_eq!(result.stdout, "<p><em>text</em></p>\n");
+        assert!(
+            result.stderr.contains("defaulting to markdown"),
+            "{}",
+            result.stderr
+        );
+    }
+}
+
+#[test]
+fn first_known_input_extension_selects_one_reader_for_all_files() {
+    let directory = input_directory("first-known-extension");
+    let unknown = directory.join("first.unknown");
+    let html = directory.join("second.html");
+    let markdown = directory.join("third.md");
+    for path in [&unknown, &html, &markdown] {
+        fs::write(path, "<p><strong>text</strong></p>").unwrap();
+    }
+    let result = run(
+        &[
+            unknown.to_str().unwrap(),
+            html.to_str().unwrap(),
+            markdown.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        result.stdout,
+        "<p><strong>text</strong></p>\n<p><strong>text</strong></p>\n<p><strong>text</strong></p>\n"
+    );
+    assert!(result.stderr.is_empty());
+}
+
+#[test]
+fn multiple_text_inputs_have_blank_line_boundaries() {
+    let directory = input_directory("text-boundaries");
+    let first = directory.join("first.md");
+    let second = directory.join("second.md");
+    fs::write(&first, "one").unwrap();
+    fs::write(&second, "two").unwrap();
+    let result = run(&[first.to_str().unwrap(), second.to_str().unwrap()], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<p>one</p>\n<p>two</p>\n");
+}
+
+#[test]
+fn reference_definitions_resolve_across_input_files() {
+    let directory = input_directory("shared-reference-definitions");
+    let first = directory.join("first.md");
+    let second = directory.join("second.md");
+    fs::write(&first, "[text][target]").unwrap();
+    fs::write(&second, "[target]: https://example.com").unwrap();
+    let result = run(&[first.to_str().unwrap(), second.to_str().unwrap()], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        result.stdout,
+        "<p><a href=\"https://example.com\">text</a></p>\n"
+    );
+}
+
+#[test]
+fn text_constructs_can_span_input_files() {
+    let directory = input_directory("shared-code-fence");
+    let first = directory.join("first.md");
+    let second = directory.join("second.md");
+    fs::write(&first, "```\none").unwrap();
+    fs::write(&second, "two\n```").unwrap();
+    let result = run(&[first.to_str().unwrap(), second.to_str().unwrap()], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<pre><code>one\n\ntwo</code></pre>\n");
+}
+
+#[test]
+fn dash_reads_stdin_at_the_given_position_and_writes_stdout() {
+    let directory = input_directory("stdin-position");
+    let input = directory.join("input.md");
+    fs::write(&input, "file").unwrap();
+    for (paths, expected) in [
+        (
+            ["-", input.to_str().unwrap()],
+            "<p>stdin</p>\n<p>file</p>\n",
+        ),
+        (
+            [input.to_str().unwrap(), "-"],
+            "<p>file</p>\n<p>stdin</p>\n",
+        ),
+    ] {
+        let result = run(&[paths[0], paths[1], "-o", "-"], "stdin");
+        assert!(result.success, "stderr: {}", result.stderr);
+        assert_eq!(result.stdout, expected);
+    }
+}
+
+#[test]
+fn multiple_inputs_decode_each_file_separately() {
+    let directory = input_directory("input-encodings");
+    let first = directory.join("first.md");
+    let second = directory.join("second.md");
+    fs::write(&first, "\u{e9}").unwrap();
+    fs::write(&second, [0xff]).unwrap();
+    let result = run(&[first.to_str().unwrap(), second.to_str().unwrap()], "");
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "<p>\u{e9}</p>\n<p>\u{ff}</p>\n");
+    assert!(result.stderr.contains(second.to_str().unwrap()));
+    assert!(!result.stderr.contains(first.to_str().unwrap()));
+}
+
+#[test]
+fn multiple_json_inputs_merge_blocks_and_metadata() {
+    let directory = input_directory("json-inputs");
+    let first = directory.join("first.json");
+    let second = directory.join("second.json");
+    for (path, title, body) in [(&first, "first", "one"), (&second, "second", "two")] {
+        let mut document: serde_json::Value = serde_json::from_str(SAMPLE_JSON).unwrap();
+        *document.pointer_mut("/meta").unwrap() =
+            serde_json::json!({"title": {"t": "MetaString", "c": title}});
+        *document.pointer_mut("/blocks/0/c/0/c").unwrap() = body.into();
+        fs::write(path, document.to_string()).unwrap();
+    }
+    let result = run(
+        &[
+            "-t",
+            "json",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+    assert_eq!(document.pointer("/meta/title/c").unwrap(), "second");
+    assert_eq!(document.pointer("/blocks/0/c/0/c").unwrap(), "one");
+    assert_eq!(document.pointer("/blocks/1/c/0/c").unwrap(), "two");
+}
+
+#[test]
+fn input_errors_leave_the_output_file_unchanged() {
+    let directory = input_directory("input-errors");
+    let input = directory.join("present.md");
+    let missing = directory.join("missing.md");
+    let output = directory.join("output.html");
+    fs::write(&input, "text").unwrap();
+    fs::write(&output, "keep").unwrap();
+    let result = run(
+        &[
+            input.to_str().unwrap(),
+            missing.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ],
+        "",
+    );
     assert!(!result.success);
     assert!(
-        result.stderr.contains("--from") && result.stderr.contains("required"),
-        "stderr: {}",
+        result.stderr.contains(missing.to_str().unwrap()),
+        "{}",
+        result.stderr
+    );
+    assert_eq!(fs::read_to_string(output).unwrap(), "keep");
+}
+
+#[test]
+fn multiple_binary_inputs_fail_before_reading() {
+    let result = run(&["first.docx", "second.docx"], "");
+    assert!(!result.success);
+    assert!(
+        result
+            .stderr
+            .contains("multiple inputs require a text format"),
+        "{}",
         result.stderr
     );
 }
 
 #[test]
-fn missing_to_flag_fails() {
-    let result = run(&["-f", "commonmark"], "x");
+fn repeated_stdin_is_rejected() {
+    let result = run(&["-", "-"], "text");
     assert!(!result.success);
     assert!(
-        result.stderr.contains("--to") && result.stderr.contains("required"),
-        "stderr: {}",
+        result
+            .stderr
+            .contains("standard input can only be read once"),
+        "{}",
         result.stderr
+    );
+}
+
+#[test]
+fn known_unsupported_output_extension_fails() {
+    let directory = input_directory("unsupported-output-extension");
+    let output = directory.join("output.pdf");
+    let result = run(&["-o", output.to_str().unwrap()], "text");
+    assert!(!result.success);
+    assert!(
+        result.stderr.contains("unsupported format: pdf"),
+        "{}",
+        result.stderr
+    );
+    assert!(!output.exists());
+}
+
+#[cfg(all(feature = "read-typst", feature = "write-html"))]
+#[test]
+fn typst_stdin_preserves_relative_image_paths() {
+    for arguments in [
+        &["-f", "typst", "-t", "json"][..],
+        &["-f", "typst", "-t", "json", "-"][..],
+    ] {
+        let result = run(arguments, "#image(\"image.png\")");
+        assert!(result.success, "stderr: {}", result.stderr);
+        let document: serde_json::Value = serde_json::from_str(&result.stdout).unwrap();
+        assert_eq!(
+            document.pointer("/blocks/0/c/0/c/2/0").unwrap(),
+            "image.png"
+        );
+    }
+}
+
+#[cfg(all(feature = "read-typst", feature = "write-html"))]
+#[test]
+fn each_typst_input_resolves_its_own_includes_and_images() {
+    let directory = input_directory("typst-source-directories");
+    let first = directory.join("first");
+    let second = directory.join("second");
+    for (path, text, image) in [
+        (&first, "one", b"first-image".as_slice()),
+        (&second, "two", b"second-image".as_slice()),
+    ] {
+        fs::create_dir_all(path.join("parts")).unwrap();
+        fs::write(path.join("parts/part.typ"), text).unwrap();
+        fs::write(path.join("image.png"), image).unwrap();
+        fs::write(
+            path.join("main.typ"),
+            "\u{feff}\u{e9}\r\n\r\n#include \"parts/part.typ\"\r\n\r\n#image(\"image.png\")",
+        )
+        .unwrap();
+    }
+    let first = first.join("main.typ");
+    let second = second.join("main.typ");
+    let result = run(
+        &[
+            "--embed-resources",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert!(result.stdout.contains("<p>one</p>"), "{}", result.stdout);
+    assert!(result.stdout.contains("<p>two</p>"), "{}", result.stdout);
+    assert!(
+        result
+            .stdout
+            .contains("data:image/png;base64,Zmlyc3QtaW1hZ2U="),
+        "{}",
+        result.stdout
+    );
+    assert!(
+        result
+            .stdout
+            .contains("data:image/png;base64,c2Vjb25kLWltYWdl"),
+        "{}",
+        result.stdout
+    );
+}
+
+#[test]
+fn markdown_images_keep_working_directory_paths() {
+    let directory = input_directory("markdown-resource-directories");
+    let first = directory.join("first.md");
+    let second = directory.join("second.md");
+    fs::write(&first, "![one](one.png)").unwrap();
+    fs::write(&second, "![two](two.png)").unwrap();
+    let result = run(
+        &[
+            "-f",
+            "commonmark",
+            first.to_str().unwrap(),
+            second.to_str().unwrap(),
+        ],
+        "",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        result.stdout,
+        "<p><img src=\"one.png\" alt=\"one\" /></p>\n<p><img src=\"two.png\" alt=\"two\" /></p>\n"
     );
 }
 

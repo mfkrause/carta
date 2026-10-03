@@ -26,10 +26,10 @@ Document converter
 ## Options
 
 **-f**, **--from** *\<FROM\>*  
-Input format (e.g. `commonmark`, `json`)
+Input format, inferred from input filenames when omitted (default: markdown)
 
 **-t**, **--to** *\<TO\>*  
-Output format (e.g. `html`, `json`)
+Output format, inferred from the output filename when omitted (default: html)
 
 **-o**, **--output** *\<OUTPUT\>*  
 Write output to this file instead of stdout
@@ -161,4 +161,4 @@ Print version information and exit
 Print help
 
 \[*INPUT*\]  
-Read input from this file instead of stdin
+Read these files in order, with blank lines between text inputs. Use - for stdin

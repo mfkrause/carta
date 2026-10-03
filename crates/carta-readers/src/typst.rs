@@ -83,6 +83,22 @@ impl Reader for TypstReader {
 /// Parses a whole source text into the document model.
 fn parse_document(input: &str, options: &ReaderOptions) -> Document {
     let mut parser = Parser::new(normalize(input), options.source_dir.clone());
+    let mut characters = input.char_indices().peekable();
+    let mut position = 0;
+    let mut previous = None;
+    for (&offset, directory) in &options.source_dirs {
+        while let Some(&(index, character)) = characters.peek().filter(|(index, _)| *index < offset)
+        {
+            characters.next();
+            if !(index == 0 && character == '\u{feff}'
+                || previous == Some('\r') && character == '\n')
+            {
+                position += 1;
+            }
+            previous = Some(character);
+        }
+        parser.directories.insert(position, Some(directory.clone()));
+    }
     let mut blocks = parser.blocks(0);
     walk_inlines(&mut blocks, &mut merge_text_runs);
     walk_inlines(&mut blocks, &mut collapse_separators);
@@ -950,9 +966,8 @@ struct Parser {
     functions: BTreeMap<String, Function>,
     /// The code expression a paragraph's lookahead already read, as its start, value, and end.
     evaluated: Option<(usize, Value, usize)>,
-    /// The directory the source file was named under, which a referenced file resolves against.
-    /// Absent when the source came from a stream, leaving references as written.
-    base: Option<PathBuf>,
+    /// Source directories keyed by character offsets, including loaded files and evaluated code.
+    directories: BTreeMap<usize, Option<PathBuf>>,
     /// The files whose text is currently being parsed, so a cycle of references terminates.
     open: BTreeSet<PathBuf>,
     /// Where an included file's own trailing newline ended a line, closing the paragraph that the
@@ -986,8 +1001,6 @@ struct Loaded {
     start: usize,
     /// One past its last character.
     end: usize,
-    /// The directory it sits in, which its own references resolve against.
-    base: Option<PathBuf>,
     /// Its path, held open so a reference cycle terminates.
     path: PathBuf,
 }
@@ -1018,7 +1031,7 @@ impl Parser {
             unclosed: BTreeSet::new(),
             functions: BTreeMap::new(),
             evaluated: None,
-            base,
+            directories: BTreeMap::from([(0, base)]),
             open: BTreeSet::new(),
             line_closed: None,
             aliases: BTreeMap::new(),
@@ -1030,6 +1043,14 @@ impl Parser {
             flow: None,
             copies,
         }
+    }
+
+    fn base(&self) -> Option<&Path> {
+        self.directories
+            .range(..=self.pos.saturating_sub(1))
+            .next_back()?
+            .1
+            .as_deref()
     }
 
     /// The character at an absolute offset, or `None` past the current limit.
@@ -3208,7 +3229,7 @@ impl Parser {
         if reference.is_empty() || self.depth >= MAX_DEPTH {
             return None;
         }
-        let path = match self.base.as_deref() {
+        let path = match self.base() {
             Some(base) => base.join(reference),
             None => PathBuf::from(reference),
         };
@@ -3226,12 +3247,8 @@ impl Parser {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .map(Path::to_path_buf);
-        Some(Loaded {
-            start,
-            end,
-            base,
-            path,
-        })
+        self.directories.insert(start, base);
+        Some(Loaded { start, end, path })
     }
 
     /// Load the file a data call names, as the value that call's format produces.
@@ -3240,7 +3257,7 @@ impl Parser {
         if reference.is_empty() {
             return Value::Nothing;
         }
-        let path = match self.base.as_deref() {
+        let path = match self.base() {
             Some(base) => base.join(&reference),
             None => PathBuf::from(&reference),
         };
@@ -3257,6 +3274,8 @@ impl Parser {
             return Value::Nothing;
         }
         let start = self.source.len();
+        self.directories
+            .insert(start, self.base().map(Path::to_path_buf));
         self.source.extend(normalize(&source));
         let end = self.source.len();
         let (saved_pos, saved_limit) = (self.pos, self.limit);
@@ -3274,7 +3293,6 @@ impl Parser {
     /// resolving against that file's directory, and release it for a later reference.
     fn file_blocks(&mut self, loaded: &Loaded) -> Vec<Block> {
         let (saved_pos, saved_limit) = (self.pos, self.limit);
-        let saved_base = std::mem::replace(&mut self.base, loaded.base.clone());
         let saved_evaluated = self.evaluated.take();
         self.pos = loaded.start;
         self.limit = loaded.end;
@@ -3282,7 +3300,6 @@ impl Parser {
         let blocks = self.blocks(0);
         self.depth = self.depth.saturating_sub(1);
         self.evaluated = saved_evaluated;
-        self.base = saved_base;
         self.pos = saved_pos;
         self.limit = saved_limit;
         self.open.remove(&loaded.path);
@@ -4529,7 +4546,7 @@ impl Parser {
                     .unwrap_or_default(),
             )]),
             "link" => link_call(&args),
-            "image" => Value::Inlines(vec![image(&args, self.base.as_deref())]),
+            "image" => Value::Inlines(vec![image(&args, self.base())]),
             "raw" => raw_call(&args),
             "label" => Value::Label(positional_text(&args)),
             "regex" => Value::Regex(positional_text(&args)),

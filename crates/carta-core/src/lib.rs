@@ -118,6 +118,10 @@ pub struct ReaderOptions {
     /// companion files (included sources, imported modules, image paths) resolves them against it;
     /// unset, such references are left exactly as written.
     pub source_dir: Option<std::path::PathBuf>,
+    /// Directories for concatenated text sources, keyed by their starting UTF-8 byte offsets.
+    /// Each entry applies until the next offset. An empty path selects the working directory.
+    /// Readers that resolve companion files use these entries instead of `source_dir`.
+    pub source_dirs: std::collections::BTreeMap<usize, std::path::PathBuf>,
 }
 
 impl Default for ReaderOptions {
@@ -127,6 +131,7 @@ impl Default for ReaderOptions {
             tab_stop: 4,
             greedy_paragraphs: false,
             source_dir: None,
+            source_dirs: std::collections::BTreeMap::new(),
         }
     }
 }

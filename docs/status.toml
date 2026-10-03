@@ -1029,9 +1029,13 @@ name = "Embed resources / extract media"
 status = "usable"
 
 [[feature]]
+name = "Filename format inference"
+status = "usable"
+
+[[feature]]
 name = "Multiple inputs / defaults files (`--defaults`)"
-status = "not-started"
-notes = "CLI takes one input."
+status = "in-development"
+notes = "Multiple binary inputs, `--file-scope`, and defaults files are not supported."
 
 [[feature]]
 name = "CLI introspection (`--list-input-formats`, `--list-extensions`, …)"

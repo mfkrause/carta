@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -16,13 +16,14 @@ use carta::ast::MetaValue;
 #[cfg(feature = "write-html")]
 use carta::inline_resources;
 use carta::{
-    AnyReader, Error, MathMethod, MediaBag, Output, ReaderOptions, Result, TopLevelDivision,
-    WrapMode, WriterOptions, any_reader_for, media, read_document, render_document,
+    Error, MathMethod, MediaBag, Output, ReaderOptions, Result, TopLevelDivision, WrapMode,
+    WriterOptions, media, render_document,
 };
 use clap::{ArgAction, CommandFactory, Parser};
 
 mod datadir;
 mod filters;
+mod input;
 mod options;
 mod resources;
 
@@ -32,28 +33,6 @@ use options::{highlight_options, print_highlight_style};
 #[cfg(feature = "write-html")]
 use resources::resolve_embed;
 use resources::{extract_media, resolve_resource, resource_search_path};
-
-#[cfg(not(feature = "highlight"))]
-const LIST_FLAGS: [&str; 6] = [
-    "list_input_formats",
-    "list_output_formats",
-    "list_extensions",
-    "print_default_template",
-    "completions",
-    "man",
-];
-#[cfg(feature = "highlight")]
-const LIST_FLAGS: [&str; 9] = [
-    "list_input_formats",
-    "list_output_formats",
-    "list_extensions",
-    "print_default_template",
-    "completions",
-    "man",
-    "list_highlight_languages",
-    "list_highlight_styles",
-    "print_highlight_style",
-];
 
 #[derive(Parser, Debug)]
 #[command(
@@ -65,11 +44,11 @@ const LIST_FLAGS: [&str; 9] = [
 // One flag per field; a sub-struct would obscure the mapping clap relies on.
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
-    /// Input format (e.g. `commonmark`, `json`).
-    #[arg(short = 'f', long = "from", required_unless_present_any = LIST_FLAGS)]
+    /// Input format, inferred from input filenames when omitted (default: markdown).
+    #[arg(short = 'f', long = "from")]
     from: Option<String>,
-    /// Output format (e.g. `html`, `json`).
-    #[arg(short = 't', long = "to", required_unless_present_any = LIST_FLAGS)]
+    /// Output format, inferred from the output filename when omitted (default: html).
+    #[arg(short = 't', long = "to")]
     to: Option<String>,
     /// Write output to this file instead of stdout.
     #[arg(short = 'o', long = "output")]
@@ -255,8 +234,8 @@ struct Cli {
     /// Print version information and exit.
     #[arg(long = "version", action = ArgAction::Version)]
     version: Option<bool>,
-    /// Read input from this file instead of stdin.
-    input: Option<PathBuf>,
+    /// Read these files in order, with blank lines between text inputs. Use - for stdin.
+    input: Vec<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -326,19 +305,18 @@ fn run(cli: &Cli) -> Result<()> {
         }
     }
 
-    match (cli.from.as_deref(), cli.to.as_deref()) {
-        (Some(from), Some(to)) => convert_document(from, to, cli),
-        // `required_unless_present_any` rejects a conversion missing `--from`/`--to` before `run`.
-        _ => Ok(()),
-    }
+    let from = cli
+        .from
+        .as_deref()
+        .unwrap_or_else(|| input::input_format(&cli.input));
+    let to = cli
+        .to
+        .as_deref()
+        .unwrap_or_else(|| input::output_format(cli.output.as_deref()));
+    convert_document(from, to, cli)
 }
 
 fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
-    let input = decode_input(
-        read_input(cli.input.as_deref())?,
-        from,
-        cli.input.as_deref(),
-    )?;
     // Base format without `+ext`/`-ext` toggles: passed to filters, keys the default template.
     let to_base = carta::parse_format_spec(to)?.0;
     let data_dir = datadir::resolve(cli.data_dir.as_deref());
@@ -374,7 +352,7 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     writer_options.variables = parse_variables(&cli.variable);
     writer_options.metadata = parse_metadata(&cli.metadata);
     writer_options.metadata_defaults = read_metadata_files(&cli.metadata_file)?;
-    writer_options.source_name = Some(source_name(cli.input.as_deref()));
+    writer_options.source_name = Some(source_name(cli.input.first().map(PathBuf::as_path)));
     if is_docx(to) {
         writer_options.docx = docx_options(cli)?;
     } else if to.starts_with("epub") {
@@ -385,11 +363,10 @@ fn convert_document(from: &str, to: &str, cli: &Cli) -> Result<()> {
     let verbatim = writer_options.standalone || cli.template.is_some();
 
     let mut reader_options = ReaderOptions::default();
-    reader_options.source_dir = source_dir(cli.input.as_deref());
     if let Some(tab_stop) = cli.tab_stop {
         reader_options.tab_stop = tab_stop;
     }
-    let (mut document, resources) = read_document(from, &input, &reader_options)?;
+    let (mut document, resources) = input::read_documents(from, &cli.input, &reader_options)?;
 
     // Fold metadata layers before filters so they see what the writer will and can rewrite it;
     // clearing the layers keeps rendering from resurrecting a filter-deleted `-M` key.
@@ -566,7 +543,7 @@ fn source_name(input: Option<&Path>) -> String {
 fn source_dir(input: Option<&Path>) -> Option<PathBuf> {
     input
         .and_then(Path::parent)
-        .filter(|parent| !parent.as_os_str().is_empty())
+        .filter(|parent| !parent.as_os_str().is_empty() && *parent != Path::new("."))
         .map(Path::to_path_buf)
 }
 
@@ -740,36 +717,8 @@ fn list_extensions(format: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn read_input(path: Option<&Path>) -> Result<Vec<u8>> {
-    if let Some(path) = path {
-        Ok(fs::read(path)?)
-    } else {
-        let mut buffer = Vec::new();
-        io::stdin().read_to_end(&mut buffer)?;
-        Ok(buffer)
-    }
-}
-
-/// Bytes a text reader can take. A source that is not UTF-8 is read one byte to a character in the
-/// Latin-1 range instead of being refused, with a warning naming it.
-fn decode_input(input: Vec<u8>, from: &str, path: Option<&Path>) -> Result<Vec<u8>> {
-    if std::str::from_utf8(&input).is_ok() {
-        return Ok(input);
-    }
-    let from_base = carta::parse_format_spec(from)?.0;
-    if !matches!(any_reader_for(&from_base)?, AnyReader::Text(_)) {
-        return Ok(input);
-    }
-    let source = path.map_or_else(|| "input".to_owned(), |path| path.display().to_string());
-    eprintln!("carta: {source} is not UTF-8 encoded: falling back to latin1");
-    Ok(input
-        .iter()
-        .map(|&byte| char::from(byte))
-        .collect::<String>()
-        .into_bytes())
-}
-
 fn write_output(path: Option<&Path>, output: &Output, verbatim: bool) -> Result<()> {
+    let path = path.filter(|path| *path != Path::new("-"));
     if matches!(output, Output::Bytes(_)) && binary_to_terminal(path) {
         return Err(Error::Io(io::Error::other(
             "refusing to write binary output to a terminal (use -o FILE or redirect stdout)",

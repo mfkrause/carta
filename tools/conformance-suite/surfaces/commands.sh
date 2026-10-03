@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Reuse pandoc's command tests as differential cases, diffing carta against a live normalized oracle
-# run, NOT the baked expected. Only bare format-flag commands on implemented pairs run; rest skipped.
+# Check local CLI cases and fetched command examples against live output.
+# Fetched commands with unsupported options or formats are skipped.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 require_tools
@@ -88,6 +88,53 @@ if [ -d "$cmdroot" ]; then
       "-f $FROM -t $TO $(oracle_norm "$TO")" "-f $FROM -t $TO"
   done <"$manifest"
 fi
+
+inputs="$WORK/cli-inputs"
+mkdir -p "$inputs"
+printf '%s' '*text*' >"$inputs/first.md"
+printf '%s' '[link][target]' >"$inputs/link.md"
+printf '%s' '[target]: https://example.com' >"$inputs/definition.md"
+printf '%s' '<p><strong>text</strong></p>' >"$inputs/second.HTML"
+printf '%s' '\emph{text}' >"$inputs/third.tex"
+printf '%s' '**text**' >"$inputs/fourth.rst"
+printf '%s' 'unknown' >"$inputs/fifth.unknown"
+"$OX" -t json "$inputs/first.md" >"$inputs/first.json"
+"$OX" -t json "$inputs/fourth.rst" >"$inputs/second.json"
+
+run_diff text "commands/default-formats" "$inputs/first.md" "" ""
+for filename in first.md second.HTML third.tex fourth.rst fifth.unknown; do
+  run_diff json "commands/infer-$filename" /dev/null \
+    "-t json $inputs/$filename" "-t json $inputs/$filename"
+done
+for arguments in \
+  "$inputs/first.md $inputs/link.md $inputs/definition.md" \
+  "$inputs/fifth.unknown $inputs/second.HTML" \
+  "$inputs/second.HTML $inputs/first.md" \
+  "$inputs/first.json $inputs/second.json" \
+  "$inputs/first.md -" \
+  "- $inputs/first.md" \
+  "-f commonmark $inputs/fifth.unknown" \
+  "-o -"; do
+  run_diff json "commands/input-order [$arguments]" "$inputs/first.md" \
+    "-t json $arguments" "-t json $arguments"
+done
+
+for extension in html tex txt typ native json; do
+  expected="$inputs/expected.$extension"
+  actual="$inputs/actual.$extension"
+  if ! "$ORACLE" -o "$expected" <"$inputs/first.md" 2>"$inputs/error" || \
+     ! "$OX" -o "$actual" <"$inputs/first.md" 2>"$inputs/error"; then
+    note_err "commands/infer-output-$extension" "$(cat "$inputs/error")"
+    continue
+  fi
+  is_json_target "$extension" && mode=json || mode=text
+  if detail=$("compare_$mode" "$expected" "$actual"); then
+    PASS=$((PASS + 1))
+  else
+    note_fail "commands/infer-output-$extension" "$detail"
+  fi
+done
+
 report commands all
 tally_group
 
