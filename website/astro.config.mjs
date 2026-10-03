@@ -8,6 +8,16 @@ import starlightSidebarTopics from "starlight-sidebar-topics";
 
 export default defineConfig({
   site: "https://carta.rs",
+  vite: {
+    environments: {
+      prerender: {
+        resolve: {
+          // Keep the native loader beside its optional platform packages.
+          external: ["satteri"],
+        },
+      },
+    },
+  },
   markdown: {
     // Astro's default processor, with smart punctuation off: the docs are full of CLI flags, and it
     // rewrites `--from` to an en dash. Everything else, GFM included, keeps its default.

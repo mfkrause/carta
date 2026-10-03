@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@astrojs/markdown-satteri": "^0.4.2",
-    "@astrojs/mdx": "^7.0.8",
+    "@astrojs/mdx": "^8.0.2",
     "@astrojs/starlight": "^0.42.4",
     "@types/hast": "^3.0.5",
     "astro": "^7.3.5",
@@ -21,6 +21,7 @@
     "rehype-remark": "^10.0.1",
     "remark-gfm": "^4.0.1",
     "remark-stringify": "^11.0.0",
+    "satteri": "0.10.5",
     "sharp": "^0.35.5",
     "starlight-links-validator": "^0.26.0",
     "starlight-llms-txt": "^0.12.0",
