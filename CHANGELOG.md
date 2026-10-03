@@ -9,6 +9,19 @@ version is below `0.1.0`, anything may change at any time.
 Version sections below are generated from the Conventional Commit history at release time and
 curated in the release pull request, so there is no manually maintained _Unreleased_ section.
 
+## [0.0.11](https://github.com/mfkrause/carta/compare/v0.0.10...v0.0.11) - 2026-10-03
+
+### Added
+
+- *(html)* add MathML output
+- *(cli)* infer formats and combine text inputs
+
+### Fixed
+
+- *(typst)* reject non-string regex patterns
+- *(rst)* reuse cell measurements for table layouts
+- *(writers)* bound horizontal rules during table measurement
+
 ## [0.0.10](https://github.com/mfkrause/carta/compare/v0.0.9...v0.0.10) - 2026-08-27
 
 ### Fixed
