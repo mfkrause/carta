@@ -1017,7 +1017,7 @@ notes = "Overrides for filters (`filters/`), templates (`templates/`), and synta
 [[feature]]
 name = "Math output methods (MathJax, KaTeX; MathML, webtex, plain HTML)"
 status = "in-development"
-notes = "`--mathjax` / `--katex` select the HTML renderer. With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no MathML, webtex, or default plain-HTML renderer yet."
+notes = "With no method given, HTML math keeps the verbatim TeX in a math span rather than rendering to plain HTML; no webtex or default plain-HTML renderer yet."
 
 [[feature]]
 name = "Writer extension toggles"

@@ -11,7 +11,7 @@ use super::to_mathml;
 fn construct_goldens() {
     for (source, display, expected) in atoms::GOLDENS.iter().chain(structures::GOLDENS) {
         assert_eq!(
-            to_mathml(source, *display).as_deref(),
+            to_mathml(source, *display, false).as_deref(),
             *expected,
             "source: {source:?} (display: {display})"
         );
@@ -21,7 +21,7 @@ fn construct_goldens() {
 #[test]
 fn xml_special_characters_are_escaped() {
     // A less-than in a leaf is escaped in element content, never emitted raw.
-    let rendered = to_mathml("a<b", false).unwrap_or_default();
+    let rendered = to_mathml("a<b", false, false).unwrap_or_default();
     assert!(rendered.contains("&lt;"));
     assert!(!rendered.contains("<mo><"));
 }
@@ -30,5 +30,5 @@ fn xml_special_characters_are_escaped() {
 fn deeply_nested_input_does_not_panic() {
     // a pathological brace nest is bounded by the depth limit: no stack overflow
     let source = format!("{}x{}", "{".repeat(400), "}".repeat(400));
-    let _ = to_mathml(&source, false);
+    let _ = to_mathml(&source, false, false);
 }

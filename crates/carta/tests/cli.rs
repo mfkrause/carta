@@ -58,6 +58,27 @@ fn commonmark_to_html_over_stdin() {
     assert_eq!(result.stdout, "<h1>Hi</h1>\n");
 }
 
+#[cfg(all(feature = "read-commonmark", feature = "write-html"))]
+#[test]
+fn mathml_flag_renders_structured_math() {
+    let result = run(
+        &["-f", "markdown", "-t", "html", "--mathml", "--wrap=none"],
+        "$x^2$\n\n$$\\frac{a}{b}$$\n",
+    );
+    assert!(result.success, "stderr: {}", result.stderr);
+    assert_eq!(
+        result.stdout,
+        concat!(
+            "<p><math display=\"inline\" xmlns=\"http://www.w3.org/1998/Math/MathML\">",
+            "<semantics><msup><mi>x</mi><mn>2</mn></msup>",
+            "<annotation encoding=\"application/x-tex\">x^2</annotation></semantics></math></p>\n",
+            "<p><math display=\"block\" xmlns=\"http://www.w3.org/1998/Math/MathML\">",
+            "<semantics><mfrac><mi>a</mi><mi>b</mi></mfrac>",
+            "<annotation encoding=\"application/x-tex\">\\frac{a}{b}</annotation></semantics></math></p>\n",
+        ),
+    );
+}
+
 #[test]
 fn json_round_trips_canonically() {
     let result = run(&["-f", "json", "-t", "json"], SAMPLE_JSON);

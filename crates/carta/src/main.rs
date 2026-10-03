@@ -128,6 +128,9 @@ struct Cli {
     #[allow(clippy::option_option)]
     #[arg(long = "katex", value_name = "URL", num_args = 0..=1, require_equals = true)]
     katex: Option<Option<String>>,
+    /// Use MathML to display embedded TeX math in HTML output.
+    #[arg(long = "mathml")]
+    mathml: bool,
     /// Set a metadata field: `KEY:VAL` (or `KEY=VAL`; `true`/`false` become booleans), or bare `KEY`
     /// for `true`. Repeatable.
     #[arg(short = 'M', long = "metadata", value_name = "KEY[:VAL]")]
@@ -561,9 +564,8 @@ const DEFAULT_MATHJAX_URL: &str = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-ch
 /// The asset base URL KaTeX loads from when `--katex` is given no explicit location.
 const DEFAULT_KATEX_URL: &str = "https://cdn.jsdelivr.net/npm/katex@latest/dist/";
 
-/// Resolve the math renderer from the `--mathjax`/`--katex` flags. Each flag's optional value
-/// overrides its default URL; when both are given, MathJax wins. Absent both, math is left as
-/// `\(…\)` / `\[…\]` source.
+/// Resolve the math renderer, preferring MathJax, then KaTeX, then MathML.
+/// Optional flag values override the default script URLs.
 fn math_method(cli: &Cli) -> MathMethod {
     if let Some(url) = &cli.mathjax {
         MathMethod::MathJax(
@@ -572,6 +574,8 @@ fn math_method(cli: &Cli) -> MathMethod {
         )
     } else if let Some(url) = &cli.katex {
         MathMethod::Katex(url.clone().unwrap_or_else(|| DEFAULT_KATEX_URL.to_owned()))
+    } else if cli.mathml {
+        MathMethod::Mathml
     } else {
         MathMethod::Plain
     }

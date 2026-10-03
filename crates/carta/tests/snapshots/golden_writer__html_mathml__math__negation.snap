@@ -1,0 +1,10 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≠</mo><mi>b</mi></mrow><annotation encoding="application/x-tex">\not= b</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≮</mo><mi>c</mi></mrow><annotation encoding="application/x-tex">\not&lt; c</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>⊄</mo><mi>B</mi></mrow><annotation encoding="application/x-tex">\not\subset B</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>⊬</mo><mi>ϕ</mi></mrow><annotation encoding="application/x-tex">\not\vdash \phi</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mo>↛</mo><annotation encoding="application/x-tex">\not\rightarrow</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>a̸</mi><annotation encoding="application/x-tex">\not a</annotation></semantics></math></p>

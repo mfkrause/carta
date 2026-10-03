@@ -1,0 +1,9 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo minsize="120%" maxsize="120%" stretchy="true" form="prefix">(</mo><mi>x</mi><mo minsize="120%" maxsize="120%" stretchy="true" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\big( x \big)</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo minsize="180%" maxsize="180%" stretchy="true" form="prefix">[</mo><mo minsize="120%" maxsize="120%" stretchy="true" form="prefix">{</mo><mi>y</mi><mo minsize="120%" maxsize="120%" stretchy="true" form="postfix">}</mo><mo minsize="180%" maxsize="180%" stretchy="true" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">\Big[ \big\{ y \big\} \Big]</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo minsize="240%" maxsize="240%" stretchy="true" form="prefix">⟨</mo><mi>v</mi><mo minsize="240%" maxsize="240%" stretchy="true" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">\bigg\langle v \bigg\rangle</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo minsize="120%" maxsize="120%" stretchy="true" form="prefix">(</mo><mi>a</mi><mi minsize="120%" maxsize="120%" stretchy="true">/</mi><mi>b</mi></mrow><annotation encoding="application/x-tex">\big( a \big/ b</annotation></semantics></math></p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo minsize="300%" maxsize="300%" stretchy="true" form="prefix">(</mo><munder><mo>∑</mo><mi>i</mi></munder><msub><mi>a</mi><mi>i</mi></msub><mo minsize="300%" maxsize="300%" stretchy="true" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\Bigg( \sum_{i} a_i \Bigg)</annotation></semantics></math></p>

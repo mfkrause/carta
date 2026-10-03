@@ -13,8 +13,8 @@ use std::sync::Arc;
 use carta_ast::{Block, Document, Inline};
 
 pub mod budget;
-#[cfg(feature = "container")]
-#[cfg_attr(docsrs, doc(cfg(feature = "container")))]
+#[cfg(any(feature = "container", feature = "xml"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "container", feature = "xml"))))]
 pub mod container;
 pub mod extensions;
 pub mod media;
@@ -136,11 +136,9 @@ impl Default for ReaderOptions {
     }
 }
 
-/// How math is presented by a format that offers a choice of renderers (the HTML family). The
-/// method decides both the inline markup inside a `span.math` and which loader a standalone document
-/// pulls in to typeset it: a MathJax (or plain) document carries the source TeX wrapped in `\(…\)` /
-/// `\[…\]`, whereas a KaTeX document carries the bare TeX, which its in-browser loader reads from the
-/// span directly.
+/// How math is presented by the HTML family of formats.
+/// MathJax and plain output carry delimited TeX; KaTeX carries bare TeX in a math span.
+/// MathML embeds structured math without a script loader.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum MathMethod {
     /// No renderer: the `\(…\)` / `\[…\]` markup is left for the reader to typeset (or read as
@@ -152,6 +150,8 @@ pub enum MathMethod {
     /// KaTeX, loaded from the given asset base URL (the directory holding `katex.min.js` and its
     /// stylesheet). The span carries bare TeX without delimiters.
     Katex(String),
+    /// Presentation MathML with a TeX source annotation.
+    Mathml,
 }
 
 /// How a writer supplies a table of contents.

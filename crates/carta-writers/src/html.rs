@@ -358,11 +358,11 @@ pub(crate) fn fill_width(options: &WriterOptions) -> usize {
     options.columns.unwrap_or(FILL_COLUMN)
 }
 
-/// Which math markup an html writer emits for the chosen renderer. KaTeX reads bare TeX from the
-/// span; every other method keeps the delimiters.
+/// Which math markup an HTML writer emits for the chosen renderer.
 fn math_output(options: &WriterOptions) -> MathOutput {
     match options.math_method {
         MathMethod::Katex(_) => MathOutput::Raw,
+        MathMethod::Mathml => MathOutput::Mathml,
         MathMethod::Plain | MathMethod::MathJax(_) => MathOutput::Delimited,
     }
 }
@@ -426,9 +426,7 @@ enum AttrOrder {
     Header,
 }
 
-/// How a `span.math` carries its TeX. A typesetting loader that scans the page for delimited math
-/// (MathJax) needs the `\(…\)` / `\[…\]` wrappers; KaTeX reads the bare TeX from the span and so
-/// takes [`MathOutput::Raw`].
+/// How math is rendered in an HTML fragment.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum MathOutput {
     /// The TeX is wrapped in `\(…\)` (inline) or `\[…\]` (display). The default.
@@ -436,6 +434,8 @@ enum MathOutput {
     Delimited,
     /// The span carries the bare TeX with no delimiters.
     Raw,
+    /// Structured MathML with a TeX source annotation.
+    Mathml,
 }
 
 /// Carries the footnote bodies accumulated while rendering, so notes can be collected inline and

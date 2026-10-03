@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo accent="true">⏞</mo></mover><annotation encoding="application/x-tex">\overbrace{a+b}</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><munder><mrow><mi>x</mi><mo>+</mo><mi>y</mi><mo>+</mo><mi>z</mi></mrow><mo accent="true">⏟</mo></munder><annotation encoding="application/x-tex">\underbrace{x+y+z}</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo accent="true">⏞</mo></mover><mi>n</mi></mover><annotation encoding="application/x-tex">\overbrace{a+b}^{n}</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><munder><munder><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo accent="true">⏟</mo></munder><mi>k</mi></munder><annotation encoding="application/x-tex">\underbrace{x+y}_{k}</annotation></semantics></math></p>

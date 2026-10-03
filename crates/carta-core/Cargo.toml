@@ -25,7 +25,9 @@ workspace = true
 # The template engine (`carta_core::template`); enabled by `carta`'s `standalone` feature.
 template = []
 # Container packaging (`carta_core::container`: ZIP, XML emitter); enabled by `carta`'s `write-epub`.
-container = ["dep:miniz_oxide"]
+container = ["xml", "dep:miniz_oxide"]
+# XML emission without archive support.
+xml = []
 # Highlighting configuration in the writer options; enabled by `carta-writers`'s `highlight`.
 highlight = ["dep:carta-highlight"]
 # `Error::Json` and `serde_json`; enabled by format features that (de)serialize JSON.

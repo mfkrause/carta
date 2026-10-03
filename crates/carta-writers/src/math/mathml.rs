@@ -1,5 +1,4 @@
-//! Presentation MathML backend: lowers the shared math parse tree ([`super::parse`]) to the
-//! MathML grammar an `OpenDocument` formula object carries.
+//! Presentation MathML for HTML documents and embedded formula objects.
 //!
 //! The tree is the same one the other backends consume; here it is walked into a small element tree
 //! and serialized. A single-element sequence renders bare, a longer one inside an `<mrow>`, which
@@ -24,13 +23,30 @@ const MAX_DEPTH: usize = 256;
 
 /// Convert TeX math source to a Presentation MathML `<math>` element: `display="inline"` for inline
 /// math, `display="block"` for display math. Returns `None` only when the source cannot be parsed.
-pub(crate) fn to_mathml(tex: &str, display: bool) -> Option<String> {
+pub(crate) fn to_mathml(tex: &str, display: bool, annotate: bool) -> Option<String> {
     let atoms = parse::parse(tex)?;
     let body = lower_seq(&atoms, display, 0);
-    let mut root = Element::new("math")
-        .attr("xmlns", "http://www.w3.org/1998/Math/MathML")
-        .attr("display", if display { "block" } else { "inline" });
-    root.children = if body.is_empty() {
+    let display = if display { "block" } else { "inline" };
+    let mut root = if annotate {
+        Element::new("math")
+            .attr("display", display)
+            .attr("xmlns", "http://www.w3.org/1998/Math/MathML")
+    } else {
+        Element::new("math")
+            .attr("xmlns", "http://www.w3.org/1998/Math/MathML")
+            .attr("display", display)
+    };
+    root.children = if annotate {
+        vec![Node::Element(
+            Element::new("semantics")
+                .node(group(body))
+                .node(Node::Element(
+                    Element::new("annotation")
+                        .attr("encoding", "application/x-tex")
+                        .text(tex),
+                )),
+        )]
+    } else if body.is_empty() {
         Vec::new()
     } else {
         vec![group(body)]

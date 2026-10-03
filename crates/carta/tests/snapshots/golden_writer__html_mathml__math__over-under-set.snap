@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mi>b</mi><mi>a</mi></mover><annotation encoding="application/x-tex">\overset{a}{b}</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><munder><mi>b</mi><mi>a</mi></munder><annotation encoding="application/x-tex">\underset{a}{b}</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mo>=</mo><mtext mathvariant="normal">def</mtext></mover><annotation encoding="application/x-tex">\stackrel{\text{def}}{=}</annotation></semantics></math></p>

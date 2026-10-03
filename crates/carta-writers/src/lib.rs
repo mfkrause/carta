@@ -35,6 +35,7 @@ mod grid;
 mod highlight;
 
 #[cfg(any(
+    feature = "html",
     feature = "commonmark",
     feature = "markdown",
     feature = "gfm",

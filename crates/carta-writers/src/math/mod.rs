@@ -1,6 +1,6 @@
 //! TeX math conversion shared by every writer.
 //!
-//! A single tokenizer/parser ([`parse`]) turns TeX math source into one small expression tree; two
+//! A single tokenizer/parser ([`parse`]) turns TeX math source into one small expression tree;
 //! backends lower that tree:
 //!
 //! - [`to_inlines`] produces a writer-agnostic [`carta_ast::Inline`] list (variables italicised,
@@ -12,7 +12,7 @@
 //! - [`to_typst`] produces Typst math markup (the inner content, no surrounding `$`). Typst has
 //!   native math, so this translation succeeds for almost all well-formed input.
 //!
-//! Both entry points are panic-free and bounded against pathological nesting.
+//! All entry points are panic-free and bounded against pathological nesting.
 
 // Text writers render the inline lowering; container-only builds compile it but never call it.
 #[cfg_attr(
@@ -28,8 +28,7 @@
     allow(dead_code)
 )]
 mod inlines;
-// Presentation MathML for the odt writer's formula objects; only that feature pulls in the escaping support.
-#[cfg(feature = "odt")]
+#[cfg(any(feature = "html", feature = "odt"))]
 mod mathml;
 // Office Math markup for the docx writer; only that feature pulls in the escaping support.
 #[cfg(feature = "docx")]
@@ -75,12 +74,19 @@ pub(crate) fn to_omml(tex: &str, display: bool) -> Option<String> {
     omml::to_omml(tex, display)
 }
 
-/// Convert TeX math source to a Presentation MathML `<math>` element for an embedded formula object:
+/// Convert TeX math source to a Presentation MathML `<math>` element:
 /// `display="inline"` for inline math, `display="block"` for display math. Returns `None` only when
 /// the source cannot be parsed, so the caller emits the verbatim source instead.
 #[cfg(feature = "odt")]
 pub(crate) fn to_mathml(tex: &str, display: bool) -> Option<String> {
-    mathml::to_mathml(tex, display)
+    mathml::to_mathml(tex, display, false)
+}
+
+/// Convert TeX math to Presentation MathML with an escaped source annotation.
+/// Returns `None` when the source cannot be parsed.
+#[cfg(feature = "html")]
+pub(crate) fn to_mathml_annotated(tex: &str, display: bool) -> Option<String> {
+    mathml::to_mathml(tex, display, true)
 }
 
 /// Convert TeX math source to Typst math markup (the inner content, no surrounding `$`), or `None`

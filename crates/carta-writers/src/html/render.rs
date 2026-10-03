@@ -25,7 +25,7 @@ use super::helpers::{render_id_into, render_keyvals_into};
 use super::{
     AttrOrder, BREAK, FLUSH, Flavor, MathOutput, SEMANTIC_SPAN_TAGS, SOFT, STACK_RED_ZONE,
     STACK_SEGMENT, State, escape_attr, escape_attr_into, escape_text_into, fill_math,
-    fragment_prefix,
+    fragment_prefix, protect,
 };
 
 impl State {
@@ -607,6 +607,13 @@ impl State {
             Inline::SoftBreak => out.push(SOFT),
             Inline::LineBreak => out.push_str("<br />\n"),
             Inline::Math(kind, text) => {
+                if self.math == MathOutput::Mathml
+                    && let Some(mathml) =
+                        crate::math::to_mathml_annotated(text, *kind == MathType::DisplayMath)
+                {
+                    out.push_str(&protect(&mathml));
+                    return;
+                }
                 let (class, delimiters) = match kind {
                     MathType::InlineMath => ("inline", ("\\(", "\\)")),
                     MathType::DisplayMath => ("display", ("\\[", "\\]")),
@@ -614,6 +621,10 @@ impl State {
                 let (open, close) = match self.math {
                     MathOutput::Delimited => delimiters,
                     MathOutput::Raw => ("", ""),
+                    MathOutput::Mathml => match kind {
+                        MathType::InlineMath => ("$", "$"),
+                        MathType::DisplayMath => ("$$", "$$"),
+                    },
                 };
                 let _ = write!(
                     out,

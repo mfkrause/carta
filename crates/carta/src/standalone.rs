@@ -471,6 +471,9 @@ fn insert_output_vars(
     }
     match &options.math_method {
         MathMethod::Plain => {}
+        MathMethod::Mathml => {
+            context.insert("mathml".to_owned(), Value::Bool(true));
+        }
         MathMethod::MathJax(url) => {
             context.insert("mathjax".to_owned(), Value::Bool(true));
             context.insert("mathjaxurl".to_owned(), Value::Str(url.clone()));

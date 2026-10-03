@@ -10,6 +10,38 @@ use std::collections::BTreeMap;
 use carta::ast::MetaValue;
 use carta::{ReaderOptions, WriterOptions, convert_text};
 
+#[cfg(feature = "write-html")]
+#[test]
+fn mathml_standalone_needs_no_script_loader() {
+    let mut options = WriterOptions::default();
+    options.standalone = true;
+    options.math_method = carta::MathMethod::Mathml;
+    let output = convert_text(
+        "markdown",
+        "html",
+        "$x$",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert!(output.contains("<math display=\"inline\""));
+    assert!(!output.contains("<script"));
+
+    options.template = Some(
+        "$if(mathml)$MathML$endif$|$if(mathjax)$MathJax$endif$|$if(katex)$KaTeX$endif$|$body$"
+            .into(),
+    );
+    let output = convert_text(
+        "markdown",
+        "html",
+        "$x$",
+        &ReaderOptions::default(),
+        &options,
+    )
+    .unwrap();
+    assert!(output.starts_with("MathML|||<p><math"));
+}
+
 /// Document with a mix of metadata kinds: an inline title (markup), a boolean, a list, and two keys
 /// that also appear in higher precedence layers.
 const INPUT: &str = "\

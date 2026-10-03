@@ -102,6 +102,12 @@ printf '%s' 'unknown' >"$inputs/fifth.unknown"
 "$OX" -t json "$inputs/fourth.rst" >"$inputs/second.json"
 
 run_diff text "commands/default-formats" "$inputs/first.md" "" ""
+printf '%s\n' '$x^2$ and $x < y$' '' '$$\frac{a}{b}$$' '' '$\frac{a}$' >"$inputs/math.md"
+for target in html html4; do
+  run_diff text "commands/mathml-$target" "$inputs/math.md" \
+    "-f markdown -t $target --mathml --wrap=none" \
+    "-f markdown -t $target --mathml --wrap=none"
+done
 for filename in first.md second.HTML third.tex fourth.rst fifth.unknown; do
   run_diff json "commands/infer-$filename" /dev/null \
     "-t json $inputs/$filename" "-t json $inputs/$filename"

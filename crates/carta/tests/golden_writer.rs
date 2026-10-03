@@ -21,6 +21,27 @@ mod common;
 use carta::{ReaderOptions, WriterOptions};
 use common::{corpus_cases, corpus_groups, exclusions, is_excluded};
 
+#[cfg(feature = "write-html")]
+#[test]
+fn writer_mathml_output_snapshots_html() {
+    let mut options = WriterOptions::default();
+    options.math_method = carta::MathMethod::Mathml;
+    for case in corpus_cases("ast")
+        .into_iter()
+        .filter(|case| case.group == "math")
+    {
+        let output = carta::convert_text(
+            "json",
+            "html",
+            &case.input,
+            &ReaderOptions::default(),
+            &options,
+        )
+        .unwrap();
+        insta::assert_snapshot!(format!("html_mathml__math__{}", case.label), output);
+    }
+}
+
 const TARGETS: &[&str] = &[
     "html",
     "docbook",

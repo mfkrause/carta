@@ -1,0 +1,8 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mtable><mtr><mtd columnalign="right" style="text-align: right"><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn></mtd></mtr><mtr><mtd columnalign="right" style="text-align: right"><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{aligned} x^2 + 1 \\ \frac{a}{b} \end{aligned}</annotation></semantics></math></p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mtable><mtr><mtd columnalign="right" style="text-align: right; padding-right: 0"><mi>a</mi></mtd><mtd columnalign="left" style="text-align: left; padding-left: 0"><mo>=</mo><mi>b</mi><mo>+</mo><mi>c</mi></mtd></mtr><mtr><mtd columnalign="right" style="text-align: right; padding-right: 0"><mi>d</mi></mtd><mtd columnalign="left" style="text-align: left; padding-left: 0"><mo>=</mo><mi>e</mi></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{aligned} a &amp;= b + c \\ d &amp;= e \end{aligned}</annotation></semantics></math></p>
+<p>stack
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mtable><mtr><mtd columnalign="right" style="text-align: right"><mi>p</mi></mtd></mtr><mtr><mtd columnalign="right" style="text-align: right"><mi>q</mi></mtd></mtr><mtr><mtd columnalign="right" style="text-align: right"><mi>r</mi></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{aligned} p \\ q \\ r \end{aligned}</annotation></semantics></math></p>

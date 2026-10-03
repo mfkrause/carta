@@ -1,0 +1,7 @@
+---
+source: crates/carta/tests/golden_writer.rs
+expression: output
+---
+<p><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mo>→</mo><mi>f</mi></mover><annotation encoding="application/x-tex">\xrightarrow{f}</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mo>←</mo><mi>g</mi></mover><annotation encoding="application/x-tex">\xleftarrow{g}</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><munderover><mo>→</mo><mi>u</mi><mi>f</mi></munderover><annotation encoding="application/x-tex">\xrightarrow[u]{f}</annotation></semantics></math></p>
