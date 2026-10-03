@@ -352,13 +352,12 @@ fn read_dom(xml: &str) -> Result<Vec<Node>, ParseError> {
             }
             Ok(Event::Text(e)) => {
                 if let Some(top) = stack.last_mut() {
-                    let raw = String::from_utf8_lossy(e.as_ref());
-                    top.text.push_str(&unescape_xml(&raw));
+                    top.text.push_str(&unescape_xml(e.as_ref()));
                 }
             }
             Ok(Event::CData(e)) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&String::from_utf8_lossy(e.as_ref()));
+                    top.text.push_str(e.as_ref());
                 }
             }
             Ok(Event::Eof) => break,
@@ -374,11 +373,11 @@ fn read_dom(xml: &str) -> Result<Vec<Node>, ParseError> {
 }
 
 fn element_from_start(e: &quick_xml::events::BytesStart<'_>) -> Node {
-    let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+    let name = e.name().as_ref().to_string();
     let mut attrs = BTreeMap::new();
     for attr in e.attributes().flatten() {
-        let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
-        let value = unescape_xml(&String::from_utf8_lossy(attr.value.as_ref()));
+        let key = attr.key.as_ref().to_string();
+        let value = unescape_xml(attr.value.as_ref());
         attrs.insert(key, value);
     }
     Node {
@@ -470,6 +469,17 @@ mod tests {
     #[test]
     fn resolves_numeric_references() {
         assert_eq!(unescape_xml("&#37;&#x25;"), "%%");
+    }
+
+    #[test]
+    fn reads_unicode_text_and_cdata() {
+        let nodes =
+            read_dom(r#"<élément clé="été &amp; hiver">café<![CDATA[<雪>&amp;]]></élément>"#)
+                .expect("parse");
+        let node = &nodes[0];
+        assert_eq!(node.name, "élément");
+        assert_eq!(node.attr("clé"), Some("été & hiver"));
+        assert_eq!(node.text, "café<雪>&amp;");
     }
 
     #[test]
