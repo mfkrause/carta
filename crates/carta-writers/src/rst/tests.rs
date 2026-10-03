@@ -118,6 +118,70 @@ fn image_run_names_dedupe_across_registrations() {
 }
 
 #[test]
+fn table_measurement_keeps_note_numbers_and_image_names() {
+    use carta_ast::{Alignment, Cell, ColSpec, TableBody};
+
+    let image = Inline::Image(
+        Box::default(),
+        Vec::new(),
+        Box::new(Target {
+            url: "a.png".into(),
+            ..Target::default()
+        }),
+    );
+    let note = Inline::Note(vec![Block::Para(vec![Inline::Str("note".into())])]);
+    let cell = Cell {
+        attr: Attr::default(),
+        align: Alignment::AlignDefault,
+        row_span: 1,
+        col_span: 1,
+        content: vec![Block::Para(vec![
+            Inline::Str("long cell text".into()),
+            Inline::Space,
+            note,
+            Inline::Space,
+            image,
+        ])],
+    };
+    let spec = ColSpec {
+        align: Alignment::AlignDefault,
+        width: ColWidth::ColWidthDefault,
+    };
+    let document = Document {
+        blocks: vec![Block::Table(Box::new(Table {
+            col_specs: vec![spec.clone(), spec],
+            bodies: vec![TableBody {
+                body: vec![Row {
+                    cells: vec![cell.clone(), cell],
+                    ..Row::default()
+                }],
+                ..TableBody::default()
+            }],
+            ..Table::default()
+        }))],
+        ..Document::default()
+    };
+    for (columns, border) in [(72, '='), (10, '+')] {
+        let mut options = WriterOptions::default();
+        options.columns = Some(columns);
+        let output = RstWriter.write(&document, &options).unwrap();
+        assert!(output.starts_with(border));
+        for number in 1..=2 {
+            assert_eq!(output.matches(&format!(" [{number}]_")).count(), 1);
+            assert_eq!(output.matches(&format!(".. [{number}]\n")).count(), 1);
+            assert_eq!(
+                output
+                    .matches(&format!(".. |image{number}| image:: a.png"))
+                    .count(),
+                1
+            );
+        }
+        assert!(!output.contains(".. [3]"));
+        assert!(!output.contains("image3"));
+    }
+}
+
+#[test]
 fn deeply_nested_tables_render_without_compounding_measurement() {
     // without the nesting cap, measurement renders would compound exponentially in depth
     use carta_ast::{Alignment, Cell, ColSpec, TableBody};

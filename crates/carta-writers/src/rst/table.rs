@@ -27,13 +27,8 @@ impl State {
         self.table_depth += 1;
         let body = if columns == 0 {
             String::new()
-        } else if self.table_depth > MAX_MEASURED_TABLE_NESTING {
-            self.grid_table(table, columns)
         } else {
-            match self.simple_layout(table, columns) {
-                Some(widths) => self.simple_table(table, &widths),
-                None => self.grid_table(table, columns),
-            }
+            self.table_body(table, columns)
         };
         self.table_depth = self.table_depth.saturating_sub(1);
         if budget::exhausted() {
@@ -48,12 +43,10 @@ impl State {
         rendered
     }
 
-    /// Decide whether the table renders in simple form, returning its per-column content widths when
-    /// so. A single column, a row span, or an explicit column width forces the grid form; otherwise
-    /// the simple form is used only when the laid-out width fits the fill column.
-    fn simple_layout(&mut self, table: &Table, columns: usize) -> Option<Vec<usize>> {
+    /// Whether the table can use the simple form if its measured width fits the fill column.
+    fn permits_simple_table(table: &Table, columns: usize) -> bool {
         if columns <= 1 {
-            return None;
+            return false;
         }
         let rows: Vec<&Row> = table
             .head
@@ -63,7 +56,7 @@ impl State {
             .chain(table.foot.rows.iter())
             .collect();
         if rows.is_empty() {
-            return None;
+            return false;
         }
         let has_rowspan = rows
             .iter()
@@ -72,50 +65,7 @@ impl State {
             .col_specs
             .iter()
             .any(|spec| matches!(spec.width, ColWidth::ColWidth(fraction) if fraction > 0.0));
-        if has_rowspan || has_explicit {
-            return None;
-        }
-        let widths = self.simple_widths(&rows, columns);
-        let total = widths.iter().sum::<usize>() + columns.saturating_sub(1);
-        if total > self.width {
-            None
-        } else {
-            Some(widths)
-        }
-    }
-
-    /// The natural display width of each column: the widest single-column cell, with a spanning
-    /// cell's whole content absorbed into the first column it covers.
-    fn simple_widths(&mut self, rows: &[&Row], columns: usize) -> Vec<usize> {
-        let mut widths = vec![0usize; columns];
-        let snapshot = self.snapshot();
-        budget::refunded(|| {
-            for row in rows {
-                let mut col = 0;
-                for cell in &row.cells {
-                    if col >= columns {
-                        break;
-                    }
-                    let span = grid::span_count(cell.col_span).min(columns - col);
-                    let lines = self.cell_lines(&cell.content, SIMPLE_WIDTH);
-                    let mut content = lines
-                        .iter()
-                        .map(|line| display_width(line))
-                        .max()
-                        .unwrap_or(0);
-                    // A trailing cell space is trimmed from the field but still holds a column of width.
-                    if cell_ends_with_space(&cell.content) {
-                        content += 1;
-                    }
-                    if let Some(slot) = widths.get_mut(col) {
-                        *slot = (*slot).max(content);
-                    }
-                    col += span;
-                }
-            }
-        });
-        self.restore(snapshot);
-        widths
+        !has_rowspan && !has_explicit
     }
 
     /// A simple table: `=` rules above and below, plus one under a non-empty header. Cells render at
@@ -193,10 +143,8 @@ impl State {
         }
     }
 
-    /// A grid table: bordered cells whose widths come from explicit fractional specs or a
-    /// content-proportional fit; the engine in [`crate::grid`] draws the borders without alignment
-    /// colons. Not indented.
-    fn grid_table(&mut self, table: &Table, columns: usize) -> String {
+    /// Measure cells once to select the simple or grid form and size its columns.
+    fn table_body(&mut self, table: &Table, columns: usize) -> String {
         let head: Vec<&Row> = table.head.rows.iter().collect();
         let body = body_rows(table);
         let foot: Vec<&Row> = table.foot.rows.iter().collect();
@@ -206,6 +154,9 @@ impl State {
 
         let mut natural = vec![0usize; columns];
         let mut minword = vec![0usize; columns];
+        let mut simple = vec![0usize; columns];
+        let permits_simple = self.table_depth <= MAX_MEASURED_TABLE_NESTING
+            && Self::permits_simple_table(table, columns);
         if self.table_depth > MAX_MEASURED_TABLE_NESTING {
             // Measuring re-renders every cell, compounding per nesting level; past the cap,
             // columns take an even share of the fill width, keeping total work linear.
@@ -220,10 +171,15 @@ impl State {
                     (&body, &body_layout),
                     (&foot, &foot_layout),
                 ] {
-                    self.measure_grid(rows, layout, &mut natural, &mut minword);
+                    self.measure_columns(rows, layout, &mut natural, &mut minword, &mut simple);
                 }
             });
             self.restore(snapshot);
+        }
+
+        if permits_simple && simple.iter().sum::<usize>() + columns.saturating_sub(1) <= self.width
+        {
+            return self.simple_table(table, &simple);
         }
 
         let colspans: Vec<(usize, usize)> = [&head_layout, &body_layout, &foot_layout]
@@ -256,14 +212,14 @@ impl State {
         })
     }
 
-    /// Accumulate the natural and longest-word widths of every single-column cell into the
-    /// per-column maxima, rendering each cell at an unconstrained width.
-    fn measure_grid(
+    /// Accumulate simple and grid column widths from each cell's unconstrained rendering.
+    fn measure_columns(
         &mut self,
         rows: &[&Row],
         layout: &[Vec<(usize, usize)>],
         natural: &mut [usize],
         minword: &mut [usize],
+        simple: &mut [usize],
     ) {
         for (row_index, row) in rows.iter().enumerate() {
             for (cell_index, cell) in row.cells.iter().enumerate() {
@@ -275,6 +231,11 @@ impl State {
                 };
                 let lines = self.cell_lines(&cell.content, SIMPLE_WIDTH);
                 let (width, word) = measure_unbreakable(&lines);
+                if let Some(value) = simple.get_mut(start) {
+                    // A trailing cell space is trimmed from the field but still holds a column of width.
+                    let trailing_space = usize::from(cell_ends_with_space(&cell.content));
+                    *value = (*value).max(width + trailing_space);
+                }
                 let share_natural = width.div_ceil(span.max(1));
                 let share_word = word.div_ceil(span.max(1));
                 for column in start..start + span {
