@@ -457,7 +457,7 @@ impl Atom {
 
 /// Parse TeX math source into a flat atom list, or `None` if it nests too deep or is malformed.
 pub(super) fn parse(src: &str) -> Option<Vec<Atom>> {
-    let tokens = expand_macros(tokenize(src));
+    let tokens = expand_macros(tokenize(src))?;
     let mut pos = 0;
     let mut atoms = parse_atoms(&tokens, &mut pos, 0, false)?;
     if pos != tokens.len() {

@@ -98,11 +98,9 @@ pub(super) fn tokenize(src: &str) -> Vec<Token> {
     tokens
 }
 
-/// The most user-macro expansions performed for one expression, and the most tokens the expanded
-/// stream may hold. Both bound a recursive definition (`\renewcommand{\a}{\a\a}`) so expansion always
-/// halts; once either ceiling is reached, remaining uses stay unexpanded and fall back to verbatim.
+/// Maximum macro substitutions and total tokens scanned or copied across all expansion passes.
 const MACRO_EXPANSION_BUDGET: usize = 4096;
-const MACRO_EXPANSION_MAX_TOKENS: usize = 65_536;
+const MACRO_TOKEN_BUDGET: usize = 65_536;
 
 /// One `\newcommand`/`\renewcommand` definition: its mandatory-argument count and its replacement
 /// body, in which each `#n` placeholder is recorded as a parameter reference.
@@ -257,9 +255,9 @@ fn read_macro_arguments(
 
 /// Expand `\newcommand`/`\renewcommand` macros in a token stream: collect every definition and drop
 /// it, then replace each later use with its body, substituting `#n` placeholders with the supplied
-/// arguments. A stream that defines no macro is returned untouched. Expansion is bounded so a
-/// self-referential definition halts, leaving any still-unexpanded use to fall back to verbatim.
-pub(super) fn expand_macros(tokens: Vec<Token>) -> Vec<Token> {
+/// arguments. A stream that defines no macro is returned untouched. Returns `None` when expansion
+/// exceeds its work limits, so the whole expression falls back to verbatim.
+pub(super) fn expand_macros(tokens: Vec<Token>) -> Option<Vec<Token>> {
     let mut macros: std::collections::BTreeMap<String, Macro> = std::collections::BTreeMap::new();
     let mut stripped = Vec::new();
     let mut pos = 0;
@@ -276,11 +274,13 @@ pub(super) fn expand_macros(tokens: Vec<Token>) -> Vec<Token> {
         pos += 1;
     }
     if macros.is_empty() {
-        return tokens;
+        return Some(tokens);
     }
     let mut current = stripped;
     let mut budget = MACRO_EXPANSION_BUDGET;
+    let mut token_budget = MACRO_TOKEN_BUDGET;
     loop {
+        token_budget = token_budget.checked_sub(current.len())?;
         let mut expanded = Vec::new();
         let mut changed = false;
         let mut index = 0;
@@ -294,14 +294,12 @@ pub(super) fn expand_macros(tokens: Vec<Token>) -> Vec<Token> {
                     read_macro_arguments(&current, &mut after, definition.params)
                 {
                     for piece in &definition.body {
-                        match piece {
-                            BodyPiece::Literal(token) => expanded.push(token.clone()),
-                            BodyPiece::Param(reference) => {
-                                if let Some(argument) = arguments.get(reference - 1) {
-                                    expanded.extend(argument.iter().cloned());
-                                }
-                            }
-                        }
+                        let replacement = match piece {
+                            BodyPiece::Literal(token) => std::slice::from_ref(token),
+                            BodyPiece::Param(reference) => arguments.get(reference - 1)?.as_slice(),
+                        };
+                        token_budget = token_budget.checked_sub(replacement.len())?;
+                        expanded.extend(replacement.iter().cloned());
                     }
                     index = after;
                     changed = true;
@@ -309,12 +307,16 @@ pub(super) fn expand_macros(tokens: Vec<Token>) -> Vec<Token> {
                     continue;
                 }
             }
+            token_budget = token_budget.checked_sub(1)?;
             expanded.push(tok.clone());
             index += 1;
         }
         current = expanded;
-        if !changed || budget == 0 || current.len() > MACRO_EXPANSION_MAX_TOKENS {
-            return current;
+        if !changed {
+            return Some(current);
+        }
+        if budget == 0 {
+            return None;
         }
     }
 }

@@ -5,6 +5,38 @@ use super::{emph, str_inline, var};
 use carta_ast::Inline;
 
 #[test]
+fn recursive_macros_fall_back_to_source() {
+    for source in [
+        r"\newcommand{\alpha}{\alpha}\alpha",
+        r"\newcommand{\alpha}{x\alpha}\alpha",
+        r"\newcommand{\alpha}{\alpha\alpha}\alpha",
+        r"\newcommand{\alpha}{\beta}\newcommand{\beta}{\alpha}\alpha",
+    ] {
+        assert_eq!(to_inlines(source), None);
+        assert_eq!(to_typst(source), None);
+    }
+}
+
+#[test]
+fn finite_macros_expand_with_arguments() {
+    assert_eq!(
+        to_typst(r"\newcommand{\a}[2]{#2+#1}\renewcommand{\b}{\a{1}{2}}\b"),
+        to_typst("2+1")
+    );
+    assert_eq!(
+        to_inlines(r"\newcommand{\a}[2]{#2+#1}\renewcommand{\b}{\a{1}{2}}\b"),
+        to_inlines("2+1")
+    );
+}
+
+#[test]
+fn macro_argument_copying_is_bounded() {
+    let source = format!(r"\newcommand{{\a}}[1]{{#1#1}}\a{{{}}}", "x".repeat(40_000));
+    assert_eq!(to_inlines(&source), None);
+    assert_eq!(to_typst(&source), None);
+}
+
+#[test]
 fn malformed_input_returns_without_panic() {
     for bad in [
         "{",
